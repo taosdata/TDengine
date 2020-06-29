@@ -177,7 +177,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   for (int32_t i = 0; i < numOfBuffer; ++i) {
     int32_t len = pMemBuffer[i]->fileMeta.flushoutData.nLength;
     if (len == 0) {
-      tscTrace("%p no data retrieved from orderOfVnode:%d", pSql, i + 1);
+      tscDebug("%p no data retrieved from orderOfVnode:%d", pSql, i + 1);
       continue;
     }
 
@@ -186,7 +186,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   if (numOfFlush == 0 || numOfBuffer == 0) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-    tscTrace("%p retrieved no data", pSql);
+    tscDebug("%p retrieved no data", pSql);
 
     return;
   }
@@ -219,7 +219,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->numOfVnode = numOfBuffer;
 
   pReducer->pDesc = pDesc;
-  tscTrace("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
+  tscDebug("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
 
   int32_t idx = 0;
   for (int32_t i = 0; i < numOfBuffer; ++i) {
@@ -242,7 +242,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
       ds->pageId = 0;
       ds->rowIdx = 0;
 
-      tscTrace("%p load data from disk into memory, orderOfVnode:%d, total:%d", pSql, i + 1, idx + 1);
+      tscDebug("%p load data from disk into memory, orderOfVnode:%d, total:%d", pSql, i + 1, idx + 1);
       tExtMemBufferLoadData(pMemBuffer[i], &(ds->filePage), j, 0);
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", ds->filePage.num);
@@ -256,7 +256,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 #endif
       
       if (ds->filePage.num == 0) {  // no data in this flush, the index does not increase
-        tscTrace("%p flush data is empty, ignore %d flush record", pSql, idx);
+        tscDebug("%p flush data is empty, ignore %d flush record", pSql, idx);
         tfree(ds);
         continue;
       }
@@ -315,7 +315,11 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pReducer->finalRowSize = tscGetResRowLength(pQueryInfo->exprList);
   pReducer->resColModel = finalmodel;
-  pReducer->resColModel->capacity = pReducer->nResultBufSize / pReducer->finalRowSize;
+  pReducer->resColModel->capacity = pReducer->nResultBufSize;
+  assert(pReducer->finalRowSize > 0);
+  if (pReducer->finalRowSize > 0) {
+    pReducer->resColModel->capacity /= pReducer->finalRowSize;
+  }
   assert(pReducer->finalRowSize <= pReducer->rowSize);
 
   pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
@@ -477,10 +481,10 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     return;
   }
 
-  tscTrace("%p start to free local reducer", pSql);
+  tscDebug("%p start to free local reducer", pSql);
   SSqlRes *pRes = &(pSql->res);
   if (pRes->pLocalReducer == NULL) {
-    tscTrace("%p local reducer has been freed, abort", pSql);
+    tscDebug("%p local reducer has been freed, abort", pSql);
     return;
   }
 
@@ -494,7 +498,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     while ((status = atomic_val_compare_exchange_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY,
                                                     TSC_LOCALREDUCE_TOBE_FREED)) == TSC_LOCALREDUCE_IN_PROGRESS) {
       taosMsleep(100);
-      tscTrace("%p waiting for delete procedure, status: %d", pSql, status);
+      tscDebug("%p waiting for delete procedure, status: %d", pSql, status);
     }
 
     pLocalReducer->pFillInfo = taosDestoryFillInfo(pLocalReducer->pFillInfo);
@@ -543,10 +547,10 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     pLocalReducer->numOfCompleted = 0;
     free(pLocalReducer);
   } else {
-    tscTrace("%p already freed or another free function is invoked", pSql);
+    tscDebug("%p already freed or another free function is invoked", pSql);
   }
 
-  tscTrace("%p free local reducer finished", pSql);
+  tscDebug("%p free local reducer finished", pSql);
 }
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, SColumnModel *pModel) {
@@ -1407,7 +1411,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   tscResetForNextRetrieve(pRes);
 
   if (pSql->signature != pSql || pRes == NULL || pRes->pLocalReducer == NULL) {  // all data has been processed
-    tscTrace("%p %s call the drop local reducer", pSql, __FUNCTION__);
+    tscDebug("%p %s call the drop local reducer", pSql, __FUNCTION__);
     tscDestroyLocalReducer(pSql);
     return 0;
   }

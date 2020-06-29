@@ -33,10 +33,12 @@ extern "C" {
 
 extern int tsdbDebugFlag;
 
-#define tsdbError(...) { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR TDB ", tsdbDebugFlag, __VA_ARGS__); }}
-#define tsdbWarn(...)  { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN TDB ", tsdbDebugFlag, __VA_ARGS__); }}
-#define tsdbTrace(...) { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }}
-#define tsdbPrint(...) { taosPrintLog("TDB ", 255, __VA_ARGS__); }
+#define tsdbFatal(...) { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", 255, __VA_ARGS__); }}
+#define tsdbError(...) { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", 255, __VA_ARGS__); }}
+#define tsdbWarn(...)  { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN  ", 255, __VA_ARGS__); }}
+#define tsdbInfo(...)  { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB INFO  ", 255, __VA_ARGS__); }}
+#define tsdbDebug(...) { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB DEBUG ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbTrace(...) { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB TRACE ", tsdbDebugFlag, __VA_ARGS__); }}
 
 #define TSDB_MAX_TABLE_SCHEMAS 16
 #define TSDB_FILE_HEAD_SIZE 512
@@ -381,8 +383,8 @@ int   tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
 void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
-int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SDataCols* pDataCols, int blkIdx, int16_t* colIds, int numOfColIds);
-int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SDataCols* target);
+int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, int16_t* colIds, int numOfColIds);
+int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId

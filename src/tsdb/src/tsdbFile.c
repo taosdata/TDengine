@@ -114,7 +114,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
       }
     }
 
-    tsdbTrace("vgId:%d file group %d init", REPO_ID(pRepo), fid);
+    tsdbDebug("vgId:%d file group %d init", REPO_ID(pRepo), fid);
 
     pFileH->pFGroup[pFileH->nFGroups++] = fileGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);

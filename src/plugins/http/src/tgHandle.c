@@ -266,7 +266,7 @@ int tgReadSchema(char *fileName) {
     return -1;
   }
 
-  httpPrint("open telegraf schema file:%s success", fileName);
+  httpInfo("open telegraf schema file:%s success", fileName);
   fseek(fp, 0, SEEK_END);
   int32_t contentSize = (int32_t)ftell(fp);
   if (contentSize <= 0) {
@@ -290,7 +290,7 @@ int tgReadSchema(char *fileName) {
 
   free(content);
   fclose(fp);
-  httpPrint("parse telegraf schema file:%s, schema size:%d", fileName, schemaNum);
+  httpInfo("parse telegraf schema file:%s, schema size:%d", fileName, schemaNum);
 
   return schemaNum;
 }
@@ -800,7 +800,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
  }
  */
 bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
-  httpTrace("context:%p, fd:%d, ip:%s, process telegraf query msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, ip:%s, process telegraf query msg", pContext, pContext->fd, pContext->ipstr);
 
   HttpParser *pParser = &pContext->parser;
   char *      filter = pParser->data.pos;
@@ -818,7 +818,7 @@ bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
   cJSON *metrics = cJSON_GetObjectItem(root, "metrics");
   if (metrics != NULL) {
     int size = cJSON_GetArraySize(metrics);
-    httpTrace("context:%p, fd:%d, ip:%s, multiple metrics:%d at one time", pContext, pContext->fd, pContext->ipstr,
+    httpDebug("context:%p, fd:%d, ip:%s, multiple metrics:%d at one time", pContext, pContext->fd, pContext->ipstr,
               size);
     if (size <= 0) {
       httpSendErrorResp(pContext, HTTP_TG_METRICS_NULL);
@@ -859,7 +859,7 @@ bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
       }
     }
   } else {
-    httpTrace("context:%p, fd:%d, ip:%s, single metric", pContext, pContext->fd, pContext->ipstr);
+    httpDebug("context:%p, fd:%d, ip:%s, single metric", pContext, pContext->fd, pContext->ipstr);
 
     if (!httpMallocMultiCmds(pContext, 3, HTTP_BUFFER_SIZE)) {
       httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);

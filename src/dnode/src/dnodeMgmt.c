@@ -39,6 +39,15 @@
 
 #define MPEER_CONTENT_LEN 2000
 
+typedef struct {
+  pthread_t thread;
+  int32_t   threadIndex;
+  int32_t   failed;
+  int32_t   opened;
+  int32_t   vnodeNum;
+  int32_t * vnodeList;
+} SOpenVnodeThread;
+
 void *          tsDnodeTmr = NULL;
 static void *   tsStatusTimer = NULL;
 static uint32_t tsRebootTime;
@@ -141,7 +150,7 @@ int32_t dnodeInitMgmt() {
 
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
   
-  dPrint("dnode mgmt is initialized");
+  dInfo("dnode mgmt is initialized");
  
   return TSDB_CODE_SUCCESS;
 }
@@ -196,11 +205,11 @@ static void *dnodeProcessMgmtQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
-      dTrace("dnode mgmt got no message from qset, exit ...");
+      dDebug("dnode mgmt got no message from qset, exit ...");
       break;
     }
 
-    dTrace("%p, msg:%s will be processed", pMsg->ahandle, taosMsg[pMsg->msgType]);    
+    dDebug("%p, msg:%s will be processed", pMsg->ahandle, taosMsg[pMsg->msgType]);    
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {
@@ -242,28 +251,85 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t dnodeOpenVnodes() {
+static void *dnodeOpenVnode(void *param) {
+  SOpenVnodeThread *pThread = param;
   char vnodeDir[TSDB_FILENAME_LEN * 3];
-  int32_t failed = 0;
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
-  int32_t numOfVnodes;
-  int32_t status;
 
-  status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
+
+  for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
+    int32_t vgId = pThread->vnodeList[v];
+    snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vgId);
+    if (vnodeOpen(vgId, vnodeDir) < 0) {
+      dError("vgId:%d, failed to open vnode by thread:%d", vgId, pThread->threadIndex);
+      pThread->failed++;
+    } else {
+      dDebug("vgId:%d, is openned by thread:%d", vgId, pThread->threadIndex);
+      pThread->opened++;
+    }
+  }
+
+  dDebug("thread:%d, total vnodes:%d, openned:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
+         pThread->failed);
+  return NULL;
+}
+
+static int32_t dnodeOpenVnodes() {
+  int32_t *vnodeList = calloc(TSDB_MAX_VNODES, sizeof(int32_t));
+  int32_t numOfVnodes;
+  int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
-    dPrint("Get dnode list failed");
+    dInfo("get dnode list failed");
     free(vnodeList);
     return status;
   }
 
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vnodeList[i]);
-    if (vnodeOpen(vnodeList[i], vnodeDir) < 0) failed++;
+  int32_t threadNum = tsNumOfCores;
+  int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
+  SOpenVnodeThread *threads = calloc(threadNum, sizeof(SOpenVnodeThread));
+  for (int32_t t = 0; t < threadNum; ++t) {
+    threads[t].threadIndex = t;
+    threads[t].vnodeList = calloc(vnodesPerThread, sizeof(int32_t));
+  }
+
+  for (int32_t v = 0; v < numOfVnodes; ++v) {
+    int32_t t = v % threadNum;
+    SOpenVnodeThread *pThread = &threads[t];
+    pThread->vnodeList[pThread->vnodeNum++] = vnodeList[v];
+  }
+
+  dDebug("start %d threads to open %d vnodes", threadNum, numOfVnodes);
+
+  for (int32_t t = 0; t < threadNum; ++t) {
+    SOpenVnodeThread *pThread = &threads[t];
+    if (pThread->vnodeNum == 0) continue;
+
+    pthread_attr_t thAttr;
+    pthread_attr_init(&thAttr);
+    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+    if (pthread_create(&pThread->thread, &thAttr, dnodeOpenVnode, pThread) != 0) {
+      dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
+    }
+
+    pthread_attr_destroy(&thAttr);
+  }
+
+  int32_t openVnodes = 0;
+  int32_t failedVnodes = 0;
+  for (int32_t t = 0; t < threadNum; ++t) {
+    SOpenVnodeThread *pThread = &threads[t];
+    if (pThread->vnodeNum > 0 && pThread->thread) {
+      pthread_join(pThread->thread, NULL);
+    }
+    openVnodes += pThread->opened;
+    failedVnodes += pThread->failed;
+    free(pThread->vnodeList);
   }
 
   free(vnodeList);
-  dPrint("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, numOfVnodes-failed, failed);
+  dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, openVnodes, failedVnodes);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -273,7 +339,7 @@ void dnodeStartStream() {
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
-    dPrint("Get dnode list failed");
+    dInfo("get dnode list failed");
     return;
   }
 
@@ -281,7 +347,7 @@ void dnodeStartStream() {
     vnodeStartStream(vnodeList[i]);
   }
 
-  dPrint("streams started");
+  dInfo("streams started");
 }
 
 static void dnodeCloseVnodes() {
@@ -292,7 +358,7 @@ static void dnodeCloseVnodes() {
   status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
-    dPrint("Get dnode list failed");
+    dInfo("get dnode list failed");
     free(vnodeList);
     return;
   }
@@ -302,7 +368,7 @@ static void dnodeCloseVnodes() {
   }
 
   free(vnodeList);
-  dPrint("total vnodes:%d are all closed", numOfVnodes);
+  dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
@@ -360,10 +426,10 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 }
 
 void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet) {
-  dPrint("mnode IP list for is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
+  dInfo("mnode IP list for is changed, numOfIps:%d inUse:%d", pIpSet->numOfIps, pIpSet->inUse);
   for (int i = 0; i < pIpSet->numOfIps; ++i) {
     pIpSet->port[i] -= TSDB_PORT_DNODEDNODE;
-    dPrint("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
+    dInfo("mnode index:%d %s:%u", i, pIpSet->fqdn[i], pIpSet->port[i])
   }
 
   tsDMnodeIpSet = *pIpSet;
@@ -440,9 +506,9 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   if (!dnodeCheckMnodeInfos(pMnodes)) return;
 
   memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
-  dPrint("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  dInfo("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dPrint("mnode index:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
+    dInfo("mnode index:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
   }
 
   tsDMnodeIpSet.inUse = tsDMnodeInfos.inUse;
@@ -461,7 +527,7 @@ static bool dnodeReadMnodeInfos() {
   sprintf(ipFile, "%s/mnodeIpList.json", tsDnodeDir);
   FILE *fp = fopen(ipFile, "r");
   if (!fp) {
-    dTrace("failed to read mnodeIpList.json, file not exist");
+    dDebug("failed to read mnodeIpList.json, file not exist");
     return false;
   }
 
@@ -530,9 +596,9 @@ static bool dnodeReadMnodeInfos() {
 
   ret = true;
 
-  dPrint("read mnode iplist successed, numOfIps:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
+  dInfo("read mnode iplist successed, numOfIps:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
   for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dPrint("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
+    dInfo("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
   }
 
 PARSE_OVER:
@@ -572,7 +638,7 @@ static void dnodeSaveMnodeInfos() {
   fclose(fp);
   free(content);
   
-  dPrint("save mnode iplist successed");
+  dInfo("save mnode iplist successed");
 }
 
 char *dnodeGetMnodeMasterEp() {
@@ -645,7 +711,7 @@ static bool dnodeReadDnodeCfg() {
 
   FILE *fp = fopen(dnodeCfgFile, "r");
   if (!fp) {
-    dTrace("failed to read dnodeCfg.json, file not exist");
+    dDebug("failed to read dnodeCfg.json, file not exist");
     return false;
   }
 
@@ -676,7 +742,7 @@ static bool dnodeReadDnodeCfg() {
 
   ret = true;
 
-  dPrint("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
+  dInfo("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
 
 PARSE_CFG_OVER:
   free(content);
@@ -705,12 +771,12 @@ static void dnodeSaveDnodeCfg() {
   fclose(fp);
   free(content);
   
-  dPrint("save dnodeId successed");
+  dInfo("save dnodeId successed");
 }
 
 void dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg) {
   if (tsDnodeCfg.dnodeId == 0) {
-    dPrint("dnodeId is set to %d", pCfg->dnodeId);  
+    dInfo("dnodeId is set to %d", pCfg->dnodeId);  
     tsDnodeCfg.dnodeId = pCfg->dnodeId;
     dnodeSaveDnodeCfg();
   }
@@ -731,11 +797,11 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
     dnodeGetMnodeIpSetForPeer(&ipSet);
   }
   
-  dTrace("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+  dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfIps:%d inUse:%d", taosMsg[rpcMsg->msgType],
          taosIpStr(connInfo.clientIp), connInfo.user, ipSet.numOfIps, ipSet.inUse);
 
   for (int i = 0; i < ipSet.numOfIps; ++i) {
-    dTrace("mnode index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
+    dDebug("mnode index:%d %s:%d", i, ipSet.fqdn[i], ipSet.port[i]);
     ipSet.port[i] = htons(ipSet.port[i]);
   }
 

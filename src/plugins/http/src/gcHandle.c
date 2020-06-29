@@ -67,7 +67,7 @@ bool gcGetPassFromUrl(HttpContext* pContext) {
 }
 
 bool gcProcessLoginRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process grafana login msg", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process grafana login msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
@@ -143,7 +143,7 @@ bool gcProcessLoginRequest(HttpContext* pContext) {
 //}]
 
 bool gcProcessQueryRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, process grafana query msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, ip:%s, process grafana query msg", pContext, pContext->fd, pContext->ipstr);
 
   HttpParser* pParser = &pContext->parser;
   char*       filter = pParser->data.pos;
@@ -183,7 +183,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
     cJSON* refId = cJSON_GetObjectItem(query, "refId");
     if (refId == NULL || refId->valuestring == NULL || strlen(refId->valuestring) == 0) {
-      httpTrace("context:%p, fd:%d, ip:%s, user:%s, refId is null", pContext, pContext->fd, pContext->ipstr,
+      httpDebug("context:%p, fd:%d, ip:%s, user:%s, refId is null", pContext, pContext->fd, pContext->ipstr,
                 pContext->user);
       continue;
     }
@@ -211,7 +211,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
     cJSON* sql = cJSON_GetObjectItem(query, "sql");
     if (sql == NULL || sql->valuestring == NULL || strlen(sql->valuestring) == 0) {
-      httpTrace("context:%p, fd:%d, ip:%s, user:%s, sql is null", pContext, pContext->fd, pContext->ipstr,
+      httpDebug("context:%p, fd:%d, ip:%s, user:%s, sql is null", pContext, pContext->fd, pContext->ipstr,
                 pContext->user);
       continue;
     }
@@ -251,7 +251,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 }
 
 bool gcProcessHeartbeatRequest(HttpContext* pContext) {
-  httpTrace("context:%p, fd:%d, ip:%s, process grafana heartbeat msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, ip:%s, process grafana heartbeat msg", pContext, pContext->fd, pContext->ipstr);
   pContext->reqType = HTTP_REQTYPE_HEARTBEAT;
   pContext->encodeMethod = &gcHeartBeatMethod;
   return true;

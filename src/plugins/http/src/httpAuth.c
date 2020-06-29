@@ -63,7 +63,7 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
   pContext->pass[pass_len] = 0;
 
   free(base64);
-  httpTrace("context:%p, fd:%d, ip:%s, basic token parsed success, user:%s", pContext, pContext->fd, pContext->ipstr,
+  httpDebug("context:%p, fd:%d, ip:%s, basic token parsed success, user:%s", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
   return true;
 }
@@ -93,7 +93,7 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
     tstrncpy(pContext->user, descrypt, sizeof(pContext->user));
     tstrncpy(pContext->pass, descrypt + TSDB_USER_LEN, sizeof(pContext->pass));
 
-    httpTrace("context:%p, fd:%d, ip:%s, taosd token:%s parsed success, user:%s", pContext, pContext->fd,
+    httpDebug("context:%p, fd:%d, ip:%s, taosd token:%s parsed success, user:%s", pContext, pContext->fd,
               pContext->ipstr, token, pContext->user);
     free(base64);
     free(descrypt);
@@ -116,7 +116,7 @@ bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   free(encrypt);
   free(base64);
 
-  httpTrace("context:%p, fd:%d, ip:%s, gen taosd token:%s", pContext, pContext->fd, pContext->ipstr, token);
+  httpDebug("context:%p, fd:%d, ip:%s, gen taosd token:%s", pContext, pContext->fd, pContext->ipstr, token);
 
   return true;
 }

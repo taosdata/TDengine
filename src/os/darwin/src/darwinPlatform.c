@@ -111,7 +111,7 @@ int taosGetPrivateIp(char *const ip) {
     return 0;
   } else {
     if (hasLoCard) {
-      uPrint("no net card was found, use lo:127.0.0.1 as default");
+      uInfo("no net card was found, use lo:127.0.0.1 as default");
       strcpy(ip, "127.0.0.1");
       return 0;
     }
@@ -179,7 +179,7 @@ void taosGetSystemTimezone() {
       strcpy(tsTimezone, tz);
     }
     cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-    uPrint("timezone not configured, use default");
+    uInfo("timezone not configured, use default");
   }
 }
 
@@ -191,7 +191,7 @@ void taosGetSystemLocale() {
     if (locale != NULL) {
       tstrncpy(tsLocale, locale, sizeof(tsLocale));
       cfg_locale->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-      uPrint("locale not configured, set to default:%s", tsLocale);
+      uInfo("locale not configured, set to default:%s", tsLocale);
     }
   }
 
@@ -199,7 +199,7 @@ void taosGetSystemLocale() {
   if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     strcpy(tsCharset, "cp936");
     cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-    uPrint("charset not configured, set to default:%s", tsCharset);
+    uInfo("charset not configured, set to default:%s", tsCharset);
   }
 }
 

@@ -802,7 +802,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
+    code = tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
@@ -1050,7 +1053,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscTrace("%p create data block list for submit data:%p, pTableList:%p", pSql, pCmd->pDataBlocks, pCmd->pTableList);
+  tscDebug("%p create data block list for submit data:%p, pTableList:%p", pSql, pCmd->pDataBlocks, pCmd->pTableList);
 
   while (1) {
     int32_t   index = 0;
@@ -1310,7 +1313,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   if ((!pCmd->parseFinished) && (!initial)) {
-    tscTrace("%p resume to parse sql: %s", pSql, pCmd->curSql);
+    tscDebug("%p resume to parse sql: %s", pSql, pCmd->curSql);
   }
   
   if (tscIsInsertData(pSql->sqlstr)) {

@@ -101,7 +101,7 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
     ++pSched->numOfThreads;
   }
 
-  uTrace("%s scheduler is initialized, numOfThreads:%d", label, pSched->numOfThreads);
+  uDebug("%s scheduler is initialized, numOfThreads:%d", label, pSched->numOfThreads);
 
   return (void *)pSched;
 }
@@ -125,7 +125,7 @@ void *taosProcessSchedQueue(void *param) {
     if (tsem_wait(&pSched->fullSem) != 0) {
       if (errno == EINTR) {
         /* sem_wait is interrupted by interrupt, ignore and continue */
-        uTrace("wait %s fullSem was interrupted", pSched->label);
+        uDebug("wait %s fullSem was interrupted", pSched->label);
         continue;
       }
       uError("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
@@ -168,7 +168,7 @@ int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
       uError("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
       break;
     }
-    uTrace("wait %s emptySem was interrupted", pSched->label);
+    uDebug("wait %s emptySem was interrupted", pSched->label);
   }
 
   if (pthread_mutex_lock(&pSched->queueMutex) != 0)
@@ -224,7 +224,7 @@ void taosDumpSchedulerStatus(void *qhandle, void *tmrId) {
   
   int32_t size = ((pSched->emptySlot - pSched->fullSlot) + pSched->queueSize) % pSched->queueSize;
   if (size > 0) {
-    uTrace("scheduler:%s, current tasks in queue:%d, task thread:%d", pSched->label, size, pSched->numOfThreads);
+    uDebug("scheduler:%s, current tasks in queue:%d, task thread:%d", pSched->label, size, pSched->numOfThreads);
   }
   
   taosTmrReset(taosDumpSchedulerStatus, DUMP_SCHEDULER_TIME_WINDOW, pSched, pSched->pTmrCtrl, &pSched->pTimer);

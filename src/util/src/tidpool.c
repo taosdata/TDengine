@@ -41,7 +41,7 @@ void *taosInitIdPool(int maxId) {
 
   pthread_mutex_init(&pIdPool->mutex, NULL);
 
-  uTrace("pool:%p is setup, maxId:%d", pIdPool, pIdPool->maxId);
+  uDebug("pool:%p is setup, maxId:%d", pIdPool, pIdPool->maxId);
 
   return pIdPool;
 }
@@ -91,7 +91,7 @@ void taosIdPoolCleanUp(void *handle) {
 
   if (pIdPool == NULL) return;
 
-  uTrace("pool:%p is cleaned", pIdPool);
+  uDebug("pool:%p is cleaned", pIdPool);
 
   if (pIdPool->freeList) free(pIdPool->freeList);
 

@@ -11,8 +11,9 @@ set -e
 
 CMD_NAME=
 LOOP_TIMES=5
+SLEEP_TIME=0
 
-while getopts "f:t:" arg
+while getopts "f:t:s:" arg
 do
   case $arg in
     f)
@@ -20,6 +21,9 @@ do
       ;;
     t)
       LOOP_TIMES=$OPTARG
+      ;;
+    s)
+      SLEEP_TIME=$OPTARG
       ;;
     ?)
       echo "unknow argument"
@@ -29,6 +33,7 @@ done
 
 echo LOOP_TIMES ${LOOP_TIMES}
 echo CMD_NAME ${CMD_NAME}
+echo SLEEP_TIME ${SLEEP_TIME}
 
 GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
@@ -40,5 +45,5 @@ do
     echo -e $GREEN loop $i $NC
     echo -e $GREEN cmd $CMD_NAME $NC
     $CMD_NAME
-    sleep 2
+    sleep ${SLEEP_TIME}
 done

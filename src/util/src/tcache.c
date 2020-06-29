@@ -119,7 +119,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = pNode->size;
   taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
   
-  uTrace("key:%s is removed from cache,total:%" PRId64 ",size:%dbytes", pNode->key, pCacheObj->totalSize, size);  
+  uDebug("key:%s is removed from cache,total:%" PRId64 ",size:%dbytes", pNode->key, pCacheObj->totalSize, size);  
   if (pCacheObj->freeFp) pCacheObj->freeFp(pNode->data);
   free(pNode);
 }
@@ -288,14 +288,14 @@ void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, siz
     if (NULL != pNode) {
       pCacheObj->totalSize += pNode->size;
       
-      uTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%" PRId64 ", size:%" PRId64 " bytes",
+      uDebug("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%" PRId64 ", size:%" PRId64 " bytes",
              key, pNode, pNode->addedTime, pNode->expiredTime, pCacheObj->totalSize, dataSize);
     } else {
       uError("key:%s failed to added into cache, out of memory", key);
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);
-    uTrace("key:%s %p exist in cache, updated", key, pNode);
+    uDebug("key:%s %p exist in cache, updated", key, pNode);
   }
   
   __cache_unlock(pCacheObj);
@@ -321,10 +321,10 @@ void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key) {
   
   if (ptNode != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uTrace("key:%s is retrieved from cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
+    uDebug("key:%s is retrieved from cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uTrace("key:%s not in cache, retrieved failed", key);
+    uDebug("key:%s not in cache, retrieved failed", key);
   }
   
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -350,10 +350,10 @@ void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, uin
   
   if (ptNode != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uTrace("key:%s expireTime is updated in cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
+    uDebug("key:%s expireTime is updated in cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uTrace("key:%s not in cache, retrieved failed", key);
+    uDebug("key:%s not in cache, retrieved failed", key);
   }
   
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -372,7 +372,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   }
   
   int32_t ref = T_REF_INC(ptNode);
-  uTrace("%p acquired by data in cache, refcnt:%d", ptNode, ref)
+  uDebug("%p acquired by data in cache, refcnt:%d", ptNode, ref)
   
   // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
   assert(ref >= 2);
@@ -416,7 +416,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   
   *data = NULL;
   int16_t ref = T_REF_DEC(pNode);
-  uTrace("%p data released, refcnt:%d", pNode, ref);
+  uDebug("%p data released, refcnt:%d", pNode, ref);
   
   if (_remove) {
     __cache_wr_lock(pCacheObj);
@@ -501,7 +501,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pNode->inTrashCan = true;
   pCacheObj->numOfElemsInTrash++;
 
-  uTrace("key:%s %p move to trash, numOfElem in trash:%d", pNode->key, pNode, pCacheObj->numOfElemsInTrash);
+  uDebug("key:%s %p move to trash, numOfElem in trash:%d", pNode->key, pNode, pCacheObj->numOfElemsInTrash);
 }
 
 void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
@@ -549,7 +549,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
     }
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
-      uTrace("key:%s %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData,
+      uDebug("key:%s %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData,
              pCacheObj->numOfElemsInTrash - 1);
       STrashElem *p = pElem;
 
@@ -588,7 +588,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 void* taosCacheRefresh(void *handle) {
   SCacheObj *pCacheObj = (SCacheObj *)handle;
   if (pCacheObj == NULL) {
-    uTrace("object is destroyed. no refresh retry");
+    uDebug("object is destroyed. no refresh retry");
     return NULL;
   }
 
