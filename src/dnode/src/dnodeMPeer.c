@@ -55,7 +55,7 @@ int32_t dnodeInitMnodePeer() {
     pWorker->workerId = i;
   }
 
-  dPrint("dnode mpeer is opened");
+  dInfo("dnode mpeer is opened");
   return 0;
 }
 
@@ -76,7 +76,7 @@ void dnodeCleanupMnodePeer() {
 
   taosCloseQset(tsMPeerQset);
   tfree(tsMPeerPool.peerWorker);
-  dPrint("dnode mpeer is closed");
+  dInfo("dnode mpeer is closed");
 }
 
 int32_t dnodeAllocateMnodePqueue() {
@@ -98,10 +98,10 @@ int32_t dnodeAllocateMnodePqueue() {
     }
 
     pthread_attr_destroy(&thAttr);
-    dTrace("dnode mpeer worker:%d is launched, total:%d", pWorker->workerId, tsMPeerPool.num);
+    dDebug("dnode mpeer worker:%d is launched, total:%d", pWorker->workerId, tsMPeerPool.num);
   }
 
-  dTrace("dnode mpeer queue:%p is allocated", tsMPeerQueue);
+  dDebug("dnode mpeer queue:%p is allocated", tsMPeerQueue);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -113,6 +113,7 @@ void dnodeFreeMnodePqueue() {
 void dnodeDispatchToMnodePeerQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMPeerQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, false);
+    rpcFreeCont(pMsg->pCont);
     return;
   }
 
@@ -147,11 +148,11 @@ static void *dnodeProcessMnodePeerQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMPeerQset, &type, (void **)&pPeerMsg, &unUsed) == 0) {
-      dTrace("dnodeProcessMnodePeerQueue: got no message from qset, exiting...");
+      dDebug("dnodeProcessMnodePeerQueue: got no message from qset, exiting...");
       break;
     }
 
-    dTrace("msg:%s will be processed in mpeer queue", taosMsg[pPeerMsg->rpcMsg.msgType]);    
+    dDebug("msg:%s will be processed in mpeer queue", taosMsg[pPeerMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessPeerReq(pPeerMsg);    
     dnodeSendRpcMnodePeerRsp(pPeerMsg, code);    
   }

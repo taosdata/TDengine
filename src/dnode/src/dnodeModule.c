@@ -127,14 +127,14 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   for (int32_t module = TSDB_MOD_MNODE; module < TSDB_MOD_HTTP; ++module) {
     bool enableModule = moduleStatus & (1 << module);
     if (!tsModule[module].enable && enableModule) {
-      dPrint("module status:%u is received, start %s module", tsModuleStatus, tsModule[module].name);
+      dInfo("module status:%u is received, start %s module", tsModuleStatus, tsModule[module].name);
       tsModule[module].enable = true;
       dnodeSetModuleStatus(module);
       (*tsModule[module].startFp)();
     }
 
     if (tsModule[module].enable && !enableModule) {
-      dPrint("module status:%u is received, stop %s module", tsModuleStatus, tsModule[module].name);
+      dInfo("module status:%u is received, stop %s module", tsModuleStatus, tsModule[module].name);
       tsModule[module].enable = false;
       dnodeUnSetModuleStatus(module);
       (*tsModule[module].stopFp)();

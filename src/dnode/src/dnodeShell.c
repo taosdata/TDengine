@@ -38,9 +38,9 @@ static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
 int32_t dnodeInitShell() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeDispatchToVnodeWriteQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]  = dnodeDispatchToVnodeReadQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]  = dnodeDispatchToVnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]          = dnodeDispatchToVnodeReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]          = dnodeDispatchToVnodeReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVnodeWriteQueue;
   
   // the following message shall be treated as mnode write
@@ -97,7 +97,7 @@ int32_t dnodeInitShell() {
     return -1;
   }
 
-  dPrint("shell rpc server is opened");
+  dInfo("shell rpc server is opened");
   return 0;
 }
 
@@ -154,7 +154,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   rpcMsg.contLen = sizeof(SDMAuthMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_DM_AUTH;
   
-  dTrace("user:%s, send auth msg to mnode", user);
+  dDebug("user:%s, send auth msg to mnode", user);
   SRpcMsg rpcRsp = {0};
   dnodeSendMsgToDnodeRecv(&rpcMsg, &rpcRsp);
 
@@ -162,7 +162,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
     dError("user:%s, auth msg received from mnode, error:%s", user, tstrerror(rpcRsp.code));
   } else {
     SDMAuthRsp *pRsp = rpcRsp.pCont;
-    dTrace("user:%s, auth msg received from mnode", user);
+    dDebug("user:%s, auth msg received from mnode", user);
     memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
     memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
     *spi = pRsp->spi;
@@ -174,7 +174,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
 }
 
 void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
-  dTrace("vgId:%d, sid:%d send config table msg to mnode", vgId, sid);
+  dDebug("vgId:%d, sid:%d send config table msg to mnode", vgId, sid);
 
   int32_t contLen = sizeof(SDMConfigTableMsg);
   SDMConfigTableMsg *pMsg = rpcMallocCont(contLen);
@@ -197,7 +197,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
     dError("vgId:%d, sid:%d failed to config table from mnode", vgId, sid);
     return NULL;
   } else {
-    dPrint("vgId:%d, sid:%d config table msg is received", vgId, sid);
+    dInfo("vgId:%d, sid:%d config table msg is received", vgId, sid);
     
     // delete this after debug finished
     SMDCreateTableMsg *pTable = rpcRsp.pCont;
@@ -205,7 +205,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
     int16_t   numOfTags = htons(pTable->numOfTags);
     int32_t   sid = htonl(pTable->sid);
     uint64_t  uid = htobe64(pTable->uid);
-    dPrint("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:%" PRIu64, pTable->tableId, numOfColumns, numOfTags, sid, uid);
+    dInfo("table:%s, numOfColumns:%d numOfTags:%d sid:%d uid:%" PRIu64, pTable->tableId, numOfColumns, numOfTags, sid, uid);
 
     return rpcRsp.pCont;
   }

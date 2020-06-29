@@ -81,7 +81,7 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
 
   if (tsdbSetRepoEnv(rootDir, pCfg) < 0) return -1;
 
-  tsdbTrace(
+  tsdbDebug(
       "vgId:%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d maxTables %d daysPerFile %d keep "
       "%d minRowsPerFileBlock %d maxRowsPerFileBlock %d precision %d compression %d",
       pCfg->tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->maxTables, pCfg->daysPerFile, pCfg->keep,
@@ -128,7 +128,7 @@ TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
 
   // pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
-  tsdbTrace("vgId:%d open tsdb repository succeed!", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d open tsdb repository succeed!", REPO_ID(pRepo));
 
   return (TSDB_REPO_T *)pRepo;
 
@@ -157,7 +157,7 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   tsdbCloseBufPool(pRepo);
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
-  tsdbTrace("vgId:%d repository is closed", vgId);
+  tsdbDebug("vgId:%d repository is closed", vgId);
 }
 
 int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
@@ -192,7 +192,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   struct stat fState;
 
-  tsdbTrace("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
+  tsdbDebug("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
   ASSERT(*index <= eindex);
 
   char *sdup = strdup(pRepo->rootDir);
@@ -520,7 +520,7 @@ static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
 
 static int32_t tsdbUnsetRepoEnv(char *rootDir) {
   taosRemoveDir(rootDir);
-  tsdbTrace("repository %s is removed", rootDir);
+  tsdbDebug("repository %s is removed", rootDir);
   return 0;
 }
 
@@ -842,7 +842,7 @@ static int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
   int8_t ocompression = pRepo->config.compression;
   pRepo->config.compression = compression;
-  tsdbTrace("vgId:%d tsdb compression is changed from %d to %d", REPO_ID(pRepo), ocompression, compression);
+  tsdbDebug("vgId:%d tsdb compression is changed from %d to %d", REPO_ID(pRepo), ocompression, compression);
 }
 
 static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
@@ -884,7 +884,7 @@ static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
     pthread_rwlock_unlock(&(pFileH->fhlock));
   }
 
-  tsdbTrace("vgId:%d keep is changed from %d to %d", REPO_ID(pRepo), okeep, keep);
+  tsdbDebug("vgId:%d keep is changed from %d to %d", REPO_ID(pRepo), okeep, keep);
 
   return 0;
 }
@@ -915,7 +915,7 @@ static int tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
            sizeof(STableData *) * (maxTables - oldMaxTables));
   }
 
-  tsdbTrace("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
+  tsdbDebug("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
   return 0;
 }
 
@@ -973,7 +973,7 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
 
   if (pBlock->sversion == sversion) return 0;
   if (pBlock->sversion > sversion) {  // need to config
-    tsdbTrace("vgId:%d table %s tid %d has version %d smaller than client version %d, try to config", REPO_ID(pRepo),
+    tsdbDebug("vgId:%d table %s tid %d has version %d smaller than client version %d, try to config", REPO_ID(pRepo),
               TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), sversion, pBlock->sversion);
     if (pRepo->appH.configFunc) {
       void *msg = (*pRepo->appH.configFunc)(REPO_ID(pRepo), TABLE_TID(pTable));
@@ -1041,7 +1041,7 @@ static int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
   // pRepo->config.totalBlocks = totalBlocks;
 
   // tsdbUnLockRepo((TsdbRepoT *)pRepo);
-  // tsdbTrace("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks,
+  // tsdbDebug("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks,
   // totalBlocks);
   return 0;
 }

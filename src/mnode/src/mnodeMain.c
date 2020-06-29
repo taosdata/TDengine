@@ -83,11 +83,11 @@ static int32_t mnodeInitComponents() {
 
 int32_t mnodeStartSystem() {
   if (tsMgmtIsRunning) {
-    mPrint("mnode module already started...");
+    mInfo("mnode module already started...");
     return 0;
   }
 
-  mPrint("starting to initialize mnode ...");
+  mInfo("starting to initialize mnode ...");
   if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
     mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
     return -1;
@@ -104,7 +104,7 @@ int32_t mnodeStartSystem() {
   grantReset(TSDB_GRANT_ALL, 0);
   tsMgmtIsRunning = true;
 
-  mPrint("mnode is initialized successfully");
+  mInfo("mnode is initialized successfully");
   return 0;
 }
 
@@ -115,7 +115,7 @@ int32_t mnodeInitSystem() {
 }
 
 void mnodeCleanupSystem() {
-  mPrint("starting to clean up mnode");
+  mInfo("starting to clean up mnode");
   tsMgmtIsRunning = false;
 
   dnodeFreeMnodeWqueue();
@@ -124,21 +124,21 @@ void mnodeCleanupSystem() {
   mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
   mnodeCleanupTimer();
 
-  mPrint("mnode is cleaned up");
+  mInfo("mnode is cleaned up");
 }
 
 void mnodeStopSystem() {
   if (sdbIsMaster()) {
-    mTrace("it is a master mnode, it could not be stopped");
+    mDebug("it is a master mnode, it could not be stopped");
     return;
   }
   
   mnodeCleanupSystem();
 
   if (remove(tsMnodeDir) != 0) {
-    mPrint("failed to remove mnode file, reason:%s", strerror(errno));
+    mInfo("failed to remove mnode file, reason:%s", strerror(errno));
   } else {
-    mPrint("mnode file is removed");
+    mInfo("mnode file is removed");
   }
 }
 

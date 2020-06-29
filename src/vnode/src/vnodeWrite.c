@@ -25,7 +25,6 @@
 #include "tdataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
-#include "vnodeLog.h"
 #include "tcq.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
@@ -95,7 +94,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   // save insert result into item
 
-  vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
+  vDebug("vgId:%d, submit msg is processed", pVnode->vgId);
   
   pRet->len = sizeof(SShellSubmitRspMsg);
   pRet->rsp = rpcMallocCont(pRet->len);
@@ -124,7 +123,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
   SMDDropTableMsg *pTable = pCont;
   int32_t          code = TSDB_CODE_SUCCESS;
 
-  vTrace("vgId:%d, table:%s, start to drop", pVnode->vgId, pTable->tableId);
+  vDebug("vgId:%d, table:%s, start to drop", pVnode->vgId, pTable->tableId);
   STableId tableId = {.uid = htobe64(pTable->uid), .tid = htonl(pTable->sid)};
 
   if (tsdbDropTable(pVnode->tsdb, tableId) < 0) code = terrno;
@@ -139,7 +138,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   // if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) code = terrno;
 
   // tsdbClearTableCfg(pCfg);
-  vTrace("vgId:%d, alter table msg is received", pVnode->vgId);
+  vDebug("vgId:%d, alter table msg is received", pVnode->vgId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -147,13 +146,13 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
   SMDDropSTableMsg *pTable = pCont;
   int32_t           code = TSDB_CODE_SUCCESS;
 
-  vTrace("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
+  vDebug("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
 
   STableId stableId = {.uid = htobe64(pTable->uid), .tid = -1};
 
   if (tsdbDropTable(pVnode->tsdb, stableId) < 0) code = terrno;
 
-  vTrace("vgId:%d, stable:%s, drop stable result:%s", pVnode->vgId, pTable->tableId, tstrerror(code));
+  vDebug("vgId:%d, stable:%s, drop stable result:%s", pVnode->vgId, pTable->tableId, tstrerror(code));
 
   return code;
 }

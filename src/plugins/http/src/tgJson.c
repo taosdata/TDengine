@@ -98,7 +98,7 @@ void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect
 
 bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace("context:%p, fd:%d, ip:%s, check telegraf command, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
+  httpDebug("context:%p, fd:%d, ip:%s, check telegraf command, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
             pContext, pContext->fd, pContext->ipstr, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
@@ -107,7 +107,7 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)-1;
-          httpTrace("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
+          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
                     pContext->ipstr);
           return false;
         }
@@ -115,7 +115,7 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)(multiCmds->pos - 2);
-          httpTrace("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
+          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
                     pContext->ipstr);
           return false;
         }
@@ -125,11 +125,11 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
+    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
               tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpTrace("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
+    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
   } else {
   }
 
@@ -138,7 +138,7 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
 
 void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpTrace("context:%p, fd:%d, ip:%s, get telegraf next command, pos:%d, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
+  httpDebug("context:%p, fd:%d, ip:%s, get telegraf next command, pos:%d, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
             pContext, pContext->fd, pContext->ipstr, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType,
             cmd->cmdReturnType, cmd->tagNum);
 

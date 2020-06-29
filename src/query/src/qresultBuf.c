@@ -48,7 +48,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
     return TSDB_CODE_QRY_OUT_OF_MEMORY; // todo change error code
   }
 
-  qTrace("QInfo:%p create tmp file for output result, %s, %" PRId64 "bytes", handle, pResBuf->path,
+  qDebug("QInfo:%p create tmp file for output result, %s, %" PRId64 "bytes", handle, pResBuf->path,
       pResBuf->totalBufSize);
   
   return TSDB_CODE_SUCCESS;
@@ -196,7 +196,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
     close(pResultBuf->fd);
   }
 
-  qTrace("QInfo:%p disk-based output buffer closed, %" PRId64 " bytes, file:%s", handle, pResultBuf->totalBufSize, pResultBuf->path);
+  qDebug("QInfo:%p disk-based output buffer closed, %" PRId64 " bytes, file:%s", handle, pResultBuf->totalBufSize, pResultBuf->path);
   munmap(pResultBuf->pBuf, pResultBuf->totalBufSize);
   unlink(pResultBuf->path);
   

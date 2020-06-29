@@ -24,7 +24,6 @@
 #include "tdataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
-#include "vnodeLog.h"
 #include "query.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SReadMsg *pReadMsg);
@@ -41,18 +40,18 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
   int msgType = pReadMsg->rpcMsg.msgType;
 
   if (vnodeProcessReadMsgFp[msgType] == NULL) {
-    vTrace("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
+    vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
   if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) {
-    vTrace("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[msgType], pVnode->status);
+    vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[msgType], pVnode->status);
     return TSDB_CODE_VND_INVALID_VGROUP_ID; 
   }
 
   // TODO: Later, let slave to support query
   if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-    vTrace("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
+    vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
     return TSDB_CODE_RPC_NOT_READY;
   }
 
@@ -68,7 +67,7 @@ static int32_t vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vg
   killQueryMsg->header.vgId = htonl(vgId);
   killQueryMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
 
-  vTrace("QInfo:%p register qhandle to connect:%p", qhandle, handle);
+  vDebug("QInfo:%p register qhandle to connect:%p", qhandle, handle);
   return rpcReportProgress(handle, (char*) killQueryMsg, sizeof(SRetrieveTableMsg));
 }
 
@@ -110,27 +109,35 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     pRet->rsp = pRsp;
 
     // current connect is broken
-    if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-      vError("vgId:%d, QInfo:%p, dnode query discarded since link is broken, %p", pVnode->vgId, pQInfo, pReadMsg->rpcMsg.handle);
-      pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    if (code == TSDB_CODE_SUCCESS) {
+      if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+        vError("vgId:%d, QInfo:%p, dnode query discarded since link is broken, %p", pVnode->vgId, pQInfo,
+               pReadMsg->rpcMsg.handle);
+        pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
 
-      //NOTE: there two refcount, needs to kill twice, todo refactor
-      qKillQuery(pQInfo, vnodeRelease, pVnode);
-      qKillQuery(pQInfo, vnodeRelease, pVnode);
+        // NOTE: there two refcount, needs to kill twice, todo refactor
+        qKillQuery(pQInfo, vnodeRelease, pVnode);
+        qKillQuery(pQInfo, vnodeRelease, pVnode);
 
-      return pRsp->code;
+        return pRsp->code;
+      }
+
+      vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    } else {
+      assert(pQInfo == NULL);
+      vnodeRelease(pVnode);
     }
 
-    vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
   } else {
     assert(pCont != NULL);
     pQInfo = pCont;
     code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
-    vTrace("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, pQInfo);
+    vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, pQInfo);
   }
 
   if (pQInfo != NULL) {
-    vTrace("vgId:%d, QInfo:%p, do qTableQuery", pVnode->vgId, pQInfo);
+    vDebug("vgId:%d, QInfo:%p, do qTableQuery", pVnode->vgId, pQInfo);
     qTableQuery(pQInfo, vnodeRelease, pVnode); // do execute query
   }
 
@@ -148,7 +155,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   memset(pRet, 0, sizeof(SRspRet));
 
   if (pRetrieve->free == 1) {
-    vTrace("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pQInfo);
+    vDebug("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pQInfo);
     int32_t ret = qKillQuery(pQInfo, vnodeRelease, pVnode);
 
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -163,7 +170,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     return ret;
   }
 
-  vTrace("vgId:%d, QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
+  vDebug("vgId:%d, QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
 
   int32_t code = qRetrieveQueryResultInfo(pQInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -182,6 +189,6 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     }
   }
   
-  vTrace("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
+  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, pQInfo);
   return code;
 }

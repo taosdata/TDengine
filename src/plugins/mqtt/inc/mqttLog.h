@@ -10,7 +10,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <mqtt://www.gnu.org/licenses/>.
  */
 
 #ifndef TDENGINE_MQTT_LOG_H
@@ -20,23 +20,14 @@
 
 extern int32_t mqttDebugFlag;
 
-#define mqttError(...)                       \
-  if (mqttDebugFlag & DEBUG_ERROR) {         \
-    taosPrintLog("ERROR MQT ", 255, __VA_ARGS__); \
-  }
-#define mqttWarn(...)                                  \
-  if ( mqttDebugFlag & DEBUG_WARN) {                    \
-    taosPrintLog("WARN MQT ",  mqttDebugFlag, __VA_ARGS__); \
-  }
-#define  mqttTrace(...)                           \
-  if ( mqttDebugFlag & DEBUG_TRACE) {             \
-    taosPrintLog("MQT ",  mqttDebugFlag, __VA_ARGS__); \
-  }
-#define  mqttDump(...)                                        \
-  if ( mqttDebugFlag & DEBUG_TRACE) {                         \
-    taosPrintLongString("MQT ",  mqttDebugFlag, __VA_ARGS__); \
-  }
-#define  mqttPrint(...) \
-  { taosPrintLog("MQT ", 255, __VA_ARGS__); }
+#define mqttFatal(...) { if (mqttDebugFlag & DEBUG_FATAL) { taosPrintLog("MQT FATAL ", 255, __VA_ARGS__); }}
+#define mqttError(...) { if (mqttDebugFlag & DEBUG_ERROR) { taosPrintLog("MQT ERROR ", 255, __VA_ARGS__); }}
+#define mqttWarn(...)  { if (mqttDebugFlag & DEBUG_WARN)  { taosPrintLog("MQT WARN  ", 255, __VA_ARGS__); }}
+#define mqttInfo(...)  { if (mqttDebugFlag & DEBUG_INFO)  { taosPrintLog("MQT INFO  ", 255, __VA_ARGS__); }}
+#define mqttDebug(...) { if (mqttDebugFlag & DEBUG_DEBUG) { taosPrintLog("MQT DEBUG ", mqttDebugFlag, __VA_ARGS__); }}
+#define mqttTrace(...) { if (mqttDebugFlag & DEBUG_TRACE) { taosPrintLog("MQT TRACE ", mqttDebugFlag, __VA_ARGS__); }}
+
+#define mqttDebugDump(...) { if (mqttDebugFlag & DEBUG_DEBUG) { taosPrintLongString("MQT DEBUG ", mqttDebugFlag, __VA_ARGS__); }}
+#define mqttTraceDump(...) { if (mqttDebugFlag & DEBUG_TRACE) { taosPrintLongString("MQT DEBUG ", mqttDebugFlag, __VA_ARGS__); }}
 
 #endif

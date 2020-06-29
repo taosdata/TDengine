@@ -60,7 +60,7 @@ int httpInitSystem() {
 }
 
 int httpStartSystem() {
-  httpPrint("start http server ...");
+  httpInfo("start http server ...");
 
   if (tsHttpServer.status != HTTP_SERVER_INIT) {
     httpError("http server is already started");
@@ -92,7 +92,7 @@ void httpStopSystem() {
 }
 
 void httpCleanUpSystem() {
-  httpPrint("http server cleanup");
+  httpInfo("http server cleanup");
   httpStopSystem();
 
   httpCleanupContexts();

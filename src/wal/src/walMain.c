@@ -30,10 +30,13 @@
 #include "tqueue.h"
 
 #define walPrefix "wal"
-#define wError(...) if (wDebugFlag & DEBUG_ERROR) {taosPrintLog("ERROR WAL ", wDebugFlag, __VA_ARGS__);}
-#define wWarn(...) if (wDebugFlag & DEBUG_WARN) {taosPrintLog("WARN WAL ", wDebugFlag, __VA_ARGS__);}
-#define wTrace(...) if (wDebugFlag & DEBUG_TRACE) {taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__);}
-#define wPrint(...) {taosPrintLog("WAL ", 255, __VA_ARGS__);}
+
+#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", 255, __VA_ARGS__); }}
+#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", 255, __VA_ARGS__); }}
+#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN  ", 255, __VA_ARGS__); }}
+#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL INFO  ", 255, __VA_ARGS__); }}
+#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL DEBUG ", wDebugFlag, __VA_ARGS__); }}
+#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL TRACE ", wDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
   uint64_t version;
@@ -47,8 +50,6 @@ typedef struct {
   char     name[TSDB_FILENAME_LEN+16];
   pthread_mutex_t mutex;
 } SWal;
-
-int wDebugFlag = 135;
 
 static uint32_t walSignature = 0xFAFBFDFE;
 static int walHandleExistingFiles(const char *path);
@@ -92,7 +93,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     pWal = NULL;
   } 
 
-  if (pWal) wTrace("wal:%s, it is open, level:%d", path, pWal->level);
+  if (pWal) wDebug("wal:%s, it is open, level:%d", path, pWal->level);
   return pWal;
 }
 
@@ -109,11 +110,11 @@ void walClose(void *handle) {
       if (remove(pWal->name) <0) {
         wError("wal:%s, failed to remove", pWal->name);
       } else {
-        wTrace("wal:%s, it is removed", pWal->name);
+        wDebug("wal:%s, it is removed", pWal->name);
       }
     }
   } else {
-    wTrace("wal:%s, it is closed and kept", pWal->name);
+    wDebug("wal:%s, it is closed and kept", pWal->name);
   }
 
   pthread_mutex_destroy(&pWal->mutex);
@@ -132,7 +133,7 @@ int walRenew(void *handle) {
   if (pWal->fd >=0) {
     close(pWal->fd);
     pWal->id++;
-    wTrace("wal:%s, it is closed", pWal->name);
+    wDebug("wal:%s, it is closed", pWal->name);
   }
 
   pWal->num++;
@@ -144,7 +145,7 @@ int walRenew(void *handle) {
     wError("wal:%s, failed to open(%s)", pWal->name, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
   } else {
-    wTrace("wal:%s, it is created", pWal->name);
+    wDebug("wal:%s, it is created", pWal->name);
 
     if (pWal->num > pWal->max) {
       // remove the oldest wal file
@@ -153,7 +154,7 @@ int walRenew(void *handle) {
       if (remove(name) <0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
       } else {
-        wTrace("wal:%s, it is removed", name);
+        wDebug("wal:%s, it is removed", name);
       }
 
       pWal->num--;
@@ -242,7 +243,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);
     terrno = TSDB_CODE_WAL_APP_ERROR;
   } else {
-    wTrace("wal:%s, %d files will be restored", opath, count);
+    wDebug("wal:%s, %d files will be restored", opath, count);
 
     for (index = minId; index<=maxId; ++index) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", opath, walPrefix, index);
@@ -321,7 +322,7 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
     return terrno;
   }
 
-  wTrace("wal:%s, start to restore", name);
+  wDebug("wal:%s, start to restore", name);
 
   while (1) {
     int ret = read(fd, pHead, sizeof(SWalHead));
@@ -395,7 +396,7 @@ int walHandleExistingFiles(const char *path) {
       }
     }
 
-    wTrace("wal:%s, %d files are moved for restoration", path, count);
+    wDebug("wal:%s, %d files are moved for restoration", path, count);
   }
   
   closedir(dir);

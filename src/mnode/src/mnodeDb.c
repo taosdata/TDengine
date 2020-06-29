@@ -157,7 +157,7 @@ int32_t mnodeInitDbs() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   
-  mTrace("table:dbs table is created");
+  mDebug("table:dbs table is created");
   return 0;
 }
 
@@ -314,7 +314,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
 static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
   SDbObj *pDb = pMsg->pDb;
   if (pDb != NULL) {
-    mLPrint("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+    mLInfo("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
   }
 
   return code;
@@ -328,7 +328,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
   if (pDb != NULL) {
     mnodeDecDbRef(pDb); 
     if (pCreate->ignoreExist) {
-      mTrace("db:%s, already exist, ignore exist is set", pCreate->db);
+      mDebug("db:%s, already exist, ignore exist is set", pCreate->db);
       return TSDB_CODE_SUCCESS;
     } else {
       mError("db:%s, is already exist, ignore exist not set", pCreate->db);
@@ -380,7 +380,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(pDb);
-    mLPrint("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
+    mLInfo("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     return code;
   } else {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -397,17 +397,17 @@ bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
 
 #if 0
 void mnodePrintVgroups(SDbObj *pDb, char *oper) {
-  mPrint("db:%s, vgroup link from head, oper:%s", pDb->name, oper);  
+  mInfo("db:%s, vgroup link from head, oper:%s", pDb->name, oper);  
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
-    mPrint("vgId:%d", pVgroup->vgId);
+    mInfo("vgId:%d", pVgroup->vgId);
     pVgroup = pVgroup->next;
   }
 
-  mPrint("db:%s, vgroup link from tail", pDb->name, pDb->numOfVgroups);
+  mInfo("db:%s, vgroup link from tail", pDb->name, pDb->numOfVgroups);
   pVgroup = pDb->pTail;
   while (pVgroup != NULL) {
-    mPrint("vgId:%d", pVgroup->vgId);
+    mInfo("vgId:%d", pVgroup->vgId);
     pVgroup = pVgroup->prev;
   }
 }
@@ -814,12 +814,12 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   }
 
   if (totalBlocks > 0 && totalBlocks != pDb->cfg.totalBlocks) {
-    mPrint("db:%s, blocks:%d change to %d", pDb->name, pDb->cfg.totalBlocks, totalBlocks);
+    mInfo("db:%s, blocks:%d change to %d", pDb->name, pDb->cfg.totalBlocks, totalBlocks);
     newCfg.totalBlocks = totalBlocks;
   }
 
   if (maxTables > 0) {
-    mPrint("db:%s, maxTables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
+    mInfo("db:%s, maxTables:%d change to %d", pDb->name, pDb->cfg.maxTables, maxTables);
     newCfg.maxTables = maxTables;
     if (newCfg.maxTables < pDb->cfg.maxTables) {
       mError("db:%s, tables:%d should larger than origin:%d", pDb->name, newCfg.maxTables, pDb->cfg.maxTables);
@@ -833,17 +833,17 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   }
 
   if (daysToKeep > 0 && daysToKeep != pDb->cfg.daysToKeep) {
-    mTrace("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, daysToKeep);
+    mDebug("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, daysToKeep);
     newCfg.daysToKeep = daysToKeep;
   }
 
   if (daysToKeep1 > 0 && daysToKeep1 != pDb->cfg.daysToKeep1) {
-    mTrace("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
+    mDebug("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
     newCfg.daysToKeep1 = daysToKeep1;
   }
 
   if (daysToKeep2 > 0 && daysToKeep2 != pDb->cfg.daysToKeep2) {
-    mTrace("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
+    mDebug("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
     newCfg.daysToKeep2 = daysToKeep2;
   }
 
@@ -868,7 +868,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   }
 
   if (compression >= 0 && compression != pDb->cfg.compression) {
-    mTrace("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
+    mDebug("db:%s, compression:%d change to %d", pDb->name, pDb->cfg.compression, compression);
     newCfg.compression = compression;
   }
 
@@ -878,7 +878,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   }
 
   if (replications > 0 && replications != pDb->cfg.replications) {
-    mTrace("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
+    mDebug("db:%s, replications:%d change to %d", pDb->name, pDb->cfg.replications, replications);
     newCfg.replications = replications;
 
     if (pDb->cfg.walLevel < TSDB_MIN_WAL_LEVEL) {
@@ -916,8 +916,8 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   }
   sdbFreeIter(pIter);
 
-  mTrace("db:%s, all vgroups is altered", pDb->name);
-  mLPrint("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+  mDebug("db:%s, all vgroups is altered", pDb->name);
+  mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
   balanceAsyncNotify();
 
@@ -957,7 +957,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter, void *pMsg) {
 
 static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
   SCMAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
-  mTrace("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->rpcMsg.handle);
+  mDebug("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->rpcMsg.handle);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pAlter->db);
   if (pMsg->pDb == NULL) {
@@ -973,7 +973,7 @@ static int32_t mnodeDropDbCb(SMnodeMsg *pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to drop from sdb, reason:%s", pDb->name, tstrerror(code));
   } else {
-    mLPrint("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+    mLInfo("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
   }
 
   return code;
@@ -983,7 +983,7 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
   
   SDbObj *pDb = pMsg->pDb;
-  mPrint("db:%s, drop db from sdb", pDb->name);
+  mInfo("db:%s, drop db from sdb", pDb->name);
 
   SSdbOper oper = {
     .type  = SDB_OPER_GLOBAL,
@@ -1003,12 +1003,12 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
 
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   SCMDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
-  mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->rpcMsg.handle);
+  mDebug("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->rpcMsg.handle);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pDrop->db);
   if (pMsg->pDb == NULL) {
     if (pDrop->ignoreNotExists) {
-      mTrace("db:%s, db is not exist, think drop success", pDrop->db);
+      mDebug("db:%s, db is not exist, think drop success", pDrop->db);
       return TSDB_CODE_SUCCESS;
     } else {
       mError("db:%s, failed to drop, invalid db", pDrop->db);
@@ -1029,7 +1029,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
 
   mnodeSendDropAllDbVgroupsMsg(pMsg->pDb);
 
-  mTrace("db:%s, all vgroups is dropped", pMsg->pDb->name);
+  mDebug("db:%s, all vgroups is dropped", pMsg->pDb->name);
   return mnodeDropDb(pMsg);
 }
 
@@ -1038,14 +1038,14 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
   SDbObj *pDb = NULL;
   void *  pIter = NULL;
 
-  mPrint("acct:%s, all dbs will be dropped from sdb", pAcct->user);
+  mInfo("acct:%s, all dbs will be dropped from sdb", pAcct->user);
 
   while (1) {
     pIter = mnodeGetNextDb(pIter, &pDb);
     if (pDb == NULL) break;
 
     if (pDb->pAcct == pAcct) {
-      mPrint("db:%s, drop db from sdb for acct:%s is dropped", pDb->name, pAcct->user);
+      mInfo("db:%s, drop db from sdb for acct:%s is dropped", pDb->name, pAcct->user);
       SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsDbSdb,
@@ -1060,5 +1060,5 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
 
   sdbFreeIter(pIter);
 
-  mPrint("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
+  mInfo("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
 }

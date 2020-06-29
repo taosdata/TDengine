@@ -114,7 +114,7 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
       goto _err;
     }
   } else {
-    uTrace("file %s exists, try to recover the KV store", pStore->fsnap);
+    uDebug("file %s exists, try to recover the KV store", pStore->fsnap);
     if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info) < 0) {
       if (terrno != TSDB_CODE_COM_FILE_CORRUPTED) goto _err;
     } else {

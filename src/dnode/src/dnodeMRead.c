@@ -57,7 +57,7 @@ int32_t dnodeInitMnodeRead() {
     pWorker->workerId = i;
   }
 
-  dPrint("dnode mread is opened");
+  dInfo("dnode mread is opened");
   return 0;
 }
 
@@ -79,7 +79,7 @@ void dnodeCleanupMnodeRead() {
   taosCloseQset(tsMReadQset);
   free(tsMReadPool.readWorker);
 
-  dPrint("dnode mread is closed");
+  dInfo("dnode mread is closed");
 }
 
 int32_t dnodeAllocateMnodeRqueue() {
@@ -101,10 +101,10 @@ int32_t dnodeAllocateMnodeRqueue() {
     }
 
     pthread_attr_destroy(&thAttr);
-    dTrace("dnode mread worker:%d is launched, total:%d", pWorker->workerId, tsMReadPool.num);
+    dDebug("dnode mread worker:%d is launched, total:%d", pWorker->workerId, tsMReadPool.num);
   }
 
-  dTrace("dnode mread queue:%p is allocated", tsMReadQueue);
+  dDebug("dnode mread queue:%p is allocated", tsMReadQueue);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -116,6 +116,7 @@ void dnodeFreeMnodeRqueue() {
 void dnodeDispatchToMnodeReadQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMReadQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, true);
+    rpcFreeCont(pMsg->pCont);
     return;
   }
 
@@ -155,11 +156,11 @@ static void *dnodeProcessMnodeReadQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMReadQset, &type, (void **)&pReadMsg, &unUsed) == 0) {
-      dTrace("dnodeProcessMnodeReadQueue: got no message from qset, exiting...");
+      dDebug("dnodeProcessMnodeReadQueue: got no message from qset, exiting...");
       break;
     }
 
-    dTrace("%p, msg:%s will be processed in mread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);    
+    dDebug("%p, msg:%s will be processed in mread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessRead(pReadMsg);    
     dnodeSendRpcMnodeReadRsp(pReadMsg, code);   
   }

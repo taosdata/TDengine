@@ -114,7 +114,7 @@ int32_t dnodeInitSystem() {
   }
   taosPrintGlobalCfg();
 
-  dPrint("start to initialize TDengine on %s", tsLocalEp);
+  dInfo("start to initialize TDengine on %s", tsLocalEp);
 
   if (dnodeInitComponents() != 0) {
     return -1;
@@ -124,7 +124,7 @@ int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
   dnodeStartStream();
 
-  dPrint("TDengine is initialized successfully");
+  dInfo("TDengine is initialized successfully");
 
   return 0;
 }
@@ -189,7 +189,7 @@ static int32_t dnodeInitStorage() {
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
 
-  dPrint("storage directory is initialized");
+  dInfo("storage directory is initialized");
   return 0;
 }
 
