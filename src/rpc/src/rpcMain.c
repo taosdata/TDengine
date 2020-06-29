@@ -665,6 +665,12 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     return pConn;
   }
 
+  // if code is not 0, it means it is simple reqhead, just ignore
+  if (pHead->code != 0) {
+    terrno = TSDB_CODE_RPC_ALREADY_PROCESSED;
+    return NULL;
+  }
+
   int sid = taosAllocateId(pRpc->idPool);
   if (sid <= 0) {
     tError("%s maximum number of sessions:%d is reached", pRpc->label, pRpc->sessions);

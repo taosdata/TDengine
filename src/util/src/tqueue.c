@@ -68,10 +68,15 @@ void taosCloseQueue(taos_queue param) {
   if (param == NULL) return;
   STaosQueue *queue = (STaosQueue *)param;
   STaosQnode *pTemp;
+  STaosQset  *qset;
+
+  pthread_mutex_lock(&queue->mutex);
   STaosQnode *pNode = queue->head;  
   queue->head = NULL;
+  qset = queue->qset;
+  pthread_mutex_unlock(&queue->mutex);
 
-  if (queue->qset) taosRemoveFromQset(queue->qset, queue); 
+  if (queue->qset) taosRemoveFromQset(qset, queue); 
 
   pthread_mutex_lock(&queue->mutex);
 
