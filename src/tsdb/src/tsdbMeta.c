@@ -480,13 +480,11 @@ int tsdbUpdateTable(STsdbRepo *pRepo, STable *pTable, STableCfg *pCfg) {
   bool       changed = false;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  if (pTable->type == TSDB_SUPER_TABLE) {
-    if (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema)) {
-      if (tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema) < 0) {
-        tsdbError("vgId:%d failed to update table %s tag schema since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                  tstrerror(terrno));
-        return -1;
-      }
+  if ((pTable->type == TSDB_SUPER_TABLE) && (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema))) {
+    if (tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema) < 0) {
+      tsdbError("vgId:%d failed to update table %s tag schema since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                tstrerror(terrno));
+      return -1;
     }
     changed = true;
   }
@@ -1215,7 +1213,7 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
     while (tSkipListIterNext(pIter)) {
       STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
       ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
-      pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, pTable);
+      pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
     }
 
     tSkipListDestroyIter(pIter);
