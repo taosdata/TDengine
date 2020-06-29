@@ -33,7 +33,7 @@ typedef struct {
 
 void processResponse(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
   SInfo *pInfo = (SInfo *)pMsg->handle;
-  uTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
+  uDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
   if (pIpSet) pInfo->ipSet = *pIpSet;
   rpcFreeCont(pMsg->pCont);
@@ -47,7 +47,7 @@ void *sendRequest(void *param) {
   SInfo  *pInfo = (SInfo *)param;
   SRpcMsg rpcMsg; 
   
-  uTrace("thread:%d, start to send request", pInfo->index);
+  uDebug("thread:%d, start to send request", pInfo->index);
 
   while ( pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
     pInfo->num++;
@@ -55,14 +55,14 @@ void *sendRequest(void *param) {
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.handle = pInfo;
     rpcMsg.msgType = 1;
-    uTrace("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
+    uDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, &rpcMsg);
     if ( pInfo->num % 20000 == 0 ) 
-      uPrint("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
+      uInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     sem_wait(&pInfo->rspSem);
   }
 
-  uTrace("thread:%d, it is over", pInfo->index);
+  uDebug("thread:%d, it is over", pInfo->index);
   tcount++;
 
   return NULL;
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  uPrint("client is initialized");
+  uInfo("client is initialized");
 
   gettimeofday(&systemTime, NULL);
   startTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;
@@ -183,8 +183,8 @@ int main(int argc, char *argv[]) {
   endTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;  
   float usedTime = (endTime - startTime)/1000.0;  // mseconds
 
-  uPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
-  uPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
+  uInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
+  uInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
   taosCloseLog();
 

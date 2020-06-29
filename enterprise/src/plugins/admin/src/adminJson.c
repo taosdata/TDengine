@@ -146,7 +146,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
   }
 
   if (cmd->numOfRows >= tsRestRowLimit) {
-    httpTrace("context:%p, fd:%d, ip:%s, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve"
+    httpDebug("context:%p, fd:%d, ip:%s, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve"
       , pContext, pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows, tsRestRowLimit);
     return false;
   }
@@ -157,7 +157,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
       return false;
     }
     else {
-      httpTrace("context:%p, fd:%d, ip:%s, user:%s, total rows:%d retrieved"
+      httpDebug("context:%p, fd:%d, ip:%s, user:%s, total rows:%d retrieved"
       , pContext, pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows);
       return true;
     }

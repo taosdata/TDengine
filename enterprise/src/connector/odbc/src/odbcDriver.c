@@ -627,7 +627,7 @@ SQLPrimaryKeys(SQLHSTMT stmt,
   SQLCHAR *schema, SQLSMALLINT schemaLen,
   SQLCHAR *table, SQLSMALLINT tableLen)
 {
-  odbcTrace("SQLPrimaryKeys, stmt:%p, cat:%s, schema:%s, table:%s", stmt, cat, schema, table);
+  odbcDebug("SQLPrimaryKeys, stmt:%p, cat:%s, schema:%s, table:%s", stmt, cat, schema, table);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -680,7 +680,7 @@ SQLPrimaryKeysW(SQLHSTMT stmt,
     }
   }
   
-  odbcTrace("SQLPrimaryKeysW, stmt:%p, cat:%s, schema:%s, table:%s", stmt, c, s, t);
+  odbcDebug("SQLPrimaryKeysW, stmt:%p, cat:%s, schema:%s, table:%s", stmt, c, s, t);
   
   HSTMT_LOCK(stmt);
   ret = odbcPrimaryKeys(stmt, c, s, t);
@@ -786,7 +786,7 @@ SQLForeignKeys(SQLHSTMT stmt,
   SQLCHAR *FKschema, SQLSMALLINT FKschemaLen,
   SQLCHAR *FKtable, SQLSMALLINT FKtableLen)
 {
-  odbcTrace("SQLForeignKeys, stmt:%p", stmt);
+  odbcDebug("SQLForeignKeys, stmt:%p", stmt);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -824,7 +824,7 @@ SQLForeignKeysW(SQLHSTMT stmt,
   SQLWCHAR *FKschema, SQLSMALLINT FKschemaLen,
   SQLWCHAR *FKtable, SQLSMALLINT FKtableLen)
 {
-  odbcTrace("SQLForeignKeysW, stmt:%p", stmt);
+  odbcDebug("SQLForeignKeysW, stmt:%p", stmt);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -1058,7 +1058,7 @@ SQLRETURN SQL_API
 SQLGetEnvAttr(SQLHENV env, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER len, SQLINTEGER *lenp)
 {
-  odbcTrace("SQLGetEnvAttr, env:%p attr:%d:%s val:%p len:%d", env, attr, odbcEnvAttrString(attr), val, len);
+  odbcDebug("SQLGetEnvAttr, env:%p attr:%d:%s val:%p len:%d", env, attr, odbcEnvAttrString(attr), val, len);
 
   ENV *e;
   SQLRETURN ret = SQL_ERROR;
@@ -1123,7 +1123,7 @@ SQLGetEnvAttr(SQLHENV env, SQLINTEGER attr, SQLPOINTER val,
 SQLRETURN SQL_API
 SQLSetEnvAttr(SQLHENV env, SQLINTEGER attr, SQLPOINTER val, SQLINTEGER len)
 {
-  odbcTrace("SQLSetEnvAttr, env:%p, attr:%d:%s, val:%p, len:%d", env, attr, odbcEnvAttrString(attr), val, len);
+  odbcDebug("SQLSetEnvAttr, env:%p, attr:%d:%s, val:%p, len:%d", env, attr, odbcEnvAttrString(attr), val, len);
 
   SQLRETURN ret = SQL_ERROR;
   HENV_LOCK(env);
@@ -1131,27 +1131,27 @@ SQLSetEnvAttr(SQLHENV env, SQLINTEGER attr, SQLPOINTER val, SQLINTEGER len)
   switch (attr) {
   case SQL_ATTR_CONNECTION_POOLING:
     if (val == (SQLPOINTER)SQL_CP_ONE_PER_DRIVER) {
-      odbcTrace("SQLSetEnvAttr, set SQL_ATTR_CONNECTION_POOLING to SQL_CP_ONE_PER_DRIVER");
+      odbcDebug("SQLSetEnvAttr, set SQL_ATTR_CONNECTION_POOLING to SQL_CP_ONE_PER_DRIVER");
       ret = SQL_SUCCESS;
     }
     else if (val == (SQLPOINTER)SQL_CP_OFF) {
-      odbcTrace("SQLSetEnvAttr, set SQL_ATTR_CONNECTION_POOLING to SQL_CP_OFF");
+      odbcDebug("SQLSetEnvAttr, set SQL_ATTR_CONNECTION_POOLING to SQL_CP_OFF");
       ret = SQL_SUCCESS;
     }
     break;
   case SQL_ATTR_CP_MATCH:
-    odbcTrace("SQLSetEnvAttr, set SQL_ATTR_CP_MATCH");
+    odbcDebug("SQLSetEnvAttr, set SQL_ATTR_CP_MATCH");
     ret = SQL_SUCCESS;
     break;
   case SQL_ATTR_OUTPUT_NTS:
     if (val == (SQLPOINTER)SQL_TRUE) {
-      odbcTrace("SQLSetEnvAttr, set SQL_ATTR_OUTPUT_NTS to SQL_TRUE");
+      odbcDebug("SQLSetEnvAttr, set SQL_ATTR_OUTPUT_NTS to SQL_TRUE");
       ret = SQL_SUCCESS;
     }
     break;
   case SQL_ATTR_ODBC_VERSION:     //֧��ODBC 3�汾����֧��ODBC 2�汾
     if (val == (SQLPOINTER)SQL_OV_ODBC3) {
-      odbcTrace("SQLSetEnvAttr, set SQL_ATTR_ODBC_VERSION to SQL_OV_ODBC3");
+      odbcDebug("SQLSetEnvAttr, set SQL_ATTR_ODBC_VERSION to SQL_OV_ODBC3");
       ret = SQL_SUCCESS;
     }
     else if (val == (SQLPOINTER)SQL_OV_ODBC2) {
@@ -1255,7 +1255,7 @@ done:
     HSTMT_UNLOCK((SQLHSTMT)handle);
     break;
   }
-  odbcTrace("odbcGetDiagRec, htype:%d:%s, handle:%p return:%d:%s, msg:%s", htype, odbcHandleTypeString(htype), handle, ret, odbcReturnCodeString(ret), msg);
+  odbcDebug("odbcGetDiagRec, htype:%d:%s, handle:%p return:%d:%s, msg:%s", htype, odbcHandleTypeString(htype), handle, ret, odbcReturnCodeString(ret), msg);
   return ret;
 }
 
@@ -1277,7 +1277,7 @@ SQLGetDiagRec(SQLSMALLINT htype, SQLHANDLE handle, SQLSMALLINT recno,
   SQLCHAR *sqlstate, SQLINTEGER *nativeerr, SQLCHAR *msg,
   SQLSMALLINT buflen, SQLSMALLINT *msglen)
 {
-  odbcTrace("SQLGetDiagRec, htype:%d:%s, handle:%p, recno:%d", htype, odbcHandleTypeString(htype), handle, recno);
+  odbcDebug("SQLGetDiagRec, htype:%d:%s, handle:%p, recno:%d", htype, odbcHandleTypeString(htype), handle, recno);
   return odbcGetDiagRec(htype, handle, recno, sqlstate, nativeerr, msg, buflen, msglen);
 }
 
@@ -1299,7 +1299,7 @@ SQLGetDiagRecW(SQLSMALLINT htype, SQLHANDLE handle, SQLSMALLINT recno,
   SQLWCHAR *sqlstate, SQLINTEGER *nativeerr, SQLWCHAR *msg,
   SQLSMALLINT buflen, SQLSMALLINT *msglen)
 {
-  odbcTrace("SQLGetDiagRecW, htype:%d:%s, handle:%p, recno:%d", htype, odbcHandleTypeString(htype), handle, recno);
+  odbcDebug("SQLGetDiagRecW, htype:%d:%s, handle:%p, recno:%d", htype, odbcHandleTypeString(htype), handle, recno);
   
   char state[16];
   SQLSMALLINT len;
@@ -1529,7 +1529,7 @@ done:
     break;
   }
 
-  odbcTrace("odbcGetDiagField, htype:%d:%s, handle:%p return:%d:%s:%s", htype, odbcHandleTypeString(htype), handle, ret, odbcReturnCodeString(ret), info);
+  odbcDebug("odbcGetDiagField, htype:%d:%s, handle:%p return:%d:%s:%s", htype, odbcHandleTypeString(htype), handle, ret, odbcReturnCodeString(ret), info);
 
   return ret;
 }
@@ -1551,7 +1551,7 @@ SQLGetDiagField(SQLSMALLINT htype, SQLHANDLE handle, SQLSMALLINT recno,
   SQLSMALLINT id, SQLPOINTER info,
   SQLSMALLINT buflen, SQLSMALLINT *stringlen)
 {
-  odbcTrace("SQLGetDiagField, htype:%d:%s, handle:%p, recno:%d, id:%d:%s", htype, odbcHandleTypeString(htype), handle, recno, id, odbcDiagFieldIdString(id));
+  odbcDebug("SQLGetDiagField, htype:%d:%s, handle:%p, recno:%d, id:%d:%s", htype, odbcHandleTypeString(htype), handle, recno, id, odbcDiagFieldIdString(id));
   return odbcGetDiagField(htype, handle, recno, id, info, buflen, stringlen);
 }
 
@@ -1572,7 +1572,7 @@ SQLGetDiagFieldW(SQLSMALLINT htype, SQLHANDLE handle, SQLSMALLINT recno,
   SQLSMALLINT id, SQLPOINTER info,
   SQLSMALLINT buflen, SQLSMALLINT *stringlen)
 {
-  odbcTrace("SQLGetDiagFieldW, htype:%d:%s, handle:%p, recno:%d, id:%d:%s", htype, odbcHandleTypeString(htype), handle, recno, id, odbcDiagFieldIdString(id));
+  odbcDebug("SQLGetDiagFieldW, htype:%d:%s, handle:%p, recno:%d, id:%d:%s", htype, odbcHandleTypeString(htype), handle, recno, id, odbcDiagFieldIdString(id));
   SQLSMALLINT len;
   SQLRETURN ret = SQL_SUCCESS;
 
@@ -1782,7 +1782,7 @@ SQLRETURN SQL_API
 SQLGetStmtAttr(SQLHSTMT stmt, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER bufmax, SQLINTEGER *buflen)
 {
-  odbcTrace("SQLGetStmtAttr, stmt:%p, attr:%d:%s", stmt, attr, odbcStmtAttrString(attr));
+  odbcDebug("SQLGetStmtAttr, stmt:%p, attr:%d:%s", stmt, attr, odbcStmtAttrString(attr));
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -1805,7 +1805,7 @@ SQLRETURN SQL_API
 SQLGetStmtAttrW(SQLHSTMT stmt, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER bufmax, SQLINTEGER *buflen)
 {
-  odbcTrace("SQLGetStmtAttrW, stmt:%p, attr:%d:%s", stmt, attr, odbcStmtAttrString(attr));
+  odbcDebug("SQLGetStmtAttrW, stmt:%p, attr:%d:%s", stmt, attr, odbcStmtAttrString(attr));
 
   SQLRETURN ret = SQL_SUCCESS;
 
@@ -1943,7 +1943,7 @@ SQLRETURN SQL_API
 SQLSetStmtAttr(SQLHSTMT stmt, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER buflen)
 {
-  odbcTrace("SQLSetStmtAttr, stmt:%p, attr:%d:%s, val:%p", stmt, attr, odbcStmtAttrString(attr), val);
+  odbcDebug("SQLSetStmtAttr, stmt:%p, attr:%d:%s, val:%p", stmt, attr, odbcStmtAttrString(attr), val);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -1965,7 +1965,7 @@ SQLRETURN SQL_API
 SQLSetStmtAttrW(SQLHSTMT stmt, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER buflen)
 {
-  odbcTrace("SQLSetStmtAttrW, stmt:%p, attr:%d:%s, val:%p", stmt, attr, odbcStmtAttrString(attr), val);
+  odbcDebug("SQLSetStmtAttrW, stmt:%p, attr:%d:%s, val:%p", stmt, attr, odbcStmtAttrString(attr), val);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -2024,7 +2024,7 @@ odbcGetStmtOption(SQLHSTMT stmt, SQLUSMALLINT opt, SQLPOINTER param)
 SQLRETURN SQL_API 
 SQLGetStmtOption(SQLHSTMT stmt, SQLUSMALLINT opt, SQLPOINTER param)
 {
-  odbcTrace("SQLGetStmtOption, stmt:%p, opt:%d:%s", stmt, opt, odbcStmtOptionString(opt));
+  odbcDebug("SQLGetStmtOption, stmt:%p, opt:%d:%s", stmt, opt, odbcStmtOptionString(opt));
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -2036,7 +2036,7 @@ SQLGetStmtOption(SQLHSTMT stmt, SQLUSMALLINT opt, SQLPOINTER param)
 SQLRETURN SQL_API 
 SQLGetStmtOptionW(SQLHSTMT stmt, SQLUSMALLINT opt, SQLPOINTER param)
 {
-  odbcTrace("SQLGetStmtOptionW, stmt:%p, opt:%d:%s", stmt, opt, odbcStmtOptionString(opt));
+  odbcDebug("SQLGetStmtOptionW, stmt:%p, opt:%d:%s", stmt, opt, odbcStmtOptionString(opt));
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -2110,7 +2110,7 @@ odbcSetStmtoption(SQLHSTMT stmt, SQLUSMALLINT opt, SQLUINTEGER param)
 //SQLSetStmtOption(SQLHSTMT stmt, SQLUSMALLINT opt,
 //  /*SETSTMTOPTION_LAST_ARG_TYPE*/SQLUINTEGER param)
 //{
-//  odbcTrace("SQLSetStmtOption, stmt:%p, opt:%d:%s, param:%d", stmt, opt, odbcStmtOptionString(opt), param);
+//  odbcDebug("SQLSetStmtOption, stmt:%p, opt:%d:%s, param:%d", stmt, opt, odbcStmtOptionString(opt), param);
 //  SQLRETURN ret = SQL_SUCCESS;
 //
 //  HSTMT_LOCK(stmt);
@@ -2131,7 +2131,7 @@ odbcSetStmtoption(SQLHSTMT stmt, SQLUSMALLINT opt, SQLUINTEGER param)
 //SQLSetStmtOptionW(SQLHSTMT stmt, SQLUSMALLINT opt,
 //  /*SETSTMTOPTION_LAST_ARG_TYPE*/SQLUINTEGER param)
 //{
-//  odbcTrace("SQLSetStmtOptionW, stmt:%p, opt:%d:%s, param:%d", stmt, opt, odbcStmtOptionString(opt), param);
+//  odbcDebug("SQLSetStmtOptionW, stmt:%p, opt:%d:%s, param:%d", stmt, opt, odbcStmtOptionString(opt), param);
 //  SQLRETURN ret = SQL_SUCCESS;
 //
 //  HSTMT_LOCK(stmt);
@@ -2702,7 +2702,7 @@ SQLRETURN SQL_API
 SQLGetInfo(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, SQLSMALLINT *valLen)
 {
   SQLRETURN ret = SQL_SUCCESS;
-  odbcTrace("SQLGetInfo, dbc:%p type:%d:%s", dbc, type, odbcInfoTypeString(type));
+  odbcDebug("SQLGetInfo, dbc:%p type:%d:%s", dbc, type, odbcInfoTypeString(type));
 
   HDBC_LOCK(dbc);
   ret = odbcGetInfo(dbc, type, val, valMax, valLen);
@@ -2724,7 +2724,7 @@ SQLGetInfoW(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, 
 {
   SQLRETURN ret = SQL_SUCCESS;
   SQLSMALLINT len = 0;
-  odbcTrace("SQLGetInfoW, dbc:%p, type:%d:%s", dbc, type, odbcInfoTypeString(type));
+  odbcDebug("SQLGetInfoW, dbc:%p, type:%d:%s", dbc, type, odbcInfoTypeString(type));
 
   HDBC_LOCK(dbc);
   ret = odbcGetInfo(dbc, type, val, valMax, &len);
@@ -2830,7 +2830,7 @@ SQLRETURN SQL_API
 SQLGetFunctions(SQLHDBC dbc, SQLUSMALLINT func,
   SQLUSMALLINT *flags)
 {
-  odbcTrace("SQLGetFunctions, dbc:%p, type:%d:%s", dbc, func, odbcFunctionString(func));
+  odbcDebug("SQLGetFunctions, dbc:%p, type:%d:%s", dbc, func, odbcFunctionString(func));
 
   int i;
   SQLUSMALLINT exists[100];
@@ -3004,7 +3004,7 @@ SQLAllocEnv(SQLHENV *env)
 {
   odbc_init();
   SQLRETURN ret = odbcAllocEnv(env);
-  odbcTrace("SQLAllocEnv, env:%p", *env);
+  odbcDebug("SQLAllocEnv, env:%p", *env);
   return ret;
 }
 
@@ -3038,7 +3038,7 @@ odbcFreeEnv(SQLHENV env)
 SQLRETURN SQL_API 
 SQLFreeEnv(SQLHENV env)
 {
-  odbcTrace("SQLFreeEnv, env:%p", env);
+  odbcDebug("SQLFreeEnv, env:%p", env);
   return odbcFreeEnv(env);
 }
 
@@ -3089,7 +3089,7 @@ SQLRETURN SQL_API
 SQLAllocConnect(SQLHENV env, SQLHDBC *dbc)
 {
   SQLRETURN ret = odbcAllocDbc(env, dbc);
-  odbcTrace("SQLAllocConnect, env:%p, dbc:%p", env, *dbc);
+  odbcDebug("SQLAllocConnect, env:%p, dbc:%p", env, *dbc);
   return ret;
 }
 
@@ -3103,7 +3103,7 @@ odbcFreeDbc(SQLHDBC dbc)
 
   pthread_mutex_lock(&d->mutex);
   if (d->con != NULL) {
-    odbcTrace("free taos:%p", d->con);
+    odbcDebug("free taos:%p", d->con);
     taos_close(d->con);
     d->con = NULL;
   }
@@ -3124,7 +3124,7 @@ odbcFreeDbc(SQLHDBC dbc)
 SQLRETURN SQL_API 
 SQLFreeConnect(SQLHDBC dbc)
 {
-  odbcTrace("SQLFreeConnect, dbc:%p", dbc);
+  odbcDebug("SQLFreeConnect, dbc:%p", dbc);
   return odbcFreeDbc(dbc);
 }
 
@@ -3285,7 +3285,7 @@ SQLRETURN SQL_API
 SQLGetConnectAttr(SQLHDBC dbc, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER bufmax, SQLINTEGER *buflen)
 {
-  odbcTrace("SQLGetConnectAttr, dbc:%p, attr:%d:%s, val:%p, bufmax:%d", dbc, attr, odbcConnectAttrString(attr), val, bufmax);
+  odbcDebug("SQLGetConnectAttr, dbc:%p, attr:%d:%s, val:%p, bufmax:%d", dbc, attr, odbcConnectAttrString(attr), val, bufmax);
   SQLRETURN ret = SQL_SUCCESS;
 
   HDBC_LOCK(dbc);
@@ -3308,7 +3308,7 @@ SQLRETURN SQL_API
 SQLGetConnectAttrW(SQLHDBC dbc, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER bufmax, SQLINTEGER *buflen)
 {
-  odbcTrace("SQLGetConnectAttrW, dbc:%p, attr:%d:%s, val:%p, bufmax:%d", dbc, attr, odbcConnectAttrString(attr), val, bufmax);
+  odbcDebug("SQLGetConnectAttrW, dbc:%p, attr:%d:%s, val:%p, bufmax:%d", dbc, attr, odbcConnectAttrString(attr), val, bufmax);
   SQLRETURN ret = SQL_SUCCESS;
   SQLINTEGER len = 0;
 
@@ -3400,7 +3400,7 @@ SQLRETURN SQL_API
 SQLSetConnectAttr(SQLHDBC dbc, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER len)
 {
-  odbcTrace("SQLSetConnectAttr, dbc:%p, attr:%d:%s, val:%d, len:%d", dbc, attr, odbcConnectAttrString(attr), val, len);
+  odbcDebug("SQLSetConnectAttr, dbc:%p, attr:%d:%s, val:%d, len:%d", dbc, attr, odbcConnectAttrString(attr), val, len);
   SQLRETURN ret = SQL_SUCCESS;
 
   HDBC_LOCK(dbc);
@@ -3421,7 +3421,7 @@ SQLRETURN SQL_API
 SQLSetConnectAttrW(SQLHDBC dbc, SQLINTEGER attr, SQLPOINTER val,
   SQLINTEGER len)
 {
-  odbcTrace("SQLSetConnectAttrW, dbc:%p, attr:%d:%s, val:%d, len:%d", dbc, attr, odbcConnectAttrString(attr), val, len);
+  odbcDebug("SQLSetConnectAttrW, dbc:%p, attr:%d:%s, val:%d, len:%d", dbc, attr, odbcConnectAttrString(attr), val, len);
   SQLRETURN ret = SQL_SUCCESS;
 
   HDBC_LOCK(dbc);
@@ -3521,7 +3521,7 @@ odbcGetConnectOption(SQLHDBC dbc, SQLUSMALLINT opt, SQLPOINTER param)
 SQLRETURN SQL_API
 SQLGetConnectOption(SQLHDBC dbc, SQLUSMALLINT opt, SQLPOINTER param)
 {
-  odbcTrace("SQLGetConnectOption, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
+  odbcDebug("SQLGetConnectOption, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
   SQLRETURN ret = SQL_SUCCESS;
 
   HDBC_LOCK(dbc);
@@ -3541,7 +3541,7 @@ SQLGetConnectOption(SQLHDBC dbc, SQLUSMALLINT opt, SQLPOINTER param)
 SQLRETURN SQL_API
 SQLGetConnectOptionW(SQLHDBC dbc, SQLUSMALLINT opt, SQLPOINTER param)
 {
-  odbcTrace("SQLGetConnectOptionW, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
+  odbcDebug("SQLGetConnectOptionW, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
   SQLRETURN ret = SQL_SUCCESS;
 
   HDBC_LOCK(dbc);
@@ -3591,7 +3591,7 @@ odbcSetConnectOption(SQLHDBC dbc, SQLUSMALLINT opt, SQLULEN param)
 SQLRETURN SQL_API
 SQLSetConnectOption(SQLHDBC dbc, SQLUSMALLINT opt, SQLULEN param)
 {
-  odbcTrace("SQLSetConnectOption, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
+  odbcDebug("SQLSetConnectOption, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
 
   SQLRETURN ret = SQL_SUCCESS;
 
@@ -3613,7 +3613,7 @@ SQLSetConnectOption(SQLHDBC dbc, SQLUSMALLINT opt, SQLULEN param)
 SQLRETURN SQL_API
 SQLSetConnectOptionW(SQLHDBC dbc, SQLUSMALLINT opt, SQLULEN param)
 {
-  odbcTrace("SQLSetConnectOptionW, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
+  odbcDebug("SQLSetConnectOptionW, dbc:%p, opt:%d:%s, param:%d", dbc, opt, odbcConnectOptionString(opt), param);
 
   SQLRETURN ret = SQL_SUCCESS;
 
@@ -3735,7 +3735,7 @@ odbcTaosConnect(DBC *d, char *dsn, char *serverInput, char *dbnameInput, char * 
 
   d->con = taos;
 
-  odbcTrace("dbc:%p, connect to taos:%p success, server:%s, dbname:%s, user:%s", d, taos, server, dbname, user);
+  odbcDebug("dbc:%p, connect to taos:%p success, server:%s, dbname:%s, user:%s", d, taos, server, dbname, user);
   return SQL_SUCCESS;
 }
 
@@ -3755,7 +3755,7 @@ SQLConnect(SQLHDBC dbc, SQLCHAR *dsn, SQLSMALLINT dsnLen,
   SQLCHAR *uid, SQLSMALLINT uidLen,
   SQLCHAR *pwd, SQLSMALLINT pwdLen)
 {
-  odbcTrace("SQLConnect, dbc:%p dsn:%s, uid:%s", dbc, dsn, uid);
+  odbcDebug("SQLConnect, dbc:%p dsn:%s, uid:%s", dbc, dsn, uid);
   SQLRETURN ret = SQL_SUCCESS;
 
   HDBC_LOCK(dbc);
@@ -3773,7 +3773,7 @@ SQLRETURN SQL_API SQLConnectW(SQLHDBC dbc, SQLWCHAR *dsn, SQLSMALLINT dsnLen,
   SQLCHAR *dsnBuf = (SQLCHAR *)uc_to_utf_c(dsn, dsnLen);
   SQLCHAR *uidBuf = (SQLCHAR *)uc_to_utf_c(uid, uidLen);
   SQLCHAR *pwdBuf = (SQLCHAR *)uc_to_utf_c(pwd, pwdLen);
-  odbcTrace("SQLConnectW, dbc:%p dsn:%s, uid:%s", dbc, dsnBuf, uidBuf);
+  odbcDebug("SQLConnectW, dbc:%p dsn:%s, uid:%s", dbc, dsnBuf, uidBuf);
 
   HDBC_LOCK(dbc);
   ret = odbcTaosConnect((DBC*)dbc, (char*)dsnBuf, "", "", (char*)uidBuf, (char*)pwdBuf);
@@ -3800,7 +3800,7 @@ SQLRETURN SQL_API SQLDisconnect(SQLHDBC dbc)
   }
 
   DBC *d = (DBC*)dbc;
-  odbcTrace("SQLDisconnect, dbc:%p, con:%p", dbc, d->con);
+  odbcDebug("SQLDisconnect, dbc:%p, con:%p", dbc, d->con);
   HDBC_LOCK(d);
   if (d->con != NULL) {
     taos_close(d->con);
@@ -3846,7 +3846,7 @@ SQLRETURN SQL_API
 SQLAllocStmt(SQLHDBC dbc, SQLHSTMT *stmt)
 {
    SQLRETURN ret = odbcAllocStmt(dbc, stmt);
-   odbcTrace("SQLAllocStmt, dbc:%p, stmt:%p", dbc, *stmt);
+   odbcDebug("SQLAllocStmt, dbc:%p, stmt:%p", dbc, *stmt);
    return ret;
 }
 
@@ -3890,7 +3890,7 @@ odbcFreeStmt(SQLHSTMT stmt, SQLUSMALLINT opt)
 SQLRETURN SQL_API 
 SQLFreeStmt(SQLHSTMT stmt, SQLUSMALLINT opt)
 {
-  odbcTrace("SQLFreeStmt, stmt:%p, opt:%s", stmt, odbcFreeStmtOptionString(opt));
+  odbcDebug("SQLFreeStmt, stmt:%p, opt:%s", stmt, odbcFreeStmtOptionString(opt));
   SQLRETURN ret = SQL_ERROR;
 
   switch (opt) {
@@ -4024,7 +4024,7 @@ SQLAllocHandle(SQLSMALLINT type, SQLHANDLE input, SQLHANDLE *output)
     break;
   }
 
-  odbcTrace("SQLAllocHandle, input:%p, type:%s:%p", input, odbcHandleTypeString(type), *output);
+  odbcDebug("SQLAllocHandle, input:%p, type:%s:%p", input, odbcHandleTypeString(type), *output);
   return ret;
 }
 
@@ -4038,7 +4038,7 @@ SQLAllocHandle(SQLSMALLINT type, SQLHANDLE input, SQLHANDLE *output)
 SQLRETURN SQL_API
 SQLFreeHandle(SQLSMALLINT type, SQLHANDLE h)
 {
-  odbcTrace("SQLFreeHandle, type:%s, handle:%p", odbcHandleTypeString(type), h);
+  odbcDebug("SQLFreeHandle, type:%s, handle:%p", odbcHandleTypeString(type), h);
   switch (type) {
   case SQL_HANDLE_ENV:
     return odbcFreeEnv((SQLHENV)h);
@@ -4065,7 +4065,7 @@ SQLRETURN SQL_API
 SQLBindCol(SQLHSTMT stmt, SQLUSMALLINT col, SQLSMALLINT type,
   SQLPOINTER val, SQLLEN maxLen, SQLLEN *lenp)
 {
-  odbcTrace("SQLBindCol, stmt:%p, col:%d, type:%d:%s, val:%p, max:%d", stmt, col, type, odbcCDataTypeString(type), val, maxLen);
+  odbcDebug("SQLBindCol, stmt:%p, col:%d, type:%d:%s, val:%p, max:%d", stmt, col, type, odbcCDataTypeString(type), val, maxLen);
   
   SQLRETURN ret = SQL_SUCCESS;
   STMT *s = (STMT*)stmt;
@@ -4102,7 +4102,7 @@ SQLBindCol(SQLHSTMT stmt, SQLUSMALLINT col, SQLSMALLINT type,
   }
 
   if (val == NULL) {
-    odbcTrace("stmt:%p, column pointer was null, unbind this col:%d", stmt, col);
+    odbcDebug("stmt:%p, column pointer was null, unbind this col:%d", stmt, col);
     //setstat(s, -1, "column pointer was null", "HY000");
     //ret = SQL_ERROR;
     //goto done;
@@ -4206,7 +4206,7 @@ SQLRETURN
 odbcExecuteSql(STMT *s)
 {
   odbcTrim(s->sql);
-  odbcTrace("taos:%p, type:%d:%s, sql:%s, last result set:%p", s->dbc->con, s->type, odbcStmtSqlType(s->type), s->sql, s->result);
+  odbcDebug("taos:%p, type:%d:%s, sql:%s, last result set:%p", s->dbc->con, s->type, odbcStmtSqlType(s->type), s->sql, s->result);
   if (s->result != NULL) {
     taos_free_result(s->result);
   }
@@ -4249,7 +4249,7 @@ odbcExecuteSql(STMT *s)
     s->result = NULL;
     s->numFields = 0;
     s->rowsAffacted = taos_affected_rows(s->dbc->con);
-    odbcTrace("taos:%p, affect rows:%d", s->dbc->con, s->rowsAffacted);
+    odbcDebug("taos:%p, affect rows:%d", s->dbc->con, s->rowsAffacted);
     return SQL_SUCCESS;
   }
     
@@ -4262,7 +4262,7 @@ odbcExecuteSql(STMT *s)
    
   s->fields = taos_fetch_fields(s->result);
   s->numFields = taos_field_count(s->dbc->con);
-  odbcTrace("taos:%p, result set:%p, fields:%p, numFields:%d", s->dbc->con, s->result, s->fields, s->numFields);
+  odbcDebug("taos:%p, result set:%p, fields:%p, numFields:%d", s->dbc->con, s->result, s->fields, s->numFields);
 
   if (s->fields == NULL) {
     odbcError("failed to fetch fields schema from taos:%p, code:%d, reason:%s", s->dbc->con, taos_errno(s->dbc->con), taos_errstr(s->dbc->con));
@@ -4573,7 +4573,7 @@ SQLTables(SQLHSTMT stmt,
   SQLCHAR *table, SQLSMALLINT tableLen,
   SQLCHAR *type, SQLSMALLINT typeLen)
 {
-  odbcTrace("SQLTables, stmt:%p, cat:%s, schema:%s, table:%s, type:%s", stmt, cat, schema, table, type);
+  odbcDebug("SQLTables, stmt:%p, cat:%s, schema:%s, table:%s, type:%s", stmt, cat, schema, table, type);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -4636,7 +4636,7 @@ SQLTablesW(SQLHSTMT stmt,
     }
   }
 
-  odbcTrace("SQLTables, stmt:%p, cat:%s, schema:%s, table:%s, type:%s", stmt, c, s, t, y);
+  odbcDebug("SQLTables, stmt:%p, cat:%s, schema:%s, table:%s, type:%s", stmt, c, s, t, y);
   
   HSTMT_LOCK(stmt);
   ret = odbcTables(stmt, c, s, t, y);
@@ -4694,7 +4694,7 @@ SQLColumns(SQLHSTMT stmt,
   SQLCHAR *table, SQLSMALLINT tableLen,
   SQLCHAR *col, SQLSMALLINT colLen)
 {
-  odbcTrace("SQLColumns, stmt:%p, cat:%s, schema:%s, table:%s, col:%s", stmt, cat, schema, table, col);
+  odbcDebug("SQLColumns, stmt:%p, cat:%s, schema:%s, table:%s, col:%s", stmt, cat, schema, table, col);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -4757,7 +4757,7 @@ SQLColumnsW(SQLHSTMT stmt,
     }
   }
 
-  odbcTrace("SQLColumnsW, stmt:%p, cat:%s, schema:%s, table:%s, col:%s", stmt, c, s, t, k);
+  odbcDebug("SQLColumnsW, stmt:%p, cat:%s, schema:%s, table:%s, col:%s", stmt, c, s, t, k);
 
   HSTMT_LOCK(stmt);
   ret = odbcColumns(stmt, c, s, t, k);
@@ -5412,7 +5412,7 @@ odbcSetColumnValue(COL* col, void *rawData, void *result)
 SQLRETURN SQL_API SQLGetData(SQLHSTMT stmt, SQLUSMALLINT col, SQLSMALLINT type,
   SQLPOINTER val, SQLLEN len, SQLLEN *lenp)
 {
-  odbcTrace("SQLGetData, stmt:%p, col:%d, type:%d:%s, val:%p, len:%d, lenp:%p", stmt, col, type, odbcCDataTypeString(type), val, len, lenp);
+  odbcDebug("SQLGetData, stmt:%p, col:%d, type:%d:%s, val:%p, len:%d, lenp:%p", stmt, col, type, odbcCDataTypeString(type), val, len, lenp);
 
   SQLRETURN ret = SQL_SUCCESS;
   STMT *s = (STMT*)stmt;
@@ -5608,7 +5608,7 @@ done:
 SQLRETURN SQL_API
 SQLFetch(SQLHSTMT stmt)
 {
-  //odbcTrace("SQLFetch, stmt:%p", stmt);
+  //odbcDebug("SQLFetch, stmt:%p", stmt);
  
   STMT *s = (STMT*)stmt;
   SQLRETURN ret = SQL_SUCCESS;
@@ -5616,17 +5616,17 @@ SQLFetch(SQLHSTMT stmt)
 
   switch (s->type) {
   case STMT_SHOW_SCHEMA_SQL:
-    odbcTrace("stmt:%p, no schema was found", stmt);
+    odbcDebug("stmt:%p, no schema was found", stmt);
     ret = SQL_NO_DATA;
     goto done;
   case STMT_FOERIGN_KEY_SQL:
-    odbcTrace("stmt:%p, no foreign key was found", stmt);
+    odbcDebug("stmt:%p, no foreign key was found", stmt);
     ret = SQL_NO_DATA;
     goto done;
   case STMT_SHOW_TABLES_TYPE_SQL:
     s->fixedResultSetIndex++;
     if (s->fixedResultSetIndex > 1 || s->fixedResultSetIndex < 0) {
-      odbcTrace("stmt:%p, fetch to end of type result set, query table types", stmt);
+      odbcDebug("stmt:%p, fetch to end of type result set, query table types", stmt);
       ret = SQL_NO_DATA;
       goto done;
     }
@@ -5675,7 +5675,7 @@ SQLFetch(SQLHSTMT stmt)
   if (s->row == NULL) {
     if (s->type == STMT_SHOW_STABLES_SQL) {
       s->type = STMT_SHOW_TABLES_SQL;
-      odbcTrace("stmt:%p, continue get tables", stmt);
+      odbcDebug("stmt:%p, continue get tables", stmt);
       char *tablePos = strstr(s->sql, "stables");
       if (tablePos != NULL) {
         tablePos[0] = 't';
@@ -5685,7 +5685,7 @@ SQLFetch(SQLHSTMT stmt)
         tablePos[4] = 'e';
         tablePos[5] = 's';
         tablePos[6] = ' ';
-        odbcTrace("stmt:%p, change sql to:%s", s, s->sql);
+        odbcDebug("stmt:%p, change sql to:%s", s, s->sql);
         if (s->result != NULL) {
           taos_free_result(s->result);
         }
@@ -5701,7 +5701,7 @@ SQLFetch(SQLHSTMT stmt)
       goto done;
     }
 
-    odbcTrace("stmt:%p, fetch to end of result set:%p", stmt, s->result);
+    odbcDebug("stmt:%p, fetch to end of result set:%p", stmt, s->result);
     setstatd(s->dbc, -1, "fetch to end of result set", "HY000");
     ret = SQL_NO_DATA;
     goto done;
@@ -5739,7 +5739,7 @@ SQLFetch(SQLHSTMT stmt)
   case STMT_PRIMARY_KEY_SQL:
     s->fixedResultSetIndex++;
     if (s->fixedResultSetIndex >= 1 || s->fixedResultSetIndex < 0) {
-      odbcTrace("stmt:%p, fetch to end of primary key result set", stmt);
+      odbcDebug("stmt:%p, fetch to end of primary key result set", stmt);
       ret = SQL_NO_DATA;
       goto done;
     }
@@ -5850,7 +5850,7 @@ SQLExtendedFetch(SQLHSTMT stmt, SQLUSMALLINT orient, SQLROWOFFSET offset,
 SQLRETURN SQL_API 
 SQLRowCount(SQLHSTMT stmt, SQLLEN *nrows)
 {
-  odbcTrace("SQLRowCount, stmt:%p", stmt);
+  odbcDebug("SQLRowCount, stmt:%p", stmt);
   SQLRETURN ret = SQL_SUCCESS;
   STMT *s = (STMT*)stmt;
 
@@ -5911,7 +5911,7 @@ SQLNumResultCols(SQLHSTMT stmt, SQLSMALLINT *ncols)
 
   HSTMT_UNLOCK(stmt);
 
-  odbcTrace("SQLNumResultCols, stmt:%p, ncols:%d", stmt, *ncols);
+  odbcDebug("SQLNumResultCols, stmt:%p, ncols:%d", stmt, *ncols);
   return ret;
 }
 
@@ -6000,7 +6000,7 @@ SQLDescribeCol(SQLHSTMT stmt, SQLUSMALLINT col, SQLCHAR *name,
   SQLSMALLINT *type, SQLULEN *size,
   SQLSMALLINT *digits, SQLSMALLINT *nullable)
 {
-  odbcTrace("SQLDescribeCol, stmt:%p, col:%d", stmt, col);
+  odbcDebug("SQLDescribeCol, stmt:%p, col:%d", stmt, col);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -6029,7 +6029,7 @@ SQLDescribeColW(SQLHSTMT stmt, SQLUSMALLINT col, SQLWCHAR *msg,
   SQLSMALLINT *type, SQLULEN *size,
   SQLSMALLINT *digits, SQLSMALLINT *nullable)
 {
-  odbcTrace("SQLDescribeColW, stmt:%p, col:%d", stmt, col);
+  odbcDebug("SQLDescribeColW, stmt:%p, col:%d", stmt, col);
   
   HSTMT_LOCK(stmt);
   SQLSMALLINT len;
@@ -6377,7 +6377,7 @@ SQLColAttributes(SQLHSTMT stmt, SQLUSMALLINT col, SQLUSMALLINT id,
   SQLPOINTER val, SQLSMALLINT valMax, SQLSMALLINT *valLen,
   SQLLEN *val2)
 {
-  odbcTrace("SQLColAttributes, stmt:%p, col:%d, id:%d:%s", stmt, col, id, odbcColAttrString(id));
+  odbcDebug("SQLColAttributes, stmt:%p, col:%d, id:%d:%s", stmt, col, id, odbcColAttrString(id));
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -6403,7 +6403,7 @@ SQLColAttributesW(SQLHSTMT stmt, SQLUSMALLINT col, SQLUSMALLINT id,
   SQLPOINTER val, SQLSMALLINT valMax, SQLSMALLINT *valLen,
   SQLLEN *val2)
 {
-  odbcTrace("SQLColAttributesW, stmt:%p, col:%d, id:%d:%s, ", stmt, col, id, odbcColAttrString(id));
+  odbcDebug("SQLColAttributesW, stmt:%p, col:%d, id:%d:%s, ", stmt, col, id, odbcColAttrString(id));
   SQLRETURN ret = SQL_SUCCESS;
   SQLSMALLINT len = 0;
 
@@ -6551,7 +6551,7 @@ noerr:
   errmsg[0] = '\0';
   *nativeErr = 0;
   *errlen = 0;
-  odbcTrace("no error fetched, env:%p, dbc:%p, stmt:%p", env, dbc, stmt);
+  odbcDebug("no error fetched, env:%p, dbc:%p, stmt:%p", env, dbc, stmt);
   return SQL_NO_DATA;
 }
 
@@ -6572,7 +6572,7 @@ SQLRETURN SQL_API SQLError(SQLHENV env, SQLHDBC dbc, SQLHSTMT stmt,
   SQLCHAR *sqlState, SQLINTEGER *nativeErr,
   SQLCHAR *errmsg, SQLSMALLINT errmax, SQLSMALLINT *errlen)
 {
-  odbcTrace("SQLError, env:%p, dbc:%p, stmt:%p, sqlState:%s", env, dbc, stmt, sqlState);
+  odbcDebug("SQLError, env:%p, dbc:%p, stmt:%p, sqlState:%s", env, dbc, stmt, sqlState);
   return odbcGetError(env, dbc, stmt, sqlState, nativeErr, errmsg, errmax, errlen);
 }
 
@@ -6594,7 +6594,7 @@ SQLErrorW(SQLHENV env, SQLHDBC dbc, SQLHSTMT stmt,
   SQLWCHAR *sqlState, SQLINTEGER *nativeErr,
   SQLWCHAR *errmsg, SQLSMALLINT errmax, SQLSMALLINT *errlen)
 {
-  odbcTrace("SQLErrorW, env:%p, dbc:%p, stmt:%p", env, dbc, stmt);
+  odbcDebug("SQLErrorW, env:%p, dbc:%p, stmt:%p", env, dbc, stmt);
 
   char state[16];
   SQLSMALLINT len = 0;
@@ -6717,7 +6717,7 @@ odbcPrepare(SQLHSTMT stmt, SQLCHAR *query)
 SQLRETURN SQL_API 
 SQLPrepare(SQLHSTMT stmt, SQLCHAR *query, SQLINTEGER queryLen)
 {
-  odbcTrace("SQLPrepare, stmt:%p, query:%s", stmt, query);
+  odbcDebug("SQLPrepare, stmt:%p, query:%s", stmt, query);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -6738,7 +6738,7 @@ SQLRETURN SQL_API
 SQLPrepareW(SQLHSTMT stmt, SQLWCHAR *query, SQLINTEGER queryLen)
 {
   SQLCHAR *buf = (SQLCHAR*)uc_to_utf_c(query, queryLen);
-  odbcTrace("SQLPrepareW, stmt:%p, query:%s", stmt, buf);
+  odbcDebug("SQLPrepareW, stmt:%p, query:%s", stmt, buf);
   SQLRETURN ret = SQL_SUCCESS;
 
   HSTMT_LOCK(stmt);
@@ -6760,7 +6760,7 @@ SQLExecute(SQLHSTMT stmt)
 {
   SQLRETURN ret = SQL_SUCCESS;
   STMT* s = (STMT*)stmt;
-  odbcTrace("SQLExecute, stmt:%p, prepared:%d", stmt, s->isPreparedStmt);
+  odbcDebug("SQLExecute, stmt:%p, prepared:%d", stmt, s->isPreparedStmt);
 
   if (!s->isPreparedStmt) {
     HSTMT_LOCK(stmt);
@@ -6787,7 +6787,7 @@ SQLExecute(SQLHSTMT stmt)
 SQLRETURN SQL_API
 SQLExecDirect(SQLHSTMT stmt, SQLCHAR *query, SQLINTEGER queryLen)
 {
-  odbcTrace("SQLExecDirect, stmt:%p, sql:%s", stmt, query);
+  odbcDebug("SQLExecDirect, stmt:%p, sql:%s", stmt, query);
 
   HSTMT_LOCK(stmt);
   STMT* s = (STMT*)stmt;
@@ -6813,7 +6813,7 @@ SQLRETURN SQL_API
 SQLExecDirectW(SQLHSTMT stmt, SQLWCHAR *query, SQLINTEGER queryLen)
 {
   SQLCHAR *buf = (SQLCHAR*)uc_to_utf_c(query, queryLen);
-  odbcTrace("SQLExecDirectW, stmt:%p, sql:%s", stmt, buf);
+  odbcDebug("SQLExecDirectW, stmt:%p, sql:%s", stmt, buf);
 
   HSTMT_LOCK(stmt);
   STMT* s = (STMT*)stmt;
@@ -6921,7 +6921,7 @@ odbcDriverConnect(SQLHDBC dbc, SQLHWND hwnd,
       pwd, sizeof(pwd), ODBC_INI);
   }
 
-  odbcTrace("dbc:%p, dsn:%s, server:%s, database:%s, uid:%s", dbc, dsn, server, dbname, uid);
+  odbcDebug("dbc:%p, dsn:%s, server:%s, database:%s, uid:%s", dbc, dsn, server, dbname, uid);
 
 #if defined(_WIN32) || defined(_WIN64)
   if (!dbname[0] && !dsn[0]) {
@@ -6964,7 +6964,7 @@ odbcDriverConnect(SQLHDBC dbc, SQLHWND hwnd,
     }
   }
   
-  odbcTrace("dbc:%p, dsn:%s, server:%s, database:%s, uid:%s, connOut", dbc, dsn, server, dbname, uid);
+  odbcDebug("dbc:%p, dsn:%s, server:%s, database:%s, uid:%s, connOut", dbc, dsn, server, dbname, uid);
   if (dsn[0] || dbname[0]) {
     ret = odbcTaosConnect(d, dsn, server, dbname, uid, pwd);
   }
@@ -6990,7 +6990,7 @@ SQLRETURN SQL_API SQLDriverConnect(SQLHDBC dbc, SQLHWND hwnd,
   SQLCHAR *connOut, SQLSMALLINT connOutMax,
   SQLSMALLINT *connOutLen, SQLUSMALLINT drvcompl)
 {
-  odbcTrace("SQLDriverConnect, dbc:%p, hwnd:%d, connIn:%s, connOut:%p, connOutMax:%d, drvcompl:%d:%s", dbc, hwnd, connIn, connOut, connOutMax, drvcompl, odbcDriverCompleteString(drvcompl));
+  odbcDebug("SQLDriverConnect, dbc:%p, hwnd:%d, connIn:%s, connOut:%p, connOutMax:%d, drvcompl:%d:%s", dbc, hwnd, connIn, connOut, connOutMax, drvcompl, odbcDriverCompleteString(drvcompl));
 
   SQLRETURN ret = SQL_SUCCESS;
   
@@ -7036,7 +7036,7 @@ SQLRETURN SQL_API SQLDriverConnectW(SQLHDBC dbc, SQLHWND hwnd,
     }
   }
 
-  odbcTrace("SQLDriverConnectW, dbc:%p, hwnd:%d, connIn:%s, connOut:%p, connOutMax:%d, drvcompl:%d:%s", dbc, hwnd, ci, connOut, connOutMax, drvcompl, odbcDriverCompleteString(drvcompl));
+  odbcDebug("SQLDriverConnectW, dbc:%p, hwnd:%d, connIn:%s, connOut:%p, connOutMax:%d, drvcompl:%d:%s", dbc, hwnd, ci, connOut, connOutMax, drvcompl, odbcDriverCompleteString(drvcompl));
 
   ret = odbcDriverConnect(dbc, hwnd, (SQLCHAR *)ci, SQL_NTS,
     (SQLCHAR *)connOut, connOutMax, &len, drvcompl);

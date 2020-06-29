@@ -166,7 +166,7 @@ static void storagePrintTiersInfo() {
       blankLen = blankLen < 0 ? 0 : blankLen;
       memset(blank, ' ', TSDB_CFG_PRINT_LEN);
       blank[blankLen] = 0;
-      uPrint(" %s:%s%s", optionBuffer, blank, disk->path);
+      uInfo(" %s:%s%s", optionBuffer, blank, disk->path);
     }
   }
 }
