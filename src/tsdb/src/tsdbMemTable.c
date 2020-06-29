@@ -443,12 +443,14 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
         if (tdUpdateKVStoreRecord(pMeta->pStore, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
           tsdbError("vgId:%d failed to update meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                     tstrerror(terrno));
+          tdKVStoreEndCommit(pMeta->pStore);
           goto _err;
         }
       } else if (pAct->act == TSDB_DROP_META) {
         if (tdDropKVStoreRecord(pMeta->pStore, pAct->uid) < 0) {
           tsdbError("vgId:%d failed to drop meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                     tstrerror(terrno));
+          tdKVStoreEndCommit(pMeta->pStore);
           goto _err;
         }
       } else {
