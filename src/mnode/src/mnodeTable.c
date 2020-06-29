@@ -1254,13 +1254,13 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   char *          pWrite;
   int32_t         cols = 0;
   SSuperTableObj *pTable = NULL;
-  char            prefix[20] = {0};
+  char            prefix[64] = {0};
   int32_t         prefixLen;
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
 
-  strcpy(prefix, pDb->name);
+  tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   prefixLen = strlen(prefix);
 
@@ -1558,10 +1558,10 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
 
 static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  if (pTable != NULL) {
-    mDebug("app:%p:%p, table:%s, create table in id:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle, pMsg,
-           pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
-  }
+  assert(pTable);
+
+  mDebug("app:%p:%p, table:%s, create table in id:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle, pMsg,
+         pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
 
   if (code != TSDB_CODE_SUCCESS) return code;
 
@@ -2370,7 +2370,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  strcpy(prefix, pDb->name);
+  tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
 
@@ -2560,7 +2560,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  strcpy(prefix, pDb->name);
+  tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
 

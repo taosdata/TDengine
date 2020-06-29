@@ -287,7 +287,7 @@ void sdbUpdateSync() {
       SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
       if (pDnode != NULL) {
         syncCfg.nodeInfo[index].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
-        strcpy(syncCfg.nodeInfo[index].nodeFqdn, pDnode->dnodeEp);
+        tstrncpy(syncCfg.nodeInfo[index].nodeFqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
         index++;
       }
 
@@ -976,11 +976,11 @@ static void *sdbWorkerFp(void *param) {
                    tstrerror(pOper->retCode));
         }
 
-        dnodeSendRpcMnodeWriteRsp(pOper->pMsg, pOper->retCode);
-
         if (pOper != NULL) {
           sdbDecRef(pOper->table, pOper->pObj);
         }
+
+        dnodeSendRpcMnodeWriteRsp(pOper->pMsg, pOper->retCode);
       }
       taosFreeQitem(item);
     }
