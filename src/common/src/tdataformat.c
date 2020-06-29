@@ -259,7 +259,7 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       for (int i = 0; i < nEle; i++) {
-        if (!isNull(varDataVal(tdGetColDataOfRow(pCol, i)), pCol->type)) return false;
+        if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
       }
       return true;
     default:

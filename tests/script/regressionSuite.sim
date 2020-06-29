@@ -1,10 +1,10 @@
 ##unsupport run general/alter/cached_schema_after_alter.sim
-unsupport run general/alter/count.sim
-unsupport run general/alter/import.sim
+run general/alter/count.sim
+run general/alter/import.sim
 ##unsupport run general/alter/insert1.sim
-unsupport run general/alter/insert2.sim
-unsupport run general/alter/metrics.sim
-unsupport run general/alter/table.sim
+run general/alter/insert2.sim
+run general/alter/metrics.sim
+run general/alter/table.sim
 run general/cache/new_metrics.sim
 run general/cache/restart_metrics.sim
 run general/cache/restart_table.sim
@@ -86,14 +86,14 @@ run general/insert/query_block2_file.sim
 run general/insert/query_file_memory.sim
 run general/insert/query_multi_file.sim
 run general/insert/tcp.sim
-##unsupport run general/parser/alter.sim
+run general/parser/alter.sim
 run general/parser/alter1.sim
 run general/parser/alter_stable.sim
 run general/parser/auto_create_tb.sim
 run general/parser/auto_create_tb_drop_tb.sim
 run general/parser/col_arithmetic_operation.sim
 run general/parser/columnValue.sim
-#run general/parser/commit.sim
+run general/parser/commit.sim
 run general/parser/create_db.sim
 run general/parser/create_mt.sim
 run general/parser/create_tb.sim
@@ -106,7 +106,7 @@ run general/parser/first_last.sim
 ##unsupport run general/parser/import_file.sim
 run general/parser/lastrow.sim
 run general/parser/nchar.sim
-##unsupport run general/parser/null_char.sim
+run general/parser/null_char.sim
 run general/parser/single_row_in_tb.sim
 run general/parser/select_from_cache_disk.sim
 run general/parser/limit.sim
@@ -132,7 +132,7 @@ run general/parser/groupby.sim
 run general/parser/bug.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
-##unsupport run general/parser/repeatAlter.sim
+run general/parser/repeatAlter.sim
 ##unsupport run general/parser/slimit_alter_tags.sim
 ##unsupport run general/parser/stream_on_sys.sim
 run general/parser/stream.sim

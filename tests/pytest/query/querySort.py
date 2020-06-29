@@ -16,6 +16,7 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
+import numpy as np
 
 
 class TDTestCase:
@@ -25,6 +26,46 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000
+
+    def checkColumnSorted(self, col, order):
+        frame = inspect.stack()[1]
+        callerModule = inspect.getmodule(frame[0])
+        callerFilename = callerModule.__file__
+
+        if col < 0:
+            tdLog.exit(
+                "%s failed: sql:%s, col:%d is smaller than zero" %
+                (callerFilename, tdSql.sql, col))
+        if col > tdSql.queryCols:
+            tdLog.exit(
+                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
+                (callerFilename, tdSql.sql, col, tdSql.queryCols))
+
+        matrix = np.array(tdSql.queryResult)
+        list = matrix[:, 0]
+
+        if order == "" or order.upper() == "ASC":
+            if all(sorted(list) == list):
+                tdLog.info(
+                    "sql:%s, column :%d is sorted in accending order as expected" %
+                    (tdSql.sql, col))
+            else:
+                tdLog.exit(
+                    "%s failed: sql:%s, col:%d is not sorted in accesnind order" %
+                    (callerFilename, tdSql.sql, col))
+        elif order.upper() == "DESC":
+            if all(sorted(list, reverse=True) == list):
+                tdLog.info(
+                    "sql:%s, column :%d is sorted in decending order as expected" %
+                    (tdSql.sql, col))
+            else:
+                tdLog.exit(
+                    "%s failed: sql:%s, col:%d is not sorted in decending order" %
+                    (callerFilename, tdSql.sql, col))
+        else:
+            tdLog.exit(
+                "%s failed: sql:%s, the order provided for col:%d is not correct" %
+                (callerFilename, tdSql.sql, col))
 
     def run(self):
         tdSql.prepare()
@@ -49,11 +90,11 @@ class TDTestCase:
         print("======= step 2: verify order for each column =========")
         # sort for timestamp in asc order
         tdSql.query("select * from st order by ts asc")
-        tdSql.checkColumnSorted(0, "asc")
+        self.checkColumnSorted(0, "asc")
 
         # sort for timestamp in desc order
         tdSql.query("select * from st order by ts desc")
-        tdSql.checkColumnSorted(0, "desc")
+        self.checkColumnSorted(0, "desc")
 
         for i in range(1, 10):
             tdSql.error("select * from st order by tbcol%d" % i)
@@ -63,17 +104,17 @@ class TDTestCase:
             tdSql.query(
                 "select avg(tbcol1) from st group by tagcol%d order by tagcol%d" %
                 (i, i))
-            tdSql.checkColumnSorted(1, "")
+            self.checkColumnSorted(1, "")
 
             tdSql.query(
                 "select avg(tbcol1) from st group by tagcol%d order by tagcol%d asc" %
                 (i, i))
-            tdSql.checkColumnSorted(1, "asc")
+            self.checkColumnSorted(1, "asc")
 
             tdSql.query(
                 "select avg(tbcol1) from st group by tagcol%d order by tagcol%d desc" %
                 (i, i))
-            tdSql.checkColumnSorted(1, "desc")
+            self.checkColumnSorted(1, "desc")
 
     def stop(self):
         tdSql.close()

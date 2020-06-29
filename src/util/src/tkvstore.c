@@ -259,6 +259,7 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
   }
 
   taosHashPut(pStore->map, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
+  uDebug("put uid %" PRIu64 " into kvStore %s", uid, pStore->fname);
 
   return 0;
 }
@@ -292,6 +293,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   pStore->info.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);
 
   taosHashRemove(pStore->map, (void *)(&uid), sizeof(uid));
+  uDebug("drop uid %" PRIu64 " from KV store %s", uid, pStore->fname);
 
   return 0;
 }
