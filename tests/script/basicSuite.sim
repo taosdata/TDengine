@@ -8,12 +8,13 @@ run general/parser/binary_escapeCharacter.sim
 run general/parser/select_from_cache_disk.sim
 run general/parser/null_char.sim
 run general/parser/alter.sim
-run general/parser/projection_limit_offset.sim
-run general/parser/join.sim
-run general/parser/where.sim
 run general/stable/vnode3.sim
 run general/tag/filter.sim
 run general/table/vgroup.sim
 run general/user/authority.sim
 run general/vector/metrics_mix.sim
 run general/vector/table_field.sim
+run general/user/authority.sim
+run general/tag/set.sim
+run general/table/delete_writing.sim
+run general/stable/disk.sim
