@@ -29,7 +29,7 @@
 #include "tutil.h"
 #include "ttime.h"
 
-const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".h"};
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".l"};
 
 static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
