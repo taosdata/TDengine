@@ -36,6 +36,7 @@ typedef struct {
   int32_t    min;       // min number of workers
   int32_t    num;       // current number of workers
   SReadWorker *readWorker;
+  pthread_mutex_t mutex;
 } SReadWorkerPool;
 
 static void *dnodeProcessReadQueue(void *param);
@@ -51,27 +52,28 @@ int32_t dnodeInitVnodeRead() {
   readPool.min = 2;
   readPool.max = tsNumOfCores * tsNumOfThreadsPerCore;
   if (readPool.max <= readPool.min * 2) readPool.max = 2 * readPool.min;
-  readPool.readWorker = (SReadWorker *) calloc(sizeof(SReadWorker), readPool.max);
+  readPool.readWorker = (SReadWorker *)calloc(sizeof(SReadWorker), readPool.max);
+  pthread_mutex_init(&readPool.mutex, NULL);
 
   if (readPool.readWorker == NULL) return -1;
-  for (int i=0; i < readPool.max; ++i) {
+  for (int i = 0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
     pWorker->workerId = i;
   }
 
-  dInfo("dnode read is opened");
+  dInfo("dnode read is opened, min worker:%d max worker:%d", readPool.min, readPool.max);
   return 0;
 }
 
 void dnodeCleanupVnodeRead() {
-  for (int i=0; i < readPool.max; ++i) {
+  for (int i = 0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(readQset);
     }
   }
 
-  for (int i=0; i < readPool.max; ++i) {
+  for (int i = 0; i < readPool.max; ++i) {
     SReadWorker *pWorker = readPool.readWorker + i;
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
@@ -80,6 +82,7 @@ void dnodeCleanupVnodeRead() {
 
   free(readPool.readWorker);
   taosCloseQset(readQset);
+  pthread_mutex_destroy(&readPool.mutex);
 
   dInfo("dnode read is closed");
 }
@@ -136,8 +139,12 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
 }
 
 void *dnodeAllocateVnodeRqueue(void *pVnode) {
+  pthread_mutex_lock(&readPool.mutex);
   taos_queue queue = taosOpenQueue();
-  if (queue == NULL) return NULL;
+  if (queue == NULL) {
+    pthread_mutex_unlock(&readPool.mutex);
+    return NULL;
+  }
 
   taosAddIntoQset(readQset, queue, pVnode);
 
@@ -160,6 +167,7 @@ void *dnodeAllocateVnodeRqueue(void *pVnode) {
     } while (readPool.num < readPool.min);
   }
 
+  pthread_mutex_unlock(&readPool.mutex);
   dDebug("pVnode:%p, read queue:%p is allocated", pVnode, queue);
 
   return queue;
