@@ -24,9 +24,10 @@ type argument struct {
 	List []interface{} `json:"list, omitempty"`
 }
 
-type script struct {
+type testCase struct {
 	isQuery bool       `json:"-"`
 	numArgs int        `json:"-"`
+	Weight  int        `json:"weight"`
 	Sql     string     `json:"sql"`
 	Args    []argument `json:"args"`
 }
@@ -97,6 +98,14 @@ func (arg *argument) generate(args []interface{}) []interface{} {
 	return args
 }
 
+func (tc *testCase) buildSql() string {
+	args := make([]interface{}, 0, tc.numArgs)
+	for i := 0; i < len(tc.Args); i++ {
+		args = tc.Args[i].generate(args)
+	}
+	return fmt.Sprintf(tc.Sql, args...)
+}
+
 type statitics struct {
 	succeeded         int64
 	failed            int64
@@ -105,60 +114,79 @@ type statitics struct {
 }
 
 var (
-	server     string
-	database   string
-	fetch      bool
-	concurrent uint
-	startAt    time.Time
-	shouldStop int64
-	wg         sync.WaitGroup
-	stat       statitics
-	scripts    []script
+	host     string
+	port     uint
+	database string
+	user     string
+	password string
+	fetch    bool
+
+	startAt     time.Time
+	shouldStop  int64
+	wg          sync.WaitGroup
+	stat        statitics
+	totalWeight int
+	cases       []testCase
 )
 
-func loadScript(path string) error {
+func loadTestCase(path string) error {
 	f, e := os.Open(path)
 	if e != nil {
 		return e
 	}
 	defer f.Close()
 
-	e = json.NewDecoder(f).Decode(&scripts)
+	e = json.NewDecoder(f).Decode(&cases)
 	if e != nil {
 		return e
 	}
 
-	for i := 0; i < len(scripts); i++ {
-		s := &scripts[i]
-		s.Sql = strings.TrimSpace(s.Sql)
-		s.isQuery = strings.ToLower(s.Sql[:6]) == "select"
+	for i := 0; i < len(cases); i++ {
+		c := &cases[i]
+		c.Sql = strings.TrimSpace(c.Sql)
+		c.isQuery = strings.ToLower(c.Sql[:6]) == "select"
+		if c.Weight < 0 {
+			return fmt.Errorf("test %d: negative weight", i)
+		}
+		totalWeight += c.Weight
 
-		for j := 0; j < len(s.Args); j++ {
-			arg := &s.Args[j]
+		for j := 0; j < len(c.Args); j++ {
+			arg := &c.Args[j]
 			arg.Type = strings.ToLower(arg.Type)
 			n, e := arg.check()
 			if e != nil {
-				return fmt.Errorf("script %d argument %d: %s", i, j, e.Error())
+				return fmt.Errorf("test case %d argument %d: %s", i, j, e.Error())
 			}
-			s.numArgs += n
+			c.numArgs += n
 		}
+	}
+
+	if totalWeight == 0 {
+		for i := 0; i < len(cases); i++ {
+			cases[i].Weight = 1
+		}
+		totalWeight = len(cases)
 	}
 
 	return nil
 }
 
-func buildSql() (string, bool) {
-	s := scripts[rand.Intn(len(scripts))]
-	args := make([]interface{}, 0, s.numArgs)
-	for i := 0; i < len(s.Args); i++ {
-		args = s.Args[i].generate(args)
+func selectTestCase() *testCase {
+	sum, target := 0, rand.Intn(totalWeight)
+	var c *testCase
+	for i := 0; i < len(cases); i++ {
+		c = &cases[i]
+		sum += c.Weight
+		if sum > target {
+			break
+		}
 	}
-	return fmt.Sprintf(s.Sql, args...), s.isQuery
+	return c
 }
 
 func runTest() {
 	defer wg.Done()
-	db, e := sql.Open("taosSql", "root:taosdata@tcp("+server+":0)/"+database)
+	db, e := sql.Open("taosSql", fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", user, password, host, port, database))
 	if e != nil {
 		fmt.Printf("failed to connect to database: %s\n", e.Error())
 		return
@@ -166,10 +194,11 @@ func runTest() {
 	defer db.Close()
 
 	for atomic.LoadInt64(&shouldStop) == 0 {
-		str, isQuery := buildSql()
-		start := time.Now()
+		c := selectTestCase()
+		str := c.buildSql()
 
-		if isQuery {
+		start := time.Now()
+		if c.isQuery {
 			var rows *sql.Rows
 			if rows, e = db.Query(str); rows != nil {
 				if fetch {
@@ -181,8 +210,8 @@ func runTest() {
 		} else {
 			_, e = db.Exec(str)
 		}
-
 		duration := time.Now().Sub(start).Microseconds()
+
 		if e != nil {
 			atomic.AddInt64(&stat.failed, 1)
 			atomic.AddInt64(&stat.failedDuration, duration)
@@ -208,7 +237,7 @@ func getStatPrinter() func(tm time.Time) {
 		seconds := int64(tm.Sub(startAt).Seconds())
 		format := "\033K %02v:%02v:%02v | TOTAL REQ | TOTAL TIME(us) | TOTAL AVG(us) | REQUEST |  TIME(us)  |  AVERAGE(us)  |\n"
 		fmt.Printf(format, seconds/3600, seconds%3600/60, seconds%60)
-		fmt.Println("------------------------------------------------------------------------------------------------")
+		fmt.Println("-----------------------------------------------------------------------------------------------")
 
 		tr := current.succeeded + current.failed
 		td := current.succeededDuration + current.failedDuration
@@ -258,35 +287,39 @@ func getStatPrinter() func(tm time.Time) {
 }
 
 func main() {
-	flag.StringVar(&server, "server", "localhost", "host name or IP address of TDengine server")
-	flag.StringVar(&database, "db", "test", "database name")
-	flag.BoolVar(&fetch, "fetch", false, "fetch result or not")
-	flag.UintVar(&concurrent, "concurrent", 1, "number of concurrent queries")
+	var concurrency uint
+	flag.StringVar(&host, "h", "localhost", "host name or IP address of TDengine server")
+	flag.UintVar(&port, "P", 0, "port (default 0)")
+	flag.StringVar(&database, "d", "test", "database name")
+	flag.StringVar(&user, "u", "root", "user name")
+	flag.StringVar(&password, "p", "taosdata", "password")
+	flag.BoolVar(&fetch, "f", true, "fetch result or not")
+	flag.UintVar(&concurrency, "c", 4, "concurrency, number of goroutines for query")
 	flag.Parse()
 
-	scriptFile := flag.Arg(0)
-	if scriptFile == "" {
-		scriptFile = "script.json"
+	caseFile := flag.Arg(0)
+	if caseFile == "" {
+		caseFile = "cases.json"
 	}
-	if e := loadScript(scriptFile); e != nil {
-		fmt.Println("failed to load script file:", e.Error())
+	if e := loadTestCase(caseFile); e != nil {
+		fmt.Println("failed to load test cases:", e.Error())
 		return
-	} else if len(scripts) == 0 {
-		fmt.Println("there's no script in the script file")
+	} else if len(cases) == 0 {
+		fmt.Println("there's no test case")
 		return
 	}
 
 	rand.Seed(time.Now().UnixNano())
 
 	fmt.Println()
-	fmt.Printf("SERVER: %s    DATABASE: %s    CONCURRENT QUERIES: %d    FETCH DATA: %v\n", server, database, concurrent, fetch)
+	fmt.Printf("SERVER: %s    DATABASE: %s    CONCURRENCY: %d    FETCH DATA: %v\n", host, database, concurrency, fetch)
 	fmt.Println()
 
 	startAt = time.Now()
 	printStat := getStatPrinter()
 	printStat(startAt)
 
-	for i := uint(0); i < concurrent; i++ {
+	for i := uint(0); i < concurrency; i++ {
 		wg.Add(1)
 		go runTest()
 	}
