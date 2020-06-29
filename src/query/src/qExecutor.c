@@ -2219,7 +2219,7 @@ static void doSetTagValueInParam(void *tsdb, void* pTable, int32_t tagColId, tVa
     }
     
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-      if (isNull(varDataVal(val), type)) {
+      if (isNull(val, type)) {
         tag->nType = TSDB_DATA_TYPE_NULL;
         return;
       }
