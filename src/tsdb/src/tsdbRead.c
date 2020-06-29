@@ -542,17 +542,12 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   return TSDB_CODE_SUCCESS;
 }
 
-static SDataBlockInfo getTrueDataBlockInfo(STableCheckInfo* pCheckInfo, SCompBlock* pBlock) {
-  SDataBlockInfo info = {
-      .window = {.skey = pBlock->keyFirst, .ekey = pBlock->keyLast},
-      .numOfCols = pBlock->numOfCols,
-      .rows = pBlock->numOfRows,
-      .tid = pCheckInfo->tableId.tid,
-      .uid = pCheckInfo->tableId.uid,
-  };
-
-  return info;
-}
+#define GET_FILE_DATA_BLOCK_INFO(_checkInfo, _block)                                   \
+  ((SDataBlockInfo){.window = {.skey = (_block)->keyFirst, .ekey = (_block)->keyLast}, \
+                    .numOfCols = (_block)->numOfCols,                                  \
+                    .rows = (_block)->numOfRows,                                       \
+                    .tid = (_checkInfo)->tableId.tid,                                  \
+                    .uid = (_checkInfo)->tableId.uid})
 
 static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
   size_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
@@ -626,7 +621,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
 static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo){
   SQueryFilePos* cur = &pQueryHandle->cur;
-  SDataBlockInfo binfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
+  SDataBlockInfo binfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
 
   /*bool hasData = */ initTableMemIterator(pQueryHandle, pCheckInfo);
   SDataRow row = getSDataRowInTableMem(pCheckInfo);
@@ -946,7 +941,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
 static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock,
                                   SArray* sa) {
   SQueryFilePos* cur = &pQueryHandle->cur;
-  SDataBlockInfo blockInfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
+  SDataBlockInfo blockInfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
   
   initTableMemIterator(pQueryHandle, pCheckInfo);
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
@@ -1322,8 +1317,8 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
   assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pTableQueryInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
-  SLoserTreeInfo* pTree = NULL;
 
+  SLoserTreeInfo* pTree = NULL;
   uint8_t ret = tLoserTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
   if (ret != TSDB_CODE_SUCCESS) {
     cleanBlockOrderSupporter(&sup, numOfTables);
@@ -1844,7 +1839,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
     if (pHandle->cur.mixBlock) {
       return pHandle->pColumns;
     } else {
-      SDataBlockInfo binfo = getTrueDataBlockInfo(pCheckInfo, pBlockInfo->compBlock);
+      SDataBlockInfo binfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlockInfo->compBlock);
       assert(pHandle->realNumOfRows <= binfo.rows);
   
       // data block has been loaded, todo extract method
