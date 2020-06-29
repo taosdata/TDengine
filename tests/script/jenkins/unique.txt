@@ -102,9 +102,10 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_createErrData_online.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
