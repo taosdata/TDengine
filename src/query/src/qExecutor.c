@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <taosmsg.h>
 #include "os.h"
 #include "qfill.h"
 
@@ -1708,7 +1707,9 @@ static bool onlyFirstQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSD
 
 static bool onlyLastQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
 
-static void changeExecuteScanOrder(SQuery *pQuery, bool stableQuery) {
+static void changeExecuteScanOrder(SQInfo *pQInfo, bool stableQuery) {
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
+
   // in case of point-interpolation query, use asc order scan
   char msg[] = "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64
                "-%" PRId64 ", new qrange:%" PRId64 "-%" PRId64;
@@ -1757,6 +1758,18 @@ static void changeExecuteScanOrder(SQuery *pQuery, bool stableQuery) {
                pQuery->window.ekey, pQuery->window.ekey, pQuery->window.skey);
 
         SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
+
+        // todo refactor, add iterator
+        size_t t = taosArrayGetSize(pQInfo->tableqinfoGroupInfo.pGroupList);
+        for(int32_t i = 0; i < t; ++i) {
+          SArray* p1 = taosArrayGetP(pQInfo->tableqinfoGroupInfo.pGroupList, i);
+
+          size_t len = taosArrayGetSize(p1);
+          for(int32_t j = 0; j < len; ++j) {
+            STableQueryInfo* pTableQueryInfo = (STableQueryInfo*) taosArrayGetP(p1, j);
+            SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
+          }
+        }
       }
 
       pQuery->order.order = TSDB_ORDER_DESC;
