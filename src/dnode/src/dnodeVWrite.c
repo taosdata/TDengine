@@ -47,6 +47,7 @@ typedef struct {
   int32_t        max;        // max number of workers
   int32_t        nextId;     // from 0 to max-1, cyclic
   SWriteWorker  *writeWorker;
+  pthread_mutex_t mutex;
 } SWriteWorkerPool;
 
 static void *dnodeProcessWriteQueue(void *param);
@@ -58,25 +59,26 @@ int32_t dnodeInitVnodeWrite() {
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
   if (wWorkerPool.writeWorker == NULL) return -1;
+  pthread_mutex_init(&wWorkerPool.mutex, NULL);
 
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     wWorkerPool.writeWorker[i].workerId = i;
   }
 
-  dInfo("dnode write is opened");
+  dInfo("dnode write is opened, max worker %d", wWorkerPool.max);
   return 0;
 }
 
 void dnodeCleanupVnodeWrite() {
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
-    SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
+    SWriteWorker *pWorker = wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(pWorker->qset);
     }
   }
-  
+
   for (int32_t i = 0; i < wWorkerPool.max; ++i) {
-    SWriteWorker *pWorker =  wWorkerPool.writeWorker + i;
+    SWriteWorker *pWorker = wWorkerPool.writeWorker + i;
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
@@ -84,6 +86,7 @@ void dnodeCleanupVnodeWrite() {
     }
   }
 
+  pthread_mutex_destroy(&wWorkerPool.mutex);
   free(wWorkerPool.writeWorker);
   dInfo("dnode write is closed");
 }
@@ -124,14 +127,19 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
 }
 
 void *dnodeAllocateVnodeWqueue(void *pVnode) {
+  pthread_mutex_lock(&wWorkerPool.mutex);
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
   void *queue = taosOpenQueue();
-  if (queue == NULL) return NULL;
+  if (queue == NULL) {
+    pthread_mutex_unlock(&wWorkerPool.mutex);
+    return NULL;
+  }
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
     if (pWorker->qset == NULL) {
       taosCloseQueue(queue);
+      pthread_mutex_unlock(&wWorkerPool.mutex);
       return NULL;
     }
 
@@ -140,6 +148,7 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
     if (pWorker->qall == NULL) {
       taosCloseQset(pWorker->qset);
       taosCloseQueue(queue);
+      pthread_mutex_unlock(&wWorkerPool.mutex);
       return NULL;
     }
     pthread_attr_t thAttr;
@@ -163,6 +172,7 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
 
+  pthread_mutex_unlock(&wWorkerPool.mutex);
   dDebug("pVnode:%p, write queue:%p is allocated", pVnode, queue);
 
   return queue;
@@ -200,6 +210,8 @@ static void *dnodeProcessWriteQueue(void *param) {
   int32_t       numOfMsgs;
   int           type;
   void         *pVnode, *item;
+
+  dDebug("write worker:%d is running", pWorker->workerId);
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
