@@ -3642,7 +3642,7 @@ bool queryHasRemainResults(SQueryRuntimeEnv* pRuntimeEnv) {
     return false;
   }
 
-  if (pQuery->fillType != TSDB_FILL_NONE) {
+  if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
     // There are results not returned to client yet, so filling operation applied to the remain result is required
     // in the first place.
     int32_t remain = taosNumOfRemainRows(pFillInfo);
