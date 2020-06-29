@@ -839,7 +839,7 @@ void source_file(TAOS *con, char *fptr) {
     memcpy(cmd + cmd_len, line, read_len);
     printf("%s%s\n", PROMPT_HEADER, cmd);
     shellRunCommand(con, cmd);
-    memset(cmd, 0, MAX_COMMAND_SIZE);
+    memset(cmd, 0, tsMaxSQLStringLen);
     cmd_len = 0;
   }
 
