@@ -328,6 +328,7 @@ static int32_t dnodeOpenVnodes() {
   }
 
   free(vnodeList);
+  free(threads);
   dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, openVnodes, failedVnodes);
 
   return TSDB_CODE_SUCCESS;
