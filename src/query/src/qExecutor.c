@@ -5676,26 +5676,6 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   return pQInfo;
 
 _cleanup:
-  //tfree(pQuery->fillVal);
-
-  //if (pQuery->sdata != NULL) {
-  //  for (int16_t col = 0; col < pQuery->numOfOutput; ++col) {
-  //    tfree(pQuery->sdata[col]);
-  //  }
-  //}
-
-  //
-  //tfree(pQuery->sdata);
-  //tfree(pQuery->pFilterInfo);
-  //tfree(pQuery->colList);
-
-  //tfree(pExprs);
-  //tfree(pGroupbyExpr);
-
-  //taosArrayDestroy(pQInfo->arrTableIdInfo);
-  //tsdbDestoryTableGroup(&pQInfo->tableGroupInfo);
-  // 
-  //tfree(pQInfo);
   freeQInfo(pQInfo);
 
   return NULL;
@@ -5730,7 +5710,6 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     UNUSED(ret);
   }
 
-  // only the successful complete requries the sem_post/over = 1 operations.
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey > pQuery->window.skey))) {
     qDebug("QInfo:%p no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo, pQuery->window.skey,
@@ -5740,7 +5719,7 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
-  
+
   if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:%p no table qualified for tag filter, abort query", pQInfo);
     setQueryStatus(pQuery, QUERY_COMPLETED);
@@ -6068,6 +6047,11 @@ void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
     qDestroyQueryInfo(pQInfo, fp, param);
+    return;
+  }
+
+  if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
+    qDebug("QInfo:%p no table exists for query, abort", pQInfo);
     return;
   }
 
