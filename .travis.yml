@@ -37,6 +37,7 @@ matrix:
 
     before_script:
       - sudo timedatectl set-timezone Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -152,6 +153,7 @@ matrix:
 
     before_script:
       - sudo timedatectl set-timezone Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -176,6 +178,7 @@ matrix:
 
     before_script:
       - sudo timedatectl set-timezone Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -201,6 +204,7 @@ matrix:
 
     before_script:
       - sudo timedatectl set-timezone Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -230,6 +234,7 @@ matrix:
 
     before_script:
       - sudo timedatectl set-timezone Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
