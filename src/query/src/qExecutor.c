@@ -4161,33 +4161,36 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
     }
 
     SDataBlockInfo  blockInfo = tsdbRetrieveDataBlockInfo(pQueryHandle);
-    STableQueryInfo *pTableQueryInfo = NULL;
-
-    // todo opt performance using hash table
-    size_t numOfGroup = GET_NUM_OF_TABLEGROUP(pQInfo);
-    for (int32_t i = 0; i < numOfGroup; ++i) {
-      SArray *group = GET_TABLEGROUP(pQInfo, i);
-
-      size_t num = taosArrayGetSize(group);
-      for (int32_t j = 0; j < num; ++j) {
-        STableQueryInfo *p = taosArrayGetP(group, j);
-
-        STableId id = tsdbGetTableId(p->pTable);
-        if (id.tid == blockInfo.tid) {
-          assert(id.uid == blockInfo.uid);
-          pTableQueryInfo = p;
-
-          break;
-        }
-      }
-
-      if (pTableQueryInfo != NULL) {
-        break;
-      }
+    STableQueryInfo **pTableQueryInfo = (STableQueryInfo**) taosHashGet(pQInfo->tableqinfoGroupInfo.map, &blockInfo.tid, sizeof(blockInfo.tid));
+    if(pTableQueryInfo == NULL) {
+      break;
     }
-  
-    assert(pTableQueryInfo != NULL);
-    setCurrentQueryTable(pRuntimeEnv, pTableQueryInfo);
+    // todo opt performance using hash table
+
+//    size_t numOfGroup = GET_NUM_OF_TABLEGROUP(pQInfo);
+//    for (int32_t i = 0; i < numOfGroup; ++i) {
+//      SArray *group = GET_TABLEGROUP(pQInfo, i);
+//
+//      size_t num = taosArrayGetSize(group);
+//      for (int32_t j = 0; j < num; ++j) {
+//        STableQueryInfo *p = taosArrayGetP(group, j);
+//
+//        STableId id = tsdbGetTableId(p->pTable);
+//        if (id.tid == blockInfo.tid) {
+//          assert(id.uid == blockInfo.uid);
+//          pTableQueryInfo = p;
+//
+//          break;
+//        }
+//      }
+//
+//      if (pTableQueryInfo != NULL) {
+//        break;
+//      }
+//    }
+
+    assert(*pTableQueryInfo != NULL);
+    setCurrentQueryTable(pRuntimeEnv, *pTableQueryInfo);
 
     SDataStatis *pStatis = NULL;
     SArray *pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis);
@@ -4195,11 +4198,12 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
     if (!isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
       if (!isIntervalQuery(pQuery)) {
         int32_t step = QUERY_IS_ASC_QUERY(pQuery)? 1:-1;
-        setExecutionContext(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo->groupIndex, blockInfo.window.ekey + step);
+        setExecutionContext(pQInfo, (*pTableQueryInfo)->pTable, (*pTableQueryInfo)->groupIndex,
+              blockInfo.window.ekey + step);
       } else {  // interval query
         TSKEY nextKey = blockInfo.window.skey;
         setIntervalQueryRange(pQInfo, nextKey);
-        /*int32_t ret = */setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
+        /*int32_t ret = */setAdditionalInfo(pQInfo, (*pTableQueryInfo)->pTable, *pTableQueryInfo);
       }
     }
 
@@ -5627,7 +5631,9 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
 
     pQInfo->tableqinfoGroupInfo.pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
     pQInfo->tableqinfoGroupInfo.numOfTables = pTableGroupInfo->numOfTables;
-  } 
+    pQInfo->tableqinfoGroupInfo.map = taosHashInit(pTableGroupInfo->numOfTables,
+                                                   taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  }
 
   int tableIndex = 0;
   STimeWindow window = pQueryMsg->window;
@@ -5655,6 +5661,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
       item->groupIndex = i;
       item->tableIndex = tableIndex++;
       taosArrayPush(p1, &item);
+      taosHashPut(pQInfo->tableqinfoGroupInfo.map, &id.tid, sizeof(id.tid), &item, POINTER_BYTES);
     }
 
     taosArrayPush(pQInfo->tableqinfoGroupInfo.pGroupList, &p1);
@@ -5797,7 +5804,7 @@ static void freeQInfo(SQInfo *pQInfo) {
   }
 
   taosArrayDestroy(pQInfo->tableqinfoGroupInfo.pGroupList);
-
+  taosHashCleanup(pQInfo->tableqinfoGroupInfo.map);
   tsdbDestoryTableGroup(&pQInfo->tableGroupInfo);
   taosArrayDestroy(pQInfo->arrTableIdInfo);
   

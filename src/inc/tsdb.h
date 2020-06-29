@@ -24,6 +24,7 @@
 #include "tarray.h"
 #include "tdataformat.h"
 #include "tname.h"
+#include "hash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -168,8 +169,9 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct {
-  size_t  numOfTables;
-  SArray *pGroupList;
+  size_t   numOfTables;
+  SArray   *pGroupList;
+  SHashObj *map;         // speedup acquire the tableQueryInfo from STableId
 } STableGroupInfo;
 
 typedef struct SQueryRowCond {
