@@ -270,7 +270,7 @@ class ThreadCoordinator:
             # Get ready for next step
             logger.debug("<-- Step {} finished".format(self._curStep))
             self._curStep += 1 # we are about to get into next step. TODO: race condition here!                
-            logger.debug("\r\n--> Step {} starts with main thread waking up".format(self._curStep)) # Now not all threads had time to go to sleep
+            logger.debug("\r\n\n--> Step {} starts with main thread waking up".format(self._curStep)) # Now not all threads had time to go to sleep
 
             # A new TE for the new step
             if not failed: # only if not failed
@@ -452,6 +452,7 @@ class DbConn:
         # Open connection
         self._tdSql = TDSql()
         self._tdSql.init(self._cursor)
+        logger.debug("[DB] data connection opened")
         self.isOpen = True
 
     def resetDb(self): # reset the whole database, etc.
@@ -470,6 +471,7 @@ class DbConn:
         if ( not self.isOpen ):
             raise RuntimeError("Cannot clean up database until connection is open")
         self._tdSql.close()
+        logger.debug("[DB] Database connection closed")
         self.isOpen = False
 
     def execute(self, sql): 
@@ -1010,13 +1012,19 @@ class Task():
             self._executeInternal(te, wt) # TODO: no return value?
         except taos.error.ProgrammingError as err:
             errno2 = 0x80000000 + err.errno # positive error number
-            if ( errno2 in [0x200, 0x360, 0x362, 0x381, 0x380, 0x600 ]) : # allowed errors
+            if ( errno2 in [0x200, 0x360, 0x362, 0x36A, 0x36B, 0x381, 0x380, 0x383, 0x600 ]) : # allowed errors
                 self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql))
                 print("e", end="", flush=True)
                 self._err = err  
             else:
-                self.logDebug("[=] Unexpected Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql))
-                raise
+                errMsg = "[=] Unexpected Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql)
+                self.logDebug(errMsg)
+                if gConfig.debug :
+                    raise # so that we see full stack
+                else: # non-debug
+                    print("\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n" +
+                        "--------------\n".format(errMsg))
+                    sys.exit(-1)
         except:
             self.logDebug("[=] Unexpected exception, SQL: {}".format(self._lastSql))
             raise
@@ -1388,7 +1396,8 @@ class LoggingFilter(logging.Filter):
         if ( record.levelno >= logging.INFO ) :
             return True # info or above always log
 
-        msg = record.msg
+
+        
         # print("type = {}, value={}".format(type(msg), msg))
         # sys.exit()
 
@@ -1397,6 +1406,11 @@ class LoggingFilter(logging.Filter):
         # if msg.startswith("[TRD]"):
         #     return False
         return True
+
+class MyLoggingAdapter(logging.LoggerAdapter):    
+    def process(self, msg, kwargs):
+        return "[{}]{}".format(threading.get_ident() % 10000, msg), kwargs
+        # return '[%s] %s' % (self.extra['connid'], msg), kwargs
 
 class MainExec:
     @classmethod
@@ -1493,16 +1507,21 @@ def main():
     #     parser.print_help()
     #     sys.exit()
  
+    # Logging Stuff
     global logger
-    logger = logging.getLogger('CrashGen')
-    logger.addFilter(LoggingFilter())
+    _logger = logging.getLogger('CrashGen') # real logger
+    _logger.addFilter(LoggingFilter()) 
+    ch = logging.StreamHandler()
+    _logger.addHandler(ch)
+
+    logger = MyLoggingAdapter(_logger, []) # Logging adapter, to be used as a logger
+
     if ( gConfig.debug ):
         logger.setLevel(logging.DEBUG) # default seems to be INFO        
     else:
         logger.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    logger.addHandler(ch)
-
+    
+    # Run server or client
     if gConfig.run_tdengine : # run server
         MainExec.runService()
     else :
