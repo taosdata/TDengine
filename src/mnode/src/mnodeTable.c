@@ -2374,6 +2374,17 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
 
+  char* pattern = NULL;
+  if (pShow->payloadLen > 0) {
+    pattern = (char*)malloc(pShow->payloadLen + 1);
+    if (pattern == NULL) {
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return 0;
+    }
+    memcpy(pattern, pShow->payload, pShow->payloadLen);
+    pattern[pShow->payloadLen] = 0;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
@@ -2389,7 +2400,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pattern != NULL && patternMatch(pattern, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -2433,6 +2444,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
   mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }
