@@ -84,7 +84,7 @@ typedef struct SRetrieveSupport {
   SColumnModel *    pFinalColModel;    // colModel for final result
   SSubqueryState *  pState;
   int32_t           subqueryIndex;     // index of current vnode in vnode list
-  SSqlObj *         pParentSqlObj;
+  SSqlObj *         pParentSql;
   tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to
   uint32_t          numOfRetry;        // record the number of retry times
   pthread_mutex_t   queryMutex;

@@ -25,6 +25,7 @@
 typedef struct SInsertSupporter {
   SSubqueryState* pState;
   SSqlObj*  pSql;
+  int32_t   index;
 } SInsertSupporter;
 
 static void freeJoinSubqueryObj(SSqlObj* pSql);
@@ -1876,13 +1877,36 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
   // release data block data
   tfree(pState);
-//  pParentCmd->pDataBlocks = tscDestroyBlockArrayList(pParentCmd->pDataBlocks);
-  
+
   // restore user defined fp
   pParentObj->fp = pParentObj->fetchFp;
-  
+
+  // todo remove this parameter in async callback function definition.
   // all data has been sent to vnode, call user function
-  (*pParentObj->fp)(pParentObj->param, pParentObj, numOfRows);
+  int32_t v = (pParentObj->res.code != TSDB_CODE_SUCCESS)? pParentObj->res.code:pParentObj->res.numOfRows;
+  (*pParentObj->fp)(pParentObj->param, pParentObj, v);
+}
+
+/**
+ * it is a subquery, so after parse the sql string, copy the submit block to payload of itself
+ * @param pSql
+ * @return
+ */
+int32_t tscHandleInsertRetry(SSqlObj* pSql) {
+  assert(pSql != NULL && pSql->param != NULL);
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+
+  SInsertSupporter* pSupporter = (SInsertSupporter*) pSql->param;
+  assert(pSupporter->index < pSupporter->pState->numOfTotal);
+
+  STableDataBlocks* pTableDataBlock = taosArrayGetP(pCmd->pDataBlocks, pSupporter->index);
+  pRes->code = tscCopyDataBlockToPayload(pSql, pTableDataBlock);
+  if (pRes->code != TSDB_CODE_SUCCESS) {
+    return pRes->code;
+  }
+
+  return tscProcessSql(pSql);
 }
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
@@ -1906,10 +1930,11 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   while(numOfSub < pSql->numOfSubs) {
     SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
-    pSupporter->pSql = pSql;
+    pSupporter->pSql   = pSql;
     pSupporter->pState = pState;
-    
-    SSqlObj *pNew = createSimpleSubObj(pSql, multiVnodeInsertFinalize, pSupporter, TSDB_SQL_INSERT);//createSubqueryObj(pSql, 0, multiVnodeInsertFinalize, pSupporter1, TSDB_SQL_INSERT, NULL);
+    pSupporter->index  = numOfSub;
+
+    SSqlObj *pNew = createSimpleSubObj(pSql, multiVnodeInsertFinalize, pSupporter, TSDB_SQL_INSERT);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, numOfSub, strerror(errno));
       goto _error;
@@ -1940,6 +1965,8 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     return pRes->code;  // free all allocated resource
   }
 
+  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+
   // use the local variable
   for (int32_t j = 0; j < numOfSub; ++j) {
     SSqlObj *pSub = pSql->pSubs[j];
@@ -1947,7 +1974,6 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     tscProcessSql(pSub);
   }
 
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   return TSDB_CODE_SUCCESS;
 
   _error:
