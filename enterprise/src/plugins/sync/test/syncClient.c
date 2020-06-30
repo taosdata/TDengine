@@ -32,7 +32,7 @@ typedef struct {
 } SInfo;
 
 void processResponse(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
-  SInfo *pInfo = (SInfo *)pMsg->handle;
+  SInfo *pInfo = (SInfo *)pMsg->ahandle;
   uDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
   if (pIpSet) pInfo->ipSet = *pIpSet;
@@ -45,7 +45,7 @@ int tcount = 0;
 
 void *sendRequest(void *param) {
   SInfo  *pInfo = (SInfo *)param;
-  SRpcMsg rpcMsg; 
+  SRpcMsg rpcMsg = {0}; 
   
   uDebug("thread:%d, start to send request", pInfo->index);
 
@@ -53,7 +53,7 @@ void *sendRequest(void *param) {
     pInfo->num++;
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
     rpcMsg.contLen = pInfo->msgSize;
-    rpcMsg.handle = pInfo;
+    rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
     uDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, &rpcMsg);
