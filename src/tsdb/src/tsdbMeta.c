@@ -550,13 +550,13 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
 }
 
 void tsdbRefTable(STable *pTable) {
-  int16_t ref = T_REF_INC(pTable);
+  int32_t ref = T_REF_INC(pTable);
   UNUSED(ref);
   // tsdbDebug("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 }
 
 void tsdbUnRefTable(STable *pTable) {
-  int16_t ref = T_REF_DEC(pTable);
+  int32_t ref = T_REF_DEC(pTable);
   tsdbDebug("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {
@@ -596,7 +596,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
     return -1;
   }
 
-  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is restored from file", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is restored from file", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 }
@@ -797,7 +797,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
     pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql, tsdbGetTableSchema(pTable));
   }
 
-  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 

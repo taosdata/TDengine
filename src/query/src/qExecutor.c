@@ -6009,7 +6009,7 @@ void qDestroyQueryInfo(qinfo_t qHandle, void (*fp)(void*), void* param) {
     return;
   }
 
-  int16_t ref = T_REF_DEC(pQInfo);
+  int32_t ref = T_REF_DEC(pQInfo);
   qDebug("QInfo:%p dec refCount, value:%d", pQInfo, ref);
 
   if (ref == 0) {

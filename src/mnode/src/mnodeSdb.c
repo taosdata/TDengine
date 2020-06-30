@@ -367,6 +367,7 @@ void sdbCleanUp() {
   tsSdbObj.status = SDB_STATUS_CLOSING;
   
   sdbCleanupWriteWorker();
+  sdbDebug("sdb will be closed, version:%" PRId64, tsSdbObj.version);
 
   if (tsSdbObj.sync) {
     syncStop(tsSdbObj.sync);
