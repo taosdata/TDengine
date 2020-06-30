@@ -5,7 +5,7 @@ Stress test tool for TDengine. It run a set of test cases randomly and show stat
 ## COMMAND LINE
 
 ``` bash
-$ ./stress [-h=<localhost>] [-P=<0>] [-d=<test>] [-u=<root>] [-p=<taosdata>] [-c=<4>] [-f=<true>] [test case file]
+$ ./stress [-h=<localhost>] [-P=<0>] [-d=<test>] [-u=<root>] [-p=<taosdata>] [-c=<4>] [-f=<true>] [path_or_sql]
 ```
 
 * **-h**: host name or IP address of TDengine server (default: localhost).
@@ -14,7 +14,7 @@ $ ./stress [-h=<localhost>] [-P=<0>] [-d=<test>] [-u=<root>] [-p=<taosdata>] [-c
 * **-p**: password (default: taosdata).
 * **-c**: concurrency, number of concurrent goroutines for query (default: 4).
 * **-f**: fetch data or not (default: true).
-* **test case file**: the path of a JSON file which contains the test cases (default: cases.json).
+* **path_or_sql**: a SQL statement or path of a JSON file which contains the test cases (default: cases.json).
 
 ## TEST CASE FILE
 

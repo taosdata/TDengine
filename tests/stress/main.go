@@ -28,7 +28,7 @@ type testCase struct {
 	isQuery bool       `json:"-"`
 	numArgs int        `json:"-"`
 	Weight  int        `json:"weight"`
-	Sql     string     `json:"sql"`
+	SQL     string     `json:"sql"`
 	Args    []argument `json:"args"`
 }
 
@@ -103,7 +103,7 @@ func (tc *testCase) buildSql() string {
 	for i := 0; i < len(tc.Args); i++ {
 		args = tc.Args[i].generate(args)
 	}
-	return fmt.Sprintf(tc.Sql, args...)
+	return fmt.Sprintf(tc.SQL, args...)
 }
 
 type statitics struct {
@@ -129,22 +129,19 @@ var (
 	cases       []testCase
 )
 
-func loadTestCase(path string) error {
-	f, e := os.Open(path)
-	if e != nil {
+func loadTestCaseFromFile(file *os.File) error {
+	if e := json.NewDecoder(file).Decode(&cases); e != nil {
 		return e
 	}
-	defer f.Close()
 
-	e = json.NewDecoder(f).Decode(&cases)
-	if e != nil {
-		return e
+	if len(cases) == 0 {
+		return fmt.Errorf("no test case loaded.")
 	}
 
 	for i := 0; i < len(cases); i++ {
 		c := &cases[i]
-		c.Sql = strings.TrimSpace(c.Sql)
-		c.isQuery = strings.ToLower(c.Sql[:6]) == "select"
+		c.SQL = strings.TrimSpace(c.SQL)
+		c.isQuery = strings.ToLower(c.SQL[:6]) == "select"
 		if c.Weight < 0 {
 			return fmt.Errorf("test %d: negative weight", i)
 		}
@@ -167,6 +164,28 @@ func loadTestCase(path string) error {
 		}
 		totalWeight = len(cases)
 	}
+
+	return nil
+}
+
+func loadTestCase(pathOrSQL string) error {
+	if f, e := os.Open(pathOrSQL); e == nil {
+		defer f.Close()
+		return loadTestCaseFromFile(f)
+	}
+
+	pathOrSQL = strings.TrimSpace(pathOrSQL)
+	if strings.ToLower(pathOrSQL[:6]) != "select" {
+		return fmt.Errorf("'%s' is not a valid file or SQL statement", pathOrSQL)
+	}
+
+	cases = append(cases, testCase{
+		isQuery: true,
+		Weight:  1,
+		numArgs: 0,
+		SQL:     pathOrSQL,
+	})
+	totalWeight = 1
 
 	return nil
 }
@@ -297,15 +316,12 @@ func main() {
 	flag.UintVar(&concurrency, "c", 4, "concurrency, number of goroutines for query")
 	flag.Parse()
 
-	caseFile := flag.Arg(0)
-	if caseFile == "" {
-		caseFile = "cases.json"
+	pathOrSQL := flag.Arg(0)
+	if len(pathOrSQL) == 0 {
+		pathOrSQL = "cases.json"
 	}
-	if e := loadTestCase(caseFile); e != nil {
+	if e := loadTestCase(pathOrSQL); e != nil {
 		fmt.Println("failed to load test cases:", e.Error())
-		return
-	} else if len(cases) == 0 {
-		fmt.Println("there's no test case")
 		return
 	}
 
