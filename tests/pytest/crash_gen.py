@@ -106,6 +106,7 @@ class WorkerThread:
         logger.info("Starting to run thread: {}".format(self._tid))
 
         if ( gConfig.per_thread_db_connection ): # type: ignore
+            logger.debug("Worker thread openning database connection")
             self._dbConn.open()
 
         self._doTaskLoop()       
@@ -246,6 +247,7 @@ class ThreadCoordinator:
                 logger.debug("[STT] starting transitions")
                 sm.transition(self._executedTasks) # at end of step, transiton the DB state
                 logger.debug("[STT] transition ended")
+                # Due to limitation (or maybe not) of the Python library, we cannot share connections across threads
                 if sm.hasDatabase() :
                     for t in self._pool.threadList:
                         logger.debug("[DB] use db for all worker threads")
@@ -1492,7 +1494,7 @@ def main():
                         help='Run TDengine service in foreground (default: false)')
     parser.add_argument('-l', '--larger-data', action='store_true',                        
                         help='Write larger amount of data during write operations (default: false)')
-    parser.add_argument('-p', '--per-thread-db-connection', action='store_false',                        
+    parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
                         help='Use a single shared db connection (default: false)')
     parser.add_argument('-r', '--record-ops', action='store_true',                        
                         help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')                    
@@ -1503,6 +1505,7 @@ def main():
 
     global gConfig
     gConfig = parser.parse_args()
+
     # if len(sys.argv) == 1:
     #     parser.print_help()
     #     sys.exit()
