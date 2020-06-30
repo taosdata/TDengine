@@ -457,10 +457,9 @@ static int32_t mnodeSuperTableActionUpdate(SSdbOper *pOper) {
     free(pNew);
     free(oldTableId);
     free(oldSchema);
-  
-    mnodeDecTableRef(pTable);
   }
 
+  mnodeDecTableRef(pTable);
   return TSDB_CODE_SUCCESS;
 }
 
