@@ -77,11 +77,7 @@ class TDTestCase:
         # join queries
         tdSql.query(
             "select * from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.id")
-        tdSql.checkRows(6)
-
-        tdSql.query(
-            "select * from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.id order by ts desc")
-        tdSql.checkColumnSorted(0, "desc")
+        tdSql.checkRows(6)        
 
         tdSql.error(
             "select ts, pressure, temperature, id, dscrption from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.id")

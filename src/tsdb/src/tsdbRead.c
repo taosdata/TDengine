@@ -148,7 +148,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
   pQueryHandle->cur.fid     = -1;
   pQueryHandle->cur.win     = TSWINDOW_INITIALIZER;
-  pQueryHandle->checkFiles  = true;//ASCENDING_TRAVERSE(pQueryHandle->order);
+  pQueryHandle->checkFiles  = true;
   pQueryHandle->activeIndex = 0;   // current active table index
   pQueryHandle->qinfo       = qinfo;
   pQueryHandle->outputCapacity = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
@@ -475,11 +475,15 @@ static int32_t binarySearchForBlock(SCompBlock* pBlock, int32_t numOfBlocks, TSK
 }
 
 static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlocks, int32_t type) {
-  // todo check open file failed
   SFileGroup* fileGroup = pQueryHandle->pFileGroup;
-  
   assert(fileGroup->files[TSDB_FILE_TYPE_HEAD].fname > 0);
-  tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, fileGroup);
+
+  int32_t code = tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, fileGroup);
+
+  //open file failed, return error code to client
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   // load all the comp offset value for all tables in this file
   *numOfBlocks = 0;
@@ -538,17 +542,12 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   return TSDB_CODE_SUCCESS;
 }
 
-static SDataBlockInfo getTrueDataBlockInfo(STableCheckInfo* pCheckInfo, SCompBlock* pBlock) {
-  SDataBlockInfo info = {
-      .window = {.skey = pBlock->keyFirst, .ekey = pBlock->keyLast},
-      .numOfCols = pBlock->numOfCols,
-      .rows = pBlock->numOfRows,
-      .tid = pCheckInfo->tableId.tid,
-      .uid = pCheckInfo->tableId.uid,
-  };
-
-  return info;
-}
+#define GET_FILE_DATA_BLOCK_INFO(_checkInfo, _block)                                   \
+  ((SDataBlockInfo){.window = {.skey = (_block)->keyFirst, .ekey = (_block)->keyLast}, \
+                    .numOfCols = (_block)->numOfCols,                                  \
+                    .rows = (_block)->numOfRows,                                       \
+                    .tid = (_checkInfo)->tableId.tid,                                  \
+                    .uid = (_checkInfo)->tableId.uid})
 
 static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
   size_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
@@ -593,8 +592,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   if (pCheckInfo->pDataCols == NULL) {
     STsdbMeta* pMeta = tsdbGetMeta(pRepo);
     // TODO
-    pCheckInfo->pDataCols =
-        tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
+    pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   }
 
   tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(pCheckInfo->pTableObj));
@@ -623,7 +621,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
 static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo){
   SQueryFilePos* cur = &pQueryHandle->cur;
-  SDataBlockInfo binfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
+  SDataBlockInfo binfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
 
   /*bool hasData = */ initTableMemIterator(pQueryHandle, pCheckInfo);
   SDataRow row = getSDataRowInTableMem(pCheckInfo);
@@ -943,7 +941,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
 static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock,
                                   SArray* sa) {
   SQueryFilePos* cur = &pQueryHandle->cur;
-  SDataBlockInfo blockInfo = getTrueDataBlockInfo(pCheckInfo, pBlock);
+  SDataBlockInfo blockInfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
   
   initTableMemIterator(pQueryHandle, pCheckInfo);
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
@@ -1319,8 +1317,8 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
   assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pTableQueryInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
-  SLoserTreeInfo* pTree = NULL;
 
+  SLoserTreeInfo* pTree = NULL;
   uint8_t ret = tLoserTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
   if (ret != TSDB_CODE_SUCCESS) {
     cleanBlockOrderSupporter(&sup, numOfTables);
@@ -1359,16 +1357,18 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 }
 
 // todo opt for only one table case
-static bool getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle) {
+static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* exists) {
   pQueryHandle->numOfBlocks = 0;
   SQueryFilePos* cur = &pQueryHandle->cur;
-  
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
   int32_t numOfBlocks = 0;
   int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   
   while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
     int32_t type = ASCENDING_TRAVERSE(pQueryHandle->order)? QUERY_RANGE_GREATER_EQUAL:QUERY_RANGE_LESS_EQUAL;
-    if (getFileCompInfo(pQueryHandle, &numOfBlocks, type) != TSDB_CODE_SUCCESS) {
+    if ((code = getFileCompInfo(pQueryHandle, &numOfBlocks, type)) != TSDB_CODE_SUCCESS) {
       break;
     }
     
@@ -1393,20 +1393,25 @@ static bool getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle) {
   
   // no data in file anymore
   if (pQueryHandle->numOfBlocks <= 0) {
-    assert(pQueryHandle->pFileGroup == NULL);
+    if (code == TSDB_CODE_SUCCESS) {
+      assert(pQueryHandle->pFileGroup == NULL);
+    }
+
     cur->fid = -1;  // denote that there are no data in file anymore
-    
-    return false;
+    *exists = false;
+    return code;
   }
   
   cur->slot = ASCENDING_TRAVERSE(pQueryHandle->order)? 0:pQueryHandle->numOfBlocks-1;
   cur->fid = pQueryHandle->pFileGroup->fileId;
   
   STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
-  return loadFileDataBlock(pQueryHandle, pBlockInfo->compBlock, pBlockInfo->pTableCheckInfo);
+  *exists = loadFileDataBlock(pQueryHandle, pBlockInfo->compBlock, pBlockInfo->pTableCheckInfo);
+
+  return TSDB_CODE_SUCCESS;
 }
 
-static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
+static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists) {
   STsdbFileH*    pFileHandle = tsdbGetFile(pQueryHandle->pTsdb);
   SQueryFilePos* cur = &pQueryHandle->cur;
 
@@ -1419,7 +1424,7 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
 
-    return getDataBlocksInFilesImpl(pQueryHandle);
+    return getDataBlocksInFilesImpl(pQueryHandle, exists);
   } else {
     // check if current file block is all consumed
     STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
@@ -1430,7 +1435,7 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
       if ((cur->slot == pQueryHandle->numOfBlocks - 1 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
           (cur->slot == 0 && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
         // all data blocks in current file has been checked already, try next file if exists
-        return getDataBlocksInFilesImpl(pQueryHandle);
+        return getDataBlocksInFilesImpl(pQueryHandle, exists);
       } else {
         // next block of the same file
         int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order) ? 1 : -1;
@@ -1440,11 +1445,15 @@ static bool getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle) {
         cur->blockCompleted = false;
         
         STableBlockInfo* pNext = &pQueryHandle->pDataBlockInfo[cur->slot];
-        return loadFileDataBlock(pQueryHandle, pNext->compBlock, pNext->pTableCheckInfo);
+        *exists = loadFileDataBlock(pQueryHandle, pNext->compBlock, pNext->pTableCheckInfo);
+
+        return TSDB_CODE_SUCCESS;
       }
     } else {
       handleDataMergeIfNeeded(pQueryHandle, pBlockInfo->compBlock, pCheckInfo);
-      return pQueryHandle->realNumOfRows > 0;
+      *exists = pQueryHandle->realNumOfRows > 0;
+
+      return TSDB_CODE_SUCCESS;
     }
   }
 }
@@ -1576,8 +1585,14 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   }
   
   if (pQueryHandle->checkFiles) {
-    if (getDataBlocksInFiles(pQueryHandle)) {
-      return true;
+    bool exists = true;
+    int32_t code = getDataBlocksInFiles(pQueryHandle, &exists);
+    if (code != TSDB_CODE_SUCCESS) {
+      return false;
+    }
+
+    if (exists) {
+      return exists;
     }
   
     pQueryHandle->activeIndex = 0;
@@ -1824,7 +1839,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
     if (pHandle->cur.mixBlock) {
       return pHandle->pColumns;
     } else {
-      SDataBlockInfo binfo = getTrueDataBlockInfo(pCheckInfo, pBlockInfo->compBlock);
+      SDataBlockInfo binfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlockInfo->compBlock);
       assert(pHandle->realNumOfRows <= binfo.rows);
   
       // data block has been loaded, todo extract method

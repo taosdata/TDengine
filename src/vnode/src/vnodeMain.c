@@ -123,9 +123,8 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  code = tsdbCreateRepo(tsdbDir, &tsdbCfg);
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
+  if (tsdbCreateRepo(tsdbDir, &tsdbCfg) < 0) {
+    vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
   }
 
@@ -601,10 +600,11 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
 
   content = calloc(1, maxLen + 1);
   if (content == NULL) goto PARSE_OVER;
-  int   len = fread(content, 1, maxLen, fp);
+  int len = fread(content, 1, maxLen, fp);
   if (len <= 0) {
     vError("vgId:%d, failed to read vnode cfg, content is null", pVnode->vgId);
     free(content);
+    fclose(fp);
     return errno;
   }
 
@@ -649,7 +649,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->tsdbCfg.maxTables = maxTables->valueint;
 
-   cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
+  cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
   if (!daysPerFile || daysPerFile->type != cJSON_Number) {
     vError("vgId:%d, failed to read vnode cfg, daysPerFile not found", pVnode->vgId);
     goto PARSE_OVER;

@@ -111,7 +111,7 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
   }
 
-  tsdbDebug("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
+  tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
             TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), key);
 
   return 0;
@@ -443,12 +443,14 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
         if (tdUpdateKVStoreRecord(pMeta->pStore, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
           tsdbError("vgId:%d failed to update meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                     tstrerror(terrno));
+          tdKVStoreEndCommit(pMeta->pStore);
           goto _err;
         }
       } else if (pAct->act == TSDB_DROP_META) {
         if (tdDropKVStoreRecord(pMeta->pStore, pAct->uid) < 0) {
           tsdbError("vgId:%d failed to drop meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                     tstrerror(terrno));
+          tdKVStoreEndCommit(pMeta->pStore);
           goto _err;
         }
       } else {

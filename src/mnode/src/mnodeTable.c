@@ -382,11 +382,13 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
   pStable->numOfTables++;
 
   if (pStable->vgHash == NULL) {
-    pStable->vgHash = taosHashInit(100000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
   }
 
   if (pStable->vgHash != NULL) {
-    taosHashPut(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+    if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
+      taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+    }
   }
 }
 
@@ -457,10 +459,9 @@ static int32_t mnodeSuperTableActionUpdate(SSdbOper *pOper) {
     free(pNew);
     free(oldTableId);
     free(oldSchema);
-  
-    mnodeDecTableRef(pTable);
   }
 
+  mnodeDecTableRef(pTable);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1254,13 +1255,13 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   char *          pWrite;
   int32_t         cols = 0;
   SSuperTableObj *pTable = NULL;
-  char            prefix[20] = {0};
+  char            prefix[64] = {0};
   int32_t         prefixLen;
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
 
-  strcpy(prefix, pDb->name);
+  tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   prefixLen = strlen(prefix);
 
@@ -1558,10 +1559,10 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
 
 static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
-  if (pTable != NULL) {
-    mDebug("app:%p:%p, table:%s, create table in id:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle, pMsg,
-           pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
-  }
+  assert(pTable);
+
+  mDebug("app:%p:%p, table:%s, create table in id:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle, pMsg,
+         pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
 
   if (code != TSDB_CODE_SUCCESS) return code;
 
@@ -1965,9 +1966,15 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
-  STagData *pTag = (STagData *)pInfo->tags;
+  STagData *pTags = (STagData *)pInfo->tags;
+  int32_t tagLen = htonl(pTags->dataLen);
+  if (pTags->name[0] == 0) {
+    mError("app:%p:%p, table:%s, failed to create table on demand for stable is empty, tagLen:%d", pMsg->rpcMsg.ahandle,
+           pMsg, pInfo->tableId, tagLen);
+    return TSDB_CODE_MND_INVALID_STABLE_NAME; 
+  }
 
-  int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + htonl(pTag->dataLen);
+  int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + tagLen;
   SCMCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
   if (pCreateMsg == NULL) {
     mError("app:%p:%p, table:%s, failed to create table while get meta info, no enough memory", pMsg->rpcMsg.ahandle,
@@ -1982,9 +1989,9 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
 
-  memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
-  mDebug("app:%p:%p, table:%s, start to create on demand, stable:%s", pMsg->rpcMsg.ahandle, pMsg, pInfo->tableId,
-         ((STagData *)(pCreateMsg->schema))->name);
+  memcpy(pCreateMsg->schema, pTags, contLen - sizeof(SCMCreateTableMsg));
+  mDebug("app:%p:%p, table:%s, start to create on demand, tagLen:%d stable:%s",
+         pMsg->rpcMsg.ahandle, pMsg, pInfo->tableId, tagLen, pTags->name);
 
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
@@ -2370,9 +2377,20 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  strcpy(prefix, pDb->name);
+  tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
+
+  char* pattern = NULL;
+  if (pShow->payloadLen > 0) {
+    pattern = (char*)malloc(pShow->payloadLen + 1);
+    if (pattern == NULL) {
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return 0;
+    }
+    memcpy(pattern, pShow->payload, pShow->payloadLen);
+    pattern[pShow->payloadLen] = 0;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);
@@ -2389,7 +2407,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pattern != NULL && patternMatch(pattern, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -2433,6 +2451,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
   mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }
@@ -2560,7 +2579,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  strcpy(prefix, pDb->name);
+  tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
 

@@ -213,8 +213,7 @@ typedef struct SQueryInfo {
 typedef struct {
   int     command;
   uint8_t msgType;
-  bool    autoCreated;        // if the table is missing, on-the-fly create it. during getmeterMeta
-  int8_t  dataSourceType;     // load data from file or not
+  bool    autoCreated;        // create table if it is not existed during retrieve table meta in mnode
 
   union {
     int32_t count;
@@ -222,18 +221,23 @@ typedef struct {
   };
 
   int32_t      insertType;
-  int32_t      clauseIndex;  // index of multiple subclause query
+  int32_t      clauseIndex;   // index of multiple subclause query
+
+  char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
+
   short        numOfCols;
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
-  char *       curSql;       // current sql, resume position of sql after parsing paused
-  void *       pTableList;   // referred table involved in sql
   int32_t      batchSize;    // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
+
+  int8_t       dataSourceType;     // load data from file or not
+  int8_t       submitSchema;  // submit block is built with table schema
+  SHashObj    *pTableList;   // referred table involved in sql
   SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
 } SSqlCmd;
 
