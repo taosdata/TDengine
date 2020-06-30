@@ -142,6 +142,8 @@ run general/stable/dnode3.sim
 run general/stable/metrics.sim
 run general/stable/values.sim
 run general/stable/vnode3.sim
+run general/stable/refcount.sim
+run general/stable/show.sim
 run general/table/autocreate.sim
 run general/table/basic1.sim
 run general/table/basic2.sim
