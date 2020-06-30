@@ -283,7 +283,8 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
     }
     tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
   }
-  pBlk->len = htonl(dataRowLen(trow));
+  pBlk->dataLen = htonl(dataRowLen(trow));
+  pBlk->schemaLen = 0;
 
   pBlk->uid = htobe64(pObj->uid);
   pBlk->tid = htonl(pObj->tid);
