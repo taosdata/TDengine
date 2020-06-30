@@ -16,6 +16,7 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
+import os
 
 
 class TDTestCase:
@@ -29,12 +30,15 @@ class TDTestCase:
         print("======= Step 1 prepare data=========")
         tdSql.execute(
             "create table stb1 (ts timestamp, c1 int, c2 float) tags(t1 int, t2 binary(10), t3 nchar(10))")
+        tdLog.debug("insert 1")
         tdSql.execute(
             '''insert into tb1 using stb1 tags(1,'tb1', '表1') values ('2020-04-18 15:00:00.000', 1, 0.1)
             ('2020-04-18 15:00:01.000', 1,0.1) ('2020-04-18 15:00:03.000', 3, 0.3) ('2020-04-18 15:00:04.000', 4,0.4)''')
+        tdLog.debug("insert 2")
         tdSql.execute(
             '''insert into tb2 using stb1 tags(2,'tb2', '表2') values ('2020-04-18 15:00:00.000', 21, 2.1)
             ('2020-04-18 15:00:01.000', 22,2.2) ('2020-04-18 15:00:02.000', 22, 2.1) ('2020-04-18 15:00:03.000', 23,2.2)''')
+        tdLog.debug("insert 3")
 
         tdSql.execute(
             "create table stb_t (ts timestamp, temperature int, humidity float) tags(id int, name binary(10), dscrption nchar(10))")
@@ -112,13 +116,13 @@ class TDTestCase:
         tdSql.query("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.id")
         tdSql.checkRows(6)
 
-        tdSql.query("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.pid, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
-        tdSql.checkRows(2)
+        tdSql.error("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.pid, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
+        #tdSql.checkRows(2)
 
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
-
+os.environ['TZ'] = 'America/Regina'
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
