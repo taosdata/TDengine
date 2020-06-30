@@ -1987,7 +1987,7 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
 
-  memcpy(pCreateMsg->schema, pTags, contLen);
+  memcpy(pCreateMsg->schema, pTags, contLen - sizeof(SCMCreateTableMsg));
   mDebug("app:%p:%p, table:%s, start to create on demand, tagLen:%d stable:%s",
          pMsg->rpcMsg.ahandle, pMsg, pInfo->tableId, tagLen, pTags->name);
 
