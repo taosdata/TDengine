@@ -354,7 +354,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void *rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
+void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -380,10 +380,12 @@ void *rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
     || type == TSDB_MSG_TYPE_CM_SHOW )
     pContext->connType = RPC_CONN_TCPC;
   
+  // set the handle to pContext, so app can cancel the request
   if (pMsg->handle) *((void **)pMsg->handle) = pContext;
+
   rpcSendReqToServer(pRpc, pContext);
 
-  return pContext;
+  return;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
