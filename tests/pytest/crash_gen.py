@@ -1024,8 +1024,8 @@ class Task():
                 if gConfig.debug :
                     raise # so that we see full stack
                 else: # non-debug
-                    print("\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n" +
-                        "--------------\n".format(errMsg))
+                    print("\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n".format(errMsg) +
+                        "----------------------------\n")
                     sys.exit(-1)
         except:
             self.logDebug("[=] Unexpected exception, SQL: {}".format(self._lastSql))
