@@ -348,8 +348,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
 int doProcessSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  int32_t code = TSDB_CODE_SUCCESS;
-  
+
   if (pCmd->command == TSDB_SQL_SELECT ||
       pCmd->command == TSDB_SQL_FETCH ||
       pCmd->command == TSDB_SQL_RETRIEVE ||
@@ -366,10 +365,13 @@ int doProcessSql(SSqlObj *pSql) {
     return pRes->code;
   }
 
-  code = tscSendMsgToServer(pSql);
+  int32_t code = tscSendMsgToServer(pSql);
+
+  // NOTE: if code is TSDB_CODE_SUCCESS, pSql may have been released here already by other threads.
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscQueueAsyncRes(pSql);
+    return pRes->code;
   }
   
   return TSDB_CODE_SUCCESS;

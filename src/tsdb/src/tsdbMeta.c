@@ -550,13 +550,13 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
 }
 
 void tsdbRefTable(STable *pTable) {
-  int16_t ref = T_REF_INC(pTable);
+  int32_t ref = T_REF_INC(pTable);
   UNUSED(ref);
   // tsdbDebug("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 }
 
 void tsdbUnRefTable(STable *pTable) {
-  int16_t ref = T_REF_DEC(pTable);
+  int32_t ref = T_REF_DEC(pTable);
   tsdbDebug("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {

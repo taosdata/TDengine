@@ -326,12 +326,12 @@ bool taosGetDisk() {
 
   if (statvfs("/tmp", &info)) {
     //tsTotalTmpDirGB = 0;
-    //tsAvailTmpDirGB = 0;
+    //tsAvailTmpDirectorySpace = 0;
     uError("failed to get disk size, tmpDir:/tmp errno:%s", strerror(errno));
     return false;
   } else {
     tsTotalTmpDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailTmpDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+    tsAvailTmpDirectorySpace = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
   }
 
   return true;
