@@ -1573,7 +1573,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
 
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
   SRpcMsg rpcMsg = {
-      .handle  = pMsg,
+      .ahandle = pMsg,
       .pCont   = pMDCreate,
       .contLen = htonl(pMDCreate->contLen),
       .code    = 0,
@@ -1750,7 +1750,7 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
 
   mInfo("app:%p:%p, table:%s, send drop ctable msg", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
   SRpcMsg rpcMsg = {
-    .handle  = pMsg,
+    .ahandle = pMsg,
     .pCont   = pDrop,
     .contLen = sizeof(SMDDropTableMsg),
     .code    = 0,
@@ -1798,7 +1798,7 @@ static int32_t mnodeAlterNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
 
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
   SRpcMsg rpcMsg = {
-      .handle  = pMsg,
+      .ahandle = pMsg,
       .pCont   = pMDCreate,
       .contLen = htonl(pMDCreate->contLen),
       .code    = 0,
@@ -2137,9 +2137,9 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
 
 // handle drop child response
 static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
@@ -2188,9 +2188,9 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
  *   if failed, drop the table cached
  */
 static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
@@ -2231,9 +2231,9 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 }
 
 static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
