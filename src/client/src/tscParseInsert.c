@@ -1259,8 +1259,6 @@ int tsParseInsertSql(SSqlObj *pSql) {
     if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
       goto _error;
     }
-  } else {
-    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
 
   code = TSDB_CODE_SUCCESS;
