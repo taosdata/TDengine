@@ -618,7 +618,7 @@ typedef struct {
 } SMDVnodeDesc;
 
 typedef struct {
-  char db[TSDB_DB_NAME_LEN];
+  char db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   SMDVnodeCfg  cfg;
   SMDVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SMDCreateVnodeMsg;

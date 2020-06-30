@@ -358,7 +358,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg, SDbObj *pDb) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
-  tstrncpy(pVgroup->dbName, pDb->name, TSDB_DB_NAME_LEN);
+  tstrncpy(pVgroup->dbName, pDb->name, TSDB_ACCT_LEN + TSDB_DB_NAME_LEN);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
