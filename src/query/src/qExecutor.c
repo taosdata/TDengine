@@ -3305,13 +3305,16 @@ void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols) 
  * @param pRuntimeEnv
  * @param pDataBlockInfo
  */
-void setExecutionContext(SQInfo *pQInfo, void* pTable, int32_t groupIndex, TSKEY nextKey) {
+void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  STableQueryInfo *pTableQueryInfo = pRuntimeEnv->pQuery->current;
-  
-  SWindowResInfo *  pWindowResInfo = &pRuntimeEnv->windowResInfo;
-  int32_t           GROUPRESULTID = 1;
+  STableQueryInfo  *pTableQueryInfo = pRuntimeEnv->pQuery->current;
+  SWindowResInfo   *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
+  if (pRuntimeEnv->prevGroupId != INT32_MIN && pRuntimeEnv->prevGroupId == groupIndex) {
+    return;
+  }
+
+  int32_t GROUPRESULTID = 1;
   SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&groupIndex, sizeof(groupIndex));
   if (pWindowRes == NULL) {
     return;
@@ -3328,6 +3331,8 @@ void setExecutionContext(SQInfo *pQInfo, void* pTable, int32_t groupIndex, TSKEY
     }
   }
 
+  // record the current active group id
+  pRuntimeEnv->prevGroupId = groupIndex;
   setWindowResOutputBuf(pRuntimeEnv, pWindowRes);
   initCtxOutputBuf(pRuntimeEnv);
 
@@ -4072,6 +4077,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
   pRuntimeEnv->pTSBuf = param;
   pRuntimeEnv->cur.vgroupIndex = -1;
   pRuntimeEnv->stableQuery = isSTableQuery;
+  pRuntimeEnv->prevGroupId = INT32_MIN;
 
   if (param != NULL) {
     int16_t order = (pQuery->order.order == pRuntimeEnv->pTSBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
@@ -4176,8 +4182,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
     if (!isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
       if (!isIntervalQuery(pQuery)) {
         int32_t step = QUERY_IS_ASC_QUERY(pQuery)? 1:-1;
-        setExecutionContext(pQInfo, (*pTableQueryInfo)->pTable, (*pTableQueryInfo)->groupIndex,
-              blockInfo.window.ekey + step);
+        setExecutionContext(pQInfo, (*pTableQueryInfo)->groupIndex, blockInfo.window.ekey + step);
       } else {  // interval query
         TSKEY nextKey = blockInfo.window.skey;
         setIntervalQueryRange(pQInfo, nextKey);
@@ -4553,7 +4558,8 @@ static void doSaveContext(SQInfo *pQInfo) {
   if (pRuntimeEnv->pSecQueryHandle != NULL) {
     tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
   }
-  
+
+  pRuntimeEnv->prevGroupId = INT32_MIN;
   pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
   
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);

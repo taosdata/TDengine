@@ -161,12 +161,12 @@ typedef struct SQuery {
 } SQuery;
 
 typedef struct SQueryRuntimeEnv {
-  SResultInfo*         resultInfo;  // todo refactor to merge with SWindowResInfo
+  SResultInfo*         resultInfo;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
   int16_t              numOfRowsPerPage;
   int16_t              offset[TSDB_MAX_COLUMNS];
-  uint16_t             scanFlag;  // denotes reversed scan of data or not
+  uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   SWindowResInfo       windowResInfo;
   STSBuf*              pTSBuf;
@@ -176,7 +176,8 @@ typedef struct SQueryRuntimeEnv {
   void*                pQueryHandle;
   void*                pSecQueryHandle;  // another thread for
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
-  bool                 topBotQuery;      // false;
+  bool                 topBotQuery;      // false
+  int32_t              prevGroupId;      // previous executed group id
 } SQueryRuntimeEnv;
 
 typedef struct SQInfo {
