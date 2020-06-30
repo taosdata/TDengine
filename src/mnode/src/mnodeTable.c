@@ -382,11 +382,13 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
   pStable->numOfTables++;
 
   if (pStable->vgHash == NULL) {
-    pStable->vgHash = taosHashInit(100000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
   }
 
   if (pStable->vgHash != NULL) {
-    taosHashPut(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+    if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
+      taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+    }
   }
 }
 
