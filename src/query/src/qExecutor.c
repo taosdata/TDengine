@@ -3270,6 +3270,8 @@ static bool hasMainOutput(SQuery *pQuery) {
 }
 
 static STableQueryInfo *createTableQueryInfo( SQueryRuntimeEnv *pRuntimeEnv, void* pTable, STimeWindow win) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+
   STableQueryInfo *pTableQueryInfo = calloc(1, sizeof(STableQueryInfo));
 
   pTableQueryInfo->win = win;
@@ -3278,7 +3280,15 @@ static STableQueryInfo *createTableQueryInfo( SQueryRuntimeEnv *pRuntimeEnv, voi
   pTableQueryInfo->pTable = pTable;
   pTableQueryInfo->cur.vgroupIndex = -1;
 
-  initWindowResInfo(&pTableQueryInfo->windowResInfo, pRuntimeEnv, 100, 100, TSDB_DATA_TYPE_INT);
+  int32_t initialSize      = 1;
+  int32_t initialThreshold = 1;
+
+  if (isIntervalQuery(pQuery) || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
+    initialSize = 20;
+    initialThreshold = 100;
+  }
+
+  initWindowResInfo(&pTableQueryInfo->windowResInfo, pRuntimeEnv, initialSize, initialThreshold, TSDB_DATA_TYPE_INT);
   return pTableQueryInfo;
 }
 
@@ -3310,6 +3320,10 @@ void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
   STableQueryInfo  *pTableQueryInfo = pRuntimeEnv->pQuery->current;
   SWindowResInfo   *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
+  // lastKey needs to be updated
+  pTableQueryInfo->lastKey = nextKey;
+  setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
+
   if (pRuntimeEnv->prevGroupId != INT32_MIN && pRuntimeEnv->prevGroupId == groupIndex) {
     return;
   }
@@ -3335,9 +3349,6 @@ void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
   pRuntimeEnv->prevGroupId = groupIndex;
   setWindowResOutputBuf(pRuntimeEnv, pWindowRes);
   initCtxOutputBuf(pRuntimeEnv);
-
-  pTableQueryInfo->lastKey = nextKey;
-  setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
 }
 
 void setWindowResOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pResult) {
