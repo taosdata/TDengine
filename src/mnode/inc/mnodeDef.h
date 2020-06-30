@@ -132,7 +132,7 @@ typedef struct SVgObj {
   int64_t        createdTime;
   int32_t        lbDnodeId;
   int32_t        lbTime;
-  char           dbName[TSDB_DB_NAME_LEN];
+  char           dbName[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int8_t         inUse;
   int8_t         accessState;
   int8_t         reserved0[5];
