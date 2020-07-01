@@ -292,7 +292,7 @@ class ThreadCoordinator:
 
         logger.debug("Main thread joining all threads")
         self._pool.joinAll() # Get all threads to finish
-        logger.info("All worker thread finished")
+        logger.info("\nAll worker threads finished")
         self._execStats.endExec()
 
     def logStats(self):
@@ -721,10 +721,10 @@ class StateHasData(AnyState):
                 self.assertNoTask(tasks, TaskDropDb) # we must have drop_db task
             self.hasSuccess(tasks, TaskDropSuperTable)
             # self.assertAtMostOneSuccess(tasks, DropFixedSuperTableTask) # TODO: dicy
-        elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
-            self.assertNoTask(tasks, TaskDropDb)
-            self.assertNoTask(tasks, TaskDropSuperTable)
-            self.assertNoTask(tasks, TaskAddData)
+        # elif ( newState.equals(AnyState.STATE_TABLE_ONLY) ): # data deleted
+            # self.assertNoTask(tasks, TaskDropDb)
+            # self.assertNoTask(tasks, TaskDropSuperTable)
+            # self.assertNoTask(tasks, TaskAddData)
             # self.hasSuccess(tasks, DeleteDataTasks)
         else: # should be STATE_HAS_DATA
             if (not self.hasTask(tasks, TaskCreateDb) ): # only if we didn't create one
@@ -1014,9 +1014,9 @@ class Task():
             self._executeInternal(te, wt) # TODO: no return value?
         except taos.error.ProgrammingError as err:
             errno2 = 0x80000000 + err.errno # positive error number
-            if ( errno2 in [0x200, 0x360, 0x362, 0x36A, 0x36B, 0x381, 0x380, 0x383, 0x600 ]) : # allowed errors
+            if ( errno2 in [0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D, 0x381, 0x380, 0x383, 0x503, 0x600 ]) : # allowed errors
                 self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql))
-                print("e", end="", flush=True)
+                print("_", end="", flush=True)
                 self._err = err  
             else:
                 errMsg = "[=] Unexpected Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql)
@@ -1234,22 +1234,24 @@ class TaskDropSuperTable(StateTransitionTask):
             tblSeq = list(range(2 + (self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES))) 
             random.shuffle(tblSeq) 
             tickOutput = False # if we have spitted out a "d" character for "drop regular table"
+            isSuccess = True
             for i in tblSeq: 
-                regTableName = self.getRegTableName(i); # "db.reg_table_{}".format(i)  
+                regTableName = self.getRegTableName(i); # "db.reg_table_{}".format(i)                  
                 try:
-                    nRows = self.execWtSql(wt, "drop table {}".format(regTableName))  
+                    self.execWtSql(wt, "drop table {}".format(regTableName)) # nRows always 0, like MySQL
                 except taos.error.ProgrammingError as err:
                     errno2 = 0x80000000 + err.errno # positive error number
-                    if ( errno2 in [0x362]) : # allowed errors
+                    if ( errno2 in [0x362]) : # mnode invalid table name
+                        isSuccess = False
                         logger.debug("[DB] Acceptable error when dropping a table")
-                    continue
+                    continue # try to delete next regular table
 
                 if (not tickOutput):
                     tickOutput = True # Print only one time
-                    if nRows >= 1 :
+                    if isSuccess :
                         print("d", end="", flush=True)
                     else:
-                        print("f({})".format(nRows), end="", flush=True)                    
+                        print("f", end="", flush=True)                    
 
         # Drop the super table itself
         tblName = self._dbManager.getFixedSuperTableName()     
