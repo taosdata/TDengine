@@ -1530,9 +1530,9 @@ static void rpcDecRef(SRpcInfo *pRpc)
 { 
   if (atomic_sub_fetch_32(&pRpc->refCount, 1) == 0) {
     taosHashCleanup(pRpc->hash);
-    taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
     rpcCloseConnCache(pRpc->pCache);
+    taosTmrCleanUp(pRpc->tmrCtrl);
 
     tfree(pRpc->connList);
     pthread_mutex_destroy(&pRpc->mutex);
