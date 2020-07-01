@@ -51,34 +51,34 @@ function restartTaosd {
 	sleep 10
 }
 
-function runPerfTest13d {
+function runPerfTestVar10K {
 	echoInfo "Restart Taosd"
 	restartTaosd
 
 	cd $WORK_DIR/$TSDB_CMP_DIR
-	./runTDengine.sh -d 13 -w -q 2>&1 | tee $WORK_DIR/perftest-13d-$walPostfix-$today.log
+	./runTDengine.sh -v 10000 -w -q 2>&1 | tee $WORK_DIR/perftest-var10k-int10s-$walPostfix-$today.log
 }
 
-function generatePerfPlot13d {
+function generatePerfPlotVar10K {
 	cd $WORK_DIR
 
-	csvLines=`cat perftest-13d-$walPostfix-report.csv | wc -l`
+	csvLines=`cat perftest-var10k-int10s-$walPostfix-report.csv | wc -l`
 
 	if [ "$csvLines" -gt "10" ]; then
-		sed -i '1d' perftest-13d-$walPostfix-report.csv
+		sed -i '1d' perftest-var10k-int10s-$walPostfix-report.csv
 	fi
 
-	gnuplot -e "filename='perftest-13d-$walPostfix-report'" -p perftest-csv2png.gnuplot
+	gnuplot -e "filename='perftest-var10k-int10s-$walPostfix-report'" -p perftest-csv2png.gnuplot
 }
 
 today=`date +"%Y%m%d"`
 cd $WORK_DIR
 
-echoInfo "run Performance Test with 13 days data"
-runPerfTest13d $1
-echoInfo "Generate plot of 13 days data"
-generatePerfPlot13d $1
+echoInfo "run Performance Test with 10K tables data"
+runPerfTestVar10K
+echoInfo "Generate plot of 10K tables data"
+generatePerfPlotVar10K
 
-tar czf $WORK_DIR/taos-log-13d-$today.tar.gz $logDir/*
+tar czf $WORK_DIR/taos-log-var10k-int10s-$today.tar.gz $logDir/*
 
-echoInfo "End of TSDB-Compare 13-days-data Test" | tee -a $WORK_DIR/cron.log
+echoInfo "End of TSDB-Compare var10k-int10s-tables-data Test" | tee -a $WORK_DIR/cron.log

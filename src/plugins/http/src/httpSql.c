@@ -359,6 +359,8 @@ void httpExecCmd(HttpContext *pContext) {
 
 void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
   HttpContext *pContext = param;
+  taos_free_result(result);
+  
   if (pContext == NULL) return;
 
   if (code < 0) {

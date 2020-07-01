@@ -808,27 +808,31 @@ void *readMetric(void *sarg) {
 }
 
 void queryDB(TAOS *taos, char *command) {
-  int i = 5;
+  int i;
   TAOS_RES *pSql = NULL;
-  int32_t code = -1;
-  while (i > 0 && code != 0) {
+  int32_t   code = -1;
+
+  for (i = 0; i < 5; i++) {
+    if (NULL != pSql) {
+      taos_free_result(pSql);
+      pSql = NULL;
+    }
+    
     pSql = taos_query(taos, command);
     code = taos_errno(pSql);
-    taos_free_result(pSql);
-    pSql = NULL;
-    if (code == 0) {
+    if (0 == code) {
       break;
-    }
-    i--; 
+    }    
   }
 
   if (code != 0) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
     taos_free_result(pSql);
-
     taos_close(taos);
     exit(EXIT_FAILURE);
   }
+
+  taos_free_result(pSql);
 }
 
 // sync insertion
