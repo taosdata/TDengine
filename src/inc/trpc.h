@@ -47,8 +47,8 @@ typedef struct SRpcMsg {
   void   *pCont;
   int     contLen;
   int32_t code;
-  void   *handle;
-  void   *ahandle;  //app handle set by client, for debug purpose
+  void   *handle;   // rpc handle returned to app
+  void   *ahandle;  // app handle set by client
 } SRpcMsg;
 
 typedef struct SRpcInit {
@@ -78,11 +78,11 @@ void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
 void *rpcReallocCont(void *ptr, int contLen);
-void *rpcSendRequest(void *thandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg);
+void  rpcSendRequest(void *thandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg);
 void  rpcSendResponse(const SRpcMsg *pMsg);
 void  rpcSendRedirectRsp(void *pConn, const SRpcIpSet *pIpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pReq, SRpcMsg *pRsp);
+void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 void  rpcCancelRequest(void *pContext);
 
