@@ -432,7 +432,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   int16_t ref = T_REF_DEC(pNode);
   uDebug("%p data released, refcnt:%d", pNode, ref);
   
-  if (_remove) {
+  if (_remove && (!pNode->inTrashCan)) {
     __cache_wr_lock(pCacheObj);
 
     if (T_REF_VAL_GET(pNode) == 0) {
@@ -546,7 +546,8 @@ void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pCacheObj->freeFp) {
     pCacheObj->freeFp(pElem->pData->data);
   }
-
+  
+  uError("-------------------free obj:%p", pElem->pData);
   free(pElem->pData);
   free(pElem);
 }
