@@ -191,7 +191,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
       .contLen = pSql->cmd.payloadLen,
-      .handle  = pSql,
+      .ahandle = pSql,
+      .handle  = &pSql->pRpcCtx,
       .code    = 0
   };
 
@@ -199,12 +200,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   // Otherwise, the pSql object may have been released already during the response function, which is
   // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
   // cause crash.
-  /*pSql->pRpcCtx = */rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
+  rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
-  SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
+  SSqlObj *pSql = (SSqlObj *)rpcMsg->ahandle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released", pSql);
     return;
