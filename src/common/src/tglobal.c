@@ -153,6 +153,7 @@ char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsDataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char    tsScriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char    tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
 
 /*
  * minimum scale for whole system, millisecond by default

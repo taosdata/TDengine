@@ -799,3 +799,13 @@ int tmkdir(const char *path, mode_t mode) {
   if (code < 0 && errno == EEXIST) code = 0;
   return code;
 }
+
+void taosMvDir(char* destDir, char *srcDir) {
+  char shellCmd[1024+1] = {0}; 
+  
+  //(void)snprintf(shellCmd, 1024, "cp -rf %s %s", srcDir, destDir);
+  (void)snprintf(shellCmd, 1024, "mv %s %s", srcDir, destDir);
+  tSystem(shellCmd);
+  uInfo("shell cmd:%s is executed", shellCmd);
+}
+
