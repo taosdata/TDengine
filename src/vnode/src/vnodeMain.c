@@ -347,6 +347,7 @@ void vnodeRelease(void *pVnodeRaw) {
   if (pVnode->status == TAOS_VN_STATUS_DELETING) {
     char rootDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
+    taosMvDir(tsVnodeBakDir, rootDir);
     taosRemoveDir(rootDir);
   }
 
