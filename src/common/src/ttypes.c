@@ -471,10 +471,11 @@ static uint32_t nullInt = TSDB_DATA_INT_NULL;
 static uint64_t nullBigInt = TSDB_DATA_BIGINT_NULL;
 static uint32_t nullFloat = TSDB_DATA_FLOAT_NULL;
 static uint64_t nullDouble = TSDB_DATA_DOUBLE_NULL;
-static struct {
+
+static union {
   tstr str;
-  int32_t pad;
-} nullBinary = {.str = {.len = 1}, .pad = 0}, nullNchar = {.str = {.len = 4}, .pad = 0};
+  char pad[sizeof(tstr) + 4];
+} nullBinary = {.str = {.len = 1}}, nullNchar = {.str = {.len = 4}};
 
 static void *nullValues[] = {
     &nullBool,  &nullTinyInt, &nullSmallInt, &nullInt,    &nullBigInt,
