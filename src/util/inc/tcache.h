@@ -24,6 +24,8 @@ extern "C" {
 #include "tref.h"
 #include "hash.h"
 
+typedef void (*__cache_freeres_fn_t)(void*);
+
 typedef struct SCacheStatis {
   int64_t missCount;
   int64_t hitCount;
@@ -34,14 +36,15 @@ typedef struct SCacheStatis {
 
 typedef struct SCacheDataNode {
   uint64_t addedTime;    // the added time when this element is added or updated into cache
-  uint64_t expiredTime;  // expiredTime expiredTime when this element should be remove from cache
+  uint64_t lifespan;     // expiredTime expiredTime when this element should be remove from cache
   uint64_t signature;
   uint32_t size;         // allocated size for current SCacheDataNode
-  uint16_t keySize: 15;
-  bool     inTrashCan: 1;// denote if it is in trash or not
   T_REF_DECLARE()
-  char *key;
-  char  data[];
+  uint16_t keySize: 15;  // max key size: 32kb
+  bool     inTrashCan: 1;// denote if it is in trash or not
+  int32_t  extendFactor; // number of life span extend
+  char    *key;
+  char     data[];
 } SCacheDataNode;
 
 typedef struct STrashElem {
@@ -62,29 +65,32 @@ typedef struct {
   int64_t         totalSize;          // total allocated buffer in this hash table, SCacheObj is not included.
   int64_t         refreshTime;
   STrashElem *    pTrash;
-  void *          tmrCtrl;
-  void *          pTimer;
+//  void *          tmrCtrl;
+//  void *          pTimer;
   SCacheStatis    statistics;
   SHashObj *      pHashTable;
-  _hash_free_fn_t freeFp;
+  __cache_freeres_fn_t freeFp;
   uint32_t        numOfElemsInTrash;  // number of element in trash
   uint8_t         deleting;           // set the deleting flag to stop refreshing ASAP.
   pthread_t       refreshWorker;
-
+  bool            extendLifespan;     // auto extend life span when one item is accessed.
 #if defined(LINUX)
   pthread_rwlock_t lock;
 #else
-  pthread_mutex_t lock;
+  pthread_mutex_t  lock;
 #endif
 } SCacheObj;
 
 /**
  * initialize the cache object
- * @param refreshTime       refresh operation interval time, the maximum survival time when one element is expired and
- *                          not referenced by other objects
+ * @param keyType              key type
+ * @param refreshTimeInSeconds refresh operation interval time, the maximum survival time when one element is expired
+ *                             and not referenced by other objects
+ * @param extendLifespan       auto extend lifespan, if accessed
+ * @param fn                   free resource callback function
  * @return
  */
-SCacheObj *taosCacheInit(int64_t refreshTimeInSeconds);
+SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn);
 
 /**
  * initialize the cache object and set the free object callback function
@@ -92,7 +98,7 @@ SCacheObj *taosCacheInit(int64_t refreshTimeInSeconds);
  * @param freeCb
  * @return
  */
-SCacheObj *taosCacheInitWithCb(int64_t refreshTimeInSeconds, void (*freeCb)(void *data));
+SCacheObj *taosCacheInitWithCb(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn);
 
 /**
  * add data into cache
@@ -104,7 +110,7 @@ SCacheObj *taosCacheInitWithCb(int64_t refreshTimeInSeconds, void (*freeCb)(void
  * @param keepTime      survival time in second
  * @return              cached element
  */
-void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, size_t dataSize, int keepTimeInSeconds);
+void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int keepTimeInSeconds);
 
 /**
  * get data from cache
@@ -112,22 +118,23 @@ void *taosCachePut(SCacheObj *pCacheObj, const char *key, const void *pData, siz
  * @param key           key
  * @return              cached data or NULL
  */
-void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key);
+void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen);
 
 /**
  * update the expire time of data in cache 
  * @param pCacheObj     cache object
  * @param key           key
+ * @param keyLen        keyLen
  * @param expireTime    new expire time of data
  * @return
  */ 
-void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, uint64_t expireTime);
+void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, size_t keyLen, uint64_t expireTime);
 
 /**
  * Add one reference count for the exist data, and assign this data for a new owner.
  * The new owner needs to invoke the taosCacheRelease when it does not need this data anymore.
- * This procedure is a faster version of taosCacheAcquireByName function, which avoids the sideeffect of the problem of
- * the data is moved to trash, and taosCacheAcquireByName will fail to retrieve it again.
+ * This procedure is a faster version of taosCacheAcquireByKey function, which avoids the sideeffect of the problem of
+ * the data is moved to trash, and taosCacheAcquireByKey will fail to retrieve it again.
  *
  * @param handle
  * @param data
@@ -148,8 +155,7 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data);
  * if it is referenced by other object, it will be remain in cache
  * @param handle    cache object
  * @param data      not the key, actually referenced data
- * @param _remove   force model, reduce the ref count and move the data into
- * pTrash
+ * @param _remove   force model, reduce the ref count and move the data into pTrash
  */
 void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove);
 
