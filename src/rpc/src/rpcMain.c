@@ -354,13 +354,13 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void *rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg) {
+void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
   int contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
   pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
-  pContext->ahandle = pMsg->handle;
+  pContext->ahandle = pMsg->ahandle;
   pContext->pRpc = (SRpcInfo *)shandle;
   pContext->ipSet = *pIpSet;
   pContext->contLen = contLen;
@@ -380,9 +380,12 @@ void *rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, const SRpcMsg *pMsg
     || type == TSDB_MSG_TYPE_CM_SHOW )
     pContext->connType = RPC_CONN_TCPC;
   
+  // set the handle to pContext, so app can cancel the request
+  if (pMsg->handle) *((void **)pMsg->handle) = pContext;
+
   rpcSendReqToServer(pRpc, pContext);
 
-  return pContext;
+  return;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -483,7 +486,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   return 0;
 }
 
-void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, const SRpcMsg *pMsg, SRpcMsg *pRsp) {
+void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   SRpcReqContext *pContext;
   pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
 
@@ -1051,7 +1054,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   } else {
     // it's a response
     SRpcReqContext *pContext = pConn->pContext;
-    rpcMsg.handle = pContext->ahandle;
+    rpcMsg.handle = pContext;
     pConn->pContext = NULL;
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
@@ -1255,7 +1258,7 @@ static void rpcProcessConnError(void *param, void *id) {
 
   if (pContext->numOfTry >= pContext->ipSet.numOfIps) {
     rpcMsg.msgType = pContext->msgType+1;
-    rpcMsg.handle = pContext->ahandle;
+    rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code;
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
