@@ -5664,7 +5664,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return ret;
   }
 
-  //pTag->dataLen = tagVal - pTag->data;
   return TSDB_CODE_SUCCESS;
 }
 
