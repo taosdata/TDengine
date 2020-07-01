@@ -58,7 +58,7 @@ class MetadataQuery:
         cursor.execute("use test")
         base = threadID * self.tables
 
-        tablesPerThread = (int) self.tables / self.numOfTherads
+        tablesPerThread = int (self.tables / self.numOfTherads)
         for i in range(tablesPerThread):
             cursor.execute(
                 '''create table t%d using meters tags(
