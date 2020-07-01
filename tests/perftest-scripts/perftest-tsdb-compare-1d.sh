@@ -1,5 +1,21 @@
 #!/bin/bash
 
+WORK_DIR=/mnt/root
+TSDB_CMP_DIR=timeseriesdatabase-comparisons/build/tsdbcompare
+
+walLevel=`grep "^walLevel" /etc/taos/taos.cfg | awk '{print $2}'`
+if [[ "$walLevel" -eq "2" ]]; then
+	walPostfix="wal2"
+elif [[ "$walLevel" -eq "1" ]]; then
+	walPostfix="wal1"
+else
+	echo -e "${RED}wrong walLevel $walLevel found! ${NC}"
+	exit 1
+fi
+
+logDir=`grep "^logDir" /etc/taos/taos.cfg | awk '{print $2}'`
+dataDir=`grep "^dataDir" /etc/taos/taos.cfg | awk '{print $2}'`
+
 # Coloured Echoes                                                                                                       #
 function red_echo      { echo -e "\033[31m$@\033[0m";   }                                                               #
 function green_echo    { echo -e "\033[32m$@\033[0m";   }                                                               #
@@ -17,13 +33,20 @@ function echoWarn   { local args="$@";  echo "$(white_brackets "$(yellow_printf 
 function echoError  { local args="$@"; echo "$(white_brackets "$(red_printf    "ERROR")" && echo " ${args}";)" 1>&2; }  #
 
 function restartTaosd {
+        echo "Stop taosd"
 	systemctl stop taosd
-	pkill -KILL -x taosd
-	sleep 10
+	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	while [ -n "$PID" ]
+	do
+		pkill -TERM -x taosd
+		sleep 1
+		PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	done
+
+	rm -rf $logDir/*
+	rm -rf $dataDir/*
 	
-	rm -rf /mnt/var/log/taos/*
-	rm -rf /mnt/var/lib/taos/*
-	
+        echo "Start taosd"
 	taosd 2>&1 > /dev/null &
 	sleep 10
 }
@@ -32,27 +55,30 @@ function runPerfTest1d {
 	echoInfo "Restart Taosd"
 	restartTaosd
 
-	cd /home/taos/tliu/timeseriesdatabase-comparisons/build/tsdbcompare
-	./runreal-1d-csv.sh $1 2>&1 | tee /root/perftest-1d-$1-$today.log
+	cd $WORK_DIR/$TSDB_CMP_DIR
+	./runTDengine.sh -d 1 -w -q 2>&1 | tee $WORK_DIR/perftest-1d-$walPostfix-$today.log
 }
 
 function generatePerfPlot1d {
-	cd /root
+	cd $WORK_DIR
 
-	csvLines=`cat perftest-1d-$1-report.csv | wc -l`
+	csvLines=`cat perftest-1d-$walPostfix-report.csv | wc -l`
 
 	if [ "$csvLines" -gt "10" ]; then
-		sed -i '2d' perftest-1d-$1-report.csv
+		sed -i '1d' perftest-1d-$walPostfix-report.csv
 	fi
 
-	gnuplot -e "filename='perftest-1d-$1-report'" -p perftest-csv2png.gnuplot
+	gnuplot -e "filename='perftest-1d-$walPostfix-report'" -p perftest-csv2png.gnuplot
 }
 
 today=`date +"%Y%m%d"`
-cd /root
+cd $WORK_DIR
 
 echoInfo "run Performance Test with 1 day data"
-runPerfTest1d $1
+runPerfTest1d
 echoInfo "Generate plot of 1 day data"
-generatePerfPlot1d $1
-echoInfo "End of TSDB-Compare 1-day-data Test"
+generatePerfPlot1d
+
+tar czf $WORK_DIR/taos-log-1d-$today.tar.gz $logDir/*
+
+echoInfo "End of TSDB-Compare 1-day-data Test" | tee -a $WORK_DIR/cron.log

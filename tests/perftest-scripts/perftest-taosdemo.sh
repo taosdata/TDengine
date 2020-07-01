@@ -1,5 +1,20 @@
 #!/bin/bash
 
+WORK_DIR=/mnt/root
+
+walLevel=`grep "^walLevel" /etc/taos/taos.cfg | awk '{print $2}'`
+if [[ "$walLevel" -eq "2" ]]; then
+	walPostfix="wal2"
+elif [[ "$walLevel" -eq "1" ]]; then
+	walPostfix="wal1"
+else
+	echo -e "${RED}wrong walLevel $walLevel found! ${NC}"
+	exit 1
+fi
+
+logDir=`grep "^logDir" /etc/taos/taos.cfg | awk '{print $2}'`
+dataDir=`grep "^dataDir" /etc/taos/taos.cfg | awk '{print $2}'`
+
 # Coloured Echoes 
 function red_echo      { echo -e "\033[31m$@\033[0m";   }
 function green_echo    { echo -e "\033[32m$@\033[0m";   }
@@ -17,13 +32,20 @@ function echoWarn   { local args="$@";  echo "$(white_brackets "$(yellow_printf 
 function echoError  { local args="$@"; echo "$(white_brackets "$(red_printf    "ERROR")" && echo " ${args}";)" 1>&2; }
 
 function restartTaosd {
+        echo "Stop taosd"
 	systemctl stop taosd
-	pkill -KILL -x taosd
-	sleep 10
+	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	while [ -n "$PID" ]
+	do
+		pkill -TERM -x taosd
+		sleep 1
+		PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	done
+
+	rm -rf $logDir/*
+	rm -rf $dataDir/*
 	
-	rm -rf /mnt/var/log/taos/*
-	rm -rf /mnt/var/lib/taos/*
-	
+        echo "Start taosd"
 	taosd 2>&1 > /dev/null &
 	sleep 10
 }
@@ -32,7 +54,7 @@ function runCreateTableOnly {
 	echoInfo "Restart Taosd"
 	restartTaosd
 
-	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo -n 0 2>&1 | tee taosdemo-$1-$today.log"
+	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo -n 0 2>&1 | tee taosdemo-$walPostfix-$today.log"
 	demoCreateTableOnly=`grep "Total:" totaltime.out|awk '{print $2}'`
 }
 
@@ -40,7 +62,7 @@ function runDeleteTableOnly {
 	echoInfo "Restart Taosd"
 	restartTaosd
 
-	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo -t 0 -D 1 2>&1 | tee taosdemo-$1-$today.log"
+	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo -t 0 -D 1 2>&1 | tee taosdemo-$walPostfix-$today.log"
 	demoDeleteTableOnly=`grep "Total:" totaltime.out|awk '{print $2}'`
 }
 
@@ -48,41 +70,44 @@ function runCreateTableThenInsert {
 	echoInfo "Restart Taosd"
 	restartTaosd
 
-	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo 2>&1 | tee -a taosdemo-$1-$today.log"
+	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo 2>&1 | tee -a taosdemo-$walPostfix-$today.log"
 	demoTableAndInsert=`grep "Total:" totaltime.out|awk '{print $2}'`
-	demoRPS=`grep "records\/second" taosdemo-$1-$today.log | tail -n1 | awk '{print $13}'`
+	demoRPS=`grep "records\/second" taosdemo-$walPostfix-$today.log | tail -n1 | awk '{print $13}'`
 }	
 
 function generateTaosdemoPlot {
-	echo "${today} $1, demoCreateTableOnly: ${demoCreateTableOnly}, demoDeleteTableOnly: ${demoDeleteTableOnly}, demoTableAndInsert: ${demoTableAndInsert}" | tee -a taosdemo-$today.log
-	echo "${today}, ${demoCreateTableOnly}, ${demoDeleteTableOnly}, ${demoTableAndInsert}">> taosdemo-$1-report.csv
-	echo "${today}, ${demoRPS}" >> taosdemo-rps-$1-report.csv
+	echo "${today} $walPostfix, demoCreateTableOnly: ${demoCreateTableOnly}, demoDeleteTableOnly: ${demoDeleteTableOnly}, demoTableAndInsert: ${demoTableAndInsert}" | tee -a taosdemo-$today.log
+	echo "${today}, ${demoCreateTableOnly}, ${demoDeleteTableOnly}, ${demoTableAndInsert}">> taosdemo-$walPostfix-report.csv
+	echo "${today}, ${demoRPS}" >> taosdemo-rps-$walPostfix-report.csv
 	
-	csvLines=`cat taosdemo-$1-report.csv | wc -l`
+	csvLines=`cat taosdemo-$walPostfix-report.csv | wc -l`
 
 	if [ "$csvLines" -gt "10" ]; then
-		sed -i '1d' taosdemo-$1-report.csv
+		sed -i '1d' taosdemo-$walPostfix-report.csv
 	fi
 
-	csvLines=`cat taosdemo-rps-$1-report.csv | wc -l`
+	csvLines=`cat taosdemo-rps-$walPostfix-report.csv | wc -l`
 
 	if [ "$csvLines" -gt "10" ]; then
-		sed -i '1d' taosdemo-rps-$1-report.csv
+		sed -i '1d' taosdemo-rps-$walPostfix-report.csv
 	fi
 
-	gnuplot -e "filename='taosdemo-$1-report'" -p taosdemo-csv2png.gnuplot
-	gnuplot -e "filename='taosdemo-rps-$1-report'" -p taosdemo-rps-csv2png.gnuplot
+	gnuplot -e "filename='taosdemo-$walPostfix-report'" -p taosdemo-csv2png.gnuplot
+	gnuplot -e "filename='taosdemo-rps-$walPostfix-report'" -p taosdemo-rps-csv2png.gnuplot
 }
 
 today=`date +"%Y%m%d"`
 
-cd /root
+cd $WORK_DIR
 echoInfo "Test Create Table Only "
-runCreateTableOnly $1
+runCreateTableOnly
 echoInfo "Test Create Table then Insert data"
-runDeleteTableOnly $1
+runDeleteTableOnly
 echoInfo "Test Create Table then Insert data"
-runCreateTableThenInsert $1
+runCreateTableThenInsert
 echoInfo "Generate plot for taosdemo"
-generateTaosdemoPlot $1
-echoInfo "End of TaosDemo Test"
+generateTaosdemoPlot
+
+tar czf $WORK_DIR/taos-log-taosdemo-$today.tar.gz $logDir/*
+
+echoInfo "End of TaosDemo Test" | tee -a $WORK_DIR/cron.log
