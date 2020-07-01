@@ -1054,7 +1054,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   } else {
     // it's a response
     SRpcReqContext *pContext = pConn->pContext;
-    rpcMsg.handle = pContext->ahandle;
+    rpcMsg.handle = pContext;
     pConn->pContext = NULL;
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
@@ -1258,7 +1258,7 @@ static void rpcProcessConnError(void *param, void *id) {
 
   if (pContext->numOfTry >= pContext->ipSet.numOfIps) {
     rpcMsg.msgType = pContext->msgType+1;
-    rpcMsg.handle = pContext->ahandle;
+    rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code;
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
