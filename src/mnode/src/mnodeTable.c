@@ -382,11 +382,13 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
   pStable->numOfTables++;
 
   if (pStable->vgHash == NULL) {
-    pStable->vgHash = taosHashInit(100000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
   }
 
   if (pStable->vgHash != NULL) {
-    taosHashPut(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+    if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
+      taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+    }
   }
 }
 
@@ -457,10 +459,9 @@ static int32_t mnodeSuperTableActionUpdate(SSdbOper *pOper) {
     free(pNew);
     free(oldTableId);
     free(oldSchema);
-  
-    mnodeDecTableRef(pTable);
   }
 
+  mnodeDecTableRef(pTable);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1573,7 +1574,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
 
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
   SRpcMsg rpcMsg = {
-      .handle  = pMsg,
+      .ahandle = pMsg,
       .pCont   = pMDCreate,
       .contLen = htonl(pMDCreate->contLen),
       .code    = 0,
@@ -1750,7 +1751,7 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
 
   mInfo("app:%p:%p, table:%s, send drop ctable msg", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
   SRpcMsg rpcMsg = {
-    .handle  = pMsg,
+    .ahandle = pMsg,
     .pCont   = pDrop,
     .contLen = sizeof(SMDDropTableMsg),
     .code    = 0,
@@ -1798,7 +1799,7 @@ static int32_t mnodeAlterNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
 
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
   SRpcMsg rpcMsg = {
-      .handle  = pMsg,
+      .ahandle = pMsg,
       .pCont   = pMDCreate,
       .contLen = htonl(pMDCreate->contLen),
       .code    = 0,
@@ -1965,9 +1966,15 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
-  STagData *pTag = (STagData *)pInfo->tags;
+  STagData *pTags = (STagData *)pInfo->tags;
+  int32_t tagLen = htonl(pTags->dataLen);
+  if (pTags->name[0] == 0) {
+    mError("app:%p:%p, table:%s, failed to create table on demand for stable is empty, tagLen:%d", pMsg->rpcMsg.ahandle,
+           pMsg, pInfo->tableId, tagLen);
+    return TSDB_CODE_MND_INVALID_STABLE_NAME; 
+  }
 
-  int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + htonl(pTag->dataLen);
+  int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + tagLen;
   SCMCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
   if (pCreateMsg == NULL) {
     mError("app:%p:%p, table:%s, failed to create table while get meta info, no enough memory", pMsg->rpcMsg.ahandle,
@@ -1982,9 +1989,9 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   pCreateMsg->getMeta = 1;
   pCreateMsg->contLen = htonl(contLen);
 
-  memcpy(pCreateMsg->schema, pInfo->tags, contLen - sizeof(SCMCreateTableMsg));
-  mDebug("app:%p:%p, table:%s, start to create on demand, stable:%s", pMsg->rpcMsg.ahandle, pMsg, pInfo->tableId,
-         ((STagData *)(pCreateMsg->schema))->name);
+  memcpy(pCreateMsg->schema, pTags, contLen - sizeof(SCMCreateTableMsg));
+  mDebug("app:%p:%p, table:%s, start to create on demand, tagLen:%d stable:%s",
+         pMsg->rpcMsg.ahandle, pMsg, pInfo->tableId, tagLen, pTags->name);
 
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
@@ -2137,9 +2144,9 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
 
 // handle drop child response
 static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
@@ -2188,9 +2195,9 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
  *   if failed, drop the table cached
  */
 static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
@@ -2231,9 +2238,9 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 }
 
 static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
@@ -2374,6 +2381,17 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
 
+  char* pattern = NULL;
+  if (pShow->payloadLen > 0) {
+    pattern = (char*)malloc(pShow->payloadLen + 1);
+    if (pattern == NULL) {
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return 0;
+    }
+    memcpy(pattern, pShow->payload, pShow->payloadLen);
+    pattern[pShow->payloadLen] = 0;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
@@ -2389,7 +2407,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pattern != NULL && patternMatch(pattern, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -2433,6 +2451,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
   mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }

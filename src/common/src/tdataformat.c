@@ -259,7 +259,7 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
       for (int i = 0; i < nEle; i++) {
-        if (!isNull(varDataVal(tdGetColDataOfRow(pCol, i)), pCol->type)) return false;
+        if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
       }
       return true;
     default:
@@ -513,6 +513,22 @@ SKVRow tdKVRowDup(SKVRow row) {
 
   kvRowCpy(trow, row);
   return trow;
+}
+
+static int compareColIdx(const void* a, const void* b) {
+  const SColIdx* x = (const SColIdx*)a;
+  const SColIdx* y = (const SColIdx*)b;
+  if (x->colId > y->colId) {
+    return 1;
+  }
+  if (x->colId < y->colId) {
+    return -1;
+  }
+  return 0;
+}
+
+void tdSortKVRowByColIdx(SKVRow row) {
+  qsort(kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), compareColIdx);
 }
 
 int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {

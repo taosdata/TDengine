@@ -43,7 +43,7 @@ int16_t  tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 int32_t  tsNumOfMnodes = 3;
 
 // common
-int32_t tsRpcTimer = 300;
+int32_t tsRpcTimer = 1000;
 int32_t tsRpcMaxTime = 600;  // seconds;
 int32_t tsMaxShellConns = 5000;
 int32_t tsMaxConnections = 5000;
@@ -153,6 +153,7 @@ char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsDataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char    tsScriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char    tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
 
 /*
  * minimum scale for whole system, millisecond by default

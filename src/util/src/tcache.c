@@ -119,7 +119,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = pNode->size;
   taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
   
-  uDebug("key:%s is removed from cache,total:%" PRId64 ",size:%dbytes", pNode->key, pCacheObj->totalSize, size);  
+  uDebug("key:%p, is removed from cache,total:%" PRId64 ",size:%dbytes", pNode->key, pCacheObj->totalSize, size);
   if (pCacheObj->freeFp) pCacheObj->freeFp(pNode->data);
   free(pNode);
 }
@@ -275,7 +275,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
   if (pCacheObj == NULL || pCacheObj->pHashTable == NULL) {
     return NULL;
   }
-  
+
   __cache_wr_lock(pCacheObj);
   SCacheDataNode **pt = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
   SCacheDataNode * pOld = (pt != NULL) ? (*pt) : NULL;
@@ -285,14 +285,14 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
     if (NULL != pNode) {
       pCacheObj->totalSize += pNode->size;
       
-      uDebug("key:%p %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%" PRId64 ", size:%" PRId64 " bytes",
+      uDebug("key:%p, %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%" PRId64 ", size:%" PRId64 " bytes",
              key, pNode, pNode->addedTime, (pNode->lifespan * pNode->extendFactor + pNode->addedTime), pCacheObj->totalSize, dataSize);
     } else {
-      uError("key:%p failed to added into cache, out of memory", key);
+      uError("key:%p, failed to added into cache, out of memory", key);
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);
-    uDebug("key:%p %p exist in cache, updated", key, pNode);
+    uDebug("key:%p, %p exist in cache, updated", key, pNode);
   }
   
   __cache_unlock(pCacheObj);
@@ -304,7 +304,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
     return NULL;
   }
-  
+
   __cache_rd_lock(pCacheObj);
   
   SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
@@ -327,10 +327,10 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   
   if (ptNode != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uDebug("key:%p is retrieved from cache, %p refcnt:%d", key, (*ptNode), ref);
+    uDebug("key:%p, is retrieved from cache, %p refcnt:%d", key, (*ptNode), ref);
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uDebug("key:%p not in cache, retrieved failed", key);
+    uDebug("key:%p, not in cache, retrieved failed", key);
   }
   
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -355,10 +355,10 @@ void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, siz
   
   if (ptNode != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uDebug("key:%s expireTime is updated in cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
+    uDebug("key:%p, expireTime is updated in cache, %p refcnt:%d", key, (*ptNode), T_REF_VAL_GET(*ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uDebug("key:%s not in cache, retrieved failed", key);
+    uDebug("key:%p, not in cache, retrieved failed", key);
   }
   
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -424,7 +424,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   
   SCacheDataNode *pNode = (SCacheDataNode *)((char *)(*data) - offset);
   if (pNode->signature != (uint64_t)pNode) {
-    uError("key: %p release invalid cache data", pNode);
+    uError("key:%p, release invalid cache data", pNode);
     return;
   }
   
@@ -522,7 +522,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pNode->inTrashCan = true;
   pCacheObj->numOfElemsInTrash++;
 
-  uDebug("key:%p %p move to trash, numOfElem in trash:%d", pNode->key, pNode, pCacheObj->numOfElemsInTrash);
+  uDebug("key:%p, %p move to trash, numOfElem in trash:%d", pNode->key, pNode, pCacheObj->numOfElemsInTrash);
 }
 
 void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
@@ -546,7 +546,7 @@ void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pCacheObj->freeFp) {
     pCacheObj->freeFp(pElem->pData->data);
   }
-  
+
   uError("-------------------free obj:%p", pElem->pData);
   free(pElem->pData);
   free(pElem);
@@ -574,7 +574,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
     }
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
-      uDebug("key:%p %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData,
+      uDebug("key:%p, %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData,
              pCacheObj->numOfElemsInTrash - 1);
       STrashElem *p = pElem;
 
@@ -594,7 +594,12 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
   SHashMutableIterator *pIter = taosHashCreateIter(pCacheObj->pHashTable);
   while (taosHashIterNext(pIter)) {
     SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
-    taosCacheReleaseNode(pCacheObj, pNode);
+    // if (pNode->expiredTime <= expiredTime && T_REF_VAL_GET(pNode) <= 0) {
+    if (T_REF_VAL_GET(pNode) <= 0) {
+      taosCacheReleaseNode(pCacheObj, pNode);
+    } else {
+      uDebug("key:%p, will not remove from cache, refcnt:%d", pNode->key, T_REF_VAL_GET(pNode));
+    }
   }
   taosHashDestroyIter(pIter);
 

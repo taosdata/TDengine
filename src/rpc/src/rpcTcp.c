@@ -419,7 +419,7 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
     tError("%s %p TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);
     return -1;
   } else {
-    // tDebug("malloc mem: %p", buffer);
+    tDebug("TCP malloc mem: %p", buffer);
   }
 
   msg = buffer + tsRpcOverhead;

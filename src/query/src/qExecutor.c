@@ -2237,7 +2237,7 @@ static void doSetTagValueInParam(void *tsdb, void* pTable, int32_t tagColId, tVa
     }
     
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-      if (isNull(varDataVal(val), type)) {
+      if (isNull(val, type)) {
         tag->nType = TSDB_DATA_TYPE_NULL;
         return;
       }
@@ -6028,7 +6028,7 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
     return;
   }
 
-  int16_t ref = T_REF_DEC(pQInfo);
+  int32_t ref = T_REF_DEC(pQInfo);
   qDebug("QInfo:%p dec refCount, value:%d", pQInfo, ref);
 
   if (ref == 0) {

@@ -233,26 +233,10 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
     if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
     if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
 
-    // Decode tag values
-    if (pMsg->tagDataLen) {
-      int   accBytes = 0;
+    int32_t tagDataLen = htonl(pMsg->tagDataLen);
+    if (tagDataLen) {
       char *pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
-
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        goto _err;
-      }
-      for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
-        if (tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes) < 0) {
-          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-          goto _err;
-        }
-        accBytes += htons(pSchema[i].bytes);
-      }
-
-      tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
-      tdDestroyKVRowBuilder(&kvRowBuilder);
+      tsdbTableSetTagValue(pCfg, pTagData, true);
     }
   }
 
@@ -480,13 +464,11 @@ int tsdbUpdateTable(STsdbRepo *pRepo, STable *pTable, STableCfg *pCfg) {
   bool       changed = false;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  if (pTable->type == TSDB_SUPER_TABLE) {
-    if (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema)) {
-      if (tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema) < 0) {
-        tsdbError("vgId:%d failed to update table %s tag schema since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                  tstrerror(terrno));
-        return -1;
-      }
+  if ((pTable->type == TSDB_SUPER_TABLE) && (schemaVersion(pTable->tagSchema) < schemaVersion(pCfg->tagSchema))) {
+    if (tsdbUpdateTableTagSchema(pTable, pCfg->tagSchema) < 0) {
+      tsdbError("vgId:%d failed to update table %s tag schema since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                tstrerror(terrno));
+      return -1;
     }
     changed = true;
   }
@@ -552,13 +534,13 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
 }
 
 void tsdbRefTable(STable *pTable) {
-  int16_t ref = T_REF_INC(pTable);
+  int32_t ref = T_REF_INC(pTable);
   UNUSED(ref);
   // tsdbDebug("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 }
 
 void tsdbUnRefTable(STable *pTable) {
-  int16_t ref = T_REF_DEC(pTable);
+  int32_t ref = T_REF_DEC(pTable);
   tsdbDebug("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {
@@ -598,7 +580,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
     return -1;
   }
 
-  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is restored from file", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is restored from file", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 }
@@ -622,6 +604,10 @@ static char *getTagIndexKey(const void *pData) {
   STSchema *pSchema = tsdbGetTableTagSchema(pTable);
   STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
   void *    res = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
+  if (res == NULL) {
+    // treat the column as NULL if we cannot find it
+    res = getNullValue(pCol->type);
+  }
   return res;
 }
 
@@ -799,7 +785,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
     pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql, tsdbGetTableSchema(pTable));
   }
 
-  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 
@@ -1215,7 +1201,7 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
     while (tSkipListIterNext(pIter)) {
       STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
       ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
-      pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, pTable);
+      pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
     }
 
     tSkipListDestroyIter(pIter);

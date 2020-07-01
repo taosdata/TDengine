@@ -127,9 +127,8 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
-  code = tsdbCreateRepo(tsdbDir, &tsdbCfg);
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(code));
+  if (tsdbCreateRepo(tsdbDir, &tsdbCfg) < 0) {
+    vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
   }
 
@@ -355,6 +354,7 @@ void vnodeRelease(void *pVnodeRaw) {
   if (pVnode->status == TAOS_VN_STATUS_DELETING) {
     char rootDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
+    taosMvDir(tsVnodeBakDir, rootDir);
     taosRemoveDir(rootDir);
   }
 

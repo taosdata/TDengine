@@ -281,6 +281,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   SCMConnectMsg *pConnectMsg = pMsg->rpcMsg.pCont;
+  SCMConnectRsp *pConnectRsp = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
   SRpcConnInfo connInfo;
@@ -309,7 +310,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     mnodeDecDbRef(pDb);
   }
 
-  SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
+  pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
   if (pConnectRsp == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto connect_over;
@@ -332,7 +333,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {
-    rpcFreeCont(pConnectRsp);
+    if (pConnectRsp) rpcFreeCont(pConnectRsp);
     mLError("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
   } else {
     mLInfo("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));

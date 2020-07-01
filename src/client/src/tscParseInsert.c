@@ -891,11 +891,15 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
+    SKVRowBuilder kvRowBuilder = {0};
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
     uint32_t ignoreTokenTypes = TK_LP;
     uint32_t numOfIgnoreToken = 1;
     for (int i = 0; i < spd.numOfAssignedCols; ++i) {
-      char *  tagVal = pTag->data + spd.elems[i].offset;
-      int16_t colIndex = spd.elems[i].colIndex;
+      SSchema* pSchema = pTagSchema + spd.elems[i].colIndex;
 
       index = 0;
       sToken = tStrGetToken(sql, &index, true, numOfIgnoreToken, &ignoreTokenTypes);
@@ -911,11 +915,25 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
         sToken.n -= 2;
       }
 
-      code = tsParseOneColumnData(&pTagSchema[colIndex], &sToken, tagVal, pCmd->payload, &sql, false, tinfo.precision);
+      char tagVal[TSDB_MAX_TAGS_LEN];
+      code = tsParseOneColumnData(pSchema, &sToken, tagVal, pCmd->payload, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return code;
       }
+
+      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
     }
+
+    SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+    tdDestroyKVRowBuilder(&kvRowBuilder);
+    if (row == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    tdSortKVRowByColIdx(row);
+    pTag->dataLen = kvRowLen(row);
+    kvRowCpy(pTag->data, row);
+    free(row);
 
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -924,29 +942,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return tscInvalidSQLErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
-    // 2. set the null value for the columns that do not assign values
-    if (spd.numOfAssignedCols < spd.numOfCols) {
-      char *ptr = pTag->data;
-
-      for (int32_t i = 0; i < spd.numOfCols; ++i) {
-        if (!spd.hasVal[i]) {  // current tag column do not have any value to insert, set it to null
-          if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
-            setVardataNull(ptr, pTagSchema[i].type);
-          } else {
-            setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
-          }
-        }
-
-        ptr += pTagSchema[i].bytes;
-      }
-    }
-
-    // 3. calculate the actual data size of STagData
-    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen);
-    for (int32_t t = 0; t < numOfTags; ++t) {
-      pTag->dataLen += pTagSchema[t].bytes;
-      pCmd->payloadLen += pTagSchema[t].bytes;
-    }
+    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen) + pTag->dataLen;
     pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {

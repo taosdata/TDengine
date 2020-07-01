@@ -141,10 +141,15 @@ HttpContext *httpGetContext(void *ptr) {
 void httpReleaseContext(HttpContext *pContext) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   assert(refCount >= 0);
-  httpDebug("context:%p, fd:%d, is releasd, refCount:%d", pContext, pContext->fd, refCount);
+  httpDebug("context:%p, is releasd, refCount:%d", pContext, refCount);
 
   HttpContext **ppContext = pContext->ppContext;
-  taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
+  if (tsHttpServer.contextCache != NULL) {
+    taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
+  } else {
+    httpDebug("context:%p, won't be destroyed for cache is already released", pContext);
+    // httpDestroyContext((void **)(&ppContext));
+  }
 }
 
 bool httpInitContext(HttpContext *pContext) {

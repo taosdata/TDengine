@@ -272,7 +272,7 @@ typedef struct {
   int16_t offset;
 } SColIdx;
 
-#define TD_KV_ROW_HEAD_SIZE 2 * sizeof(int16_t)
+#define TD_KV_ROW_HEAD_SIZE (2 * sizeof(int16_t))
 
 #define kvRowLen(r) (*(int16_t *)(r))
 #define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
@@ -290,6 +290,7 @@ SKVRow tdKVRowDup(SKVRow row);
 int    tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
 int    tdEncodeKVRow(void **buf, SKVRow row);
 void * tdDecodeKVRow(void *buf, SKVRow *row);
+void   tdSortKVRowByColIdx(SKVRow row);
 
 static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
   if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {

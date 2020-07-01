@@ -790,7 +790,7 @@ int isCommentLine(char *line) {
 void source_file(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
-  char *    cmd = calloc(1, MAX_COMMAND_SIZE);
+  char *    cmd = calloc(1, tsMaxSQLStringLen+1);
   size_t    cmd_len = 0;
   char *    line = NULL;
   size_t    line_len = 0;
@@ -822,7 +822,7 @@ void source_file(TAOS *con, char *fptr) {
   }
 
   while ((read_len = getline(&line, &line_len, f)) != -1) {
-    if (read_len >= MAX_COMMAND_SIZE) continue;
+    if (read_len >= tsMaxSQLStringLen) continue;
     line[--read_len] = '\0';
 
     if (read_len == 0 || isCommentLine(line)) {  // line starts with #
@@ -839,7 +839,7 @@ void source_file(TAOS *con, char *fptr) {
     memcpy(cmd + cmd_len, line, read_len);
     printf("%s%s\n", PROMPT_HEADER, cmd);
     shellRunCommand(con, cmd);
-    memset(cmd, 0, MAX_COMMAND_SIZE);
+    memset(cmd, 0, tsMaxSQLStringLen);
     cmd_len = 0;
   }
 
