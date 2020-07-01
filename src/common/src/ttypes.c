@@ -464,6 +464,29 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   }
 }
 
+static uint8_t  nullBool = TSDB_DATA_BOOL_NULL;
+static uint8_t  nullTinyInt = TSDB_DATA_TINYINT_NULL;
+static uint16_t nullSmallInt = TSDB_DATA_SMALLINT_NULL;
+static uint32_t nullInt = TSDB_DATA_INT_NULL;
+static uint64_t nullBigInt = TSDB_DATA_BIGINT_NULL;
+static uint32_t nullFloat = TSDB_DATA_FLOAT_NULL;
+static uint64_t nullDouble = TSDB_DATA_DOUBLE_NULL;
+
+static union {
+  tstr str;
+  char pad[sizeof(tstr) + 4];
+} nullBinary = {.str = {.len = 1}}, nullNchar = {.str = {.len = 4}};
+
+static void *nullValues[] = {
+    &nullBool,  &nullTinyInt, &nullSmallInt, &nullInt,    &nullBigInt,
+    &nullFloat, &nullDouble,  &nullBinary,   &nullBigInt, &nullNchar,
+};
+
+void *getNullValue(int32_t type) {
+  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_NCHAR);
+  return nullValues[type - 1];
+}
+
 void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {

@@ -95,11 +95,13 @@ void httpCleanUpSystem() {
   httpInfo("http server cleanup");
   httpStopSystem();
 
+  httpCleanUpConnect();
   httpCleanupContexts();
   httpCleanUpSessions();
-  httpCleanUpConnect();
   pthread_mutex_destroy(&tsHttpServer.serverMutex);
-
+  tfree(tsHttpServer.pThreads);
+  tsHttpServer.pThreads = NULL;
+  
   tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
