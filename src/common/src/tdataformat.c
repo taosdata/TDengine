@@ -515,6 +515,22 @@ SKVRow tdKVRowDup(SKVRow row) {
   return trow;
 }
 
+static int compareColIdx(const void* a, const void* b) {
+  const SColIdx* x = (const SColIdx*)a;
+  const SColIdx* y = (const SColIdx*)b;
+  if (x->colId > y->colId) {
+    return 1;
+  }
+  if (x->colId < y->colId) {
+    return -1;
+  }
+  return 0;
+}
+
+void tdSortKVRowByColIdx(SKVRow row) {
+  qsort(kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), compareColIdx);
+}
+
 int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   SColIdx *pColIdx = NULL;
   SKVRow   row = *orow;

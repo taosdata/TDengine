@@ -5634,6 +5634,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
       // validate the length of binary
       if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
@@ -5641,6 +5642,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     char tagVal[TSDB_MAX_TAGS_LEN];
     ret = tVariantDump(&(pList->a[i].pVar), tagVal, pSchema->type, true);
     if (ret != TSDB_CODE_SUCCESS) {
+      tdDestroyKVRowBuilder(&kvRowBuilder);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
 
@@ -5648,10 +5650,14 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-  pTag->dataLen = kvRowLen(row);
-  memcpy(pTag->data, row, pTag->dataLen);
-  free(row);
   tdDestroyKVRowBuilder(&kvRowBuilder);
+  if (row == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  tdSortKVRowByColIdx(row);
+  pTag->dataLen = kvRowLen(row);
+  kvRowCpy(pTag->data, row);
+  free(row);
 
   // table name
   if (tscValidateName(&pInfo->pCreateTableInfo->name) != TSDB_CODE_SUCCESS) {
