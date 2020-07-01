@@ -853,7 +853,6 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   STable *pSTable = tsdbGetTableByUid(pMeta, TABLE_SUID(pTable));
   ASSERT(pSTable != NULL);
 
-  printf("pTable = %p, pSTable = %p\n", pTable, pSTable);
   pTable->pSuper = pSTable;
 
   int32_t level = 0;
