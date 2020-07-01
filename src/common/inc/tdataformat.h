@@ -272,7 +272,7 @@ typedef struct {
   int16_t offset;
 } SColIdx;
 
-#define TD_KV_ROW_HEAD_SIZE 2 * sizeof(int16_t)
+#define TD_KV_ROW_HEAD_SIZE (2 * sizeof(int16_t))
 
 #define kvRowLen(r) (*(int16_t *)(r))
 #define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
