@@ -66,8 +66,6 @@ void httpCleanUpConnect() {
     }
   }
 
-  tfree(pServer->pThreads);
-  pServer->pThreads = NULL;
   httpDebug("http server:%s is cleaned up", pServer->label);
 }
 

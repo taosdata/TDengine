@@ -5623,24 +5623,41 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   SSchema* pTagSchema = tscGetTableTagSchema(pStableMeterMetaInfo->pTableMeta);
 
   STagData* pTag = &pCreateTable->usingInfo.tagdata;
-  char* tagVal = pTag->data;
+  SKVRowBuilder kvRowBuilder = {0};
+  if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
   int32_t ret = TSDB_CODE_SUCCESS;
-  
   for (int32_t i = 0; i < pList->nExpr; ++i) {
-    if (pTagSchema[i].type == TSDB_DATA_TYPE_BINARY || pTagSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+    SSchema* pSchema = pTagSchema + i;
+    if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
       // validate the length of binary
-      if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pTagSchema[i].bytes) {
+      if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
     
-    ret = tVariantDump(&(pList->a[i].pVar), tagVal, pTagSchema[i].type, true);
+    char tagVal[TSDB_MAX_TAGS_LEN];
+    ret = tVariantDump(&(pList->a[i].pVar), tagVal, pSchema->type, true);
     if (ret != TSDB_CODE_SUCCESS) {
+      tdDestroyKVRowBuilder(&kvRowBuilder);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
 
-    tagVal += pTagSchema[i].bytes;
+    tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
   }
+
+  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+  tdDestroyKVRowBuilder(&kvRowBuilder);
+  if (row == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  tdSortKVRowByColIdx(row);
+  pTag->dataLen = kvRowLen(row);
+  kvRowCpy(pTag->data, row);
+  free(row);
 
   // table name
   if (tscValidateName(&pInfo->pCreateTableInfo->name) != TSDB_CODE_SUCCESS) {
@@ -5653,7 +5670,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return ret;
   }
 
-  pTag->dataLen = tagVal - pTag->data;
   return TSDB_CODE_SUCCESS;
 }
 

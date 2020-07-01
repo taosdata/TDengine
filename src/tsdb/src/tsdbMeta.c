@@ -233,26 +233,10 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
     if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
     if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
 
-    // Decode tag values
-    if (pMsg->tagDataLen) {
-      int   accBytes = 0;
+    int32_t tagDataLen = htonl(pMsg->tagDataLen);
+    if (tagDataLen) {
       char *pTagData = pMsg->data + (numOfCols + numOfTags) * sizeof(SSchema);
-
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        goto _err;
-      }
-      for (int i = numOfCols; i < numOfCols + numOfTags; i++) {
-        if (tdAddColToKVRow(&kvRowBuilder, htons(pSchema[i].colId), pSchema[i].type, pTagData + accBytes) < 0) {
-          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-          goto _err;
-        }
-        accBytes += htons(pSchema[i].bytes);
-      }
-
-      tsdbTableSetTagValue(pCfg, tdGetKVRowFromBuilder(&kvRowBuilder), false);
-      tdDestroyKVRowBuilder(&kvRowBuilder);
+      tsdbTableSetTagValue(pCfg, pTagData, true);
     }
   }
 
@@ -620,6 +604,10 @@ static char *getTagIndexKey(const void *pData) {
   STSchema *pSchema = tsdbGetTableTagSchema(pTable);
   STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
   void *    res = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
+  if (res == NULL) {
+    // treat the column as NULL if we cannot find it
+    res = getNullValue(pCol->type);
+  }
   return res;
 }
 

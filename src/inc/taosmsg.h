@@ -26,6 +26,7 @@ extern "C" {
 #include "taosdef.h"
 #include "taoserror.h"
 #include "trpc.h"
+#include "tdataformat.h"
 
 // message type
 
@@ -674,7 +675,7 @@ typedef struct SMultiTableMeta {
 typedef struct {
   int32_t dataLen;
   char name[TSDB_TABLE_ID_LEN];
-  char data[TSDB_MAX_TAGS_LEN];
+  char data[TSDB_MAX_TAGS_LEN + TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * TSDB_MAX_TAGS];
 } STagData;
 
 /*
