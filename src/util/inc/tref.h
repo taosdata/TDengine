@@ -22,7 +22,7 @@ typedef void (*_ref_fn_t)(const void* pObj);
 
 #define T_REF_DECLARE() \
   struct {              \
-    int16_t val;        \
+    int32_t val;        \
   } _ref;
 
 #define T_REF_REGISTER_FUNC(s, e) \
@@ -31,7 +31,7 @@ typedef void (*_ref_fn_t)(const void* pObj);
     _ref_fn_t end;                \
   } _ref_func = {.begin = (s), .end = (e)};
 
-#define T_REF_INC(x) (atomic_add_fetch_16(&((x)->_ref.val), 1))
+#define T_REF_INC(x) (atomic_add_fetch_32(&((x)->_ref.val), 1))
 
 #define T_REF_INC_WITH_CB(x, p)                           \
   do {                                                    \
@@ -41,11 +41,11 @@ typedef void (*_ref_fn_t)(const void* pObj);
     }                                                     \
   } while (0)
 
-#define T_REF_DEC(x) (atomic_sub_fetch_16(&((x)->_ref.val), 1))
+#define T_REF_DEC(x) (atomic_sub_fetch_32(&((x)->_ref.val), 1))
 
 #define T_REF_DEC_WITH_CB(x, p)                           \
   do {                                                    \
-    int32_t v = atomic_sub_fetch_16(&((x)->_ref.val), 1); \
+    int32_t v = atomic_sub_fetch_32(&((x)->_ref.val), 1); \
     if (v == 0 && (p)->_ref_func.end != NULL) {           \
       (p)->_ref_func.end((x));                            \
     }                                                     \

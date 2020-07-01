@@ -64,7 +64,7 @@ print ======== step7
 $lastRows = $data00
 print ======== loop Times $x
 
-if $x < 2 then
+if $x < 5 then
   $x = $x + 1
   goto loop
 endi

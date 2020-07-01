@@ -43,7 +43,7 @@ int16_t  tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 int32_t  tsNumOfMnodes = 3;
 
 // common
-int32_t tsRpcTimer = 300;
+int32_t tsRpcTimer = 1000;
 int32_t tsRpcMaxTime = 600;  // seconds;
 int32_t tsMaxShellConns = 5000;
 int32_t tsMaxConnections = 5000;
@@ -170,9 +170,9 @@ int64_t tsStreamMax;
 int32_t tsNumOfCores = 1;
 float   tsTotalTmpDirGB = 0;
 float   tsTotalDataDirGB = 0;
-float   tsAvailTmpDirGB = 0;
+float   tsAvailTmpDirectorySpace = 0;
 float   tsAvailDataDirGB = 0;
-float   tsMinimalTmpDirGB = 0.1;
+float   tsReservedTmpDirectorySpace = 0.1;
 float   tsMinimalDataDirGB = 0.5;
 int32_t tsTotalMemoryMB = 0;
 int32_t tsVersion = 0;
@@ -807,7 +807,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   cfg.option = "minimalTmpDirGB";
-  cfg.ptr = &tsMinimalTmpDirGB;
+  cfg.ptr = &tsReservedTmpDirectorySpace;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0.001;

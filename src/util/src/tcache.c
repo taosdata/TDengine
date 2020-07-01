@@ -415,7 +415,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   }
   
   *data = NULL;
-  int16_t ref = T_REF_DEC(pNode);
+  int32_t ref = T_REF_DEC(pNode);
   uDebug("%p data released, refcnt:%d", pNode, ref);
   
   if (_remove) {

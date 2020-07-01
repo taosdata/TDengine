@@ -36,6 +36,8 @@ matrix:
           - psmisc
 
     before_script:
+      - export TZ=Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -150,6 +152,8 @@ matrix:
       - DESC="trusty/gcc-4.8 build"
 
     before_script:
+      - export TZ=Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -173,6 +177,8 @@ matrix:
           - cmake
 
     before_script:
+      - export TZ=Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -197,6 +203,8 @@ matrix:
           - cmake
 
     before_script:
+      - export TZ=Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
@@ -225,6 +233,8 @@ matrix:
       - DESC="trusty/gcc-4.8 build"
 
     before_script:
+      - export TZ=Asia/Harbin
+      - date
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug

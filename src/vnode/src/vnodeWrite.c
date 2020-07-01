@@ -94,7 +94,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   // save insert result into item
 
-  vDebug("vgId:%d, submit msg is processed", pVnode->vgId);
+  vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
   
   pRet->len = sizeof(SShellSubmitRspMsg);
   pRet->rsp = rpcMallocCont(pRet->len);

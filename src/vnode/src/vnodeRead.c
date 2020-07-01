@@ -109,15 +109,23 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     pRet->rsp = pRsp;
 
     // current connect is broken
-    if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-      vError("vgId:%d, QInfo:%p, dnode query discarded since link is broken, %p", pVnode->vgId, pQInfo, pReadMsg->rpcMsg.handle);
-      pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    if (code == TSDB_CODE_SUCCESS) {
+      if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+        vError("vgId:%d, QInfo:%p, dnode query discarded since link is broken, %p", pVnode->vgId, pQInfo,
+               pReadMsg->rpcMsg.handle);
+        pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
 
-      //NOTE: there two refcount, needs to kill twice, todo refactor
-      qKillQuery(pQInfo, vnodeRelease, pVnode);
-      qKillQuery(pQInfo, vnodeRelease, pVnode);
+        // NOTE: there two refcount, needs to kill twice, todo refactor
+        qKillQuery(pQInfo, vnodeRelease, pVnode);
+        qKillQuery(pQInfo, vnodeRelease, pVnode);
 
-      return pRsp->code;
+        return pRsp->code;
+      }
+
+      vTrace("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    } else {
+      assert(pQInfo == NULL);
+      vnodeRelease(pVnode);
     }
 
     vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
@@ -129,7 +137,6 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   }
 
   if (pQInfo != NULL) {
-    vDebug("vgId:%d, QInfo:%p, do qTableQuery", pVnode->vgId, pQInfo);
     qTableQuery(pQInfo, vnodeRelease, pVnode); // do execute query
   }
 

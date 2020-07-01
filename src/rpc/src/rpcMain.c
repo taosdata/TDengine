@@ -665,6 +665,12 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     return pConn;
   }
 
+  // if code is not 0, it means it is simple reqhead, just ignore
+  if (pHead->code != 0) {
+    terrno = TSDB_CODE_RPC_ALREADY_PROCESSED;
+    return NULL;
+  }
+
   int sid = taosAllocateId(pRpc->idPool);
   if (sid <= 0) {
     tError("%s maximum number of sessions:%d is reached", pRpc->label, pRpc->sessions);
@@ -1028,15 +1034,20 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   rpcMsg.ahandle = pConn->ahandle;
    
   if ( rpcIsReq(pHead->msgType) ) {
-    rpcMsg.handle = pConn;
-    rpcAddRef(pRpc);  // add the refCount for requests
+    if (rpcMsg.contLen > 0) {
+      rpcMsg.handle = pConn;
+      rpcAddRef(pRpc);  // add the refCount for requests
 
-    // start the progress timer to monitor the response from server app
-    if (pConn->connType != RPC_CONN_TCPS) 
-      pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
+      // start the progress timer to monitor the response from server app
+      if (pConn->connType != RPC_CONN_TCPS) 
+        pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
  
-    // notify the server app
-    (*(pRpc->cfp))(&rpcMsg, NULL);
+      // notify the server app
+      (*(pRpc->cfp))(&rpcMsg, NULL);
+    } else {
+      tDebug("%s, message body is empty, ignore", pConn->info);
+      rpcFreeCont(rpcMsg.pCont);
+    }
   } else {
     // it's a response
     SRpcReqContext *pContext = pConn->pContext;
