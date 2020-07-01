@@ -6032,12 +6032,15 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
   qDebug("QInfo:%p dec refCount, value:%d", pQInfo, ref);
 
   if (ref == 0) {
-    if (pQInfo->fn != NULL) {
-      assert(pQInfo->param != NULL);
-      pQInfo->fn(pQInfo->param);
-    }
+    _qinfo_free_fn_t fn = pQInfo->fn;
+    void* param = pQInfo->param;
 
     doDestoryQueryInfo(pQInfo);
+    if (fn != NULL) {
+      assert(param != NULL);
+      fn(param);
+    }
+
   }
 }
 
