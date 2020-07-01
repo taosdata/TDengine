@@ -290,6 +290,7 @@ SKVRow tdKVRowDup(SKVRow row);
 int    tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
 int    tdEncodeKVRow(void **buf, SKVRow row);
 void * tdDecodeKVRow(void *buf, SKVRow *row);
+void   tdSortKVRowByColIdx(SKVRow row);
 
 static FORCE_INLINE int comparTagId(const void *key1, const void *key2) {
   if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {

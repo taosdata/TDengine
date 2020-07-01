@@ -918,6 +918,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       char tagVal[TSDB_MAX_TAGS_LEN];
       code = tsParseOneColumnData(pSchema, &sToken, tagVal, pCmd->payload, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return code;
       }
 
@@ -925,10 +926,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-    pTag->dataLen = kvRowLen(row);
-    memcpy(pTag->data, row, pTag->dataLen);
-    free(row);
     tdDestroyKVRowBuilder(&kvRowBuilder);
+    if (row == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    tdSortKVRowByColIdx(row);
+    pTag->dataLen = kvRowLen(row);
+    kvRowCpy(pTag->data, row);
+    free(row);
 
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
