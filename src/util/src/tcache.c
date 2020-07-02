@@ -547,7 +547,6 @@ void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
     pCacheObj->freeFp(pElem->pData->data);
   }
 
-  uError("-------------------free obj:%p", pElem->pData);
   free(pElem->pData);
   free(pElem);
 }

@@ -197,7 +197,8 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  _qinfo_free_fn_t fn;
+  _qinfo_free_fn_t freeFn;
+  jmp_buf          env;
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H
