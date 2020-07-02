@@ -388,7 +388,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);
+    mnodeDestroyDb(pDb);
     mLInfo("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     return code;
   } else {
@@ -434,7 +434,7 @@ void mnodeAddVgroupIntoDb(SVgObj *pVgroup) {
   }
 
   pDb->vgList[vgPos] = pVgroup;
-  pthread_mutex_lock(&pDb->mutex);
+  pthread_mutex_unlock(&pDb->mutex);
 }
 
 void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
@@ -451,7 +451,7 @@ void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
     }
   }
 
-  pthread_mutex_lock(&pDb->mutex);
+  pthread_mutex_unlock(&pDb->mutex);
 }
 
 void mnodeCleanupDbs() {
