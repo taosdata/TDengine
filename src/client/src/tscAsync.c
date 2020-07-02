@@ -213,27 +213,34 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   // handle the sub queries of join query
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     tscFetchDatablockFromSubquery(pSql);
-  } else if (pRes->completed && pCmd->command == TSDB_SQL_FETCH) {
-    if (hasMoreVnodesToTry(pSql)) { // sequentially retrieve data from remain vnodes.
-      tscTryQueryNextVnode(pSql, tscAsyncQueryRowsForNextVnode);
-      return;
-    } else {
-      /*
+  } else if (pRes->completed) {
+    if(pCmd->command == TSDB_SQL_FETCH) {
+      if (hasMoreVnodesToTry(pSql)) {  // sequentially retrieve data from remain vnodes.
+        tscTryQueryNextVnode(pSql, tscAsyncQueryRowsForNextVnode);
+        return;
+      } else {
+        /*
        * all available virtual node has been checked already, now we need to check
        * for the next subclause queries
-       */
-      if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
-        tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
-        return;
-      }
-    
-      /*
+         */
+        if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+          tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
+          return;
+        }
+
+        /*
        * 1. has reach the limitation
        * 2. no remain virtual nodes to be retrieved anymore
-       */
+         */
+        (*pSql->fetchFp)(param, pSql, 0);
+      }
+      return;
+    } else if (pCmd->command == TSDB_SQL_RETRIEVE) {
+      // in case of show command, return no data
       (*pSql->fetchFp)(param, pSql, 0);
+    } else {
+      assert(0);
     }
-    return;
   } else { // current query is not completed, continue retrieve from node
     if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
