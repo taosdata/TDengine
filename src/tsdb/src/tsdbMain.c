@@ -417,7 +417,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->maxTables == -1) {
     pCfg->maxTables = TSDB_DEFAULT_TABLES+1;
   } else {
-    if (pCfg->maxTables - 1 < TSDB_MIN_TABLES || pCfg->maxTables - 1 > TSDB_MAX_TABLES + 1) {
+    if (pCfg->maxTables - 1 < TSDB_MIN_TABLES || pCfg->maxTables - 1 > TSDB_MAX_TABLES) {
       tsdbError("vgId:%d invalid maxTables configuration! maxTables %d TSDB_MIN_TABLES %d TSDB_MAX_TABLES %d",
                 pCfg->tsdbId, pCfg->maxTables - 1, TSDB_MIN_TABLES, TSDB_MAX_TABLES);
       goto _err;
