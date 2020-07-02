@@ -33,9 +33,9 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
   memset(&session, 0, sizeof(HttpSession));
   session.taos = taos;
   session.refCount = 1;
-  snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
+  int32_t len = snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
-  pContext->session = taosCachePut(server->sessionCache, session.id, &session, sizeof(HttpSession), tsHttpSessionExpire);
+  pContext->session = taosCachePut(server->sessionCache, session.id, len, &session, sizeof(HttpSession), tsHttpSessionExpire);
   // void *temp = pContext->session;
   // taosCacheRelease(server->sessionCache, (void **)&temp, false);
 
@@ -57,9 +57,9 @@ static void httpFetchSessionImp(HttpContext *pContext) {
   pthread_mutex_lock(&server->serverMutex);
 
   char sessionId[HTTP_SESSION_ID_LEN];
-  snprintf(sessionId, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
+  int32_t len = snprintf(sessionId, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
-  pContext->session = taosCacheAcquireByName(server->sessionCache, sessionId);
+  pContext->session = taosCacheAcquireByKey(server->sessionCache, sessionId, len);
   if (pContext->session != NULL) {
     atomic_add_fetch_32(&pContext->session->refCount, 1);
     httpDebug("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, sessionRef:%d", pContext, pContext->fd,
@@ -115,7 +115,7 @@ void httpCleanUpSessions() {
 }
 
 bool httpInitSessions() {
-  tsHttpServer.sessionCache = taosCacheInitWithCb(5, httpDestroySession);
+  tsHttpServer.sessionCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BINARY, 5, false, httpDestroySession);
   if (tsHttpServer.sessionCache == NULL) {
     httpError("failed to init session cache");
     return false;

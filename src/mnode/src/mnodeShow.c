@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInitWithCb(5, mnodeFreeShowObj);
+  tsMnodeShowCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BINARY, 5, false, mnodeFreeShowObj);
   return 0;
 }
 
@@ -365,9 +365,9 @@ static bool mnodeCheckShowFinished(SShowObj *pShow) {
 
 static bool mnodeAccquireShowObj(SShowObj *pShow) {
   char key[10];
-  sprintf(key, "%d", pShow->index);
+  int32_t len = sprintf(key, "%d", pShow->index);
 
-  SShowObj *pSaved = taosCacheAcquireByName(tsMnodeShowCache, key);
+  SShowObj *pSaved = taosCacheAcquireByKey(tsMnodeShowCache, key, len);
   if (pSaved == pShow) {
     mDebug("%p, show is accquired from cache", pShow);
     return true;
@@ -380,9 +380,9 @@ static void *mnodePutShowObj(SShowObj *pShow, int32_t size) {
   if (tsMnodeShowCache != NULL) {
     char key[10];
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
-    sprintf(key, "%d", pShow->index);
+    int32_t len = sprintf(key, "%d", pShow->index);
 
-    SShowObj *newQhandle = taosCachePut(tsMnodeShowCache, key, pShow, size, 6);
+    SShowObj *newQhandle = taosCachePut(tsMnodeShowCache, key, len, pShow, size, 6);
     free(pShow);
 
     mDebug("%p, show is put into cache, index:%s", newQhandle, key);
