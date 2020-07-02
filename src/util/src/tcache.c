@@ -255,7 +255,7 @@ SCacheObj *taosCacheInitWithCb(int32_t keyType, int64_t refreshTimeInSeconds, bo
     return NULL;
   }
 
-  pthread_attr_t thattr = {0};
+  pthread_attr_t thattr = {{0}};
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
