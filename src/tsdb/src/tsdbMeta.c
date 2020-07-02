@@ -310,7 +310,9 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbRemoveTableFromIndex(pMeta, pTable);
   }
   // TODO: remove table from index if it is the first column of tag
-  tdSetKVRowDataOfCol(&pTable->tagVal, htons(pMsg->colId), htons(pMsg->type), pMsg->data);
+  // TODO: convert the tag schema from client, and then extract the type and bytes from schema according to colId
+
+//  tdSetKVRowDataOfCol(&pTable->tagVal, htons(pMsg->colId), htons(pMsg->type), pMsg->data);
   if (schemaColAt(pTagSchema, DEFAULT_TAG_INDEX_COLUMN)->colId == htons(pMsg->colId)) {
     tsdbAddTableIntoIndex(pMeta, pTable);
   }
