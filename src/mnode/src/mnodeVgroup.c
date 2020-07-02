@@ -284,7 +284,7 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
       pNextV++;
     }
 
-    if (i == openVnodes && pVgroup->status != TAOS_VG_STATUS_READY) {
+    if (i == openVnodes && pVgroup->status == TAOS_VG_STATUS_READY) {
       mnodeSendCreateVgroupMsg(pVgroup, NULL);
     }
     
