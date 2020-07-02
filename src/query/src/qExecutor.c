@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
+#include "taosmsg.h"
 #include "qfill.h"
 
 #include "hash.h"
@@ -22,9 +23,8 @@
 #include "qresultBuf.h"
 #include "query.h"
 #include "queryLog.h"
-#include "taosmsg.h"
 #include "tlosertree.h"
-#include "tscUtil.h"  // todo move the function to common module
+#include "exception.h"
 #include "tscompression.h"
 #include "ttime.h"
 
@@ -5656,7 +5656,6 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
 
       STableQueryInfo* item = createTableQueryInfo(&pQInfo->runtimeEnv, pTable, window);
       item->groupIndex = i;
-      item->tableIndex = tableIndex++;
       taosArrayPush(p1, &item);
       taosHashPut(pQInfo->tableqinfoGroupInfo.map, &id.tid, sizeof(id.tid), &item, POINTER_BYTES);
     }

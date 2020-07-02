@@ -32,8 +32,8 @@ extern "C" {
 
 #include "qExecutor.h"
 #include "qsqlparser.h"
-#include "qsqltype.h"
 #include "qtsbuf.h"
+#include "tcmdtype.h"
 
 // forward declaration
 struct SSqlInfo;

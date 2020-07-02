@@ -14,8 +14,8 @@
  */
 
 #include "os.h"
-#include "qsqltype.h"
 #include "tcache.h"
+#include "tcmdtype.h"
 #include "trpc.h"
 #include "tscLocalMerge.h"
 #include "tscLog.h"
