@@ -5,7 +5,7 @@ Stress test tool for TDengine. It run a set of test cases randomly and show stat
 ## COMMAND LINE
 
 ``` bash
-$ ./stress [-h=<localhost>] [-P=<0>] [-d=<test>] [-u=<root>] [-p=<taosdata>] [-c=<4>] [-f=<true>] [path_or_sql]
+$ ./stress [-h=<localhost>] [-P=<0>] [-d=<test>] [-u=<root>] [-p=<taosdata>] [-c=<4>] [-f=<true>] [-l=<logPath>] [path_or_sql]
 ```
 
 * **-h**: host name or IP address of TDengine server (default: localhost).
@@ -14,6 +14,7 @@ $ ./stress [-h=<localhost>] [-P=<0>] [-d=<test>] [-u=<root>] [-p=<taosdata>] [-c
 * **-p**: password (default: taosdata).
 * **-c**: concurrency, number of concurrent goroutines for query (default: 4).
 * **-f**: fetch data or not (default: true).
+* **-l**: log file path (default: no log).
 * **path_or_sql**: a SQL statement or path of a JSON file which contains the test cases (default: cases.json).
 
 ## TEST CASE FILE
@@ -66,7 +67,6 @@ Placeholders of `sql` are replaced by arguments in `args` at runtime. There are 
 
 ```
  00:00:08 | TOTAL REQ | TOTAL TIME(us) | TOTAL AVG(us) | REQUEST |  TIME(us)  |  AVERAGE(us)  |
------------------------------------------------------------------------------------------------
     TOTAL |      3027 |       26183890 |       8650.11 |     287 |    3060935 |      10665.28 |
   SUCCESS |      3027 |       26183890 |       8650.11 |     287 |    3060935 |      10665.28 |
      FAIL |         0 |              0 |          0.00 |       0 |          0 |          0.00 |

@@ -121,9 +121,11 @@ var (
 	password string
 	fetch    bool
 
+	chLog       chan string
+	wgLog       sync.WaitGroup
 	startAt     time.Time
 	shouldStop  int64
-	wg          sync.WaitGroup
+	wgTest      sync.WaitGroup
 	stat        statitics
 	totalWeight int
 	cases       []testCase
@@ -204,7 +206,7 @@ func selectTestCase() *testCase {
 }
 
 func runTest() {
-	defer wg.Done()
+	defer wgTest.Done()
 	db, e := sql.Open("taosSql", fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", user, password, host, port, database))
 	if e != nil {
 		fmt.Printf("failed to connect to database: %s\n", e.Error())
@@ -232,6 +234,9 @@ func runTest() {
 		duration := time.Now().Sub(start).Microseconds()
 
 		if e != nil {
+			if chLog != nil {
+				chLog <- str + ": " + e.Error()
+			}
 			atomic.AddInt64(&stat.failed, 1)
 			atomic.AddInt64(&stat.failedDuration, duration)
 		} else {
@@ -254,9 +259,8 @@ func getStatPrinter() func(tm time.Time) {
 		current.failedDuration = atomic.LoadInt64(&stat.failedDuration)
 
 		seconds := int64(tm.Sub(startAt).Seconds())
-		format := "\033K %02v:%02v:%02v | TOTAL REQ | TOTAL TIME(us) | TOTAL AVG(us) | REQUEST |  TIME(us)  |  AVERAGE(us)  |\n"
+		format := "\033[47;30m %02v:%02v:%02v | TOTAL REQ | TOTAL TIME(us) | TOTAL AVG(us) | REQUEST |  TIME(us)  |  AVERAGE(us)  |\033[0m\n"
 		fmt.Printf(format, seconds/3600, seconds%3600/60, seconds%60)
-		fmt.Println("-----------------------------------------------------------------------------------------------")
 
 		tr := current.succeeded + current.failed
 		td := current.succeededDuration + current.failedDuration
@@ -269,7 +273,7 @@ func getStatPrinter() func(tm time.Time) {
 		if r > 0 {
 			a = float64(d) / float64(r)
 		}
-		format = "\033[K    TOTAL | %9v | %14v | %13.2f | %7v | %10v | % 13.2f |\n"
+		format = "    TOTAL | %9v | %14v | %13.2f | %7v | %10v | % 13.2f |\n"
 		fmt.Printf(format, tr, td, ta, r, d, a)
 
 		tr = current.succeeded
@@ -283,7 +287,7 @@ func getStatPrinter() func(tm time.Time) {
 		if r > 0 {
 			a = float64(d) / float64(r)
 		}
-		format = "\033[K  SUCCESS | \033[32m%9v\033[0m | \033[32m%14v\033[0m | \033[32m%13.2f\033[0m | \033[32m%7v\033[0m | \033[32m%10v\033[0m | \033[32m%13.2f\033[0m |\n"
+		format = "  SUCCESS | \033[32m%9v\033[0m | \033[32m%14v\033[0m | \033[32m%13.2f\033[0m | \033[32m%7v\033[0m | \033[32m%10v\033[0m | \033[32m%13.2f\033[0m |\n"
 		fmt.Printf(format, tr, td, ta, r, d, a)
 
 		tr = current.failed
@@ -297,7 +301,7 @@ func getStatPrinter() func(tm time.Time) {
 		if r > 0 {
 			a = float64(d) / float64(r)
 		}
-		format = "\033[K     FAIL | \033[31m%9v\033[0m | \033[31m%14v\033[0m | \033[31m%13.2f\033[0m | \033[31m%7v\033[0m | \033[31m%10v\033[0m | \033[31m%13.2f\033[0m |\n"
+		format = "     FAIL | \033[31m%9v\033[0m | \033[31m%14v\033[0m | \033[31m%13.2f\033[0m | \033[31m%7v\033[0m | \033[31m%10v\033[0m | \033[31m%13.2f\033[0m |\n"
 		fmt.Printf(format, tr, td, ta, r, d, a)
 
 		last = current
@@ -305,8 +309,35 @@ func getStatPrinter() func(tm time.Time) {
 	}
 }
 
+func startLogger(path string) error {
+	if len(path) == 0 {
+		return nil
+	}
+
+	f, e := os.Create(path)
+	if e != nil {
+		return e
+	}
+
+	chLog = make(chan string, 100)
+	wgLog.Add(1)
+	go func() {
+		for s := range chLog {
+			if f != nil {
+				f.WriteString(s)
+				f.WriteString("\n")
+			}
+		}
+		f.Close()
+		wgLog.Done()
+	}()
+
+	return nil
+}
+
 func main() {
 	var concurrency uint
+	var logPath string
 	flag.StringVar(&host, "h", "localhost", "host name or IP address of TDengine server")
 	flag.UintVar(&port, "P", 0, "port (default 0)")
 	flag.StringVar(&database, "d", "test", "database name")
@@ -314,7 +345,13 @@ func main() {
 	flag.StringVar(&password, "p", "taosdata", "password")
 	flag.BoolVar(&fetch, "f", true, "fetch result or not")
 	flag.UintVar(&concurrency, "c", 4, "concurrency, number of goroutines for query")
+	flag.StringVar(&logPath, "l", "", "path of log file (default: no log)")
 	flag.Parse()
+
+	if e := startLogger(logPath); e != nil {
+		fmt.Println("failed to open log file:", e.Error())
+		return
+	}
 
 	pathOrSQL := flag.Arg(0)
 	if len(pathOrSQL) == 0 {
@@ -327,16 +364,14 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	fmt.Println()
-	fmt.Printf("SERVER: %s    DATABASE: %s    CONCURRENCY: %d    FETCH DATA: %v\n", host, database, concurrency, fetch)
-	fmt.Println()
+	fmt.Printf("\nSERVER: %s    DATABASE: %s    CONCURRENCY: %d    FETCH DATA: %v\n\n", host, database, concurrency, fetch)
 
 	startAt = time.Now()
 	printStat := getStatPrinter()
 	printStat(startAt)
 
 	for i := uint(0); i < concurrency; i++ {
-		wg.Add(1)
+		wgTest.Add(1)
 		go runTest()
 	}
 
@@ -352,16 +387,20 @@ LOOP:
 		case <-interrupt:
 			break LOOP
 		case tm := <-ticker.C:
-			fmt.Print("\033[5A")
+			fmt.Print("\033[4A")
 			printStat(tm)
 		}
 	}
 
 	atomic.StoreInt64(&shouldStop, 1)
 	fmt.Print("\033[100D'Ctrl + C' received, Waiting started query to stop...")
+	wgTest.Wait()
 
-	wg.Wait()
-	fmt.Print("\033[5A\033[100D")
+	if chLog != nil {
+		close(chLog)
+		wgLog.Wait()
+	}
+	fmt.Print("\033[4A\033[100D")
 	printStat(time.Now())
 	fmt.Println()
 }
