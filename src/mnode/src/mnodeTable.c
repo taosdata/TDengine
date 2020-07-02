@@ -314,15 +314,6 @@ static int32_t mnodeChildTableActionRestored() {
       continue;
     }
 
-    if (pVgroup->tableList == NULL) {
-      mError("ctable:%s, vgId:%d tableList is null", pTable->info.tableId, pTable->vgId);
-      pTable->vgId = 0;
-      SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
-      sdbDeleteRow(&desc);
-      mnodeDecTableRef(pTable);
-      continue;
-    }
-
     if (pTable->info.type == TSDB_CHILD_TABLE) {
       SSuperTableObj *pSuperTable = mnodeGetSuperTableByUid(pTable->suid);
       if (pSuperTable == NULL) {
@@ -1686,19 +1677,15 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
     return code;
   }
 
-  SVgObj *pVgroup = mnodeGetAvailableVgroup(pMsg->pDb);
-  if (pVgroup == NULL) {
-    mDebug("app:%p:%p, table:%s, start to create a new vgroup", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId);
-    return mnodeCreateVgroup(pMsg, pMsg->pDb);
-  }
-
   if (pMsg->retry == 0) {
     if (pMsg->pTable == NULL) {
-      int32_t sid = taosAllocateId(pVgroup->idPool);
-      if (sid <= 0) {
-        mDebug("app:%p:%p, table:%s, no enough sid in vgId:%d", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
-               pVgroup->vgId);
-        return mnodeCreateVgroup(pMsg, pMsg->pDb);
+      SVgObj *pVgroup;
+      int32_t sid;
+      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &sid);
+      if (code != TSDB_CODE_SUCCESS) {
+        mDebug("app:%p:%p, table:%s, failed to get available vgroup, reason:%s", pMsg->rpcMsg.ahandle, pMsg,
+               pCreate->tableId, tstrerror(code));
+        return code;
       }
 
       if (pMsg->pVgroup == NULL) {
@@ -2105,6 +2092,7 @@ static void mnodeDropAllChildTablesInStable(SSuperTableObj *pStable) {
   mInfo("stable:%s, all child tables:%d is dropped from sdb", pStable->info.tableId, numOfTables);
 }
 
+#if 0
 static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t sid) {
   SVgObj *pVgroup = mnodeGetVgroup(vnode);
   if (pVgroup == NULL) return NULL;
@@ -2115,8 +2103,11 @@ static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t sid) {
   mnodeDecVgroupRef(pVgroup);
   return pTable;
 }
+#endif
 
 static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
+  return TSDB_CODE_COM_OPS_NOT_SUPPORT;
+#if 0  
   SDMConfigTableMsg *pCfg = pMsg->rpcMsg.pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->vgId = htonl(pCfg->vgId);
@@ -2140,6 +2131,7 @@ static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
   pMsg->rpcRsp.rsp = pCreate;
   pMsg->rpcRsp.len = htonl(pCreate->contLen);
   return TSDB_CODE_SUCCESS;
+#endif  
 }
 
 // handle drop child response

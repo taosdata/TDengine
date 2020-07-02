@@ -186,7 +186,27 @@ int32_t mnodeGetDnodesNum() {
   return sdbGetNumOfRows(tsDnodeSdb);
 }
 
-int32_t mnodeGetOnlinDnodesNum(char *ep) {
+int32_t mnodeGetOnlinDnodesCpuCoreNum() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    cpuCores = 0;
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) {
+      cpuCores += pDnode->numOfCores;
+    }
+    mnodeDecDnodeRef(pDnode);
+  }
+
+  sdbFreeIter(pIter);
+
+  if (cpuCores < 2) cpuCores = 2;
+  return cpuCores;
+}
+
+int32_t mnodeGetOnlinDnodesNum() {
   SDnodeObj *pDnode = NULL;
   void *     pIter = NULL;
   int32_t    onlineDnodes = 0;

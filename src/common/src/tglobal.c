@@ -109,13 +109,8 @@ int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
 int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
 int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
-
-#ifdef _TD_ARM_32_
-  int32_t tsMaxTablePerVnode = 100;
-#else
-  int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
-#endif
-
+int32_t tsMaxVgroupsPerDb  = 0;
+int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 // balance
 int32_t tsEnableBalance = 1;
 int32_t tsAlternativeRole = 0;
@@ -590,6 +585,16 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0.1;
   cfg.maxValue = 0.9;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxVgroupsPerDb";
+  cfg.ptr = &tsMaxVgroupsPerDb;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 8192;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

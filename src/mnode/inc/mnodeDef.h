@@ -144,10 +144,8 @@ typedef struct SVgObj {
   int64_t        totalStorage;
   int64_t        compStorage;
   int64_t        pointsWritten;
-  struct SVgObj *prev, *next;
   struct SDbObj *pDb;
   void *         idPool;
-  SChildTableObj **tableList;
 } SVgObj;
 
 typedef struct {
@@ -182,9 +180,11 @@ typedef struct SDbObj {
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfSuperTables;
-  SVgObj *pHead;
-  SVgObj *pTail;
+  int32_t vgListSize; 
+  int32_t vgListIndex;
+  SVgObj **vgList;
   struct SAcctObj *pAcct;
+  pthread_mutex_t  mutex;
 } SDbObj;
 
 typedef struct SUserObj {
@@ -245,7 +245,8 @@ typedef struct {
   int16_t  offset[TSDB_MAX_COLUMNS];
   int16_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
-  int8_t   reserved0[2];
+  int8_t   maxReplica;
+  int8_t   reserved0[0];
   uint16_t payloadLen;
   char     payload[];
 } SShowObj;
