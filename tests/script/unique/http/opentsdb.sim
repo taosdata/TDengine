@@ -3,7 +3,6 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
-system sh/cfg.sh -n dnode1 -c httpDebugFlag -v 135
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -14,92 +13,92 @@ print ============================ dnode1 start
 print ===============  step1 - parse
 system_content curl -u root:taosdata -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/
 print $system_content
-if $system_content != @{"status":"error","code":1057,"desc":"database name can not be null"}@ then
+if $system_content != @{"status":"error","code":5057,"desc":"database name can not be null"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db123456789012345678901234567890db
 print $system_content
-if $system_content != @{"status":"error","code":1058,"desc":"database name too long"}@ then
+if $system_content != @{"status":"error","code":5058,"desc":"database name too long"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/
 print $system_content
-if $system_content != @{"status":"error","code":1057,"desc":"database name can not be null"}@ then
+if $system_content != @{"status":"error","code":5057,"desc":"database name can not be null"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put2
 print $system_content
-if $system_content != @{"status":"error","code":1009,"desc":"http url parse error"}@ then
+if $system_content != @{"status":"error","code":5009,"desc":"http url parse error"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1060,"desc":"metrics size is 0"}@ then
+if $system_content != @{"status":"error","code":5060,"desc":"metrics size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1059,"desc":"invalid opentsdb json fromat"}@ then
+if $system_content != @{"status":"error","code":5059,"desc":"invalid opentsdb json fromat"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '{}' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1060,"desc":"metrics size is 0"}@ then
+if $system_content != @{"status":"error","code":5060,"desc":"metrics size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
 
-if $system_content != @{"status":"error","code":1062,"desc":"metric name not find"}@ then
+if $system_content != @{"status":"error","code":5062,"desc":"metric name not find"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": 1,"timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1063,"desc":"metric name type should be string"}@ then
+if $system_content != @{"status":"error","code":5063,"desc":"metric name type should be string"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1064,"desc":"metric name length is 0"}@ then
+if $system_content != @{"status":"error","code":5064,"desc":"metric name length is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "ab1234567890123456789012345678ab1234567890123456789012345678","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"errors":[{"datapoint":{"metric":"ab1234567890123456789012345678ab1234567890123456789012345678","stable":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb","table":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb_lga_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web01"},"status":"error","code":-2147482101,"desc":"tsdb timestamp is out of range"}}],"failed":1,"success":0,"affected_rows":0}@ then
+if $system_content != @{"errors":[{"datapoint":{"metric":"ab1234567890123456789012345678ab1234567890123456789012345678","stable":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb","table":"ab1234567890123456789012345678ab1234567890123456789012345678_d_bbb_lga_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web01"},"status":"error","code":1547,"desc":"tsdb timestamp is out of range"}}],"failed":1,"success":0,"affected_rows":0}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1066,"desc":"timestamp not find"}@ then
+if $system_content != @{"status":"error","code":5066,"desc":"timestamp not find"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": "2","value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1067,"desc":"timestamp type should be integer"}@ then
+if $system_content != @{"status":"error","code":5067,"desc":"timestamp type should be integer"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": -1,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1068,"desc":"timestamp value smaller than 0"}@ then
+if $system_content != @{"status":"error","code":5068,"desc":"timestamp value smaller than 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1078,"desc":"value not find"}@ then
+if $system_content != @{"status":"error","code":5078,"desc":"value not find"}@ then
   return -1
 endi
 
@@ -107,49 +106,49 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1069,"desc":"tags not find"}@ then
+if $system_content != @{"status":"error","code":5069,"desc":"tags not find"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1070,"desc":"tags size is 0"}@ then
+if $system_content != @{"status":"error","code":5070,"desc":"tags size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": 0}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1070,"desc":"tags size is 0"}@ then
+if $system_content != @{"status":"error","code":5070,"desc":"tags size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","group1": "1","group1": "1","group1": "1","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"errors":[{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbbbbbb","table":"sys_cpu_d_bbbbbbb_lga_1_1_1_1_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","group1":"1","group1":"1","group1":"1","group1":"1","host":"web01"},"status":"error","code":-2147482782,"desc":"failed to create table"}}],"failed":1,"success":0,"affected_rows":0}@ then
+if $system_content != @{"errors":[{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbbbbbb","table":"sys_cpu_d_bbbbbbb_lga_1_1_1_1_1_web01","timestamp":1346846400,"value":18.000000,"tags":{"dc":"lga","group1":"1","group1":"1","group1":"1","group1":"1","group1":"1","host":"web01"},"status":"error","code":866,"desc":"failed to create table"}}],"failed":1,"success":0,"affected_rows":0}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"": "web01"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1073,"desc":"tag name is null"}@ then
+if $system_content != @{"status":"error","code":5073,"desc":"tag name is null"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host01123456789001123456789001123456789001123456789001123456789001123456789": "01"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1074,"desc":"tag name length too long"}@ then
+if $system_content != @{"status":"error","code":5074,"desc":"tag name length too long"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web011234567890011234567890011234567890011234567890011234567890011234567890011234567890011234567890"}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1077,"desc":"tag value can not more than 64"}@ then
+if $system_content != @{"status":"error","code":5077,"desc":"tag value can not more than 64"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": ""}}]' 127.0.0.1:6020/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":1076,"desc":"tag value is null"}@ then
+if $system_content != @{"status":"error","code":5076,"desc":"tag value is null"}@ then
   return -1
 endi
 
@@ -175,11 +174,11 @@ if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-
 endi
 
 print ===============  step3 - multi-query data
-system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846401000,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}},{"metric": "sys_cpu","timestamp": 1346846402000,"value": 18,"tags": {"host": "web02","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
+system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846405000,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}},{"metric": "sys_cpu","timestamp": 1346846402000,"value": 18,"tags": {"host": "web02","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put
 
 print $system_content
 
-if $system_content != @{"errors":[{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbb","table":"sys_cpu_d_bbb_lga_1_web01","timestamp":1346846401000,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web01"},"affected_rows":1,"status":"succ"}},{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbb","table":"sys_cpu_d_bbb_lga_1_web02","timestamp":1346846402000,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web02"},"affected_rows":1,"status":"succ"}}],"failed":0,"success":2,"affected_rows":2}@ then
+if $system_content != @{"errors":[{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbb","table":"sys_cpu_d_bbb_lga_1_web01","timestamp":1346846405000,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web01"},"affected_rows":1,"status":"succ"}},{"datapoint":{"metric":"sys_cpu","stable":"sys_cpu_d_bbb","table":"sys_cpu_d_bbb_lga_1_web02","timestamp":1346846402000,"value":18.000000,"tags":{"dc":"lga","group1":"1","host":"web02"},"affected_rows":1,"status":"succ"}}],"failed":0,"success":2,"affected_rows":2}@ then
   return -1
 endi
 
@@ -187,7 +186,7 @@ system_content curl -u root:taosdata -d  'select * from db.sys_cpu_d_bbb_lga_1_w
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",18.000000000],["2012-09-05 20:00:01.000",18.000000000]],"rows":2}@ then
+if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",18.000000000],["2012-09-05 20:00:05.000",18.000000000]],"rows":2}@ then
   return -1
 endi
 
@@ -200,7 +199,7 @@ if $system_content != @{"status":"succ","head":["count(*)"],"data":[[3]],"rows":
 endi
 
 print ===============  step4 - summary-put data
-system_content curl -u root:taosdata -d  '[{"metric": "sys_mem","timestamp": 1346846400000,"value": 8,"tags": {"host": "web01","group1": "1","dc": "lga"}},{"metric": "sys_mem","timestamp": 1346846401000,"value": 9,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put?details=false
+system_content curl -u root:taosdata -d  '[{"metric": "sys_mem","timestamp": 1346846400000,"value": 8,"tags": {"host": "web01","group1": "1","dc": "lga"}},{"metric": "sys_mem","timestamp": 1346846405000,"value": 9,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:6020/opentsdb/db/put?details=false
 
 print $system_content
 
@@ -212,7 +211,7 @@ system_content curl -u root:taosdata -d  'select * from db.sys_mem_d_bbb_lga_1_w
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",8.000000000],["2012-09-05 20:00:01.000",9.000000000]],"rows":2}@ then
+if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",8.000000000],["2012-09-05 20:00:05.000",9.000000000]],"rows":2}@ then
   return -1
 endi
 
@@ -234,7 +233,7 @@ system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 134
 
 system_content curl -u root:taosdata -d  'select count(*) from db.sys_cpu_d_bbb' 127.0.0.1:6020/rest/sql/
 print $system_content
-if $system_content != @{"status":"succ","head":["count(*)"],"data":[[8]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["count(*)"],"data":[[7]],"rows":1}@ then
   return -1
 endi
 

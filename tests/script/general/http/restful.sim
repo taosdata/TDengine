@@ -77,7 +77,7 @@ endi
 
 system_content curl 127.0.0.1:6020/rest/login/u2/aabcd_1234
 print curl 127.0.0.1:6020/rest/login/u2/abcd_1234 -----> $system_content
-if $system_content != @{"status":"error","code":1000,"desc":"auth failure"}@ then
+if $system_content != @{"status":"error","code":3,"desc":"auth failure"}@ then
   return -1
 endi
 
