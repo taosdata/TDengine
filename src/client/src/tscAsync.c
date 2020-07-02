@@ -412,17 +412,6 @@ void tscProcessAsyncFree(SSchedMsg *pMsg) {
   taos_free_result(pSql);
 }
 
-void tscQueueAsyncFreeResult(SSqlObj *pSql) {
-  tscDebug("%p sqlObj put in queue to async free", pSql);
-
-  SSchedMsg schedMsg = { 0 };
-  schedMsg.fp = tscProcessAsyncFree;
-  schedMsg.ahandle = pSql;
-  schedMsg.thandle = (void *)1;
-  schedMsg.msg = NULL;
-  taosScheduleTask(tscQhandle, &schedMsg);
-}
-
 int tscSendMsgToServer(SSqlObj *pSql);
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
