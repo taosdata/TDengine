@@ -115,7 +115,7 @@ void httpCleanUpSessions() {
 }
 
 bool httpInitSessions() {
-  tsHttpServer.sessionCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BINARY, 5, false, httpDestroySession);
+  tsHttpServer.sessionCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BINARY, 5, false, httpDestroySession, "rests");
   if (tsHttpServer.sessionCache == NULL) {
     httpError("failed to init session cache");
     return false;
