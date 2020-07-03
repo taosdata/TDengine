@@ -264,7 +264,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
 
   SRpcMsg rpcMdCfgDnodeMsg = {
-    .handle = 0,
+    .ahandle = 0,
     .code = 0,
     .msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE,
     .pCont = pMdCfgDnode,
@@ -367,7 +367,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       pAccess++;
       mnodeDecVgroupRef(pVgroup);
     }
-
   }
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {

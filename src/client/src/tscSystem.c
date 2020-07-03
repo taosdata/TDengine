@@ -148,7 +148,7 @@ void taos_init_imp() {
   refreshTime = refreshTime < 10 ? 10 : refreshTime;
 
   if (tscCacheHandle == NULL) {
-    tscCacheHandle = taosCacheInit(refreshTime);
+    tscCacheHandle = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL);
   }
 
   tscDebug("client is initialized successfully");

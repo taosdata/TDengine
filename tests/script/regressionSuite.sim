@@ -124,7 +124,7 @@ run general/parser/slimit.sim
 run general/parser/fill.sim
 run general/parser/fill_stb.sim
 run general/parser/interp.sim
-# run general/parser/where.sim
+run general/parser/where.sim
 run general/parser/join.sim
 run general/parser/join_multivnode.sim
 run general/parser/select_with_tags.sim

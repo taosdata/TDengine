@@ -32,6 +32,7 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.deploy(1)
         tdDnodes.start(1)
+        tdLog.sleep(5)
 
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
@@ -61,6 +62,7 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdLog.sleep(5)
         tdDnodes.start(1)
+        tdLog.sleep(5)
 
         tdLog.info("================= step5")
         tdLog.info("import 10 data totally repetitive")

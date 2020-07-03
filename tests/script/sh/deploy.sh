@@ -113,11 +113,11 @@ echo "logDir              $LOG_DIR"       >> $TAOS_CFG
 echo "mDebugFlag          135"            >> $TAOS_CFG
 echo "sdbDebugFlag        135"            >> $TAOS_CFG
 echo "dDebugFlag          135"            >> $TAOS_CFG
-echo "vDebugFlag          143"            >> $TAOS_CFG
+echo "vDebugFlag          135"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "jnidebugFlag        135"            >> $TAOS_CFG
 echo "odbcdebugFlag       135"            >> $TAOS_CFG
-echo "httpDebugFlag       135"            >> $TAOS_CFG
+echo "httpDebugFlag       143"            >> $TAOS_CFG
 echo "monitorDebugFlag    131"            >> $TAOS_CFG
 echo "mqttDebugFlag       131"            >> $TAOS_CFG
 echo "qdebugFlag          135"            >> $TAOS_CFG

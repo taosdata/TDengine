@@ -38,6 +38,11 @@
 #include "mnodeVgroup.h"
 #include "mnodePeer.h"
 
+typedef enum {
+  TAOS_VG_STATUS_READY,
+  TAOS_VG_STATUS_DROPPING
+} EVgroupStatus;
+
 static void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
 
@@ -279,7 +284,7 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
       pNextV++;
     }
 
-    if (i == openVnodes) {
+    if (i == openVnodes && pVgroup->status == TAOS_VG_STATUS_READY) {
       mnodeSendCreateVgroupMsg(pVgroup, NULL);
     }
     
@@ -652,7 +657,7 @@ SRpcIpSet mnodeGetIpSetFromIp(char *ep) {
 void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
   SMDCreateVnodeMsg *pCreate = mnodeBuildCreateVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
-    .handle  = ahandle,
+    .ahandle = ahandle,
     .pCont   = pCreate,
     .contLen = pCreate ? sizeof(SMDCreateVnodeMsg) : 0,
     .code    = 0,
@@ -673,9 +678,9 @@ void mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
-  if (rpcMsg->handle == NULL) return;
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
     mnodeMsg->successed++;
@@ -686,7 +691,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   SVgObj *pVgroup = mnodeMsg->pVgroup;
   mDebug("vgId:%d, create vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
          pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
-         mnodeMsg->rpcMsg.handle, rpcMsg->handle);
+         mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
@@ -718,7 +723,7 @@ static SMDDropVnodeMsg *mnodeBuildDropVnodeMsg(int32_t vgId) {
 void mnodeSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle) {
   SMDDropVnodeMsg *pDrop = mnodeBuildDropVnodeMsg(vgId);
   SRpcMsg rpcMsg = {
-      .handle  = ahandle,
+      .ahandle = ahandle,
       .pCont   = pDrop,
       .contLen = pDrop ? sizeof(SMDDropVnodeMsg) : 0,
       .code    = 0,
@@ -728,6 +733,7 @@ void mnodeSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle) {
 }
 
 static void mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+  pVgroup->status = TAOS_VG_STATUS_DROPPING; // deleting
   mDebug("vgId:%d, send drop all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mnodeGetIpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
@@ -737,10 +743,10 @@ static void mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 }
 
 static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
-  mDebug("drop vnode rsp is received, handle:%p", rpcMsg->handle);
-  if (rpcMsg->handle == NULL) return;
+  mDebug("drop vnode rsp is received, handle:%p", rpcMsg->ahandle);
+  if (rpcMsg->ahandle == NULL) return;
 
-  SMnodeMsg *mnodeMsg = rpcMsg->handle;
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
   mnodeMsg->received++;
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
     mnodeMsg->code = rpcMsg->code;
@@ -750,7 +756,7 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   SVgObj *pVgroup = mnodeMsg->pVgroup;
   mDebug("vgId:%d, drop vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
          pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
-         mnodeMsg->rpcMsg.handle, rpcMsg->handle);
+         mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 

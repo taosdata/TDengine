@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 typedef void* qinfo_t;
+typedef void (*_qinfo_free_fn_t)(void*);
 
 /**
  * create the qinfo object according to QueryTableMsg
@@ -28,15 +29,13 @@ typedef void* qinfo_t;
  * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo);
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, void* param, _qinfo_free_fn_t fn, qinfo_t* qinfo);
 
 /**
  * Destroy QInfo object
  * @param qinfo  qhandle
- * @param fp     destroy callback function, while the qhandle is destoried, invoke the fp
- * @param param  free callback params
  */
-void qDestroyQueryInfo(qinfo_t qinfo, void (*fp)(void*), void* param);
+void qDestroyQueryInfo(qinfo_t qinfo);
 
 /**
  * the main query execution function, including query on both table and multitables,
@@ -81,11 +80,9 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
 /**
  * kill current ongoing query and free query handle automatically
  * @param qinfo  qhandle
- * @param fp     destroy callback function, while the qhandle is destoried, invoke the fp
- * @param param  free callback params
  * @return
  */
-int32_t qKillQuery(qinfo_t qinfo, void (*fp)(void*), void* param);
+int32_t qKillQuery(qinfo_t qinfo);
 
 #ifdef __cplusplus
 }

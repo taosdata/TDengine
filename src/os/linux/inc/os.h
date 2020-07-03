@@ -236,6 +236,9 @@ void taosSetCoreDump();
 
 void taosBlockSIGPIPE();
 
+int tSystem(const char * cmd) ;
+
+
 #ifdef _ALPINE
   typedef int(*__compar_fn_t)(const void *, const void *);
   void  error (int, int, const char *);

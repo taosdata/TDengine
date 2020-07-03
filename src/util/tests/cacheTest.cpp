@@ -19,12 +19,12 @@ int32_t tsMaxMeterConnections = 200;
 // test cache
 TEST(testCase, client_cache_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
-  SCacheObj* tscCacheHandle = taosCacheInit(REFRESH_TIME_IN_SEC);
+  SCacheObj* tscCacheHandle = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, 0, NULL);
 
   const char* key1 = "test1";
   char data1[] = "test11";
 
-  char* cachedObj = (char*) taosCachePut(tscCacheHandle, key1, data1, strlen(data1)+1, 1);
+  char* cachedObj = (char*) taosCachePut(tscCacheHandle, key1, strlen(key1), data1, strlen(data1)+1, 1);
   sleep(REFRESH_TIME_IN_SEC+1);
 
   printf("obj is still valid: %s\n", cachedObj);
@@ -33,7 +33,7 @@ TEST(testCase, client_cache_test) {
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj, false);
 
   /* the object is cleared by cache clean operation */
-  cachedObj = (char*) taosCachePut(tscCacheHandle, key1, data2, strlen(data2)+1, 20);
+  cachedObj = (char*) taosCachePut(tscCacheHandle, key1, strlen(key1), data2, strlen(data2)+1, 20);
   printf("after updated: %s\n", cachedObj);
 
   printf("start to remove data from cache\n");
@@ -43,32 +43,32 @@ TEST(testCase, client_cache_test) {
   const char* key3 = "test2";
   const char* data3 = "kkkkkkk";
 
-  char* cachedObj2 = (char*) taosCachePut(tscCacheHandle, key3, data3, strlen(data3) + 1, 1);
+  char* cachedObj2 = (char*) taosCachePut(tscCacheHandle, key3, strlen(key3), data3, strlen(data3) + 1, 1);
   printf("%s\n", cachedObj2);
 
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, false);
 
   sleep(3);
-  char* d = (char*) taosCacheAcquireByName(tscCacheHandle, key3);
+  char* d = (char*) taosCacheAcquireByKey(tscCacheHandle, key3, strlen(key3));
 //    assert(d == NULL);
 
   char key5[] = "test5";
   char data5[] = "data5kkkkk";
-  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data5, strlen(data5) + 1, 20);
+  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, strlen(key5), data5, strlen(data5) + 1, 20);
 
   const char* data6= "new Data after updated";
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, false);
 
-  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data6, strlen(data6) + 1, 20);
+  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, strlen(key5), data6, strlen(data6) + 1, 20);
   printf("%s\n", cachedObj2);
 
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, true);
 
   const char* data7 = "add call update procedure";
-  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, data7, strlen(data7) + 1, 20);
+  cachedObj2 = (char*) taosCachePut(tscCacheHandle, key5, strlen(key5), data7, strlen(data7) + 1, 20);
   printf("%s\n=======================================\n\n", cachedObj2);
 
-  char* cc = (char*) taosCacheAcquireByName(tscCacheHandle, key5);
+  char* cc = (char*) taosCacheAcquireByKey(tscCacheHandle, key5, strlen(key5));
 
   taosCacheRelease(tscCacheHandle, (void**) &cachedObj2, true);
   taosCacheRelease(tscCacheHandle, (void**) &cc, false);
@@ -76,7 +76,7 @@ TEST(testCase, client_cache_test) {
   const char* data8 = "ttft";
   const char* key6 = "key6";
 
-  char* ft = (char*) taosCachePut(tscCacheHandle, key6, data8, strlen(data8), 20);
+  char* ft = (char*) taosCachePut(tscCacheHandle, key6, strlen(key6), data8, strlen(data8), 20);
   taosCacheRelease(tscCacheHandle, (void**) &ft, false);
 
   /**
@@ -85,7 +85,7 @@ TEST(testCase, client_cache_test) {
   uint64_t startTime = taosGetTimestampUs();
   printf("Cache Performance Test\nstart time:%" PRIu64 "\n", startTime);
   for(int32_t i=0; i<1000; ++i) {
-    char* dd = (char*) taosCacheAcquireByName(tscCacheHandle, key6);
+    char* dd = (char*) taosCacheAcquireByKey(tscCacheHandle, key6, strlen(key6));
     if (dd != NULL) {
 //      printf("get the data\n");
     } else {
@@ -105,7 +105,7 @@ TEST(testCase, client_cache_test) {
 
 TEST(testCase, cache_resize_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
-  auto* pCache = taosCacheInit(REFRESH_TIME_IN_SEC);
+  auto* pCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, false, NULL);
 
   char key[256] = {0};
   char data[1024] = "abcdefghijk";
@@ -116,7 +116,7 @@ TEST(testCase, cache_resize_test) {
 
   for(int32_t i = 0; i < num; ++i) {
     int32_t len = sprintf(key, "abc_%7d", i);
-    taosCachePut(pCache, key, data, len, 3600);
+    taosCachePut(pCache, key, strlen(key), data, len, 3600);
   }
   uint64_t endTime = taosGetTimestampUs();
 
@@ -125,7 +125,7 @@ TEST(testCase, cache_resize_test) {
   startTime = taosGetTimestampUs();
   for(int32_t i = 0; i < num; ++i) {
     int32_t len = sprintf(key, "abc_%7d", i);
-    void* k = taosCacheAcquireByName(pCache, key);
+    void* k = taosCacheAcquireByKey(pCache, key, len);
     assert(k != 0);
   }
   endTime = taosGetTimestampUs();

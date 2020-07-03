@@ -76,8 +76,8 @@ int httpWriteBuf(struct HttpContext *pContext, const char *buf, int sz) {
     httpError("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, failed to send response:\n%s",
               pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, response:\n%s",
-              pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
+    httpTrace("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, response:\n%s", pContext, pContext->fd,
+              pContext->ipstr, sz, writeSz, buf);
   }
 
   return writeSz;
@@ -99,7 +99,7 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
   uint64_t srcLen = (uint64_t) (buf->lst - buf->buf);
 
   if (buf->pContext->fd <= 0) {
-    httpDebug("context:%p, fd:%d, ip:%s, write json body error", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+    httpTrace("context:%p, fd:%d, ip:%s, write json body error", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
     buf->pContext->fd = -1;
   }
 
@@ -113,11 +113,11 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
 
   if (buf->pContext->acceptEncoding == HTTP_COMPRESS_IDENTITY) {
     if (buf->lst == buf->buf) {
-      httpDebug("context:%p, fd:%d, ip:%s, no data need dump", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+      httpTrace("context:%p, fd:%d, ip:%s, no data need dump", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
       return 0;  // there is no data to dump.
     } else {
       int len = sprintf(sLen, "%lx\r\n", srcLen);
-      httpDebug("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", response:\n%s",
+      httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", response:\n%s",
                 buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
       remain = httpWriteBufNoTrace(buf->pContext, buf->buf, (int) srcLen);
@@ -129,12 +129,12 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
     if (ret == 0) {
       if (compressBufLen > 0) {
         int len = sprintf(sLen, "%x\r\n", compressBufLen);
-        httpDebug("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
+        httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
                   buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, compressBufLen, isTheLast, buf->buf);
         httpWriteBufNoTrace(buf->pContext, sLen, len);
         remain = httpWriteBufNoTrace(buf->pContext, (const char *) compressBuf, (int) compressBufLen);
       } else {
-        httpDebug("context:%p, fd:%d, ip:%s, last:%d, compress already dumped, response:\n%s",
+        httpTrace("context:%p, fd:%d, ip:%s, last:%d, compress already dumped, response:\n%s",
                 buf->pContext, buf->pContext->fd, buf->pContext->ipstr, isTheLast, buf->buf);
         return 0;  // there is no data to dump.
       }
@@ -173,7 +173,7 @@ void httpWriteJsonBufHead(JsonBuf* buf) {
 
 void httpWriteJsonBufEnd(JsonBuf* buf) {
   if (buf->pContext->fd <= 0) {
-    httpDebug("context:%p, fd:%d, ip:%s, json buf fd is 0", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+    httpTrace("context:%p, fd:%d, ip:%s, json buf fd is 0", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
     buf->pContext->fd = -1;
   }
 
@@ -441,7 +441,7 @@ void httpJsonPairStatus(JsonBuf* buf, int code) {
   } else {
     httpJsonPair(buf, "status", 6, "error", 5);
     httpJsonItemToken(buf);
-    httpJsonPairIntVal(buf, "code", 4, code);
+    httpJsonPairIntVal(buf, "code", 4, code & 0XFFFF);
     httpJsonItemToken(buf);
     if (code == TSDB_CODE_MND_DB_NOT_SELECTED) {
       httpJsonPair(buf, "desc", 4, "failed to create database", 23);

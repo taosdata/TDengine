@@ -15,19 +15,22 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
+#include "tcache.h"
+#include "cJSON.h"
+#include "dnode.h"
 #include "hash.h"
 #include "taoserror.h"
 #include "taosmsg.h"
-#include "tutil.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "tsdb.h"
 #include "ttime.h"
 #include "ttimer.h"
-#include "cJSON.h"
-#include "tglobal.h"
-#include "dnode.h"
+#include "tutil.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "query.h"
 
 #define TSDB_VNODE_VERSION_CONTENT_LEN 31
 
@@ -43,6 +46,7 @@ static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uin
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
+static void     vnodeFreeqHandle(void* phandle);
 
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
@@ -279,6 +283,9 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
     cqStart(pVnode->cq);
 
+  const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, rfresh handle pool
+  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle);
+
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
@@ -347,6 +354,7 @@ void vnodeRelease(void *pVnodeRaw) {
   if (pVnode->status == TAOS_VN_STATUS_DELETING) {
     char rootDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
+    taosMvDir(tsVnodeBakDir, rootDir);
     taosRemoveDir(rootDir);
   }
 
@@ -847,12 +855,12 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
     goto PARSE_OVER;
   }
 
-  cJSON *version = cJSON_GetObjectItem(root, "version");
-  if (!version || version->type != cJSON_Number) {
+  cJSON *ver = cJSON_GetObjectItem(root, "version");
+  if (!ver || ver->type != cJSON_Number) {
     vError("vgId:%d, failed to read vnode version, version not found", pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->version = version->valueint;
+  pVnode->version = ver->valueint;
 
   terrno = TSDB_CODE_SUCCESS;
   vInfo("vgId:%d, read vnode version successfully, version:%" PRId64, pVnode->vgId, pVnode->version);
@@ -862,4 +870,13 @@ PARSE_OVER:
   cJSON_Delete(root);
   if(fp) fclose(fp);
   return terrno;
+}
+
+void vnodeFreeqHandle(void *qHandle) {
+  void** handle = qHandle;
+  if (handle == NULL || *handle == NULL) {
+    return;
+  }
+
+  qKillQuery(*handle);
 }
