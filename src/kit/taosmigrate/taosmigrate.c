@@ -22,8 +22,7 @@ static struct argp_option options[] = {
   {0, 'd', "dnodeId",      0, "dnode id",              1},
   {0, 'p', "port",         0, "dnode port",            1},
   {0, 'f', "fqdn",         0, "dnode fqdn",            1},
-  {0, 'e', "ep",           0, "dnode ep",              1},
-  {0, 'g', "multi dnodes", 0, "multi dnode info, e.g. \"2 7030 fqdn1 ep1:7030, 3 8030 fqdn2 ep2:8030\"",  2},
+  {0, 'g', "multi dnodes", 0, "multi dnode info, e.g. \"2 7030 fqdn1, 3 8030 fqdn2\"",  2},
   {0}};
 
 /* Used by main to communicate with parse_opt. */
@@ -32,7 +31,6 @@ struct arguments {
   int32_t    dnodeId;
   uint16_t   port;
   char*      fqdn;
-  char*      ep;  
   char*      dnodeGroups;
   char**     arg_list;
   int        arg_list_len;
@@ -53,9 +51,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'f':
       arguments->fqdn = arg;
-    case 'e':
-      arguments->ep = arg;
-      break;
     case 'g':
       arguments->dnodeGroups = arg;
       break;
@@ -74,7 +69,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 }
 
 static struct argp argp = {options, parse_opt, 0, 0};
-struct arguments arguments = {NULL, 0, 0, NULL, NULL, NULL, NULL, 0};
+struct arguments arguments = {NULL, 0, 0, NULL, NULL, NULL, 0};
 SdnodeGroup   tsDnodeGroup = {0};
 
 int tSystemShell(const char * cmd) 
@@ -130,15 +125,13 @@ void parseOneDnodeInfo(char* buf, SdnodeIfo* pDnodeInfo)
   char *p;
   int32_t i = 0;
   ptr = strtok_r(buf, " ", &p);
-  while(ptr != NULL){
+  while(ptr != NULL) {
     if (0 == i) {
       pDnodeInfo->dnodeId = atoi(ptr);
     } else if  (1 == i) {
       pDnodeInfo->port = atoi(ptr);
     } else if  (2 == i) {
       tstrncpy(pDnodeInfo->fqdn, ptr, TSDB_FQDN_LEN);
-    } else if  (3 == i) {
-      tstrncpy(pDnodeInfo->ep, ptr, TSDB_EP_LEN);
     } else {
       printf("input parameter error near:%s\n", buf);
       exit(-1);
@@ -146,17 +139,19 @@ void parseOneDnodeInfo(char* buf, SdnodeIfo* pDnodeInfo)
     i++;
     ptr = strtok_r(NULL, " ", &p);
   }
+
+  snprintf(pDnodeInfo->ep, TSDB_EP_LEN, "%s:%d", pDnodeInfo->fqdn, pDnodeInfo->port);
 }
 
 void saveDnodeGroups()
 {
-  if ((NULL != arguments.fqdn) && (NULL != arguments.ep) && (arguments.dnodeId > 0) && (0 != arguments.port)) {
+  if ((NULL != arguments.fqdn) && (arguments.dnodeId > 0) && (0 != arguments.port)) {
     //printf("dnodeId:%d port:%d fqdn:%s ep:%s\n", arguments.dnodeId, arguments.port, arguments.fqdn, arguments.ep);
   
     tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].dnodeId = arguments.dnodeId;
     tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].port    = arguments.port;
     tstrncpy(tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].fqdn, arguments.fqdn, TSDB_FQDN_LEN);
-    tstrncpy(tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].ep, arguments.ep, TSDB_EP_LEN);
+    snprintf(tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].ep, TSDB_EP_LEN, "%s:%d", tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].fqdn, tsDnodeGroup.dnodeArray[tsDnodeGroup.dnodeNum].port);
     
     tsDnodeGroup.dnodeNum++;
   }
@@ -192,7 +187,7 @@ int32_t main(int32_t argc, char *argv[]) {
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
   if ((NULL == arguments.dataDir) || ((NULL == arguments.dnodeGroups) 
-    && (NULL == arguments.fqdn || NULL == arguments.ep || arguments.dnodeId < 1 || 0 == arguments.port))) {
+    && (NULL == arguments.fqdn || arguments.dnodeId < 1 || 0 == arguments.port))) {
     printf("input parameter error!\n");
     return -1;
   }
