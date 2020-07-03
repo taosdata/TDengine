@@ -408,6 +408,8 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   }
 
   SVgObj *pVgroup = pDb->vgList[0];
+  if (pVgroup == NULL) return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+
   int32_t code = mnodeAllocVgroupIdPool(pVgroup);
   if (code != TSDB_CODE_SUCCESS) {
     pthread_mutex_unlock(&pDb->mutex);
