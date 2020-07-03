@@ -53,12 +53,12 @@ static void httpDestroyContext(void *data) {
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
   
-  httpDebug("context:%p, is destroyed, refCount:%d", pContext, pContext->refCount);
+  httpDebug("context:%p, is destroyed, refCount:%d data:%p", pContext, pContext->refCount, data);
   tfree(pContext);
 }
 
 bool httpInitContexts() {
-  tsHttpServer.contextCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BINARY, 2, false, httpDestroyContext);
+  tsHttpServer.contextCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BINARY, 2, false, httpDestroyContext, "restc");
   if (tsHttpServer.contextCache == NULL) {
     httpError("failed to init context cache");
     return false;
@@ -103,17 +103,14 @@ HttpContext *httpCreateContext(int32_t fd) {
   HttpContext *pContext = calloc(1, sizeof(HttpContext));
   if (pContext == NULL) return NULL;
 
-  char contextStr[16] = {0};
-  int32_t keySize = snprintf(contextStr, sizeof(contextStr), "%p", pContext);
-  
   pContext->fd = fd;
   pContext->httpVersion = HTTP_VERSION_10;
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
-  
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, contextStr, keySize, &pContext, sizeof(HttpContext *), 3);
+
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &pContext, sizeof(void *), &pContext, sizeof(void *), 3);
   pContext->ppContext = ppContext;
-  httpDebug("context:%p, fd:%d, is created, item:%p", pContext, fd, ppContext);
+  httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
   // set the ref to 0 
   taosCacheRelease(tsHttpServer.contextCache, (void**)&ppContext, false);
@@ -122,16 +119,13 @@ HttpContext *httpCreateContext(int32_t fd) {
 }
 
 HttpContext *httpGetContext(void *ptr) {
-  char contextStr[16] = {0};
-  int32_t len = snprintf(contextStr, sizeof(contextStr), "%p", ptr);
-  
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, contextStr, len);
-  
+  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &ptr, sizeof(HttpContext *));
+
   if (ppContext) {
     HttpContext *pContext = *ppContext;
     if (pContext) {
       int32_t refCount = atomic_add_fetch_32(&pContext->refCount, 1);
-      httpDebug("context:%p, fd:%d, is accquired, refCount:%d", pContext, pContext->fd, refCount);
+      httpDebug("context:%p, fd:%d, is accquired, data:%p refCount:%d", pContext, pContext->fd, ppContext, refCount);
       return pContext;
     }
   }
@@ -141,9 +135,10 @@ HttpContext *httpGetContext(void *ptr) {
 void httpReleaseContext(HttpContext *pContext) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   assert(refCount >= 0);
-  httpDebug("context:%p, is releasd, refCount:%d", pContext, refCount);
 
   HttpContext **ppContext = pContext->ppContext;
+  httpDebug("context:%p, is releasd, data:%p refCount:%d", pContext, ppContext, refCount);
+
   if (tsHttpServer.contextCache != NULL) {
     taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
   } else {
