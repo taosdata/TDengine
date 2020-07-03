@@ -251,11 +251,16 @@ class TDDnode:
                 psCmd, shell=True).decode("utf-8")
 
             while(processID):
-                killCmd = "kill -INT %s" % processID
+                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
+            for port in range(6030, 6041):
+                fuserCmd = "fuser -k -n tcp %d" % port
+                os.system(fuserCmd)
+            if self.valgrind:
+                time.sleep(2)
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
@@ -272,11 +277,16 @@ class TDDnode:
                 psCmd, shell=True).decode("utf-8")
 
             while(processID):
-                killCmd = "kill -KILL %s" % processID
+                killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
+            for port in range(6030, 6041):
+                fuserCmd = "fuser -k -n tcp %d" % port
+                os.system(fuserCmd)
+            if self.valgrind:
+                time.sleep(2)
 
             self.running = 0
             tdLog.debug("dnode:%d is stopped by kill -KILL" % (self.index))
@@ -325,7 +335,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -KILL %s" % processID
+            killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -334,7 +344,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -KILL %s" % processID
+            killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -440,7 +450,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -KILL %s" % processID
+            killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -449,7 +459,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -KILL %s" % processID
+            killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(

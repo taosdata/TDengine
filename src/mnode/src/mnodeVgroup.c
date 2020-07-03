@@ -38,6 +38,11 @@
 #include "mnodeVgroup.h"
 #include "mnodePeer.h"
 
+typedef enum {
+  TAOS_VG_STATUS_READY,
+  TAOS_VG_STATUS_DROPPING
+} EVgroupStatus;
+
 static void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
 
@@ -252,7 +257,7 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
       pNextV++;
     }
 
-    if (i == openVnodes) {
+    if (i == openVnodes && pVgroup->status == TAOS_VG_STATUS_READY) {
       mnodeSendCreateVgroupMsg(pVgroup, NULL);
     }
     
@@ -835,6 +840,7 @@ void mnodeSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle) {
 }
 
 static void mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+  pVgroup->status = TAOS_VG_STATUS_DROPPING; // deleting
   mDebug("vgId:%d, send drop all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mnodeGetIpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);

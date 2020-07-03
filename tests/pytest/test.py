@@ -81,7 +81,7 @@ if __name__ == "__main__":
         else:
             toBeKilled = "valgrind.bin"
 
-        killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -HUP " % toBeKilled
+        killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -HUP > /dev/null 2>&1" % toBeKilled
 
         psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
         processID = subprocess.check_output(psCmd, shell=True)
@@ -91,8 +91,17 @@ if __name__ == "__main__":
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)
 
-        fuserCmd = "fuser -k -n tcp 6030"
-        os.system(fuserCmd)
+        for port in range(6030, 6041):
+            usePortPID = "lsof -i tcp:%d | grep LISTEn | awk '{print $2}'" % port
+            processID = subprocess.check_output(usePortPID, shell=True)
+
+            if processID:
+                killCmd = "kill -9 %s" % processID
+                os.system(killCmd)
+            fuserCmd = "fuser -k -n tcp %d" % port
+            os.system(fuserCmd)
+        if valgrind:
+            time.sleep(2)
 
         tdLog.info('stop All dnodes')
         sys.exit(0)

@@ -4069,7 +4069,7 @@ static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
   return pFillCol;
 }
 
-int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool isSTableQuery) {
+int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bool isSTableQuery, void* freeParam, _qinfo_free_fn_t fn) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -4083,14 +4083,16 @@ int32_t doInitQInfo(SQInfo *pQInfo, void *param, void *tsdb, int32_t vgId, bool 
   
   pQInfo->tsdb = tsdb;
   pQInfo->vgId = vgId;
+  pQInfo->param = freeParam;
+  pQInfo->fn = fn;
 
   pRuntimeEnv->pQuery = pQuery;
-  pRuntimeEnv->pTSBuf = param;
+  pRuntimeEnv->pTSBuf = pTsBuf;
   pRuntimeEnv->cur.vgroupIndex = -1;
   pRuntimeEnv->stableQuery = isSTableQuery;
   pRuntimeEnv->prevGroupId = INT32_MIN;
 
-  if (param != NULL) {
+  if (pTsBuf != NULL) {
     int16_t order = (pQuery->order.order == pRuntimeEnv->pTSBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
@@ -5697,8 +5699,7 @@ static bool isValidQInfo(void *param) {
   return (sig == (uint64_t)pQInfo);
 }
 
-
-static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *pQInfo, bool isSTable) {
+static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *pQInfo, bool isSTable, void* param, _qinfo_free_fn_t fn) {
   int32_t code = TSDB_CODE_SUCCESS;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
@@ -5731,7 +5732,7 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
   }
 
   // filter the qualified
-  if ((code = doInitQInfo(pQInfo, pTSBuf, tsdb, vgId, isSTable)) != TSDB_CODE_SUCCESS) {
+  if ((code = doInitQInfo(pQInfo, pTSBuf, tsdb, vgId, isSTable, param, fn)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
   
@@ -5894,7 +5895,8 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qinfo_t *pQInfo) {
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, void* param, _qinfo_free_fn_t fn,
+    qinfo_t* pQInfo) {
   assert(pQueryMsg != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -5984,7 +5986,7 @@ int32_t qCreateQueryInfo(void *tsdb, int32_t vgId, SQueryTableMsg *pQueryMsg, qi
     goto _over;
   }
 
-  code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, isSTableQuery);
+  code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, isSTableQuery, param, fn);
 
 _over:
   free(tagCond);
@@ -6020,7 +6022,7 @@ static void doDestoryQueryInfo(SQInfo* pQInfo) {
   freeQInfo(pQInfo);
 }
 
-void qDestroyQueryInfo(qinfo_t qHandle, void (*fp)(void*), void* param) {
+void qDestroyQueryInfo(qinfo_t qHandle) {
   SQInfo* pQInfo = (SQInfo*) qHandle;
   if (!isValidQInfo(pQInfo)) {
     return;
@@ -6030,11 +6032,15 @@ void qDestroyQueryInfo(qinfo_t qHandle, void (*fp)(void*), void* param) {
   qDebug("QInfo:%p dec refCount, value:%d", pQInfo, ref);
 
   if (ref == 0) {
-    doDestoryQueryInfo(pQInfo);
+    _qinfo_free_fn_t fn = pQInfo->fn;
+    void* param = pQInfo->param;
 
-    if (fp != NULL) {
-      fp(param);
+    doDestoryQueryInfo(pQInfo);
+    if (fn != NULL) {
+      assert(param != NULL);
+      fn(param);
     }
+
   }
 }
 
@@ -6048,7 +6054,7 @@ void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
-    qDestroyQueryInfo(pQInfo, fp, param);
+    qDestroyQueryInfo(pQInfo);
     return;
   }
 
@@ -6069,7 +6075,7 @@ void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
   }
 
   sem_post(&pQInfo->dataReady);
-  qDestroyQueryInfo(pQInfo, fp, param);
+  qDestroyQueryInfo(pQInfo);
 }
 
 int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
@@ -6162,7 +6168,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   return code;
 }
 
-int32_t qKillQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
+int32_t qKillQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
@@ -6170,8 +6176,7 @@ int32_t qKillQuery(qinfo_t qinfo, void (*fp)(void*), void* param) {
   }
 
   setQueryKilled(pQInfo);
-  qDestroyQueryInfo(pQInfo, fp, param);
-
+  qDestroyQueryInfo(pQInfo);
   return TSDB_CODE_SUCCESS;
 }
 

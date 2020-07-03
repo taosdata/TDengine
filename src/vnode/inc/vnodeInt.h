@@ -53,6 +53,7 @@ typedef struct {
   STsdbCfg     tsdbCfg;
   SSyncCfg     syncCfg;
   SWalCfg      walCfg;
+  void        *qHandlePool;  // query handle pool
   char        *rootDir;
   char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
