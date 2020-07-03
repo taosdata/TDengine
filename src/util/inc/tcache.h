@@ -129,7 +129,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
  * @param expireTime    new expire time of data
  * @return
  */ 
-void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, size_t keyLen, uint64_t expireTime);
+void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime);
 
 /**
  * Add one reference count for the exist data, and assign this data for a new owner.

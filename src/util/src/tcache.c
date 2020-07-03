@@ -342,7 +342,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   return (ptNode != NULL) ? (*ptNode)->data : NULL;
 }
 
-void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, size_t keyLen, uint64_t expireTime) {
+void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime) {
   if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
     return NULL;
   }
