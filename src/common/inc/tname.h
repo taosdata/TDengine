@@ -27,4 +27,6 @@ SSchema tGetTableNameColumnSchema();
 
 bool tscValidateTableNameLength(size_t len);
 
+SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
+
 #endif  // TDENGINE_NAME_H

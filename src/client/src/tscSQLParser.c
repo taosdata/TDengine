@@ -4452,6 +4452,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     
     tVariantList* pVarList = pAlterSQL->varList;
     tVariant*     pTagName = &pVarList->a[0].pVar;
+    int16_t       numOfTags = tscGetNumOfTags(pTableMeta);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SSQLToken    name = {.type = TK_STRING, .z = pTagName->pz, .n = pTagName->nLen};
@@ -4475,8 +4476,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         (pVarList->a[1].pVar.nLen + VARSTR_HEADER_SIZE) > pTagsSchema->bytes) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg14);
     }
-  
-    int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + TSDB_EXTRA_PAYLOAD_SIZE;
+
+    int32_t schemaLen = sizeof(STColumn) * numOfTags;
+    int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
+
     if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
       tscError("%p failed to malloc for alter table msg", pSql);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -4487,22 +4490,36 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     pUpdateMsg->tid = htonl(pTableMeta->sid);
     pUpdateMsg->uid = htobe64(pTableMeta->uid);
     pUpdateMsg->colId = htons(pTagsSchema->colId);
-    pUpdateMsg->type  = htons(pTagsSchema->type);
-    pUpdateMsg->bytes = htons(pTagsSchema->bytes);
     pUpdateMsg->tversion = htons(pTableMeta->tversion);
-    
-    tVariantDump(&pVarList->a[1].pVar, pUpdateMsg->data, pTagsSchema->type, true);
+    pUpdateMsg->numOfTags = htons(numOfTags);
+    pUpdateMsg->schemaLen = htonl(schemaLen);
+
+    // the schema is located after the msg body, then followed by true tag value
+    char* d = pUpdateMsg->data;
+    SSchema* pTagCols = tscGetTableTagSchema(pTableMeta);
+    for (int i = 0; i < numOfTags; ++i) {
+      STColumn* pCol = (STColumn*) d;
+      pCol->colId = htons(pTagCols[i].colId);
+      pCol->bytes = htons(pTagCols[i].bytes);
+      pCol->type  = pTagCols[i].type;
+      pCol->offset = 0;
+
+      d += sizeof(STColumn);
+    }
+
+    // copy the tag value to msg body
+    tVariantDump(&pVarList->a[1].pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true);
     
     int32_t len = 0;
     if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
       len = tDataTypeDesc[pTagsSchema->type].nSize;
     } else {
-      len = varDataTLen(pUpdateMsg->data);
+      len = varDataTLen(pUpdateMsg->data + schemaLen);
     }
     
     pUpdateMsg->tagValLen = htonl(len);  // length may be changed after dump data
     
-    int32_t total = sizeof(SUpdateTableTagValMsg) + len;
+    int32_t total = sizeof(SUpdateTableTagValMsg) + len + schemaLen;
     pUpdateMsg->head.contLen = htonl(total);
     
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
