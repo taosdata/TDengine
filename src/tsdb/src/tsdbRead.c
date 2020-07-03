@@ -1515,7 +1515,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pSecQueryHandle->outputCapacity = ((STsdbRepo*)pSecQueryHandle->pTsdb)->config.maxRowsPerFileBlock;
   
       tsdbInitReadHelper(&pSecQueryHandle->rhelper, (STsdbRepo*) pSecQueryHandle->pTsdb);
-  
+      tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem);
+
       // allocate buffer in order to load data blocks from file
       int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
   
