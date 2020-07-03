@@ -85,6 +85,7 @@ bool httpReadDataImp(HttpContext *pContext) {
       } else {
         httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, errno);
+        httpReleaseContext(pContext);      
         return false;
       }
     } else {
@@ -153,6 +154,7 @@ static bool httpReadData(HttpContext *pContext) {
   int ret = httpCheckReadCompleted(pContext);
   if (ret == HTTP_CHECK_BODY_CONTINUE) {
     //httpDebug("context:%p, fd:%d, ip:%s, not finished yet, wait another event", pContext, pContext->fd, pContext->ipstr);
+    httpReleaseContext(pContext);
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpDebug("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
@@ -161,11 +163,13 @@ static bool httpReadData(HttpContext *pContext) {
       return true;
     } else {
       httpNotifyContextClose(pContext);
+      httpReleaseContext(pContext);
       return false;
     }
   } else {
     httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
     httpNotifyContextClose(pContext);
+    httpReleaseContext(pContext);
     return false;
   }
 }
