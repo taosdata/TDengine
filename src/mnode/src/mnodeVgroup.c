@@ -400,11 +400,12 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   }
 
   if (pDb->numOfVgroups < maxVgroupsPerDb) {
-    mDebug("app:%p:%p, db:%s, start to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle, pMsg,
+    mDebug("app:%p:%p, db:%s, try to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle, pMsg,
            pDb->name, pDb->numOfVgroups, maxVgroupsPerDb);
     pthread_mutex_unlock(&pDb->mutex);
-    return mnodeCreateVgroup(pMsg);
-  } 
+    int32_t code = mnodeCreateVgroup(pMsg);
+    if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return code;
+  }
 
   SVgObj *pVgroup = pDb->vgList[0];
   int32_t code = mnodeAllocVgroupIdPool(pVgroup);
