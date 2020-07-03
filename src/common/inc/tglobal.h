@@ -33,6 +33,7 @@ extern int32_t  tsStatusInterval;
 extern int16_t  tsNumOfVnodesPerCore;
 extern int16_t  tsNumOfTotalVnodes;
 extern int32_t  tsNumOfMnodes;
+extern int32_t  tsEnableVnodeBak;
 
 // common
 extern int      tsRpcTimer;
