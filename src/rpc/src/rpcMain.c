@@ -641,7 +641,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
 
     pConn->pRpc = pRpc;
     pConn->sid = sid;
-    pConn->tranId = (uint16_t)(rand() & 0xFFFF);
+    pConn->tranId = (uint16_t)(random() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = (uint32_t)((int64_t)pConn + (int64_t)getpid());
     pConn->spi = pRpc->spi;
@@ -1529,10 +1529,10 @@ static void rpcAddRef(SRpcInfo *pRpc)
 static void rpcDecRef(SRpcInfo *pRpc)
 { 
   if (atomic_sub_fetch_32(&pRpc->refCount, 1) == 0) {
+    rpcCloseConnCache(pRpc->pCache);
     taosHashCleanup(pRpc->hash);
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
-    rpcCloseConnCache(pRpc->pCache);
 
     tfree(pRpc->connList);
     pthread_mutex_destroy(&pRpc->mutex);

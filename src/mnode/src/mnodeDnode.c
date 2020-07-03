@@ -367,7 +367,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       pAccess++;
       mnodeDecVgroupRef(pVgroup);
     }
-
   }
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
