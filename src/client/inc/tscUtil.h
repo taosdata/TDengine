@@ -176,8 +176,6 @@ SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
 SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);
 
-SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
-
 int32_t tscValidateName(SSQLToken* pToken);
 
 void tscIncStreamExecutionCount(void* pStream);
