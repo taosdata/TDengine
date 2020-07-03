@@ -393,6 +393,15 @@ void *vnodeAccquireVnode(int32_t vgId) {
   return pVnode;
 }
 
+void *vnodeAccquireRqueue(void *param) {
+  SVnodeObj *pVnode = param;
+  if (pVnode == NULL) return NULL;
+
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  vDebug("vgId:%d, get vnode rqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+  return ((SVnodeObj *)pVnode)->rqueue;
+}
+
 void *vnodeGetRqueue(void *pVnode) {
   return ((SVnodeObj *)pVnode)->rqueue;
 }
