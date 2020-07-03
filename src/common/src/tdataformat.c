@@ -43,7 +43,7 @@ int tdEncodeSchema(void **buf, STSchema *pSchema) {
     STColumn *pCol = schemaColAt(pSchema, i);
     tlen += taosEncodeFixedI8(buf, colType(pCol));
     tlen += taosEncodeFixedI16(buf, colColId(pCol));
-    tlen += taosEncodeFixedI32(buf, colBytes(pCol));
+    tlen += taosEncodeFixedI16(buf, colBytes(pCol));
   }
 
   return tlen;
@@ -65,10 +65,10 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   for (int i = 0; i < numOfCols; i++) {
     int8_t  type = 0;
     int16_t colId = 0;
-    int32_t bytes = 0;
+    int16_t bytes = 0;
     buf = taosDecodeFixedI8(buf, &type);
     buf = taosDecodeFixedI16(buf, &colId);
-    buf = taosDecodeFixedI32(buf, &bytes);
+    buf = taosDecodeFixedI16(buf, &bytes);
     if (tdAddColToSchema(&schemaBuilder, type, colId, bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
@@ -105,7 +105,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
   pBuilder->version = version;
 }
 
-int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int32_t bytes) {
+int tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes) {
   if (!isValidDataType(type)) return -1;
 
   if (pBuilder->nCols >= pBuilder->tCols) {
