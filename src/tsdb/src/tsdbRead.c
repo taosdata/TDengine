@@ -685,6 +685,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
     // query ended in current block
     if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
       if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
+        taosArrayDestroy(sa);
         return false;
       }
 
@@ -1504,6 +1505,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pQueryHandle->window   = pQueryHandle->cur.win;
       pQueryHandle->cur.rows = 1;
       pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
+      taosArrayDestroy(sa);
       return true;
     } else {
       STsdbQueryHandle* pSecQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
@@ -2083,26 +2085,15 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
   STable* pTable = *(STable**)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
   char*  val = NULL;
-  int8_t type = pInfo->sch.type;
 
   if (pInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
     val = (char*) pTable->name;
-    type = TSDB_DATA_TYPE_BINARY;
   } else {
     val = tdGetKVRowValOfCol(pTable->tagVal, pInfo->sch.colId);
   }
   
   //todo :the val is possible to be null, so check it out carefully
-  int32_t ret = 0;
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    if (pInfo->optr == TSDB_RELATION_IN) {
-      ret = pInfo->compare(val, pInfo->q);
-    } else {
-      ret = pInfo->compare(val, pInfo->q);
-    }
-  } else {
-    ret = pInfo->compare(val, pInfo->q);
-  }
+  int32_t ret = pInfo->compare(val, pInfo->q);
 
   switch (pInfo->optr) {
     case TSDB_RELATION_EQUAL: {
@@ -2271,7 +2262,9 @@ int32_t tsdbGetOneTableGroup(TSDB_REPO_T* tsdb, uint64_t uid, STableGroupInfo* p
 }
 
 int32_t tsdbGetTableGroupFromIdList(TSDB_REPO_T* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo) {
-  if (tsdbRLockRepoMeta(tsdb) < 0) goto _error;
+  if (tsdbRLockRepoMeta(tsdb) < 0) {
+    return terrno;
+  }
 
   assert(pTableIdList != NULL);
   size_t size = taosArrayGetSize(pTableIdList);
@@ -2297,15 +2290,15 @@ int32_t tsdbGetTableGroupFromIdList(TSDB_REPO_T* tsdb, SArray* pTableIdList, STa
     taosArrayPush(group, &pTable);
   }
 
-  if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
+  if (tsdbUnlockRepoMeta(tsdb) < 0) {
+    taosArrayDestroy(group);
+    return terrno;
+  }
 
   pGroupInfo->numOfTables = i;
   taosArrayPush(pGroupInfo->pGroupList, &group);
 
   return TSDB_CODE_SUCCESS;
-
-  _error:
-  return terrno;
 }
 
 void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
