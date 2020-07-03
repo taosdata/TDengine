@@ -65,6 +65,7 @@ typedef struct {
   int64_t         totalSize;          // total allocated buffer in this hash table, SCacheObj is not included.
   int64_t         refreshTime;
   STrashElem *    pTrash;
+  const char *    cacheName;
 //  void *          tmrCtrl;
 //  void *          pTimer;
   SCacheStatis    statistics;
@@ -90,7 +91,7 @@ typedef struct {
  * @param fn                   free resource callback function
  * @return
  */
-SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn);
+SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn, const char *cacheName);
 
 /**
  * initialize the cache object and set the free object callback function
@@ -98,7 +99,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
  * @param freeCb
  * @return
  */
-SCacheObj *taosCacheInitWithCb(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn);
+SCacheObj *taosCacheInitWithCb(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn, const char *cacheName);
 
 /**
  * add data into cache
@@ -128,7 +129,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
  * @param expireTime    new expire time of data
  * @return
  */ 
-void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, const char *key, size_t keyLen, uint64_t expireTime);
+void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime);
 
 /**
  * Add one reference count for the exist data, and assign this data for a new owner.

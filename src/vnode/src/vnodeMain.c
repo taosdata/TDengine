@@ -284,7 +284,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     cqStart(pVnode->cq);
 
   const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, rfresh handle pool
-  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle);
+  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle, "qhandle");
 
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;

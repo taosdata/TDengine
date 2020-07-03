@@ -19,7 +19,7 @@ int32_t tsMaxMeterConnections = 200;
 // test cache
 TEST(testCase, client_cache_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
-  SCacheObj* tscCacheHandle = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, 0, NULL);
+  SCacheObj* tscCacheHandle = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, 0, NULL, "test");
 
   const char* key1 = "test1";
   char data1[] = "test11";
@@ -105,7 +105,7 @@ TEST(testCase, client_cache_test) {
 
 TEST(testCase, cache_resize_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
-  auto* pCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, false, NULL);
+  auto* pCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, false, NULL, "test");
 
   char key[256] = {0};
   char data[1024] = "abcdefghijk";
