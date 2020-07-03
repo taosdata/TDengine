@@ -283,8 +283,8 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   for(int32_t i = 0; i < pMsg->numOfTags; ++i) {
     STColumn* pCol = (STColumn*) d;
     pCol->colId = htons(pCol->colId);
-    pCol->bytes = htonl(pCol->bytes);
-    assert(pCol->offset == 0);
+    pCol->bytes = htons(pCol->bytes);
+    pCol->offset = 0;
 
     d += sizeof(STColumn);
   }
