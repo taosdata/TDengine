@@ -4339,7 +4339,9 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       taosArrayDestroy(s);
 
       // here we simply set the first table as current table
-      pQuery->current = (STableQueryInfo*) GET_TABLEGROUP(pQInfo, 0);
+      SArray* first = GET_TABLEGROUP(pQInfo, pQInfo->groupIndex);
+      pQuery->current = taosArrayGetP(first, 0);
+
       scanOneTableDataBlocks(pRuntimeEnv, pQuery->current->lastKey);
       
       int64_t numOfRes = getNumOfResult(pRuntimeEnv);
@@ -5799,7 +5801,7 @@ static void freeQInfo(SQInfo *pQInfo) {
   // todo refactor, extract method to destroytableDataInfo
   int32_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
   for (int32_t i = 0; i < numOfGroups; ++i) {
-    SArray *p = GET_TABLEGROUP(pQInfo, i);;
+    SArray *p = GET_TABLEGROUP(pQInfo, i);
 
     size_t num = taosArrayGetSize(p);
     for(int32_t j = 0; j < num; ++j) {
