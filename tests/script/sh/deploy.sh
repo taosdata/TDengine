@@ -114,6 +114,7 @@ echo "mDebugFlag          135"            >> $TAOS_CFG
 echo "sdbDebugFlag        135"            >> $TAOS_CFG
 echo "dDebugFlag          135"            >> $TAOS_CFG
 echo "vDebugFlag          135"            >> $TAOS_CFG
+echo "tsdbDebugFlag       135"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "jnidebugFlag        135"            >> $TAOS_CFG
 echo "odbcdebugFlag       135"            >> $TAOS_CFG

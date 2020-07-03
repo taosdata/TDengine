@@ -50,8 +50,8 @@ extern "C" {
 typedef struct {
   int8_t  type;    // Column type
   int16_t colId;   // column ID
-  int32_t bytes;   // column bytes
-  int32_t offset;  // point offset in SDataRow after the header part
+  int16_t bytes;   // column bytes
+  int16_t offset;  // point offset in SDataRow after the header part
 } STColumn;
 
 #define colType(col) ((col)->type)
@@ -116,7 +116,7 @@ typedef struct {
 int       tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
-int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int32_t bytes);
+int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId, int16_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Data row structure

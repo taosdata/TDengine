@@ -284,7 +284,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     cqStart(pVnode->cq);
 
   const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, rfresh handle pool
-  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle);
+  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle, "qhandle");
 
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
@@ -324,7 +324,7 @@ void vnodeRelease(void *pVnodeRaw) {
   assert(refCount >= 0);
 
   if (refCount > 0) {
-    vTrace("vgId:%d, release vnode, refCount:%d", vgId, refCount);
+    vDebug("vgId:%d, release vnode, refCount:%d", vgId, refCount);
     return;
   }
 
@@ -388,7 +388,7 @@ void *vnodeAccquireVnode(int32_t vgId) {
   if (pVnode == NULL) return pVnode;
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, get vnode, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vDebug("vgId:%d, get vnode, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   return pVnode;
 }
@@ -466,6 +466,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   // release local resources only after cutting off outside connections
+  taosCacheCleanup(pVnode->qHandlePool);
   vnodeRelease(pVnode);
 }
 

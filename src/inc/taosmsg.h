@@ -285,9 +285,9 @@ typedef struct {
   int32_t   tid;
   int16_t   tversion;
   int16_t   colId;
-  int16_t   type;
-  int16_t   bytes;
   int32_t   tagValLen;
+  int16_t   numOfTags;
+  int32_t   schemaLen;
   char      data[];
 } SUpdateTableTagValMsg;
 

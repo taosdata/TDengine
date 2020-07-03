@@ -213,6 +213,8 @@ void cqDrop(void *handle) {
   pObj->pStream = NULL;
 
   cTrace("vgId:%d, id:%d CQ:%s is dropped", pContext->vgId, pObj->tid, pObj->sqlStr); 
+  tdFreeSchema(pObj->pSchema);
+  free(pObj->sqlStr);
   free(pObj);
 
   pthread_mutex_unlock(&pContext->mutex);

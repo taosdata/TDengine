@@ -44,7 +44,7 @@ void qDestroyQueryInfo(qinfo_t qinfo);
  * @param qinfo
  * @return
  */
-void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param);
+void qTableQuery(qinfo_t qinfo);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
