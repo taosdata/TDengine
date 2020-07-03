@@ -263,6 +263,15 @@ static int32_t readVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
 
     taosGetFqdnPortFromEp(nodeEp->valuestring, pVnode->syncCfg.nodeInfo[i].nodeFqdn, &pVnode->syncCfg.nodeInfo[i].nodePort);
     //pVnode->syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
+
+    
+    SdnodeIfo* pDnodeInfo = getDnodeInfo(pVnode->syncCfg.nodeInfo[i].nodeId);
+    if (NULL == pDnodeInfo) {
+      continue;
+    }
+
+    pVnode->syncCfg.nodeInfo[i].nodePort = pDnodeInfo->port;
+    tstrncpy(pVnode->syncCfg.nodeInfo[i].nodeFqdn, pDnodeInfo->fqdn, TSDB_FQDN_LEN);    
   }
 
   ret = 0;

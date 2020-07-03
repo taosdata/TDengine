@@ -91,6 +91,13 @@ static bool dnodeReadMnodeInfos(char* dnodeIpList) {
       goto PARSE_OVER;
     }
     strncpy(tsDnodeIpInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
+
+    SdnodeIfo* pDnodeInfo = getDnodeInfo(tsDnodeIpInfos.nodeInfos[i].nodeId);
+    if (NULL == pDnodeInfo) {
+      continue;
+    }
+
+    tstrncpy(tsDnodeIpInfos.nodeInfos[i].nodeEp, pDnodeInfo->ep, TSDB_EP_LEN);    
  }
 
   ret = true;
