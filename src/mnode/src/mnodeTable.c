@@ -1552,8 +1552,8 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   assert(pTable);
 
-  mDebug("app:%p:%p, table:%s, create table in id:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle, pMsg,
-         pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
+  mDebug("app:%p:%p, table:%s, created in mnode, vgId:%d sid:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle,
+         pMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid, tstrerror(code));
 
   if (code != TSDB_CODE_SUCCESS) return code;
 
@@ -1693,7 +1693,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
         mnodeIncVgroupRef(pVgroup);
       }
 
-      mDebug("app:%p:%p, table:%s, create table in vgroup, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
+      mDebug("app:%p:%p, table:%s, allocated in vgroup, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
              pVgroup->vgId, sid);
 
       return mnodeDoCreateChildTable(pMsg, sid);

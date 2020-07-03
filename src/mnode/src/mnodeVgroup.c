@@ -332,7 +332,7 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
 
   // realloc all vgroups in db
   int32_t newIdPoolSize;
-  if (minIdPoolSize < TSDB_TABLES_STEP) {
+  if (minIdPoolSize * 2 < TSDB_TABLES_STEP) {
     newIdPoolSize = minIdPoolSize * 2;
   } else {
     newIdPoolSize = ((minIdPoolSize / TSDB_TABLES_STEP) + 1) * TSDB_TABLES_STEP;

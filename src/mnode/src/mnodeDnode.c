@@ -302,10 +302,12 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
-  if (clusterCfg->numOfMnodes        != tsNumOfMnodes)        return false;
-  if (clusterCfg->mnodeEqualVnodeNum != tsMnodeEqualVnodeNum) return false;
-  if (clusterCfg->offlineThreshold   != tsOfflineThreshold)   return false;
-  if (clusterCfg->statusInterval     != tsStatusInterval)     return false;
+  if (clusterCfg->numOfMnodes        != htonl(tsNumOfMnodes))        return false;
+  if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) return false;
+  if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold))   return false;
+  if (clusterCfg->statusInterval     != htonl(tsStatusInterval))     return false;
+  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode))    return false;
+  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb))      return false;
 
   if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) return false;
   if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone)))       return false;

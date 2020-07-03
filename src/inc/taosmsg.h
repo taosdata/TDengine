@@ -568,6 +568,8 @@ typedef struct {
   char     timezone[64];              // tsTimezone
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
+  int32_t  maxtablesPerVnode;
+  int32_t  maxVgroupsPerDb;
 } SClusterCfg;
 
 typedef struct {

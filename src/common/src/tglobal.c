@@ -600,7 +600,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   // database configs
-  cfg.option = "maxtablesPerVnode";
+  cfg.option = "maxTablesPerVnode";
   cfg.ptr = &tsMaxTablePerVnode;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
