@@ -579,9 +579,9 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
     int32_t numOfCols = tscGetNumOfColumns(pTableDataBlock->pTableMeta);
     for(int32_t j = 0; j < numOfCols; ++j) {
       STColumn* pCol = (STColumn*) pDataBlock;
-      pCol->colId = pSchema[j].colId;
+      pCol->colId = htons(pSchema[j].colId);
       pCol->type  = pSchema[j].type;
-      pCol->bytes = pSchema[j].bytes;
+      pCol->bytes = htons(pSchema[j].bytes);
       pCol->offset = 0;
 
       pDataBlock += sizeof(STColumn);

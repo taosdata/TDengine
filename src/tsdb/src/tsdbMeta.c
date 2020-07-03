@@ -449,17 +449,7 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-STSchema *tsdbGetTableSchema(STable *pTable) {
-  if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_STREAM_TABLE) {
-    return pTable->schema[pTable->numOfSchemas - 1];
-  } else if (pTable->type == TSDB_CHILD_TABLE) {
-    STable *pSuper = pTable->pSuper;
-    if (pSuper == NULL) return NULL;
-    return pSuper->schema[pSuper->numOfSchemas - 1];
-  } else {
-    return NULL;
-  }
-}
+STSchema *tsdbGetTableSchema(STable *pTable) { return tsdbGetTableSchemaImpl(pTable, true, true, -1); }
 
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   void *ptr = taosHashGet(pMeta->uidMap, (char *)(&uid), sizeof(uid));
@@ -470,14 +460,7 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
 }
 
 STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t version) {
-  STable *pSearchTable = (pTable->type == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
-  if (pSearchTable == NULL) return NULL;
-
-  void *ptr = taosbsearch(&version, pSearchTable->schema, pSearchTable->numOfSchemas, sizeof(STSchema *),
-                          tsdbCompareSchemaVersion, TD_EQ);
-  if (ptr == NULL) return NULL;
-
-  return *(STSchema **)ptr;
+  return tsdbGetTableSchemaImpl(pTable, true, true, version);
 }
 
 STSchema *tsdbGetTableTagSchema(STable *pTable) {
@@ -575,7 +558,7 @@ void tsdbRefTable(STable *pTable) {
 
 void tsdbUnRefTable(STable *pTable) {
   int32_t ref = T_REF_DEC(pTable);
-  tsdbTrace("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  tsdbDebug("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {
     // tsdbDebug("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
@@ -587,17 +570,32 @@ void tsdbUnRefTable(STable *pTable) {
   }
 }
 
-// ------------------ LOCAL FUNCTIONS ------------------
-static int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
-    return -1;
-  } else if (*(int16_t *)key1 > schemaVersion(*(STSchema **)key2)) {
-    return 1;
+void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, bool insertAct) {
+  ASSERT(TABLE_TYPE(pTable) != TSDB_STREAM_TABLE && TABLE_TYPE(pTable) != TSDB_SUPER_TABLE);
+
+  STable *pCTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
+  ASSERT(schemaVersion(pSchema) > schemaVersion(pCTable->schema[pCTable->numOfSchemas - 1]));
+
+  taosWLockLatch(&(pCTable->latch));
+  if (pCTable->numOfSchemas < TSDB_MAX_TABLE_SCHEMAS) {
+    pCTable->schema[pCTable->numOfSchemas++] = pSchema;
   } else {
-    return 0;
+    ASSERT(pCTable->numOfSchemas == TSDB_MAX_TABLE_SCHEMAS);
+    tdFreeSchema(pCTable->schema[0]);
+    memmove(pCTable->schema, pCTable->schema + 1, sizeof(STSchema *) * (TSDB_MAX_TABLE_SCHEMAS - 1));
+    pCTable->schema[pCTable->numOfSchemas - 1] = pSchema;
+  }
+  taosWUnLockLatch(&(pCTable->latch));
+
+  if (insertAct) {
+    int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
+    void *buf = tsdbAllocBytes(pRepo, tlen);
+    ASSERT(buf != NULL);
+    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pTable);
   }
 }
 
+// ------------------ LOCAL FUNCTIONS ------------------
 static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   STsdbRepo *pRepo = (STsdbRepo *)pHandle;
   STable *   pTable = NULL;
@@ -809,14 +807,15 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx) {
   }
 
   if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
-    STSchema *pSchema = tsdbGetTableSchema(pTable);
+    STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
     if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
     if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
   }
 
   if (addIdx && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
   if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
-    pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql, tsdbGetTableSchema(pTable));
+    pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
+                                                   tsdbGetTableSchemaImpl(pTable, false, false, -1));
   }
 
   tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
@@ -836,7 +835,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   STable *   tTable = NULL;
   STsdbCfg * pCfg = &(pRepo->config);
 
-  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
   int       maxCols = schemaNCols(pSchema);
   int       maxRowBytes = schemaTLen(pSchema);
 
@@ -870,7 +869,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
     for (int i = 0; i < pCfg->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable != NULL) {
-        pSchema = tsdbGetTableSchema(pTable);
+        pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
         maxCols = MAX(maxCols, schemaNCols(pSchema));
         maxRowBytes = MAX(maxRowBytes, schemaTLen(pSchema));
       }

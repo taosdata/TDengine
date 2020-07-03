@@ -41,9 +41,9 @@ typedef struct {
 } SSubmitBlkIter;
 
 typedef struct {
-  int32_t     totalLen;
-  int32_t     len;
-  SSubmitBlk *pBlock;
+  int32_t totalLen;
+  int32_t len;
+  void *  pMsg;
 } SSubmitMsgIter;
 
 static int32_t     tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
@@ -56,7 +56,7 @@ static STsdbRepo * tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg);
 static void        tsdbFreeRepo(STsdbRepo *pRepo);
 static int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
 static int32_t     tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows);
-static SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
+static int         tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static SDataRow    tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 static int         tsdbRestoreInfo(STsdbRepo *pRepo);
 static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
@@ -68,6 +68,7 @@ static int         keyFGroupCompFunc(const void *key, const void *fgroup);
 static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
 static void *      tsdbDecodeCfg(void *buf, STsdbCfg *pCfg);
 static int         tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
+static int         tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
@@ -164,6 +165,15 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   STsdbRepo *    pRepo = (STsdbRepo *)repo;
   SSubmitMsgIter msgIter = {0};
 
+  if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
+    if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+      return 0;
+    } else {
+      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
   if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) {
     tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
@@ -173,12 +183,14 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   int32_t     affectedrows = 0;
 
   TSKEY now = taosGetTimestamp(pRepo->config.precision);
-
-  while ((pBlock = tsdbGetSubmitMsgNext(&msgIter)) != NULL) {
+  while (true) {
+    tsdbGetSubmitMsgNext(&msgIter, &pBlock);
+    if (pBlock == NULL) break;
     if (tsdbInsertDataToTable(pRepo, pBlock, now, &affectedrows) < 0) {
       return -1;
     }
   }
+
   if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
   return 0;
 }
@@ -263,7 +275,7 @@ void tsdbStartStream(TSDB_REPO_T *repo) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
       pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
-                                                     tsdbGetTableSchema(pTable));
+                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1));
     }
   }
 }
@@ -694,17 +706,12 @@ static int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
     return -1;
   }
 
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-  pMsg->compressed = htonl(pMsg->compressed);
-
   pIter->totalLen = pMsg->length;
-  pIter->len = TSDB_SUBMIT_MSG_HEAD_SIZE;
+  pIter->len = 0;
+  pIter->pMsg = pMsg;
   if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
     return -1;
-  } else {
-    pIter->pBlock = pMsg->blocks;
   }
 
   return 0;
@@ -714,26 +721,8 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   int64_t    points = 0;
 
-  STable *pTable = tsdbGetTableByUid(pMeta, pBlock->uid);
-  if (pTable == NULL || TABLE_TID(pTable) != pBlock->tid) {
-    tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
-              pBlock->tid);
-    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-    return -1;
-  }
-
-  if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-    tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
-    terrno = TSDB_CODE_TDB_INVALID_ACTION;
-    return -1;
-  }
-
-  // Check schema version and update schema if needed
-  if (tsdbCheckTableSchema(pRepo, pBlock, pTable) < 0) {
-    tsdbError("vgId:%d failed to insert data to table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-              tstrerror(terrno));
-    return -1;
-  }
+  STable *pTable = pMeta->tables[pBlock->tid];
+  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
 
   SSubmitBlkIter blkIter = {0};
   SDataRow       row = NULL;
@@ -764,27 +753,23 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
   return 0;
 }
 
-static SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
-  SSubmitBlk *pBlock = pIter->pBlock;
-  if (pBlock == NULL) return NULL;
-
-  pBlock->dataLen = htonl(pBlock->dataLen);
-  pBlock->schemaLen = htonl(pBlock->schemaLen);
-  pBlock->numOfRows = htons(pBlock->numOfRows);
-  pBlock->uid = htobe64(pBlock->uid);
-  pBlock->tid = htonl(pBlock->tid);
-
-  pBlock->sversion = htonl(pBlock->sversion);
-  pBlock->padding = htonl(pBlock->padding);
-
-  pIter->len = pIter->len + sizeof(SSubmitBlk) + pBlock->dataLen;
-  if (pIter->len >= pIter->totalLen) {
-    pIter->pBlock = NULL;
+static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+  if (pIter->len == 0) {
+    pIter->len += TSDB_SUBMIT_MSG_HEAD_SIZE;
   } else {
-    pIter->pBlock = (SSubmitBlk *)((char *)pBlock + pBlock->dataLen + sizeof(SSubmitBlk));
+    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
   }
 
-  return pBlock;
+  if (pIter->len > pIter->totalLen) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    *pPBlock = NULL;
+    return -1;
+  }
+
+  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+
+  return 0;
 }
 
 static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
@@ -969,42 +954,64 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
 static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable) {
   ASSERT(pTable != NULL);
 
-  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
   int       sversion = schemaVersion(pSchema);
 
-  if (pBlock->sversion == sversion) return 0;
-  if (pBlock->sversion > sversion) {  // need to config
-    tsdbDebug("vgId:%d table %s tid %d has version %d smaller than client version %d, try to config", REPO_ID(pRepo),
-              TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), sversion, pBlock->sversion);
-    if (pRepo->appH.configFunc) {
-      void *msg = (*pRepo->appH.configFunc)(REPO_ID(pRepo), TABLE_TID(pTable));
-      if (msg == NULL) {
-        tsdbError("vgId:%d failed to config table %s tid %d since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                  TABLE_TID(pTable), tstrerror(terrno));
-        return -1;
-      }
-
-      STableCfg *pTableCfg = tsdbCreateTableCfgFromMsg(msg);
-      if (pTableCfg == NULL) {
-        rpcFreeCont(msg);
-        return -1;
-      }
-
-      if (tsdbUpdateTable(pRepo, (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable, pTableCfg) < 0) {
-        tsdbError("vgId:%d failed to update table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                  tstrerror(terrno));
-        tsdbClearTableCfg(pTableCfg);
-        rpcFreeCont(msg);
-        return -1;
-      }
-      tsdbClearTableCfg(pTableCfg);
-      rpcFreeCont(msg);
-    } else {
+  if (pBlock->sversion == sversion) {
+    return 0;
+  } else {
+    if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) {  // stream table is not allowed to change schema
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       return -1;
     }
+  }
+
+  if (pBlock->sversion > sversion) {  // may need to update table schema
+    if (pBlock->schemaLen > 0) {
+      tsdbDebug(
+          "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, update...",
+          REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), sversion, pBlock->sversion);
+      ASSERT(pBlock->schemaLen % sizeof(STColumn) == 0);
+      int       numOfCols = pBlock->schemaLen / sizeof(STColumn);
+      STColumn *pTCol = (STColumn *)pBlock->data;
+
+      STSchemaBuilder schemaBuilder = {0};
+      if (tdInitTSchemaBuilder(&schemaBuilder, pBlock->sversion) < 0) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbError("vgId:%d failed to update schema of table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                  tstrerror(terrno));
+        return -1;
+      }
+
+      for (int i = 0; i < numOfCols; i++) {
+        if (tdAddColToSchema(&schemaBuilder, pTCol[i].type, htons(pTCol[i].colId), htons(pTCol[i].bytes)) < 0) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbError("vgId:%d failed to update schema of table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                    tstrerror(terrno));
+          tdDestroyTSchemaBuilder(&schemaBuilder);
+          return -1;
+        }
+      }
+
+      STSchema *pNSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+      if (pNSchema == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tdDestroyTSchemaBuilder(&schemaBuilder);
+        return -1;
+      }
+
+      tdDestroyTSchemaBuilder(&schemaBuilder);
+      tsdbUpdateTableSchema(pRepo, pTable, pNSchema, true);
+    } else {
+      tsdbDebug(
+          "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, reconfigure...",
+          REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), sversion, pBlock->sversion);
+      terrno = TSDB_CODE_TDB_TABLE_RECONFIGURE;
+      return -1;
+    }
   } else {
-    if (tsdbGetTableSchemaByVersion(pTable, pBlock->sversion) == NULL) {
+    ASSERT(pBlock->sversion >= 0);
+    if (tsdbGetTableSchemaImpl(pTable, false, false, pBlock->sversion) == NULL) {
       tsdbError("vgId:%d invalid submit schema version %d to table %s tid %d from client", REPO_ID(pRepo),
                 pBlock->sversion, TABLE_CHAR_NAME(pTable), TABLE_TID(pTable));
     }
@@ -1013,7 +1020,64 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
   }
 
   return 0;
- }
+}
+
+static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
+  ASSERT(pMsg != NULL);
+  STsdbMeta *    pMeta = pRepo->tsdbMeta;
+  SSubmitMsgIter msgIter = {0};
+  SSubmitBlk *   pBlock = NULL;
+
+  terrno = TSDB_CODE_SUCCESS;
+  pMsg->length = htonl(pMsg->length);
+  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+
+  if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  while (true) {
+    if (tsdbGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (pBlock == NULL) break;
+
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->tid = htonl(pBlock->tid);
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->dataLen = htonl(pBlock->dataLen);
+    pBlock->schemaLen = htonl(pBlock->schemaLen);
+    pBlock->numOfRows = htons(pBlock->numOfRows);
+
+    if (pBlock->tid <= 0 || pBlock->tid >= pRepo->config.maxTables) {
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
+                pBlock->tid);
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      return -1;
+    }
+
+    STable *pTable = pMeta->tables[pBlock->tid];
+    if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
+                pBlock->tid);
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      return -1;
+    }
+
+    if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
+      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
+      terrno = TSDB_CODE_TDB_INVALID_ACTION;
+      return -1;
+    }
+
+    // Check schema version and update schema if needed
+    if (tsdbCheckTableSchema(pRepo, pBlock, pTable) < 0) {
+      if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+        continue;
+      } else {
+        return -1;
+      }
+    }
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) return -1;
+  return 0;
+}
 
 static int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
   // TODO

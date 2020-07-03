@@ -203,8 +203,7 @@ typedef struct SSubmitBlk {
 typedef struct SSubmitMsg {
   SMsgHead   header;
   int32_t    length;
-  int32_t    compressed : 2;
-  int32_t    numOfBlocks : 30;
+  int32_t    numOfBlocks;
   SSubmitBlk blocks[];
 } SSubmitMsg;
 
