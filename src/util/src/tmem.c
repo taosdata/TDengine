@@ -193,7 +193,7 @@ static void* realloc_detect_leak(void* ptr, size_t size, const char* file, uint3
     return malloc_detect_leak(size, file, line);
   }
 
-  SMemBlock* blk = ((char*)ptr) - sizeof(SMemBlock);
+  SMemBlock* blk = (SMemBlock *)((char*)ptr) - sizeof(SMemBlock);
   if (blk->magic != MEMBLK_MAGIC) {
     if (fpAllocLog != NULL) {
       fprintf(fpAllocLog, "%s:%d: memory is allocated by default allocator.\n", file, line);

@@ -50,3 +50,28 @@ SSchema tGetTableNameColumnSchema() {
 bool tscValidateTableNameLength(size_t len) {
   return len < TSDB_TABLE_NAME_LEN;
 }
+
+SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters) {
+  if (numOfFilters == 0) {
+    assert(src == NULL);
+    return NULL;
+  }
+
+  SColumnFilterInfo* pFilter = calloc(1, numOfFilters * sizeof(SColumnFilterInfo));
+
+  memcpy(pFilter, src, sizeof(SColumnFilterInfo) * numOfFilters);
+  for (int32_t j = 0; j < numOfFilters; ++j) {
+
+    if (pFilter[j].filterstr) {
+      size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
+      pFilter[j].pz = (int64_t) calloc(1, len);
+
+      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t)len);
+    }
+  }
+
+  assert(src->filterstr == 0 || src->filterstr == 1);
+  assert(!(src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID));
+
+  return pFilter;
+}

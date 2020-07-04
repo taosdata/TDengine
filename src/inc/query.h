@@ -44,7 +44,7 @@ void qDestroyQueryInfo(qinfo_t qinfo);
  * @param qinfo
  * @return
  */
-void qTableQuery(qinfo_t qinfo, void (*fp)(void*), void* param);
+void qTableQuery(qinfo_t qinfo);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -83,6 +83,13 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
  * @return
  */
 int32_t qKillQuery(qinfo_t qinfo);
+
+void* qOpenQueryMgmt(int32_t vgId);
+void  qSetQueryMgmtClosed(void* pExecutor);
+void  qCleanupQueryMgmt(void* pExecutor);
+void** qRegisterQInfo(void* pMgmt, void* qInfo);
+void** qAcquireQInfo(void* pMgmt, void** key);
+void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree);
 
 #ifdef __cplusplus
 }

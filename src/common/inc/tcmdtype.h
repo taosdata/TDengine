@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_QSQLCMD_H
-#define TDENGINE_QSQLCMD_H
+#ifndef TDENGINE_TSQLMSGTYPE_H
+#define TDENGINE_TSQLMSGTYPE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,4 +109,4 @@ extern char *sqlCmd[];
 }
 #endif
 
-#endif  // TDENGINE_QSQLCMD_H
+#endif  // TDENGINE_TSQLMSGTYPE_H
