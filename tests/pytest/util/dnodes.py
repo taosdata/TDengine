@@ -72,6 +72,8 @@ class TDSimClient:
         self.cfg("charset", "UTF-8")
         self.cfg("asyncLog", "0")
         self.cfg("anyIp", "0")
+        self.cfg("maxVgroupsPerDb", "4")
+        self.cfg("maxTablesPerVnode", "1000")
         self.cfg("sdbDebugFlag", "135")
         self.cfg("rpcDebugFlag", "135")
         self.cfg("tmrDebugFlag", "131")
