@@ -708,7 +708,7 @@ SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
   strcpy(pVnode->db, pVgroup->dbName);
   int32_t maxTables = taosIdPoolMaxSize(pVgroup->idPool);
   //TODO: dynamic alloc tables in tsdb
-  maxTables = 10000;
+  maxTables = tsMaxTablePerVnode;
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);

@@ -329,7 +329,7 @@ $totalRows = 0
 $tsStart = 1420041600000
 
 $db = db1
-sql create database $db replica 2 maxTables 4
+sql create database $db replica 2
 sql use $db
 $stb = stb
 sql create table $stb (ts timestamp, c1 int) tags(t1 int)

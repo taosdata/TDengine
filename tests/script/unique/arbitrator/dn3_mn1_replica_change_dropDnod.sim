@@ -29,10 +29,16 @@ system sh/cfg.sh -n dnode2 -c alternativeRole -v 2
 system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
 system sh/cfg.sh -n dnode4 -c alternativeRole -v 2
 
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
-system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 4
+$totalTableNum = 10
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v $totalTableNum
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v $totalTableNum
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v $totalTableNum
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v $totalTableNum
+
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 1
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 1
+system sh/cfg.sh -n dnode4 -c maxVgroupsPerDb -v 1
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
@@ -60,7 +66,7 @@ $totalTableNum = 10
 $sleepTimer = 10000
 
 $db = db
-sql create database $db replica 2 maxTables $totalTableNum
+sql create database $db replica 2
 sql use $db
 
 # create table , insert data

@@ -325,7 +325,7 @@ cd ../../../debug; make
 ./test.sh -f general/stream/table_replica1_vnoden.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
-./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
+#./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
@@ -338,7 +338,7 @@ cd ../../../debug; make
 #./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
 #./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
 #./test.sh -f unique/arbitrator/dn3_mn1_vnode_createErrData_online.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim

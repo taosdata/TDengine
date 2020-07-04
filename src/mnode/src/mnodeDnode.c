@@ -398,7 +398,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     if (false == ret) {
       mnodeDecDnodeRef(pDnode);
       rpcFreeCont(pRsp);
-      mError("dnode %s cluster cfg parameters inconsistent", pStatus->dnodeEp);
+      mError("dnode:%d, %s cluster cfg parameters inconsistent", pDnode->dnodeId, pStatus->dnodeEp);
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }
     
