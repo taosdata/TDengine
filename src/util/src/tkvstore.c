@@ -259,7 +259,7 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
   }
 
   taosHashPut(pStore->map, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
-  uDebug("put uid %" PRIu64 " into kvStore %s", uid, pStore->fname);
+  uTrace("put uid %" PRIu64 " into kvStore %s", uid, pStore->fname);
 
   return 0;
 }

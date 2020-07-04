@@ -737,7 +737,7 @@ _err:
 
 static void tsdbFreeTable(STable *pTable) {
   if (pTable) {
-    tsdbDebug("table %s is destroyed", TABLE_CHAR_NAME(pTable));
+    tsdbTrace("table %s is destroyed", TABLE_CHAR_NAME(pTable));
     tfree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
