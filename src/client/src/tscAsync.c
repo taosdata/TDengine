@@ -235,7 +235,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
         (*pSql->fetchFp)(param, pSql, 0);
       }
       return;
-    } else if (pCmd->command == TSDB_SQL_RETRIEVE) {
+    } else if (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE) {
       // in case of show command, return no data
       (*pSql->fetchFp)(param, pSql, 0);
     } else {

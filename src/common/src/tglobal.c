@@ -41,6 +41,8 @@ int32_t  tsStatusInterval = 1;  // second
 int16_t  tsNumOfVnodesPerCore = 8;
 int16_t  tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 int32_t  tsNumOfMnodes = 3;
+int32_t  tsEnableVnodeBak = 1;
+
 
 // common
 int32_t tsRpcTimer = 1000;
@@ -419,6 +421,16 @@ static void doInitGlobalConfig() {
   cfg.minValue = 1;
   cfg.maxValue = 3;
   cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "vnodeBak";
+  cfg.ptr = &tsEnableVnodeBak;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
