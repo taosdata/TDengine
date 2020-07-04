@@ -203,7 +203,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     code = qDumpRetrieveResult(*pQInfo, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len);
 
     if (qHasMoreResultsToRetrieve(*handle)) {
-      dnodePutQhandleIntoReadQueue(pVnode, handle);
+      dnodePutItemIntoReadQueue(pVnode, handle);
       pRet->qhandle = handle;
       code = TSDB_CODE_SUCCESS;
     } else { // no further execution invoked, release the ref to vnode

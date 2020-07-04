@@ -299,7 +299,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 }
 
 int32_t vnodeStartStream(int32_t vnode) {
-  SVnodeObj* pVnode = vnodeAccquireVnode(vnode);
+  SVnodeObj* pVnode = vnodeAcquireVnode(vnode);
   if (pVnode != NULL) {
     tsdbStartStream(pVnode->tsdb);
     vnodeRelease(pVnode);
@@ -383,7 +383,7 @@ void *vnodeGetVnode(int32_t vgId) {
   return *ppVnode;
 }
 
-void *vnodeAccquireVnode(int32_t vgId) {
+void *vnodeAcquireVnode(int32_t vgId) {
   SVnodeObj *pVnode = vnodeGetVnode(vgId);
   if (pVnode == NULL) return pVnode;
 
@@ -393,7 +393,7 @@ void *vnodeAccquireVnode(int32_t vgId) {
   return pVnode;
 }
 
-void *vnodeAccquireRqueue(void *param) {
+void *vnodeAcquireRqueue(void *param) {
   SVnodeObj *pVnode = param;
   if (pVnode == NULL) return NULL;
 
@@ -407,7 +407,7 @@ void *vnodeGetRqueue(void *pVnode) {
 }
 
 void *vnodeGetWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAccquireVnode(vgId);
+  SVnodeObj *pVnode = vnodeAcquireVnode(vgId);
   if (pVnode == NULL) return NULL;
   return pVnode->wqueue;
 }
@@ -473,7 +473,7 @@ void vnodeBuildStatusMsg(void *param) {
 void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pAccess[i].vgId = htonl(pAccess[i].vgId);
-    SVnodeObj *pVnode = vnodeAccquireVnode(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAcquireVnode(pAccess[i].vgId);
     if (pVnode != NULL) {
       pVnode->accessState = pAccess[i].accessState;
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
