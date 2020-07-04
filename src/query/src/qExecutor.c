@@ -29,6 +29,7 @@
 #include "exception.h"
 #include "tscompression.h"
 #include "ttime.h"
+#include "tfile.h"
 
 /**
  * check if the primary column is load by default, otherwise, the program will
