@@ -30,10 +30,10 @@ system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
 system sh/cfg.sh -n dnode4 -c alternativeRole -v 2
 
 $totalTableNum = 10
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v $totalTableNum
-system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v $totalTableNum
-system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v $totalTableNum
-system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v $totalTableNum
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 20
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 20
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 20
+system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 20
 
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
 system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 1
@@ -65,11 +65,9 @@ sleep 3000
 $totalTableNum = 10
 $sleepTimer = 3000
 
-$maxTables = $totalTableNum * 2
-
 $db = db
-print create database $db replica 2 maxTables $maxTables
-sql create database $db replica 2 maxTables $maxTables
+print create database $db replica 2 
+sql create database $db replica 2
 sql use $db
 
 # create table , insert data
