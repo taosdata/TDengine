@@ -46,7 +46,6 @@ static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uin
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
-static void     vnodeFreeqHandle(void* phandle);
 
 static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
@@ -283,9 +282,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
     cqStart(pVnode->cq);
 
-  const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, rfresh handle pool
-  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle, "qhandle");
-
+  pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
@@ -327,6 +324,9 @@ void vnodeRelease(void *pVnodeRaw) {
     vDebug("vgId:%d, release vnode, refCount:%d", vgId, refCount);
     return;
   }
+
+  qCleanupQueryMgmt(pVnode->qMgmt);
+  pVnode->qMgmt = NULL;
 
   if (pVnode->tsdb)
     tsdbCloseRepo(pVnode->tsdb, 1);
@@ -475,7 +475,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   // release local resources only after cutting off outside connections
-  taosCacheCleanup(pVnode->qHandlePool);
+  qSetQueryMgmtClosed(pVnode->qMgmt);
   vnodeRelease(pVnode);
 }
 
@@ -880,13 +880,4 @@ PARSE_OVER:
   cJSON_Delete(root);
   if(fp) fclose(fp);
   return terrno;
-}
-
-void vnodeFreeqHandle(void *qHandle) {
-  void** handle = qHandle;
-  if (handle == NULL || *handle == NULL) {
-    return;
-  }
-
-  qKillQuery(*handle);
 }

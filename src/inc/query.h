@@ -84,6 +84,13 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
  */
 int32_t qKillQuery(qinfo_t qinfo);
 
+void* qOpenQueryMgmt(int32_t vgId);
+void  qSetQueryMgmtClosed(void* pExecutor);
+void  qCleanupQueryMgmt(void* pExecutor);
+void** qRegisterQInfo(void* pMgmt, void* qInfo);
+void** qAcquireQInfo(void* pMgmt, void** key);
+void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree);
+
 #ifdef __cplusplus
 }
 #endif

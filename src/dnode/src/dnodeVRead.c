@@ -98,11 +98,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    if (pMsg->msgType == TSDB_MSG_TYPE_FETCH) {
-      pVnode = vnodeGetVnode(pHead->vgId);
-    } else {
-      pVnode = vnodeAccquireVnode(pHead->vgId);
-    }
+    pVnode = vnodeAccquireVnode(pHead->vgId);
 
     if (pVnode == NULL) {
       leftLen -= pHead->contLen;
@@ -189,24 +185,7 @@ void dnodePutQhandleIntoReadQueue(void *pVnode, void *qhandle) {
   taosWriteQitem(queue, TAOS_QTYPE_QUERY, pRead);
 }
 
-static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMsg) {
-  SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
-  pRead->rpcMsg      = pMsg->rpcMsg;
-  pRead->pCont       = qhandle;
-  pRead->contLen     = 0;
-  pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
-
-  taos_queue queue = vnodeGetRqueue(pVnode);
-  taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
-}
-
 void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
-  if (code == TSDB_CODE_VND_ACTION_IN_PROGRESS) return;
-  if (code == TSDB_CODE_VND_ACTION_NEED_REPROCESSED) {
-    dnodeContinueExecuteQuery(pVnode, pRead->rspRet.qhandle, pRead);
-    code = TSDB_CODE_SUCCESS;
-  }
-
   SRpcMsg rpcRsp = {
     .handle  = pRead->rpcMsg.handle,
     .pCont   = pRead->rspRet.rsp,
@@ -216,6 +195,12 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
 
   rpcSendResponse(&rpcRsp);
   rpcFreeCont(pRead->rpcMsg.pCont);
+  vnodeRelease(pVnode);
+}
+
+void dnodeDispatchNonRspMsg(void *pVnode, SReadMsg *pRead, int32_t code) {
+  vnodeRelease(pVnode);
+  return;
 }
 
 static void *dnodeProcessReadQueue(void *param) {
@@ -235,6 +220,8 @@ static void *dnodeProcessReadQueue(void *param) {
 
     if (type == TAOS_QTYPE_RPC) {
       dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
+    } else {
+      dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
     }
 
     taosFreeQitem(pReadMsg);
