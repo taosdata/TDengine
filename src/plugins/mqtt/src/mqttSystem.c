@@ -111,7 +111,7 @@ void mqttStopSystem() {
 }
 
 void mqttCleanUpSystem() {
-  mqttInfo("starting to clean  up mqtt");
+  mqttInfo("starting to cleanup mqtt");
   free(recntStatus.user_name);
   free(recntStatus.password);
   free(recntStatus.hostname);

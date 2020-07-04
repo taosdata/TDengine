@@ -68,6 +68,12 @@ static void vnodeInit() {
   }
 }
 
+void vnodeCleanupResources() {
+  taosHashCleanup(tsDnodeVnodesHash);
+  vnodeModuleInit = PTHREAD_ONCE_INIT;
+  tsDnodeVnodesHash = NULL;
+}
+
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
   pthread_once(&vnodeModuleInit, vnodeInit);
@@ -362,12 +368,6 @@ void vnodeRelease(void *pVnodeRaw) {
 
   int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
   vDebug("vgId:%d, vnode is released, vnodes:%d", vgId, count);
-
-  if (count <= 0) {
-    taosHashCleanup(tsDnodeVnodesHash);
-    vnodeModuleInit = PTHREAD_ONCE_INIT;
-    tsDnodeVnodesHash = NULL;
-  }
 }
 
 void *vnodeGetVnode(int32_t vgId) {
@@ -431,6 +431,28 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  
+}
+
+int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
+  if (tsDnodeVnodesHash == NULL) return TSDB_CODE_SUCCESS;
+
+  SHashMutableIterator *pIter = taosHashCreateIter(tsDnodeVnodesHash);
+  while (taosHashIterNext(pIter)) {
+    SVnodeObj **pVnode = taosHashIterGet(pIter);
+    if (pVnode == NULL) continue;
+    if (*pVnode == NULL) continue;
+
+    (*numOfVnodes)++;
+    if (*numOfVnodes >= TSDB_MAX_VNODES) {
+      vError("vgId:%d, too many open vnodes, exist:%d max:%d", (*pVnode)->vgId, *numOfVnodes, TSDB_MAX_VNODES);
+      continue;
+    } else {
+      vnodeList[*numOfVnodes - 1] = (*pVnode)->vgId;
+    }
+  }
+
+  taosHashDestroyIter(pIter);
+  return TSDB_CODE_SUCCESS;
 }
 
 void vnodeBuildStatusMsg(void *param) {

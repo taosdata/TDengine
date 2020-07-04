@@ -176,6 +176,7 @@ void dnodeCleanupMgmt() {
   tsMgmtQset = NULL;
   tsMgmtQueue = NULL;
 
+  vnodeCleanupResources();
 }
 
 void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
@@ -242,8 +243,14 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
       int32_t vnode = atoi(de->d_name + 5);
       if (vnode == 0) continue;
 
-      vnodeList[*numOfVnodes] = vnode;
       (*numOfVnodes)++;
+
+      if (*numOfVnodes >= TSDB_MAX_VNODES) {
+        dError("vgId:%d, too many vnode directory in disk, exist:%d max:%d", vnode, *numOfVnodes, TSDB_MAX_VNODES);
+        continue;
+      } else {
+        vnodeList[*numOfVnodes - 1] = vnode;
+      }
     }
   }
   closedir(dir);
@@ -337,7 +344,7 @@ static int32_t dnodeOpenVnodes() {
 void dnodeStartStream() {
   int32_t vnodeList[TSDB_MAX_VNODES];
   int32_t numOfVnodes = 0;
-  int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  int32_t status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
@@ -352,15 +359,14 @@ void dnodeStartStream() {
 }
 
 static void dnodeCloseVnodes() {
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
+  int32_t vnodeList[TSDB_MAX_VNODES];
   int32_t numOfVnodes;
   int32_t status;
 
-  status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
-    free(vnodeList);
     return;
   }
 
@@ -368,7 +374,6 @@ static void dnodeCloseVnodes() {
     vnodeClose(vnodeList[i]);
   }
 
-  free(vnodeList);
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
