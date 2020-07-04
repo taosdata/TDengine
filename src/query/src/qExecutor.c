@@ -89,16 +89,18 @@ typedef struct {
   STSCursor   cur;
 } SQueryStatusInfo;
 
+#if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
-//  uint32_t v = rand();
-//  if (v % 5 <= 1) {
-//    return NULL;
-//  } else {
+  uint32_t v = rand();
+  if (v % 5 <= 1) {
+    return NULL;
+  } else {
     return malloc(__size);
-//  }
+  }
 }
 
 #define malloc  u_malloc
+#endif
 
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
