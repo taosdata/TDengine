@@ -98,7 +98,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    pVnode = vnodeAccquireVnode(pHead->vgId);
+    pVnode = vnodeAcquireVnode(pHead->vgId);
 
     if (pVnode == NULL) {
       leftLen -= pHead->contLen;
@@ -175,13 +175,15 @@ void dnodeFreeVnodeRqueue(void *rqueue) {
   // dynamically adjust the number of threads
 }
 
-void dnodePutQhandleIntoReadQueue(void *pVnode, void *qhandle) {
+void dnodePutItemIntoReadQueue(void *pVnode, void *qhandle) {
   SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
   pRead->pCont = qhandle;
   pRead->contLen = 0;
 
-  taos_queue queue = vnodeAccquireRqueue(pVnode);
+  assert(pVnode != NULL);
+  taos_queue queue = vnodeAcquireRqueue(pVnode);
+
   taosWriteQitem(queue, TAOS_QTYPE_QUERY, pRead);
 }
 
