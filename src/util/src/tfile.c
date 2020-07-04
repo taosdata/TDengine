@@ -51,3 +51,15 @@ ssize_t taos_twrite(int fd, void *buf, size_t count)
 
   return twrite(fd, buf, count);
 }
+
+off_t taos_lseek(int fd, off_t offset, int whence)
+{
+#ifdef TAOS_RANDOM_FILE_FAIL
+  if (rand() % RANDOM_FACTOR == 0) {
+    errno = EIO;
+    return -1;
+  }
+#endif
+
+  return lseek(fd, offset, whence);
+}
