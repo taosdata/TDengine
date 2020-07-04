@@ -73,7 +73,7 @@ typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcIpSet ipSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
-  void     *signature   // for validation
+  void     *signature;  // for validation
   struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
