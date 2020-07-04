@@ -283,7 +283,7 @@ static void *dnodeOpenVnode(void *param) {
 
 static int32_t dnodeOpenVnodes() {
   int32_t *vnodeList = calloc(TSDB_MAX_VNODES, sizeof(int32_t));
-  int32_t numOfVnodes;
+  int32_t numOfVnodes = 0;
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
@@ -360,7 +360,7 @@ void dnodeStartStream() {
 
 static void dnodeCloseVnodes() {
   int32_t vnodeList[TSDB_MAX_VNODES];
-  int32_t numOfVnodes;
+  int32_t numOfVnodes = 0;
   int32_t status;
 
   status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
