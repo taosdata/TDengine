@@ -14,3 +14,5 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   ADD_EXECUTABLE(taosmigrate ${SRC})
   TARGET_LINK_LIBRARIES(taosmigrate common tutil cJson)
 ENDIF () 
+
+SET_SOURCE_FILES_PROPERTIES(./taosmigrate.c PROPERTIES COMPILE_FLAGS -w)
