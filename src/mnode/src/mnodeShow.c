@@ -377,9 +377,9 @@ static void *mnodePutShowObj(SShowObj *pShow, int32_t size) {
   if (tsMnodeShowCache != NULL) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
     SShowObj *newQhandle = taosCachePut(tsMnodeShowCache, &pShow->index, sizeof(int32_t), pShow, size, 6);
+    mDebug("%p, show is put into cache, index:%d", newQhandle, pShow->index);
     free(pShow);
 
-    mDebug("%p, show is put into cache, index:%d", newQhandle, pShow->index);
     return newQhandle;
   }
 

@@ -106,6 +106,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
+    int32_t vgId = pVnode->vgId;
 
     // current connect is broken
     if (code == TSDB_CODE_SUCCESS) {
@@ -135,7 +136,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       assert(pQInfo == NULL);
     }
 
-    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
   } else {
     assert(pCont != NULL);
     pQInfo = *(void**)(pCont);
