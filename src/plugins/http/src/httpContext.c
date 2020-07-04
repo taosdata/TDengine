@@ -58,7 +58,7 @@ static void httpDestroyContext(void *data) {
 }
 
 bool httpInitContexts() {
-  tsHttpServer.contextCache = taosCacheInitWithCb(TSDB_DATA_TYPE_BIGINT, 2, false, httpDestroyContext, "restc");
+  tsHttpServer.contextCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 2, false, httpDestroyContext, "restc");
   if (tsHttpServer.contextCache == NULL) {
     httpError("failed to init context cache");
     return false;
