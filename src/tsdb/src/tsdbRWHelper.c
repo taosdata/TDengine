@@ -19,6 +19,7 @@
 #include "tcoding.h"
 #include "tscompression.h"
 #include "tsdbMain.h"
+#include "tfile.h"
 
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 

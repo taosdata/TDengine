@@ -69,6 +69,7 @@ static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
+    pDnode->lastAccess = tsAccessSquence;
   }
 
   return TSDB_CODE_SUCCESS;
