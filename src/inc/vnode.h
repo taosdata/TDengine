@@ -52,6 +52,7 @@ void    vnodeRelease(void *pVnode);
 void*   vnodeAccquireVnode(int32_t vgId); // add refcount 
 void*   vnodeGetVnode(int32_t vgId);      // keep refcount unchanged
 
+void*   vnodeAccquireRqueue(void *);
 void*   vnodeGetRqueue(void *);
 void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);

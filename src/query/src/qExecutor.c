@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
-#include "taosmsg.h"
+#include "tcache.h"
+#include "tglobal.h"
 #include "qfill.h"
+#include "taosmsg.h"
 
 #include "hash.h"
 #include "qExecutor.h"
@@ -87,16 +89,18 @@ typedef struct {
   STSCursor   cur;
 } SQueryStatusInfo;
 
+#if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
-//  uint32_t v = rand();
-//  if (v % 5 <= 1) {
-//    return NULL;
-//  } else {
+  uint32_t v = rand();
+  if (v % 5 <= 1) {
+    return NULL;
+  } else {
     return malloc(__size);
-//  }
+  }
 }
 
 #define malloc  u_malloc
+#endif
 
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
@@ -1520,7 +1524,6 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 }
 
 static bool isQueryKilled(SQInfo *pQInfo) {
-  return false;
   return (pQInfo->code == TSDB_CODE_TSC_QUERY_CANCELLED);
 }
 
@@ -5910,9 +5913,16 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SQueryMgmt {
+  SCacheObj      *qinfoPool;      // query handle pool
+  int32_t         vgId;
+  bool            closed;
+  pthread_mutex_t lock;
+} SQueryMgmt;
+
 int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, void* param, _qinfo_free_fn_t fn,
     qinfo_t* pQInfo) {
-  assert(pQueryMsg != NULL);
+  assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6354,5 +6364,114 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
 
   pQuery->rec.rows = count;
   setQueryStatus(pQuery, QUERY_COMPLETED);
+}
+
+void freeqinfoFn(void *qhandle) {
+  void** handle = qhandle;
+  if (handle == NULL || *handle == NULL) {
+    return;
+  }
+
+  qKillQuery(*handle);
+}
+
+void* qOpenQueryMgmt(int32_t vgId) {
+  const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, refresh handle pool
+
+  char cacheName[128] = {0};
+  sprintf(cacheName, "qhandle_%d", vgId);
+
+  SQueryMgmt* pQueryHandle = calloc(1, sizeof(SQueryMgmt));
+
+  pQueryHandle->qinfoPool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true, freeqinfoFn, cacheName);
+  pQueryHandle->closed    = false;
+  pthread_mutex_init(&pQueryHandle->lock, NULL);
+
+  qDebug("vgId:%d, open querymgmt success", vgId);
+  return pQueryHandle;
+}
+
+void qSetQueryMgmtClosed(void* pQMgmt) {
+  if (pQMgmt == NULL) {
+    return;
+  }
+
+  SQueryMgmt* pQueryMgmt = pQMgmt;
+  qDebug("vgId:%d, set querymgmt closed, wait for all queries cancelled", pQueryMgmt->vgId);
+
+  pthread_mutex_lock(&pQueryMgmt->lock);
+  pQueryMgmt->closed = true;
+  pthread_mutex_unlock(&pQueryMgmt->lock);
+
+  taosCacheEmpty(pQueryMgmt->qinfoPool, true);
+}
+
+void qCleanupQueryMgmt(void* pQMgmt) {
+  if (pQMgmt == NULL) {
+    return;
+  }
+
+  SQueryMgmt* pQueryMgmt = pQMgmt;
+  int32_t vgId = pQueryMgmt->vgId;
+
+  assert(pQueryMgmt->closed);
+
+  SCacheObj* pqinfoPool = pQueryMgmt->qinfoPool;
+  pQueryMgmt->qinfoPool = NULL;
+
+  taosCacheCleanup(pqinfoPool);
+  pthread_mutex_destroy(&pQueryMgmt->lock);
+  tfree(pQueryMgmt);
+
+  qDebug("vgId:%d querymgmt cleanup completed", vgId);
+}
+
+void** qRegisterQInfo(void* pMgmt, void* qInfo) {
+  if (pMgmt == NULL) {
+    return NULL;
+  }
+
+  SQueryMgmt *pQueryMgmt = pMgmt;
+  if (pQueryMgmt->qinfoPool == NULL) {
+    return NULL;
+  }
+
+  pthread_mutex_lock(&pQueryMgmt->lock);
+  if (pQueryMgmt->closed) {
+    pthread_mutex_unlock(&pQueryMgmt->lock);
+
+    return NULL;
+  } else {
+    void** handle = taosCachePut(pQueryMgmt->qinfoPool, qInfo, POINTER_BYTES, &qInfo, POINTER_BYTES, tsShellActivityTimer*2);
+    pthread_mutex_unlock(&pQueryMgmt->lock);
+
+    return handle;
+  }
+}
+
+void** qAcquireQInfo(void* pMgmt, void** key) {
+  SQueryMgmt *pQueryMgmt = pMgmt;
+
+  if (pQueryMgmt->qinfoPool == NULL || pQueryMgmt->closed) {
+    return NULL;
+  }
+
+  void** handle = taosCacheAcquireByKey(pQueryMgmt->qinfoPool, key, POINTER_BYTES);
+  if (handle == NULL || *handle == NULL) {
+    return NULL;
+  } else {
+    return handle;
+  }
+}
+
+void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree) {
+  SQueryMgmt *pQueryMgmt = pMgmt;
+
+  if (pQueryMgmt->qinfoPool == NULL) {
+    return NULL;
+  }
+
+  taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, needFree);
+  return 0;
 }
 
