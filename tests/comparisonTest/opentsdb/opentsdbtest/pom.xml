@@ -94,7 +94,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>18.0</version>
+      <version>24.1.1</version>
     </dependency>
 
     <dependency>
