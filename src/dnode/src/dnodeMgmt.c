@@ -288,13 +288,12 @@ static void *dnodeOpenVnode(void *param) {
 }
 
 static int32_t dnodeOpenVnodes() {
-  int32_t *vnodeList = calloc(TSDB_MAX_VNODES, sizeof(int32_t));
-  int32_t numOfVnodes;
+  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
+  int32_t numOfVnodes = 0;
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
-    free(vnodeList);
     return status;
   }
 
@@ -340,7 +339,6 @@ static int32_t dnodeOpenVnodes() {
     free(pThread->vnodeList);
   }
 
-  free(vnodeList);
   free(threads);
   dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, openVnodes, failedVnodes);
 
@@ -348,7 +346,7 @@ static int32_t dnodeOpenVnodes() {
 }
 
 void dnodeStartStream() {
-  int32_t vnodeList[TSDB_MAX_VNODES];
+  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
   int32_t numOfVnodes = 0;
   int32_t status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
 
@@ -365,7 +363,7 @@ void dnodeStartStream() {
 }
 
 static void dnodeCloseVnodes() {
-  int32_t vnodeList[TSDB_MAX_VNODES];
+  int32_t vnodeList[TSDB_MAX_VNODES]= {0};
   int32_t numOfVnodes;
   int32_t status;
 
