@@ -106,6 +106,12 @@ int32_t dnodeInitMgmt() {
     }
   }
 
+  int32_t code = vnodeInitResources();
+  if (code != TSDB_CODE_SUCCESS) {
+    dnodeCleanupMgmt();
+    return -1;
+  }
+
   // create the queue and thread to handle the message 
   tsMgmtQset = taosOpenQset();
   if (tsMgmtQset == NULL) {
@@ -127,18 +133,12 @@ int32_t dnodeInitMgmt() {
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  int32_t code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
+  code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
   pthread_attr_destroy(&thAttr);
   if (code != 0) {
     dError("failed to create thread to process mgmt queue, reason:%s", strerror(errno));
     dnodeCleanupMgmt();
     return -1; 
-  }
-
-  code = vnodeInitResources();
-  if (code != TSDB_CODE_SUCCESS) {
-    dnodeCleanupMgmt();
-    return -1;
   }
 
   code = dnodeOpenVnodes();
@@ -364,7 +364,7 @@ void dnodeStartStream() {
 
 static void dnodeCloseVnodes() {
   int32_t vnodeList[TSDB_MAX_VNODES]= {0};
-  int32_t numOfVnodes;
+  int32_t numOfVnodes = 0;
   int32_t status;
 
   status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
