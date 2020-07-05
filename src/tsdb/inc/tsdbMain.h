@@ -302,7 +302,7 @@ STSchema*  tsdbGetTableSchema(STable* pTable);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
 STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t version);
 STSchema*  tsdbGetTableTagSchema(STable* pTable);
-int        tsdbUpdateTable(STsdbRepo* pRepo, STable* pTable, STableCfg* pCfg);
+// int        tsdbUpdateTable(STsdbRepo* pRepo, STable* pTable, STableCfg* pCfg);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
@@ -321,7 +321,6 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
 }
 
 static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t version) {
-  ASSERT(TABLE_TYPE(pTable) != TSDB_SUPER_TABLE);
   STable*   pDTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
