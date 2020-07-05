@@ -36,3 +36,8 @@ IF (${RANDOM_FILE_FAIL} MATCHES "true")
   SET(TD_RANDOM_FILE_FAIL TRUE)
   MESSAGE(STATUS "build with random-file-fail enabled")
 ENDIF ()
+
+IF (${RANDOM_NETWORK_FAIL} MATCHES "true")
+  SET(TD_RANDOM_NETWORK_FAIL TRUE)
+  MESSAGE(STATUS "build with random-network-fail enabled")
+ENDIF ()
