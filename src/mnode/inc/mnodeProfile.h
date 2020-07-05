@@ -41,7 +41,7 @@ int32_t mnodeInitProfile();
 void    mnodeCleanupProfile();
 
 SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port);
-SConnObj *mnodeAccquireConn(uint32_t connId, char *user, uint32_t ip, uint16_t port);
+SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t port);
 void      mnodeReleaseConn(SConnObj *pConn);
 int32_t   mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg);
 

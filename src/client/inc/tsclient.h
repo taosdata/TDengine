@@ -32,8 +32,8 @@ extern "C" {
 
 #include "qExecutor.h"
 #include "qsqlparser.h"
-#include "qsqltype.h"
 #include "qtsbuf.h"
+#include "tcmdtype.h"
 
 // forward declaration
 struct SSqlInfo;
@@ -395,7 +395,6 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, void **taos);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 
-int doAsyncParseSql(SSqlObj* pSql);
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
 
 void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql);
@@ -403,13 +402,14 @@ void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+
+// todo remove this function.
 bool tscResultsetFetchCompleted(TAOS_RES *result);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
-void    tscQueueAsyncFreeResult(SSqlObj *pSql);
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 void    tscGetResultColumnChr(SSqlRes *pRes, SFieldInfo* pFieldInfo, int32_t column);
 

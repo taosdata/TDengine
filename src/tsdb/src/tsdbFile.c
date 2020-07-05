@@ -28,6 +28,7 @@
 #include "tsdbMain.h"
 #include "tutil.h"
 #include "ttime.h"
+#include "tfile.h"
 
 const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".l"};
 

@@ -22,7 +22,7 @@ class MetadataQuery:
     def initConnection(self):
         self.tables = 100000
         self.records = 10
-        self.numOfTherads = 10
+        self.numOfTherads = 20
         self.ts = 1537146000000
         self.host = "127.0.0.1"
         self.user = "root"
@@ -55,10 +55,10 @@ class MetadataQuery:
 
     def createTablesAndInsertData(self, threadID):
         cursor = self.connectDB()
-        cursor.execute("use test")
-        base = threadID * self.tables
+        cursor.execute("use test")        
 
         tablesPerThread = int (self.tables / self.numOfTherads)
+        base = threadID * tablesPerThread
         for i in range(tablesPerThread):
             cursor.execute(
                 '''create table t%d using meters tags(
@@ -75,12 +75,11 @@ class MetadataQuery:
                 (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
                 (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
                 (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100))
-            for j in range(self.records):
-                cursor.execute(
-                    "insert into t%d values(%d, %d)" %
-                    (base + i + 1, self.ts + j, j))
-        cursor.close()
-        self.conn.close()
+            
+            cursor.execute(
+                "insert into t%d values(%d, 1) (%d, 2) (%d, 3) (%d, 4) (%d, 5)" %
+                (base + i + 1, self.ts + 1, self.ts + 2, self.ts + 3, self.ts + 4, self.ts + 5))
+        cursor.close()        
 
     def queryData(self, query):
         cursor = self.connectDB()
@@ -108,12 +107,17 @@ if __name__ == '__main__':
     print(
         "================= Create %d tables and insert %d records into each table =================" %
         (t.tables, t.records))
-    startTime = datetime.now()
+    startTime = datetime.now()    
+    threads = []
     for i in range(t.numOfTherads):
         thread = threading.Thread(
             target=t.createTablesAndInsertData, args=(i,))
         thread.start()
-        thread.join()
+        threads.append(thread)
+    
+    for th in threads:        
+        th.join()
+
     endTime = datetime.now()
     diff = (endTime - startTime).seconds
     print(

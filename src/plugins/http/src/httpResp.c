@@ -174,9 +174,9 @@ void httpSendErrorRespWithDesc(HttpContext *pContext, int errNo, char *desc) {
   }
 
   if (desc == NULL) {
-    httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo + 1000, httpMsg[errNo]);
+    httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo + 5000, httpMsg[errNo]);
   } else {
-    httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo + 1000, desc);
+    httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo + 5000, desc);
   }
 }
 
@@ -184,7 +184,8 @@ void httpSendErrorResp(HttpContext *pContext, int errNo) { httpSendErrorRespWith
 
 void httpSendTaosdErrorResp(HttpContext *pContext, int errCode) {
   int httpCode = 400;
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", 1000, (char*)tstrerror(errCode));
+  
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", errCode & 0XFFFF, (char*)tstrerror(errCode));
 }
 
 void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {
@@ -200,7 +201,7 @@ void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {
     } else {}
   }
 
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", 1000, temp);
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_SQL & 0XFFFF, temp);
 }
 
 void httpSendSuccResp(HttpContext *pContext, char *desc) {

@@ -73,6 +73,7 @@ typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcIpSet ipSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
+  void     *signature;  // for validation
   struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
@@ -361,6 +362,7 @@ void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   int contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
   pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
   pContext->ahandle = pMsg->ahandle;
+  pContext->signature = pContext;
   pContext->pRpc = (SRpcInfo *)shandle;
   pContext->ipSet = *pIpSet;
   pContext->contLen = contLen;
@@ -527,10 +529,12 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
   return code;
 }
 
-/* todo: cancel process may have race condition, pContext may have been released 
-   just before app calls the rpcCancelRequest */
 void rpcCancelRequest(void *handle) {
   SRpcReqContext *pContext = handle;
+
+  // signature is used to check if pContext is freed. 
+  // pContext may have been released just before app calls the rpcCancelRequest 
+  if (pContext->signature != pContext) return;
 
   if (pContext->pConn) {
     tDebug("%s, app trys to cancel request", pContext->pConn->info);
@@ -1005,6 +1009,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = pContext->pRpc;
 
+  pContext->signature = NULL;
   pContext->pConn = NULL;
   if (pContext->pRsp) { 
     // for synchronous API
@@ -1529,10 +1534,10 @@ static void rpcAddRef(SRpcInfo *pRpc)
 static void rpcDecRef(SRpcInfo *pRpc)
 { 
   if (atomic_sub_fetch_32(&pRpc->refCount, 1) == 0) {
+    rpcCloseConnCache(pRpc->pCache);
     taosHashCleanup(pRpc->hash);
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
-    rpcCloseConnCache(pRpc->pCache);
 
     tfree(pRpc->connList);
     pthread_mutex_destroy(&pRpc->mutex);
