@@ -56,7 +56,7 @@ int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
 void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
-int32_t vonodeInitResources() {
+int32_t vnodeInitResources() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
