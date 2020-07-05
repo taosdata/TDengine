@@ -801,6 +801,11 @@ int tmkdir(const char *path, mode_t mode) {
 }
 
 void taosMvDir(char* destDir, char *srcDir) {
+  if (0 == tsEnableVnodeBak) {
+    uInfo("vnode backup not enabled");
+    return;
+  }
+
   char shellCmd[1024+1] = {0}; 
   
   //(void)snprintf(shellCmd, 1024, "cp -rf %s %s", srcDir, destDir);

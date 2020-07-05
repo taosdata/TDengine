@@ -46,10 +46,13 @@ static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 
 static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
   SRpcIpSet* pIpList = &pSql->ipList;
+  pIpList->inUse    = 0;
+  if (pVgroupInfo == NULL) {
+    pIpList->numOfIps = 0;
+    return;
+  }
   
   pIpList->numOfIps = pVgroupInfo->numOfIps;
-  pIpList->inUse    = 0;
-  
   for(int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
     strcpy(pIpList->fqdn[i], pVgroupInfo->ipAddr[i].fqdn);
     pIpList->port[i] = pVgroupInfo->ipAddr[i].port;
@@ -539,14 +542,18 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
   
-      pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+      if (pTableMetaInfo->vgroupList->numOfVgroups > 0) {
+        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+      }
       tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
 
     tscSetDnodeIpList(pSql, pVgroupInfo);
-    pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
+    if (pVgroupInfo != NULL) {
+      pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
+    }
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
     pTableIdInfo->tid = htonl(pTableMeta->sid);
@@ -1943,7 +1950,7 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 }
 
 int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
-  taosCacheEmpty(tscCacheHandle);
+  taosCacheEmpty(tscCacheHandle, false);
   return 0;
 }
 
@@ -1989,7 +1996,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 
     if (isSuperTable) {  // if it is a super table, reset whole query cache
       tscDebug("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
-      taosCacheEmpty(tscCacheHandle);
+      taosCacheEmpty(tscCacheHandle, false);
     }
   }
 

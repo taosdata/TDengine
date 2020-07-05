@@ -270,3 +270,49 @@ int tSystem(const char * cmd)
   }
 }
 
+#ifdef TAOS_RANDOM_NETWORK_FAIL
+
+#define RANDOM_NETWORK_FAIL_FACTOR  20
+
+ssize_t taos_send_random_fail(int sockfd, const void *buf, size_t len, int flags)
+{
+  if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
+    errno = ECONNRESET;
+    return -1;
+  }
+
+  return send(sockfd, buf, len, flags);
+}
+
+ssize_t taos_sendto_random_fail(int sockfd, const void *buf, size_t len, int flags,
+                      const struct sockaddr *dest_addr, socklen_t addrlen)
+{
+  if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
+    errno = ECONNRESET;
+    return -1;
+  }
+
+  return sendto(sockfd, buf, len, flags, dest_addr, addrlen);
+}
+
+ssize_t taos_read_random_fail(int fd, void *buf, size_t count)
+{
+  if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
+    errno = ECONNRESET;
+    return -1;
+  }
+
+  return read(fd, buf, count);
+}
+
+ssize_t taos_write_random_fail(int fd, const void *buf, size_t count)
+{
+  if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
+    errno = EINTR;
+    return -1;
+  }
+
+  return write(fd, buf, count);
+}
+
+#endif /* TAOS_RANDOM_NETWORK_FAIL */

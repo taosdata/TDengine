@@ -400,7 +400,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
   }
 
-  void *pVnode = vnodeAccquireVnode(pCreate->cfg.vgId);
+  void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     int32_t code = vnodeAlter(pVnode, pCreate);
     vnodeRelease(pVnode);

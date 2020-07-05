@@ -49,9 +49,10 @@ int32_t vnodeAlter(void *pVnode, SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeClose(int32_t vgId);
 
 void    vnodeRelease(void *pVnode);
-void*   vnodeAccquireVnode(int32_t vgId); // add refcount 
+void*   vnodeAcquireVnode(int32_t vgId); // add refcount
 void*   vnodeGetVnode(int32_t vgId);      // keep refcount unchanged
 
+void*   vnodeAcquireRqueue(void *);
 void*   vnodeGetRqueue(void *);
 void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
