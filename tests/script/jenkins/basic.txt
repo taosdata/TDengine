@@ -246,7 +246,7 @@ cd ../../../debug; make
 ./test.sh -f unique/account/user_len.sim
 
 ###./test.sh -f unique/big/balance.sim
-./test.sh -f unique/big/maxvnodes.sim
+###./test.sh -f unique/big/maxvnodes.sim
 ./test.sh -f unique/big/tcp.sim
 
 ./test.sh -f unique/cluster/balance1.sim
@@ -322,7 +322,7 @@ cd ../../../debug; make
 ./test.sh -f general/stream/table_1.sim
 ./test.sh -f general/stream/table_del.sim
 ./test.sh -f general/stream/table_n.sim
-./test.sh -f general/stream/table_replica1_vnoden.sim
+#./test.sh -f general/stream/table_replica1_vnoden.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
 #./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
@@ -352,7 +352,7 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim
 ###./test.sh -f unique/arbitrator/offline_replica3_alterTable_online.sim
 ./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim
-./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim
+###./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim
 ./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim
 ./test.sh -f unique/arbitrator/offline_replica3_dropTable_online.sim
 ./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim
@@ -361,8 +361,8 @@ cd ../../../debug; make
 
 ./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
-./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
-./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
+###./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
+###./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
 

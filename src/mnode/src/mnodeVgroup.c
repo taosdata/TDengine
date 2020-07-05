@@ -332,8 +332,8 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
 
   // realloc all vgroups in db
   int32_t newIdPoolSize;
-  if (minIdPoolSize * 2 < TSDB_TABLES_STEP) {
-    newIdPoolSize = minIdPoolSize * 2;
+  if (minIdPoolSize * 4 < TSDB_TABLES_STEP) {
+    newIdPoolSize = minIdPoolSize * 4;
   } else {
     newIdPoolSize = ((minIdPoolSize / TSDB_TABLES_STEP) + 1) * TSDB_TABLES_STEP;
   }
@@ -708,7 +708,7 @@ SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
   strcpy(pVnode->db, pVgroup->dbName);
   int32_t maxTables = taosIdPoolMaxSize(pVgroup->idPool);
   //TODO: dynamic alloc tables in tsdb
-  maxTables = tsMaxTablePerVnode;
+  maxTables = MAX(10000, tsMaxTablePerVnode);
 
   SMDVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
