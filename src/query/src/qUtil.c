@@ -32,7 +32,6 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->threshold = threshold;
   
   pWindowResInfo->type = type;
-  
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
   pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
   
@@ -54,7 +53,8 @@ void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols) {
   if (pWindowRes == NULL) {
     return;
   }
-  
+
+  // TODO opt malloc strategy
   for (int32_t i = 0; i < nOutputCols; ++i) {
     free(pWindowRes->resultInfo[i].interResultBuf);
   }

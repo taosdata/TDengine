@@ -449,18 +449,6 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-STSchema *tsdbGetTableSchema(STable *pTable) {
-  if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_STREAM_TABLE) {
-    return pTable->schema[pTable->numOfSchemas - 1];
-  } else if (pTable->type == TSDB_CHILD_TABLE) {
-    STable *pSuper = pTable->pSuper;
-    if (pSuper == NULL) return NULL;
-    return pSuper->schema[pSuper->numOfSchemas - 1];
-  } else {
-    return NULL;
-  }
-}
-
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   void *ptr = taosHashGet(pMeta->uidMap, (char *)(&uid), sizeof(uid));
 
@@ -478,18 +466,6 @@ STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t version) {
   if (ptr == NULL) return NULL;
 
   return *(STSchema **)ptr;
-}
-
-STSchema *tsdbGetTableTagSchema(STable *pTable) {
-  if (pTable->type == TSDB_SUPER_TABLE) {
-    return pTable->tagSchema;
-  } else if (pTable->type == TSDB_CHILD_TABLE) {
-    STable *pSuper = pTable->pSuper;
-    if (pSuper == NULL) return NULL;
-    return pSuper->tagSchema;
-  } else {
-    return NULL;
-  }
 }
 
 int tsdbUpdateTable(STsdbRepo *pRepo, STable *pTable, STableCfg *pCfg) {
