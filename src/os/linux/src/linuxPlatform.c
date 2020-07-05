@@ -277,7 +277,7 @@ int tSystem(const char * cmd)
 ssize_t taos_read_random_fail(int fd, void *buf, size_t count)
 {
   if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
-    errno = EINTR;
+    errno = ECONNRESET;
     return -1;
   }
 
