@@ -60,6 +60,8 @@ int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
 void    vnodeBuildStatusMsg(void *param);
 void    vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes);
+
+int32_t vonodeInitResources();
 void    vnodeCleanupResources();
 
 int32_t vnodeProcessRead(void *pVnode, SReadMsg *pReadMsg);

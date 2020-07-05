@@ -34,8 +34,7 @@
 
 #define TSDB_VNODE_VERSION_CONTENT_LEN 31
 
-static int32_t  tsOpennedVnodes;
-static void    *tsDnodeVnodesHash;
+static SHashObj*tsDnodeVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
 static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
@@ -48,8 +47,6 @@ static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 static void     vnodeFreeqHandle(void* phandle);
 
-static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
-
 #ifndef _SYNC
 tsync_h syncStart(const SSyncInfo *info) { return NULL; }
 int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
@@ -59,25 +56,28 @@ int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
 void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
-static void vnodeInit() {
+int32_t vonodeInitResources() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
   tsDnodeVnodesHash = taosHashInit(TSDB_MAX_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true);
   if (tsDnodeVnodesHash == NULL) {
     vError("failed to init vnode list");
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void vnodeCleanupResources() {
-  taosHashCleanup(tsDnodeVnodesHash);
-  vnodeModuleInit = PTHREAD_ONCE_INIT;
-  tsDnodeVnodesHash = NULL;
+  if (tsDnodeVnodesHash != NULL) {
+    taosHashCleanup(tsDnodeVnodesHash);
+    tsDnodeVnodesHash = NULL;
+  }
 }
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
-  pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pTemp = (SVnodeObj *)taosHashGet(tsDnodeVnodesHash, (const char *)&pVnodeCfg->cfg.vgId, sizeof(int32_t));
   if (pTemp != NULL) {
@@ -145,11 +145,6 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeDrop(int32_t vgId) {
-  if (tsDnodeVnodesHash == NULL) {
-    vDebug("vgId:%d, failed to drop, vgId not exist", vgId);
-    return TSDB_CODE_VND_INVALID_VGROUP_ID;
-  }
-
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     vDebug("vgId:%d, failed to drop, vgId not find", vgId);
@@ -188,7 +183,6 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
 
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   char temp[TSDB_FILENAME_LEN];
-  pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
   if (pVnode == NULL) {
@@ -196,7 +190,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  atomic_add_fetch_32(&tsOpennedVnodes, 1);
   atomic_add_fetch_32(&pVnode->refCount, 1);
 
   pVnode->vgId     = vnode;
@@ -366,13 +359,11 @@ void vnodeRelease(void *pVnodeRaw) {
 
   free(pVnode);
 
-  int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
+  int32_t count = taosHashGetSize(tsDnodeVnodesHash);
   vDebug("vgId:%d, vnode is released, vnodes:%d", vgId, count);
 }
 
 void *vnodeGetVnode(int32_t vgId) {
-  if (tsDnodeVnodesHash == NULL) return NULL;
-
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -425,8 +416,6 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
 }
 
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
-  if (tsDnodeVnodesHash == NULL) return TSDB_CODE_SUCCESS;
-
   SHashMutableIterator *pIter = taosHashCreateIter(tsDnodeVnodesHash);
   while (taosHashIterNext(pIter)) {
     SVnodeObj **pVnode = taosHashIterGet(pIter);

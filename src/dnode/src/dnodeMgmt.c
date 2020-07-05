@@ -135,6 +135,12 @@ int32_t dnodeInitMgmt() {
     return -1; 
   }
 
+  code = vonodeInitResources();
+  if (code != TSDB_CODE_SUCCESS) {
+    dnodeCleanupMgmt();
+    return -1;
+  }
+
   code = dnodeOpenVnodes();
   if (code != TSDB_CODE_SUCCESS) {
     dnodeCleanupMgmt();
