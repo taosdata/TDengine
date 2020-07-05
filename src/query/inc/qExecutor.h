@@ -95,16 +95,13 @@ typedef struct SSingleColumnFilterInfo {
 } SSingleColumnFilterInfo;
 
 typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
-  int32_t     tableIndex;
-  int32_t     groupIndex;  // group id in table list
   TSKEY       lastKey;
-  int32_t     numOfRes;
+  int32_t     groupIndex;     // group id in table list
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
   int64_t     tag;
   STimeWindow win;
   STSCursor   cur;
-  void*       pTable;  // for retrieve the page id list
-
+  void*       pTable;         // for retrieve the page id list
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
@@ -126,11 +123,6 @@ typedef struct SQueryCostInfo {
   uint64_t elapsedTime;
   uint64_t computTime;
 } SQueryCostInfo;
-
-//typedef struct SGroupItem {
-//  void            *pTable;
-//  STableQueryInfo *info;
-//} SGroupItem;
 
 typedef struct SQuery {
   int16_t          numOfCols;
@@ -173,12 +165,12 @@ typedef struct SQueryRuntimeEnv {
   STSBuf*              pTSBuf;
   STSCursor            cur;
   SQueryCostInfo       summary;
-  bool                 stableQuery;      // super table query or not
   void*                pQueryHandle;
   void*                pSecQueryHandle;  // another thread for
-  SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
+  bool                 stableQuery;      // super table query or not
   bool                 topBotQuery;      // false
   int32_t              prevGroupId;      // previous executed group id
+  SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
 
 typedef struct SQInfo {
@@ -205,7 +197,8 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  _qinfo_free_fn_t fn;
+  _qinfo_free_fn_t freeFn;
+  jmp_buf          env;
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

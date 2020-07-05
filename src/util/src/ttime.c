@@ -374,3 +374,34 @@ int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts) {
 
   return getTimestampInUsFromStrImpl(timestamp, token[tokenlen - 1], ts);
 }
+
+// internal function, when program is paused in debugger,
+// one can call this function from debugger to print a
+// timestamp as human readable string, for example (gdb):
+//     p fmtts(1593769722)
+// outputs:
+//     2020-07-03 17:48:42
+// and the parameter can also be a variable.
+const char* fmtts(int64_t ts) {
+  static char buf[32];
+
+  time_t tt;
+  if (ts > -62135625943 && ts < 32503651200) {
+    tt = ts;
+  } else if (ts > -62135625943000 && ts < 32503651200000) {
+    tt = ts / 1000;
+  } else {
+    tt = ts / 1000000;
+  }
+
+  struct tm* ptm = localtime(&tt);
+  size_t pos = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ptm);
+
+  if (ts <= -62135625943000 || ts >= 32503651200000) {
+    sprintf(buf + pos, ".%06d", (int)(ts % 1000000));
+  } else if (ts <= -62135625943 || ts >= 32503651200) {
+    sprintf(buf + pos, ".%03d", (int)(ts % 1000));
+  }
+
+  return buf;
+}

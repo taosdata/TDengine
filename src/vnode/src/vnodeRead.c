@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <dnode.h>
 #include "os.h"
 
 #include "tglobal.h"
@@ -73,20 +74,23 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     killQueryMsg->free = htons(killQueryMsg->free);
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
 
-    vWarn("QInfo:%p connection %p broken, kill query", (void*)killQueryMsg->qhandle, pReadMsg->rpcMsg.handle);
-    assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
-
-    // this message arrived here by means of the *query* message, so release the vnode is necessary
-    void** qhandle = taosCacheAcquireByKey(pVnode->qHandlePool, (void*) &killQueryMsg->qhandle, sizeof(killQueryMsg->qhandle));
-    if (qhandle == NULL || *qhandle == NULL) {  // todo handle invalid qhandle error
-
-    } else {
-//      qKillQuery((qinfo_t) killQueryMsg->qhandle);
-      taosCacheRelease(pVnode->qHandlePool, (void**) &qhandle, true);
+    void* handle = NULL;
+    if ((void**) killQueryMsg->qhandle != NULL) {
+      handle = *(void**) killQueryMsg->qhandle;
     }
 
-    vnodeRelease(pVnode);
-    return TSDB_CODE_TSC_QUERY_CANCELLED; // todo change the error code
+    vWarn("QInfo:%p connection %p broken, kill query", handle, pReadMsg->rpcMsg.handle);
+    assert(pReadMsg->rpcMsg.contLen > 0 && killQueryMsg->free == 1);
+
+    void** qhandle = qAcquireQInfo(pVnode->qMgmt, (void**) killQueryMsg->qhandle);
+    if (qhandle == NULL || *qhandle == NULL) {
+      vWarn("QInfo:%p invalid qhandle, no matched query handle, conn:%p", (void*) killQueryMsg->qhandle, pReadMsg->rpcMsg.handle);
+    } else {
+      assert(qhandle == (void**) killQueryMsg->qhandle);
+      qReleaseQInfo(pVnode->qMgmt, (void**) &qhandle, true);
+    }
+
+    return TSDB_CODE_TSC_QUERY_CANCELLED;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -94,48 +98,58 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   void**  handle = NULL;
 
   if (contLen != 0) {
-    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, pVnode, vnodeRelease, &pQInfo);
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, pVnode, NULL, &pQInfo);
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
-    pRsp->qhandle = htobe64((uint64_t) (pQInfo));
-    pRsp->code = code;
+    pRsp->code    = code;
+    pRsp->qhandle = 0;
 
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
+    int32_t vgId = pVnode->vgId;
 
     // current connect is broken
     if (code == TSDB_CODE_SUCCESS) {
-      if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, pQInfo, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-        vError("vgId:%d, QInfo:%p, dnode query discarded since link is broken, %p", pVnode->vgId, pQInfo,
-               pReadMsg->rpcMsg.handle);
-        pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      // add lock here
+      handle = qRegisterQInfo(pVnode->qMgmt, pQInfo);
+      if (handle == NULL) {  // failed to register qhandle
+        pRsp->code = TSDB_CODE_QRY_INVALID_QHANDLE;
 
-        // NOTE: there two refcount, needs to kill twice, todo refactor
-        // query has not been put into qhandle pool, kill it directly.
         qKillQuery(pQInfo);
         qKillQuery(pQInfo);
-
-        return pRsp->code;
+      } else {
+        assert(*handle == pQInfo);
+        pRsp->qhandle = htobe64((uint64_t) (handle));
       }
 
-      handle = taosCachePut(pVnode->qHandlePool, pQInfo, sizeof(pQInfo), &pQInfo, sizeof(pQInfo), tsShellActivityTimer * 2);
-      assert(*handle == pQInfo);
+      if (handle != NULL && vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+        vError("vgId:%d, QInfo:%p, query discarded since link is broken, %p", pVnode->vgId, pQInfo, pReadMsg->rpcMsg.handle);
+        pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+
+        // NOTE: there two refcount, needs to kill twice
+        // query has not been put into qhandle pool, kill it directly.
+        qKillQuery(pQInfo);
+        qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
+        return pRsp->code;
+      }
     } else {
       assert(pQInfo == NULL);
-      vnodeRelease(pVnode);
     }
 
-    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", pVnode->vgId, pQInfo);
+    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
   } else {
     assert(pCont != NULL);
-    pQInfo = pCont;
+    pQInfo = *(void**)(pCont);
+    handle = pCont;
     code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
+
     vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, pQInfo);
   }
 
   if (pQInfo != NULL) {
-    qTableQuery(pQInfo, vnodeRelease, pVnode); // do execute query
-    taosCacheRelease(pVnode->qHandlePool, (void**) &handle, false);
+    qTableQuery(pQInfo); // do execute query
+    assert(handle != NULL);
+    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
   }
 
   return code;
@@ -146,55 +160,57 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   SRspRet *pRet = &pReadMsg->rspRet;
 
   SRetrieveTableMsg *pRetrieve = pCont;
-  void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
+  void **pQInfo = (void*) htobe64(pRetrieve->qhandle);
   pRetrieve->free = htons(pRetrieve->free);
+
+  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, *pQInfo);
 
   memset(pRet, 0, sizeof(SRspRet));
   int32_t ret = 0;
 
-  void** handle = taosCacheAcquireByKey(pVnode->qHandlePool, &pQInfo, sizeof(pQInfo));
-  if (handle == NULL || *handle != pQInfo) {
+  void** handle = qAcquireQInfo(pVnode->qMgmt, pQInfo);
+  if (handle == NULL || handle != pQInfo) {
     ret = TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
   if (pRetrieve->free == 1) {
-    vDebug("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pQInfo);
+    if (ret == TSDB_CODE_SUCCESS) {
+      vDebug("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pQInfo);
+      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
 
-    taosCacheRelease(pVnode->qHandlePool, handle, true);
-//    int32_t ret = qKillQuery(pQInfo);
+      pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+      pRet->len = sizeof(SRetrieveTableRsp);
 
-    pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
-    pRet->len = sizeof(SRetrieveTableRsp);
-
-    memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
-    SRetrieveTableRsp* pRsp = pRet->rsp;
-    pRsp->numOfRows = 0;
-    pRsp->completed = true;
-    pRsp->useconds  = 0;
-
+      memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
+      SRetrieveTableRsp* pRsp = pRet->rsp;
+      pRsp->numOfRows = 0;
+      pRsp->completed = true;
+      pRsp->useconds  = 0;
+    } else { // todo handle error
+      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
+    }
     return ret;
   }
 
-  vDebug("vgId:%d, QInfo:%p, retrieve msg is received", pVnode->vgId, pQInfo);
-
-  int32_t code = qRetrieveQueryResultInfo(pQInfo);
-  if (code != TSDB_CODE_SUCCESS) {
+  int32_t code = qRetrieveQueryResultInfo(*pQInfo);
+  if (code != TSDB_CODE_SUCCESS || ret != TSDB_CODE_SUCCESS) {
     //TODO
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
+
   } else {
     // todo check code and handle error in build result set
-    code = qDumpRetrieveResult(pQInfo, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len);
+    code = qDumpRetrieveResult(*pQInfo, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len);
 
-    if (qHasMoreResultsToRetrieve(pQInfo)) {
-      pRet->qhandle = pQInfo;
-      code = TSDB_CODE_VND_ACTION_NEED_REPROCESSED;
+    if (qHasMoreResultsToRetrieve(*handle)) {
+      dnodePutItemIntoReadQueue(pVnode, handle);
+      pRet->qhandle = handle;
+      code = TSDB_CODE_SUCCESS;
     } else { // no further execution invoked, release the ref to vnode
-      taosCacheRelease(pVnode->qHandlePool, (void**) &handle, true);
-//      qDestroyQueryInfo(pQInfo);
+      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
     }
   }
-  
+
   return code;
 }
 

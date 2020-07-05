@@ -15,16 +15,16 @@
 
 #include "os.h"
 #include "qsqlparser.h"
+#include "queryLog.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "tcmdtype.h"
 #include "tglobal.h"
 #include "tstoken.h"
+#include "tstrbuild.h"
 #include "ttime.h"
 #include "ttokendef.h"
 #include "tutil.h"
-#include "qsqltype.h"
-#include "tstrbuild.h"
-#include "queryLog.h"
 
 SSqlInfo qSQLParse(const char *pStr) {
   void *pParser = ParseAlloc(malloc);

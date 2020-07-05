@@ -27,6 +27,7 @@
 #include "tcoding.h"
 #include "tkvstore.h"
 #include "tulog.h"
+#include "tfile.h"
 
 #define TD_KVSTORE_HEADER_SIZE 512
 #define TD_KVSTORE_MAJOR_VERSION 1
