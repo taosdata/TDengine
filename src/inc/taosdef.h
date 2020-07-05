@@ -365,6 +365,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TAOS_QTYPE_FWD      1
 #define TAOS_QTYPE_WAL      2 
 #define TAOS_QTYPE_CQ       3
+#define TAOS_QTYPE_QUERY    4
 
 typedef enum {
   TSDB_SUPER_TABLE        = 0,  // super table
