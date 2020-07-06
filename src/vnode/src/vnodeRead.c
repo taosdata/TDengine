@@ -97,7 +97,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   qinfo_t pQInfo = NULL;
   void**  handle = NULL;
 
-  if (contLen != 0) {
+  if (contLen > 0) {
     code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, pVnode, NULL, &pQInfo);
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
@@ -137,21 +137,18 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     }
 
     vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
-  } else {
+    if (pQInfo != NULL) {
+      dnodePutItemIntoReadQueue(pVnode, handle);
+    } 
+  } else { 
     assert(pCont != NULL);
     pQInfo = *(void**)(pCont);
     handle = pCont;
-    code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
-
-    vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, pQInfo);
-  }
-
-  if (pQInfo != NULL) {
     qTableQuery(pQInfo); // do execute query
-    assert(handle != NULL);
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
-  }
-
+    code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
+    vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, pQInfo);
+  } 
   return code;
 }
 
