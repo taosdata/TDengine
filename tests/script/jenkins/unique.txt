@@ -133,3 +133,7 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
 
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim

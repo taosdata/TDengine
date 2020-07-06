@@ -58,8 +58,12 @@ void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
-void    vnodeBuildStatusMsg(void * param);
+int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
+void    vnodeBuildStatusMsg(void *param);
 void    vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes);
+
+int32_t vnodeInitResources();
+void    vnodeCleanupResources();
 
 int32_t vnodeProcessRead(void *pVnode, SReadMsg *pReadMsg);
 
