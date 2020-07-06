@@ -247,6 +247,11 @@ static void *dnodeProcessWriteQueue(void *param) {
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
         dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+      } else if (type == TAOS_QTYPE_FWD) {
+        pHead = (SWalHead *)item;
+        vnodeConfirmForward(pVnode, pHead->version, 0);
+        taosFreeQitem(item);
+        vnodeRelease(pVnode);
       } else {
         taosFreeQitem(item);
         vnodeRelease(pVnode);

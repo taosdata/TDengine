@@ -47,9 +47,9 @@ extern int tsdbDebugFlag;
 // Definitions
 // ------------------ tsdbMeta.c
 typedef struct STable {
+  STableId       tableId;
   ETableType     type;
   tstr*          name;  // NOTE: there a flexible string here
-  STableId       tableId;
   uint64_t       suid;
   struct STable* pSuper;  // super table pointer
   uint8_t        numOfSchemas;
@@ -294,11 +294,34 @@ typedef struct {
 #define TABLE_SUID(t) (t)->suid
 #define TABLE_LASTKEY(t) (t)->lastKey
 
+static FORCE_INLINE STSchema *tsdbGetTableSchema(STable *pTable) {
+  if (pTable->type == TSDB_CHILD_TABLE) {  // check child table first
+    STable *pSuper = pTable->pSuper;
+    if (pSuper == NULL) return NULL;
+    return pSuper->schema[pSuper->numOfSchemas - 1];
+  } else if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE || pTable->type == TSDB_STREAM_TABLE) {
+    return pTable->schema[pTable->numOfSchemas - 1];
+  } else {
+    return NULL;
+  }
+}
+
+static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
+  if (pTable->type == TSDB_CHILD_TABLE) {  // check child table first
+    STable *pSuper = pTable->pSuper;
+    if (pSuper == NULL) return NULL;
+    return pSuper->tagSchema;
+  } else if (pTable->type == TSDB_SUPER_TABLE) {
+    return pTable->tagSchema;
+  } else {
+    return NULL;
+  }
+}
+
 STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
 void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
-STSchema*  tsdbGetTableSchema(STable* pTable);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
 STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t version);
 STSchema*  tsdbGetTableTagSchema(STable* pTable);

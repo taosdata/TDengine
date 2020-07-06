@@ -165,6 +165,8 @@ static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
       }
       mnodeDecDnodeRef(pDnode);
     }
+
+    free(pNew);
   }
 
   mnodeVgroupUpdateIdPool(pVgroup);

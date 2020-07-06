@@ -26,12 +26,12 @@
 
 #include "os.h"
 
-#define RANDOM_FACTOR 5
+#define RANDOM_FILE_FAIL_FACTOR 5
 
 ssize_t taos_tread(int fd, void *buf, size_t count)
 {
 #ifdef TAOS_RANDOM_FILE_FAIL
-  if (rand() % RANDOM_FACTOR == 0) {
+  if (rand() % RANDOM_FILE_FAIL_FACTOR == 0) {
     errno = EIO;
     return -1;
   }
@@ -43,7 +43,7 @@ ssize_t taos_tread(int fd, void *buf, size_t count)
 ssize_t taos_twrite(int fd, void *buf, size_t count)
 {
 #ifdef TAOS_RANDOM_FILE_FAIL
-  if (rand() % RANDOM_FACTOR == 0) {
+  if (rand() % RANDOM_FILE_FAIL_FACTOR == 0) {
     errno = EIO;
     return -1;
   }
@@ -55,7 +55,7 @@ ssize_t taos_twrite(int fd, void *buf, size_t count)
 off_t taos_lseek(int fd, off_t offset, int whence)
 {
 #ifdef TAOS_RANDOM_FILE_FAIL
-  if (rand() % RANDOM_FACTOR == 0) {
+  if (rand() % RANDOM_FILE_FAIL_FACTOR == 0) {
     errno = EIO;
     return -1;
   }

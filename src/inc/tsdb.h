@@ -108,7 +108,9 @@ void tsdbClearTableCfg(STableCfg *config);
 
 void* tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t bytes);
 char* tsdbGetTableName(void *pTable);
-STableId tsdbGetTableId(void *pTable);
+
+#define TSDB_TABLEID(_table) ((STableId*) (_table))
+
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
 int   tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg);
