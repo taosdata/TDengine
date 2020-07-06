@@ -712,14 +712,12 @@ static void doRowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStatus
   SQuery *        pQuery = pRuntimeEnv->pQuery;
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
-  if (IS_MASTER_SCAN(pRuntimeEnv) || pStatus->closed) {
-    for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
-      pCtx[k].nStartQueryTimestamp = pWin->skey;
+  for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+    pCtx[k].nStartQueryTimestamp = pWin->skey;
 
-      int32_t functionId = pQuery->pSelectExpr[k].base.functionId;
-      if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
-        aAggs[functionId].xFunctionF(&pCtx[k], offset);
-      }
+    int32_t functionId = pQuery->pSelectExpr[k].base.functionId;
+    if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
+      aAggs[functionId].xFunctionF(&pCtx[k], offset);
     }
   }
 }
