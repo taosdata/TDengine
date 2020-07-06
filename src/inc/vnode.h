@@ -60,6 +60,7 @@ void*   vnodeGetWal(void *pVnode);
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
 void    vnodeBuildStatusMsg(void *param);
+void    vnodeConfirmForward(void *param, uint64_t version, int32_t code);
 void    vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes);
 void    vnodeCleanupResources();
 

@@ -779,7 +779,8 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     vError("vgId: %d, failed to read vnode cfg, quorum not found", pVnode->vgId);
     goto PARSE_OVER;
   }
-  pVnode->syncCfg.quorum = (int8_t)quorum->valueint;
+  //pVnode->syncCfg.quorum = (int8_t)quorum->valueint;
+  pVnode->syncCfg.quorum = 2; 
 
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
