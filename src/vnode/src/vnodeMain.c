@@ -162,6 +162,12 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
   pVnode->status = TAOS_VN_STATUS_UPDATING;
 
+  if (pVnode->status != TAOS_VN_STATUS_READY) 
+    return TSDB_CODE_VND_INVALID_STATUS;
+
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED)
+    return TSDB_CODE_VND_INVALID_STATUS;
+
   int32_t code = vnodeSaveCfg(pVnodeCfg);
   if (code != TSDB_CODE_SUCCESS) return code; 
 
@@ -408,8 +414,11 @@ void *vnodeGetWal(void *pVnode) {
 }
 
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
-  if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
+  if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) return;
+  if (pVnode->tsdb == NULL) return;
+
   int64_t totalStorage, compStorage, pointsWritten = 0;
   tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
 
