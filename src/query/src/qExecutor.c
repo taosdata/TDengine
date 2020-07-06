@@ -685,26 +685,24 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStat
   SQuery *        pQuery = pRuntimeEnv->pQuery;
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
-  if (IS_MASTER_SCAN(pRuntimeEnv) || pStatus->closed) {
-    for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
-      int32_t functionId = pQuery->pSelectExpr[k].base.functionId;
+  for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+    int32_t functionId = pQuery->pSelectExpr[k].base.functionId;
 
-      pCtx[k].nStartQueryTimestamp = pWin->skey;
-      pCtx[k].size = forwardStep;
-      pCtx[k].startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? offset : offset - (forwardStep - 1);
+    pCtx[k].nStartQueryTimestamp = pWin->skey;
+    pCtx[k].size = forwardStep;
+    pCtx[k].startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? offset : offset - (forwardStep - 1);
 
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-        pCtx[k].ptsList = &tsBuf[offset];
-      }
+    if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+      pCtx[k].ptsList = &tsBuf[offset];
+    }
 
-      // not a whole block involved in query processing, statistics data can not be used
-      if (forwardStep != numOfTotal) {
-        pCtx[k].preAggVals.isSet = false;
-      }
-      
-      if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
-        aAggs[functionId].xFunction(&pCtx[k]);
-      }
+    // not a whole block involved in query processing, statistics data can not be used
+    if (forwardStep != numOfTotal) {
+      pCtx[k].preAggVals.isSet = false;
+    }
+
+    if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
+      aAggs[functionId].xFunction(&pCtx[k]);
     }
   }
 }
@@ -1086,6 +1084,11 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   SQuery* pQuery = pRuntimeEnv->pQuery;
+
+  // in case of timestamp column, always generated results.
+  if (functionId == TSDB_FUNC_TS) {
+    return true;
+  }
   
   if (pResInfo->complete || functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
     return false;
@@ -4716,6 +4719,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
     qDebug("QInfo:%p reversed scan completed, elapsed time: %" PRId64 "ms", pQInfo, el);
 
     doRestoreContext(pQInfo);
+    doCloseAllTimeWindowAfterScan(pQInfo);
   } else {
     qDebug("QInfo:%p no need to do reversed scan, query completed", pQInfo);
   }
