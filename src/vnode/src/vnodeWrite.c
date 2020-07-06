@@ -61,7 +61,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
       return TSDB_CODE_VND_INVALID_STATUS;  // it may be in deleting or closing state
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
-      return TSDB_CODE_VND_INVALID_STATUS;
+      return TSDB_CODE_RPC_NOT_READY;
 
     // assign version
     pVnode->version++;

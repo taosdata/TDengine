@@ -160,13 +160,14 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
-  pVnode->status = TAOS_VN_STATUS_UPDATING;
 
   if (pVnode->status != TAOS_VN_STATUS_READY) 
     return TSDB_CODE_VND_INVALID_STATUS;
 
-  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED)
-    return TSDB_CODE_VND_INVALID_STATUS;
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) 
+    return TSDB_CODE_VND_NOT_SYNCED;
+
+  pVnode->status = TAOS_VN_STATUS_UPDATING;
 
   int32_t code = vnodeSaveCfg(pVnodeCfg);
   if (code != TSDB_CODE_SUCCESS) return code; 
