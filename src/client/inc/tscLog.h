@@ -31,9 +31,7 @@ extern int32_t tscEmbedded;
 #define tscInfo(...)  { if (cDebugFlag & DEBUG_INFO)  { taosPrintLog("TSC INFO  ", tscEmbedded ? 255 : cDebugFlag, __VA_ARGS__); }}
 #define tscDebug(...) { if (cDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSC DEBUG ", cDebugFlag, __VA_ARGS__); }}
 #define tscTrace(...) { if (cDebugFlag & DEBUG_TRACE) { taosPrintLog("TSC TRACE ", cDebugFlag, __VA_ARGS__); }}
-
-#define tscDebugDump(...) { if (cDebugFlag & DEBUG_DEBUG) { taosPrintLongString("TSC DEBUG ", cDebugFlag, __VA_ARGS__); }}
-#define tscTraceDump(...) { if (cDebugFlag & DEBUG_TRACE) { taosPrintLongString("TSC TRACE ", cDebugFlag, __VA_ARGS__); }}
+#define tscDebugL(...){ if (cDebugFlag & DEBUG_DEBUG) { taosPrintLongString("TSC DEBUG ", cDebugFlag, __VA_ARGS__); }}
 
 #ifdef __cplusplus
 }

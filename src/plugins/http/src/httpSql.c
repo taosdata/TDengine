@@ -166,8 +166,8 @@ void httpProcessMultiSql(HttpContext *pContext) {
   HttpSqlCmd *cmd = multiCmds->cmds + multiCmds->pos;
 
   char *sql = httpGetCmdsString(pContext, cmd->sql);
-  httpTraceDump("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
-           pContext->ipstr, pContext->user, multiCmds->pos, sql);
+  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
+             pContext->ipstr, pContext->user, multiCmds->pos, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
@@ -306,8 +306,8 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
     return;
   }
 
-  httpTraceDump("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
-           pContext->user, sql);
+  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
+            pContext->user, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }

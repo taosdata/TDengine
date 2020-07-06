@@ -32,9 +32,6 @@ extern int32_t tscEmbedded;
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL DEBUG ", uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL TRACE ", uDebugFlag, __VA_ARGS__); }}
 
-#define uDebugDump(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL DEBUG ", uDebugFlag, __VA_ARGS__); }}
-#define uTraceDump(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLongString("UTL TRACE ", uDebugFlag, __VA_ARGS__); }}
-
 #define pError(...) { taosPrintLog("APP ERROR ", 255, __VA_ARGS__); }  
 #define pPrint(...) { taosPrintLog("APP INFO  ", 255, __VA_ARGS__); }  
 

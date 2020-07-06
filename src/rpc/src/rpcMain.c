@@ -973,7 +973,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcInfo  *pRpc = (SRpcInfo *)pRecv->shandle;
   SRpcConn  *pConn = (SRpcConn *)pRecv->thandle;
 
-  tTraceDump(pRecv->msg, pRecv->msgLen);
+  tDump(pRecv->msg, pRecv->msgLen);
 
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
@@ -1247,7 +1247,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
     tError("%s, failed to send, msgLen:%d written:%d, reason:%s", pConn->info, msgLen, writtenLen, strerror(errno));
   }
  
-  tTraceDump(msg, msgLen);
+  tDump(msg, msgLen);
 }
 
 static void rpcProcessConnError(void *param, void *id) {
