@@ -18,6 +18,12 @@
 
 static int32_t rid = 1;
 void           sqlfullTest(TAOS* conn);
+void queryCallback(void* param, TAOS_RES* tres, int code);
+
+struct SInsertParam {
+  TAOS* conn;
+  int32_t id;
+};
 
 void fetchCallBack(void* param, TAOS_RES* tres, int numOfRows) {
   char buf[512] = {0};
@@ -31,20 +37,18 @@ void fetchCallBack(void* param, TAOS_RES* tres, int numOfRows) {
       TAOS_ROW row = taos_fetch_row(tres);
       taos_print_row(buf, row, pField, num_fields);
       int32_t k = __sync_fetch_and_add(&rid, 1);
-      printf("%d:%s", k, buf);
+      printf("%d:%s\n", k, buf);
       buf[0] = 0;
     }
-    //        taos_free_result(tres);
-    //        return;
-    //         retrieve next batch of rows
-    taos_fetch_rows_a(tres, fetchCallBack, param);
-  } else if (numOfRows == 0) {
     printf("--------------------all data has been fetched to client.\n");
+    taos_fetch_rows_a(tres, fetchCallBack, param);
+    return;
+  } else if (numOfRows == 0) {
     taos_free_result(tres);
-  } else {
-    printf("fetch data from server failed, code:%d\n", numOfRows);
-    //        taos_free_result(tres);
   }
+
+  struct SInsertParam* p = (struct SInsertParam*) param;
+  taos_query_a(p->conn, "show tables", queryCallback, p);
 }
 
 void fetchCallBack_Single(void* param, TAOS_RES* tres, TAOS_ROW row) {
@@ -78,31 +82,21 @@ void queryCallback(void* param, TAOS_RES* tres, int code) {
     return;
   }
 
-  taosMsleep(2000);
   taos_fetch_rows_a(tres, fetchCallBack, param);
-  //    taos_fetch_row_a(tres, fetchCallBack_Single, param);
 }
 
-void insertCallBack(void* param, TAOS_RES* tres, int code) {
-  if (code < 0) {
-    if (param != NULL)
-      printf("==================query:%d, error:%d, taos_res:%p=============================", *((int32_t*)param), code,
-             tres);
-    else {
-      printf("==================query:, error:%d, taos_res:%p=============================", code, tres);
-      taos_close(param);
-    }
+int64_t start_ts = 1433955661000;
 
-    printf("insert error, retry in 2sec.");
-    taosMsleep(2000);
-  } else if (code == 1) {
-    printf("insert into table one row!");
+void insertCallBack(void* param, TAOS_RES* tres, int code) {
+  if (taos_errno(tres) != 0) {
   }
 
-  printf("code:%d", code);
-  taosMsleep(5000);
+  taos_free_result(tres);
+  struct SInsertParam *p = (struct SInsertParam*) param;
 
-  taos_query_a(param, "insert into test.txu using test.txx tags(1) values(now, 2)", insertCallBack, param);
+  char tt[1024] = {0};
+  sprintf(tt, "insert into tm%d values(%"PRId64", 1)", p->id, ++start_ts);
+  taos_query_a(p->conn, tt, insertCallBack, param);
 }
 
 void loadData(char* filePath, char** buf) {
@@ -304,8 +298,6 @@ int multiThreadLoad(int32_t numOfThreads, int32_t totalMeters, char* startTime, 
   return 0;
 }
 
-int64_t start_ts = 1433955661000;
-
 static UNUSED_FUNC void createEnv(void* conn) {
   executeSQL(conn, "create table sm1(ts timestamp, k int) tags(a int)", NULL);
   char sql[1024] = {0};
@@ -325,7 +317,7 @@ static UNUSED_FUNC void createEnv(void* conn) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
@@ -336,11 +328,12 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "use lm1_db0", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
-  createEnvironment(conn, 1, 1, 10000, 30);
-  //    executeSQL(conn, "select count(*) from lm_tb0 where ts >=1537146000000 and ts <= 1537151400000 interval(20m)
-  //    sliding(10m)", NULL); executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
+//  createEnvironment(conn, 1, 1, 10000, 30);
+  executeSQL(conn, "select max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), first(c9) from lm1_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and t1 > 1 and t1 < 8 interval(5m)", NULL);
+  return 0;
+      //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
   //    database TU1", NULL);
   // selectivity + tags/ts + group by normal columns
   //    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
@@ -402,12 +395,27 @@ int main(int argc, char** argv) {
   //                     "and m1.ts<now and m1.a=m2.a and m1.ts=m2.ts", NULL);
   //
   //    executeSQL(conn, "select m1.ts from m1 where m1.ts<now and (m1.a=9 and m1.a=20) and m1.ts>10000", NULL);
-  //    for(int32_t i = 0; i < 20000; ++i) {
-  //        executeSQL(conn, "select count(*) from m1", NULL);
-  //    }
+
+  for(int32_t i = 0; i < 2000000; ++i) {
+        executeSQL(conn, "select * from m1", NULL);
+        executeSQL(conn, "select count(*) from tm99 group by k", NULL);
+        executeSQL(conn, "select count(*) from m1 where tbname in ('tm99')", NULL);
+        executeSQL(conn, "select count(*) from m1 where tbname in ('tm99') interval(1m)", NULL);
+        executeSQL(conn, "select count(tm99.ts) from tm99, tm98 where tm99.ts=tm98.ts", NULL);
+  }
   //    executeSQL(conn, "create database test precision 'us' rows 20000 ablocks 1.9 days 20", NULL);
-  //    taos_query_a(conn, "select * from tm0", queryCallback, conn);
-  //    getchar();
+  struct SInsertParam p = {.conn = conn, .id = 0};
+//  taos_query_a(conn, "insert into tm0 values(1433955661000, 1)", insertCallBack, &p);
+//      taos_query_a(conn, "select * from tm0", insertCallBack, conn);
+//  struct SInsertParam p1 = {.conn = conn, .id = 1};
+//  taos_query_a(conn, "insert into tm1 values(1433955661000, 1)", insertCallBack, &p1);
+
+//  struct SInsertParam p2 = {.conn = conn, .id = 2};
+//  taos_query_a(conn, "insert into tm2 values(1433955661000, 1)", insertCallBack, &p2);
+    taos_query_a(conn, "show tables", queryCallback, &p);
+//    taos_query_a(conn, "select count(*) from tm0", queryCallback, &p);
+//    taos_query_a(conn, "select count(*) from tm0", queryCallback, &p);
+      getchar();
   //    executeSQL(conn, "select count(m1.*) from m1", NULL);
   //    executeSQL(conn, "select top(k, 4) from mx interval(10a) order by ts desc", NULL);
   //    executeSQL(conn, "INSERT INTO
