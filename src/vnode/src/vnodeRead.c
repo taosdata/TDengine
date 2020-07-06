@@ -110,13 +110,13 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
     // current connect is broken
     if (code == TSDB_CODE_SUCCESS) {
-      // add lock here
       handle = qRegisterQInfo(pVnode->qMgmt, pQInfo);
       if (handle == NULL) {  // failed to register qhandle
         pRsp->code = TSDB_CODE_QRY_INVALID_QHANDLE;
 
         qKillQuery(pQInfo);
         qKillQuery(pQInfo);
+        pQInfo = NULL;
       } else {
         assert(*handle == pQInfo);
         pRsp->qhandle = htobe64((uint64_t) (handle));

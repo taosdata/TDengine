@@ -1681,8 +1681,7 @@ static bool onlyQueryTags(SQuery* pQuery) {
 void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *realWin, STimeWindow *win) {
   assert(key >= keyFirst && key <= keyLast && pQuery->slidingTime <= pQuery->intervalTime);
 
-  win->skey = taosGetIntervalStartTimestamp(key, pQuery->slidingTime, pQuery->slidingTimeUnit, pQuery->precision);
-
+  win->skey = taosGetIntervalStartTimestamp(key, pQuery->slidingTime, pQuery->intervalTime, pQuery->slidingTimeUnit, pQuery->precision);
   if (keyFirst > (INT64_MAX - pQuery->intervalTime)) {
     /*
      * if the realSkey > INT64_MAX - pQuery->intervalTime, the query duration between
@@ -3664,11 +3663,11 @@ void copyFromWindowResToSData(SQInfo *pQInfo, SWindowResult *result) {
   assert(pQuery->rec.rows <= pQuery->rec.capacity);
 }
 
-static UNUSED_FUNC void updateWindowResNumOfRes(SQueryRuntimeEnv *pRuntimeEnv, STableQueryInfo *pTableQueryInfo) {
+static void updateWindowResNumOfRes(SQueryRuntimeEnv *pRuntimeEnv, STableQueryInfo *pTableQueryInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   // update the number of result for each, only update the number of rows for the corresponding window result.
-  if (pQuery->intervalTime == 0) {
+  if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
 
     for (int32_t i = 0; i < pRuntimeEnv->windowResInfo.size; ++i) {
       SWindowResult *pResult = &pRuntimeEnv->windowResInfo.pResult[i];
@@ -3682,14 +3681,6 @@ static UNUSED_FUNC void updateWindowResNumOfRes(SQueryRuntimeEnv *pRuntimeEnv, S
         pResult->numOfRows = MAX(pResult->numOfRows, pResult->resultInfo[j].numOfRes);
       }
     }
-
-//    int32_t g = pTableQueryInfo->groupIndex;
-//    assert(pRuntimeEnv->windowResInfo.size > 0);
-//
-//    SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, (char *)&g, sizeof(g));
-//    if (pWindowRes->numOfRows == 0) {
-//      pWindowRes->numOfRows = getNumOfResult(pRuntimeEnv);
-//    }
   }
 }
 
@@ -4258,7 +4249,10 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
       } else {  // interval query
         TSKEY nextKey = blockInfo.window.skey;
         setIntervalQueryRange(pQInfo, nextKey);
-        /*int32_t ret = */setAdditionalInfo(pQInfo, (*pTableQueryInfo)->pTable, *pTableQueryInfo);
+
+        if (pRuntimeEnv->hasTagResults || pRuntimeEnv->pTSBuf != NULL) {
+          setAdditionalInfo(pQInfo, (*pTableQueryInfo)->pTable, *pTableQueryInfo);
+        }
       }
     }
 
@@ -4658,6 +4652,8 @@ static void doRestoreContext(SQInfo *pQInfo) {
 static void doCloseAllTimeWindowAfterScan(SQInfo *pQInfo) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+
   if (isIntervalQuery(pQuery)) {
     size_t numOfGroup = GET_NUM_OF_TABLEGROUP(pQInfo);
     for (int32_t i = 0; i < numOfGroup; ++i) {
@@ -4667,6 +4663,7 @@ static void doCloseAllTimeWindowAfterScan(SQInfo *pQInfo) {
       for (int32_t j = 0; j < num; ++j) {
         STableQueryInfo* item = taosArrayGetP(group, j);
         closeAllTimeWindow(&item->windowResInfo);
+        removeRedundantWindow(&item->windowResInfo, item->lastKey - step, step);
       }
     }
   } else {  // close results for group result
