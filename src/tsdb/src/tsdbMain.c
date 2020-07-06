@@ -166,12 +166,10 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   SSubmitMsgIter msgIter = {0};
 
   if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
-    if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      return 0;
-    } else {
+    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
       tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
-      return -1;
     }
+    return -1;
   }
 
   if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) {
