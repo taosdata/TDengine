@@ -327,6 +327,12 @@ class ThreadCoordinator:
     def printStats(self):
         self._execStats.printStats()
 
+    def isFailed(self):
+        return self._execStats.isFailed()
+
+    def getExecStats(self):
+        return self._execStats
+
     def tapAllThreads(self): # in a deterministic manner
         wakeSeq = []
         for i in range(self._pool.numThreads): # generate a random sequence
@@ -1007,7 +1013,7 @@ class DbManager():
             # print("Error type: {}, msg: {}, value: {}".format(type(err), err.msg, err))
             if ( err.msg == 'client disconnected' ): # cannot open DB connection
                 print("Cannot establish DB connection, please re-run script without parameter, and follow the instructions.")
-                sys.exit()
+                sys.exit(2)
             else:
                 raise            
         except:
@@ -1266,6 +1272,12 @@ class ExecutionStats:
 
         self._failed = False
         self._failureReason = None
+
+    def __str__(self):
+        return "[ExecStats: _failed={}, _failureReason={}".format(self._failed, self._failureReason)
+
+    def isFailed(self):
+        return self._failed == True
 
     def startExec(self):
         self._execStartTime = time.time()
@@ -1743,7 +1755,11 @@ class ClientManager:
         self.tc = ThreadCoordinator(thPool, dbManager)
         
         self.tc.run()
+        # print("exec stats: {}".format(self.tc.getExecStats()))
+        # print("TC failed = {}".format(self.tc.isFailed()))
         self.conclude()
+        # print("TC failed (2) = {}".format(self.tc.isFailed()))
+        return 1 if self.tc.isFailed() else 0 # Linux return code: ref https://shapeshed.com/unix-exit-codes/
 
     def conclude(self):
         self.tc.printStats()
@@ -1758,7 +1774,7 @@ class MainExec:
     @classmethod
     def runClient(cls):
         clientManager = ClientManager()
-        clientManager.run()
+        return clientManager.run()
 
     @classmethod
     def runService(cls):
@@ -1863,10 +1879,12 @@ def main():
     if gConfig.run_tdengine : # run server
         MainExec.runService()
     else :
-        MainExec.runClient()
+        return MainExec.runClient()
 
     
     # logger.info("Crash_Gen execution finished")
 
 if __name__ == "__main__":
-    main()
+    exitCode = main()
+    # print("Exiting with code: {}".format(exitCode))
+    sys.exit(exitCode)
