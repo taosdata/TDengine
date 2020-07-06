@@ -166,8 +166,8 @@ void httpProcessMultiSql(HttpContext *pContext) {
   HttpSqlCmd *cmd = multiCmds->cmds + multiCmds->pos;
 
   char *sql = httpGetCmdsString(pContext, cmd->sql);
-  httpDump("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
-           pContext->ipstr, pContext->user, multiCmds->pos, sql);
+  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
+             pContext->ipstr, pContext->user, multiCmds->pos, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
