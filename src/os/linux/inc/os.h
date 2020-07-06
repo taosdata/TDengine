@@ -86,8 +86,27 @@ extern "C" {
     }                      \
   }
   
+#ifdef TAOS_RANDOM_NETWORK_FAIL
+
+ssize_t taos_send_random_fail(int sockfd, const void *buf, size_t len, int flags);
+
+ssize_t taos_sendto_random_fail(int sockfd, const void *buf, size_t len, int flags,
+                      const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t taos_read_random_fail(int fd, void *buf, size_t count);
+ssize_t taos_write_random_fail(int fd, const void *buf, size_t count);
+
+#define send(sockfd, buf, len, flags) taos_send_random_fail(sockfd, buf, len, flags)
+#define sendto(sockfd, buf, len, flags, dest_addr, addrlen) \
+          taos_sendto_random_fail(sockfd, buf, len, flags, dest_addr, addrlen)
+#define taosWriteSocket(fd, buf, len) taos_write_random_fail(fd, buf, len)
+#define taosReadSocket(fd, buf, len) taos_read_random_fail(fd, buf, len)
+
+#else
+
 #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
 #define taosReadSocket(fd, buf, len) read(fd, buf, len)
+
+#endif  /* TAOS_RANDOM_NETWORK_FAIL */
 
 #define atomic_load_8(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
 #define atomic_load_16(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
