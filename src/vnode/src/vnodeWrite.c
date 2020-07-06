@@ -89,6 +89,11 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   return syncCode;
 }
 
+void vnodeConfirmForward(void *param, uint64_t version, int32_t code) {
+  SVnodeObj *pVnode = (SVnodeObj *)param;
+  syncConfirmForward(pVnode->sync, version, code);
+}
+
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
 
