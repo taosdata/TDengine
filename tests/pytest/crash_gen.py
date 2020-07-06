@@ -1,4 +1,4 @@
-#!/usr/bin/python3.7
+#-----!/usr/bin/python3.7
 ###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
@@ -25,6 +25,7 @@ if sys.version_info[0] < 3:
 import getopt
 import argparse
 import copy
+import requests
 
 import threading
 import random
@@ -1061,8 +1062,11 @@ class DbManager():
 
     def getNextTick(self):
         with self._lock: # prevent duplicate tick
-            self._lastTick += datetime.timedelta(0, 1) # add one second to it
-            return self._lastTick
+            if Dice.throw(10) == 0 : # 1 in 10 chance
+                return self._lastTick + datetime.timedelta(0, -100)
+            else: # regular
+                self._lastTick += datetime.timedelta(0, 1) # add one second to it
+                return self._lastTick
 
     def getNextInt(self):
         with self._lock:
@@ -1220,7 +1224,12 @@ class Task():
                     # sys.exit(-1)
                     self._err = err
                     self._aborted = True
-        except:
+        except Exception as e :
+            self.logInfo("Non-TAOS exception encountered")
+            self._err = e 
+            self._aborted = True
+            traceback.print_exc()
+        except :
             self.logDebug("[=] Unexpected exception, SQL: {}".format(self._lastSql))
             raise
         self._execStats.endTaskType(self.__class__.__name__, self.isSuccess())
@@ -1698,6 +1707,8 @@ class ClientManager:
         dbManager = DbManager(resetDb=False)
         dbc = dbManager.getDbConn()
         if dbc.query("show databases") == 0 : # no databae
+            return
+        if dbc.query("show tables") == 0 : # no tables
             return
 
         dbc.execute("use db")

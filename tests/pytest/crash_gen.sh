@@ -38,4 +38,4 @@ export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build/build/lib
 
 # Now we are all let, and let's see if we can find a crash. Note we pass all params
-./crash_gen.py $@
+python3 ./crash_gen.py $@
