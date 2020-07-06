@@ -108,7 +108,7 @@ bool httpReadDataImp(HttpContext *pContext) {
 
 static bool httpDecompressData(HttpContext *pContext) {
   if (pContext->contentEncoding != HTTP_COMPRESS_GZIP) {
-    httpTraceDump("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
+    httpTraceL("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
     return true;
   }
 
@@ -124,8 +124,8 @@ static bool httpDecompressData(HttpContext *pContext) {
   if (ret == 0) {
     memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
     pContext->parser.data.pos[decompressBufLen] = 0;
-    httpTraceDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
-              pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, decompressBufLen,  decompressBuf);
+    httpTraceL("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s", pContext, pContext->fd,
+              pContext->ipstr, pContext->parser.data.len, decompressBufLen, decompressBuf);
     pContext->parser.data.len = decompressBufLen;
   } else {
     httpError("context:%p, fd:%d, ip:%s, failed to decompress data, rawSize:%d, error:%d",

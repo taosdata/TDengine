@@ -503,7 +503,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
   strtolower(pSql->sqlstr, sqlstr);
 
-  tscDebugDump("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   tsem_init(&pSql->rspSem, 0, 0);
 
   int32_t code = tsParseSql(pSql, true);

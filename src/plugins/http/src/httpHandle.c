@@ -313,9 +313,9 @@ bool httpParseRequest(HttpContext* pContext) {
     return true;
   }
 
-  httpTraceDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, read size:%d, raw data:\n%s", pContext, pContext->fd,
-                pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser.bufsize,
-                pContext->parser.buffer);
+  httpTraceL("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, read size:%d, raw data:\n%s", pContext, pContext->fd,
+            pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser.bufsize,
+            pContext->parser.buffer);
 
   if (!httpGetHttpMethod(pContext)) {
     return false;
