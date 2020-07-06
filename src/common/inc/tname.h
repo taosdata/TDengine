@@ -29,4 +29,6 @@ bool tscValidateTableNameLength(size_t len);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
 
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision);
+
 #endif  // TDENGINE_NAME_H
