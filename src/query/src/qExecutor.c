@@ -2173,6 +2173,7 @@ static void ensureOutputBuffer(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pB
         if (tmp == NULL) {  // todo handle the oom
           assert(0);
         } else {
+          memset(tmp + sizeof(tFilePage) + bytes * pRec->rows, 0, (newSize - pRec->rows) * bytes);
           pQuery->sdata[i] = (tFilePage *)tmp;
         }
         
