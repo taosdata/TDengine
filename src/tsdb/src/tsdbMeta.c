@@ -282,7 +282,6 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   pMsg->tid = htonl(pMsg->tid);
   pMsg->tversion  = htons(pMsg->tversion);
   pMsg->colId     = htons(pMsg->colId);
-  pMsg->type      = htons(pMsg->type);
   pMsg->bytes     = htons(pMsg->bytes);
   pMsg->tagValLen = htonl(pMsg->tagValLen);
   pMsg->numOfTags = htons(pMsg->numOfTags);
@@ -358,15 +357,15 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   }
 
   bool      isChangeIndexCol = (pMsg->colId == colColId(schemaColAt(pTable->pSuper->tagSchema, 0)));
-  STColumn *pCol = bsearch(&(pMsg->colId), pMsg->data, pMsg->numOfTags, sizeof(STColumn), colIdCompar);
-  ASSERT(pCol != NULL);
+  // STColumn *pCol = bsearch(&(pMsg->colId), pMsg->data, pMsg->numOfTags, sizeof(STColumn), colIdCompar);
+  // ASSERT(pCol != NULL);
 
   if (isChangeIndexCol) {
     tsdbWLockRepoMeta(pRepo);
     tsdbRemoveTableFromIndex(pMeta, pTable);
   }
   taosWLockLatch(&(pTable->latch));
-  tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pCol->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
+  tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pMsg->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
   taosWUnLockLatch(&(pTable->latch));
   if (isChangeIndexCol) {
     tsdbAddTableIntoIndex(pMeta, pTable, false);
@@ -486,8 +485,6 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-STSchema *tsdbGetTableSchema(STable *pTable) { return tsdbGetTableSchemaImpl(pTable, true, false, -1); }
-
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   void *ptr = taosHashGet(pMeta->uidMap, (char *)(&uid), sizeof(uid));
 
@@ -498,18 +495,6 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
 
 STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t version) {
   return tsdbGetTableSchemaImpl(pTable, true, false, version);
-}
-
-STSchema *tsdbGetTableTagSchema(STable *pTable) {
-  if (pTable->type == TSDB_SUPER_TABLE) {
-    return pTable->tagSchema;
-  } else if (pTable->type == TSDB_CHILD_TABLE) {
-    STable *pSuper = pTable->pSuper;
-    if (pSuper == NULL) return NULL;
-    return pSuper->tagSchema;
-  } else {
-    return NULL;
-  }
 }
 
 int tsdbWLockRepoMeta(STsdbRepo *pRepo) {
