@@ -97,18 +97,17 @@ void vnodeConfirmForward(void *param, uint64_t version, int32_t code) {
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // save insert result into item
-
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
-  
-  pRet->len = sizeof(SShellSubmitRspMsg);
-  pRet->rsp = rpcMallocCont(pRet->len);
-  SShellSubmitRspMsg *pRsp = pRet->rsp;
+
+  // save insert result into item
+  SShellSubmitRspMsg *pRsp = NULL;
+  if (pRet) {  
+    pRet->len = sizeof(SShellSubmitRspMsg);
+    pRet->rsp = rpcMallocCont(pRet->len);
+    pRsp = pRet->rsp;
+  }
+
   if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
-  pRsp->numOfFailedBlocks = 0; //TODO
-  //pRet->len += pRsp->numOfFailedBlocks * sizeof(SShellSubmitRspBlock); //TODO
-  pRsp->code              = 0;
-  pRsp->numOfRows         = htonl(1);
   
   return code;
 }
