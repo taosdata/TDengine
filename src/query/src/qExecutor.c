@@ -1099,7 +1099,6 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
   // todo add comments
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
     return pCtx->param[0].i64Key == pQuery->order.order;
-//    return !QUERY_IS_ASC_QUERY(pQuery);
   }
 
   // in the supplementary scan, only the following functions need to be executed
@@ -4716,8 +4715,8 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
     el = scanMultiTableDataBlocks(pQInfo);
     qDebug("QInfo:%p reversed scan completed, elapsed time: %" PRId64 "ms", pQInfo, el);
 
-    doRestoreContext(pQInfo);
     doCloseAllTimeWindowAfterScan(pQInfo);
+    doRestoreContext(pQInfo);
   } else {
     qDebug("QInfo:%p no need to do reversed scan, query completed", pQInfo);
   }

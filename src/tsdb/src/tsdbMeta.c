@@ -274,6 +274,8 @@ int tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   pMsg->tid = htonl(pMsg->tid);
   pMsg->tversion  = htons(pMsg->tversion);
   pMsg->colId     = htons(pMsg->colId);
+  pMsg->type      = htons(pMsg->type);
+  pMsg->bytes     = htons(pMsg->bytes);
   pMsg->tagValLen = htonl(pMsg->tagValLen);
   pMsg->numOfTags = htons(pMsg->numOfTags);
   pMsg->schemaLen = htonl(pMsg->schemaLen);
