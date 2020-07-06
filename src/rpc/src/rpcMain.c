@@ -602,10 +602,10 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     taosHashRemove(pRpc->hash, hashstr, size);
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
     pConn->pRspMsg = NULL;
+    if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
   } 
 
   // memset could not be used, since lockeBy can not be reset
-  if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
   pConn->inType = 0;
   pConn->outType = 0;
   pConn->inTranId = 0;
