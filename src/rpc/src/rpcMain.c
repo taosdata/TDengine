@@ -538,6 +538,7 @@ void rpcCancelRequest(void *handle) {
 
   if (pContext->pConn) {
     tDebug("%s, app trys to cancel request", pContext->pConn->info);
+    pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
     pContext->pConn = NULL;
     rpcFreeCont(pContext->pCont);
@@ -958,7 +959,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   if (pConn->outType) {
     SRpcReqContext *pContext = pConn->pContext;
     pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-    pConn->pReq = NULL;
+    pConn->pReqMsg = NULL;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
 
@@ -1061,7 +1062,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     SRpcReqContext *pContext = pConn->pContext;
     rpcMsg.handle = pContext;
     pConn->pContext = NULL;
-    pConn->pReq = NULL;
+    pConn->pReqMsg = NULL;
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
     if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
@@ -1298,7 +1299,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
       tDebug("%s, failed to send msg:%s to %s:%hu", pConn->info, taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
       if (pConn->pContext) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-        pConn->pReq = NULL;
+        pConn->pReqMsg = NULL;
         taosTmrStart(rpcProcessConnError, 0, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
       }
