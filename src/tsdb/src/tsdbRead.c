@@ -249,8 +249,6 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   pCheckInfo->initBuf = true;
   int32_t order = pHandle->order;
 
-//  tsdbTakeMemSnapshot(pHandle->pTsdb, &pCheckInfo->mem, &pCheckInfo->imem);
-
   // no data in buffer, abort
   if (pHandle->mem == NULL && pHandle->imem == NULL) {
     return false;
@@ -392,8 +390,11 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
 
   STable* pTable = pCheckInfo->pTableObj;
   assert(pTable != NULL);
-  
-  initTableMemIterator(pHandle, pCheckInfo);
+
+  if (!pCheckInfo->initBuf) {
+    initTableMemIterator(pHandle, pCheckInfo);
+  }
+
   SDataRow row = getSDataRowInTableMem(pCheckInfo);
   if (row == NULL) {
     return false;
@@ -1477,7 +1478,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
-  
+
+  SDataBlockInfo blockInfo = {0};
   if (pQueryHandle->type == TSDB_QUERY_TYPE_EXTERNAL) {
     pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
     pQueryHandle->order = TSDB_ORDER_DESC;
@@ -1487,7 +1489,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     }
     
     SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
-    /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo(pHandle);
+    /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo(pHandle, &blockInfo);
     /*SArray *pDataBlock = */tsdbRetrieveDataBlock(pHandle, sa);
   
     if (pQueryHandle->cur.win.ekey == pQueryHandle->window.skey) {
@@ -1558,7 +1560,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       bool ret = tsdbNextDataBlock((void*) pSecQueryHandle);
       assert(ret);
 
-      /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle);
+      /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
       /*SArray *pDataBlock = */tsdbRetrieveDataBlock((void*) pSecQueryHandle, sa);
   
       for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1750,7 +1752,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   return numOfRows;
 }
 
-SDataBlockInfo tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle) {
+void tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle, SDataBlockInfo* pDataBlockInfo) {
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*)pQueryHandle;
   SQueryFilePos* cur = &pHandle->cur;
   STable* pTable = NULL;
@@ -1763,16 +1765,12 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
     pTable = pCheckInfo->pTableObj;
   }
-  
-  SDataBlockInfo blockInfo = {
-      .uid = pTable->tableId.uid,
-      .tid = pTable->tableId.tid,
-      .rows = cur->rows,
-      .window = cur->win,
-      .numOfCols = QH_GET_NUM_OF_COLS(pHandle),
-  };
 
-  return blockInfo;
+  pDataBlockInfo->uid = pTable->tableId.uid;
+  pDataBlockInfo->tid = pTable->tableId.tid;
+  pDataBlockInfo->rows = cur->rows;
+  pDataBlockInfo->window = cur->win;
+  pDataBlockInfo->numOfCols = QH_GET_NUM_OF_COLS(pHandle);
 }
 
 /*
