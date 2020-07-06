@@ -196,7 +196,6 @@ void walFsync(void *handle) {
   if (pWal == NULL) return;
 
   if (pWal->level == TAOS_WAL_FSYNC && pWal->fd >=0) {
-    printf("WAL-SYNC executed\n");
     if (fsync(pWal->fd) < 0) {
       wError("wal:%s, fsync failed(%s)", pWal->name, strerror(errno));
     }
