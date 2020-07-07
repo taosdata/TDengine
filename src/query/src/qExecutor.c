@@ -49,6 +49,8 @@
 #define GET_COL_DATA_POS(query, index, step) ((query)->pos + (index) * (step))
 #define SWITCH_ORDER(n) (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
+#define SDATA_BLOCK_INITIALIZER (SDataBlockInfo) {{0}, 0}
+
 /* get the qinfo struct address from the query struct address */
 #define GET_COLUMN_BYTES(query, colidx) \
   ((query)->colList[(query)->pSelectExpr[colidx].base.colInfo.colIndex].bytes)
@@ -2233,8 +2235,8 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
          pQuery->order.order);
 
   TsdbQueryHandleT pQueryHandle = IS_MASTER_SCAN(pRuntimeEnv)? pRuntimeEnv->pQueryHandle : pRuntimeEnv->pSecQueryHandle;
-  SDataBlockInfo blockInfo = {0};
 
+  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
   while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -3949,7 +3951,7 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   STableQueryInfo* pTableQueryInfo = pQuery->current;
   TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
 
-  SDataBlockInfo blockInfo = {0};
+  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
   while (tsdbNextDataBlock(pQueryHandle)) {
     if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       return;
@@ -3992,7 +3994,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   STableQueryInfo *pTableQueryInfo = pQuery->current;
 
-  SDataBlockInfo blockInfo = {0};
+  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
   while (tsdbNextDataBlock(pRuntimeEnv->pQueryHandle)) {
     tsdbRetrieveDataBlockInfo(pRuntimeEnv->pQueryHandle, &blockInfo);
 
@@ -4258,7 +4260,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
   int64_t st = taosGetTimestampMs();
 
   TsdbQueryHandleT pQueryHandle = IS_MASTER_SCAN(pRuntimeEnv)? pRuntimeEnv->pQueryHandle : pRuntimeEnv->pSecQueryHandle;
-  SDataBlockInfo blockInfo = {0};
+  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
 
   while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
