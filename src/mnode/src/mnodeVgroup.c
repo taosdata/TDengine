@@ -171,6 +171,12 @@ static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
 
   mnodeVgroupUpdateIdPool(pVgroup);
 
+  // reset vgid status on vgroup changed
+  mDebug("vgId:%d, reset sync status to unsynced", pVgroup->vgId);
+  for (int32_t v = 0; v < pVgroup->numOfVnodes; ++v) {
+    pVgroup->vnodeGid[v].role = TAOS_SYNC_ROLE_UNSYNCED;
+  }
+
   mnodeDecVgroupRef(pVgroup);
 
   mDebug("vgId:%d, is updated, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
@@ -302,6 +308,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     if (pVgid->pDnode == pDnode) {
+      mTrace("dnode:%d, receive status from dnode, vgId:%d status is %d", pVgroup->vgId, pDnode->dnodeId, pVgid->role);
       pVgid->role = pVload->role;
       if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
         pVgroup->inUse = i;

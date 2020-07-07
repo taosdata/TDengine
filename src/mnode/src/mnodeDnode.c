@@ -334,7 +334,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   if (pStatus->dnodeId == 0) {
     mDebug("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
   } else {
-    //mDebug("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
