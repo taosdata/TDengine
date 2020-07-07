@@ -215,6 +215,7 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
     pSupporter->f = NULL;
   }
 
+  tfree(pSupporter->pIdTagList);
   tscTagCondRelease(&pSupporter->tagCond);
   free(pSupporter);
 }
@@ -681,16 +682,12 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SArray *s1 = NULL, *s2 = NULL;
   getIntersectionOfTableTuple(pQueryInfo, pParentSql, &s1, &s2);
   if (taosArrayGetSize(s1) == 0 || taosArrayGetSize(s2) == 0) {  // no results,return.
-    taosArrayDestroy(s1);
-    taosArrayDestroy(s2);
-
     tscDebug("%p tag intersect does not generated qualified tables for join, free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);
 
     // set no result command
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-    (*pParentSql->fp)(pSql->param, pParentSql, 0);
-
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
   } else {
     // proceed to for ts_comp query
     SSqlCmd* pSubCmd1 = &pParentSql->pSubs[0]->cmd;
@@ -824,7 +821,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     // set no result command
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-    (*pParentSql->fp)(pSql->param, pParentSql, 0);
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
     return;
   }
 
