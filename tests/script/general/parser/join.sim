@@ -447,4 +447,16 @@ sql insert into um2 using m2 tags(9) values(1000001, 10)(2000000, 20);
 
 sql_error select count(*) from m1,m2 where m1.a=m2.a and m1.ts=m2.ts;
 
+#empty table join test, add for no result join test
+create database ux1;
+use ux1;
+create table m1(ts timestamp, k int) tags(a binary(12), b int);
+create table tm0 using m1 tags('abc', 1);
+
+create table m2(ts timestamp, k int) tags(a int, b binary(12));
+create table tm2 using m2 tags(2, 'abc');
+select count(*) from tm0, tm2 where tm0.ts=tm2.ts;
+select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a
+drop database ux1;
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
