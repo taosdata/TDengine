@@ -109,6 +109,8 @@ void cqClose(void *handle) {
   while (pObj) {
     SCqObj *pTemp = pObj;
     pObj = pObj->next;
+    tdFreeSchema(pTemp->pSchema);
+    tfree(pTemp->sqlStr);
     free(pTemp);
   } 
   
