@@ -115,7 +115,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
 int   tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg);
 int   tsdbDropTable(TSDB_REPO_T *pRepo, STableId tableId);
-int   tsdbUpdateTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg);
+int   tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg);
 TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid);
 void  tsdbStartStream(TSDB_REPO_T *repo);
 

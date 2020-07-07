@@ -58,7 +58,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
-      return TSDB_CODE_VND_INVALID_VGROUP_ID;  // it may be in deleting or closing state
+      return TSDB_CODE_VND_INVALID_STATUS;  // it may be in deleting or closing state
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
       return TSDB_CODE_RPC_NOT_READY;
@@ -162,7 +162,7 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 }
 
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  if (tsdbUpdateTagValue(pVnode->tsdb, (SUpdateTableTagValMsg *)pCont) < 0) {
+  if (tsdbUpdateTableTagValue(pVnode->tsdb, (SUpdateTableTagValMsg *)pCont) < 0) {
     return terrno;
   }
   return TSDB_CODE_SUCCESS;

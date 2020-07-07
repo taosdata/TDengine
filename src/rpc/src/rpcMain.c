@@ -603,7 +603,10 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
     pConn->pRspMsg = NULL;
     if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
-  } 
+  } else {
+    if (pConn->outType && pConn->pReqMsg) 
+      rpcFreeCont(pConn->pReqMsg);
+  }
 
   // memset could not be used, since lockeBy can not be reset
   pConn->inType = 0;
