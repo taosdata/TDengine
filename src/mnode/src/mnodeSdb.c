@@ -262,10 +262,10 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   }
 
   if (pOper->cb != NULL) {
-    code = (*pOper->cb)(pMsg, pOper->retCode);
+    pOper->retCode = (*pOper->cb)(pMsg, pOper->retCode);
   }
 
-  dnodeSendRpcMnodeWriteRsp(pMsg, code);
+  dnodeSendRpcMnodeWriteRsp(pMsg, pOper->retCode);
   taosFreeQitem(pOper);
 }
 
@@ -552,7 +552,7 @@ static int sdbWrite(void *param, void *data, int type) {
   if (pOper != NULL) {
     // forward to peers
     int32_t syncCode = syncForwardToPeer(tsSdbObj.sync, pHead, pOper, TAOS_QTYPE_RPC);
-    if (syncCode <= 0) atomic_add_fetch_32(&pOper->processedCount, 1);
+    if (syncCode > 0) pOper->processedCount = 0;
 
     if (syncCode < 0) {
       sdbError("table:%s, failed to forward request, result:%s action:%s record:%s version:%" PRId64, pTable->tableName,
@@ -953,6 +953,7 @@ static void *sdbWorkerFp(void *param) {
       taosGetQitem(tsSdbWriteQall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pOper = (SSdbOper *)item;
+        pOper->processedCount = 1;
         pHead = (void *)pOper + sizeof(SSdbOper) + SDB_SYNC_HACK;
         if (pOper->pMsg != NULL) {
           sdbDebug("app:%p:%p, table:%s record:%p:%s version:%" PRIu64 ", will be processed in sdb queue",
@@ -965,7 +966,7 @@ static void *sdbWorkerFp(void *param) {
       }
 
       int32_t code = sdbWrite(pOper, pHead, type);
-      if (pOper) pOper->retCode = code;
+      if (pOper && code <= 0) pOper->retCode = code;
     }
 
     walFsync(tsSdbObj.wal);
