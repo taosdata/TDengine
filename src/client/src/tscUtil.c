@@ -14,21 +14,21 @@
  */
 
 #include "os.h"
-#include "qast.h"
+#include "hash.h"
+#include "tscUtil.h"
 #include "taosmsg.h"
+#include "qast.h"
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"
-#include "tscProfile.h"
 #include "tscLocalMerge.h"
+#include "tscLog.h"
+#include "tscProfile.h"
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
-#include "tscLog.h"
-#include "tscUtil.h"
-#include "hash.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);

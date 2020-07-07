@@ -192,11 +192,6 @@ char *tsdbGetTableName(void* pTable) {
   }
 }
 
-STableId tsdbGetTableId(void *pTable) {
-  assert(pTable);
-  return ((STable*)pTable)->tableId;
-}
-
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
   if (pMsg == NULL) return NULL;
 
