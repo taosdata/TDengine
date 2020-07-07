@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 
 import com.taosdata.jdbc.utils.TDNodes;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 public class BaseTest {
@@ -17,17 +18,6 @@ public class BaseTest {
     @BeforeClass
     public static void setupEnv() {
         try{
-            // String path = System.getProperty("user.dir");
-            // String bashPath = path + "/buildTDengine.sh";
-
-            // Process ps = Runtime.getRuntime().exec(bashPath);
-            // ps.waitFor();
-
-            // BufferedReader br = new BufferedReader(new InputStreamReader(ps.getInputStream()));
-            // while(br.readLine() != null) {
-            //     System.out.println(br.readLine());
-            // }
-            
             File file = new File(deployPath + "/../../../");
             String rootPath = file.getCanonicalPath();
 
@@ -38,8 +28,14 @@ public class BaseTest {
 
             tdNodes.deploy(1);
             tdNodes.start(1);  
+
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    @AfterClass
+    public static void clearUpEnv() {
+        
     }
 }

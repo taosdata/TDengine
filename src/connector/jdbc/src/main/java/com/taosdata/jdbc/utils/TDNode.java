@@ -1,6 +1,7 @@
 package com.taosdata.jdbc.utils;
 
 import java.io.File;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class TDNode {
@@ -36,24 +37,51 @@ public class TDNode {
         this.testCluster = testCluster;
     }
 
+
+    public void searchTaosd(File dir, ArrayList<String> taosdPath) {        
+        File[] fileList = dir.listFiles();
+        
+        if(fileList != null && fileList.length != 0) {
+            for(File file : fileList) {
+                if(file.isFile()) {
+                    if(file.getName().equals("taosd")) {                        
+                        taosdPath.add(file.getAbsolutePath());
+                    }
+                } else {
+                    searchTaosd(file, taosdPath);
+                } 
+            }
+        }
+        
+        return;
+    }
+
     public void start() {
         String selfPath = System.getProperty("user.dir");
         String binPath = "";
-        String projDir = selfPath + "../../../";
+        String projDir = selfPath + "../../../../";
 
-        File dir = new File(projDir);
-                
-        File[] fileList = dir.listFiles();
-        if(fileList == null || fileList.length == 0) {
-            System.out.println("The project path doens't exist");
-            return;
-        }
-
-        for(File file : fileList) {
-            if(file.getName().equals("taosd") && !file.getAbsolutePath().contains("packing")) {
-                binPath = file.getAbsolutePath();
-                break;
+        try {
+            ArrayList<String> taosdPath = new ArrayList<>();
+            
+            File dir = new File(projDir);
+            String realProjDir = dir.getCanonicalPath();
+            dir = new File(realProjDir);
+            System.out.println("project Dir: " + projDir);
+            searchTaosd(dir, taosdPath);
+                        
+            if(taosdPath.size() == 0) {
+                System.out.println("The project path doens't exist");
+                return;
+            } else {
+                for(String p : taosdPath) {
+                    if(!p.contains("packing")) {
+                        binPath = p;
+                    }
+                }
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         if(binPath.equals("")) {
@@ -70,16 +98,16 @@ public class TDNode {
 
         String cmd = "";
         if(this.valgrind == 0) {
-            cmd = "nohup " + binPath + " -c "  + this.cfgDir + " > /dev/null 2>&1 & "; 
+            cmd = "nohup " + binPath + " > /dev/null 2>&1 & "; 
+            System.out.println("start taosd cmd: " + cmd);
         } else {
             String valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes";
             cmd = "nohup " + valgrindCmdline + " " + binPath + " -c "  + this.cfgDir + " 2>&1 & ";                                
         }
 
         try{
-            if(Runtime.getRuntime().exec(cmd).waitFor() != 0) {
-                return;
-            }
+            Runtime.getRuntime().exec(cmd);  
+            TimeUnit.SECONDS.sleep(5);
         } catch (Exception e) {
             e.printStackTrace();
         }

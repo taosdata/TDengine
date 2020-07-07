@@ -1,7 +1,5 @@
 package com.taosdata.jdbc.utils;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 
 public class TDSimClient {
     
@@ -25,16 +23,11 @@ public class TDSimClient {
 
     public void setCfgConfig(String option, String value) {
         String cmd = "echo " + option + " " +  value + " >> " + this.cfgPath;
+        System.out.println("set cfg cmd " + cmd);
         
         try {
-            Process ps = Runtime.getRuntime().exec(cmd);            
-
-            BufferedReader br = new BufferedReader(new InputStreamReader(ps.getInputStream()));
-            while(br.readLine() != null) {
-                System.out.println(br.readLine());
-            }  
-            
-            ps.waitFor();
+            Process ps = Runtime.getRuntime().exec(cmd);                            
+            System.out.println("cfg command result: " + ps.waitFor());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -50,19 +43,26 @@ public class TDSimClient {
 
         try {
             String cmd = "rm -rf " + this.logDir;
-            Runtime.getRuntime().exec(cmd).waitFor();
+            System.out.println("cmd: = " + cmd);
+            Process ps = Runtime.getRuntime().exec(cmd);
+            System.out.println("return value " + ps.waitFor());
+            System.out.println(Runtime.getRuntime().exec(cmd).waitFor());
+            
             
             cmd = "rm -rf " + this.cfgDir;
             Runtime.getRuntime().exec(cmd).waitFor();
+            System.out.println(cmd + " result: " +Runtime.getRuntime().exec(cmd).waitFor());
 
             cmd = "mkdir -p " + this.logDir;
             Runtime.getRuntime().exec(cmd).waitFor();
+            System.out.println(cmd + " result: " +Runtime.getRuntime().exec(cmd).waitFor());
 
             cmd = "mkdir -p " + this.cfgDir;
-            Runtime.getRuntime().exec(cmd).waitFor();
+            System.out.println(cmd + " result: " +Runtime.getRuntime().exec(cmd).waitFor());
 
             cmd = "touch " + this.cfgPath;
-            Runtime.getRuntime().exec(cmd).waitFor();
+            System.out.println(cmd + " result: " +Runtime.getRuntime().exec(cmd).waitFor());
+
         } catch (Exception e) {
             e.printStackTrace();
         }

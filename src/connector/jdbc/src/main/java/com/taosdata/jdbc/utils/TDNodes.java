@@ -42,7 +42,7 @@ public class TDNodes {
             binPath = file.getCanonicalPath();
             System.out.println("binPath real path: " + binPath);
 
-            if (path.isEmpty()) {
+            if (!path.isEmpty()) {
                 file = new File(path + "/../../");                
                 path = file.getCanonicalPath();
             }
@@ -79,7 +79,7 @@ public class TDNodes {
         TDSimClient sim = new TDSimClient();
         
         sim.setPath(path);
-        System.out.println("====== " + path + "=====");
+        System.out.println("======path: " + path + "=====");
         sim.setTestCluster(this.testCluster);        
         if(this.simDeployed == false ) {
             sim.deploy();
@@ -88,7 +88,8 @@ public class TDNodes {
 
         check(index);        
         tdNodes.get(index - 1).setTestCluster(this.testCluster);
-        tdNodes.get(index - 1).setValgrind(valgrind);        
+        tdNodes.get(index - 1).setValgrind(valgrind); 
+        tdNodes.get(index - 1).setPath(System.getProperty("user.dir")); 
         tdNodes.get(index - 1).deploy();
     }
     
