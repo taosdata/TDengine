@@ -156,6 +156,7 @@ int main(int argc, char *argv[]) {
   }
 
   tInfo("client is initialized");
+  tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
   gettimeofday(&systemTime, NULL);
   startTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;
