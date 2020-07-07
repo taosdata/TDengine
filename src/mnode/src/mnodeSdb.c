@@ -244,19 +244,26 @@ static void sdbNotifyRole(void *ahandle, int8_t role) {
 
 FORCE_INLINE
 static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
-  if (code > 0) return;
-
   assert(param);
-
   SSdbOper * pOper = param;
   SMnodeMsg *pMsg = pOper->pMsg;
 
-  if (pOper->cb != NULL) {
-    sdbDebug("app:%p:%p, is confirmed and will do callback func", pMsg->rpcMsg.ahandle, pMsg);
-    pOper->retCode = (*pOper->cb)(pMsg, code);
+  if (code > 0) {
+    if (pMsg != NULL) {
+      sdbDebug("app:%p:%p, waiting for slave to confirm this operation", pMsg->rpcMsg.ahandle, pMsg);
+    }
+    return;
   }
 
-  dnodeSendRpcMnodeWriteRsp(pMsg, pOper->retCode);
+  if (pMsg != NULL) {
+    sdbDebug("app:%p:%p, is confirmed and will do callback func, code:%s", pMsg->rpcMsg.ahandle, pMsg, tstrerror(code));
+  }
+
+  if (pOper->cb != NULL) {
+    code = (*pOper->cb)(pMsg, code);
+  }
+
+  dnodeSendRpcMnodeWriteRsp(pMsg, code);
   taosFreeQitem(pOper);
 }
 
@@ -538,9 +545,7 @@ static int sdbWrite(void *param, void *data, int type) {
   }
   
   // forward to peers, even it is WAL/FWD, it shall be called to update version in sync 
-  void *mhandle = NULL;
-  if (pOper != NULL) mhandle = pOper->pMsg;
-  int32_t syncCode = syncForwardToPeer(tsSdbObj.sync, pHead, mhandle, TAOS_QTYPE_RPC);
+  int32_t syncCode = syncForwardToPeer(tsSdbObj.sync, pHead, pOper, TAOS_QTYPE_RPC);
   pthread_mutex_unlock(&tsSdbObj.mutex);
 
   if (syncCode < 0) {
