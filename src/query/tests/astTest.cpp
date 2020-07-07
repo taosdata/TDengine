@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
-#include <qast.h>
 #include <sys/time.h>
 #include <cassert>
 #include <iostream>
 
-#include "qast.h"
 #include "taosmsg.h"
+#include "qast.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 
@@ -23,8 +22,6 @@ static void initSchema_binary(SSchema *schema, int32_t numOfCols);
 
 static SSkipList *createSkipList(SSchema *pSchema, int32_t numOfTags);
 static SSkipList *createSkipList_binary(SSchema *pSchema, int32_t numOfTags);
-
-static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, SSkipList *pSkipList, ResultObj *expectedVal);
 
 static void dropMeter(SSkipList *pSkipList);
 
@@ -239,44 +236,45 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 //  return pSkipList;
 //}
 
-static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, SSkipList *pSkipList, ResultObj *pResult) {
-  tExprNode *pExpr = NULL;
-  tSQLBinaryExprFromString(&pExpr, schema, numOfCols, sql, strlen(sql));
+//static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, SSkipList *pSkipList, ResultObj *pResult) {
+//  tExprNode *pExpr = NULL;
+//  tSQLBinaryExprFromString(&pExpr, schema, numOfCols, sql, strlen(sql));
+//
+//  char    str[512] = {0};
+//  int32_t len = 0;
+//  if (pExpr == NULL) {
+//    printf("-----error in parse syntax:%s\n\n", sql);
+//    assert(pResult == NULL);
+//    return;
+//  }
+//
+//  tSQLBinaryExprToString(pExpr, str, &len);
+//  printf("expr is: %s\n", str);
+//
+//  SArray *result = NULL;
+//  //  tExprTreeTraverse(pExpr, pSkipList, result, SSkipListNodeFilterCallback, &result);
+//  //  printf("the result is:%lld\n", result.num);
+//  //
+//  //  bool findResult = false;
+//  //  for (int32_t i = 0; i < result.num; ++i) {
+//  //    STabObj *pm = (STabObj *)result.pRes[i];
+//  //    printf("meterid:%s,\t", pm->meterId);
+//  //
+//  //    for (int32_t j = 0; j < pResult->numOfResult; ++j) {
+//  //      if (strcmp(pm->meterId, pResult->resultName[j]) == 0) {
+//  //        findResult = true;
+//  //        break;
+//  //      }
+//  //    }
+//  //    assert(findResult == true);
+//  //    findResult = false;
+//  //  }
+//
+//  printf("\n\n");
+//  tExprTreeDestroy(&pExpr, NULL);
+//}
 
-  char    str[512] = {0};
-  int32_t len = 0;
-  if (pExpr == NULL) {
-    printf("-----error in parse syntax:%s\n\n", sql);
-    assert(pResult == NULL);
-    return;
-  }
-
-  tSQLBinaryExprToString(pExpr, str, &len);
-  printf("expr is: %s\n", str);
-
-  SArray *result = NULL;
-  //  tExprTreeTraverse(pExpr, pSkipList, result, SSkipListNodeFilterCallback, &result);
-  //  printf("the result is:%lld\n", result.num);
-  //
-  //  bool findResult = false;
-  //  for (int32_t i = 0; i < result.num; ++i) {
-  //    STabObj *pm = (STabObj *)result.pRes[i];
-  //    printf("meterid:%s,\t", pm->meterId);
-  //
-  //    for (int32_t j = 0; j < pResult->numOfResult; ++j) {
-  //      if (strcmp(pm->meterId, pResult->resultName[j]) == 0) {
-  //        findResult = true;
-  //        break;
-  //      }
-  //    }
-  //    assert(findResult == true);
-  //    findResult = false;
-  //  }
-
-  printf("\n\n");
-  tExprTreeDestroy(&pExpr, NULL);
-}
-
+#if 0
 static void Left2RightTest(SSchema *schema, int32_t numOfCols, SSkipList *pSkipList) {
   char str[256] = {0};
 
@@ -633,3 +631,4 @@ void exprSerializeTest2() {
 TEST(testCase, astTest) {
 //  exprSerializeTest2();
 }
+#endif
