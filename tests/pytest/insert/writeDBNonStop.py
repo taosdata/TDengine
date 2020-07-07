@@ -67,13 +67,14 @@ class DBWriteNonStop:
                 self.cursor.execute(
                     "select first(ts), last(ts), min(speed), max(speed), avg(speed), count(*) from st")
                 data = self.cursor.fetchall()
-                end = datetime.now()                
+                end = datetime.now()
                 self.writeDataToCSVFile(data, (end - start).seconds)
             time.sleep(.001)
 
     def closeConn(self):
         self.cursor.close()
         self.conn.close()
+
 
 test = DBWriteNonStop()
 test.connectDB()

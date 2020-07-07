@@ -415,13 +415,19 @@ void *vnodeGetWal(void *pVnode) {
 }
 
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
+  int64_t totalStorage = 0;
+  int64_t compStorage = 0;
+  int64_t pointsWritten = 0;
+
   if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
-  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) return;
-  if (pVnode->tsdb == NULL) return;
 
-  int64_t totalStorage, compStorage, pointsWritten = 0;
-  tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
+  // still need report status when unsynced
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) {
+  } else if (pVnode->tsdb == NULL) {
+  } else {
+    tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
+  }
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);

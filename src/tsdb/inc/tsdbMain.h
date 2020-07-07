@@ -195,7 +195,6 @@ typedef struct {
 typedef struct {
   uint32_t len;
   uint32_t offset;
-  // uint32_t padding;
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
   uint64_t uid;
@@ -224,7 +223,7 @@ typedef struct {
 
 typedef struct {
   int16_t colId;
-  int16_t len;
+  int32_t len;
   int32_t type : 8;
   int32_t offset : 24;
   int64_t sum;
@@ -438,8 +437,9 @@ int   tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
 void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
-int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, int16_t* colIds, int numOfColIds);
-int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock);
+int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo, int16_t* colIds,
+                            int numOfColIds);
+int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId
