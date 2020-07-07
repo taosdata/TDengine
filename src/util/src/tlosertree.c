@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tlosertree.h"
 #include "os.h"
 #include "taosmsg.h"
-#include "tlosertree.h"
-#include "queryLog.h"
+#include "tulog.h"
 
 // set initial value for loser tree
 void tLoserTreeInit(SLoserTreeInfo* pTree) {
@@ -45,7 +45,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
-    qError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
+    uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 

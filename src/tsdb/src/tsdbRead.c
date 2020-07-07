@@ -22,7 +22,7 @@
 #include "exception.h"
 
 #include "../../../query/inc/qast.h"  // todo move to common module
-#include "../../../query/inc/tlosertree.h"  // todo move to util module
+#include "tlosertree.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
 
@@ -577,6 +577,8 @@ static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS
 
 static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo) {
   STsdbRepo *pRepo = pQueryHandle->pTsdb;
+
+  // TODO refactor
   SCompData* data = calloc(1, sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols);
 
   data->numOfCols = pBlock->numOfCols;
@@ -606,8 +608,9 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   }
 
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
-  assert(pCols->numOfRows != 0);
+  assert(pCols->numOfRows != 0 && pCols->numOfRows <= pBlock->numOfRows);
 
+  pBlock->numOfRows = pCols->numOfRows;
   taosArrayDestroy(sa);
   tfree(data);
 
