@@ -551,8 +551,9 @@ static int sdbWrite(void *param, void *data, int type) {
   // from app, oper is created
   if (pOper != NULL) {
     // forward to peers
+    pOper->processedCount = 0;
     int32_t syncCode = syncForwardToPeer(tsSdbObj.sync, pHead, pOper, TAOS_QTYPE_RPC);
-    if (syncCode > 0) pOper->processedCount = 0;
+    if (syncCode <= 0) pOper->processedCount = 1;
 
     if (syncCode < 0) {
       sdbError("table:%s, failed to forward request, result:%s action:%s record:%s version:%" PRId64, pTable->tableName,
