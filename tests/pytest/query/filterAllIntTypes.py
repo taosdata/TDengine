@@ -89,17 +89,25 @@ class TDTestCase:
             tdSql.checkRows(101)
 
             # range for int type on column
-            tdSql.query("select * from st%s where num > 50 and num < 100" % curType)
-            tdSql.checkRows(49) 
+            tdSql.query(
+                "select * from st%s where num > 50 and num < 100" %
+                curType)
+            tdSql.checkRows(49)
 
-            tdSql.query("select * from st%s where num >= 50 and num < 100" % curType)
-            tdSql.checkRows(50) 
+            tdSql.query(
+                "select * from st%s where num >= 50 and num < 100" %
+                curType)
+            tdSql.checkRows(50)
 
-            tdSql.query("select * from st%s where num > 50 and num <= 100" % curType)
-            tdSql.checkRows(50) 
+            tdSql.query(
+                "select * from st%s where num > 50 and num <= 100" %
+                curType)
+            tdSql.checkRows(50)
 
-            tdSql.query("select * from st%s where num >= 50 and num <= 100" % curType)
-            tdSql.checkRows(51) 
+            tdSql.query(
+                "select * from st%s where num >= 50 and num <= 100" %
+                curType)
+            tdSql.checkRows(51)
 
             # > for int type on tag
             tdSql.query("select * from st%s where id > 5" % curType)
@@ -135,16 +143,22 @@ class TDTestCase:
 
             # range for int type on tag
             tdSql.query("select * from st%s where id > 5 and id < 7" % curType)
-            tdSql.checkRows(10) 
+            tdSql.checkRows(10)
 
-            tdSql.query("select * from st%s where id >= 5 and id < 7" % curType)
-            tdSql.checkRows(20) 
+            tdSql.query(
+                "select * from st%s where id >= 5 and id < 7" %
+                curType)
+            tdSql.checkRows(20)
 
-            tdSql.query("select * from st%s where id > 5 and id <= 7" % curType)
-            tdSql.checkRows(20) 
+            tdSql.query(
+                "select * from st%s where id > 5 and id <= 7" %
+                curType)
+            tdSql.checkRows(20)
 
-            tdSql.query("select * from st%s where id >= 5 and id <= 7" % curType)
-            tdSql.checkRows(30) 
+            tdSql.query(
+                "select * from st%s where id >= 5 and id <= 7" %
+                curType)
+            tdSql.checkRows(30)
 
             print(
                 "======= Verify filter for %s type finished =========" %

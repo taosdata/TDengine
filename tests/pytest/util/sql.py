@@ -198,7 +198,7 @@ class TDSql:
                 "%s failed: sql:%s, affectedRows:%d != expect:%d" %
                 (callerFilename, self.sql, self.affectedRows, expectAffectedRows))
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" %
-                   (self.sql, self.affectedRows, expectAffectedRows))    
+                   (self.sql, self.affectedRows, expectAffectedRows))
 
 
 tdSql = TDSql()
