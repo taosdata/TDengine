@@ -81,7 +81,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     return startTime;
   }
 
-  int64_t start = ((startTime - intervalTime) / slidingTime + 1) * slidingTime;
+  int64_t start = ((startTime - slidingTime) / slidingTime + 1) * slidingTime;
   if (!(timeUnit == 'a' || timeUnit == 'm' || timeUnit == 's' || timeUnit == 'h')) {
     /*
      * here we revised the start time of day according to the local time zone,
@@ -104,4 +104,27 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     start += slidingTime;
   }
   return start;
+}
+
+/*
+ * tablePrefix.columnName
+ * extract table name and save it in pTable, with only column name in pToken
+ */
+void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
+  const char sep = TS_PATH_DELIMITER[0];
+
+  if (pToken == pTable || pToken == NULL || pTable == NULL) {
+    return;
+  }
+
+  char* r = strnchr(pToken->z, sep, pToken->n, false);
+
+  if (r != NULL) {  // record the table name token
+    pTable->n = r - pToken->z;
+    pTable->z = pToken->z;
+
+    r += 1;
+    pToken->n -= (r - pToken->z);
+    pToken->z = r;
+  }
 }

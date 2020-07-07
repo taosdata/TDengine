@@ -18,19 +18,19 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
-#include "qast.h"
 #include "taos.h"
 #include "taosmsg.h"
-#include "tstoken.h"
-#include "tstrbuild.h"
-#include "ttime.h"
+#include "qast.h"
+#include "tcompare.h"
+#include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "tstoken.h"
+#include "tstrbuild.h"
+#include "ttime.h"
 #include "ttokendef.h"
-#include "tname.h"
-#include "tcompare.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 

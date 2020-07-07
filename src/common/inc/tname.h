@@ -3,6 +3,7 @@
 
 #include "os.h"
 #include "taosmsg.h"
+#include "tstoken.h"
 
 typedef struct SDataStatis {
   int16_t colId;
@@ -22,6 +23,8 @@ typedef struct SColumnInfoData {
 void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
+
+void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 
 SSchema tGetTableNameColumnSchema();
 
