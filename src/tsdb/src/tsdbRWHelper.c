@@ -218,7 +218,7 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
 
   pHelper->tableInfo.tid = pTable->tableId.tid;
   pHelper->tableInfo.uid = pTable->tableId.uid;
-  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
   pHelper->tableInfo.sversion = schemaVersion(pSchema);
 
   tdInitDataCols(pHelper->pDataCols[0], pSchema);

@@ -4490,7 +4490,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     pUpdateMsg->tid       = htonl(pTableMeta->sid);
     pUpdateMsg->uid       = htobe64(pTableMeta->uid);
     pUpdateMsg->colId     = htons(pTagsSchema->colId);
-    pUpdateMsg->type      = htons(pTagsSchema->type);
+    pUpdateMsg->type      = pTagsSchema->type;
     pUpdateMsg->bytes     = htons(pTagsSchema->bytes);
     pUpdateMsg->tversion  = htons(pTableMeta->tversion);
     pUpdateMsg->numOfTags = htons(numOfTags);
