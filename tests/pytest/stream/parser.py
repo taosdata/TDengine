@@ -28,6 +28,24 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    '''
+    def bug2222(self):
+        tdSql.prepare()
+        tdSql.execute("create table superreal(ts timestamp, addr binary(5), val float) tags (deviceNo binary(20))")
+        tdSql.execute("create table real_001 using superreal tags('001')")
+        tdSql.execute("create table tj_001 as select sum(val) from real_001 interval(1m)")
+
+        t = datetime.datetime.now()
+        for i in range(60):
+            ts = t.strftime("%Y-%m-%d %H:%M")
+            t += datetime.timedelta(minutes=1)
+            sql = "insert into real_001 values('%s:0%d', '1', %d)" % (ts, 0, i)
+            for j in range(4):
+                sql += ",('%s:0%d', '%d', %d)" % (ts, j + 1, j + 1, i)
+            tdSql.execute(sql)
+            time.sleep(60 + random.random() * 60 - 30)
+    '''
+
     def tbase300(self):
         tdLog.debug("begin tbase300")
 
@@ -191,9 +209,8 @@ class TDTestCase:
 
     def run(self):
         self.tbase300()
-        #time.sleep(10)
         self.tbase304()
-        #self.wildcardFilterOnTags()
+        self.wildcardFilterOnTags()
         self.datatypes()
 
     def stop(self):
