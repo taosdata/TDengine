@@ -41,11 +41,7 @@ class TDTestCase:
 
         tdSql.query("select last(*) from st")
         tdSql.checkRows(1)
-
-        print(
-            "======= Verify filter for %s type finished =========" %
-            curType)
-
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

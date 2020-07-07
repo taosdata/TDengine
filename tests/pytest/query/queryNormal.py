@@ -36,18 +36,17 @@ class TDTestCase:
             "insert into tb2 using stb1 tags(2,'tb2', '表2') values ('2020-04-18 15:00:02.000', 3, 2.1), ('2020-04-18 15:00:03.000', 4, 2.2)")
 
         # inner join --- bug
-        tdSql.query("select * from tb1 a, tb2 b where a.ts = b.ts")
-        tdSql.checkRows(1)
+        tdSql.error("select * from tb1 a, tb2 b where a.ts = b.ts")        
 
         # join 3 tables -- bug exists
-        tdSql.query("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
+        tdSql.error("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
 
         # query show stable
         tdSql.query("show stables")
         tdSql.checkRows(1)
 
         # query show tables
-        tdSql.query("show table")
+        tdSql.query("show tables")
         tdSql.checkRows(2)
 
         # query count
@@ -71,16 +70,13 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         # query first ... as
-        tdSql.query("select first(*) as begin from stb1")
-        tdSql.checkData(0, 1, 1)
+        tdSql.error("select first(*) as begin from stb1")        
 
         # query last ... as
-        tdSql.query("select last(*) as end from stb1")
-        tdSql.checkData(0, 1, 4)
+        tdSql.error("select last(*) as end from stb1")
 
         # query last_row ... as
-        tdSql.query("select last_row(*) as end from stb1")
-        tdSql.checkData(0, 1, 4)
+        tdSql.error("select last_row(*) as end from stb1")        
 
         # query group .. by
         tdSql.query("select sum(c1), t2 from stb1 group by t2")
@@ -95,8 +91,7 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         # query ... alias for table ---- bug
-        tdSql.query("select t.ts from tb1 t")
-        tdSql.checkRows(2)
+        tdSql.error("select t.ts from tb1 t")        
 
         # query ... tbname
         tdSql.query("select tbname from stb1")
@@ -104,7 +99,7 @@ class TDTestCase:
 
         # query ... tbname count  ---- bug
         tdSql.query("select count(tbname) from stb1")
-        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
 
         # query ... select database ---- bug
         tdSql.query("SELECT database()")
