@@ -1955,7 +1955,7 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 }
 
 int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
-  taosCacheEmpty(tscCacheHandle, false);
+  taosCacheEmpty(tscCacheHandle);
   return 0;
 }
 
@@ -2001,7 +2001,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 
     if (isSuperTable) {  // if it is a super table, reset whole query cache
       tscDebug("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
-      taosCacheEmpty(tscCacheHandle, false);
+      taosCacheEmpty(tscCacheHandle);
     }
   }
 

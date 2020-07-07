@@ -6497,7 +6497,7 @@ void qSetQueryMgmtClosed(void* pQMgmt) {
   pQueryMgmt->closed = true;
   pthread_mutex_unlock(&pQueryMgmt->lock);
 
-  taosCacheEmpty(pQueryMgmt->qinfoPool, true);
+  taosCacheRefresh(pQueryMgmt->qinfoPool, freeqinfoFn);
 }
 
 void qCleanupQueryMgmt(void* pQMgmt) {
