@@ -594,7 +594,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
   tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(pCheckInfo->pTableObj));
 
-  if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock) == 0) {
+  if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo) == 0) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
     pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;

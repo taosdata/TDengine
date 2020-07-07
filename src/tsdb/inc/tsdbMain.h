@@ -437,8 +437,9 @@ int   tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
 void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
-int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, int16_t* colIds, int numOfColIds);
-int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock);
+int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo, int16_t* colIds,
+                            int numOfColIds);
+int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId
