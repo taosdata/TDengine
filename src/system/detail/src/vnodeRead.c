@@ -1004,6 +1004,9 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pQueryMsg->tsNumOfBlocks = htonl(pQueryMsg->tsNumOfBlocks);
   pQueryMsg->tsOrder = htonl(pQueryMsg->tsOrder);
 
+  pQueryMsg->pSqlFuncExprs = NULL;
+  pQueryMsg->pSidExtInfo = NULL;
+
   // query msg safety check
   if (validateQueryMeterMsg(pQueryMsg) != 0) {
     return TSDB_CODE_INVALID_QUERY_MSG;
