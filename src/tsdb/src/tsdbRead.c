@@ -593,9 +593,12 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
     pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   }
 
-  tdInitDataCols(pCheckInfo->pDataCols, tsdbGetTableSchema(pCheckInfo->pTableObj));
+  STSchema* pSchema = tsdbGetTableSchema(pCheckInfo->pTableObj);
+  tdInitDataCols(pCheckInfo->pDataCols, pSchema);
+  tdInitDataCols(pQueryHandle->rhelper.pDataCols[0], pSchema);
+  tdInitDataCols(pQueryHandle->rhelper.pDataCols[1], pSchema);
 
-  if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock) == 0) {
+  if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo) == 0) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
     pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;

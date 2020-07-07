@@ -19,6 +19,7 @@ import time
 from datetime import datetime
 import numpy as np
 
+
 class MyThread(threading.Thread):
 
     def __init__(self, func, args=()):
@@ -35,17 +36,23 @@ class MyThread(threading.Thread):
         except Exception:
             return None
 
+
 class MetadataQuery:
     def initConnection(self):
         self.tables = 100
         self.records = 10
-        self.numOfTherads =5 
+        self.numOfTherads = 5
         self.ts = 1537146000000
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
         self.config = "/etc/taos"
-        self.conn = taos.connect( self.host, self.user, self.password, self.config)
+        self.conn = taos.connect(
+            self.host,
+            self.user,
+            self.password,
+            self.config)
+
     def connectDB(self):
         return self.conn.cursor()
 
@@ -69,7 +76,7 @@ class MetadataQuery:
         cursor.execute("use test")
         base = threadID * self.tables
 
-        tablesPerThread = int (self.tables / self.numOfTherads)
+        tablesPerThread = int(self.tables / self.numOfTherads)
         for i in range(tablesPerThread):
             cursor.execute(
                 '''create table t%d using meters tags(
@@ -79,20 +86,69 @@ class MetadataQuery:
                 %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d',
                 %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d',
                 %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')''' %
-                (base + i + 1, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100))
+                (base + i + 1, (base + i) %
+                 100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100))
             for j in range(self.records):
                 cursor.execute(
                     "insert into t%d values(%d, %d)" %
                     (base + i + 1, self.ts + j, j))
         cursor.close()
-    def queryWithTagId(self, threadId, tagId, queryNum): 
-        print("---------thread%d start-----------"%threadId)
+
+    def queryWithTagId(self, threadId, tagId, queryNum):
+        print("---------thread%d start-----------" % threadId)
         query = '''select tgcol1, tgcol2, tgcol3, tgcol4, tgcol5, tgcol6, tgcol7, tgcol8, tgcol9,
                 tgcol10, tgcol11, tgcol12, tgcol13, tgcol14, tgcol15, tgcol16, tgcol17, tgcol18,
                 tgcol19, tgcol20, tgcol21, tgcol22, tgcol23, tgcol24, tgcol25, tgcol26, tgcol27,
@@ -103,18 +159,19 @@ class MetadataQuery:
         latancy = []
         cursor = self.connectDB()
         cursor.execute("use test")
-        for i in range(queryNum): 
+        for i in range(queryNum):
             startTime = time.time()
-            cursor.execute(query.format(id = tagId, condition = i))
+            cursor.execute(query.format(id=tagId, condition=i))
             cursor.fetchall()
-            latancy.append((time.time() - startTime)) 
-        print("---------thread%d end-----------"%threadId)
+            latancy.append((time.time() - startTime))
+        print("---------thread%d end-----------" % threadId)
         return latancy
+
     def queryData(self, query):
         cursor = self.connectDB()
         cursor.execute("use test")
 
-        print("================= query tag data =================")    
+        print("================= query tag data =================")
         startTime = datetime.now()
         cursor.execute(query)
         cursor.fetchall()
@@ -124,7 +181,7 @@ class MetadataQuery:
             (endTime - startTime).seconds)
 
         cursor.close()
-        #self.conn.close()
+        # self.conn.close()
 
 
 if __name__ == '__main__':
@@ -132,18 +189,33 @@ if __name__ == '__main__':
     t = MetadataQuery()
     t.initConnection()
 
-    latancys = [] 
-    threads =  []
+    latancys = []
+    threads = []
     tagId = 1
-    queryNum = 1000 
+    queryNum = 1000
     for i in range(t.numOfTherads):
-        thread = MyThread(t.queryWithTagId, args = (i, tagId, queryNum))
-        threads.append(thread) 
+        thread = MyThread(t.queryWithTagId, args=(i, tagId, queryNum))
+        threads.append(thread)
         thread.start()
-    for i in range(t.numOfTherads):  
+    for i in range(t.numOfTherads):
         threads[i].join()
-        latancys.extend(threads[i].get_result()) 
-    print("Total query: %d"%(queryNum * t.numOfTherads))    
-    print("statistic(s): mean= %f, P50 = %f, P75 = %f, P95 = %f, P99 = %f"
-            %(sum(latancys)/(queryNum * t.numOfTherads), np.percentile(latancys, 50), np.percentile(latancys, 75), np.percentile(latancys, 95), np.percentile(latancys, 99)))  
-
+        latancys.extend(threads[i].get_result())
+    print("Total query: %d" % (queryNum * t.numOfTherads))
+    print(
+        "statistic(s): mean= %f, P50 = %f, P75 = %f, P95 = %f, P99 = %f" %
+        (sum(latancys) /
+         (
+            queryNum *
+            t.numOfTherads),
+            np.percentile(
+            latancys,
+            50),
+            np.percentile(
+            latancys,
+            75),
+            np.percentile(
+            latancys,
+            95),
+            np.percentile(
+            latancys,
+            99)))

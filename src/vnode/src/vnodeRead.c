@@ -46,9 +46,9 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
-  if (pVnode->status == TAOS_VN_STATUS_DELETING || pVnode->status == TAOS_VN_STATUS_CLOSING) {
+  if (pVnode->status != TAOS_VN_STATUS_READY) {
     vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[msgType], pVnode->status);
-    return TSDB_CODE_VND_INVALID_VGROUP_ID; 
+    return TSDB_CODE_VND_INVALID_STATUS; 
   }
 
   // TODO: Later, let slave to support query
