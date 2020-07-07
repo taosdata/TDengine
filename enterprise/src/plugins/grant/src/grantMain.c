@@ -595,6 +595,7 @@ static void grantCheckGrantInfo() {
 
       if (pDnode->status == 0) {  // TSDB_DN_STATUS_OFFLINE
         mnodeDecDnodeRef(pDnode);
+        sdbFreeIter(pIter);
         return;
       }
 
