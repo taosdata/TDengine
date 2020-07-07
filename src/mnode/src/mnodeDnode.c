@@ -88,13 +88,13 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
 }
 
 static int32_t mnodeDnodeActionUpdate(SSdbOper *pOper) {
-  SDnodeObj *pDnode = pOper->pObj;
-  SDnodeObj *pSaved = mnodeGetDnode(pDnode->dnodeId);
-  if (pSaved != NULL && pDnode != pSaved) {
-    memcpy(pSaved, pDnode, pOper->rowSize);
-    free(pDnode);
-    mnodeDecDnodeRef(pSaved);
+  SDnodeObj *pNew = pOper->pObj;
+  SDnodeObj *pDnode = mnodeGetDnode(pNew->dnodeId);
+  if (pDnode != NULL && pNew != pDnode) {
+    memcpy(pDnode, pNew, pOper->rowSize);
+    free(pNew);
   }
+  mnodeDecDnodeRef(pDnode);
 
   return TSDB_CODE_SUCCESS;
 }
