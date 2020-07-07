@@ -1479,7 +1479,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
 
-  SDataBlockInfo blockInfo = {0};
+  SDataBlockInfo blockInfo = {{0}, 0};
   if (pQueryHandle->type == TSDB_QUERY_TYPE_EXTERNAL) {
     pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
     pQueryHandle->order = TSDB_ORDER_DESC;
