@@ -195,7 +195,6 @@ typedef struct {
 typedef struct {
   uint32_t len;
   uint32_t offset;
-  // uint32_t padding;
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
   uint64_t uid;
@@ -224,7 +223,7 @@ typedef struct {
 
 typedef struct {
   int16_t colId;
-  int16_t len;
+  int32_t len;
   int32_t type : 8;
   int32_t offset : 24;
   int64_t sum;

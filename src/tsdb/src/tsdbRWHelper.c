@@ -703,6 +703,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
     }
 
     // Add checksum
+    ASSERT(pCompCol->len > 0);
     pCompCol->len += sizeof(TSCKSUM);
     taosCalcChecksumAppend(0, (uint8_t *)tptr, pCompCol->len);
 
