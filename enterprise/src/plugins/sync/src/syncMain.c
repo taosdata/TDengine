@@ -332,12 +332,13 @@ int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype)
 void syncConfirmForward(void *param, uint64_t version, int32_t code)
 {
   SSyncNode  *pNode = param;
-  SSyncPeer  *pPeer = pNode->pMaster;
-  char        msg[sizeof(SSyncHead) + sizeof(SFwdRsp)] = {0};
-
   if (pNode == NULL) return;
   if (pNode->quorum <= 1) return;
+
+  SSyncPeer  *pPeer = pNode->pMaster;
   if (pPeer == NULL) return;
+
+  char msg[sizeof(SSyncHead) + sizeof(SFwdRsp)] = {0};
 
   SSyncHead   *pHead = (SSyncHead *) msg;
   pHead->type = TAOS_SMSG_FORWARD_RSP;
