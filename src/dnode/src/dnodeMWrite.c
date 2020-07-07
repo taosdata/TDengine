@@ -140,8 +140,6 @@ void dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code) {
     return;
   }
 
-  if (code > 0) return;
-
   SRpcMsg rpcRsp = {
     .handle  = pWrite->rpcMsg.handle,
     .pCont   = pWrite->rpcRsp.rsp,
