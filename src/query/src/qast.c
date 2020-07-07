@@ -13,25 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "os.h"
-#include "tulog.h"
-#include "tutil.h"
-#include "tbuffer.h"
+
+#include "tname.h"
 #include "qast.h"
-#include "tcompare.h"
+#include "tsdb.h"
+#include "exception.h"
 #include "qsqlparser.h"
 #include "qsyntaxtreefunction.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "tarray.h"
+#include "tbuffer.h"
+#include "tcompare.h"
+#include "tskiplist.h"
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "tschemautil.h"
-#include "tarray.h"
-#include "tskiplist.h"
-#include "queryLog.h"
-#include "tsdbMain.h"
-#include "exception.h"
+#include "tulog.h"
+#include "tutil.h"
 
 /*
  *
@@ -675,8 +676,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     SSkipListNode *pNode = tSkipListIterGet(iter);
     char *         pData = SL_GET_NODE_DATA(pNode);
 
-    // todo refactor:
-    tstr *name = (*(STable **)pData)->name;
+    tstr *name = (tstr*) tsdbGetTableName(*(void**) pData);
     // todo speed up by using hash
     if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {

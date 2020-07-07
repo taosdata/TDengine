@@ -122,7 +122,7 @@ static void changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
 static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock,
                                    SArray* sa);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
-static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, TSKEY* skey, TSKEY* ekey,
+static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win,
                                  STsdbQueryHandle* pQueryHandle);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
@@ -412,8 +412,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   
   int32_t step = ASCENDING_TRAVERSE(pHandle->order)? 1:-1;
   STimeWindow* win = &pHandle->cur.win;
-  pHandle->cur.rows = tsdbReadRowsFromCache(pCheckInfo, pHandle->window.ekey,
-                                    pHandle->outputCapacity, &win->skey, &win->ekey, pHandle);  // todo refactor API
+  pHandle->cur.rows = tsdbReadRowsFromCache(pCheckInfo, pHandle->window.ekey, pHandle->outputCapacity, win, pHandle);
   
   // update the last key value
   pCheckInfo->lastKey = win->ekey + step;
@@ -643,7 +642,7 @@ static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* 
       int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order) ? 1 : -1;
 
       cur->rows = tsdbReadRowsFromCache(pCheckInfo, binfo.window.skey - step,
-                                        pQueryHandle->outputCapacity, &cur->win.skey, &cur->win.ekey, pQueryHandle);
+                                        pQueryHandle->outputCapacity, &cur->win, pQueryHandle);
       pQueryHandle->realNumOfRows = cur->rows;
 
       // update the last key value
@@ -1244,7 +1243,6 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   //    assert(pLeftBlockInfoEx->compBlock->offset != pRightBlockInfoEx->compBlock->offset);
   if (pLeftBlockInfoEx->compBlock->offset == pRightBlockInfoEx->compBlock->offset &&
       pLeftBlockInfoEx->compBlock->last == pRightBlockInfoEx->compBlock->last) {
-    // todo add more information
     tsdbError("error in header file, two block with same offset:%" PRId64, (int64_t)pLeftBlockInfoEx->compBlock->offset);
   }
 
@@ -1701,11 +1699,11 @@ static void changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle) {
   pQueryHandle->window = (STimeWindow) {info.lastKey, TSKEY_INITIAL_VAL};
 }
 
-static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, TSKEY* skey, TSKEY* ekey,
+static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win,
                                  STsdbQueryHandle* pQueryHandle) {
   int     numOfRows = 0;
   int32_t numOfCols = taosArrayGetSize(pQueryHandle->pColumns);
-  *skey = TSKEY_INITIAL_VAL;
+  win->skey = TSKEY_INITIAL_VAL;
 
   int64_t st = taosGetTimestampUs();
   STsdbMeta* pMeta = tsdbGetMeta(pQueryHandle->pTsdb);
@@ -1725,11 +1723,11 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
       break;
     }
 
-    if (*skey == INT64_MIN) {
-      *skey = key;
+    if (win->skey == INT64_MIN) {
+      win->skey = key;
     }
 
-    *ekey = key;
+    win->ekey = key;
     copyOneRowFromMem(pQueryHandle, maxRowsToRead, numOfRows, row, pMeta, numOfCols, pTable);
 
     if (++numOfRows >= maxRowsToRead) {
@@ -1978,9 +1976,9 @@ int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
     int32_t type = 0;
     int32_t bytes = 0;
     
-    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {  // todo refactor extract method , to queryExecutor to generate tags values
-      f1 = (char*) pTable1->name;
-      f2 = (char*) pTable2->name;
+    if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      f1 = (char*) TABLE_NAME(pTable1);
+      f2 = (char*) TABLE_NAME(pTable2);
       type = TSDB_DATA_TYPE_BINARY;
       bytes = tGetTableNameColumnSchema().bytes;
     } else {
@@ -2089,13 +2087,17 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
   char*  val = NULL;
 
   if (pInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-    val = (char*) pTable->name;
+    val = (char*) TABLE_NAME(pTable);
   } else {
     val = tdGetKVRowValOfCol(pTable->tagVal, pInfo->sch.colId);
   }
   
-  //todo :the val is possible to be null, so check it out carefully
-  int32_t ret = pInfo->compare(val, pInfo->q);
+  int32_t ret = 0;
+  if (val == NULL) { //the val is possible to be null, so check it out carefully
+    ret = -1; // val is missing in table tags value pairs
+  } else {
+    ret = pInfo->compare(val, pInfo->q);
+  }
 
   switch (pInfo->optr) {
     case TSDB_RELATION_EQUAL: {

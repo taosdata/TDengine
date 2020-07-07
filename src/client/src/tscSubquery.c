@@ -14,12 +14,12 @@
  */
 #include "os.h"
 
-#include "tscSubquery.h"
+#include "qtsbuf.h"
 #include "qast.h"
 #include "tcompare.h"
-#include "tschemautil.h"
-#include "qtsbuf.h"
 #include "tscLog.h"
+#include "tscSubquery.h"
+#include "tschemautil.h"
 #include "tsclient.h"
 
 typedef struct SInsertSupporter {

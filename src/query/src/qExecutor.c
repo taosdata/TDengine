@@ -18,18 +18,18 @@
 #include "qfill.h"
 #include "taosmsg.h"
 
+#include "exception.h"
 #include "hash.h"
 #include "qExecutor.h"
 #include "qUtil.h"
-#include "qast.h"
 #include "qresultBuf.h"
 #include "query.h"
 #include "queryLog.h"
+#include "qast.h"
+#include "tfile.h"
 #include "tlosertree.h"
-#include "exception.h"
 #include "tscompression.h"
 #include "ttime.h"
-#include "tfile.h"
 
 /**
  * check if the primary column is load by default, otherwise, the program will
