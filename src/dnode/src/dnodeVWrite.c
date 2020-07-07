@@ -210,6 +210,7 @@ static void *dnodeProcessWriteQueue(void *param) {
   int32_t       numOfMsgs;
   int           type;
   void         *pVnode, *item;
+  SRspRet      *pRspRet;
 
   dDebug("write worker:%d is running", pWorker->workerId);
 
@@ -222,9 +223,11 @@ static void *dnodeProcessWriteQueue(void *param) {
 
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       pWrite = NULL;
+      pRspRet = NULL;
       taosGetQitem(pWorker->qall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
+        pRspRet = &pWrite->rspRet;
         pHead = (SWalHead *)(pWrite->pCont - sizeof(SWalHead));
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
@@ -234,7 +237,7 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead = (SWalHead *)item;
       }
 
-      int32_t code = vnodeProcessWrite(pVnode, type, pHead, item);
+      int32_t code = vnodeProcessWrite(pVnode, type, pHead, pRspRet);
       if (pWrite) pWrite->rpcMsg.code = code;
     }
 
@@ -247,6 +250,11 @@ static void *dnodeProcessWriteQueue(void *param) {
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
         dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+      } else if (type == TAOS_QTYPE_FWD) {
+        pHead = (SWalHead *)item;
+        vnodeConfirmForward(pVnode, pHead->version, 0);
+        taosFreeQitem(item);
+        vnodeRelease(pVnode);
       } else {
         taosFreeQitem(item);
         vnodeRelease(pVnode);
