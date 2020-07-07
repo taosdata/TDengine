@@ -55,9 +55,9 @@ class MetadataQuery:
 
     def createTablesAndInsertData(self, threadID):
         cursor = self.connectDB()
-        cursor.execute("use test")        
+        cursor.execute("use test")
 
-        tablesPerThread = int (self.tables / self.numOfTherads)
+        tablesPerThread = int(self.tables / self.numOfTherads)
         base = threadID * tablesPerThread
         for i in range(tablesPerThread):
             cursor.execute(
@@ -68,24 +68,72 @@ class MetadataQuery:
                 %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d',
                 %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d',
                 %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')''' %
-                (base + i + 1, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100, 
-                (base + i) %100, (base + i) %10000, (base + i) %1000000, (base + i) %100000000, (base + i) %100 * 1.1, (base + i) %100 * 2.3, (base + i) %2, (base + i) %100, (base + i) %100))
-            
+                (base + i + 1, (base + i) %
+                 100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    100, (base + i) %
+                    10000, (base + i) %
+                    1000000, (base + i) %
+                    100000000, (base + i) %
+                    100 * 1.1, (base + i) %
+                    100 * 2.3, (base + i) %
+                    2, (base + i) %
+                    100, (base + i) %
+                    100))
+
             cursor.execute(
                 "insert into t%d values(%d, 1) (%d, 2) (%d, 3) (%d, 4) (%d, 5)" %
                 (base + i + 1, self.ts + 1, self.ts + 2, self.ts + 3, self.ts + 4, self.ts + 5))
-        cursor.close()        
+        cursor.close()
 
     def queryData(self, query):
         cursor = self.connectDB()
         cursor.execute("use test")
 
-        print("================= query tag data =================")    
+        print("================= query tag data =================")
         startTime = datetime.now()
         cursor.execute(query)
         cursor.fetchall()
@@ -107,15 +155,15 @@ if __name__ == '__main__':
     print(
         "================= Create %d tables and insert %d records into each table =================" %
         (t.tables, t.records))
-    startTime = datetime.now()    
+    startTime = datetime.now()
     threads = []
     for i in range(t.numOfTherads):
         thread = threading.Thread(
             target=t.createTablesAndInsertData, args=(i,))
         thread.start()
         threads.append(thread)
-    
-    for th in threads:        
+
+    for th in threads:
         th.join()
 
     endTime = datetime.now()

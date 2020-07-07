@@ -330,7 +330,6 @@ class Test (Thread):
                     self.q.put(-1)
                     tdLog.exit("second thread failed, first thread exit too")
 
-
         elif (self.threadId == 2):
             while True:
                 self.dbEvent.wait()
