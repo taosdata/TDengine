@@ -31,9 +31,7 @@ extern int32_t tscEmbedded;
 #define tInfo(...)  { if (rpcDebugFlag & DEBUG_INFO)  { taosPrintLog("RPC INFO  ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
 #define tDebug(...) { if (rpcDebugFlag & DEBUG_DEBUG) { taosPrintLog("RPC DEBUG ", rpcDebugFlag, __VA_ARGS__); }}
 #define tTrace(...) { if (rpcDebugFlag & DEBUG_TRACE) { taosPrintLog("RPC TRACE ", rpcDebugFlag, __VA_ARGS__); }}
-
-#define tDebugDump(x, y) { if (rpcDebugFlag & DEBUG_DEBUG)  { taosDumpData((unsigned char *)x, y); }}
-#define tTraceDump(x, y) { if (rpcDebugFlag & DEBUG_TRACE)  { taosDumpData((unsigned char *)x, y); }}
+#define tDump(x, y) { if (rpcDebugFlag & DEBUG_DUMP)  { taosDumpData((unsigned char *)x, y); }}
 
 #ifdef __cplusplus
 }

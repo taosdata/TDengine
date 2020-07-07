@@ -19,6 +19,7 @@
 #include "tcoding.h"
 #include "tscompression.h"
 #include "tsdbMain.h"
+#include "tfile.h"
 
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 
@@ -217,7 +218,7 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
 
   pHelper->tableInfo.tid = pTable->tableId.tid;
   pHelper->tableInfo.uid = pTable->tableId.uid;
-  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
   pHelper->tableInfo.sversion = schemaVersion(pSchema);
 
   tdInitDataCols(pHelper->pDataCols[0], pSchema);

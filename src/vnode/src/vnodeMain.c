@@ -34,8 +34,7 @@
 
 #define TSDB_VNODE_VERSION_CONTENT_LEN 31
 
-static int32_t  tsOpennedVnodes;
-static void    *tsDnodeVnodesHash;
+static SHashObj*tsDnodeVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
 static int32_t  vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg);
 static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
@@ -46,9 +45,6 @@ static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uin
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
-static void     vnodeFreeqHandle(void* phandle);
-
-static pthread_once_t  vnodeModuleInit = PTHREAD_ONCE_INIT;
 
 #ifndef _SYNC
 tsync_h syncStart(const SSyncInfo *info) { return NULL; }
@@ -59,19 +55,28 @@ int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
 void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
-static void vnodeInit() {
+int32_t vnodeInitResources() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
   tsDnodeVnodesHash = taosHashInit(TSDB_MAX_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true);
   if (tsDnodeVnodesHash == NULL) {
     vError("failed to init vnode list");
+    return TSDB_CODE_VND_OUT_OF_MEMORY;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void vnodeCleanupResources() {
+  if (tsDnodeVnodesHash != NULL) {
+    taosHashCleanup(tsDnodeVnodesHash);
+    tsDnodeVnodesHash = NULL;
   }
 }
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
-  pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pTemp = (SVnodeObj *)taosHashGet(tsDnodeVnodesHash, (const char *)&pVnodeCfg->cfg.vgId, sizeof(int32_t));
   if (pTemp != NULL) {
@@ -139,11 +144,6 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeDrop(int32_t vgId) {
-  if (tsDnodeVnodesHash == NULL) {
-    vDebug("vgId:%d, failed to drop, vgId not exist", vgId);
-    return TSDB_CODE_VND_INVALID_VGROUP_ID;
-  }
-
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     vDebug("vgId:%d, failed to drop, vgId not find", vgId);
@@ -160,6 +160,13 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
+
+  if (pVnode->status != TAOS_VN_STATUS_READY) 
+    return TSDB_CODE_VND_INVALID_STATUS;
+
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) 
+    return TSDB_CODE_VND_NOT_SYNCED;
+
   pVnode->status = TAOS_VN_STATUS_UPDATING;
 
   int32_t code = vnodeSaveCfg(pVnodeCfg);
@@ -182,7 +189,6 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
 
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   char temp[TSDB_FILENAME_LEN];
-  pthread_once(&vnodeModuleInit, vnodeInit);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
   if (pVnode == NULL) {
@@ -190,7 +196,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  atomic_add_fetch_32(&tsOpennedVnodes, 1);
   atomic_add_fetch_32(&pVnode->refCount, 1);
 
   pVnode->vgId     = vnode;
@@ -283,9 +288,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
     cqStart(pVnode->cq);
 
-  const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, rfresh handle pool
-  pVnode->qHandlePool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true,  vnodeFreeqHandle, "qhandle");
-
+  pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
@@ -296,7 +299,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 }
 
 int32_t vnodeStartStream(int32_t vnode) {
-  SVnodeObj* pVnode = vnodeAccquireVnode(vnode);
+  SVnodeObj* pVnode = vnodeAcquireVnode(vnode);
   if (pVnode != NULL) {
     tsdbStartStream(pVnode->tsdb);
     vnodeRelease(pVnode);
@@ -327,6 +330,9 @@ void vnodeRelease(void *pVnodeRaw) {
     vDebug("vgId:%d, release vnode, refCount:%d", vgId, refCount);
     return;
   }
+
+  qCleanupQueryMgmt(pVnode->qMgmt);
+  pVnode->qMgmt = NULL;
 
   if (pVnode->tsdb)
     tsdbCloseRepo(pVnode->tsdb, 1);
@@ -360,19 +366,11 @@ void vnodeRelease(void *pVnodeRaw) {
 
   free(pVnode);
 
-  int32_t count = atomic_sub_fetch_32(&tsOpennedVnodes, 1);
+  int32_t count = taosHashGetSize(tsDnodeVnodesHash);
   vDebug("vgId:%d, vnode is released, vnodes:%d", vgId, count);
-
-  if (count <= 0) {
-    taosHashCleanup(tsDnodeVnodesHash);
-    vnodeModuleInit = PTHREAD_ONCE_INIT;
-    tsDnodeVnodesHash = NULL;
-  }
 }
 
 void *vnodeGetVnode(int32_t vgId) {
-  if (tsDnodeVnodesHash == NULL) return NULL;
-
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -383,7 +381,7 @@ void *vnodeGetVnode(int32_t vgId) {
   return *ppVnode;
 }
 
-void *vnodeAccquireVnode(int32_t vgId) {
+void *vnodeAcquireVnode(int32_t vgId) {
   SVnodeObj *pVnode = vnodeGetVnode(vgId);
   if (pVnode == NULL) return pVnode;
 
@@ -393,12 +391,21 @@ void *vnodeAccquireVnode(int32_t vgId) {
   return pVnode;
 }
 
+void *vnodeAcquireRqueue(void *param) {
+  SVnodeObj *pVnode = param;
+  if (pVnode == NULL) return NULL;
+
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  vDebug("vgId:%d, get vnode rqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+  return ((SVnodeObj *)pVnode)->rqueue;
+}
+
 void *vnodeGetRqueue(void *pVnode) {
   return ((SVnodeObj *)pVnode)->rqueue;
 }
 
 void *vnodeGetWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAccquireVnode(vgId);
+  SVnodeObj *pVnode = vnodeAcquireVnode(vgId);
   if (pVnode == NULL) return NULL;
   return pVnode->wqueue;
 }
@@ -408,8 +415,11 @@ void *vnodeGetWal(void *pVnode) {
 }
 
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
-  if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
+  if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) return;
+  if (pVnode->tsdb == NULL) return;
+
   int64_t totalStorage, compStorage, pointsWritten = 0;
   tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
 
@@ -422,6 +432,26 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  
+}
+
+int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
+  SHashMutableIterator *pIter = taosHashCreateIter(tsDnodeVnodesHash);
+  while (taosHashIterNext(pIter)) {
+    SVnodeObj **pVnode = taosHashIterGet(pIter);
+    if (pVnode == NULL) continue;
+    if (*pVnode == NULL) continue;
+
+    (*numOfVnodes)++;
+    if (*numOfVnodes >= TSDB_MAX_VNODES) {
+      vError("vgId:%d, too many open vnodes, exist:%d max:%d", (*pVnode)->vgId, *numOfVnodes, TSDB_MAX_VNODES);
+      continue;
+    } else {
+      vnodeList[*numOfVnodes - 1] = (*pVnode)->vgId;
+    }
+  }
+
+  taosHashDestroyIter(pIter);
+  return TSDB_CODE_SUCCESS;
 }
 
 void vnodeBuildStatusMsg(void *param) {
@@ -442,7 +472,7 @@ void vnodeBuildStatusMsg(void *param) {
 void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pAccess[i].vgId = htonl(pAccess[i].vgId);
-    SVnodeObj *pVnode = vnodeAccquireVnode(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAcquireVnode(pAccess[i].vgId);
     if (pVnode != NULL) {
       pVnode->accessState = pAccess[i].accessState;
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
@@ -466,7 +496,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   // release local resources only after cutting off outside connections
-  taosCacheCleanup(pVnode->qHandlePool);
+  qSetQueryMgmtClosed(pVnode->qMgmt);
   vnodeRelease(pVnode);
 }
 
@@ -871,13 +901,4 @@ PARSE_OVER:
   cJSON_Delete(root);
   if(fp) fclose(fp);
   return terrno;
-}
-
-void vnodeFreeqHandle(void *qHandle) {
-  void** handle = qHandle;
-  if (handle == NULL || *handle == NULL) {
-    return;
-  }
-
-  qKillQuery(*handle);
 }

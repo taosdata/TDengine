@@ -58,7 +58,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
 
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) 
-      return TSDB_CODE_VND_INVALID_VGROUP_ID;  // it may be in deleting or closing state
+      return TSDB_CODE_VND_INVALID_STATUS;  // it may be in deleting or closing state
 
     if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
       return TSDB_CODE_RPC_NOT_READY;
@@ -89,21 +89,25 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   return syncCode;
 }
 
+void vnodeConfirmForward(void *param, uint64_t version, int32_t code) {
+  SVnodeObj *pVnode = (SVnodeObj *)param;
+  syncConfirmForward(pVnode->sync, version, code);
+}
+
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // save insert result into item
-
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
-  
-  pRet->len = sizeof(SShellSubmitRspMsg);
-  pRet->rsp = rpcMallocCont(pRet->len);
-  SShellSubmitRspMsg *pRsp = pRet->rsp;
+
+  // save insert result into item
+  SShellSubmitRspMsg *pRsp = NULL;
+  if (pRet) {  
+    pRet->len = sizeof(SShellSubmitRspMsg);
+    pRet->rsp = rpcMallocCont(pRet->len);
+    pRsp = pRet->rsp;
+  }
+
   if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
-  pRsp->numOfFailedBlocks = 0; //TODO
-  //pRet->len += pRsp->numOfFailedBlocks * sizeof(SShellSubmitRspBlock); //TODO
-  pRsp->code              = 0;
-  pRsp->numOfRows         = htonl(1);
   
   return code;
 }
@@ -158,7 +162,7 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 }
 
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  if (tsdbUpdateTagValue(pVnode->tsdb, (SUpdateTableTagValMsg *)pCont) < 0) {
+  if (tsdbUpdateTableTagValue(pVnode->tsdb, (SUpdateTableTagValMsg *)pCont) < 0) {
     return terrno;
   }
   return TSDB_CODE_SUCCESS;

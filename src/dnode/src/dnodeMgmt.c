@@ -106,6 +106,12 @@ int32_t dnodeInitMgmt() {
     }
   }
 
+  int32_t code = vnodeInitResources();
+  if (code != TSDB_CODE_SUCCESS) {
+    dnodeCleanupMgmt();
+    return -1;
+  }
+
   // create the queue and thread to handle the message 
   tsMgmtQset = taosOpenQset();
   if (tsMgmtQset == NULL) {
@@ -127,7 +133,7 @@ int32_t dnodeInitMgmt() {
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  int32_t code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
+  code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
   pthread_attr_destroy(&thAttr);
   if (code != 0) {
     dError("failed to create thread to process mgmt queue, reason:%s", strerror(errno));
@@ -176,6 +182,7 @@ void dnodeCleanupMgmt() {
   tsMgmtQset = NULL;
   tsMgmtQueue = NULL;
 
+  vnodeCleanupResources();
 }
 
 void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
@@ -242,8 +249,14 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
       int32_t vnode = atoi(de->d_name + 5);
       if (vnode == 0) continue;
 
-      vnodeList[*numOfVnodes] = vnode;
       (*numOfVnodes)++;
+
+      if (*numOfVnodes >= TSDB_MAX_VNODES) {
+        dError("vgId:%d, too many vnode directory in disk, exist:%d max:%d", vnode, *numOfVnodes, TSDB_MAX_VNODES);
+        continue;
+      } else {
+        vnodeList[*numOfVnodes - 1] = vnode;
+      }
     }
   }
   closedir(dir);
@@ -275,13 +288,12 @@ static void *dnodeOpenVnode(void *param) {
 }
 
 static int32_t dnodeOpenVnodes() {
-  int32_t *vnodeList = calloc(TSDB_MAX_VNODES, sizeof(int32_t));
-  int32_t numOfVnodes;
+  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
+  int32_t numOfVnodes = 0;
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
-    free(vnodeList);
     return status;
   }
 
@@ -327,7 +339,6 @@ static int32_t dnodeOpenVnodes() {
     free(pThread->vnodeList);
   }
 
-  free(vnodeList);
   free(threads);
   dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, openVnodes, failedVnodes);
 
@@ -335,9 +346,9 @@ static int32_t dnodeOpenVnodes() {
 }
 
 void dnodeStartStream() {
-  int32_t vnodeList[TSDB_MAX_VNODES];
+  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
   int32_t numOfVnodes = 0;
-  int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  int32_t status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
@@ -352,15 +363,14 @@ void dnodeStartStream() {
 }
 
 static void dnodeCloseVnodes() {
-  int32_t *vnodeList = (int32_t *)malloc(sizeof(int32_t) * TSDB_MAX_VNODES);
-  int32_t numOfVnodes;
+  int32_t vnodeList[TSDB_MAX_VNODES]= {0};
+  int32_t numOfVnodes = 0;
   int32_t status;
 
-  status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
-    free(vnodeList);
     return;
   }
 
@@ -368,7 +378,6 @@ static void dnodeCloseVnodes() {
     vnodeClose(vnodeList[i]);
   }
 
-  free(vnodeList);
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
@@ -391,7 +400,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
   }
 
-  void *pVnode = vnodeAccquireVnode(pCreate->cfg.vgId);
+  void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     int32_t code = vnodeAlter(pVnode, pCreate);
     vnodeRelease(pVnode);

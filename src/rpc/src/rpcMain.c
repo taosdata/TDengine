@@ -73,6 +73,7 @@ typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcIpSet ipSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
+  void     *signature;  // for validation
   struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
@@ -361,6 +362,7 @@ void rpcSendRequest(void *shandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   int contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
   pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
   pContext->ahandle = pMsg->ahandle;
+  pContext->signature = pContext;
   pContext->pRpc = (SRpcInfo *)shandle;
   pContext->ipSet = *pIpSet;
   pContext->contLen = contLen;
@@ -527,13 +529,16 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
   return code;
 }
 
-/* todo: cancel process may have race condition, pContext may have been released 
-   just before app calls the rpcCancelRequest */
 void rpcCancelRequest(void *handle) {
   SRpcReqContext *pContext = handle;
 
+  // signature is used to check if pContext is freed. 
+  // pContext may have been released just before app calls the rpcCancelRequest 
+  if (pContext->signature != pContext) return;
+
   if (pContext->pConn) {
     tDebug("%s, app trys to cancel request", pContext->pConn->info);
+    pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
     pContext->pConn = NULL;
     rpcFreeCont(pContext->pCont);
@@ -598,8 +603,13 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
     pConn->pRspMsg = NULL;
   
-    if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
-  } 
+    // if server has ever reported progress, free content
+    if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);  // do not use rpcFreeMsg
+  } else {
+    // if there is an outgoing message, free it
+    if (pConn->outType && pConn->pReqMsg) 
+      rpcFreeMsg(pConn->pReqMsg);
+  }
 
   // memset could not be used, since lockeBy can not be reset
   pConn->inType = 0;
@@ -955,6 +965,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   if (pConn->outType) {
     SRpcReqContext *pContext = pConn->pContext;
     pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    pConn->pReqMsg = NULL;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
 
@@ -969,7 +980,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcInfo  *pRpc = (SRpcInfo *)pRecv->shandle;
   SRpcConn  *pConn = (SRpcConn *)pRecv->thandle;
 
-  tTraceDump(pRecv->msg, pRecv->msgLen);
+  tDump(pRecv->msg, pRecv->msgLen);
 
   // underlying UDP layer does not know it is server or client
   pRecv->connType = pRecv->connType | pRpc->connType;  
@@ -1005,6 +1016,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = pContext->pRpc;
 
+  pContext->signature = NULL;
   pContext->pConn = NULL;
   if (pContext->pRsp) { 
     // for synchronous API
@@ -1056,6 +1068,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     SRpcReqContext *pContext = pConn->pContext;
     rpcMsg.handle = pContext;
     pConn->pContext = NULL;
+    pConn->pReqMsg = NULL;
 
     // for UDP, port may be changed by server, the port in ipSet shall be used for cache
     if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
@@ -1242,7 +1255,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
     tError("%s, failed to send, msgLen:%d written:%d, reason:%s", pConn->info, msgLen, writtenLen, strerror(errno));
   }
  
-  tTraceDump(msg, msgLen);
+  tDump(msg, msgLen);
 }
 
 static void rpcProcessConnError(void *param, void *id) {
@@ -1292,6 +1305,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
       tDebug("%s, failed to send msg:%s to %s:%hu", pConn->info, taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
       if (pConn->pContext) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+        pConn->pReqMsg = NULL;
         taosTmrStart(rpcProcessConnError, 0, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
       }

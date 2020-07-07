@@ -65,7 +65,7 @@ typedef struct {
   int64_t         totalSize;          // total allocated buffer in this hash table, SCacheObj is not included.
   int64_t         refreshTime;
   STrashElem *    pTrash;
-  const char *    cacheName;
+  char*           name;
 //  void *          tmrCtrl;
 //  void *          pTimer;
   SCacheStatis    statistics;
@@ -163,8 +163,9 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove);
 /**
  *  move all data node into trash, clear node in trash can if it is not referenced by any clients
  * @param handle
+ * @param _remove  remove the data or not if refcount is greater than 0
  */
-void taosCacheEmpty(SCacheObj *pCacheObj);
+void taosCacheEmpty(SCacheObj *pCacheObj, bool _remove);
 
 /**
  * release all allocated memory and destroy the cache object.

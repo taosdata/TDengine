@@ -49,16 +49,22 @@ int32_t vnodeAlter(void *pVnode, SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeClose(int32_t vgId);
 
 void    vnodeRelease(void *pVnode);
-void*   vnodeAccquireVnode(int32_t vgId); // add refcount 
+void*   vnodeAcquireVnode(int32_t vgId); // add refcount
 void*   vnodeGetVnode(int32_t vgId);      // keep refcount unchanged
 
+void*   vnodeAcquireRqueue(void *);
 void*   vnodeGetRqueue(void *);
 void*   vnodeGetWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
-void    vnodeBuildStatusMsg(void * param);
+int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
+void    vnodeBuildStatusMsg(void *param);
+void    vnodeConfirmForward(void *param, uint64_t version, int32_t code);
 void    vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes);
+
+int32_t vnodeInitResources();
+void    vnodeCleanupResources();
 
 int32_t vnodeProcessRead(void *pVnode, SReadMsg *pReadMsg);
 

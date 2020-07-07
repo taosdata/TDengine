@@ -32,7 +32,6 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->threshold = threshold;
   
   pWindowResInfo->type = type;
-  
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
   pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
   
@@ -54,7 +53,8 @@ void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols) {
   if (pWindowRes == NULL) {
     return;
   }
-  
+
+  // TODO opt malloc strategy
   for (int32_t i = 0; i < nOutputCols; ++i) {
     free(pWindowRes->resultInfo[i].interResultBuf);
   }
@@ -180,19 +180,34 @@ void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
 
 /*
  * remove the results that are not the FIRST time window that spreads beyond the
- * the last qualified time stamp in case of sliding query, which the sliding time is not equalled to the interval time
+ * the last qualified time stamp in case of sliding query, which the sliding time is not equalled to the interval time.
+ * NOTE: remove redundant, only when the result set order equals to traverse order
  */
 void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order) {
   assert(pWindowResInfo->size >= 0 && pWindowResInfo->capacity >= pWindowResInfo->size);
-  
-  int32_t i = 0;
-  while (i < pWindowResInfo->size &&
-      ((pWindowResInfo->pResult[i].window.ekey < lastKey && order == QUERY_ASC_FORWARD_STEP) ||
-          (pWindowResInfo->pResult[i].window.skey > lastKey && order == QUERY_DESC_FORWARD_STEP))) {
-    ++i;
+  if (pWindowResInfo->size <= 1) {
+    return;
   }
-  
-  //  assert(i < pWindowResInfo->size);
+
+  // get the result order
+  int32_t resultOrder = (pWindowResInfo->pResult[0].window.skey < pWindowResInfo->pResult[1].window.skey)?
+                         TSDB_ORDER_ASC:TSDB_ORDER_DESC;
+
+  if (order != resultOrder) {
+    return;
+  }
+
+  int32_t i = 0;
+  if (order == QUERY_ASC_FORWARD_STEP) {
+    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].window.ekey < lastKey)) {
+      ++i;
+    }
+  } else if (order == QUERY_DESC_FORWARD_STEP) {
+    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].window.skey > lastKey)) {
+      ++i;
+    }
+  }
+
   if (i < pWindowResInfo->size) {
     pWindowResInfo->size = (i + 1);
   }
