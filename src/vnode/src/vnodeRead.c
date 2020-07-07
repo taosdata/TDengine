@@ -137,6 +137,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     }
     if (handle != NULL) {
       dnodePutItemIntoReadQueue(pVnode, handle);
+      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
     }
     vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
   } else {
