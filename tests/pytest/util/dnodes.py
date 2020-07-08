@@ -202,7 +202,7 @@ class TDDnode:
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:root.find("build")]
+                    buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
 
