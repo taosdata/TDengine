@@ -6517,10 +6517,12 @@ void qCleanupQueryMgmt(void* pQMgmt) {
   qDebug("vgId:%d querymgmt cleanup completed", vgId);
 }
 
-void** qRegisterQInfo(void* pMgmt, void* qInfo) {
+void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
   if (pMgmt == NULL) {
     return NULL;
   }
+
+  const int32_t DEFAULT_QHANDLE_LIFE_SPAN = tsShellActivityTimer * 2;
 
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool == NULL) {
@@ -6533,21 +6535,23 @@ void** qRegisterQInfo(void* pMgmt, void* qInfo) {
 
     return NULL;
   } else {
-    void** handle = taosCachePut(pQueryMgmt->qinfoPool, qInfo, POINTER_BYTES, &qInfo, POINTER_BYTES, tsShellActivityTimer*2);
+    uint64_t handleVal = (uint64_t) qInfo;
+
+    void** handle = taosCachePut(pQueryMgmt->qinfoPool, &handleVal, sizeof(int64_t), &qInfo, POINTER_BYTES, DEFAULT_QHANDLE_LIFE_SPAN);
     pthread_mutex_unlock(&pQueryMgmt->lock);
 
     return handle;
   }
 }
 
-void** qAcquireQInfo(void* pMgmt, void** key) {
+void** qAcquireQInfo(void* pMgmt, uint64_t key) {
   SQueryMgmt *pQueryMgmt = pMgmt;
 
   if (pQueryMgmt->qinfoPool == NULL || pQueryMgmt->closed) {
     return NULL;
   }
 
-  void** handle = taosCacheAcquireByKey(pQueryMgmt->qinfoPool, key, POINTER_BYTES);
+  void** handle = taosCacheAcquireByKey(pQueryMgmt->qinfoPool, &key, sizeof(uint64_t));
   if (handle == NULL || *handle == NULL) {
     return NULL;
   } else {
