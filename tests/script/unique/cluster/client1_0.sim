@@ -1,0 +1,16 @@
+sql connect
+
+$db = db1
+$stb = stb1
+print =============== client1_0:
+
+sql use $db
+
+$tblNum = 1000
+
+$i = 1
+while $i < $tblNum
+  $tb = tb . $i
+  sql create table $tb using $stb tags ($i, 'abcd')
+  $i = $i + 1
+endw 
