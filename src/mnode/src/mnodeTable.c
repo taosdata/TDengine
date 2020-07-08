@@ -367,6 +367,7 @@ static int32_t mnodeInitChildTables() {
 
 static void mnodeCleanupChildTables() {
   sdbCloseTable(tsChildTableSdb);
+  tsChildTableSdb = NULL;
 }
 
 static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
@@ -545,6 +546,7 @@ static int32_t mnodeInitSuperTables() {
 
 static void mnodeCleanupSuperTables() {
   sdbCloseTable(tsSuperTableSdb);
+  tsSuperTableSdb = NULL;
 }
 
 int32_t mnodeInitTables() {
@@ -774,9 +776,15 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
 
 static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
-  if (pTable != NULL) {
-    mLInfo("app:%p:%p, stable:%s, is created in sdb, result:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
-            tstrerror(code));
+  assert(pTable);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    mLInfo("stable:%s, is created in sdb", pTable->info.tableId);
+  } else {
+    mError("app:%p:%p, stable:%s, failed to create in sdb, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+           tstrerror(code));
+    SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .table = tsSuperTableSdb};
+    sdbDeleteRow(&desc);
   }
 
   return code;
@@ -1552,10 +1560,16 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   assert(pTable);
 
-  mDebug("app:%p:%p, table:%s, created in mnode, vgId:%d sid:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle,
-         pMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid, tstrerror(code));
-
-  if (code != TSDB_CODE_SUCCESS) return code;
+  if (code == TSDB_CODE_SUCCESS) {
+    mDebug("app:%p:%p, table:%s, created in mnode, vgId:%d sid:%d, uid:%" PRIu64 ", result:%s", pMsg->rpcMsg.ahandle,
+           pMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid, tstrerror(code));
+  } else {
+    mError("app:%p:%p, table:%s, failed to create table sid:%d, uid:%" PRIu64 ", reason:%s", pMsg->rpcMsg.ahandle, pMsg,
+           pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
+    SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .table = tsChildTableSdb};
+    sdbDeleteRow(&desc);
+    return code;
+  }
 
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, pTable);

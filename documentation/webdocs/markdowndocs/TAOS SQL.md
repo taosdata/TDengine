@@ -412,7 +412,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
     ```
     Function: the value of the specified column below which `P` percent of the data points fall.  
-    Return Data Type: the same data type.  
+    Return Data Type: double.  
     Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`. 
     Applied to: table/STable.  
     Note: The range of `P` is `[0, 100]`. When `P=0` , `PERCENTILE` returns the equal value as `MIN`; when `P=100`, `PERCENTILE` returns the equal value as `MAX`. 
@@ -446,7 +446,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     Function: return the difference between the maximum and the mimimum value.  
-    Return Data Type: the same data type.  
+    Return Data Type: double.  
     Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable.  
     Note: spread gives the range of data variation in a table/supertable; it is equivalent to `MAX()` - `MIN()`

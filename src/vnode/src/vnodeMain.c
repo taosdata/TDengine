@@ -160,6 +160,19 @@ int32_t vnodeDrop(int32_t vgId) {
 
 int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
+
+  // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
+  // cfgVersion can be corrected by status msg
+  if (pVnode->status != TAOS_VN_STATUS_READY) {
+    vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // the vnode may always fail to synchronize because of it in low cfgVersion
+  // so cannot use the following codes
+  // if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) 
+  //   return TSDB_CODE_VND_NOT_SYNCED;
+
   pVnode->status = TAOS_VN_STATUS_UPDATING;
 
   int32_t code = vnodeSaveCfg(pVnodeCfg);
@@ -408,10 +421,19 @@ void *vnodeGetWal(void *pVnode) {
 }
 
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
-  if (pVnode->status == TAOS_VN_STATUS_DELETING) return;
+  int64_t totalStorage = 0;
+  int64_t compStorage = 0;
+  int64_t pointsWritten = 0;
+
+  if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
-  int64_t totalStorage, compStorage, pointsWritten = 0;
-  tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
+
+  // still need report status when unsynced
+  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) {
+  } else if (pVnode->tsdb == NULL) {
+  } else {
+    tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
+  }
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);

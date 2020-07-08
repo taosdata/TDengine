@@ -402,6 +402,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 
   void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
   if (pVnode != NULL) {
+    dDebug("vgId:%d, already exist, processed as alter msg", pCreate->cfg.vgId);
     int32_t code = vnodeAlter(pVnode, pCreate);
     vnodeRelease(pVnode);
     return code;

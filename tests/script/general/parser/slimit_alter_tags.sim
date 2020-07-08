@@ -141,9 +141,9 @@ $res = 3 * $rowNum
 if $data00 != $res then
   return -1
 endi
-if $data01 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
+#if $data01 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
 if $data02 != 3 then
   return -1
 endi
@@ -154,9 +154,9 @@ $res = 3 * $rowNum
 if $data10 != $res then
   return -1
 endi
-if $data11 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
+#if $data11 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
 if $data15 != 2 then
   return -1
 endi
@@ -223,9 +223,9 @@ $res = 3 * $rowNum
 if $data00 != $res then
   return -1
 endi
-if $data01 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
+#if $data01 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
 if $data02 != 3 then
   return -1
 endi
@@ -236,9 +236,9 @@ $res = 3 * $rowNum
 if $data10 != $res then
   return -1
 endi
-if $data11 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
+#if $data11 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
 if $data15 != 2 then
   return -1
 endi

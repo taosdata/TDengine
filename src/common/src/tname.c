@@ -75,3 +75,56 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
 
   return pFilter;
 }
+
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
+  if (slidingTime == 0) {
+    return startTime;
+  }
+
+  int64_t start = ((startTime - slidingTime) / slidingTime + 1) * slidingTime;
+  if (!(timeUnit == 'a' || timeUnit == 'm' || timeUnit == 's' || timeUnit == 'h')) {
+    /*
+     * here we revised the start time of day according to the local time zone,
+     * but in case of DST, the start time of one day need to be dynamically decided.
+     */
+    // todo refactor to extract function that is available for Linux/Windows/Mac platform
+#if defined(WINDOWS) && _MSC_VER >= 1900
+    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+    int64_t timezone = _timezone;
+    int32_t daylight = _daylight;
+    char**  tzname = _tzname;
+#endif
+
+    int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
+    start += timezone * t;
+  }
+
+  int64_t end = start + intervalTime - 1;
+  if (end < startTime) {
+    start += slidingTime;
+  }
+  return start;
+}
+
+/*
+ * tablePrefix.columnName
+ * extract table name and save it in pTable, with only column name in pToken
+ */
+void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
+  const char sep = TS_PATH_DELIMITER[0];
+
+  if (pToken == pTable || pToken == NULL || pTable == NULL) {
+    return;
+  }
+
+  char* r = strnchr(pToken->z, sep, pToken->n, false);
+
+  if (r != NULL) {  // record the table name token
+    pTable->n = r - pToken->z;
+    pTable->z = pToken->z;
+
+    r += 1;
+    pToken->n -= (r - pToken->z);
+    pToken->z = r;
+  }
+}

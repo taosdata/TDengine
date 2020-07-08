@@ -3,6 +3,7 @@
 
 #include "os.h"
 #include "taosmsg.h"
+#include "tstoken.h"
 
 typedef struct SDataStatis {
   int16_t colId;
@@ -23,10 +24,14 @@ void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
 
+void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
+
 SSchema tGetTableNameColumnSchema();
 
 bool tscValidateTableNameLength(size_t len);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
+
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision);
 
 #endif  // TDENGINE_NAME_H

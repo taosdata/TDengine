@@ -18,19 +18,19 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
-#include "qast.h"
 #include "taos.h"
 #include "taosmsg.h"
-#include "tstoken.h"
-#include "tstrbuild.h"
-#include "ttime.h"
+#include "qast.h"
+#include "tcompare.h"
+#include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "tstoken.h"
+#include "tstrbuild.h"
+#include "ttime.h"
 #include "ttokendef.h"
-#include "tname.h"
-#include "tcompare.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -90,6 +90,7 @@ static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryI
 static int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type);
+static int32_t validateEp(char* ep);
 static int32_t validateDNodeConfig(tDCLSQL* pOptions);
 static int32_t validateLocalConfig(tDCLSQL* pOptions);
 static int32_t validateColumnName(char* name);
@@ -359,6 +360,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values";
+      const char* msg3 = "invalid dnode ep";
 
       /* validate the ip address */
       tDCLSQL* pDCL = pInfo->pDCLInfo;
@@ -374,6 +376,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pDCL->a[0].n = strdequote(pDCL->a[0].z);
       
       strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
+
+      if (validateEp(pCfg->ep) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
 
@@ -4487,10 +4493,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
     pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    pUpdateMsg->tid = htonl(pTableMeta->sid);
-    pUpdateMsg->uid = htobe64(pTableMeta->uid);
-    pUpdateMsg->colId = htons(pTagsSchema->colId);
-    pUpdateMsg->tversion = htons(pTableMeta->tversion);
+    pUpdateMsg->tid       = htonl(pTableMeta->sid);
+    pUpdateMsg->uid       = htobe64(pTableMeta->uid);
+    pUpdateMsg->colId     = htons(pTagsSchema->colId);
+    pUpdateMsg->type      = pTagsSchema->type;
+    pUpdateMsg->bytes     = htons(pTagsSchema->bytes);
+    pUpdateMsg->tversion  = htons(pTableMeta->tversion);
     pUpdateMsg->numOfTags = htons(numOfTags);
     pUpdateMsg->schemaLen = htonl(schemaLen);
 
@@ -4626,6 +4634,24 @@ typedef struct SDNodeDynConfOption {
   char*   name;  // command name
   int32_t len;   // name string length
 } SDNodeDynConfOption;
+
+
+int32_t validateEp(char* ep) {
+  char buf[TSDB_EP_LEN + 1] = {0};
+  tstrncpy(buf, ep, TSDB_EP_LEN);
+
+  char *pos = strchr(buf, ':');
+  if (NULL == pos) {   
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+  
+  uint16_t port = atoi(pos+1);
+  if (0 == port) {   
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }  
+
+  return TSDB_CODE_SUCCESS;   
+}
 
 int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   if (pOptions->nTokens < 2 || pOptions->nTokens > 3) {

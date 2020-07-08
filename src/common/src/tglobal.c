@@ -1215,7 +1215,7 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
-  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG) {
+  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
   }
   
