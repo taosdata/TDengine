@@ -678,8 +678,25 @@ class DbConnNative(DbConn):
         self._conn = None
         self._cursor = None
 
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("communit")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosd" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:root.find("build")]
+                    break
+        return buildPath
+
     def openByType(self):  # Open connection
-        cfgPath = "../../build/test/cfg"
+#        cfgPath = "../../build/test/cfg"
+        cfgPath = self.getBuildPath() + "/test/cfg"
+        print("CBD: cfgPath=%s" % cfgPath)
         self._conn = taos.connect(
             host="127.0.0.1",
             config=cfgPath)  # TODO: make configurable
@@ -1885,6 +1902,11 @@ class SvcManager:
 
     def run(self):
         ON_POSIX = 'posix' in sys.builtin_module_names
+        taosdPath = self.getBuildPath() + "/build/bin/taosd"
+        cfgPath = self.getBuildPath() + "/test/cfg"
+
+        print ("CBD: taosdPath:%s cfgPath:%s" % (taosPat, cfgPath))
+
         svcCmd = ['../../build/build/bin/taosd', '-c', '../../build/test/cfg']
         # svcCmd = ['vmstat', '1']
         self.subProcess = subprocess.Popen(
@@ -2148,14 +2170,6 @@ def main():
 
 
 if __name__ == "__main__":
-    tdDnodes.init("")
-    tdDnodes.setTestCluster(False)
-    tdDnodes.setValgrind(False)
-    tdDnodes.stopAll()
-    tdDnodes.deploy(1)
-    tdDnodes.start(1)
-    tdLog.sleep(5)
-
     exitCode = main()
     # print("Exiting with code: {}".format(exitCode))
     sys.exit(exitCode)
