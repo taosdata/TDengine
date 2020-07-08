@@ -27,7 +27,7 @@ function runPyCaseOneByOne {
       if [[ $line != *sleep* ]]; then
         case=`echo $line|awk '{print $NF}'`
         start_time=`date +%s`
-        $line && \
+        $line > /dev/null 2>&1 && \
           echo -e "${GREEN}$case success${NC}" | tee -a pytest-out.log || \
           echo -e "${RED}$case failed${NC}" | tee -a pytest-out.log
         end_time=`date +%s`
