@@ -200,7 +200,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   }
 
   if (acctCheckAcctParams(pCfg) < 0) {
-    return TSDB_CODE_MND_INVALID_ACCT_PARA;
+    return TSDB_CODE_MND_INVALID_ACCT_OPTION;
   }
 
   pAcct = malloc(sizeof(SAcctObj));
