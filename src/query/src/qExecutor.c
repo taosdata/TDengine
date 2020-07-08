@@ -943,7 +943,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
       }
 
       // null data, failed to allocate more memory buffer
-      bool hasTimeWindow = false;
+      hasTimeWindow = false;
       if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo->tid, &nextWin, masterScan, &hasTimeWindow) != TSDB_CODE_SUCCESS) {
         break;
       }
@@ -1710,28 +1710,21 @@ static bool onlyQueryTags(SQuery* pQuery) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *realWin, STimeWindow *win) {
+void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win) {
   assert(key >= keyFirst && key <= keyLast && pQuery->slidingTime <= pQuery->intervalTime);
-
   win->skey = taosGetIntervalStartTimestamp(key, pQuery->slidingTime, pQuery->intervalTime, pQuery->slidingTimeUnit, pQuery->precision);
+
+  /*
+   * if the realSkey > INT64_MAX - pQuery->intervalTime, the query duration between
+   * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
+   */
   if (keyFirst > (INT64_MAX - pQuery->intervalTime)) {
-    /*
-     * if the realSkey > INT64_MAX - pQuery->intervalTime, the query duration between
-     * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
-     */
     assert(keyLast - keyFirst < pQuery->intervalTime);
-
-    realWin->skey = keyFirst;
-    realWin->ekey = keyLast;
-
     win->ekey = INT64_MAX;
     return;
+  } else {
+    win->ekey = win->skey + pQuery->intervalTime - 1;
   }
-
-  win->ekey = win->skey + pQuery->intervalTime - 1;
-
-  realWin->skey = (win->skey < keyFirst)? keyFirst : win->skey;
-  realWin->ekey = (win->ekey < keyLast) ? win->ekey : keyLast;
 }
 
 static void setScanLimitationByResultBuffer(SQuery *pQuery) {
@@ -2247,16 +2240,16 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
     // todo extract methods
     if (QUERY_IS_INTERVAL_QUERY(pQuery) && pRuntimeEnv->windowResInfo.prevSKey == TSKEY_INITIAL_VAL) {
-      STimeWindow realWin = TSWINDOW_INITIALIZER, w = TSWINDOW_INITIALIZER;
+      STimeWindow w = TSWINDOW_INITIALIZER;
       SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
       if (QUERY_IS_ASC_QUERY(pQuery)) {
-        getAlignQueryTimeWindow(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey, &realWin, &w);
+        getAlignQueryTimeWindow(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey, &w);
         pWindowResInfo->startTime = w.skey;
         pWindowResInfo->prevSKey = w.skey;
       } else {
         // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-        getAlignQueryTimeWindow(pQuery, blockInfo.window.ekey, pQuery->window.ekey, blockInfo.window.ekey, &realWin, &w);
+        getAlignQueryTimeWindow(pQuery, blockInfo.window.ekey, pQuery->window.ekey, blockInfo.window.ekey, &w);
 
         pWindowResInfo->startTime = pQuery->window.skey;
         pWindowResInfo->prevSKey = w.skey;
@@ -3553,12 +3546,12 @@ void setIntervalQueryRange(SQInfo *pQInfo, TSKEY key) {
      * In ascending query, key is the first qualified timestamp. However, in the descending order query, additional
      * operations involve.
      */
-    STimeWindow     w = TSWINDOW_INITIALIZER, realWin = TSWINDOW_INITIALIZER;
+    STimeWindow     w = TSWINDOW_INITIALIZER;
     SWindowResInfo *pWindowResInfo = &pTableQueryInfo->windowResInfo;
 
     TSKEY sk = MIN(win.skey, win.ekey);
     TSKEY ek = MAX(win.skey, win.ekey);
-    getAlignQueryTimeWindow(pQuery, win.skey, sk, ek, &realWin, &w);
+    getAlignQueryTimeWindow(pQuery, win.skey, sk, ek, &w);
     pWindowResInfo->startTime = pTableQueryInfo->win.skey;  // windowSKey may be 0 in case of 1970 timestamp
 
     if (pWindowResInfo->prevSKey == TSKEY_INITIAL_VAL) {
@@ -3987,7 +3980,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
    */
   assert(pRuntimeEnv->windowResInfo.prevSKey == TSKEY_INITIAL_VAL);
 
-  STimeWindow w = TSWINDOW_INITIALIZER, realWin = TSWINDOW_INITIALIZER;
+  STimeWindow w = TSWINDOW_INITIALIZER;
   
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   STableQueryInfo *pTableQueryInfo = pQuery->current;
@@ -3998,12 +3991,12 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
 
     if (QUERY_IS_ASC_QUERY(pQuery)) {
       if (pWindowResInfo->prevSKey == TSKEY_INITIAL_VAL) {
-        getAlignQueryTimeWindow(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey, &realWin, &w);
+        getAlignQueryTimeWindow(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey, &w);
         pWindowResInfo->startTime = w.skey;
         pWindowResInfo->prevSKey = w.skey;
       }
     } else {
-      getAlignQueryTimeWindow(pQuery, blockInfo.window.ekey, pQuery->window.ekey, blockInfo.window.ekey, &realWin, &w);
+      getAlignQueryTimeWindow(pQuery, blockInfo.window.ekey, pQuery->window.ekey, blockInfo.window.ekey, &w);
 
       pWindowResInfo->startTime = pQuery->window.skey;
       pWindowResInfo->prevSKey = w.skey;
@@ -4226,7 +4219,13 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
   if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
     SFillColInfo* pColInfo = taosCreateFillColInfo(pQuery);
-    pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, pQuery->window.skey, 0, pQuery->rec.capacity, pQuery->numOfOutput,
+    STimeWindow w = TSWINDOW_INITIALIZER;
+
+    TSKEY sk = MIN(pQuery->window.skey, pQuery->window.ekey);
+    TSKEY ek = MAX(pQuery->window.skey, pQuery->window.ekey);
+    getAlignQueryTimeWindow(pQuery, pQuery->window.skey, sk, ek, &w);
+
+    pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, w.skey, 0, pQuery->rec.capacity, pQuery->numOfOutput,
                                               pQuery->slidingTime, pQuery->slidingTimeUnit, pQuery->precision,
                                               pQuery->fillType, pColInfo);
   }
