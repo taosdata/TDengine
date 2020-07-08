@@ -40,8 +40,10 @@ class TDTestCase:
         ret = tdSql.query('select server_status() as result')
         tdSql.checkData(0, 0, 1)
 
-        ret = tdSql.execute('alter dnode 127.0.0.1 debugFlag 135')
-        tdLog.info("alter dnode ret: %d" % ret)
+        ret = tdSql.query('show dnodes')
+
+        ret = tdSql.execute('alter dnode "%s" debugFlag 135' % tdSql.getData(0,1))
+        tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (tdSql.getData(0, 1), ret))
 
     def stop(self):
         tdSql.close()
