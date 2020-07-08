@@ -93,16 +93,18 @@ void taosCloseQueue(taos_queue param) {
 
 void *taosAllocateQitem(int size) {
   STaosQnode *pNode = (STaosQnode *)calloc(sizeof(STaosQnode) + size, 1);
+  
   if (pNode == NULL) return NULL;
+  uTrace("item:%p, node:%p is allocated", pNode->item, pNode);
   return (void *)pNode->item;
 }
 
 void taosFreeQitem(void *param) {
   if (param == NULL) return;
 
-  uTrace("item:%p is freed", param);
   char *temp = (char *)param;
   temp -= sizeof(STaosQnode);
+  uTrace("item:%p, node:%p is freed", param, temp);
   free(temp);
 }
 

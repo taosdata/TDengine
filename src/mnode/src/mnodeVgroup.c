@@ -696,9 +696,9 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->ahandle == NULL) return;
 
   SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
-  mnodeMsg->received++;
+  atomic_add_fetch_8(&mnodeMsg->received, 1);
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
-    mnodeMsg->successed++;
+    atomic_add_fetch_8(&mnodeMsg->successed, 1);
   } else {
     mnodeMsg->code = rpcMsg->code;
   }
