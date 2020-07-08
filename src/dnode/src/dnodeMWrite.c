@@ -131,8 +131,8 @@ static void dnodeFreeMnodeWriteMsg(SMnodeMsg *pWrite) {
   taosFreeQitem(pWrite);
 }
 
-void dnodeSendRpcMnodeWriteRsp(void *pRaw, int32_t code) {
-  SMnodeMsg *pWrite = pRaw;
+void dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code) {
+  SMnodeMsg *pWrite = pMsg;
   if (pWrite == NULL) return;
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {

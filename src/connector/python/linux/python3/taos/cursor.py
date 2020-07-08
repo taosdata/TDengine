@@ -1,6 +1,7 @@
 from .cinterface import CTaosInterface
 from .error import *
 from .constants import FieldType
+import threading
 
 # querySeqNum = 0
 
@@ -37,6 +38,7 @@ class TDengineCursor(object):
         self._block_iter = 0
         self._affected_rows = 0
         self._logfile = ""
+        self._threadId = threading.get_ident()
 
         if connection is not None:
             self._connection = connection
@@ -103,6 +105,12 @@ class TDengineCursor(object):
     def execute(self, operation, params=None):
         """Prepare and execute a database operation (query or command).
         """
+        # if threading.get_ident() != self._threadId:
+        #     info ="Cursor execute:Thread ID not match,creater:"+str(self._threadId)+" caller:"+str(threading.get_ident())
+        #     raise OperationalError(info)
+            # print(info)
+            # return None
+
         if not operation:
             return None
 
@@ -188,6 +196,11 @@ class TDengineCursor(object):
     def fetchall(self):
         """Fetch all (remaining) rows of a query result, returning them as a sequence of sequences (e.g. a list of tuples). Note that the cursor's arraysize attribute can affect the performance of this operation.
         """
+        # if threading.get_ident() != self._threadId:
+        #     info ="[WARNING] Cursor fetchall:Thread ID not match,creater:"+str(self._threadId)+" caller:"+str(threading.get_ident())
+        #     raise OperationalError(info)
+            # print(info)
+            # return None
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetchall")
 
@@ -232,6 +245,12 @@ class TDengineCursor(object):
     def _handle_result(self):
         """Handle the return result from query.
         """
+        # if threading.get_ident() != self._threadId:
+        #     info = "Cursor handleresult:Thread ID not match,creater:"+str(self._threadId)+" caller:"+str(threading.get_ident())
+        #     raise OperationalError(info)
+            # print(info)
+            # return None
+
         self._description = []
         for ele in self._fields:
             self._description.append(
