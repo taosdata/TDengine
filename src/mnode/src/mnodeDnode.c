@@ -176,6 +176,7 @@ int32_t mnodeInitDnodes() {
 
 void mnodeCleanupDnodes() {
   sdbCloseTable(tsDnodeSdb);
+  tsDnodeSdb = NULL;
 }
 
 void *mnodeGetNextDnode(void *pIter, SDnodeObj **pDnode) { 

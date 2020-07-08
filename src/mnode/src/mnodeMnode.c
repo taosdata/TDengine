@@ -165,6 +165,7 @@ int32_t mnodeInitMnodes() {
 
 void mnodeCleanupMnodes() {
   sdbCloseTable(tsMnodeSdb);
+  tsMnodeSdb = NULL;
   mnodeMnodeDestroyLock();
 }
 
