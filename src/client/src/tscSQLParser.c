@@ -6103,14 +6103,10 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       }
     }
 
-
+    // NOTE: binary|nchar data allows the >|< type filter
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight->nodeType == TSQL_NODE_VALUE) {
         if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL) {
-          return TSDB_CODE_TSC_INVALID_SQL;
-        }
-        if ((pRight->pVal->nType == TSDB_DATA_TYPE_BINARY || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR)
-            && (*pExpr)->_node.optr != TSDB_RELATION_LIKE) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }
