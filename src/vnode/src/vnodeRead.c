@@ -135,7 +135,10 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     } else {
       assert(pQInfo == NULL);
     }
-
+    if (handle != NULL) {
+      dnodePutItemIntoReadQueue(pVnode, handle);
+      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
+    }
     vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
   } else {
     assert(pCont != NULL);
@@ -146,14 +149,10 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     } else {
       vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, *(void**) pCont);
       code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
+      qTableQuery(*handle); // do execute query
     }
-  }
-
-  if (handle != NULL) {
-    qTableQuery(*handle); // do execute query
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
   }
-
   return code;
 }
 

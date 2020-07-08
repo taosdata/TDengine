@@ -438,8 +438,9 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * here, we cannot set the command = TSDB_SQL_KILL_QUERY. Otherwise, it may cause
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
-    pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    rpcCancelRequest(pSql->pSubs[i]->pRpcCtx);
+    rpcCancelRequest(pSub->pRpcCtx);
+    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+    tscQueueAsyncRes(pSub);
   }
 
   /*
