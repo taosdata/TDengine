@@ -520,9 +520,8 @@ int main(int argc, char *argv[]) {
     snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
     queryDB(taos, command);
     printf("meters created!\n");
-
-    taos_close(taos);
   }
+  taos_close(taos);
   
   /* Wait for table to create  */
   multiThreadCreateTable(cols, use_metric, threads, ntables, db_name, tb_prefix, ip_addr, port, user, pass);
@@ -792,9 +791,6 @@ void * createTable(void *sarg)
       snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s%d (ts timestamp%s;", winfo->db_name, winfo->tb_prefix, i, winfo->cols);
       queryDB(winfo->taos, command);
     }
-
-    taos_close(winfo->taos);
-
   } else {
     /* Create all the tables; */
     printf("Creating table from %d to %d\n", winfo->start_table_id, winfo->end_table_id);
@@ -812,7 +808,6 @@ void * createTable(void *sarg)
     }
       queryDB(winfo->taos, command);
     }
-    taos_close(winfo->taos);
   }
 
   return NULL;
