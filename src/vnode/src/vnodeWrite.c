@@ -49,19 +49,26 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   SVnodeObj *pVnode = (SVnodeObj *)param1;
   SWalHead  *pHead = param2;
 
-  if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) 
+  if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
+    vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[pHead->msgType]);
     return TSDB_CODE_VND_MSG_NOT_PROCESSED; 
+  }
 
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
+    vDebug("vgId:%d, msgType:%s not processed, no write auth", pVnode->vgId, taosMsg[pHead->msgType]);
     return TSDB_CODE_VND_NO_WRITE_AUTH;
   }
 
   if (pHead->version == 0) { // from client or CQ 
-    if (pVnode->status != TAOS_VN_STATUS_READY) 
+    if (pVnode->status != TAOS_VN_STATUS_READY) {
+      vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->status);
       return TSDB_CODE_VND_INVALID_STATUS;  // it may be in deleting or closing state
+    }
 
-    if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER)
+    if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+      vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->syncCfg.replica, pVnode->role);
       return TSDB_CODE_RPC_NOT_READY;
+    }
 
     // assign version
     pVnode->version++;
