@@ -99,6 +99,8 @@ static int32_t readVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
     goto PARSE_OVER;
   }
 
+  content[maxLen] = (char)0;
+
   root = cJSON_Parse(content);
   if (root == NULL) {
     printf("failed to json parse %s, invalid json format\n", cfgFile);
