@@ -63,7 +63,7 @@ matrix:
           pkill -TERM -x taosd
           fuser -k -n tcp 6030
           sleep 1
-          ./crash_gen.sh -a -p -t 5 -s 50|| travis_terminate $?
+          ./crash_gen.sh -a -p -t 4 -s 25|| travis_terminate $?
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest

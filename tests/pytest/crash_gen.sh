@@ -41,7 +41,6 @@ fi
 TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
 
 LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
-echo $LIB_DIR
 
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
 export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
