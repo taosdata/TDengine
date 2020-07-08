@@ -61,6 +61,11 @@ matrix:
 
           cd ${TRAVIS_BUILD_DIR}/tests
           ./test-all.sh smoke || travis_terminate $?
+          sleep 1
+
+          cd ${TRAVIS_BUILD_DIR}/tests/pytest
+          ./crash_gen.sh -p -t 5 -s 50|| travis_terminate $?
+          sleep 1
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
           ./valgrind-test.sh 2>&1 > mem-error-out.log
