@@ -20,10 +20,6 @@ from util.sql import tdSql
 
 
 class TDTestCase:
-    def sleep(self, duration):
-        tdLog.info("sleeping %f seconds" % duration)
-        time.sleep(duration)
-
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
@@ -55,20 +51,15 @@ class TDTestCase:
         tdSql.execute("create table tb2 using mt tags(2)");
         tdSql.execute("create table strm as select count(*), avg(c1), sum(c2), max(c1), min(c2),first(c1), last(c2) from mt interval(4s) sliding(2s)")
         #tdSql.execute("create table strm as select count(*), avg(c1), sum(c2), max(c1), min(c2), first(c1) from mt interval(4s) sliding(2s)")
-        self.sleep(10)
+        tdLog.sleep(10)
         tdSql.execute("insert into tb2 values(now, 1, 1)");
         tdSql.execute("insert into tb1 values(now, 1, 1)");
-        self.sleep(4)
+        tdLog.sleep(4)
         tdSql.query("select * from mt")
         tdSql.query("select * from strm")
         tdSql.execute("drop table tb1")
 
-        tdLog.info("retrieve data from strm")
-        for i in range(100):
-            time.sleep(1)
-            tdSql.query("select * from strm")
-            if tdSql.queryRows > 0:
-                break
+        tdSql.waitedQuery("select * from strm", 1, 100)
         if tdSql.queryRows < 1 or tdSql.queryRows > 2:
             tdLog.exit("rows should be 1 or 2")
 
@@ -88,12 +79,7 @@ class TDTestCase:
         tdSql.execute("insert into tb1 values (now,1)")
         tdSql.execute("insert into tb2 values (now,2)")
 
-        tdLog.info("retrieve data from strm")
-        for i in range(100):
-            time.sleep(1)
-            tdSql.query("select * from strm")
-            if tdSql.queryRows > 0:
-                break
+        tdSql.waitedQuery("select * from strm", 1, 100)
         if tdSql.queryRows < 1 or tdSql.queryRows > 2:
             tdLog.exit("rows should be 1 or 2")
 
@@ -104,7 +90,7 @@ class TDTestCase:
         tdSql.execute("insert into tb1 values (now,1)")
         tdSql.query("select * from strm")
         tdSql.execute("alter table mt304 add tag t2 int")
-        self.sleep(1)
+        tdLog.sleep(1)
         tdSql.query("select * from strm")
 
     def wildcardFilterOnTags(self):
@@ -118,20 +104,14 @@ class TDTestCase:
         tdSql.query("describe strm")
         tdSql.checkRows(4)
 
-        self.sleep(1)
+        tdLog.sleep(1)
         tdSql.execute("insert into tb1 values (now, 0, 'tb1')")
-        self.sleep(4)
+        tdLog.sleep(4)
         tdSql.execute("insert into tb2 values (now, 2, 'tb2')")
-        self.sleep(4)
+        tdLog.sleep(4)
         tdSql.execute("insert into tb3 values (now, 0, 'tb3')")
 
-        tdLog.info("retrieve data from strm")
-        for i in range(60):
-            time.sleep(1)
-            tdSql.query("select * from strm")
-            if tdSql.queryRows == 4:
-                break
-
+        tdSql.waitedQuery("select * from strm", 4, 60)
         tdSql.checkRows(4)
         tdSql.checkData(0, 2, 0.000000000)
         if tdSql.getData(0, 3) == 'tb2':
@@ -149,28 +129,18 @@ class TDTestCase:
         # commented out the case below to save running time
         tdSql.execute("create table tb4 using stb tags('a4')")
         tdSql.execute("insert into tb4 values(now, 4, 'tb4')")
-        tdLog.info("retrieve data from strm order by ts desc")
-        for i in range(60):
-            time.sleep(1)
-            tdSql.query("select * from strm order by ts desc")
-            if tdSql.queryRows == 6:
-                break
+        tdSql.waitedQuery("select * from strm order by ts desc", 6, 60)
         tdSql.checkRows(6)
         tdSql.checkData(0, 2, 4)
         tdSql.checkData(0, 3, "tb4")
 
         tdLog.info("change tag values to see if stream still works correctly")
         tdSql.execute("alter table tb4 set tag t1='b4'")
-        self.sleep(3)
+        tdLog.sleep(3)
         tdSql.execute("insert into tb1 values (now, 1, 'tb1_a1')")
-        self.sleep(4)
+        tdLog.sleep(4)
         tdSql.execute("insert into tb4 values (now, -4, 'tb4_b4')")
-        tdLog.info("retrieve data from strm order by ts desc")
-        for i in range(100):
-            time.sleep(1)
-            tdSql.query("select * from strm order by ts desc")
-            if tdSql.queryRows == 8:
-                break
+        tdSql.waitedQuery("select * from strm order by ts desc", 8, 100)
         tdSql.checkRows(8)
         tdSql.checkData(0, 2, 1)
         tdSql.checkData(0, 3, "tb1_a1")
@@ -187,24 +157,14 @@ class TDTestCase:
 
         tdSql.execute("create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5), last(c6) from stb where ts < now + 30s interval(4s) sliding(2s)")
         #tdSql.execute("create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5) from stb where ts < now + 30s interval(4s) sliding(2s)")
-        self.sleep(1)
+        tdLog.sleep(1)
         tdSql.execute("insert into tb0 values (now, 0, 0, 0, 0, 'binary0', '涛思0', true) tb1 values (now, 1, 1, 1, 1, 'binary1', '涛思1', false) tb2 values (now, 2, 2, 2, 2, 'binary2', '涛思2', true) tb3 values (now, 3, 3, 3, 3, 'binary3', '涛思3', false) tb4 values (now, 4, 4, 4, 4, 'binary4', '涛思4', true) ")
 
-        tdLog.info("retrieve data from strm0")
-        for i in range(60):
-            time.sleep(1)
-            tdSql.query("select * from strm0 order by ts desc")
-            if tdSql.queryRows == 2:
-                break
+        tdSql.waitedQuery("select * from strm0 order by ts desc", 2, 60)
         tdSql.checkRows(2)
 
         tdSql.execute("insert into tb0 values (now, 10, 10, 10, 10, 'binary0', '涛思0', true) tb1 values (now, 11, 11, 11, 11, 'binary1', '涛思1', false) tb2 values (now, 12, 12, 12, 12, 'binary2', '涛思2', true) tb3 values (now, 13, 13, 13, 13, 'binary3', '涛思3', false) tb4 values (now, 14, 14, 14, 14, 'binary4', '涛思4', true) ")
-        tdLog.info("retrieve data from strm0 again")
-        for i in range(60):
-            time.sleep(1)
-            tdSql.query("select * from strm0 order by ts desc")
-            if tdSql.queryRows == 4:
-                break
+        tdSql.waitedQuery("select * from strm0 order by ts desc", 4, 60)
         tdSql.checkRows(4)
 
     def run(self):
