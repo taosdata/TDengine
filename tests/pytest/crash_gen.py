@@ -1213,7 +1213,11 @@ class Task():
             self._executeInternal(te, wt) # TODO: no return value?
         except taos.error.ProgrammingError as err:
             errno2 = err.errno if (err.errno > 0) else 0x80000000 + err.errno # correct error scheme
-            if ( errno2 in [0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D, 0x381, 0x380, 0x383, 0x503, 0x600,
+            if ( errno2 in [
+                0x05, # TSDB_CODE_RPC_NOT_READY
+                0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D, 0x381, 0x380, 0x383, 0x503, 
+                0x510, # vnode not in ready state
+                0x600,
                 1000 # REST catch-all error
                 ]) : # allowed errors
                 self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql))
