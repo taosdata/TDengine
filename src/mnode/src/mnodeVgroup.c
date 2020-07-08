@@ -348,17 +348,23 @@ void *mnodeGetNextVgroup(void *pIter, SVgObj **pVgroup) {
 }
 
 static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
+  SVgObj *pVgroup = pMsg->pVgroup;
+  SDbObj *pDb = pMsg->pDb;
+  assert(pVgroup);
+
   if (code != TSDB_CODE_SUCCESS) {
-    pMsg->pVgroup = NULL;
+    mError("app:%p:%p, vgId:%d, failed to create in sdb, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
+           tstrerror(code));
+    SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
+    sdbDeleteRow(&desc);
     return code;
   }
 
-  SVgObj *pVgroup = pMsg->pVgroup;
-  SDbObj *pDb = pMsg->pDb;
-
-  mInfo("vgId:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
+  mInfo("app:%p:%p, vgId:%d, is created in mnode, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
+        pDb->name, pVgroup->numOfVnodes);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    mInfo("vgId:%d, index:%d, dnode:%d", pVgroup->vgId, i, pVgroup->vnodeGid[i].dnodeId);
+    mInfo("app:%p:%p, vgId:%d, index:%d, dnode:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId, i,
+          pVgroup->vnodeGid[i].dnodeId);
   }
 
   mnodeIncVgroupRef(pVgroup);

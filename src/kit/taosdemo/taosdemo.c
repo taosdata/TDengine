@@ -870,6 +870,11 @@ void *readTable(void *sarg) {
   int64_t sTime = rinfo->start_time;
   char *tb_prefix = rinfo->tb_prefix;
   FILE *fp = fopen(rinfo->fp, "a");
+  if (NULL == fp) {
+    printf("fopen %s fail, reason:%s.\n", rinfo->fp, strerror(errno));
+    return NULL;
+  }
+  
   int num_of_DPT = rinfo->nrecords_per_table;
   int num_of_tables = rinfo->end_table_id - rinfo->start_table_id + 1;
   int totalData = num_of_DPT * num_of_tables;
@@ -925,6 +930,11 @@ void *readMetric(void *sarg) {
   TAOS *taos = rinfo->taos;
   char command[BUFFER_SIZE] = "\0";
   FILE *fp = fopen(rinfo->fp, "a");
+  if (NULL == fp) {
+    printf("fopen %s fail, reason:%s.\n", rinfo->fp, strerror(errno));
+    return NULL;
+  }
+  
   int num_of_DPT = rinfo->nrecords_per_table;
   int num_of_tables = rinfo->end_table_id - rinfo->start_table_id + 1;
   int totalData = num_of_DPT * num_of_tables;
