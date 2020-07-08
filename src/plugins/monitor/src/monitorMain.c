@@ -35,9 +35,6 @@
 #define monitorDebug(...) { if (monitorDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON DEBUG ", monitorDebugFlag, __VA_ARGS__); }}
 #define monitorTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON TRACE ", monitorDebugFlag, __VA_ARGS__); }}
 
-#define monitorDebugDump(...) { if (monitorDebugFlag & DEBUG_DEBUG) { taosPrintLongString("MON DEBUG ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorTraceDump(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLongString("MON TRACE ", monitorDebugFlag, __VA_ARGS__); }}
-
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    100
 #define IP_LEN_STR     18

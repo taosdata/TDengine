@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "qast.h"
 #include "qextbuffer.h"
 #include "qfill.h"
 #include "qhistogram.h"
@@ -23,6 +22,7 @@
 #include "qtsbuf.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "qast.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscompression.h"

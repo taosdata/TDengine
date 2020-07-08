@@ -480,9 +480,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **LEASTSQUARES**
     ```mysql
-    SELECT LEASTSQUARES(field_name) FROM tb_name [WHERE clause]
+    SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
     ```
-    功能说明：统计表中某列的值是主键（时间戳）的拟合直线方程。  
+    功能说明：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val是自变量初始值，step_val是自变量的步长值。  
     返回结果数据类型：字符串表达式（斜率, 截距）。  
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。  
     说明：自变量是时间戳，因变量是该列的值。  

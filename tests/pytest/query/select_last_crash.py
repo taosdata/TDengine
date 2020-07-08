@@ -23,7 +23,6 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
-        
         self.rowNum = 5000
         self.ts = 1537146000000
 
@@ -36,15 +35,13 @@ class TDTestCase:
             "create table t1 using st tags('dev_001')")
 
         for i in range(self.rowNum):
-            tdSql.execute("insert into t1 values(%d, 'taosdata%d', %d)" % (self.ts + i, i + 1, i + 1))
+            tdSql.execute(
+                "insert into t1 values(%d, 'taosdata%d', %d)" %
+                (self.ts + i, i + 1, i + 1))
 
         tdSql.query("select last(*) from st")
         tdSql.checkRows(1)
-
-        print(
-            "======= Verify filter for %s type finished =========" %
-            curType)
-
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

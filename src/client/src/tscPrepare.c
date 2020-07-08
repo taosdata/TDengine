@@ -538,7 +538,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->numOfRows = 1;
   
   strtolower(pSql->sqlstr, sql);
-  tscDebugDump("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {  
     pStmt->isInsert = true;

@@ -26,6 +26,7 @@ extern "C" {
 #define DEBUG_INFO  DEBUG_WARN
 #define DEBUG_DEBUG 4U
 #define DEBUG_TRACE 8U
+#define DEBUG_DUMP  16U
 
 #define DEBUG_SCREEN 64U
 #define DEBUG_FILE   128U

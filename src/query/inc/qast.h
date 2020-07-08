@@ -16,16 +16,16 @@
 #ifndef TDENGINE_TAST_H
 #define TDENGINE_TAST_H
 
-#include <tbuffer.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <tskiplist.h>
 #include "os.h"
 
 #include "taosmsg.h"
 #include "taosdef.h"
+#include "tskiplist.h"
+#include "tbuffer.h"
 #include "tvariant.h"
 
 struct tExprNode;
@@ -75,10 +75,6 @@ typedef struct tExprNode {
   };
 } tExprNode;
 
-void tSQLBinaryExprFromString(tExprNode **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len);
-
-void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len);
-
 void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
 
 void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param);
@@ -86,12 +82,9 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, const char*, int32_t));
 
-// todo refactor: remove it
-void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res);
-
 uint8_t getBinaryExprOptr(SSQLToken *pToken);
 
-void       tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
+void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);

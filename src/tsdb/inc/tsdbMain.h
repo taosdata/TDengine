@@ -47,9 +47,9 @@ extern int tsdbDebugFlag;
 // Definitions
 // ------------------ tsdbMeta.c
 typedef struct STable {
+  STableId       tableId;
   ETableType     type;
   tstr*          name;  // NOTE: there a flexible string here
-  STableId       tableId;
   uint64_t       suid;
   struct STable* pSuper;  // super table pointer
   uint8_t        numOfSchemas;
@@ -195,7 +195,6 @@ typedef struct {
 typedef struct {
   uint32_t len;
   uint32_t offset;
-  // uint32_t padding;
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
   uint64_t uid;
@@ -224,7 +223,7 @@ typedef struct {
 
 typedef struct {
   int16_t colId;
-  int16_t len;
+  int32_t len;
   int32_t type : 8;
   int32_t offset : 24;
   int64_t sum;
@@ -298,16 +297,71 @@ STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
 void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
-STSchema*  tsdbGetTableSchema(STable* pTable);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
 STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t version);
-STSchema*  tsdbGetTableTagSchema(STable* pTable);
-int        tsdbUpdateTable(STsdbRepo* pRepo, STable* pTable, STableCfg* pCfg);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
 void       tsdbRefTable(STable* pTable);
 void       tsdbUnRefTable(STable* pTable);
+void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSchema, bool insertAct);
+
+static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
+  if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
+    return -1;
+  } else if (*(int16_t *)key1 > schemaVersion(*(STSchema **)key2)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t version) {
+  STable*   pDTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
+  STSchema* pSchema = NULL;
+  STSchema* pTSchema = NULL;
+
+  if (lock) taosRLockLatch(&(pDTable->latch));
+  if (version < 0) {  // get the latest version of schema
+    pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
+  } else {  // get the schema with version
+    void* ptr = taosbsearch(&version, pDTable->schema, pDTable->numOfSchemas, sizeof(STSchema*),
+                            tsdbCompareSchemaVersion, TD_EQ);
+    if (ptr == NULL) {
+      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      goto _exit;
+    }
+    pTSchema = *(STSchema**)ptr;
+  }
+
+  ASSERT(pTSchema != NULL);
+
+  if (copy) {
+    if ((pSchema = tdDupSchema(pTSchema)) == NULL) terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  } else {
+    pSchema = pTSchema;
+  }
+
+_exit:
+  if (lock) taosRUnLockLatch(&(pDTable->latch));
+  return pSchema;
+}
+
+static FORCE_INLINE STSchema* tsdbGetTableSchema(STable* pTable) {
+  return tsdbGetTableSchemaImpl(pTable, false, false, -1);
+}
+
+static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
+  if (pTable->type == TSDB_CHILD_TABLE) {  // check child table first
+    STable *pSuper = pTable->pSuper;
+    if (pSuper == NULL) return NULL;
+    return pSuper->tagSchema;
+  } else if (pTable->type == TSDB_SUPER_TABLE) {
+    return pTable->tagSchema;
+  } else {
+    return NULL;
+  }
+}
 
 // ------------------ tsdbBuffer.c
 STsdbBufPool* tsdbNewBufPool();
@@ -383,8 +437,9 @@ int   tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
 int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
 void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
-int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, int16_t* colIds, int numOfColIds);
-int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock);
+int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo, int16_t* colIds,
+                            int numOfColIds);
+int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo);
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId

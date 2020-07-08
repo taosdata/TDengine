@@ -14,12 +14,12 @@
  */
 #include "os.h"
 
-#include "tscSubquery.h"
+#include "qtsbuf.h"
 #include "qast.h"
 #include "tcompare.h"
-#include "tschemautil.h"
-#include "qtsbuf.h"
 #include "tscLog.h"
+#include "tscSubquery.h"
+#include "tschemautil.h"
 #include "tsclient.h"
 
 typedef struct SInsertSupporter {
@@ -57,10 +57,15 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   pSubQueryInfo1->tsBuf = output1;
   pSubQueryInfo2->tsBuf = output2;
 
+  // no result generated, return directly
+  if (pSupporter1->pTSBuf == NULL || pSupporter2->pTSBuf == NULL) {
+    tscDebug("%p at least one ts-comp is empty, 0 for secondary query after ts blocks intersecting", pSql);
+    return 0;
+  }
+
   tsBufResetPos(pSupporter1->pTSBuf);
   tsBufResetPos(pSupporter2->pTSBuf);
 
-  // TODO add more details information
   if (!tsBufNextPos(pSupporter1->pTSBuf)) {
     tsBufFlush(output1);
     tsBufFlush(output2);
@@ -210,6 +215,7 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
     pSupporter->f = NULL;
   }
 
+  tfree(pSupporter->pIdTagList);
   tscTagCondRelease(&pSupporter->tagCond);
   free(pSupporter);
 }
@@ -418,43 +424,6 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
 static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
   assert(pQueryInfo->window.skey <= win->skey && pQueryInfo->window.ekey >= win->ekey);
   pQueryInfo->window = *win;
-}
-
-static UNUSED_FUNC void tSIntersectionAndLaunchSecQuery(SJoinSupporter* pSupporter, SSqlObj* pSql) {
-  SSqlObj* pParentSql = pSupporter->pObj;
-  SQueryInfo* pParentQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
-  
-//  if (tscNonOrderedProjectionQueryOnSTable(pParentQueryInfo, 0)) {
-//    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-//    assert(pQueryInfo->numOfTables == 1);
-//
-//    // for projection query, need to try next vnode
-////        int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
-//    int32_t totalVnode = 0;
-//    if ((++pTableMetaInfo->vgroupIndex) < totalVnode) {
-//      tscDebug("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-//               pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVnode, pRes->numOfTotal);
-//
-//      pSql->cmd.command = TSDB_SQL_SELECT;
-//      pSql->fp = tscJoinQueryCallback;
-//      tscProcessSql(pSql);
-//
-//      return;
-//    }
-//  }
-
-    SJoinSupporter* p1 = pParentSql->pSubs[0]->param;
-    SJoinSupporter* p2 = pParentSql->pSubs[1]->param;
-    
-    STimeWindow win = TSWINDOW_INITIALIZER;
-    int64_t num = doTSBlockIntersect(pParentSql, p1, p2, &win);
-    if (num <= 0) {  // no result during ts intersect
-      tscDebug("%p free all sub SqlObj and quit", pParentSql);
-      freeJoinSubqueryObj(pParentSql);
-    } else {
-      updateQueryTimeRange(pParentQueryInfo, &win);
-      tscLaunchRealSubqueries(pParentSql);
-    }
 }
 
 int32_t tscCompareTidTags(const void* p1, const void* p2) {
@@ -713,9 +682,12 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SArray *s1 = NULL, *s2 = NULL;
   getIntersectionOfTableTuple(pQueryInfo, pParentSql, &s1, &s2);
   if (taosArrayGetSize(s1) == 0 || taosArrayGetSize(s2) == 0) {  // no results,return.
-    tscDebug("%p free all sub SqlObj and quit", pParentSql);
+    tscDebug("%p tag intersect does not generated qualified tables for join, free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);
 
+    // set no result command
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
   } else {
     // proceed to for ts_comp query
     SSqlCmd* pSubCmd1 = &pParentSql->pSubs[0]->cmd;
@@ -846,7 +818,10 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   if (num <= 0) {  // no result during ts intersect
     tscDebug("%p no results generated in ts intersection, free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);
-    
+
+    // set no result command
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
     return;
   }
 

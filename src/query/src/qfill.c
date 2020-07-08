@@ -22,41 +22,6 @@
 
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)
 
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, char timeUnit, int16_t precision) {
-  if (slidingTime == 0) {
-    return startTime;
-  }
-
-  if (timeUnit == 'a' || timeUnit == 'm' || timeUnit == 's' || timeUnit == 'h') {
-    return (startTime / slidingTime) * slidingTime;
-  } else {
-    /*
-     * here we revised the start time of day according to the local time zone,
-     * but in case of DST, the start time of one day need to be dynamically decided.
-     *
-     * TODO dynamically decide the start time of a day, move to common module
-     */
-
-    // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-    int64_t timezone = _timezone;
-    int32_t daylight = _daylight;
-    char**  tzname = _tzname;
-#endif
-
-    int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
-
-    int64_t revStartime = (startTime / slidingTime) * slidingTime + timezone * t;
-    int64_t revEndtime = revStartime + slidingTime - 1;
-    if (revEndtime < startTime) {
-      revStartime += slidingTime;
-    }
-
-    return revStartime;
-  }
-}
-
 SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
     int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType, SFillColInfo* pFillCol) {
   if (fillType == TSDB_FILL_NONE) {
@@ -128,7 +93,7 @@ static TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterva
   if (order == TSDB_ORDER_ASC) {
     return ekey;
   } else {
-    return taosGetIntervalStartTimestamp(ekey, timeInterval, slidingTimeUnit, precision);
+    return taosGetIntervalStartTimestamp(ekey, timeInterval, timeInterval, slidingTimeUnit, precision);
   }
 }
 

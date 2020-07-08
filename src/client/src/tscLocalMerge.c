@@ -364,7 +364,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   
   TSKEY stime = MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
   
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
@@ -831,7 +831,7 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
   if (pFillInfo != NULL) {
     int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
     int64_t revisedSTime =
-        taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
+        taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
   
     taosResetFillInfo(pFillInfo, revisedSTime);
   }
@@ -1301,9 +1301,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     TSKEY skey = MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
     int64_t newTime =
-        taosGetIntervalStartTimestamp(skey, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
-//    taosResetFillInfo(pLocalReducer->pFillInfo, pQueryInfo->order.order, newTime,
-//                        pQueryInfo->groupbyExpr.numOfGroupCols, 4096, 0, NULL, pLocalReducer->rowSize);
+        taosGetIntervalStartTimestamp(skey, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
     taosResetFillInfo(pLocalReducer->pFillInfo, newTime);
   }
 }

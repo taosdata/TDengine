@@ -617,19 +617,18 @@ void taos_stop_query(TAOS_RES *res) {
   if (pSql->signature != pSql) return;
   tscDebug("%p start to cancel query", res);
 
-  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     tscKillSTableQuery(pSql);
-    return;
   }
 
-  if (pSql->cmd.command >= TSDB_SQL_LOCAL) {
-    return;
+  if (pSql->cmd.command < TSDB_SQL_LOCAL) {
+    rpcCancelRequest(pSql->pRpcCtx);
   }
+  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+  tscQueueAsyncRes(pSql);
 
-  rpcCancelRequest(pSql->pRpcCtx);
   tscDebug("%p query is cancelled", res);
 }
 

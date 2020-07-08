@@ -24,23 +24,21 @@ int msgSize = 128;
 int commit = 0;
 int dataFd = -1;
 void *qhandle = NULL;
+void *qset = NULL;
 
 void processShellMsg() {
   static int num = 0;
   taos_qall  qall;
   SRpcMsg   *pRpcMsg, rpcMsg;
   int        type;
+  void      *pvnode;
  
   qall = taosAllocateQall();
 
   while (1) {
-    int numOfMsgs = taosReadAllQitems(qhandle, qall);
-    if (numOfMsgs <= 0) {
-      usleep(100);
-      continue;
-    }     
-
+    int numOfMsgs = taosReadAllQitemsFromQset(qset, qall, &pvnode);
     tDebug("%d shell msgs are received", numOfMsgs);
+    if (numOfMsgs <= 0) break;
 
     for (int i=0; i<numOfMsgs; ++i) {
       taosGetQitem(qall, &type, (void **)&pRpcMsg);
@@ -82,15 +80,6 @@ void processShellMsg() {
   }
 
   taosFreeQall(qall);
-/*
-  SRpcIpSet ipSet;
-  ipSet.numOfIps = 1;
-  ipSet.index = 0;
-  ipSet.port = 7000;
-  ipSet.ip[0] = inet_addr("192.168.0.2");
-
-  rpcSendRedirectRsp(ahandle, &ipSet);
-*/
 
 }
 
@@ -189,6 +178,8 @@ int main(int argc, char *argv[]) {
   }
 
   qhandle = taosOpenQueue(sizeof(SRpcMsg));
+  qset = taosOpenQset();
+  taosAddIntoQset(qset, qhandle, NULL);
 
   processShellMsg();
 

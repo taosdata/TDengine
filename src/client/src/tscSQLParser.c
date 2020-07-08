@@ -18,19 +18,19 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
-#include "qast.h"
 #include "taos.h"
 #include "taosmsg.h"
-#include "tstoken.h"
-#include "tstrbuild.h"
-#include "ttime.h"
+#include "qast.h"
+#include "tcompare.h"
+#include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "tstoken.h"
+#include "tstrbuild.h"
+#include "ttime.h"
 #include "ttokendef.h"
-#include "tname.h"
-#include "tcompare.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -4487,10 +4487,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
     pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    pUpdateMsg->tid = htonl(pTableMeta->sid);
-    pUpdateMsg->uid = htobe64(pTableMeta->uid);
-    pUpdateMsg->colId = htons(pTagsSchema->colId);
-    pUpdateMsg->tversion = htons(pTableMeta->tversion);
+    pUpdateMsg->tid       = htonl(pTableMeta->sid);
+    pUpdateMsg->uid       = htobe64(pTableMeta->uid);
+    pUpdateMsg->colId     = htons(pTagsSchema->colId);
+    pUpdateMsg->type      = pTagsSchema->type;
+    pUpdateMsg->bytes     = htons(pTagsSchema->bytes);
+    pUpdateMsg->tversion  = htons(pTableMeta->tversion);
     pUpdateMsg->numOfTags = htons(numOfTags);
     pUpdateMsg->schemaLen = htonl(schemaLen);
 

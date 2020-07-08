@@ -1,10 +1,6 @@
 #!/bin/bash
 ulimit -c unlimited
 
-# client
-python3 ./test.py $1 -f client/client.py
-python3 ./test.py $1 -s && sleep 1
-
 # insert
 python3 ./test.py $1 -f insert/basic.py
 python3 ./test.py $1 -s && sleep 1
@@ -33,5 +29,9 @@ python3 ./test.py $1 -s && sleep 1
 
 #query
 python3 ./test.py $1 -f query/filter.py
+python3 ./test.py $1 -s && sleep 1
+
+# client
+python3 ./test.py $1 -f client/client.py
 python3 ./test.py $1 -s && sleep 1
 
