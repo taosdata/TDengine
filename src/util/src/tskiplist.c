@@ -498,7 +498,17 @@ void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode) {
   if (pSkipList->lock) {
     pthread_rwlock_wrlock(pSkipList->lock);
   }
-  
+
+  if (pSkipList->size == 1) {
+    assert(pSkipList->lastKey == SL_GET_NODE_KEY(pSkipList, pNode));
+    pSkipList->lastKey = 0;
+  } else {
+    if (pSkipList->lastKey == SL_GET_NODE_KEY(pSkipList, pNode)) {
+      SSkipListNode* prev = SL_GET_BACKWARD_POINTER(pNode, 0);
+      pSkipList->lastKey = SL_GET_NODE_KEY(pSkipList, prev);
+    }
+  }
+
   for (int32_t j = level - 1; j >= 0; --j) {
     SSkipListNode* prev = SL_GET_BACKWARD_POINTER(pNode, j);
     SSkipListNode* next = SL_GET_FORWARD_POINTER(pNode, j);
