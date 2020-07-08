@@ -2261,10 +2261,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
         pWindowResInfo->startTime = pQuery->window.skey;
         pWindowResInfo->prevSKey = w.skey;
       }
-      
-      if (pRuntimeEnv->pFillInfo != NULL) {
-        pRuntimeEnv->pFillInfo->start = w.skey;
-      }
     }
 
     // in case of prj/diff query, ensure the output buffer is sufficient to accommodate the results of current block
@@ -3894,7 +3890,6 @@ static void queryCostStatis(SQInfo *pQInfo) {
 //  double total = pSummary->fileTimeUs + pSummary->cacheTimeUs;
 //  double io = pSummary->loadCompInfoUs + pSummary->loadBlocksUs + pSummary->loadFieldUs;
   
-  // todo add the intermediate result save cost!!
 //  double computing = total - io;
 //
 //  qDebug(
@@ -4231,7 +4226,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
   if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
     SFillColInfo* pColInfo = taosCreateFillColInfo(pQuery);
-    pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, 0, 0, pQuery->rec.capacity, pQuery->numOfOutput,
+    pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, pQuery->window.skey, 0, pQuery->rec.capacity, pQuery->numOfOutput,
                                               pQuery->slidingTime, pQuery->slidingTimeUnit, pQuery->precision,
                                               pQuery->fillType, pColInfo);
   }
