@@ -317,7 +317,7 @@ static UNUSED_FUNC void createEnv(void* conn) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
@@ -328,11 +328,9 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  executeSQL(conn, "use lm1_db0", NULL);
+  executeSQL(conn, "use test", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
-//  createEnvironment(conn, 1, 1, 10000, 30);
-  executeSQL(conn, "select max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), first(c9) from lm1_stb0 where ts >= 1537146000000 and ts <= 1543145400000 and t1 > 1 and t1 < 8 interval(5m)", NULL);
-  return 0;
+  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
   //    database TU1", NULL);
   // selectivity + tags/ts + group by normal columns
@@ -397,11 +395,11 @@ int main(int argc, char** argv) {
   //    executeSQL(conn, "select m1.ts from m1 where m1.ts<now and (m1.a=9 and m1.a=20) and m1.ts>10000", NULL);
 
   for(int32_t i = 0; i < 2000000; ++i) {
-        executeSQL(conn, "select * from m1", NULL);
-        executeSQL(conn, "select count(*) from tm99 group by k", NULL);
-        executeSQL(conn, "select count(*) from m1 where tbname in ('tm99')", NULL);
-        executeSQL(conn, "select count(*) from m1 where tbname in ('tm99') interval(1m)", NULL);
-        executeSQL(conn, "select count(tm99.ts) from tm99, tm98 where tm99.ts=tm98.ts", NULL);
+    executeSQL(conn, "select * from m1", NULL);
+    executeSQL(conn, "select count(*) from tm99 group by k", NULL);
+    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99')", NULL);
+    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99') interval(1m)", NULL);
+    executeSQL(conn, "select count(tm99.ts) from tm99, tm98 where tm99.ts=tm98.ts", NULL);
   }
   //    executeSQL(conn, "create database test precision 'us' rows 20000 ablocks 1.9 days 20", NULL);
   struct SInsertParam p = {.conn = conn, .id = 0};
