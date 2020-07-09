@@ -158,7 +158,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION,        0, 0x0382, "mnode inva
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB,               0, 0x0383, "mnode invalid database")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MONITOR_DB_FORBIDDEN,     0, 0x0384, "mnode monitor db forbidden")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       0, 0x0385, "mnode too many databases")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           0, 0x0380, "mnode db in dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           0, 0x0386, "mnode db in dropping")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        0, 0x0400, "dnode message not processed")
