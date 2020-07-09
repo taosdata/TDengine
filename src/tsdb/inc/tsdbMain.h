@@ -206,10 +206,10 @@ typedef struct {
   int64_t offset : 63;
   int32_t algorithm : 8;
   int32_t numOfRows : 24;
-  int32_t sversion;
   int32_t len;
+  int32_t keyLen;     // key column length, keyOffset = offset+sizeof(SCompData)+sizeof(SCompCol)*numOfCols
   int16_t numOfSubBlocks;
-  int16_t numOfCols;
+  int16_t numOfCols; // not including timestamp column
   TSKEY   keyFirst;
   TSKEY   keyLast;
 } SCompBlock;
