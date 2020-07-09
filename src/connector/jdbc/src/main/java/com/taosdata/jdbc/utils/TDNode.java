@@ -37,23 +37,22 @@ public class TDNode {
         this.testCluster = testCluster;
     }
 
-
     public void searchTaosd(File dir, ArrayList<String> taosdPath) {        
         File[] fileList = dir.listFiles();
         
-        if(fileList != null && fileList.length != 0) {
-            for(File file : fileList) {
-                if(file.isFile()) {
-                    if(file.getName().equals("taosd")) {                        
-                        taosdPath.add(file.getAbsolutePath());
-                    }
-                } else {
-                    searchTaosd(file, taosdPath);
-                } 
-            }
+        if(fileList == null || fileList.length == 0) {
+            return;
         }
         
-        return;
+        for(File file : fileList) {
+            if(file.isFile()) {
+                if(file.getName().equals("taosd")) {                        
+                    taosdPath.add(file.getAbsolutePath());
+                }
+            } else {
+                searchTaosd(file, taosdPath);
+            } 
+        }        
     }
 
     public void start() {
@@ -98,10 +97,10 @@ public class TDNode {
 
         String cmd = "";
         if(this.valgrind == 0) {
-            cmd = "nohup " + binPath + " > /dev/null 2>&1 & "; 
+            cmd = "nohup " + binPath + " -c " + cfgDir + " > /dev/null 2>&1 & "; 
             System.out.println("start taosd cmd: " + cmd);
         } else {
-            String valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes";
+            String valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reac∏hable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes";
             cmd = "nohup " + valgrindCmdline + " " + binPath + " -c "  + this.cfgDir + " 2>&1 & ";                                
         }
 
@@ -152,7 +151,7 @@ public class TDNode {
 
     public void startIP() {
         try{
-            String cmd = "sudo ifconfig lo:" + index + "192.168.0." + index + " up";
+            String cmd = "sudo ifconfig lo:" + index + "192.168.0." + index + " up";        
             Runtime.getRuntime().exec(cmd).waitFor();
         } catch (Exception e) {
             e.printStackTrace();
@@ -162,7 +161,7 @@ public class TDNode {
 
     public void stopIP() {
         try{
-            String cmd = "sudo ifconfig lo:" + index + "192.168.0." + index + " down";
+            String cmd = "sudo ifconfig lo:" + index + "192.168.0." + index + " down";            
             Runtime.getRuntime().exec(cmd).waitFor();
         } catch (Exception e) {
             e.printStackTrace();
@@ -172,7 +171,9 @@ public class TDNode {
     public void setCfgConfig(String option, String value) {
         try{
             String cmd = "echo " + option + " " + value + " >> " + this.cfgPath;
-            Runtime.getRuntime().exec(cmd).waitFor();
+            String[] cmdLine = {"sh", "-c", cmd};
+            Process ps = Runtime.getRuntime().exec(cmdLine);
+            ps.waitFor();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -229,7 +230,7 @@ public class TDNode {
         }
         setCfgConfig("dataDir", this.dataDir);
         setCfgConfig("logDir", this.logDir);
-        setCfgConfig("numOfLogLines", "100000000");
+        setCfgConfig("numOfLogLines", "1000000/00");
         setCfgConfig("mnodeEqualVnodeNum", "0");
         setCfgConfig("walLevel", "1");
         setCfgConfig("statusInterval", "1");

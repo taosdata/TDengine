@@ -1,9 +1,6 @@
 package com.taosdata.jdbc;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-
 import com.taosdata.jdbc.utils.TDNodes;
 
 import org.junit.AfterClass;
@@ -13,15 +10,16 @@ public class BaseTest {
 
     private static boolean testCluster = false;
     private static String deployPath = System.getProperty("user.dir");     
-    private static int valgrind = 0;    
+    private static int valgrind = 0;
+    private static TDNodes tdNodes = new TDNodes();    
+    
     
     @BeforeClass
-    public static void setupEnv() {
+    public static void setUpEvn() {
         try{
             File file = new File(deployPath + "/../../../");
             String rootPath = file.getCanonicalPath();
-
-            TDNodes tdNodes = new TDNodes();            
+                       
             tdNodes.setPath(rootPath);
             tdNodes.setTestCluster(testCluster);
             tdNodes.setValgrid(valgrind);
@@ -31,11 +29,12 @@ public class BaseTest {
 
         } catch (Exception e) {
             e.printStackTrace();
+            System.out.println("Base Test Exception");
         }
     }
 
     @AfterClass
-    public static void clearUpEnv() {
-        
+    public static void cleanUpEnv() {
+        tdNodes.stop(1);
     }
 }
