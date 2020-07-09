@@ -123,6 +123,14 @@ static void setQueryStatus(SQuery *pQuery, int8_t status);
 
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->intervalTime > 0)
 
+// previous time window may not be of the same size of pQuery->intervalTime
+#define GET_NEXT_TIMEWINDOW(_q, tw)                                   \
+  do {                                                                \
+    int32_t factor = GET_FORWARD_DIRECTION_FACTOR((_q)->order.order); \
+    (tw)->skey += ((_q)->slidingTime * factor);                       \
+    (tw)->ekey = (tw)->skey + ((_q)->intervalTime - 1);               \
+  } while (0)
+
 // todo move to utility
 static int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *group);
 
@@ -130,7 +138,6 @@ static void setWindowResOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *
 static void setWindowResOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pResult);
 static void resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx, SResultInfo *pResultInfo);
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId);
-static void getNextTimeWindow(SQuery *pQuery, STimeWindow *pTimeWindow);
 
 static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY *tsCol, SDataBlockInfo* pBlockInfo,
                           SDataStatis *pStatis, void *param, int32_t colIndex);
@@ -419,7 +426,7 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
 
         for (int32_t i = pWindowResInfo->capacity; i < newCap; ++i) {
           SPosInfo pos = {-1, -1};
-          createQueryResultInfo(pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &pos);
+          createQueryResultInfo(pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &pos, pRuntimeEnv->interBufSize);
         }
         pWindowResInfo->capacity = newCap;
       }
@@ -551,19 +558,29 @@ static SWindowStatus *getTimeWindowResStatus(SWindowResInfo *pWindowResInfo, int
 
 static int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int16_t pos,
                                       int16_t order, int64_t *pData) {
-  int32_t endPos = searchFn((char *)pData, numOfRows, ekey, order);
   int32_t forwardStep = 0;
 
-  if (endPos >= 0) {
-    forwardStep = (order == TSDB_ORDER_ASC) ? (endPos - pos) : (pos - endPos);
-    assert(forwardStep >= 0);
+  if (order == TSDB_ORDER_ASC) {
+    int32_t end = searchFn((char*) &pData[pos], numOfRows - pos, ekey, order);
+    if (end >= 0) {
+      forwardStep = end;
 
-    // endPos data is equalled to the key so, we do need to read the element in endPos
-    if (pData[endPos] == ekey) {
-      forwardStep += 1;
+      if (pData[end + pos] == ekey) {
+        forwardStep += 1;
+      }
+    }
+  } else {
+    int32_t end = searchFn((char *)pData, pos + 1, ekey, order);
+    if (end >= 0) {
+      forwardStep = pos - end;
+
+      if (pData[end] == ekey) {
+        forwardStep += 1;
+      }
     }
   }
 
+  assert(forwardStep > 0);
   return forwardStep;
 }
 
@@ -686,7 +703,7 @@ static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SDataBlockInfo *pDataBlo
     }
   }
 
-  assert(num >= 0);
+  assert(num > 0);
   return num;
 }
 
@@ -736,59 +753,60 @@ static void doRowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStatus
   }
 }
 
-static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow *pNextWin,
-                                      SDataBlockInfo *pDataBlockInfo, TSKEY *primaryKeys,
-                                      __block_search_fn_t searchFn) {
+static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow *pNext, SDataBlockInfo *pDataBlockInfo,
+    TSKEY *primaryKeys, __block_search_fn_t searchFn, int32_t prevPosition) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  // tumbling time window query, a special case of sliding time window query
-  if (pQuery->slidingTime == pQuery->intervalTime) {
-    // todo opt
-  }
-
-  getNextTimeWindow(pQuery, pNextWin);
+  GET_NEXT_TIMEWINDOW(pQuery, pNext);
 
   // next time window is not in current block
-  if ((pNextWin->skey > pDataBlockInfo->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-      (pNextWin->ekey < pDataBlockInfo->window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+  if ((pNext->skey > pDataBlockInfo->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+      (pNext->ekey < pDataBlockInfo->window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
     return -1;
   }
 
   TSKEY startKey = -1;
   if (QUERY_IS_ASC_QUERY(pQuery)) {
-    startKey = pNextWin->skey;
+    startKey = pNext->skey;
     if (startKey < pQuery->window.skey) {
       startKey = pQuery->window.skey;
     }
   } else {
-    startKey = pNextWin->ekey;
+    startKey = pNext->ekey;
     if (startKey > pQuery->window.skey) {
       startKey = pQuery->window.skey;
     }
   }
 
-  int32_t startPos = searchFn((char *)primaryKeys, pDataBlockInfo->rows, startKey, pQuery->order.order);
+  int32_t startPos = 0;
+  // tumbling time window query, a special case of sliding time window query
+  if (pQuery->slidingTime == pQuery->intervalTime && prevPosition != -1) {
+    int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+    startPos = prevPosition + factor;
+  } else {
+    startPos = searchFn((char *)primaryKeys, pDataBlockInfo->rows, startKey, pQuery->order.order);
+  }
 
   /*
    * This time window does not cover any data, try next time window,
    * this case may happen when the time window is too small
    */
-  if (QUERY_IS_ASC_QUERY(pQuery) && primaryKeys[startPos] > pNextWin->ekey) {
+  if (QUERY_IS_ASC_QUERY(pQuery) && primaryKeys[startPos] > pNext->ekey) {
     TSKEY next = primaryKeys[startPos];
 
-    pNextWin->ekey += ((next - pNextWin->ekey + pQuery->slidingTime - 1)/pQuery->slidingTime) * pQuery->slidingTime;
-    pNextWin->skey = pNextWin->ekey - pQuery->intervalTime + 1;
-  } else if ((!QUERY_IS_ASC_QUERY(pQuery)) && primaryKeys[startPos] < pNextWin->skey) {
+    pNext->ekey += ((next - pNext->ekey + pQuery->slidingTime - 1)/pQuery->slidingTime) * pQuery->slidingTime;
+    pNext->skey = pNext->ekey - pQuery->intervalTime + 1;
+  } else if ((!QUERY_IS_ASC_QUERY(pQuery)) && primaryKeys[startPos] < pNext->skey) {
     TSKEY next = primaryKeys[startPos];
 
-    pNextWin->skey -= ((pNextWin->skey - next + pQuery->slidingTime - 1) / pQuery->slidingTime) * pQuery->slidingTime;
-    pNextWin->ekey = pNextWin->skey + pQuery->intervalTime - 1;
+    pNext->skey -= ((pNext->skey - next + pQuery->slidingTime - 1) / pQuery->slidingTime) * pQuery->slidingTime;
+    pNext->ekey = pNext->skey + pQuery->intervalTime - 1;
   }
 
   return startPos;
 }
 
-static TSKEY reviseWindowEkey(SQuery *pQuery, STimeWindow *pWindow) {
+static FORCE_INLINE TSKEY reviseWindowEkey(SQuery *pQuery, STimeWindow *pWindow) {
   TSKEY ekey = -1;
   if (QUERY_IS_ASC_QUERY(pQuery)) {
     ekey = pWindow->ekey;
@@ -924,20 +942,23 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
       return;
     }
 
+    int32_t forwardStep = 0;
+    int32_t startPos = pQuery->pos;
+
     if (hasTimeWindow) {
       TSKEY   ekey = reviseWindowEkey(pQuery, &win);
-      int32_t forwardStep =
-          getNumOfRowsInTimeWindow(pQuery, pDataBlockInfo, tsCols, pQuery->pos, ekey, searchFn, true);
+      forwardStep = getNumOfRowsInTimeWindow(pQuery, pDataBlockInfo, tsCols, pQuery->pos, ekey, searchFn, true);
 
       SWindowStatus *pStatus = getTimeWindowResStatus(pWindowResInfo, curTimeWindow(pWindowResInfo));
-      doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &win, pQuery->pos, forwardStep, tsCols, pDataBlockInfo->rows);
+      doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &win, startPos, forwardStep, tsCols, pDataBlockInfo->rows);
     }
 
     int32_t     index = pWindowResInfo->curIndex;
     STimeWindow nextWin = win;
 
     while (1) {
-      int32_t startPos = getNextQualifiedWindow(pRuntimeEnv, &nextWin, pDataBlockInfo, tsCols, searchFn);
+      int32_t prevEndPos = (forwardStep - 1) * step + startPos;
+      startPos = getNextQualifiedWindow(pRuntimeEnv, &nextWin, pDataBlockInfo, tsCols, searchFn, prevEndPos);
       if (startPos < 0) {
         break;
       }
@@ -953,7 +974,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
       }
 
       TSKEY ekey = reviseWindowEkey(pQuery, &nextWin);
-      int32_t forwardStep = getNumOfRowsInTimeWindow(pQuery, pDataBlockInfo, tsCols, startPos, ekey, searchFn, true);
+      forwardStep = getNumOfRowsInTimeWindow(pQuery, pDataBlockInfo, tsCols, startPos, ekey, searchFn, true);
 
       SWindowStatus* pStatus = getTimeWindowResStatus(pWindowResInfo, curTimeWindow(pWindowResInfo));
       doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &nextWin, startPos, forwardStep, tsCols, pDataBlockInfo->rows);
@@ -1224,7 +1245,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       int32_t     index = pWindowResInfo->curIndex;
 
       while (1) {
-        getNextTimeWindow(pQuery, &nextWin);
+        GET_NEXT_TIMEWINDOW(pQuery, &nextWin);
         if (/*pWindowResInfo->startTime > nextWin.skey ||*/
             (nextWin.skey > pQuery->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (nextWin.skey < pQuery->window.ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
@@ -1236,7 +1257,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
         }
 
         // null data, failed to allocate more memory buffer
-        bool hasTimeWindow = false;
+        hasTimeWindow = false;
         if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo->tid, &nextWin, masterScan, &hasTimeWindow) != TSDB_CODE_SUCCESS) {
           break;
         }
@@ -1459,11 +1480,13 @@ static void setCtxTagColumnInfo(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *p
   }
 }
 
-static FORCE_INLINE void setWindowResultInfo(SResultInfo *pResultInfo, SQuery *pQuery, bool isStableQuery) {
+static FORCE_INLINE void setWindowResultInfo(SResultInfo *pResultInfo, SQuery *pQuery, bool isStableQuery, char* buf) {
+  char* p = buf;
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    assert(pQuery->pSelectExpr[i].interBytes <= DEFAULT_INTERN_BUF_PAGE_SIZE);
-    
-    setResultInfoBuf(&pResultInfo[i], pQuery->pSelectExpr[i].interBytes, isStableQuery);
+    int32_t size = pQuery->pSelectExpr[i].interBytes;
+    setResultInfoBuf(&pResultInfo[i], size, isStableQuery, p);
+
+    p += size;
   }
 }
 
@@ -1542,8 +1565,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     }
   }
 
+  char* buf = calloc(1, pRuntimeEnv->interBufSize);
+
   // set the intermediate result output buffer
-  setWindowResultInfo(pRuntimeEnv->resultInfo, pQuery, pRuntimeEnv->stableQuery);
+  setWindowResultInfo(pRuntimeEnv->resultInfo, pQuery, pRuntimeEnv->stableQuery, buf);
 
   // if it is group by normal column, do not set output buffer, the output buffer is pResult
   if (!isGroupbyNormalCol(pQuery->pGroupbyExpr) && !pRuntimeEnv->stableQuery) {
@@ -1581,9 +1606,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
       tVariantDestroy(&pCtx->tag);
       tfree(pCtx->tagInfo.pTagCtxList);
-      tfree(pRuntimeEnv->resultInfo[i].interResultBuf);
     }
 
+    tfree(pRuntimeEnv->resultInfo[0].interResultBuf);
     tfree(pRuntimeEnv->resultInfo);
     tfree(pRuntimeEnv->pCtx);
   }
@@ -2015,14 +2040,6 @@ static bool needToLoadDataBlock(SQuery *pQuery, SDataStatis *pDataStatis, SQLFun
 
 #endif
   return true;
-}
-
-// previous time window may not be of the same size of pQuery->intervalTime
-static void getNextTimeWindow(SQuery *pQuery, STimeWindow *pTimeWindow) {
-  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-
-  pTimeWindow->skey += (pQuery->slidingTime * factor);
-  pTimeWindow->ekey = pTimeWindow->skey + (pQuery->intervalTime - 1);
 }
 
 SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, void* pQueryHandle, SDataBlockInfo* pBlockInfo, SDataStatis **pStatis) {
@@ -2737,7 +2754,8 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  setWindowResultInfo(pResultInfo, pQuery, pRuntimeEnv->stableQuery);
+  char* buf = calloc(1, pRuntimeEnv->interBufSize);
+  setWindowResultInfo(pResultInfo, pQuery, pRuntimeEnv->stableQuery, buf);
   resetMergeResultBuf(pQuery, pRuntimeEnv->pCtx, pResultInfo);
 
   int64_t lastTimestamp = -1;
@@ -2823,11 +2841,9 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
   tfree(pTree);
 
   pQInfo->offset = 0;
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    tfree(pResultInfo[i].interResultBuf);
-  }
 
   tfree(pResultInfo);
+  tfree(buf);
   return pQInfo->numOfGroupResultPages;
 }
 
@@ -2980,14 +2996,16 @@ void switchCtxOrder(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 }
 
-void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo) {
+void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo, size_t interBufSize) {
   int32_t numOfCols = pQuery->numOfOutput;
 
   pResultRow->resultInfo = calloc((size_t)numOfCols, sizeof(SResultInfo));
   pResultRow->pos = *posInfo;
 
+  char* buf = calloc(1, interBufSize);
+
   // set the intermediate result output buffer
-  setWindowResultInfo(pResultRow->resultInfo, pQuery, isSTableQuery);
+  setWindowResultInfo(pResultRow->resultInfo, pQuery, isSTableQuery, buf);
 }
 
 void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -3365,7 +3383,7 @@ static STableQueryInfo *createTableQueryInfo(SQueryRuntimeEnv *pRuntimeEnv, void
 
   // set more initial size of interval/groupby query
   if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
-    int32_t initialSize = 20;
+    int32_t initialSize = 16;
     int32_t initialThreshold = 100;
     initWindowResInfo(&pTableQueryInfo->windowResInfo, pRuntimeEnv, initialSize, initialThreshold, TSDB_DATA_TYPE_INT);
   } else { // in other aggregate query, do not initialize the windowResInfo
@@ -4013,7 +4031,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
       }
 
       STimeWindow tw = win;
-      getNextTimeWindow(pQuery, &tw);
+      GET_NEXT_TIMEWINDOW(pQuery, &tw);
 
       if (pQuery->limit.offset == 0) {
         if ((tw.skey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
@@ -4025,7 +4043,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
 
           tw = win;
           int32_t startPos =
-              getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey);
+              getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
           assert(startPos >= 0);
 
           // set the abort info
@@ -4068,7 +4086,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
 
         tw = win;
         int32_t startPos =
-            getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey);
+            getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
         assert(startPos >= 0);
 
         // set the abort info
@@ -4197,7 +4215,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
         type = TSDB_DATA_TYPE_INT;  // group id
       }
 
-      initWindowResInfo(&pRuntimeEnv->windowResInfo, pRuntimeEnv, 512, 4096, type);
+      initWindowResInfo(&pRuntimeEnv->windowResInfo, pRuntimeEnv, 32, 4096, type);
     }
 
   } else if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
@@ -5736,7 +5754,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   STimeWindow window = pQueryMsg->window;
   taosArraySort(pTableIdList, compareTableIdInfo);
 
-  // TODO optimize the STableQueryInfo malloc strategy
+  pQInfo->runtimeEnv.interBufSize = getOutputInterResultBufSize(pQuery);
   pQInfo->pBuf = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
   int32_t index = 0;
 

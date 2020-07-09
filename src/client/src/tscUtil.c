@@ -1464,16 +1464,6 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   return pQueryInfo->pTableMetaInfo[tableIndex];
 }
 
-SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
-
-  if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
-    return NULL;
-  }
-
-  return pCmd->pQueryInfo[subClauseIndex];
-}
-
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd* pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -2097,7 +2087,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
 }
 
 void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);//tscFieldInfoGetSupp(pFieldInfo, columnIndex);
+  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   int32_t type = pInfo->pSqlExpr->resType;
@@ -2112,7 +2102,7 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
     if (isNull(pData, type)) {
       pRes->tsrow[columnIndex] = NULL;
     } else {
-      pRes->tsrow[columnIndex] = pData + VARSTR_HEADER_SIZE;
+      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
     }
   
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
