@@ -148,23 +148,23 @@ class TDTestCase:
     def datatypes(self):
         tdLog.debug("begin data types")
         tdSql.prepare()
-        tdSql.execute("create table stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(15), c6 nchar(15), c7 bool) tags(t1 int, t2 binary(15))")
-        tdSql.execute("create table tb0 using stb tags(0, 'tb0')")
-        tdSql.execute("create table tb1 using stb tags(1, 'tb1')")
-        tdSql.execute("create table tb2 using stb tags(2, 'tb2')")
-        tdSql.execute("create table tb3 using stb tags(3, 'tb3')")
-        tdSql.execute("create table tb4 using stb tags(4, 'tb4')")
+        tdSql.execute("create table stb3 (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(15), c6 nchar(15), c7 bool) tags(t1 int, t2 binary(15))")
+        tdSql.execute("create table tb0 using stb3 tags(0, 'tb0')")
+        tdSql.execute("create table tb1 using stb3 tags(1, 'tb1')")
+        tdSql.execute("create table tb2 using stb3 tags(2, 'tb2')")
+        tdSql.execute("create table tb3 using stb3 tags(3, 'tb3')")
+        tdSql.execute("create table tb4 using stb3 tags(4, 'tb4')")
 
-        tdSql.execute("create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5), last(c6) from stb where ts < now + 30s interval(4s) sliding(2s)")
+        tdSql.execute("create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5), last(c6) from stb3 where ts < now + 30s interval(4s) sliding(2s)")
         #tdSql.execute("create table strm0 as select count(ts), count(c1), max(c2), min(c4), first(c5) from stb where ts < now + 30s interval(4s) sliding(2s)")
         tdLog.sleep(1)
         tdSql.execute("insert into tb0 values (now, 0, 0, 0, 0, 'binary0', '涛思0', true) tb1 values (now, 1, 1, 1, 1, 'binary1', '涛思1', false) tb2 values (now, 2, 2, 2, 2, 'binary2', '涛思2', true) tb3 values (now, 3, 3, 3, 3, 'binary3', '涛思3', false) tb4 values (now, 4, 4, 4, 4, 'binary4', '涛思4', true) ")
 
-        tdSql.waitedQuery("select * from strm0 order by ts desc", 2, 60)
+        tdSql.waitedQuery("select * from strm0 order by ts desc", 2, 120)
         tdSql.checkRows(2)
 
         tdSql.execute("insert into tb0 values (now, 10, 10, 10, 10, 'binary0', '涛思0', true) tb1 values (now, 11, 11, 11, 11, 'binary1', '涛思1', false) tb2 values (now, 12, 12, 12, 12, 'binary2', '涛思2', true) tb3 values (now, 13, 13, 13, 13, 'binary3', '涛思3', false) tb4 values (now, 14, 14, 14, 14, 'binary4', '涛思4', true) ")
-        tdSql.waitedQuery("select * from strm0 order by ts desc", 4, 60)
+        tdSql.waitedQuery("select * from strm0 order by ts desc", 4, 120)
         tdSql.checkRows(4)
 
     def run(self):
