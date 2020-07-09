@@ -302,6 +302,9 @@ static void taosStopPoolThread(SThreadObj* pThread) {
     return;
   }
 
+  // save thread ID into a local variable, since pThread is freed when the thread exits 
+  pthread_t thread = pThread->thread;
+
   // signal the thread to stop, try graceful method first,
   // and use pthread_cancel when failed
   struct epoll_event event = { .events = EPOLLIN };
@@ -316,7 +319,7 @@ static void taosStopPoolThread(SThreadObj* pThread) {
     pthread_cancel(pThread->thread);
   }
 
-  pthread_join(pThread->thread, NULL);
+  pthread_join(thread, NULL);
   tclose(fd);
 }
 
