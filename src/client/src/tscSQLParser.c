@@ -660,11 +660,14 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
 int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg0 = "sliding value too small";
   const char* msg1 = "sliding value no larger than the interval value";
+  const char* msg2 = "sliding value can not less than 1% of interval value";
+
+  const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  SSQLToken*      pSliding = &pQuerySql->sliding;
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
+  SSQLToken* pSliding = &pQuerySql->sliding;
   if (pSliding->n != 0) {
     getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->slidingTime);
     if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
@@ -680,6 +683,10 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
     }
   } else {
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
+  }
+
+  if ((pQueryInfo->intervalTime != 0) && (pQueryInfo->intervalTime/pQueryInfo->slidingTime > INTERVAL_SLIDING_FACTOR)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6120,14 +6127,10 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       }
     }
 
-
+    // NOTE: binary|nchar data allows the >|< type filter
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight->nodeType == TSQL_NODE_VALUE) {
         if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL) {
-          return TSDB_CODE_TSC_INVALID_SQL;
-        }
-        if ((pRight->pVal->nType == TSDB_DATA_TYPE_BINARY || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR)
-            && (*pExpr)->_node.optr != TSDB_RELATION_LIKE) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }

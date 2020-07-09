@@ -492,7 +492,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   }
 
   mnodeDecDnodeRef(pDnode);
-  if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) {
+  if (strcmp(pDnode->dnodeEp, mnodeGetMnodeMasterEp()) == 0) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
   }

@@ -268,6 +268,10 @@ void mnodeGetMnodeIpSetForShell(SRpcIpSet *ipSet) {
   mnodeMnodeUnLock();
 }
 
+char* mnodeGetMnodeMasterEp() {
+  return tsMnodeInfos.nodeInfos[tsMnodeInfos.inUse].nodeEp;
+}
+
 void mnodeGetMnodeInfos(void *mnodeInfos) {
   mnodeMnodeRdLock();
   *(SDMMnodeInfos *)mnodeInfos = tsMnodeInfos;

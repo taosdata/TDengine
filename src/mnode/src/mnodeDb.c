@@ -943,6 +943,11 @@ static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
     return TSDB_CODE_MND_INVALID_DB;
   }
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pAlter->db, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   return mnodeAlterDb(pMsg->pDb, pAlter, pMsg);
 }

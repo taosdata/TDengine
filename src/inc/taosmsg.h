@@ -473,7 +473,7 @@ typedef struct {
 
 typedef struct {
   int32_t  code;
-  uint64_t qhandle;
+  uint64_t qhandle; // query handle
 } SQueryTableRsp;
 
 typedef struct {
@@ -486,7 +486,7 @@ typedef struct SRetrieveTableRsp {
   int32_t numOfRows;
   int8_t  completed;  // all results are returned to client
   int16_t precision;
-  int64_t offset;  // updated offset value for multi-vnode projection query
+  int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
   char    data[];
 } SRetrieveTableRsp;
