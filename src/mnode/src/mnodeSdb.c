@@ -967,12 +967,11 @@ static void *sdbWorkerFp(void *param) {
       }
 
       int32_t code = sdbWrite(pOper, pHead, type);
-      if (code < 0) {
-        if (pOper)
-          pOper->retCode = code;
-        else
-          pHead->len = code;  // hackway
-      }
+      if (code > 0) code = 0;
+      if (pOper)
+        pOper->retCode = code;
+      else
+        pHead->len = code;  // hackway
     }
 
     walFsync(tsSdbObj.wal);
