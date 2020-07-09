@@ -356,12 +356,12 @@ static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pUseDbMsg->db);
   if (pMsg->pDb == NULL) {
-    code = TSDB_CODE_MND_INVALID_DB;
+    return TSDB_CODE_MND_INVALID_DB;
   }
   
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
-    code = TSDB_CODE_MND_DB_IN_DROPPING;
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   return code;
