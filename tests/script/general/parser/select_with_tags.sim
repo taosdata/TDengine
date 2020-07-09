@@ -636,6 +636,15 @@ if $data00 != $data01 then
    return -1
 endi
 
+sql select first(ts), ts  from select_tags_tb1
+if $row != 1 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:50.001@ then
+  return -1
+endi
+
 print ======= selectivity + tags + group by + tags + filter + interval ================
 sql select first(c1), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
 if $row != 3 then

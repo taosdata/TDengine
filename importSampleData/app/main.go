@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/taosdata/TDengine/src/connector/go/taosSql"
+	_ "github.com/taosdata/driver-go/taosSql"
 )
 
 const (

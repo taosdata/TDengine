@@ -75,6 +75,11 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   if (pDb == NULL) {
     return TSDB_CODE_MND_INVALID_DB;
   }
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   pVgroup->pDb = pDb;
   pVgroup->prev = NULL;
@@ -427,12 +432,18 @@ void mnodeDropVgroup(SVgObj *pVgroup, void *ahandle) {
 
 void mnodeCleanupVgroups() {
   sdbCloseTable(tsVgroupSdb);
+  tsVgroupSdb = NULL;
 }
 
 int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   int32_t cols = 0;
@@ -522,6 +533,11 @@ int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pC
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return 0;
+  }
 
   pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
@@ -696,9 +712,9 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->ahandle == NULL) return;
 
   SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
-  mnodeMsg->received++;
+  atomic_add_fetch_8(&mnodeMsg->received, 1);
   if (rpcMsg->code == TSDB_CODE_SUCCESS) {
-    mnodeMsg->successed++;
+    atomic_add_fetch_8(&mnodeMsg->successed, 1);
   } else {
     mnodeMsg->code = rpcMsg->code;
   }

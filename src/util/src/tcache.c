@@ -223,9 +223,9 @@ static void doCleanupDataCache(SCacheObj *pCacheObj);
  * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
  * @param handle   Cache object handle
  */
-static void* taosCacheRefresh(void *handle);
+static void* taosCacheTimedRefresh(void *pCacheObj);
 
-SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn, const char* cacheName) {
+SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char* cacheName) {
   if (refreshTimeInSeconds <= 0) {
     return NULL;
   }
@@ -261,7 +261,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  pthread_create(&pCacheObj->refreshWorker, &thattr, taosCacheRefresh, pCacheObj);
+  pthread_create(&pCacheObj->refreshWorker, &thattr, taosCacheTimedRefresh, pCacheObj);
 
   pthread_attr_destroy(&thattr);
   return pCacheObj;
@@ -450,7 +450,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   }
 }
 
-void taosCacheEmpty(SCacheObj *pCacheObj, bool _remove) {
+void taosCacheEmpty(SCacheObj *pCacheObj) {
   SHashMutableIterator *pIter = taosHashCreateIter(pCacheObj->pHashTable);
   
   __cache_wr_lock(pCacheObj);
@@ -459,8 +459,8 @@ void taosCacheEmpty(SCacheObj *pCacheObj, bool _remove) {
       break;
     }
     
-    SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
-    if (T_REF_VAL_GET(pNode) == 0 || _remove) {
+    SCacheDataNode *pNode = *(SCacheDataNode **) taosHashIterGet(pIter);
+    if (T_REF_VAL_GET(pNode) == 0) {
       taosCacheReleaseNode(pCacheObj, pNode);
     } else {
       taosCacheMoveToTrash(pCacheObj, pNode);
@@ -469,7 +469,7 @@ void taosCacheEmpty(SCacheObj *pCacheObj, bool _remove) {
   __cache_unlock(pCacheObj);
   
   taosHashDestroyIter(pIter);
-  taosTrashCanEmpty(pCacheObj, _remove);
+  taosTrashCanEmpty(pCacheObj, false);
 }
 
 void taosCacheCleanup(SCacheObj *pCacheObj) {
@@ -623,8 +623,29 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
   free(pCacheObj);
 }
 
-void* taosCacheRefresh(void *handle) {
-  SCacheObj *pCacheObj = (SCacheObj *)handle;
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
+  SHashMutableIterator *pIter = taosHashCreateIter(pCacheObj->pHashTable);
+
+  __cache_wr_lock(pCacheObj);
+  while (taosHashIterNext(pIter)) {
+    SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
+    if ((pNode->addedTime + pNode->lifespan * pNode->extendFactor) <= time && T_REF_VAL_GET(pNode) <= 0) {
+      taosCacheReleaseNode(pCacheObj, pNode);
+      continue;
+    }
+
+    if (fp) {
+      fp(pNode->data);
+    }
+  }
+
+  __cache_unlock(pCacheObj);
+
+  taosHashDestroyIter(pIter);
+}
+
+void* taosCacheTimedRefresh(void *handle) {
+  SCacheObj* pCacheObj = handle;
   if (pCacheObj == NULL) {
     uDebug("object is destroyed. no refresh retry");
     return NULL;
@@ -657,25 +678,21 @@ void* taosCacheRefresh(void *handle) {
 
     // refresh data in hash table
     if (elemInHash > 0) {
-      int64_t expiredTime = taosGetTimestampMs();
-
-      SHashMutableIterator *pIter = taosHashCreateIter(pCacheObj->pHashTable);
-
-      __cache_wr_lock(pCacheObj);
-      while (taosHashIterNext(pIter)) {
-        SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
-        if ((pNode->addedTime + pNode->lifespan * pNode->extendFactor) <= expiredTime && T_REF_VAL_GET(pNode) <= 0) {
-          taosCacheReleaseNode(pCacheObj, pNode);
-        }
-      }
-
-      __cache_unlock(pCacheObj);
-
-      taosHashDestroyIter(pIter);
+      int64_t now = taosGetTimestampMs();
+      doCacheRefresh(pCacheObj, now, NULL);
     }
 
     taosTrashCanEmpty(pCacheObj, false);
   }
 
   return NULL;
+}
+
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
+  if (pCacheObj == NULL) {
+    return;
+  }
+
+  int64_t now = taosGetTimestampMs();
+  doCacheRefresh(pCacheObj, now, fp);
 }
