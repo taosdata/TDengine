@@ -1,5 +1,5 @@
-$tblStart = 0
-$tblEnd = 10000
+$tblStart = 30000
+$tblEnd = 40000
 $tsStart = 1325347200000  # 2012-01-01 00:00:00.000
 ###############################################################
 
@@ -22,9 +22,6 @@ while $i < $tblEnd
   sql create table if not exists  $tb using $stb tags ($i, $tagBinary)
   $i = $i + 1
 endw 
-
-
-print ====================== client1_0 create table end, start insert data ............
 
 $rowsPerLoop = 100
 $ts = $tsStart
@@ -51,6 +48,5 @@ while $i < $tblEnd
 	    print **********************  select error **********************
     endi
     continue_loop:
-    print ====================== client1_0  insert data complete once ............
   endi
 endw 
