@@ -459,6 +459,7 @@ void mnodeMoveVgroupToHead(SVgObj *pVgroup) {
 
 void mnodeCleanupDbs() {
   sdbCloseTable(tsDbSdb);
+  tsDbSdb = NULL;
 }
 
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
