@@ -55,10 +55,7 @@ class TDTestCase:
         tdSql.checkRows(tbNum + 1)
 
         tdLog.info("===== step3 =====")
-        tdLog.info("sleeping 120 seconds")
-        time.sleep(120)
-        tdSql.query("select * from s0")
-
+        tdSql.waitedQuery("select * from s0", 1, 120)
         try:
             tdSql.checkData(0, 1, rowNum)
             tdSql.checkData(0, 2, rowNum)
@@ -82,10 +79,7 @@ class TDTestCase:
         tdSql.checkRows(tbNum + 1)
 
         tdLog.info("===== step7 =====")
-        tdLog.info("sleeping 120 seconds")
-        time.sleep(120)
-
-        tdSql.query("select * from s0")
+        tdSql.waitedQuery("select * from s0", 1, 120)
         try:
             tdSql.checkData(0, 1, rowNum)
             tdSql.checkData(0, 2, rowNum)
@@ -108,10 +102,7 @@ class TDTestCase:
         tdSql.checkRows(tbNum + 2)
 
         tdLog.info("===== step9 =====")
-        tdLog.info("sleeping 120 seconds")
-        time.sleep(120)
-
-        tdSql.query("select * from s1")
+        tdSql.waitedQuery("select * from s1", 1, 120)
         try:
             tdSql.checkData(0, 1, rowNum * tbNum)
             tdSql.checkData(0, 2, rowNum * tbNum)
@@ -134,9 +125,7 @@ class TDTestCase:
         tdSql.checkRows(tbNum + 2)
 
         tdLog.info("===== step13 =====")
-        tdLog.info("sleeping 120 seconds")
-        time.sleep(120)
-        tdSql.query("select * from s1")
+        tdSql.waitedQuery("select * from s1", 1, 120)
         try:
             tdSql.checkData(0, 1, rowNum * tbNum)
             tdSql.checkData(0, 2, rowNum * tbNum)

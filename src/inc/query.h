@@ -87,8 +87,8 @@ int32_t qKillQuery(qinfo_t qinfo);
 void* qOpenQueryMgmt(int32_t vgId);
 void  qSetQueryMgmtClosed(void* pExecutor);
 void  qCleanupQueryMgmt(void* pExecutor);
-void** qRegisterQInfo(void* pMgmt, void* qInfo);
-void** qAcquireQInfo(void* pMgmt, void** key);
+void** qRegisterQInfo(void* pMgmt, uint64_t qInfo);
+void** qAcquireQInfo(void* pMgmt, uint64_t key);
 void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree);
 
 #ifdef __cplusplus

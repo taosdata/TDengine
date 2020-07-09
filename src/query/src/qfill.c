@@ -174,7 +174,7 @@ int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
     return 0;
   }
 
-  return FILL_IS_ASC_FILL(pFillInfo) ? (pFillInfo->numOfRows - pFillInfo->rowIdx) : pFillInfo->rowIdx + 1;
+  return pFillInfo->numOfRows - pFillInfo->rowIdx;
 }
 
 // todo: refactor

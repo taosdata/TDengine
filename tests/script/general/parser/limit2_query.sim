@@ -327,3 +327,7 @@ endi
 if $data98 != 9 then
   return -1
 endi
+
+#add one more test case
+sql select max(c1), last(c8) from lm2_db0.lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(linear) limit 10 offset 4089;"
+
