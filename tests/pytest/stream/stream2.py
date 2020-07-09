@@ -53,8 +53,7 @@ class TDTestCase:
         tdSql.checkRows(tbNum + 1)
 
         tdLog.info("===== step3 =====")
-        time.sleep(120)
-        tdSql.query("select * from s0")
+        tdSql.waitedQuery("select * from s0", 1, 120)
         try:
             tdSql.checkData(0, 1, rowNum)
         except Exception as e:
@@ -81,8 +80,7 @@ class TDTestCase:
             tdLog.info(repr(e))
 
         tdLog.info("===== step7 =====")
-        time.sleep(120)
-        tdSql.query("select * from s0")
+        tdSql.waitedQuery("select * from s0", 1, 120)
         try:
             tdSql.checkData(0, 1, rowNum)
             tdSql.checkData(0, 2, rowNum)
@@ -107,8 +105,7 @@ class TDTestCase:
         tdSql.checkRows(tbNum + 2)
 
         tdLog.info("===== step9 =====")
-        time.sleep(120)
-        tdSql.query("select * from s1")
+        tdSql.waitedQuery("select * from s1", 1, 120)
         try:
             tdSql.checkData(0, 1, totalNum)
             tdSql.checkData(0, 2, totalNum)
@@ -137,8 +134,7 @@ class TDTestCase:
             tdLog.info(repr(e))
 
         tdLog.info("===== step13 =====")
-        time.sleep(120)
-        tdSql.query("select * from s1")
+        tdSql.waitedQuery("select * from s1", 1, 120)
         try:
             tdSql.checkData(0, 1, totalNum)
             #tdSql.checkData(0, 2, None)

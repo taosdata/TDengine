@@ -5822,7 +5822,7 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     qDebug("QInfo:%p no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo, pQuery->window.skey,
            pQuery->window.ekey, pQuery->order.order);
     setQueryStatus(pQuery, QUERY_COMPLETED);
-
+    pQInfo->tableqinfoGroupInfo.numOfTables = 0;
     sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
