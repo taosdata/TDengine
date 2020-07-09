@@ -967,7 +967,12 @@ static void *sdbWorkerFp(void *param) {
       }
 
       int32_t code = sdbWrite(pOper, pHead, type);
-      if (pOper && code <= 0) pOper->retCode = code;
+      if (code < 0) {
+        if (pOper)
+          pOper->retCode = code;
+        else
+          pHead->len = code;  // hackway
+      }
     }
 
     walFsync(tsSdbObj.wal);
@@ -983,7 +988,7 @@ static void *sdbWorkerFp(void *param) {
         sdbConfirmForward(NULL, pOper, pOper->retCode);
       } else if (type == TAOS_QTYPE_FWD) {
         pHead = (SWalHead *)item;
-        syncConfirmForward(tsSdbObj.sync, pHead->version, TSDB_CODE_SUCCESS);
+        syncConfirmForward(tsSdbObj.sync, pHead->version, pHead->len);
         taosFreeQitem(item);
       } else {
         taosFreeQitem(item);
