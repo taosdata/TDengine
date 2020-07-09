@@ -982,6 +982,7 @@ static void *sdbWorkerFp(void *param) {
         sdbDecRef(pOper->table, pOper->pObj);
         sdbConfirmForward(NULL, pOper, pOper->retCode);
       } else if (type == TAOS_QTYPE_FWD) {
+        pHead = (SWalHead *)item;
         syncConfirmForward(tsSdbObj.sync, pHead->version, TSDB_CODE_SUCCESS);
         taosFreeQitem(item);
       } else {
