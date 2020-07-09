@@ -75,6 +75,11 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   if (pDb == NULL) {
     return TSDB_CODE_MND_INVALID_DB;
   }
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   pVgroup->pDb = pDb;
   pVgroup->prev = NULL;
@@ -435,6 +440,11 @@ int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   if (pDb == NULL) {
     return TSDB_CODE_MND_DB_NOT_SELECTED;
   }
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -523,6 +533,11 @@ int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pC
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return 0;
+  }
 
   pVgroup = pDb->pHead;
   while (pVgroup != NULL) {

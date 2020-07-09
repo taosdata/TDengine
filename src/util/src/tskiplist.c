@@ -5,6 +5,7 @@
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
+ *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
@@ -238,7 +239,7 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
   
   // if the new key is greater than the maximum key of skip list, push back this node at the end of skip list
   char *newDatakey = SL_GET_NODE_KEY(pSkipList, pNode);
-  if (pSkipList->size == 0 || pSkipList->comparFn(pSkipList->lastKey, newDatakey) < 0) {
+  if (pSkipList->size == 0 || pSkipList->comparFn(SL_GET_SL_MAX_KEY(pSkipList), newDatakey) < 0) {
     return tSkipListPushBack(pSkipList, pNode);
   }
   
@@ -499,16 +500,6 @@ void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode) {
     pthread_rwlock_wrlock(pSkipList->lock);
   }
 
-  if (pSkipList->size == 1) {
-    assert(pSkipList->lastKey == SL_GET_NODE_KEY(pSkipList, pNode));
-    pSkipList->lastKey = 0;
-  } else {
-    if (pSkipList->lastKey == SL_GET_NODE_KEY(pSkipList, pNode)) {
-      SSkipListNode* prev = SL_GET_BACKWARD_POINTER(pNode, 0);
-      pSkipList->lastKey = SL_GET_NODE_KEY(pSkipList, prev);
-    }
-  }
-
   for (int32_t j = level - 1; j >= 0; --j) {
     SSkipListNode* prev = SL_GET_BACKWARD_POINTER(pNode, j);
     SSkipListNode* next = SL_GET_FORWARD_POINTER(pNode, j);
@@ -708,8 +699,6 @@ SSkipListNode* tSkipListPushBack(SSkipList *pSkipList, SSkipListNode *pNode) {
     SL_GET_BACKWARD_POINTER(pNode, i) = prev;
     SL_GET_BACKWARD_POINTER(pSkipList->pTail, i) = pNode;
   }
-  
-  pSkipList->lastKey = SL_GET_NODE_KEY(pSkipList, pNode);
   
   atomic_add_fetch_32(&pSkipList->size, 1);
   if (pSkipList->lock) {

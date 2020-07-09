@@ -109,6 +109,8 @@ void cqClose(void *handle) {
   while (pObj) {
     SCqObj *pTemp = pObj;
     pObj = pObj->next;
+    tdFreeSchema(pTemp->pSchema);
+    tfree(pTemp->sqlStr);
     free(pTemp);
   } 
   
@@ -242,6 +244,10 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
 
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SCqObj     *pObj = (SCqObj *)param;
+  if (tres == NULL && row == NULL) {
+    pObj->pStream = NULL;
+    return;
+  }
   SCqContext *pContext = pObj->pContext;
   STSchema   *pSchema = pObj->pSchema;
   if (pObj->pStream == NULL) return;

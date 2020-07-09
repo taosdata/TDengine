@@ -51,6 +51,7 @@ typedef struct SSkipListNode {
 #define SL_GET_NODE_KEY(s, n) ((s)->keyFn(SL_GET_NODE_DATA(n)))
 
 #define SL_GET_SL_MIN_KEY(s) (SL_GET_NODE_KEY((s), SL_GET_FORWARD_POINTER((s)->pHead, 0)))
+#define SL_GET_SL_MAX_KEY(s) (SL_GET_NODE_KEY((s), SL_GET_BACKWARD_POINTER((s)->pTail, 0)))
 
 #define SL_GET_NODE_LEVEL(n) *(uint8_t *)((n))
 
@@ -119,7 +120,6 @@ typedef struct SSkipList {
   pthread_rwlock_t *lock;
   SSkipListNode *   pHead;    // point to the first element
   SSkipListNode *   pTail;    // point to the last element
-  void *            lastKey;  // last key in the skiplist
 #if SKIP_LIST_RECORD_PERFORMANCE
   tSkipListState state;  // skiplist state
 #endif
