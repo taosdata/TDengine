@@ -61,19 +61,29 @@ sql use $db
 
 print ============== step3: create stable stb1
 $stb = stb1
-sql create table $stb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 binary(8))
+sql create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(8))
 
 print ============== step4: start 10 client1/ 10 client2/ 10 client3/ 10 client4/ 1 client5
+#run_back unique/cluster/client_test.sim
 run_back unique/cluster/client1_0.sim
-#run_back unique/cluster/client1_1.sim
-#run_back unique/big_cluster/client1_2.sim
-#run_back unique/big_cluster/client1_3.sim
-#run_back unique/big_cluster/client1_4.sim
-#run_back unique/big_cluster/client1_5.sim
-#run_back unique/big_cluster/client1_6.sim
-#run_back unique/big_cluster/client1_7.sim
-#run_back unique/big_cluster/client1_8.sim
-#run_back unique/big_cluster/client1_9.sim
+run_back unique/cluster/client1_1.sim
+run_back unique/cluster/client1_2.sim
+run_back unique/cluster/client1_3.sim
+run_back unique/cluster/client2_0.sim
+run_back unique/cluster/client2_1.sim
+run_back unique/cluster/client2_2.sim
+run_back unique/cluster/client2_3.sim
+run_back unique/cluster/client3.sim
+run_back unique/cluster/client4.sim
+
+sleep 20000
+wait_subsim_insert_data:
+sql select count(*) from $stb
+print data00 $data00
+if $data00 < 1 then
+  sleep 3000
+  goto wait_subsim_insert_data
+endi
 
 
 print wait for a while to let clients start insert data
@@ -81,7 +91,7 @@ sleep 5000
 
 $loop_cnt = 0
 loop_cluster_do:
-print **** **** **** START loop cluster do **** **** **** ****
+print **** **** **** START loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
 print ============== step5: start dnode4 and add into cluster, then wait dnode4 ready
 system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
@@ -112,7 +122,7 @@ elif $loop_cnt == 1 then
 elif $loop_cnt == 2 then
   $dnode4Status = $data4_8 
 else then
-  print **** **** **** END loop cluster do 2**** **** **** ****
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
   return
 endi
 
@@ -154,7 +164,7 @@ elif $loop_cnt == 2 then
 elif $loop_cnt == 3 then
   $dnode1Status = $data4_9 
 else then
-  print **** **** **** END loop cluster do 1**** **** **** ****
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
   return
 endi
 
@@ -163,44 +173,124 @@ if $dnode1Status != offline then
   goto wait_dnode1_offline_0
 endi
 
+
+
+$cnt = 0
+wait_mnode1_offline_0:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
+print show mnodes
+sql show mnodes
+if $rows != 3 then
+  sleep 2000
+  goto wait_mnode1_offline_0
+endi
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+$mnode1Status = $data2_1
+$mnode2Status = $data2_2
+$mnode3Status = $data2_3
+$mnode4Status = $data2_4
+
+if $loop_cnt == 0 then
+  $mnode1Status = $data2_1 
+elif $loop_cnt == 1 then
+  $mnode1Status = $data2_5 
+elif $loop_cnt == 2 then
+  $mnode1Status = $data2_7 
+elif $loop_cnt == 3 then
+  $mnode1Status = $data2_9 
+else then
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
+  return
+endi
+
+if $mnode1Status != offline then
+  sleep 2000
+  goto wait_mnode1_offline_0
+endi
+
+
+
 sql drop dnode $hostname1
-system rm -rf ../../../sim/dnode1
+system rm -rf ../../../sim/dnode1/data
 
+$cnt = 0
+wait_mnode4_slave_0:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
+print show mnodes
+sql show mnodes
+if $rows != 3 then
+  sleep 2000
+  goto wait_mnode4_slave_0
+endi
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+$mnode1Status = $data2_1
+$mnode2Status = $data2_2
+$mnode3Status = $data2_3
+$mnode4Status = $data2_4
 
-print ============== step7: stop dnode2, because mnodes < 50%, so clusert don't provide services
+if $loop_cnt == 0 then
+  $mnode4Status = $data2_4 
+elif $loop_cnt == 1 then
+  $mnode4Status = $data2_6 
+elif $loop_cnt == 2 then
+  $mnode4Status = $data2_8 
+else then
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
+  return
+endi
+
+if $mnode4Status != slave then
+  sleep 2000
+  goto wait_mnode4_slave_0
+endi
+
+print ============== step7: stop dnode2, waiting dnode4 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
-sql show dnodes -x wait_dnode2_offline_0
+$cnt = 0
+wait_dnode2_offline_0:
+$cnt = $cnt + 1
+if $cnt == 10 then
+  return -1
+endi
+sql show dnodes
 if $rows != 3 then
   sleep 2000
   goto wait_dnode2_offline_0
 endi
-wait_dnode2_offline_0:
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+$dnode1Status = $data4_1  
+$dnode2Status = $data4_2
+$dnode3Status = $data4_3  
+$dnode4Status = $data4_4 
 
-#$cnt = 0
-#wait_dnode2_offline_0:
-#$cnt = $cnt + 1
-#if $cnt == 10 then
-#  return -1
-#endi
-#sql show dnodes -x wait_dnode2_offline_0
-#if $rows != 3 then
-#  sleep 2000
-#  goto wait_dnode2_offline_0
-#endi
-#print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-#print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-#print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#$dnode1Status = $data4_1  
-#$dnode2Status = $data4_2
-#$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#
-#if $dnode2Status != offline then
-#  sleep 2000
-#  goto wait_dnode1_offline_0
-#endi
+if $dnode2Status != offline then
+  sleep 2000
+  goto wait_dnode2_offline_0
+endi
+
+sleep 3000
+print show mnodes
+sql show mnodes
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
 
 print ============== step8: restart dnode2, then wait sync end
 system sh/exec.sh -n dnode2 -s start
@@ -230,9 +320,17 @@ if $dnode2Status != ready then
   goto wait_dnode2_ready_0
 endi
 
+sleep 3000
+print show mnodes
+sql show mnodes
+print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
+print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
+print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
 
 print ============== step9: stop dnode3, then wait sync end
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
+sleep 3000
 
 $cnt = 0
 wait_dnode3_offline_0:
@@ -261,6 +359,7 @@ endi
 
 print ============== step10: restart dnode3, then wait sync end
 system sh/exec.sh -n dnode3 -s start
+sleep 3000
 
 $cnt = 0
 wait_dnode3_ready_0:
@@ -289,6 +388,7 @@ endi
 
 print ============== step11: stop dnode4, then wait sync end
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
+sleep 3000
 
 $cnt = 0
 wait_dnode4_offline_0:
@@ -317,7 +417,7 @@ elif $loop_cnt == 1 then
 elif $loop_cnt == 2 then
   $dnode4Status = $data4_8 
 else then
-  print **** **** **** END loop cluster do 2**** **** **** ****
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
   return
 endi
 
@@ -328,9 +428,10 @@ endi
 
 print ============== step12: restart dnode4, then wait sync end
 system sh/exec.sh -n dnode4 -s start
+sleep 3000
 
 $cnt = 0
-wait_dnode4_ready_0:
+wait_dnode4_ready_1:
 $cnt = $cnt + 1
 if $cnt == 10 then
   return -1
@@ -338,7 +439,7 @@ endi
 sql show dnodes
 if $rows != 3 then
   sleep 2000
-  goto wait_dnode4_ready_0
+  goto wait_dnode4_ready_1
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -356,27 +457,28 @@ elif $loop_cnt == 1 then
 elif $loop_cnt == 2 then
   $dnode4Status = $data4_8 
 else then
-  print **** **** **** END loop cluster do 2**** **** **** ****
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
   return
 endi
 
 if $dnode4Status != ready then
   sleep 2000
-  goto wait_dnode4_ready_0
+  goto wait_dnode4_ready_1
 endi
 
 print ============== step13: alter replica 2
 sql alter database $db replica 2
-sql show database
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
+sql show databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
 
-if $data0_5 != 2 then
+if $data04 != 2 then
   print rplica is not modify to 2, error!!!!!!
-  return
+  return -1
 endi
 
 print ============== step14: stop and drop dnode4, then remove data dir of dnode4 
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
+sleep 3000
 
 $cnt = 0
 wait_dnode4_offline_1:
@@ -405,7 +507,7 @@ elif $loop_cnt == 1 then
 elif $loop_cnt == 2 then
   $dnode4Status = $data4_8 
 else then
-  print **** **** **** END loop cluster do 2**** **** **** ****
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
   return
 endi
 
@@ -414,32 +516,34 @@ if $dnode4Status != offline then
   goto wait_dnode4_offline_1
 endi
 
+sleep 3000
 sql drop dnode $hostname4
-system rm -rf ../../../sim/dnode4
+system rm -rf ../../../sim/dnode4/data
 
 
 print ============== step15: alter replica 1
 sql alter database $db replica 1
-sql show database
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-
-if $data0_5 != 1 then
+sql show databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09
+if $data04 != 1 then
   print rplica is not modify to 1, error!!!!!!
-  return
+  return -1
 endi
 
 
 print ============== step16: alter replica 2
-sql alter database $db replica 1
-sql show database
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-
-if $data0_5 != 2 then
+sql alter database $db replica 2
+sql show databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09
+if $data04 != 2 then
   print rplica is not modify to 2, error!!!!!!
-  return
+  return -1
 endi
 
 print ============== step17: start dnode1 and add into cluster, then wait dnode1 ready
+system sh/cfg.sh -n dnode1 -c first -v $hostname2
+system sh/cfg.sh -n dnode1 -c second -v $hostname3
+
 system sh/exec.sh -n dnode1 -s start
 sql create dnode $hostname1
 
@@ -457,21 +561,20 @@ print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
 print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
+print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
 #$dnode1Status = $data4_1  
 $dnode2Status = $data4_2
 $dnode3Status = $data4_3  
 $dnode4Status = $data4_4 
 
 if $loop_cnt == 0 then
-  $dnode1Status = $data4_1 
-elif $loop_cnt == 1 then
   $dnode1Status = $data4_5 
-elif $loop_cnt == 2 then
+elif $loop_cnt == 1 then
   $dnode1Status = $data4_7 
-elif $loop_cnt == 3 then
-  $dnode1Status = $data4_9 
+elif $loop_cnt == 2 then
+  $dnode1Status = $data4_9
 else then
-  print **** **** **** END loop cluster do 3**** **** **** ****
+  print **** **** **** END loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
   return
 endi
 
@@ -482,13 +585,13 @@ endi
 
 print ============== step18: alter replica 3
 sql alter database $db replica 3
-sql show database
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-
-if $data0_5 != 3 then
+sql show databases
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09
+if $data04 != 3 then
   print rplica is not modify to 3, error!!!!!!
-  return
+  return -1
 endi
 
+print **** **** **** (loop_cnt: $loop_cnt ) end, continue...... **** **** **** ****
 $loop_cnt = $loop_cnt + 1
 goto loop_cluster_do
