@@ -1227,13 +1227,13 @@ class Task():
                 errMsg = "[=] Unexpected Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql)
                 self.logDebug(errMsg)
                 if gConfig.debug :
-                    raise # so that we see full stack
-                else: # non-debug
-                    print("\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n".format(errMsg) +
-                        "----------------------------\n")
-                    # sys.exit(-1)
-                    self._err = err
-                    self._aborted = True
+                    # raise # so that we see full stack
+                    traceback.print_exc()
+                print("\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n".format(errMsg) +
+                    "----------------------------\n")
+                # sys.exit(-1)
+                self._err = err
+                self._aborted = True
         except Exception as e :
             self.logInfo("Non-TAOS exception encountered")
             self._err = e 
