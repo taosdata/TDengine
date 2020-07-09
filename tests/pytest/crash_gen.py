@@ -1239,6 +1239,11 @@ class Task():
             self._err = e 
             self._aborted = True
             traceback.print_exc()
+        except BaseException as e :
+            self.logInfo("Python base exception encountered")
+            self._err = e 
+            self._aborted = True
+            traceback.print_exc()
         except :
             self.logDebug("[=] Unexpected exception, SQL: {}".format(self._lastSql))
             raise
