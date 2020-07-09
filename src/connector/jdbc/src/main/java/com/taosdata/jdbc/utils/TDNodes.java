@@ -5,8 +5,7 @@ import java.util.*;
 
 public class TDNodes {
     private ArrayList<TDNode> tdNodes; 
-    private boolean testCluster;
-    private int valgrind;    
+    private boolean testCluster;     
 
     public TDNodes () {
         tdNodes = new ArrayList<>();
@@ -21,13 +20,7 @@ public class TDNodes {
             Process ps = Runtime.getRuntime().exec(psCmd);
             ps.waitFor();
             String killCmd = "kill -9 " + ps.pid();
-            Runtime.getRuntime().exec(killCmd).waitFor();
-
-            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'";
-            ps = Runtime.getRuntime().exec(psCmd);
-            ps.waitFor();
-            killCmd = "kill -9 " + ps.pid();
-            Runtime.getRuntime().exec(killCmd).waitFor();
+            Runtime.getRuntime().exec(killCmd).waitFor();        
 
             String binPath = System.getProperty("user.dir");
             binPath += "/../../../debug";
@@ -54,10 +47,6 @@ public class TDNodes {
         this.testCluster = testCluster;
     }
 
-    public void setValgrid(int valgrind) {
-        this.valgrind = valgrind;
-    }
-
     public void check(int index) {
         if(index < 1 || index > 10) {
             System.out.println("index: " + index + " should on a scale of [1, 10]");
@@ -70,8 +59,7 @@ public class TDNodes {
             File file = new File(System.getProperty("user.dir") + "/../../../");
             String projectRealPath = file.getCanonicalPath();
             check(index);        
-            tdNodes.get(index - 1).setTestCluster(this.testCluster);
-            tdNodes.get(index - 1).setValgrind(valgrind); 
+            tdNodes.get(index - 1).setTestCluster(this.testCluster);            
             tdNodes.get(index - 1).setPath(projectRealPath); 
             tdNodes.get(index - 1).deploy();
         } catch (Exception e) {

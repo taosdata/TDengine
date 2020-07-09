@@ -13,25 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "os.h"
-#include "tulog.h"
-#include "tutil.h"
-#include "tbuffer.h"
+
+#include "tname.h"
 #include "qast.h"
-#include "tcompare.h"
+#include "tsdb.h"
+#include "exception.h"
 #include "qsqlparser.h"
 #include "qsyntaxtreefunction.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "tarray.h"
+#include "tbuffer.h"
+#include "tcompare.h"
+#include "tskiplist.h"
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "tschemautil.h"
-#include "tarray.h"
-#include "tskiplist.h"
-#include "queryLog.h"
-#include "tsdbMain.h"
-#include "exception.h"
+#include "tulog.h"
+#include "tutil.h"
 
 /*
  *
@@ -325,104 +326,6 @@ static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *st
 
     return parseRemainStr(str, pExpr, pSchema, localOptr, numOfCols, i);
   }
-}
-
-void tSQLBinaryExprFromString(tExprNode **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len) {
-  *pExpr = NULL;
-  
-  if (len <= 0 || src == NULL || pSchema == NULL || numOfCols <= 0) {
-    return;
-  }
-
-  int32_t pos = 0;
-  
-  *pExpr = createSyntaxTree(pSchema, numOfCols, src, &pos);
-  if (*pExpr != NULL) {
-    assert((*pExpr)->nodeType == TSQL_NODE_EXPR);
-  }
-}
-
-int32_t tSQLBinaryExprToStringImpl(tExprNode *pNode, char *dst, uint8_t type) {
-  int32_t len = 0;
-  if (type == TSQL_NODE_EXPR) {
-    *dst = '(';
-    tSQLBinaryExprToString(pNode, dst + 1, &len);
-    len += 2;
-    *(dst + len - 1) = ')';
-  } else if (type == TSQL_NODE_COL) {
-    len = sprintf(dst, "%s", pNode->pSchema->name);
-  } else {
-    len = tVariantToString(pNode->pVal, dst);
-  }
-  return len;
-}
-
-// TODO REFACTOR WITH SQL PARSER
-static char *tSQLOptrToString(uint8_t optr, char *dst) {
-  switch (optr) {
-    case TSDB_RELATION_LESS: {
-      *dst = '<';
-      dst += 1;
-      break;
-    }
-    case TSDB_RELATION_LESS_EQUAL: {
-      *dst = '<';
-      *(dst + 1) = '=';
-      dst += 2;
-      break;
-    }
-    case TSDB_RELATION_EQUAL: {
-      *dst = '=';
-      dst += 1;
-      break;
-    }
-    case TSDB_RELATION_GREATER: {
-      *dst = '>';
-      dst += 1;
-      break;
-    }
-    case TSDB_RELATION_GREATER_EQUAL: {
-      *dst = '>';
-      *(dst + 1) = '=';
-      dst += 2;
-      break;
-    }
-    case TSDB_RELATION_NOT_EQUAL: {
-      *dst = '<';
-      *(dst + 1) = '>';
-      dst += 2;
-      break;
-    }
-    case TSDB_RELATION_OR: {
-      memcpy(dst, "or", 2);
-      dst += 2;
-      break;
-    }
-    case TSDB_RELATION_AND: {
-      memcpy(dst, "and", 3);
-      dst += 3;
-      break;
-    }
-    default:;
-  }
-  return dst;
-}
-
-void tSQLBinaryExprToString(tExprNode *pExpr, char *dst, int32_t *len) {
-  if (pExpr == NULL) {
-    *dst = 0;
-    *len = 0;
-    return;
-  }
-
-  int32_t lhs = tSQLBinaryExprToStringImpl(pExpr->_node.pLeft, dst, pExpr->_node.pLeft->nodeType);
-  dst += lhs;
-  *len = lhs;
-
-  char *start = tSQLOptrToString(pExpr->_node.optr, dst);
-  *len += (start - dst);
-
-  *len += tSQLBinaryExprToStringImpl(pExpr->_node.pRight, start, pExpr->_node.pRight->nodeType);
 }
 
 static void UNUSED_FUNC destroySyntaxTree(tExprNode *pNode) { tExprNodeDestroy(pNode, NULL); }
@@ -773,8 +676,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     SSkipListNode *pNode = tSkipListIterGet(iter);
     char *         pData = SL_GET_NODE_DATA(pNode);
 
-    // todo refactor:
-    tstr *name = (*(STable **)pData)->name;
+    tstr *name = (tstr*) tsdbGetTableName(*(void**) pData);
     // todo speed up by using hash
     if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
@@ -976,27 +878,27 @@ void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, 
   free(pRightOutput);
 }
 
-void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res) {
-  if (pExprs == NULL) {
-    return;
-  }
-
-  tExprNode *pLeft = pExprs->_node.pLeft;
-  tExprNode *pRight = pExprs->_node.pRight;
-
-  // recursive traverse left child branch
-  if (pLeft->nodeType == TSQL_NODE_EXPR) {
-    tSQLBinaryExprTrv(pLeft, res);
-  } else if (pLeft->nodeType == TSQL_NODE_COL) {
-    taosArrayPush(res, &pLeft->pSchema->colId);
-  }
-
-  if (pRight->nodeType == TSQL_NODE_EXPR) {
-    tSQLBinaryExprTrv(pRight, res);
-  } else if (pRight->nodeType == TSQL_NODE_COL) {
-    taosArrayPush(res, &pRight->pSchema->colId);
-  }
-}
+//void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res) {
+//  if (pExprs == NULL) {
+//    return;
+//  }
+//
+//  tExprNode *pLeft = pExprs->_node.pLeft;
+//  tExprNode *pRight = pExprs->_node.pRight;
+//
+//  // recursive traverse left child branch
+//  if (pLeft->nodeType == TSQL_NODE_EXPR) {
+//    tSQLBinaryExprTrv(pLeft, res);
+//  } else if (pLeft->nodeType == TSQL_NODE_COL) {
+//    taosArrayPush(res, &pLeft->pSchema->colId);
+//  }
+//
+//  if (pRight->nodeType == TSQL_NODE_EXPR) {
+//    tSQLBinaryExprTrv(pRight, res);
+//  } else if (pRight->nodeType == TSQL_NODE_COL) {
+//    taosArrayPush(res, &pRight->pSchema->colId);
+//  }
+//}
 
 static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
   tbufWriteUint8(bw, expr->nodeType);

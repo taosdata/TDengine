@@ -206,9 +206,10 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     
     if (code != 0) {
       fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(con), fname, lineNo);
-      /* free local resouce: allocated memory/metric-meta refcnt */
-      taos_free_result(pSql);
     }
+    
+    /* free local resouce: allocated memory/metric-meta refcnt */
+    taos_free_result(pSql);
 
     memset(cmd, 0, MAX_COMMAND_SIZE);
     cmd_len = 0;

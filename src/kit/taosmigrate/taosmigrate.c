@@ -40,7 +40,7 @@ struct arguments {
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   struct arguments *arguments = state->input;
   switch (key) {
-    case 'w':
+    case 'r':
       arguments->dataDir = arg;
       break;
     case 'd':
@@ -51,6 +51,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'f':
       arguments->fqdn = arg;
+      break;
     case 'g':
       arguments->dnodeGroups = arg;
       break;

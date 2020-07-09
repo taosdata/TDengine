@@ -165,6 +165,7 @@ int32_t mnodeInitMnodes() {
 
 void mnodeCleanupMnodes() {
   sdbCloseTable(tsMnodeSdb);
+  tsMnodeSdb = NULL;
   mnodeMnodeDestroyLock();
 }
 
@@ -265,6 +266,10 @@ void mnodeGetMnodeIpSetForShell(SRpcIpSet *ipSet) {
   mnodeMnodeRdLock();
   *ipSet = tsMnodeIpSetForShell;
   mnodeMnodeUnLock();
+}
+
+char* mnodeGetMnodeMasterEp() {
+  return tsMnodeInfos.nodeInfos[tsMnodeInfos.inUse].nodeEp;
 }
 
 void mnodeGetMnodeInfos(void *mnodeInfos) {

@@ -438,8 +438,9 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * here, we cannot set the command = TSDB_SQL_KILL_QUERY. Otherwise, it may cause
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
-    pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    rpcCancelRequest(pSql->pSubs[i]->pRpcCtx);
+    rpcCancelRequest(pSub->pRpcCtx);
+    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+    tscQueueAsyncRes(pSub);
   }
 
   /*
@@ -1955,7 +1956,7 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 }
 
 int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
-  taosCacheEmpty(tscCacheHandle, false);
+  taosCacheEmpty(tscCacheHandle);
   return 0;
 }
 
@@ -2001,7 +2002,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 
     if (isSuperTable) {  // if it is a super table, reset whole query cache
       tscDebug("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
-      taosCacheEmpty(tscCacheHandle, false);
+      taosCacheEmpty(tscCacheHandle);
     }
   }
 

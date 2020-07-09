@@ -96,6 +96,7 @@ void walModWalFile(char* walfile) {
   if (wfd < 0) {
     printf("wal:%s, failed to open(%s)\n", newWalFile, strerror(errno));
     free(buffer);
+    close(rfd);
     return ;
   }
 
@@ -113,6 +114,11 @@ void walModWalFile(char* walfile) {
 
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       printf("wal:%s, cksum is messed up, skip the rest of file\n", walfile);
+      break;
+    } 
+
+    if (pHead->len >= 1024000 - sizeof(SWalHead)) {
+      printf("wal:%s, SWalHead.len(%d) overflow, skip the rest of file\n", walfile, pHead->len);
       break;
     } 
 

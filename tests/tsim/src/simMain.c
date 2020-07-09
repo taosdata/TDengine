@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  simPrint("simulator is running ...");
+  simInfo("simulator is running ...");
   signal(SIGINT, simHandleSignal);
 
   SScript *script = simParseScript(scriptFile);

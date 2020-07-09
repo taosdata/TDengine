@@ -105,3 +105,26 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
   }
   return start;
 }
+
+/*
+ * tablePrefix.columnName
+ * extract table name and save it in pTable, with only column name in pToken
+ */
+void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
+  const char sep = TS_PATH_DELIMITER[0];
+
+  if (pToken == pTable || pToken == NULL || pTable == NULL) {
+    return;
+  }
+
+  char* r = strnchr(pToken->z, sep, pToken->n, false);
+
+  if (r != NULL) {  // record the table name token
+    pTable->n = r - pToken->z;
+    pTable->z = pToken->z;
+
+    r += 1;
+    pToken->n -= (r - pToken->z);
+    pToken->z = r;
+  }
+}

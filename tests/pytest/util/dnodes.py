@@ -190,32 +190,31 @@ class TDDnode:
             "dnode:%d is deployed and configured by %s" %
             (self.index, self.cfgPath))
 
-    def start(self):
+    def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        binPath = ""
 
         if ("community" in selfPath):
-            projPath = selfPath + "/../../../../"
-
-            for root, dirs, files in os.walk(projPath):
-                if ("taosd" in files):
-                    rootRealPath = os.path.dirname(os.path.realpath(root))
-                    if ("packaging" not in rootRealPath):
-                        binPath = os.path.join(root, "taosd")
-                        break
+            projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath + "/../../../"
-            for root, dirs, files in os.walk(projPath):
-                if ("taosd" in files):
-                    rootRealPath = os.path.dirname(os.path.realpath(root))
-                    if ("packaging" not in rootRealPath):
-                        binPath = os.path.join(root, "taosd")
-                        break
+            projPath = selfPath[:selfPath.find("tests")]
 
-        if (binPath == ""):
+        for root, dirs, files in os.walk(projPath):
+            if ("taosd" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root)-len("/build/bin")]
+                    break
+        return buildPath
+
+    def start(self):
+        buildPath = self.getBuildPath()
+
+        if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
-            tdLog.info("taosd found in %s" % rootRealPath)
+            tdLog.info("taosd found in %s" % buildPath)
+
+        binPath = buildPath + "/build/bin/taosd"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))

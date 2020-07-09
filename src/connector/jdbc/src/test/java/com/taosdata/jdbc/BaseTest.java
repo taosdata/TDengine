@@ -9,20 +9,18 @@ import org.junit.BeforeClass;
 public class BaseTest {
 
     private static boolean testCluster = false;
-    private static String deployPath = System.getProperty("user.dir");     
-    private static int valgrind = 0;
+    private static String deployPath = System.getProperty("user.dir");         
     private static TDNodes tdNodes = new TDNodes();    
     
     
     @BeforeClass
-    public static void setUpEvn() {
+    public static void setupEnv() {
         try{
             File file = new File(deployPath + "/../../../");
             String rootPath = file.getCanonicalPath();
                        
             tdNodes.setPath(rootPath);
-            tdNodes.setTestCluster(testCluster);
-            tdNodes.setValgrid(valgrind);
+            tdNodes.setTestCluster(testCluster);            
 
             tdNodes.deploy(1);
             tdNodes.start(1);  

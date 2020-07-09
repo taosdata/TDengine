@@ -9,8 +9,7 @@ public class TDNode {
     private int index;
     private int running;
     private int deployed;
-    private boolean testCluster;
-    private int valgrind;
+    private boolean testCluster;    
     private String path;    
     private String cfgDir;
     private String dataDir;
@@ -21,16 +20,11 @@ public class TDNode {
         this.index = index;
         running = 0;
         deployed = 0;
-        testCluster = false;
-        valgrind = 0;        
+        testCluster = false;            
     }
 
     public void setPath(String path) {
         this.path = path;
-    }
-
-    public void setValgrind(int valgrind) {
-        this.valgrind = valgrind;
     }
 
     public void setTestCluster(boolean testCluster) {
@@ -58,7 +52,7 @@ public class TDNode {
     public void start() {
         String selfPath = System.getProperty("user.dir");
         String binPath = "";
-        String projDir = selfPath + "../../../../";
+        String projDir = selfPath + "/../../../../";
 
         try {
             ArrayList<String> taosdPath = new ArrayList<>();
@@ -95,15 +89,9 @@ public class TDNode {
             return;
         }
 
-        String cmd = "";
-        if(this.valgrind == 0) {
-            cmd = "nohup " + binPath + " -c " + cfgDir + " > /dev/null 2>&1 & "; 
-            System.out.println("start taosd cmd: " + cmd);
-        } else {
-            String valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reac∏hable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes";
-            cmd = "nohup " + valgrindCmdline + " " + binPath + " -c "  + this.cfgDir + " 2>&1 & ";                                
-        }
-
+        String cmd = "nohup " + binPath + " -c " + cfgDir + " > /dev/null 2>&1 & "; 
+        System.out.println("start taosd cmd: " + cmd);
+        
         try{
             Runtime.getRuntime().exec(cmd);  
             TimeUnit.SECONDS.sleep(5);
@@ -115,12 +103,7 @@ public class TDNode {
     }
 
     public void stop() {
-        String toBeKilled = "";
-        if (this.valgrind == 0) {
-            toBeKilled = "taosd";
-        } else {
-            toBeKilled = "valgrind.bin";
-        }
+        String toBeKilled = "taosd";
 
         if (this.running != 0) {
             String psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print " + toBeKilled + "}'";
@@ -135,10 +118,6 @@ public class TDNode {
                 for(int port = 6030; port < 6041; port ++) {
                     String fuserCmd = "fuser -k -n tcp " + port;
                     Runtime.getRuntime().exec(fuserCmd).waitFor();
-                }
-
-                if (this.valgrind == 1) {
-                    TimeUnit.SECONDS.sleep(2);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
