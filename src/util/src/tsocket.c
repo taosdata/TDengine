@@ -383,10 +383,15 @@ int taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
     return -1;
   }
 
-  if (taosKeepTcpAlive(sockFd) < 0) return -1;
+  if (taosKeepTcpAlive(sockFd) < 0) {
+    uError("failed to set tcp server keep-alive option, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    close(sockFd);
+    return -1;
+  }
 
   if (listen(sockFd, 10) < 0) {
     uError("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    close(sockFd);
     return -1;
   }
 
