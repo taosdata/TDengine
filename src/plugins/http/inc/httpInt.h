@@ -206,7 +206,7 @@ typedef struct HttpThread {
   pthread_mutex_t threadMutex;
   bool            stop;
   int             pollFd;
-  int             numOfFds;
+  int             numOfContexts;
   int             threadId;
   char            label[HTTP_LABEL_SIZE];
   bool (*processData)(HttpContext *pContext);

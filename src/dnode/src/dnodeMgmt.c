@@ -147,6 +147,12 @@ int32_t dnodeInitMgmt() {
     return -1;
   }
 
+  dInfo("dnode mgmt is initialized");
+ 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dnodeInitMgmtTimer() {
   tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
   if (tsDnodeTmr == NULL) {
     dError("failed to init dnode timer");
@@ -155,13 +161,11 @@ int32_t dnodeInitMgmt() {
   }
 
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
-  
-  dInfo("dnode mgmt is initialized");
- 
+  dInfo("dnode mgmt timer is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupMgmt() {
+void dnodeCleanupMgmtTimer() {
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);
     tsStatusTimer = NULL;
@@ -171,7 +175,10 @@ void dnodeCleanupMgmt() {
     taosTmrCleanUp(tsDnodeTmr);
     tsDnodeTmr = NULL;
   }
+}
 
+void dnodeCleanupMgmt() {
+  dnodeCleanupMgmtTimer();
   dnodeCloseVnodes();
 
   if (tsMgmtQset) taosQsetThreadResume(tsMgmtQset);
