@@ -71,7 +71,8 @@ class TDSql:
         except Exception as e:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
         return self.queryRows
 
     def waitedQuery(self, sql, expectRows, timeout):
@@ -89,7 +90,8 @@ class TDSql:
         except Exception as e:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
         return (self.queryRows, timeout)
 
     def checkRows(self, expectRows):
@@ -158,7 +160,8 @@ class TDSql:
         except Exception as e:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
         return self.affectedRows
 
     def checkAffectedRows(self, expectAffectedRows):

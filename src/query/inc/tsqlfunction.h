@@ -272,7 +272,7 @@ bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *mi
 bool stableQueryFunctChanged(int32_t funcId);
 
 void resetResultInfo(SResultInfo *pResInfo);
-void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable);
+void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf);
 
 static FORCE_INLINE void initResultInfo(SResultInfo *pResInfo) {
   pResInfo->initialized = true;  // the this struct has been initialized flag

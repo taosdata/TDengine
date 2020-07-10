@@ -17,14 +17,23 @@
 
 #include "hash.h"
 #include "taosmsg.h"
-#include "qextbuffer.h"
-#include "ttime.h"
-
-#include "qfill.h"
 #include "ttime.h"
 
 #include "qExecutor.h"
 #include "qUtil.h"
+
+int32_t getOutputInterResultBufSize(SQuery* pQuery) {
+  int32_t size = 0;
+
+  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+    assert(pQuery->pSelectExpr[i].interBytes <= DEFAULT_INTERN_BUF_PAGE_SIZE);
+    size += pQuery->pSelectExpr[i].interBytes;
+  }
+
+  assert(size > 0);
+
+  return size;
+}
 
 int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type) {
@@ -43,7 +52,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     SPosInfo posInfo = {-1, -1};
-    createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &posInfo);
+    createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &posInfo, pRuntimeEnv->interBufSize);
   }
   
   return TSDB_CODE_SUCCESS;
@@ -54,11 +63,7 @@ void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols) {
     return;
   }
 
-  // TODO opt malloc strategy
-  for (int32_t i = 0; i < nOutputCols; ++i) {
-    free(pWindowRes->resultInfo[i].interResultBuf);
-  }
-  
+  free(pWindowRes->resultInfo[0].interResultBuf);
   free(pWindowRes->resultInfo);
 }
 
@@ -241,10 +246,9 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
   }
   
   pWindowRes->numOfRows = 0;
-  //  pWindowRes->nAlloc = 0;
   pWindowRes->pos = (SPosInfo){-1, -1};
   pWindowRes->status.closed = false;
-  pWindowRes->window = (STimeWindow){0, 0};
+  pWindowRes->window = TSWINDOW_INITIALIZER;
 }
 
 /**
@@ -254,7 +258,6 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
  */
 void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, const SWindowResult *src) {
   dst->numOfRows = src->numOfRows;
-  //  dst->nAlloc = src->nAlloc;
   dst->window = src->window;
   dst->status = src->status;
   

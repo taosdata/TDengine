@@ -87,6 +87,16 @@ typedef struct SVgroupTableInfo {
   SArray*       itemList;   //SArray<STableIdInfo>
 } SVgroupTableInfo;
 
+static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
+  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
+
+  if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
+    return NULL;
+  }
+
+  return pCmd->pQueryInfo[subClauseIndex];
+}
+
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock);

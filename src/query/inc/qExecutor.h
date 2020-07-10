@@ -172,6 +172,7 @@ typedef struct SQueryRuntimeEnv {
   bool                 topBotQuery;      // false
   bool                 groupbyNormalCol; // denote if this is a groupby normal column query
   bool                 hasTagResults;    // if there are tag values in final result or not
+  int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
