@@ -26,40 +26,51 @@
 
 #include "os.h"
 
-#define RANDOM_FILE_FAIL_FACTOR 5
+#ifdef TAOS_RANDOM_FILE_FAIL
+
+static int random_file_fail_factor = 20;
+
+void taosSetRandomFileFailFactor(int factor)
+{
+  random_file_fail_factor = factor;
+}
+#endif
 
 ssize_t taos_tread(int fd, void *buf, size_t count)
 {
 #ifdef TAOS_RANDOM_FILE_FAIL
-  if (rand() % RANDOM_FILE_FAIL_FACTOR == 0) {
-    errno = EIO;
-    return -1;
+  if (random_file_fail_factor > 0) {
+    if (rand() % random_file_fail_factor == 0) {
+      errno = EIO;
+      return -1;
+    }
   }
 #endif
-
   return tread(fd, buf, count);
 }
 
 ssize_t taos_twrite(int fd, void *buf, size_t count)
 {
 #ifdef TAOS_RANDOM_FILE_FAIL
-  if (rand() % RANDOM_FILE_FAIL_FACTOR == 0) {
-    errno = EIO;
-    return -1;
+  if (random_file_fail_factor > 0) {
+    if (rand() % random_file_fail_factor == 0) {
+      errno = EIO;
+      return -1;
+    }
   }
 #endif
-
   return twrite(fd, buf, count);
 }
 
 off_t taos_lseek(int fd, off_t offset, int whence)
 {
 #ifdef TAOS_RANDOM_FILE_FAIL
-  if (rand() % RANDOM_FILE_FAIL_FACTOR == 0) {
-    errno = EIO;
-    return -1;
+  if (random_file_fail_factor > 0) {
+    if (rand() % random_file_fail_factor == 0) {
+      errno = EIO;
+      return -1;
+    }
   }
 #endif
-
   return lseek(fd, offset, whence);
 }
