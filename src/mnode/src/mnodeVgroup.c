@@ -636,7 +636,7 @@ int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pC
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
-  
+
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
     return 0;
@@ -650,6 +650,7 @@ int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pC
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextVgroup(pShow->pIter, &pVgroup);
     if (pVgroup == NULL) break;
+    if (pVgroup->pDb != pDb) continue;
     if (!mnodeFilterVgroups(pVgroup, pTable)) continue;
 
     cols = 0;
