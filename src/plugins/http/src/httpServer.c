@@ -293,7 +293,7 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     totalFds = 1;
     for (int i = 0; i < pServer->numOfThreads; ++i) {
-      totalFds += pServer->pThreads[i].numOfFds;
+      totalFds += pServer->pThreads[i].numOfContexts;
     }
 
     if (totalFds > tsHttpCacheSessions * 100) {
@@ -332,9 +332,9 @@ static void *httpAcceptHttpConnection(void *arg) {
     }
 
     // notify the data process, add into the FdObj list
-    atomic_add_fetch_32(&pThread->numOfFds, 1);
-    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfFds:%d totalFds:%d, accept a new connection", pContext, connFd,
-              pContext->ipstr, pThread->label, pThread->numOfFds, totalFds);
+    atomic_add_fetch_32(&pThread->numOfContexts, 1);
+    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfContexts:%d totalFds:%d, accept a new connection", pContext,
+              connFd, pContext->ipstr, pThread->label, pThread->numOfContexts, totalFds);
 
     // pick up next thread for next connection
     threadId++;

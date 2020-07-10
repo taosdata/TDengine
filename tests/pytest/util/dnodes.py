@@ -22,15 +22,39 @@ class TDSimClient:
     def __init__(self):
         self.testCluster = False
 
+        self.cfgDict = {
+            "numOfLogLines": "100000000",
+            "numOfThreadsPerCore": "2.0",
+            "locale": "en_US.UTF-8",
+            "charset": "UTF-8",
+            "asyncLog": "0",
+            "anyIp": "0",
+            "sdbDebugFlag": "135",
+            "rpcDebugFlag": "135",
+            "tmrDebugFlag": "131",
+            "cDebugFlag": "135",
+            "udebugFlag": "135",
+            "jnidebugFlag": "135",
+            "qdebugFlag": "135",
+            }
+
     def init(self, path):
         self.__init__()
         self.path = path
 
+    def getLogDir(self):
+        self.logDir = "%s/sim/psim/log" % (self.path)
+        return self.logDir
+
     def getCfgDir(self):
+        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
         return self.cfgDir
 
     def setTestCluster(self, value):
         self.testCluster = value
+
+    def addExtraCfg(self, option, value):
+        self.cfgDict.update({option: value})
 
     def cfg(self, option, value):
         cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
@@ -38,19 +62,19 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self):
-        self.logDir = "%s/sim/psim/log" % (self.path,)
+        self.logDir = "%s/sim/psim/log" % (self.path)
         self.cfgDir = "%s/sim/psim/cfg" % (self.path)
         self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
-
-        cmd = "rm -rf " + self.cfgDir
+    
+        cmd = "mkdir -p " + self.logDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.logDir
+        cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
@@ -66,19 +90,10 @@ class TDSimClient:
             self.cfg("masterIp", "192.168.0.1")
             self.cfg("secondIp", "192.168.0.2")
         self.cfg("logDir", self.logDir)
-        self.cfg("numOfLogLines", "100000000")
-        self.cfg("numOfThreadsPerCore", "2.0")
-        self.cfg("locale", "en_US.UTF-8")
-        self.cfg("charset", "UTF-8")
-        self.cfg("asyncLog", "0")
-        self.cfg("anyIp", "0")
-        self.cfg("sdbDebugFlag", "135")
-        self.cfg("rpcDebugFlag", "135")
-        self.cfg("tmrDebugFlag", "131")
-        self.cfg("cDebugFlag", "135")
-        self.cfg("udebugFlag", "135")
-        self.cfg("jnidebugFlag", "135")
-        self.cfg("qdebugFlag", "135")
+
+        for key, value in self.cfgDict.items():
+            self.cfg(key, value)
+
         tdLog.debug("psim is deployed and configured by %s" % (self.cfgPath))
 
 
@@ -378,6 +393,9 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path)
 
+        self.sim = TDSimClient()
+        self.sim.init(self.path)
+
     def setTestCluster(self, value):
         self.testCluster = value
 
@@ -385,8 +403,6 @@ class TDDnodes:
         self.valgrind = value
 
     def deploy(self, index):
-        self.sim = TDSimClient()
-        self.sim.init(self.path)
         self.sim.setTestCluster(self.testCluster)
 
         if (self.simDeployed == False):
@@ -473,6 +489,12 @@ class TDDnodes:
 
     def getSimCfgPath(self):
         return self.sim.getCfgDir()
+
+    def getSimLogPath(self):
+        return self.sim.getLogDir()
+
+    def addSimExtraCfg(self, option, value):
+        self.sim.addExtraCfg(option, value)
 
 
 tdDnodes = TDDnodes()
