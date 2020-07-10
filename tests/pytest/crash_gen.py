@@ -1254,9 +1254,15 @@ class Task():
             self._executeInternal(te, wt) # TODO: no return value?
         except taos.error.ProgrammingError as err:
             errno2 = err.errno if (err.errno > 0) else 0x80000000 + err.errno # correct error scheme
-            if ( errno2 in [
+            if ( gConfig.continue_on_exception ): # user choose to continue
+                self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, self._lastSql))  
+                self._err = err
+            elif ( errno2 in [
                 0x05, # TSDB_CODE_RPC_NOT_READY
-                0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D, 0x381, 0x380, 0x383, 0x503, 
+                0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D, 
+                0x381, 0x380, 0x383, 
+                0x386, # DB is being dropped?!
+                0x503, 
                 0x510, # vnode not in ready state
                 0x600,
                 1000 # REST catch-all error
@@ -2118,6 +2124,8 @@ def main():
                         help='Maximum number of steps to run (default: 100)')
     parser.add_argument('-t', '--num-threads', action='store', default=5, type=int,
                         help='Number of threads to run (default: 10)')
+    parser.add_argument('-x', '--continue-on-exception', action='store_true',                        
+                        help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')                                            
 
     global gConfig
     gConfig = parser.parse_args()
