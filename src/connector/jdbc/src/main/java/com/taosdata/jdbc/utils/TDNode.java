@@ -77,7 +77,7 @@ public class TDNode {
             e.printStackTrace();
         }
 
-        if(binPath.equals("")) {
+        if(binPath.isEmpty()) {
             System.out.println("taosd not found");
             return;
         } else {
@@ -106,14 +106,10 @@ public class TDNode {
         String toBeKilled = "taosd";
 
         if (this.running != 0) {
-            String psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print " + toBeKilled + "}'";
-            try {
-                Process ps = Runtime.getRuntime().exec(psCmd);
-                ps.waitFor();
-                long pid = ps.pid();
-
-                String killCmd = "kill -9 " + pid;
-                Runtime.getRuntime().exec(killCmd).waitFor();
+            String killCmd = "pkill -kill -x " + toBeKilled;
+            String[] killCmds = {"sh", "-c", killCmd};
+            try {                                
+                Runtime.getRuntime().exec(killCmds).waitFor();
 
                 for(int port = 6030; port < 6041; port ++) {
                     String fuserCmd = "fuser -k -n tcp " + port;
@@ -124,7 +120,7 @@ public class TDNode {
             }
 
             this.running = 0;
-            System.out.println("dnode:" + this.index + "is stopped by kill -9");
+            System.out.println("dnode:" + this.index + " is stopped by pkill");
         }
     }
 
@@ -136,7 +132,6 @@ public class TDNode {
             e.printStackTrace();
         }
     }
-
 
     public void stopIP() {
         try{
