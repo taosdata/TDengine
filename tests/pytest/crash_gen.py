@@ -606,6 +606,47 @@ class DbConnRest(DbConn):
         print(self._result)
         raise RuntimeError("TBD")
     
+    # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
+class MyTDSql:
+    def __init__(self):
+        self.queryRows = 0
+        self.queryCols = 0
+        self.affectedRows = 0
+
+    def init(self, cursor, log=True):
+        self.cursor = cursor
+        # if (log):
+        #     caller = inspect.getframeinfo(inspect.stack()[1][0])
+        #     self.cursor.log(caller.filename + ".sql")
+
+    def close(self):
+        self.cursor.close()
+
+    def query(self, sql):
+        self.sql = sql
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
+        except Exception as e:
+            # caller = inspect.getframeinfo(inspect.stack()[1][0])
+            # args = (caller.filename, caller.lineno, sql, repr(e))
+            # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            raise
+        return self.queryRows
+    
+    def execute(self, sql):
+        self.sql = sql
+        try:
+            self.affectedRows = self.cursor.execute(sql)
+        except Exception as e:
+            # caller = inspect.getframeinfo(inspect.stack()[1][0])
+            # args = (caller.filename, caller.lineno, sql, repr(e))
+            # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            raise
+        return self.affectedRows
+
 class DbConnNative(DbConn):
     def __init__(self):
         super().__init__()
@@ -623,7 +664,7 @@ class DbConnNative(DbConn):
         # self._cursor.execute('use db') # do this at the beginning of every step
 
         # Open connection
-        self._tdSql = TDSql()
+        self._tdSql = MyTDSql()
         self._tdSql.init(self._cursor)
         
     def close(self):
