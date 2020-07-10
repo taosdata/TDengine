@@ -4475,6 +4475,8 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       }
 
       pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp, pQInfo);
+      taosArrayDestroy(g1);
+      taosArrayDestroy(tx);
 
       SArray* s = tsdbGetQueriedTableList(pRuntimeEnv->pQueryHandle);
       assert(taosArrayGetSize(s) >= 1);
@@ -5857,6 +5859,18 @@ _error:
   return code;
 }
 
+static void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters) {
+    if (pFilter == NULL) {
+      return;
+    }
+    for (int32_t i = 0; i < numOfFilters; i++) {
+      if (pFilter[i].filterstr) {
+        free((void*)(pFilter[i].pz));
+      }
+    }
+    free(pFilter);
+}
+
 static void freeQInfo(SQInfo *pQInfo) {
   if (!isValidQInfo(pQInfo)) {
     return;
@@ -5925,7 +5939,15 @@ static void freeQInfo(SQInfo *pQInfo) {
 
   tfree(pQuery->tagColList);
   tfree(pQuery->pFilterInfo);
-  tfree(pQuery->colList);
+
+  if (pQuery->colList != NULL) {
+    for (int32_t i = 0; i < pQuery->numOfCols; i++) {
+      SColumnInfo* column = pQuery->colList + i;
+      freeColumnFilterInfo(column->filters, column->numOfFilters);
+    }
+    tfree(pQuery->colList);
+  }
+
   tfree(pQuery->sdata);
 
   tfree(pQuery);
@@ -6121,6 +6143,11 @@ _over:
   free(pExprs);
   free(pExprMsg);
   taosArrayDestroy(pTableIdList);
+
+  for (int32_t i = 0; i < pQueryMsg->numOfCols; i++) {
+    SColumnInfo* column = pQueryMsg->colList + i;
+    freeColumnFilterInfo(column->filters, column->numOfFilters);
+  }
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {
