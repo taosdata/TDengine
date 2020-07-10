@@ -471,8 +471,8 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
     atomic_add_fetch_32(&pTable->autoIndex, 1);
   }
 
-  sdbDebug("table:%s, insert record:%s to hash, rowSize:%d numOfRows:%" PRId64 " ver:%" PRIu64 ", msg:%p", pTable->tableName,
-           sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, sdbGetVersion(), pOper->pMsg);
+  sdbDebug("table:%s, insert record:%s to hash, rowSize:%d numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
+           sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, pOper->pMsg);
 
   (*pTable->insertFp)(pOper);
   return TSDB_CODE_SUCCESS;
@@ -490,8 +490,8 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
   taosHashRemove(pTable->iHandle, key, keySize);
   atomic_sub_fetch_32(&pTable->numOfRows, 1);
   
-  sdbDebug("table:%s, delete record:%s from hash, numOfRows:%" PRId64 " ver:%" PRIu64 ", msg:%p", pTable->tableName,
-           sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion(), pOper->pMsg);
+  sdbDebug("table:%s, delete record:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
+           sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, pOper->pMsg);
 
   int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;
   *updateEnd = 1;
@@ -501,8 +501,8 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
 }
 
 static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbOper *pOper) {
-  sdbDebug("table:%s, update record:%s in hash, numOfRows:%" PRId64 " ver:%" PRIu64 ", msg:%p", pTable->tableName,
-           sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, sdbGetVersion(), pOper->pMsg);
+  sdbDebug("table:%s, update record:%s in hash, numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
+           sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, pOper->pMsg);
 
   (*pTable->updateFp)(pOper);
   return TSDB_CODE_SUCCESS;
@@ -967,7 +967,11 @@ static void *sdbWorkerFp(void *param) {
       }
 
       int32_t code = sdbWrite(pOper, pHead, type);
-      if (pOper && code <= 0) pOper->retCode = code;
+      if (code > 0) code = 0;
+      if (pOper)
+        pOper->retCode = code;
+      else
+        pHead->len = code;  // hackway
     }
 
     walFsync(tsSdbObj.wal);
@@ -982,7 +986,8 @@ static void *sdbWorkerFp(void *param) {
         sdbDecRef(pOper->table, pOper->pObj);
         sdbConfirmForward(NULL, pOper, pOper->retCode);
       } else if (type == TAOS_QTYPE_FWD) {
-        syncConfirmForward(tsSdbObj.sync, pHead->version, TSDB_CODE_SUCCESS);
+        pHead = (SWalHead *)item;
+        syncConfirmForward(tsSdbObj.sync, pHead->version, pHead->len);
         taosFreeQitem(item);
       } else {
         taosFreeQitem(item);
