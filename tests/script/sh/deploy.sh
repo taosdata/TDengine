@@ -125,7 +125,6 @@ echo "mqttDebugFlag       131"            >> $TAOS_CFG
 echo "qdebugFlag          135"            >> $TAOS_CFG
 echo "rpcDebugFlag        135"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
-echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "udebugFlag          135"            >> $TAOS_CFG
 echo "sdebugFlag          135"            >> $TAOS_CFG
 echo "wdebugFlag          135"            >> $TAOS_CFG
