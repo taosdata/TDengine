@@ -117,8 +117,6 @@ cd ../../../debug; make
 ./test.sh -f general/parser/import_commit3.sim
 ./test.sh -f general/parser/insert_tb.sim
 ./test.sh -f general/parser/first_last.sim
-# dyh is processing this script
-#./test.sh -f general/parser/import_file.sim
 ./test.sh -f general/parser/lastrow.sim
 ./test.sh -f general/parser/nchar.sim
 ./test.sh -f general/parser/null_char.sim
@@ -145,7 +143,6 @@ cd ../../../debug; make
 ./test.sh -f general/parser/groupby.sim
 ./test.sh -f general/parser/set_tag_vals.sim
 #./test.sh -f general/parser/sliding.sim
-./test.sh -f general/parser/tags_dynamically_specifiy.sim
 ./test.sh -f general/parser/tags_filter.sim
 ./test.sh -f general/parser/slimit_alter_tags.sim
 ./test.sh -f general/parser/join.sim

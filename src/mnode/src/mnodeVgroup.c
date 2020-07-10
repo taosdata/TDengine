@@ -470,7 +470,6 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
           pVgroup->vnodeGid[i].dnodeId);
   }
 
-  mnodeIncVgroupRef(pVgroup);
   pMsg->expected = pVgroup->numOfVnodes;
   mnodeSendCreateVgroupMsg(pVgroup, pMsg);
 
@@ -492,6 +491,9 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
+  pMsg->pVgroup = pVgroup;
+  mnodeIncVgroupRef(pVgroup);
+
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsVgroupSdb,
@@ -500,8 +502,6 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
     .pMsg = pMsg,
     .cb = mnodeCreateVgroupCb
   };
-
-  pMsg->pVgroup = pVgroup;
 
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
@@ -925,19 +925,20 @@ static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
     mDebug("dnode:%s, vgId:%d, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
-  mnodeDecDnodeRef(pDnode);
 
   SVgObj *pVgroup = mnodeGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {
     mDebug("dnode:%s, vgId:%d, no vgroup info", taosIpStr(pCfg->dnodeId), pCfg->vgId);
+    mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
-  mnodeDecVgroupRef(pVgroup);
 
   mDebug("vgId:%d, send create vnode msg to dnode %s for vnode cfg msg", pVgroup->vgId, pDnode->dnodeEp);
   SRpcIpSet ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
   mnodeSendCreateVnodeMsg(pVgroup, &ipSet, NULL);
 
+  mnodeDecDnodeRef(pDnode);
+  mnodeDecVgroupRef(pVgroup);
   return TSDB_CODE_SUCCESS;
 }
 

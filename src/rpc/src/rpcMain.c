@@ -1366,6 +1366,7 @@ static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
   }
   
   int32_t compLen = LZ4_compress_default(pCont, buf, contLen, contLen + overhead);
+  tDebug("compress rpc msg, before:%d, after:%d, overhead:%d", contLen, compLen, overhead);
   
   /*
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
@@ -1378,7 +1379,7 @@ static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
     memcpy(pCont + overhead, buf, compLen);
     
     pHead->comp = 1;
-    //tDebug("compress rpc msg, before:%d, after:%d", contLen, compLen);
+    tDebug("compress rpc msg, before:%d, after:%d", contLen, compLen);
     finalLen = compLen + overhead;
   } else {
     finalLen = contLen;

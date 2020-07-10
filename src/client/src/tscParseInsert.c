@@ -1310,6 +1310,11 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     tscDebug("%p resume to parse sql: %s", pSql, pCmd->curSql);
   }
   
+  ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
+  if (TSDB_CODE_SUCCESS != ret) {
+    return ret;
+  }
+
   if (tscIsInsertData(pSql->sqlstr)) {
     /*
      * Set the fp before parse the sql string, in case of getTableMeta failed, in which
@@ -1326,11 +1331,6 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     
     ret = tsParseInsertSql(pSql);
   } else {
-    ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-    if (TSDB_CODE_SUCCESS != ret) {
-      return ret;
-    }
-
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     SQLInfoDestroy(&SQLInfo);
