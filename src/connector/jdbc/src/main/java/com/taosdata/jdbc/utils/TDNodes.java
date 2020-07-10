@@ -16,11 +16,9 @@ public class TDNodes {
 
     public void setPath(String path) {
         try {
-            String psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'" ;
-            Process ps = Runtime.getRuntime().exec(psCmd);
-            ps.waitFor();
-            String killCmd = "kill -9 " + ps.pid();
-            Runtime.getRuntime().exec(killCmd).waitFor();        
+            String killCmd = "pkill -kill -x taosd";
+            String[] killCmds = {"sh", "-c", killCmd};
+            Runtime.getRuntime().exec(killCmds).waitFor();        
 
             String binPath = System.getProperty("user.dir");
             binPath += "/../../../debug";
