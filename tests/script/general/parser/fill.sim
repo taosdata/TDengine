@@ -843,6 +843,14 @@ if $data81 != 4 then
   return -1
 endi
 
+# desc fill query
+print desc fill query
+sql select count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10) order by ts desc;
+if $rows != 12 then
+  return -1
+endi
+
+
 print =============== clear
 sql drop database $db
 sql show databases

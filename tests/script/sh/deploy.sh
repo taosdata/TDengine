@@ -110,6 +110,7 @@ echo "second              ${HOSTNAME}:7200" >> $TAOS_CFG
 echo "serverPort          ${NODE}"          >> $TAOS_CFG
 echo "dataDir             $DATA_DIR"      >> $TAOS_CFG
 echo "logDir              $LOG_DIR"       >> $TAOS_CFG
+echo "debugFlag           135"            >> $TAOS_CFG
 echo "mDebugFlag          135"            >> $TAOS_CFG
 echo "sdbDebugFlag        135"            >> $TAOS_CFG
 echo "dDebugFlag          135"            >> $TAOS_CFG
@@ -124,7 +125,6 @@ echo "mqttDebugFlag       131"            >> $TAOS_CFG
 echo "qdebugFlag          135"            >> $TAOS_CFG
 echo "rpcDebugFlag        135"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
-echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "udebugFlag          135"            >> $TAOS_CFG
 echo "sdebugFlag          135"            >> $TAOS_CFG
 echo "wdebugFlag          135"            >> $TAOS_CFG

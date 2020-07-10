@@ -164,7 +164,7 @@ matrix:
 
     script:
       - cmake .. > /dev/null
-      - make > /dev/null
+      - make
 
   - os: linux
     dist: bionic

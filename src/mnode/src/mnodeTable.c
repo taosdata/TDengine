@@ -116,6 +116,11 @@ static int32_t mnodeChildTableActionInsert(SSdbOper *pOper) {
     mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_MND_INVALID_DB;
   }
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
   mnodeDecDbRef(pDb);
 
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
@@ -284,8 +289,8 @@ static int32_t mnodeChildTableActionRestored() {
     if (pTable == NULL) break;
 
     SDbObj *pDb = mnodeGetDbByTableId(pTable->info.tableId);
-    if (pDb == NULL) {
-      mError("ctable:%s, failed to get db, discard it", pTable->info.tableId);
+    if (pDb == NULL || pDb->status != TSDB_DB_STATUS_READY) {
+      mError("ctable:%s, failed to get db or db in dropping, discard it", pTable->info.tableId);
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
       mnodeDecTableRef(pTable);
@@ -376,6 +381,7 @@ static int32_t mnodeInitChildTables() {
 
 static void mnodeCleanupChildTables() {
   sdbCloseTable(tsChildTableSdb);
+  tsChildTableSdb = NULL;
 }
 
 static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
@@ -422,7 +428,7 @@ static int32_t mnodeSuperTableActionDestroy(SSdbOper *pOper) {
 static int32_t mnodeSuperTableActionInsert(SSdbOper *pOper) {
   SSuperTableObj *pStable = pOper->pObj;
   SDbObj *pDb = mnodeGetDbByTableId(pStable->info.tableId);
-  if (pDb != NULL) {
+  if (pDb != NULL && pDb->status == TSDB_DB_STATUS_READY) {
     mnodeAddSuperTableIntoDb(pDb);
   }
   mnodeDecDbRef(pDb);
@@ -554,6 +560,7 @@ static int32_t mnodeInitSuperTables() {
 
 static void mnodeCleanupSuperTables() {
   sdbCloseTable(tsSuperTableSdb);
+  tsSuperTableSdb = NULL;
 }
 
 int32_t mnodeInitTables() {
@@ -683,9 +690,14 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCreate->db);
-  if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+  if (pMsg->pDb == NULL) {
     mError("app:%p:%p, table:%s, failed to create, db not selected", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId);
     return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pCreate->tableId);
@@ -717,9 +729,14 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
   SCMDropTableMsg *pDrop = pMsg->rpcMsg.pCont;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(pDrop->tableId);
-  if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
-    mError("app:%p:%p, table:%s, failed to drop table, db not selected", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
+  if (pMsg->pDb == NULL) {
+    mError("app:%p:%p, table:%s, failed to drop table, db not selected or db in dropping", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
     return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
@@ -755,10 +772,15 @@ static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
          pInfo->tableId, pMsg->rpcMsg.handle, pInfo->createFlag);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(pInfo->tableId);
-  if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+  if (pMsg->pDb == NULL) {
     mError("app:%p:%p, table:%s, failed to get table meta, db not selected", pMsg->rpcMsg.ahandle, pMsg,
            pInfo->tableId);
     return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pInfo->tableId);
@@ -1207,6 +1229,11 @@ static int32_t mnodeDropSuperTableColumn(SMnodeMsg *pMsg, char *colName) {
 static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
+    
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -1266,6 +1293,11 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return 0;
+  }
 
   tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -2297,7 +2329,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     if (pTable == NULL) continue;
 
     if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(tableId);
-    if (pMsg->pDb == NULL) {
+    if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -2335,6 +2367,11 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -2383,6 +2420,11 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
 static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return 0;
+  }
 
   int32_t numOfRows  = 0;
   SChildTableObj *pTable = NULL;
@@ -2474,9 +2516,14 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
          pAlter->tableId, pMsg->rpcMsg.handle);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableId(pAlter->tableId);
-  if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+  if (pMsg->pDb == NULL) {
     mError("app:%p:%p, table:%s, failed to alter table, db not selected", pMsg->rpcMsg.ahandle, pMsg, pAlter->tableId);
     return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
@@ -2537,6 +2584,11 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
@@ -2584,7 +2636,11 @@ static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, vo
 static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) return 0;
-
+  
+  if (pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    return 0;
+  }
   
   int32_t numOfRows  = 0;
   SChildTableObj *pTable = NULL;

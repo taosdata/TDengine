@@ -109,6 +109,8 @@ void cqClose(void *handle) {
   while (pObj) {
     SCqObj *pTemp = pObj;
     pObj = pObj->next;
+    tdFreeSchema(pTemp->pSchema);
+    tfree(pTemp->sqlStr);
     free(pTemp);
   } 
   
@@ -242,6 +244,10 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
 
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SCqObj     *pObj = (SCqObj *)param;
+  if (tres == NULL && row == NULL) {
+    pObj->pStream = NULL;
+    return;
+  }
   SCqContext *pContext = pObj->pContext;
   STSchema   *pSchema = pObj->pSchema;
   if (pObj->pStream == NULL) return;
@@ -263,8 +269,14 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
     void* val = row[i];
     if (val == NULL) {
       val = getNullValue(c->type);
-    } else if (IS_VAR_DATA_TYPE(c->type)) {
+    } else if (c->type == TSDB_DATA_TYPE_BINARY) {
       val = ((char*)val) - sizeof(VarDataLenT);
+    } else if (c->type == TSDB_DATA_TYPE_NCHAR) {
+      char buf[TSDB_MAX_NCHAR_LEN];
+      size_t len = taos_fetch_lengths(tres)[i];
+      taosMbsToUcs4(val, len, buf, sizeof(buf), &len);
+      memcpy(val + sizeof(VarDataLenT), buf, len);
+      varDataLen(val) = len;
     }
     tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
   }

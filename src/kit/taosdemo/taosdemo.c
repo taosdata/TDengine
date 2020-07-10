@@ -852,7 +852,6 @@ void multiThreadCreateTable(char* cols, bool use_metric, int threads, int ntable
 
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
-    taos_close(t_info->taos);
     sem_destroy(&(t_info->mutex_sem));
     sem_destroy(&(t_info->lock_sem));
   }

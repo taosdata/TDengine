@@ -477,7 +477,13 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           tscDebug("%p redo parse sql string to build submit block", pSql);
 
           pCmd->parseFinished = false;
-          if ((code = tsParseSql(pSql, true)) == TSDB_CODE_SUCCESS) {
+          code = tsParseSql(pSql, true);
+
+          if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            return;
+          }
+
+          if (code == TSDB_CODE_SUCCESS) {
             /*
              * Discard previous built submit blocks, and then parse the sql string again and build up all submit blocks,
              * and send the required submit block according to index value in supporter to server.

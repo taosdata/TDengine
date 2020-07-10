@@ -24,14 +24,13 @@ extern "C" {
 #include "tref.h"
 #include "hash.h"
 
-typedef void (*__cache_freeres_fn_t)(void*);
+typedef void (*__cache_free_fn_t)(void*);
 
 typedef struct SCacheStatis {
   int64_t missCount;
   int64_t hitCount;
   int64_t totalAccess;
   int64_t refreshCount;
-  int32_t numOfCollision;
 } SCacheStatis;
 
 typedef struct SCacheDataNode {
@@ -70,7 +69,7 @@ typedef struct {
 //  void *          pTimer;
   SCacheStatis    statistics;
   SHashObj *      pHashTable;
-  __cache_freeres_fn_t freeFp;
+  __cache_free_fn_t freeFp;
   uint32_t        numOfElemsInTrash;  // number of element in trash
   uint8_t         deleting;           // set the deleting flag to stop refreshing ASAP.
   pthread_t       refreshWorker;
@@ -91,15 +90,7 @@ typedef struct {
  * @param fn                   free resource callback function
  * @return
  */
-SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn, const char *cacheName);
-
-/**
- * initialize the cache object and set the free object callback function
- * @param refreshTimeInSeconds
- * @param freeCb
- * @return
- */
-SCacheObj *taosCacheInitWithCb(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_freeres_fn_t fn, const char *cacheName);
+SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char *cacheName);
 
 /**
  * add data into cache
@@ -163,9 +154,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove);
 /**
  *  move all data node into trash, clear node in trash can if it is not referenced by any clients
  * @param handle
- * @param _remove  remove the data or not if refcount is greater than 0
  */
-void taosCacheEmpty(SCacheObj *pCacheObj, bool _remove);
+void taosCacheEmpty(SCacheObj *pCacheObj);
 
 /**
  * release all allocated memory and destroy the cache object.
@@ -179,6 +169,14 @@ void taosCacheEmpty(SCacheObj *pCacheObj, bool _remove);
  * @param handle
  */
 void taosCacheCleanup(SCacheObj *pCacheObj);
+
+/**
+ *
+ * @param pCacheObj
+ * @param fp
+ * @return
+ */
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp);
 
 #ifdef __cplusplus
 }

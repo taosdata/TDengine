@@ -670,6 +670,49 @@ class DbConnRest(DbConn):
         print(self._result)
         raise RuntimeError("TBD")
 
+    # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
+
+
+class MyTDSql:
+    def __init__(self):
+        self.queryRows = 0
+        self.queryCols = 0
+        self.affectedRows = 0
+
+    def init(self, cursor, log=True):
+        self.cursor = cursor
+        # if (log):
+        #     caller = inspect.getframeinfo(inspect.stack()[1][0])
+        #     self.cursor.log(caller.filename + ".sql")
+
+    def close(self):
+        self.cursor.close()
+
+    def query(self, sql):
+        self.sql = sql
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
+        except Exception as e:
+            # caller = inspect.getframeinfo(inspect.stack()[1][0])
+            # args = (caller.filename, caller.lineno, sql, repr(e))
+            # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            raise
+        return self.queryRows
+
+    def execute(self, sql):
+        self.sql = sql
+        try:
+            self.affectedRows = self.cursor.execute(sql)
+        except Exception as e:
+            # caller = inspect.getframeinfo(inspect.stack()[1][0])
+            # args = (caller.filename, caller.lineno, sql, repr(e))
+            # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
+            raise
+        return self.affectedRows
+
 
 class DbConnNative(DbConn):
     def __init__(self):
@@ -706,7 +749,7 @@ class DbConnNative(DbConn):
         # step
 
         # Open connection
-        self._tdSql = TDSql()
+        self._tdSql = MyTDSql()
         self._tdSql.init(self._cursor)
 
     def close(self):
@@ -889,7 +932,7 @@ class StateEmpty(AnyState):
 
     def verifyTasksToState(self, tasks, newState):
         if (self.hasSuccess(tasks, TaskCreateDb)
-            ):  # at EMPTY, if there's succes in creating DB
+                ):  # at EMPTY, if there's succes in creating DB
             if (not self.hasTask(tasks, TaskDropDb)):  # and no drop_db tasks
                 # we must have at most one. TODO: compare numbers
                 self.assertAtMostOneSuccess(tasks, TaskCreateDb)
@@ -944,7 +987,7 @@ class StateSuperTableOnly(AnyState):
 
     def verifyTasksToState(self, tasks, newState):
         if (self.hasSuccess(tasks, TaskDropSuperTable)
-            ):  # we are able to drop the table
+                ):  # we are able to drop the table
             #self.assertAtMostOneSuccess(tasks, TaskDropSuperTable)
             # we must have had recreted it
             self.hasSuccess(tasks, TaskCreateSuperTable)
@@ -978,7 +1021,7 @@ class StateHasData(AnyState):
                 self.assertAtMostOneSuccess(tasks, TaskDropDb)  # TODO: dicy
         elif (newState.equals(AnyState.STATE_DB_ONLY)):  # in DB only
             if (not self.hasTask(tasks, TaskCreateDb)
-                    ):  # without a create_db task
+                ):  # without a create_db task
                 # we must have drop_db task
                 self.assertNoTask(tasks, TaskDropDb)
             self.hasSuccess(tasks, TaskDropSuperTable)
@@ -990,11 +1033,11 @@ class StateHasData(AnyState):
             # self.hasSuccess(tasks, DeleteDataTasks)
         else:  # should be STATE_HAS_DATA
             if (not self.hasTask(tasks, TaskCreateDb)
-                    ):  # only if we didn't create one
+                ):  # only if we didn't create one
                 # we shouldn't have dropped it
                 self.assertNoTask(tasks, TaskDropDb)
             if (not self.hasTask(tasks, TaskCreateSuperTable)
-                ):  # if we didn't create the table
+                    ):  # if we didn't create the table
                 # we should not have a task that drops it
                 self.assertNoTask(tasks, TaskDropSuperTable)
             # self.assertIfExistThenSuccess(tasks, ReadFixedDataTask)
@@ -1387,9 +1430,17 @@ class Task():
         except taos.error.ProgrammingError as err:
             errno2 = err.errno if (
                 err.errno > 0) else 0x80000000 + err.errno  # correct error scheme
-            if (errno2 in [
+            if (gConfig.continue_on_exception):  # user choose to continue
+                self.logDebug(
+                    "[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
+                        errno2, err, self._lastSql))
+                self._err = err
+            elif (errno2 in [
                 0x05,  # TSDB_CODE_RPC_NOT_READY
-                0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D, 0x381, 0x380, 0x383, 0x503,
+                0x200, 0x360, 0x362, 0x36A, 0x36B, 0x36D,
+                0x381, 0x380, 0x383,
+                0x386,  # DB is being dropped?!
+                0x503,
                 0x510,  # vnode not in ready state
                 0x600,
                 1000  # REST catch-all error
@@ -1404,16 +1455,21 @@ class Task():
                     errno2, err, self._lastSql)
                 self.logDebug(errMsg)
                 if gConfig.debug:
-                    raise  # so that we see full stack
-                else:  # non-debug
-                    print(
-                        "\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n".format(errMsg) +
-                        "----------------------------\n")
-                    # sys.exit(-1)
-                    self._err = err
-                    self._aborted = True
+                    # raise # so that we see full stack
+                    traceback.print_exc()
+                print(
+                    "\n\n----------------------------\nProgram ABORTED Due to Unexpected TAOS Error: \n\n{}\n".format(errMsg) +
+                    "----------------------------\n")
+                # sys.exit(-1)
+                self._err = err
+                self._aborted = True
         except Exception as e:
             self.logInfo("Non-TAOS exception encountered")
+            self._err = e
+            self._aborted = True
+            traceback.print_exc()
+        except BaseException as e:
+            self.logInfo("Python base exception encountered")
             self._err = e
             self._aborted = True
             traceback.print_exc()
@@ -1824,30 +1880,6 @@ class Dice():
         return random.randrange(start, stop)
 
 
-# Anyone needing to carry out work should simply come here
-# class WorkDispatcher():
-#     def __init__(self, dbState):
-#         # self.totalNumMethods = 2
-#         self.tasks = [
-#             # CreateTableTask(dbState), # Obsolete
-#             # DropTableTask(dbState),
-#             # AddDataTask(dbState),
-#         ]
-
-#     def throwDice(self):
-#         max = len(self.tasks) - 1
-#         dRes = random.randint(0, max)
-#         # logger.debug("Threw the dice in range [{},{}], and got: {}".format(0,max,dRes))
-#         return dRes
-
-#     def pickTask(self):
-#         dice = self.throwDice()
-#         return self.tasks[dice]
-
-#     def doWork(self, workerThread):
-#         task = self.pickTask()
-#         task.execute(workerThread)
-
 class LoggingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord):
         if (record.levelno >= logging.INFO):
@@ -1867,50 +1899,16 @@ class MyLoggingAdapter(logging.LoggerAdapter):
 
 
 class SvcManager:
-    MAX_QUEUE_SIZE = 10000
-
     def __init__(self):
-        print("Starting service manager")
+        print("Starting TDengine Service Manager")
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT, self.sigIntHandler)
-        signal.signal(signal.SIGUSR1, self.sigUsrHandler)
-        self.ioThread = None
-        self.subProcess = None
-        self.shouldStop = False
-        # self.status = MainExec.STATUS_RUNNING # set inside
+        signal.signal(signal.SIGUSR1, self.sigUsrHandler)  # different handler!
+
+        self.inSigHandler = False
+        # self._status = MainExec.STATUS_RUNNING # set inside
         # _startTaosService()
-
-    def svcOutputReader(self, out: IO, queue):
-        # Important Reference:
-        # https://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
-        print("This is the svcOutput Reader...")
-        # for line in out :
-        for line in iter(out.readline, b''):
-            # print("Finished reading a line: {}".format(line))
-            # print("Adding item to queue...")
-            line = line.decode("utf-8").rstrip()
-            # This might block, and then causing "out" buffer to block
-            queue.put(line)
-            print("_i", end="", flush=True)
-
-            # Trim the queue if necessary
-            oneTenthQSize = self.MAX_QUEUE_SIZE // 10
-            if (queue.qsize() >= (self.MAX_QUEUE_SIZE - oneTenthQSize)):  # 90% full?
-                print("Triming IPC queue by: {}".format(oneTenthQSize))
-                for i in range(0, oneTenthQSize):
-                    try:
-                        queue.get_nowait()
-                    except Empty:
-                        break  # break out of for loop, no more trimming
-
-            if self.shouldStop:
-                print("Stopping to read output from sub process")
-                break
-
-            # queue.put(line)
-        # meaning sub process must have died
-        print("\nNo more output (most likely) from IO thread managing TDengine service")
-        out.close()
+        self.svcMgrThread = None
 
     def _doMenu(self):
         choice = ""
@@ -1933,10 +1931,10 @@ class SvcManager:
 
     def sigUsrHandler(self, signalNumber, frame):
         print("Interrupting main thread execution upon SIGUSR1")
-        if self.status != MainExec.STATUS_RUNNING:
+        if self.inSigHandler:  # already
             print("Ignoring repeated SIG...")
             return  # do nothing if it's already not running
-        self.status = MainExec.STATUS_STOPPING
+        self.inSigHandler = True
 
         choice = self._doMenu()
         if choice == "1":
@@ -1951,68 +1949,244 @@ class SvcManager:
         else:
             raise RuntimeError("Invalid menu choice: {}".format(choice))
 
+        self.inSigHandler = False
+
     def sigIntHandler(self, signalNumber, frame):
         print("Sig INT Handler starting...")
-        if self.status != MainExec.STATUS_RUNNING:
+        if self.inSigHandler:
             print("Ignoring repeated SIG_INT...")
             return
+        self.inSigHandler = True
 
-        self.status = MainExec.STATUS_STOPPING  # immediately set our status
         self.stopTaosService()
         print("INT signal handler returning...")
+        self.inSigHandler = False
 
     def sigHandlerResume(self):
         print("Resuming TDengine service manager thread (main thread)...\n\n")
-        self.status = MainExec.STATUS_RUNNING
 
-    def joinIoThread(self):
-        if self.ioThread:
-            self.ioThread.join()
-            self.ioThread = None
+    def _checkServiceManagerThread(self):
+        if self.svcMgrThread:  # valid svc mgr thread
+            if self.svcMgrThread.isStopped():  # done?
+                self.svcMgrThread.procIpcBatch()  # one last time. TODO: appropriate?
+                self.svcMgrThread = None  # no more
+
+    def _procIpcAll(self):
+        while self.svcMgrThread:  # for as long as the svc mgr thread is still here
+            self.svcMgrThread.procIpcBatch()  # regular processing,
+            time.sleep(0.5)  # pause, before next round
+            self._checkServiceManagerThread()
+        print(
+            "Service Manager Thread (with subprocess) has ended, main thread now exiting...")
+
+    def startTaosService(self):
+        if self.svcMgrThread:
+            raise RuntimeError(
+                "Cannot start TAOS service when one may already be running")
+        self.svcMgrThread = ServiceManagerThread()  # create the object
+        self.svcMgrThread.start()
+        print("TAOS service started, printing out output...")
+        self.svcMgrThread.procIpcBatch(
+            trimToTarget=10,
+            forceOutput=True)  # for printing 10 lines
+        print("TAOS service started")
+
+    def stopTaosService(self, outputLines=20):
+        print("Terminating Service Manager Thread (SMT) execution...")
+        if not self.svcMgrThread:
+            raise RuntimeError("Unexpected empty svc mgr thread")
+        self.svcMgrThread.stop()
+        if self.svcMgrThread.isStopped():
+            self.svcMgrThread.procIpcBatch(outputLines)  # one last time
+            self.svcMgrThread = None
+            print("----- End of TDengine Service Output -----\n")
+            print("SMT execution terminated")
+        else:
+            print("WARNING: SMT did not terminate as expected")
+
+    def run(self):
+        self.startTaosService()
+        self._procIpcAll()  # pump/process all the messages
+        if self.svcMgrThread:  # if sig handler hasn't destroyed it by now
+            self.stopTaosService()  # should have started already
+
+
+class ServiceManagerThread:
+    MAX_QUEUE_SIZE = 10000
+
+    def __init__(self):
+        self._tdeSubProcess = None
+        self._thread = None
+        self._status = None
+
+    def getStatus(self):
+        return self._status
+
+    def isRunning(self):
+        # return self._thread and self._thread.is_alive()
+        return self._status == MainExec.STATUS_RUNNING
+
+    def isStopping(self):
+        return self._status == MainExec.STATUS_STOPPING
+
+    def isStopped(self):
+        return self._status == MainExec.STATUS_STOPPED
+
+    # Start the thread (with sub process), and wait for the sub service
+    # to become fully operational
+    def start(self):
+        if self._thread:
+            raise RuntimeError("Unexpected _thread")
+        if self._tdeSubProcess:
+            raise RuntimeError("TDengine sub process already created/running")
+
+        self._status = MainExec.STATUS_STARTING
+
+        self._tdeSubProcess = TdeSubProcess()
+        self._tdeSubProcess.start()
+
+        self._ipcQueue = Queue()
+        self._thread = threading.Thread(
+            target=self.svcOutputReader,
+            args=(self._tdeSubProcess.getStdOut(), self._ipcQueue))
+        self._thread.daemon = True  # thread dies with the program
+        self._thread.start()
+
+        # wait for service to start
+        for i in range(0, 10):
+            time.sleep(1.0)
+            # self.procIpcBatch() # don't pump message during start up
+            print("_zz_", end="", flush=True)
+            if self._status == MainExec.STATUS_RUNNING:
+                logger.info("[] TDengine service READY to process requests")
+                return  # now we've started
+        # TODO: handle this better?
+        raise RuntimeError("TDengine service did not start successfully")
+
+    def stop(self):
+        # can be called from both main thread or signal handler
+        print("Terminating TDengine service running as the sub process...")
+        if self.isStopped():
+            print("Service already stopped")
+            return
+        if self.isStopping():
+            print("Service is already being stopped")
+            return
+        # Linux will send Control-C generated SIGINT to the TDengine process
+        # already, ref:
+        # https://unix.stackexchange.com/questions/176235/fork-and-how-signals-are-delivered-to-processes
+        if not self._tdeSubProcess:
+            raise RuntimeError("sub process object missing")
+
+        self._status = MainExec.STATUS_STOPPING
+        self._tdeSubProcess.stop()
+
+        if self._tdeSubProcess.isRunning():  # still running
+            print(
+                "FAILED to stop sub process, it is still running... pid = {}".format(
+                    self.subProcess.pid))
+        else:
+            self._tdeSubProcess = None  # not running any more
+            self.join()  # stop the thread, change the status, etc.
+
+    def join(self):
+        # TODO: sanity check
+        if not self.isStopping():
+            raise RuntimeError(
+                "Unexpected status when ending svc mgr thread: {}".format(
+                    self._status))
+
+        if self._thread:
+            self._thread.join()
+            self._thread = None
+            self._status = MainExec.STATUS_STOPPED
         else:
             print("Joining empty thread, doing nothing")
 
+    def _trimQueue(self, targetSize):
+        if targetSize <= 0:
+            return  # do nothing
+        q = self._ipcQueue
+        if (q.qsize() <= targetSize):  # no need to trim
+            return
+
+        logger.debug("Triming IPC queue to target size: {}".format(targetSize))
+        itemsToTrim = q.qsize() - targetSize
+        for i in range(0, itemsToTrim):
+            try:
+                q.get_nowait()
+            except Empty:
+                break  # break out of for loop, no more trimming
+
     TD_READY_MSG = "TDengine is initialized successfully"
 
-    def _procIpcBatch(self):
+    def procIpcBatch(self, trimToTarget=0, forceOutput=False):
+        self._trimQueue(trimToTarget)  # trim if necessary
         # Process all the output generated by the underlying sub process,
         # managed by IO thread
+        print("<", end="", flush=True)
         while True:
             try:
-                line = self.ipcQueue.get_nowait()  # getting output at fast speed
-                print("_o", end="", flush=True)
-                if self.status == MainExec.STATUS_STARTING:  # we are starting, let's see if we have started
-                    if line.find(self.TD_READY_MSG) != -1:  # found
-                        self.status = MainExec.STATUS_RUNNING
-
+                line = self._ipcQueue.get_nowait()  # getting output at fast speed
+                self._printProgress("_o")
             except Empty:
                 # time.sleep(2.3) # wait only if there's no output
                 # no more output
+                print(".>", end="", flush=True)
                 return  # we are done with THIS BATCH
-            else:  # got line
-                print(line)
+            else:  # got line, printing out
+                if forceOutput:
+                    logger.info(line)
+                else:
+                    logger.debug(line)
+        print(">", end="", flush=True)
 
-    def _procIpcAll(self):
-        while True:
-            print("<", end="", flush=True)
-            self._procIpcBatch()  # process one batch
+    _ProgressBars = ["--", "//", "||", "\\\\"]
 
-            # check if the ioThread is still running
-            if (not self.ioThread) or (not self.ioThread.is_alive()):
-                print(
-                    "IO Thread (with subprocess) has ended, main thread now exiting...")
-                self.stopTaosService()
-                self._procIpcBatch()  # one more batch
-                return  # TODO: maybe one last batch?
+    def _printProgress(self, msg):  # TODO: assuming 2 chars
+        print(msg, end="", flush=True)
+        pBar = self._ProgressBars[Dice.throw(4)]
+        print(pBar, end="", flush=True)
+        print('\b\b\b\b', end="", flush=True)
 
-            # Maybe handler says we should exit now
-            if self.shouldStop:
-                print("Main thread ending all IPC processing with IOThread/SubProcess")
-                self._procIpcBatch()  # one more batch
-                return
+    def svcOutputReader(self, out: IO, queue):
+        # Important Reference: https://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
+        # print("This is the svcOutput Reader...")
+        # for line in out :
+        for line in iter(out.readline, b''):
+            # print("Finished reading a line: {}".format(line))
+            # print("Adding item to queue...")
+            line = line.decode("utf-8").rstrip()
+            # This might block, and then causing "out" buffer to block
+            queue.put(line)
+            self._printProgress("_i")
 
-            print(">", end="", flush=True)
-            time.sleep(0.5)
+            if self._status == MainExec.STATUS_STARTING:  # we are starting, let's see if we have started
+                if line.find(self.TD_READY_MSG) != -1:  # found
+                    self._status = MainExec.STATUS_RUNNING
+
+            # Trim the queue if necessary: TODO: try this 1 out of 10 times
+            self._trimQueue(self.MAX_QUEUE_SIZE * 9 // 10)  # trim to 90% size
+
+            if self.isStopping():  # TODO: use thread status instead
+                # WAITING for stopping sub process to finish its outptu
+                print("_w", end="", flush=True)
+
+            # queue.put(line)
+        # meaning sub process must have died
+        print("\nNo more output from IO thread managing TDengine service")
+        out.close()
+
+
+class TdeSubProcess:
+    def __init__(self):
+        self.subProcess = None
+
+    def getStdOut(self):
+        return self.subProcess.stdout
+
+    def isRunning(self):
+        return self.subProcess is not None
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -2029,7 +2203,7 @@ class SvcManager:
                     break
         return buildPath
 
-    def startTaosService(self):
+    def start(self):
         ON_POSIX = 'posix' in sys.builtin_module_names
 
         taosdPath = self.getBuildPath() + "/build/bin/taosd"
@@ -2045,38 +2219,10 @@ class SvcManager:
             stdout=subprocess.PIPE,
             # bufsize=1, # not supported in binary mode
             close_fds=ON_POSIX)  # had text=True, which interferred with reading EOF
-        self.ipcQueue = Queue()
 
-        if self.ioThread:
-            raise RuntimeError("Corrupt thread state")
-        self.ioThread = threading.Thread(
-            target=self.svcOutputReader, args=(
-                self.subProcess.stdout, self.ipcQueue))
-        self.ioThread.daemon = True  # thread dies with the program
-        self.ioThread.start()
-
-        self.shouldStop = False  # don't let the main loop stop
-        self.status = MainExec.STATUS_STARTING
-
-        # wait for service to start
-        for i in range(0, 10):
-            time.sleep(1.0)
-            self._procIpcBatch()  # pump messages
-            print("_zz_", end="", flush=True)
-            if self.status == MainExec.STATUS_RUNNING:
-                print("TDengine service READY to process requests")
-                return  # now we've started
-        # TODO: handle this better?
-        raise RuntimeError("TDengine service did not start successfully")
-
-    def stopTaosService(self):
-        # can be called from both main thread or signal handler
-        print("Terminating TDengine service running as the sub process...")
-        # Linux will send Control-C generated SIGINT to the TDengine process
-        # already, ref:
-        # https://unix.stackexchange.com/questions/176235/fork-and-how-signals-are-delivered-to-processes
+    def stop(self):
         if not self.subProcess:
-            print("Process already stopped")
+            print("Sub process already stopped")
             return
 
         retCode = self.subProcess.poll()
@@ -2084,7 +2230,7 @@ class SvcManager:
             self.subProcess = None
         else:  # process still alive, let's interrupt it
             print(
-                "Sub process still running, sending SIG_INT and waiting for it to stop...")
+                "Sub process is running, sending SIG_INT and waiting for it to terminate...")
             # sub process should end, then IPC queue should end, causing IO
             # thread to end
             self.subProcess.send_signal(signal.SIGINT)
@@ -2096,29 +2242,6 @@ class SvcManager:
                 print("TDengine service process terminated successfully from SIG_INT")
                 self.subProcess = None
 
-        if self.subProcess and (not self.subProcess.poll()):
-            print(
-                "Sub process is still running... pid = {}".format(
-                    self.subProcess.pid))
-
-        self.shouldStop = True
-        self.joinIoThread()
-
-    def run(self):
-        self.startTaosService()
-
-        # proc = subprocess.Popen(['echo', '"to stdout"'],
-        #                 stdout=subprocess.PIPE,
-        #                 )
-        # stdout_value = proc.communicate()[0]
-        # print('\tstdout: {}'.format(repr(stdout_value)))
-
-        self._procIpcAll()
-
-        print("End of loop reading from IPC queue")
-        self.joinIoThread()  # should have started already
-        print("SvcManager Run Finished")
-
 
 class ClientManager:
     def __init__(self):
@@ -2126,14 +2249,14 @@ class ClientManager:
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT, self.sigIntHandler)
 
-        self.status = MainExec.STATUS_RUNNING
+        self._status = MainExec.STATUS_RUNNING
         self.tc = None
 
     def sigIntHandler(self, signalNumber, frame):
-        if self.status != MainExec.STATUS_RUNNING:
+        if self._status != MainExec.STATUS_RUNNING:
             print("Ignoring repeated SIGINT...")
             return  # do nothing if it's already not running
-        self.status = MainExec.STATUS_STOPPING  # immediately set our status
+        self._status = MainExec.STATUS_STOPPING  # immediately set our status
 
         print("Terminating program...")
         self.tc.requestToStop()
@@ -2178,16 +2301,16 @@ class ClientManager:
         self._printLastNumbers()
 
         dbManager = DbManager()  # Regular function
-        Dice.seed(0)  # initial seeding of dice
         thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
         self.tc = ThreadCoordinator(thPool, dbManager)
 
         self.tc.run()
         # print("exec stats: {}".format(self.tc.getExecStats()))
         # print("TC failed = {}".format(self.tc.isFailed()))
-        self.conclude()
         if gConfig.auto_start_service:
             svcMgr.stopTaosService()
+        # Print exec status, etc., AFTER showing messages from the server
+        self.conclude()
         # print("TC failed (2) = {}".format(self.tc.isFailed()))
         # Linux return code: ref https://shapeshed.com/unix-exit-codes/
         return 1 if self.tc.isFailed() else 0
@@ -2201,7 +2324,7 @@ class MainExec:
     STATUS_STARTING = 1
     STATUS_RUNNING = 2
     STATUS_STOPPING = 3
-    # STATUS_STOPPED = 3 # Not used yet
+    STATUS_STOPPED = 4
 
     @classmethod
     def runClient(cls):
@@ -2322,13 +2445,14 @@ def main():
         default=5,
         type=int,
         help='Number of threads to run (default: 10)')
+    parser.add_argument(
+        '-x',
+        '--continue-on-exception',
+        action='store_true',
+        help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
 
     global gConfig
     gConfig = parser.parse_args()
-
-    # if len(sys.argv) == 1:
-    #     parser.print_help()
-    #     sys.exit()
 
     # Logging Stuff
     global logger
@@ -2345,13 +2469,13 @@ def main():
     else:
         logger.setLevel(logging.INFO)
 
+    Dice.seed(0)  # initial seeding of dice
+
     # Run server or client
     if gConfig.run_tdengine:  # run server
         MainExec.runService()
     else:
         return MainExec.runClient()
-
-    # logger.info("Crash_Gen execution finished")
 
 
 if __name__ == "__main__":

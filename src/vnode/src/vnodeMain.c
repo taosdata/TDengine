@@ -161,11 +161,17 @@ int32_t vnodeDrop(int32_t vgId) {
 int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
 
-  if (pVnode->status != TAOS_VN_STATUS_READY) 
-    return TSDB_CODE_VND_INVALID_STATUS;
+  // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
+  // cfgVersion can be corrected by status msg
+  if (pVnode->status != TAOS_VN_STATUS_READY) {
+    vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
+    return TSDB_CODE_SUCCESS;
+  }
 
-  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) 
-    return TSDB_CODE_VND_NOT_SYNCED;
+  // the vnode may always fail to synchronize because of it in low cfgVersion
+  // so cannot use the following codes
+  // if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) 
+  //   return TSDB_CODE_VND_NOT_SYNCED;
 
   pVnode->status = TAOS_VN_STATUS_UPDATING;
 

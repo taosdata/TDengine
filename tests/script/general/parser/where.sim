@@ -277,4 +277,44 @@ if $rows != 2 then
   return -1
 endi
 
+print ==========tbase-1363
+#sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+
+$i = 0
+while $i < 1
+  $tb = test_null_filter
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  while $x < 10000
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values (now + $ms , null , null , null , null , null , null , null , null , null )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 2000
+
+system sh/exec.sh -n dnode1 -s start
+
+sql select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
+if $row != 0 then
+  return -1
+endi
+
+sql select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
+if $row != 0 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

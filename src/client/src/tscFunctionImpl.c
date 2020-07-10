@@ -340,13 +340,12 @@ bool stableQueryFunctChanged(int32_t funcId) {
  */
 void resetResultInfo(SResultInfo *pResInfo) { pResInfo->initialized = false; }
 
-void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable) {
+void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf) {
   assert(pResInfo->interResultBuf == NULL);
   
   pResInfo->bufLen = size;
   pResInfo->superTableQ = superTable;
-  
-  pResInfo->interResultBuf = calloc(1, (size_t)size);
+  pResInfo->interResultBuf = buf;
 }
 
 // set the query flag to denote that query is completed
