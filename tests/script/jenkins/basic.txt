@@ -1,11 +1,11 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
-#./test.sh -f general/alter/cached_schema_after_alter.sim
-###./test.sh -f general/alter/count.sim
-###./test.sh -f general/alter/import.sim
-#./test.sh -f general/alter/insert1.sim
-###./test.sh -f general/alter/insert2.sim
+./test.sh -f general/alter/cached_schema_after_alter.sim
+./test.sh -f general/alter/count.sim
+./test.sh -f general/alter/import.sim
+./test.sh -f general/alter/insert1.sim
+./test.sh -f general/alter/insert2.sim
 ./test.sh -f general/alter/metrics.sim
 ./test.sh -f general/alter/table.sim
 
@@ -100,8 +100,8 @@ cd ../../../debug; make
 ./test.sh -f general/insert/query_multi_file.sim
 ./test.sh -f general/insert/tcp.sim
 
-###./test.sh -f general/parser/alter.sim
-###./test.sh -f general/parser/alter1.sim
+./test.sh -f general/parser/alter.sim
+./test.sh -f general/parser/alter1.sim
 ./test.sh -f general/parser/alter_stable.sim
 ./test.sh -f general/parser/auto_create_tb.sim
 ./test.sh -f general/parser/auto_create_tb_drop_tb.sim
@@ -143,16 +143,16 @@ cd ../../../debug; make
 ./test.sh -f general/parser/interp.sim
 ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 ./test.sh -f general/parser/groupby.sim
-###./test.sh -f general/parser/set_tag_vals.sim
+./test.sh -f general/parser/set_tag_vals.sim
 #./test.sh -f general/parser/sliding.sim
 ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 ./test.sh -f general/parser/tags_filter.sim
-#./test.sh -f general/parser/slimit_alter_tags.sim
+./test.sh -f general/parser/slimit_alter_tags.sim
 ./test.sh -f general/parser/join.sim
 ./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
 ./test.sh -f general/parser/bug.sim
-###./test.sh -f general/parser/repeatAlter.sim
+./test.sh -f general/parser/repeatAlter.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
@@ -194,7 +194,7 @@ cd ../../../debug; make
 ./test.sh -f general/tag/4.sim
 ./test.sh -f general/tag/5.sim
 ./test.sh -f general/tag/6.sim
-###./test.sh -f general/tag/add.sim
+./test.sh -f general/tag/add.sim
 ./test.sh -f general/tag/bigint.sim
 ./test.sh -f general/tag/binary_binary.sim
 ./test.sh -f general/tag/binary.sim
@@ -212,7 +212,7 @@ cd ../../../debug; make
 ./test.sh -f general/tag/int_binary.sim
 ./test.sh -f general/tag/int_float.sim
 ./test.sh -f general/tag/int.sim
-###./test.sh -f general/tag/set.sim
+./test.sh -f general/tag/set.sim
 ./test.sh -f general/tag/smallint.sim
 ./test.sh -f general/tag/tinyint.sim
 
@@ -247,7 +247,7 @@ cd ../../../debug; make
 ./test.sh -f unique/account/user_create.sim
 ./test.sh -f unique/account/user_len.sim
 
-###./test.sh -f unique/big/balance.sim
+./test.sh -f unique/big/balance.sim
 ###./test.sh -f unique/big/maxvnodes.sim
 ./test.sh -f unique/big/tcp.sim
 
