@@ -2952,10 +2952,14 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
   
   assert(pCtx->inputBytes == pCtx->outputBytes);
-  
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
-    
+
+  tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType, true);
+  char* data = pCtx->aOutputBuf;
+  pCtx->aOutputBuf += pCtx->outputBytes;
+
+  // directly copy from the first one
+  for (int32_t i = 1; i < pCtx->size; ++i) {
+    memmove(pCtx->aOutputBuf, data, pCtx->outputBytes);
     pCtx->aOutputBuf += pCtx->outputBytes;
   }
 }
