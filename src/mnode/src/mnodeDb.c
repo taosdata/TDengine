@@ -38,7 +38,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
-#define VG_LIST_SIZE 1
+#define VG_LIST_SIZE 8
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 

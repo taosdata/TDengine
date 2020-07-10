@@ -308,13 +308,13 @@ static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) return false;
   if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold))   return false;
   if (clusterCfg->statusInterval     != htonl(tsStatusInterval))     return false;
-  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode))    return false;
-  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb))      return false;
+  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode))   return false;
+  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb))    return false;
 
   if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) return false;
   if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone)))       return false;
-  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))              return false;
-  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))           return false;
+  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))             return false;
+  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))          return false;
     
   return true;
 }

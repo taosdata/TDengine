@@ -1723,8 +1723,8 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
 
   if (pMsg->retry == 0) {
     if (pMsg->pTable == NULL) {
-      SVgObj *pVgroup;
-      int32_t sid;
+      SVgObj *pVgroup = NULL;
+      int32_t sid = 0;
       code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &sid);
       if (code != TSDB_CODE_SUCCESS) {
         mDebug("app:%p:%p, table:%s, failed to get available vgroup, reason:%s", pMsg->rpcMsg.ahandle, pMsg,
