@@ -150,3 +150,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 
 # client
 python3 ./test.py -f client/client.py
+
+# Misc
+python3 testCompress.py
+python3 testNoCompress.py

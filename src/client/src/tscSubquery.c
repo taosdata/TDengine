@@ -1447,9 +1447,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   tscDebug("%p start to free subquery result", pSql);
   
-  if (pSql->res.code == TSDB_CODE_SUCCESS) {
-    taos_free_result(pSql);
-  }
+  taos_free_result(pSql);
   
   tfree(trsupport->localBuffer);
   
@@ -1780,6 +1778,7 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
   
+  printf("------------alloc:%p\n", pNew);
   return pNew;
 }
 
