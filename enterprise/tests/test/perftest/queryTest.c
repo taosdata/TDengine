@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <tglobal.h>
 #include <time.h>
 #include <unistd.h>
 #include <wordexp.h>
@@ -328,9 +329,9 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "use t1", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
-  createEnvironment(conn, 100, 100, 100000, 30);
+//  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
   //    database TU1", NULL);
   // selectivity + tags/ts + group by normal columns
