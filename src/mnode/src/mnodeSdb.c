@@ -585,7 +585,7 @@ static int sdbWrite(void *param, void *data, int type) {
     return sdbInsertHash(pTable, &oper);
   } else if (action == SDB_ACTION_DELETE) {
     SSdbRow *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
-    if (rowMeta != NULL && rowMeta->row != NULL) {
+    if (rowMeta == NULL || rowMeta->row == NULL) {
       sdbError("table:%s, failed to get object:%s from wal while dispose delete action", pTable->tableName,
                pHead->cont);
       return TSDB_CODE_SUCCESS;
@@ -594,7 +594,7 @@ static int sdbWrite(void *param, void *data, int type) {
     return sdbDeleteHash(pTable, &oper);
   } else if (action == SDB_ACTION_UPDATE) {
     SSdbRow *rowMeta = sdbGetRowMeta(pTable, pHead->cont);
-    if (rowMeta != NULL && rowMeta->row != NULL) {
+    if (rowMeta == NULL || rowMeta->row == NULL) {
       sdbError("table:%s, failed to get object:%s from wal while dispose update action", pTable->tableName,
                pHead->cont);
       return TSDB_CODE_SUCCESS;
