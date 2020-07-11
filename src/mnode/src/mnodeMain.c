@@ -41,7 +41,7 @@ typedef struct {
   void              (*cleanup)();
 } SMnodeComponent;
 
-void *tsMnodeTmr;
+void *tsMnodeTmr = NULL;
 static bool tsMgmtIsRunning = false;
 
 static const SMnodeComponent tsMnodeComponents[] = {

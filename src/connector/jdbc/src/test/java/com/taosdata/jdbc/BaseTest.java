@@ -1,27 +1,38 @@
 package com.taosdata.jdbc;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.File;
+import com.taosdata.jdbc.utils.TDNodes;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 public class BaseTest {
+
+    private static boolean testCluster = false;
+    private static String deployPath = System.getProperty("user.dir");         
+    private static TDNodes tdNodes = new TDNodes();    
+    
     
     @BeforeClass
     public static void setupEnv() {
         try{
-            String path = System.getProperty("user.dir");
-            String bashPath = path + "/buildTDengine.sh";
+            File file = new File(deployPath + "/../../../");
+            String rootPath = file.getCanonicalPath();
+                       
+            tdNodes.setPath(rootPath);
+            tdNodes.setTestCluster(testCluster);            
 
-            Process ps = Runtime.getRuntime().exec(bashPath);
-            ps.waitFor();
+            tdNodes.deploy(1);
+            tdNodes.start(1);  
 
-            BufferedReader br = new BufferedReader(new InputStreamReader(ps.getInputStream()));
-            while(br.readLine() != null) {
-                System.out.println(br.readLine());
-            }            
         } catch (Exception e) {
             e.printStackTrace();
+            System.out.println("Base Test Exception");
         }
+    }
+
+    @AfterClass
+    public static void cleanUpEnv() {
+        tdNodes.stop(1);
     }
 }

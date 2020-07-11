@@ -121,7 +121,7 @@ python3 ./test.py -f import_merge/importTORestart.py
 python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
-
+python3 ./test.py -f import_merge/importCSV.py
 # user
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
@@ -156,3 +156,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 
 # client
 python3 ./test.py -f client/client.py
+
+# Misc
+python3 testCompress.py
+python3 testNoCompress.py
