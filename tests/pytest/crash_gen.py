@@ -561,9 +561,13 @@ class DbConnRest(DbConn):
         self.isOpen = False
 
     def _doSql(self, sql):
-        r = requests.post(self._url, 
-            data = sql,
-            auth = HTTPBasicAuth('root', 'taosdata'))
+        try:
+            r = requests.post(self._url, 
+                data = sql,
+                auth = HTTPBasicAuth('root', 'taosdata'))            
+        except:
+            print("REST API Failure (TODO: more info here)")
+            raise
         rj = r.json()
         # Sanity check for the "Json Result"
         if (not 'status' in rj):
@@ -2125,7 +2129,7 @@ def main():
     parser.add_argument('-t', '--num-threads', action='store', default=5, type=int,
                         help='Number of threads to run (default: 10)')
     parser.add_argument('-x', '--continue-on-exception', action='store_true',                        
-                        help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')                                            
+                        help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')                        
 
     global gConfig
     gConfig = parser.parse_args()
