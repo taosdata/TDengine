@@ -110,7 +110,7 @@ int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
 int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
 int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
 int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
-int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
+int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 // balance
@@ -706,8 +706,8 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsReplications;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_REPLICA_NUM;
-  cfg.maxValue = TSDB_MAX_REPLICA_NUM;
+  cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

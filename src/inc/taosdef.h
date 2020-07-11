@@ -332,9 +332,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
-#define TSDB_MIN_REPLICA_NUM            1
-#define TSDB_MAX_REPLICA_NUM            3
-#define TSDB_DEFAULT_REPLICA_NUM        1
+#define TSDB_MIN_DB_REPLICA_OPTION      1
+#define TSDB_MAX_DB_REPLICA_OPTION      3
+#define TSDB_DEFAULT_DB_REPLICA_OPTION  1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
 #define TSDB_MAX_UNION_CLAUSE           5
