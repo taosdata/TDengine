@@ -79,7 +79,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     pTSBuf->numOfAlloc = header.numOfVnode;
     STSVnodeBlockInfoEx* tmp = realloc(pTSBuf->pData, sizeof(STSVnodeBlockInfoEx) * pTSBuf->numOfAlloc);
     if (tmp == NULL) {
-      tsBufDestory(pTSBuf);
+      tsBufDestroy(pTSBuf);
       return NULL;
     }
     
@@ -92,7 +92,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   pTSBuf->tsOrder = header.tsOrder;
   if (pTSBuf->tsOrder != TSDB_ORDER_ASC && pTSBuf->tsOrder != TSDB_ORDER_DESC) {
 //    tscError("invalid order info in buf:%d", pTSBuf->tsOrder);
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   
@@ -100,7 +100,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
   if (buf == NULL) {
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL; 
   } 
   
@@ -120,7 +120,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   struct stat fileStat;
   if (fstat(fileno(pTSBuf->f), &fileStat) != 0) {
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   
@@ -137,7 +137,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   return pTSBuf;
 }
 
-void* tsBufDestory(STSBuf* pTSBuf) {
+void* tsBufDestroy(STSBuf* pTSBuf) {
   if (pTSBuf == NULL) {
     return NULL;
   }
@@ -920,13 +920,13 @@ static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
   pTSBuf->numOfAlloc = INITIAL_VNODEINFO_SIZE;
   pTSBuf->pData = calloc(pTSBuf->numOfAlloc, sizeof(STSVnodeBlockInfoEx));
   if (pTSBuf->pData == NULL) {
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   
   pTSBuf->tsData.rawBuf = malloc(MEM_BUF_SIZE);
   if (pTSBuf->tsData.rawBuf == NULL) {
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   
@@ -936,13 +936,13 @@ static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
   
   pTSBuf->assistBuf = malloc(MEM_BUF_SIZE);
   if (pTSBuf->assistBuf == NULL) {
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   
   pTSBuf->block.payload = malloc(MEM_BUF_SIZE);
   if (pTSBuf->block.payload == NULL) {
-    tsBufDestory(pTSBuf);
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   

@@ -161,7 +161,7 @@ sleep 10000
 $loopCnt = 0
 wait_dnode_offline_overtime_dropped:
 $loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
+if $loopCnt == 20 then 
   return -1
 endi
 sql show dnodes

@@ -160,7 +160,32 @@ extern tDataTypeDescriptor tDataTypeDesc[11];
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
 bool isValidDataType(int32_t type);
-bool isNull(const char *val, int32_t type);
+//bool isNull(const char *val, int32_t type);
+static inline __attribute__((always_inline)) bool isNull(const char *val, int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return *(uint8_t *)val == TSDB_DATA_BOOL_NULL;
+    case TSDB_DATA_TYPE_TINYINT:
+      return *(uint8_t *)val == TSDB_DATA_TINYINT_NULL;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return *(uint16_t *)val == TSDB_DATA_SMALLINT_NULL;
+    case TSDB_DATA_TYPE_INT:
+      return *(uint32_t *)val == TSDB_DATA_INT_NULL;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return *(uint64_t *)val == TSDB_DATA_BIGINT_NULL;
+    case TSDB_DATA_TYPE_FLOAT:
+      return *(uint32_t *)val == TSDB_DATA_FLOAT_NULL;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
+    case TSDB_DATA_TYPE_NCHAR:
+      return *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
+    case TSDB_DATA_TYPE_BINARY:
+      return *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+    default:
+      return false;
+  };
+}
 
 void setVardataNull(char* val, int32_t type);
 void setNull(char *val, int32_t type, int32_t bytes);
@@ -271,8 +296,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DEFAULT_TOTAL_BLOCKS       4
 
 #define TSDB_MIN_TABLES                 4
-#define TSDB_MAX_TABLES                 200000
-#define TSDB_DEFAULT_TABLES             1000
+#define TSDB_MAX_TABLES                 5000000
+#define TSDB_DEFAULT_TABLES             200000
+#define TSDB_TABLES_STEP                10000
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 

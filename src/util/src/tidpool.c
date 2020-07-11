@@ -123,7 +123,7 @@ void taosIdPoolMarkStatus(void *handle, int id) {
 int taosUpdateIdPool(id_pool_t *handle, int maxId) {
   id_pool_t *pIdPool = (id_pool_t*)handle;
   if (maxId <= pIdPool->maxId) {
-    return -1;
+    return 0;
   }
 
   bool *idList = calloc(maxId, sizeof(bool));

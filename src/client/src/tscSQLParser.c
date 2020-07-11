@@ -175,7 +175,6 @@ static int32_t handlePassword(SSqlCmd* pCmd, SSQLToken* pPwd) {
   return TSDB_CODE_SUCCESS;
 }
 
-// todo handle memory leak in error handle function
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo == NULL || pSql == NULL || pSql->signature != pSql) {
     return TSDB_CODE_TSC_APP_ERROR;
