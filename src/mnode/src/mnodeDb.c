@@ -179,9 +179,14 @@ void mnodeDecDbRef(SDbObj *pDb) {
 
 SDbObj *mnodeGetDbByTableId(char *tableId) {
   char db[TSDB_TABLE_ID_LEN], *pos;
-
+ 
+  // tableId format should be :  acct.db.table
   pos = strstr(tableId, TS_PATH_DELIMITER);
+  assert(NULL != pos);
+
   pos = strstr(pos + 1, TS_PATH_DELIMITER);
+  assert(NULL != pos);
+
   memset(db, 0, sizeof(db));
   strncpy(db, tableId, pos - tableId);
 
@@ -459,6 +464,7 @@ void mnodeMoveVgroupToHead(SVgObj *pVgroup) {
 
 void mnodeCleanupDbs() {
   sdbCloseTable(tsDbSdb);
+  tsDbSdb = NULL;
 }
 
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -963,6 +969,11 @@ static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
   if (pMsg->pDb == NULL) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
     return TSDB_CODE_MND_INVALID_DB;
+  }
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pAlter->db, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
   return mnodeAlterDb(pMsg->pDb, pAlter, pMsg);

@@ -88,13 +88,13 @@ static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
 }
 
 static int32_t mnodeDnodeActionUpdate(SSdbOper *pOper) {
-  SDnodeObj *pDnode = pOper->pObj;
-  SDnodeObj *pSaved = mnodeGetDnode(pDnode->dnodeId);
-  if (pSaved != NULL && pDnode != pSaved) {
-    memcpy(pSaved, pDnode, pOper->rowSize);
-    free(pDnode);
-    mnodeDecDnodeRef(pSaved);
+  SDnodeObj *pNew = pOper->pObj;
+  SDnodeObj *pDnode = mnodeGetDnode(pNew->dnodeId);
+  if (pDnode != NULL && pNew != pDnode) {
+    memcpy(pDnode, pNew, pOper->rowSize);
+    free(pNew);
   }
+  mnodeDecDnodeRef(pDnode);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -176,6 +176,7 @@ int32_t mnodeInitDnodes() {
 
 void mnodeCleanupDnodes() {
   sdbCloseTable(tsDnodeSdb);
+  tsDnodeSdb = NULL;
 }
 
 void *mnodeGetNextDnode(void *pIter, SDnodeObj **pDnode) { 
@@ -334,7 +335,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   if (pStatus->dnodeId == 0) {
     mDebug("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
   } else {
-    //mDebug("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);
@@ -468,7 +469,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   }
 
   mnodeDecDnodeRef(pDnode);
-  if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) {
+  if (strcmp(pDnode->dnodeEp, mnodeGetMnodeMasterEp()) == 0) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
   }

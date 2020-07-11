@@ -166,8 +166,8 @@ void httpProcessMultiSql(HttpContext *pContext) {
   HttpSqlCmd *cmd = multiCmds->cmds + multiCmds->pos;
 
   char *sql = httpGetCmdsString(pContext, cmd->sql);
-  httpTraceDump("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
-           pContext->ipstr, pContext->user, multiCmds->pos, sql);
+  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
+             pContext->ipstr, pContext->user, multiCmds->pos, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
@@ -233,10 +233,11 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
   }
 }
 
-void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
+void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
+  int32_t code = taos_errno(result);
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -260,8 +261,8 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
     return;
   }
 
-  int num_fields = taos_field_count(result);
-  if (num_fields == 0) {
+  bool isUpdate = tscIsUpdateQuery(result);
+  if (isUpdate) {
     // not select or show commands
     int affectRows = taos_affected_rows(result);
 
@@ -306,8 +307,8 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
     return;
   }
 
-  httpTraceDump("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
-           pContext->user, sql);
+  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
+            pContext->user, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }

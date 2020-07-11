@@ -71,7 +71,7 @@ char *simParseHostName(char *varName) {
   }
   
   sprintf(hostName, "'%s:%d'", simHostName, port);
-  //simPrint("hostName:%s", hostName);
+  //simInfo("hostName:%s", hostName);
   return hostName;
 }
 
@@ -102,20 +102,20 @@ void simFreeScript(SScript *script) {
 SScript *simProcessCallOver(SScript *script) {
   if (script->type == SIM_SCRIPT_TYPE_MAIN) {
     if (script->killed) {
-      simPrint("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX
+      simInfo("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX
                "failed" FAILED_POSTFIX ", error:%s",
                script->fileName, script->error);
       exit(-1);
     } else {
-      simPrint("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX
+      simInfo("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX
                "success" SUCCESS_POSTFIX,
                script->fileName);
       simCloseTaosdConnect(script);
       simScriptSucced++;
       simScriptPos--;
       if (simScriptPos == -1) {
-        simPrint("----------------------------------------------------------------------");
-        simPrint("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
+        simInfo("----------------------------------------------------------------------");
+        simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
         exit(0);
       }
 
@@ -123,7 +123,7 @@ SScript *simProcessCallOver(SScript *script) {
       return simScriptList[simScriptPos];
     }
   } else {
-    simPrint("script:%s, is stopped by main script", script->fileName);
+    simInfo("script:%s, is stopped by main script", script->fileName);
     simFreeScript(script);
     return NULL;
   }
@@ -143,7 +143,7 @@ void *simExecuteScript(void *inputScript) {
     } else {
       SCmdLine *line = &script->lines[script->linePos];
       char *option = script->optionBuffer + line->optionOffset;
-      simTrace("script:%s, line:%d with option \"%s\"", script->fileName, line->lineNum, option);
+      simDebug("script:%s, line:%d with option \"%s\"", script->fileName, line->lineNum, option);
 
       SCommand *cmd = &simCmdList[line->cmdno];
       int ret = (*(cmd->executeCmd))(script, option);

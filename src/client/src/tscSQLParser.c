@@ -18,19 +18,19 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
-#include "qast.h"
 #include "taos.h"
 #include "taosmsg.h"
-#include "tstoken.h"
-#include "tstrbuild.h"
-#include "ttime.h"
+#include "qast.h"
+#include "tcompare.h"
+#include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "tstoken.h"
+#include "tstrbuild.h"
+#include "ttime.h"
 #include "ttokendef.h"
-#include "tname.h"
-#include "tcompare.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -90,6 +90,7 @@ static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryI
 static int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type);
+static int32_t validateEp(char* ep);
 static int32_t validateDNodeConfig(tDCLSQL* pOptions);
 static int32_t validateLocalConfig(tDCLSQL* pOptions);
 static int32_t validateColumnName(char* name);
@@ -359,6 +360,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values";
+      const char* msg3 = "invalid dnode ep";
 
       /* validate the ip address */
       tDCLSQL* pDCL = pInfo->pDCLInfo;
@@ -374,6 +376,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pDCL->a[0].n = strdequote(pDCL->a[0].z);
       
       strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
+
+      if (validateEp(pCfg->ep) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
 
@@ -654,11 +660,14 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
 int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg0 = "sliding value too small";
   const char* msg1 = "sliding value no larger than the interval value";
+  const char* msg2 = "sliding value can not less than 1% of interval value";
+
+  const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  SSQLToken*      pSliding = &pQuerySql->sliding;
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
+  SSQLToken* pSliding = &pQuerySql->sliding;
   if (pSliding->n != 0) {
     getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->slidingTime);
     if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
@@ -674,6 +683,10 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
     }
   } else {
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
+  }
+
+  if ((pQueryInfo->intervalTime != 0) && (pQueryInfo->intervalTime/pQueryInfo->slidingTime > INTERVAL_SLIDING_FACTOR)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4487,10 +4500,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
     pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    pUpdateMsg->tid = htonl(pTableMeta->sid);
-    pUpdateMsg->uid = htobe64(pTableMeta->uid);
-    pUpdateMsg->colId = htons(pTagsSchema->colId);
-    pUpdateMsg->tversion = htons(pTableMeta->tversion);
+    pUpdateMsg->tid       = htonl(pTableMeta->sid);
+    pUpdateMsg->uid       = htobe64(pTableMeta->uid);
+    pUpdateMsg->colId     = htons(pTagsSchema->colId);
+    pUpdateMsg->type      = pTagsSchema->type;
+    pUpdateMsg->bytes     = htons(pTagsSchema->bytes);
+    pUpdateMsg->tversion  = htons(pTableMeta->tversion);
     pUpdateMsg->numOfTags = htons(numOfTags);
     pUpdateMsg->schemaLen = htonl(schemaLen);
 
@@ -4626,6 +4641,24 @@ typedef struct SDNodeDynConfOption {
   char*   name;  // command name
   int32_t len;   // name string length
 } SDNodeDynConfOption;
+
+
+int32_t validateEp(char* ep) {
+  char buf[TSDB_EP_LEN + 1] = {0};
+  tstrncpy(buf, ep, TSDB_EP_LEN);
+
+  char *pos = strchr(buf, ':');
+  if (NULL == pos) {   
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+  
+  uint16_t port = atoi(pos+1);
+  if (0 == port) {   
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }  
+
+  return TSDB_CODE_SUCCESS;   
+}
 
 int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   if (pOptions->nTokens < 2 || pOptions->nTokens > 3) {
@@ -6094,14 +6127,10 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       }
     }
 
-
+    // NOTE: binary|nchar data allows the >|< type filter
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight->nodeType == TSQL_NODE_VALUE) {
         if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL) {
-          return TSDB_CODE_TSC_INVALID_SQL;
-        }
-        if ((pRight->pVal->nType == TSDB_DATA_TYPE_BINARY || pRight->pVal->nType == TSDB_DATA_TYPE_NCHAR)
-            && (*pExpr)->_node.optr != TSDB_RELATION_LIKE) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }

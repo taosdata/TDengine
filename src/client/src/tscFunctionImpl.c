@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "qast.h"
 #include "qextbuffer.h"
 #include "qfill.h"
 #include "qhistogram.h"
@@ -23,6 +22,7 @@
 #include "qtsbuf.h"
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "qast.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscompression.h"
@@ -340,13 +340,12 @@ bool stableQueryFunctChanged(int32_t funcId) {
  */
 void resetResultInfo(SResultInfo *pResInfo) { pResInfo->initialized = false; }
 
-void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable) {
+void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf) {
   assert(pResInfo->interResultBuf == NULL);
   
   pResInfo->bufLen = size;
   pResInfo->superTableQ = superTable;
-  
-  pResInfo->interResultBuf = calloc(1, (size_t)size);
+  pResInfo->interResultBuf = buf;
 }
 
 // set the query flag to denote that query is completed

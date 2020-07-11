@@ -17,14 +17,23 @@
 
 #include "hash.h"
 #include "taosmsg.h"
-#include "qextbuffer.h"
-#include "ttime.h"
-
-#include "qfill.h"
 #include "ttime.h"
 
 #include "qExecutor.h"
 #include "qUtil.h"
+
+int32_t getOutputInterResultBufSize(SQuery* pQuery) {
+  int32_t size = 0;
+
+  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+    assert(pQuery->pSelectExpr[i].interBytes <= DEFAULT_INTERN_BUF_PAGE_SIZE);
+    size += pQuery->pSelectExpr[i].interBytes;
+  }
+
+  assert(size > 0);
+
+  return size;
+}
 
 int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type) {
@@ -32,7 +41,6 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->threshold = threshold;
   
   pWindowResInfo->type = type;
-  
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
   pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
   
@@ -44,7 +52,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     SPosInfo posInfo = {-1, -1};
-    createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &posInfo);
+    createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &posInfo, pRuntimeEnv->interBufSize);
   }
   
   return TSDB_CODE_SUCCESS;
@@ -54,11 +62,8 @@ void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols) {
   if (pWindowRes == NULL) {
     return;
   }
-  
-  for (int32_t i = 0; i < nOutputCols; ++i) {
-    free(pWindowRes->resultInfo[i].interResultBuf);
-  }
-  
+
+  free(pWindowRes->resultInfo[0].interResultBuf);
   free(pWindowRes->resultInfo);
 }
 
@@ -180,19 +185,33 @@ void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
 
 /*
  * remove the results that are not the FIRST time window that spreads beyond the
- * the last qualified time stamp in case of sliding query, which the sliding time is not equalled to the interval time
+ * the last qualified time stamp in case of sliding query, which the sliding time is not equalled to the interval time.
+ * NOTE: remove redundant, only when the result set order equals to traverse order
  */
 void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order) {
   assert(pWindowResInfo->size >= 0 && pWindowResInfo->capacity >= pWindowResInfo->size);
-  
-  int32_t i = 0;
-  while (i < pWindowResInfo->size &&
-      ((pWindowResInfo->pResult[i].window.ekey < lastKey && order == QUERY_ASC_FORWARD_STEP) ||
-          (pWindowResInfo->pResult[i].window.skey > lastKey && order == QUERY_DESC_FORWARD_STEP))) {
-    ++i;
+  if (pWindowResInfo->size <= 1) {
+    return;
   }
-  
-  //  assert(i < pWindowResInfo->size);
+
+  // get the result order
+  int32_t resultOrder = (pWindowResInfo->pResult[0].window.skey < pWindowResInfo->pResult[1].window.skey)? 1:-1;
+
+  if (order != resultOrder) {
+    return;
+  }
+
+  int32_t i = 0;
+  if (order == QUERY_ASC_FORWARD_STEP) {
+    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].window.ekey < lastKey)) {
+      ++i;
+    }
+  } else if (order == QUERY_DESC_FORWARD_STEP) {
+    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].window.skey > lastKey)) {
+      ++i;
+    }
+  }
+
   if (i < pWindowResInfo->size) {
     pWindowResInfo->size = (i + 1);
   }
@@ -227,10 +246,9 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
   }
   
   pWindowRes->numOfRows = 0;
-  //  pWindowRes->nAlloc = 0;
   pWindowRes->pos = (SPosInfo){-1, -1};
   pWindowRes->status.closed = false;
-  pWindowRes->window = (STimeWindow){0, 0};
+  pWindowRes->window = TSWINDOW_INITIALIZER;
 }
 
 /**
@@ -240,7 +258,6 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
  */
 void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, const SWindowResult *src) {
   dst->numOfRows = src->numOfRows;
-  //  dst->nAlloc = src->nAlloc;
   dst->window = src->window;
   dst->status = src->status;
   

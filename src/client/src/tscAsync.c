@@ -55,7 +55,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
 
   strtolower(pSql->sqlstr, sqlstr);
 
-  tscDebugDump("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   pSql->cmd.curSql = pSql->sqlstr;
 
   int32_t code = tsParseSql(pSql, true);
@@ -471,13 +471,19 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         }
 
         // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
-        // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated
+        // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.
         // 2. vnode may need the schema information along with submit block to update its local table schema.
         if (pCmd->command == TSDB_SQL_INSERT) {
           tscDebug("%p redo parse sql string to build submit block", pSql);
 
           pCmd->parseFinished = false;
-          if ((code = tsParseSql(pSql, true)) == TSDB_CODE_SUCCESS) {
+          code = tsParseSql(pSql, true);
+
+          if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            return;
+          }
+
+          if (code == TSDB_CODE_SUCCESS) {
             /*
              * Discard previous built submit blocks, and then parse the sql string again and build up all submit blocks,
              * and send the required submit block according to index value in supporter to server.

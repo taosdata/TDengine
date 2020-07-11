@@ -118,7 +118,7 @@ static bool tExtMemBufferAlloc(tExtMemBuffer *pMemBuffer) {
    * To flush data to disk to accommodate more data
    */
   if (pMemBuffer->numOfInMemPages > 0 && pMemBuffer->numOfInMemPages == pMemBuffer->inMemCapacity) {
-    if (!tExtMemBufferFlush(pMemBuffer)) {
+    if (tExtMemBufferFlush(pMemBuffer) != 0) {
       return false;
     }
   }
@@ -268,6 +268,7 @@ int32_t tExtMemBufferFlush(tExtMemBuffer *pMemBuffer) {
     size_t retVal = fwrite((char *)&(first->item), pMemBuffer->pageSize, 1, pMemBuffer->file);
     if (retVal <= 0) {  // failed to write to buffer, may be not enough space
       ret = TAOS_SYSTEM_ERROR(errno);
+      return ret;
     }
 
     pMemBuffer->fileMeta.numOfElemsInFile += first->item.num;

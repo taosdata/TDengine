@@ -41,7 +41,7 @@ typedef struct {
   void              (*cleanup)();
 } SMnodeComponent;
 
-void *tsMnodeTmr;
+void *tsMnodeTmr = NULL;
 static bool tsMgmtIsRunning = false;
 
 static const SMnodeComponent tsMnodeComponents[] = {
@@ -121,9 +121,9 @@ void mnodeCleanupSystem() {
   dnodeFreeMnodeWqueue();
   dnodeFreeMnodeRqueue();
   dnodeFreeMnodePqueue();
-  mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
   mnodeCleanupTimer();
-
+  mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
+  
   mInfo("mnode is cleaned up");
 }
 

@@ -247,7 +247,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   } else {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
     if (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID || 
-        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
       if (pCmd->command == TSDB_SQL_CONNECT) {
         rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         rpcFreeCont(rpcMsg->pCont);
@@ -260,7 +260,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
         // get table meta query will not retry, do nothing
       } else {
         tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
-        
+
+        // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
+        if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+          pSql->cmd.submitSchema = 1;
+        }
+
         pSql->res.code = rpcMsg->code;  // keep the previous error code
         if (pSql->retry > pSql->maxRetry) {
           tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
@@ -433,8 +438,9 @@ void tscKillSTableQuery(SSqlObj *pSql) {
      * here, we cannot set the command = TSDB_SQL_KILL_QUERY. Otherwise, it may cause
      * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
      */
-    pSql->pSubs[i]->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    rpcCancelRequest(pSql->pSubs[i]->pRpcCtx);
+    rpcCancelRequest(pSub->pRpcCtx);
+    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+    tscQueueAsyncRes(pSub);
   }
 
   /*
@@ -1950,7 +1956,7 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 }
 
 int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
-  taosCacheEmpty(tscCacheHandle, false);
+  taosCacheEmpty(tscCacheHandle);
   return 0;
 }
 
@@ -1996,7 +2002,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 
     if (isSuperTable) {  // if it is a super table, reset whole query cache
       tscDebug("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
-      taosCacheEmpty(tscCacheHandle, false);
+      taosCacheEmpty(tscCacheHandle);
     }
   }
 

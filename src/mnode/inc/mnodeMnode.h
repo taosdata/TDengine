@@ -44,6 +44,7 @@ void    mnodeDecMnodeRef(struct SMnodeObj *pMnode);
 char *  mnodeGetMnodeRoleStr();
 void    mnodeGetMnodeIpSetForPeer(SRpcIpSet *ipSet);
 void    mnodeGetMnodeIpSetForShell(SRpcIpSet *ipSet);
+char*   mnodeGetMnodeMasterEp();
 
 void    mnodeGetMnodeInfos(void *mnodes);
 void    mnodeUpdateMnodeIpSet();

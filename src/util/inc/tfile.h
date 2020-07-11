@@ -18,6 +18,7 @@
 
 #ifdef TAOS_RANDOM_FILE_FAIL
 
+void taosSetRandomFileFailFactor(int factor);
 ssize_t taos_tread(int fd, void *buf, size_t count);
 ssize_t taos_twrite(int fd, void *buf, size_t count);
 off_t taos_lseek(int fd, off_t offset, int whence);

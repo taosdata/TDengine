@@ -203,8 +203,7 @@ typedef struct SSubmitBlk {
 typedef struct SSubmitMsg {
   SMsgHead   header;
   int32_t    length;
-  int32_t    compressed : 2;
-  int32_t    numOfBlocks : 30;
+  int32_t    numOfBlocks;
   SSubmitBlk blocks[];
 } SSubmitMsg;
 
@@ -285,6 +284,8 @@ typedef struct {
   int32_t   tid;
   int16_t   tversion;
   int16_t   colId;
+  int8_t    type;
+  int16_t   bytes;
   int32_t   tagValLen;
   int16_t   numOfTags;
   int32_t   schemaLen;
@@ -472,7 +473,7 @@ typedef struct {
 
 typedef struct {
   int32_t  code;
-  uint64_t qhandle;
+  uint64_t qhandle; // query handle
 } SQueryTableRsp;
 
 typedef struct {
@@ -485,7 +486,7 @@ typedef struct SRetrieveTableRsp {
   int32_t numOfRows;
   int8_t  completed;  // all results are returned to client
   int16_t precision;
-  int64_t offset;  // updated offset value for multi-vnode projection query
+  int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
   char    data[];
 } SRetrieveTableRsp;

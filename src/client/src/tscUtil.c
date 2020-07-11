@@ -14,21 +14,21 @@
  */
 
 #include "os.h"
-#include "qast.h"
+#include "hash.h"
+#include "tscUtil.h"
 #include "taosmsg.h"
+#include "qast.h"
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"
-#include "tscProfile.h"
 #include "tscLocalMerge.h"
+#include "tscLog.h"
+#include "tscProfile.h"
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
-#include "tscLog.h"
-#include "tscUtil.h"
-#include "hash.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
@@ -579,9 +579,9 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
     int32_t numOfCols = tscGetNumOfColumns(pTableDataBlock->pTableMeta);
     for(int32_t j = 0; j < numOfCols; ++j) {
       STColumn* pCol = (STColumn*) pDataBlock;
-      pCol->colId = pSchema[j].colId;
+      pCol->colId = htons(pSchema[j].colId);
       pCol->type  = pSchema[j].type;
-      pCol->bytes = pSchema[j].bytes;
+      pCol->bytes = htons(pSchema[j].bytes);
       pCol->offset = 0;
 
       pDataBlock += sizeof(STColumn);
@@ -663,7 +663,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
     }
 
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
-    int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize;
+    int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
     if (dataBuf->nAllocSize < destSize) {
       while (dataBuf->nAllocSize < destSize) {
@@ -691,7 +691,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
     tscDebug("%p tableId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->tableId,
         pBlocks->tid, pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(ekey));
 
-    int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize);
+    int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize) + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
     pBlocks->tid = htonl(pBlocks->tid);
     pBlocks->uid = htobe64(pBlocks->uid);
@@ -1464,16 +1464,6 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   return pQueryInfo->pTableMetaInfo[tableIndex];
 }
 
-SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
-
-  if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
-    return NULL;
-  }
-
-  return pCmd->pQueryInfo[subClauseIndex];
-}
-
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd* pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -1832,7 +1822,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     STableMeta*  pPrevTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
     
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
-    pPrevInfo->vgroupList = NULL;
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList);
   }
 
@@ -2097,7 +2086,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
 }
 
 void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);//tscFieldInfoGetSupp(pFieldInfo, columnIndex);
+  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   int32_t type = pInfo->pSqlExpr->resType;
@@ -2112,7 +2101,7 @@ void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t column
     if (isNull(pData, type)) {
       pRes->tsrow[columnIndex] = NULL;
     } else {
-      pRes->tsrow[columnIndex] = pData + VARSTR_HEADER_SIZE;
+      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
     }
   
     if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor

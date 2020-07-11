@@ -31,11 +31,22 @@ then
     exit -1
 fi
 
+CURR_DIR=`pwd`
+IN_TDINTERNAL="community"
+if [[ "$CURR_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  TAOS_DIR=$CURR_DIR/../../..
+else
+  TAOS_DIR=$CURR_DIR/../..
+fi
+TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
+
+LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
+
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
 export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
 
 # Then let us set up the library path so that our compiled SO file can be loaded by Python
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build/build/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 
 # Now we are all let, and let's see if we can find a crash. Note we pass all params
-./crash_gen.py $@
+python3 ./crash_gen.py $@

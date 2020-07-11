@@ -119,7 +119,8 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 
 int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   if (pMemTable == NULL) return 0;
-  T_REF_INC(pMemTable);
+  int ref = T_REF_INC(pMemTable);
+	tsdbDebug("vgId:%d ref memtable %p ref %d", REPO_ID(pRepo), pMemTable, ref);
   return 0;
 }
 
@@ -127,7 +128,9 @@ int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
 int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   if (pMemTable == NULL) return 0;
 
-  if (T_REF_DEC(pMemTable) == 0) {
+	int ref = T_REF_DEC(pMemTable);
+	tsdbDebug("vgId:%d unref memtable %p ref %d", REPO_ID(pRepo), pMemTable, ref);
+  if (ref == 0) {
     STsdbCfg *    pCfg = &pRepo->config;
     STsdbBufPool *pBufPool = pRepo->pPool;
 
@@ -167,6 +170,7 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
   tsdbRefMemTable(pRepo, *pIMem);
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
+	tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), *pMem, *pIMem);
 
   return 0;
 }
@@ -538,10 +542,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     SCommitIter *pIter = iters + tid;
     if (pIter->pTable == NULL) continue;
 
+    taosRLockLatch(&(pIter->pTable->latch));
+
     tsdbSetHelperTable(pHelper, pIter->pTable, pRepo);
 
     if (pIter->pIter != NULL) {
-      tdInitDataCols(pDataCols, tsdbGetTableSchema(pIter->pTable));
+      tdInitDataCols(pDataCols, tsdbGetTableSchemaImpl(pIter->pTable, false, false, -1));
 
       int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
       int nLoop = 0;
@@ -557,6 +563,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
         int rowsWritten = tsdbWriteDataBlock(pHelper, pDataCols);
         ASSERT(rowsWritten != 0);
         if (rowsWritten < 0) {
+          taosRUnLockLatch(&(pIter->pTable->latch));
           tsdbError("vgId:%d failed to write data block to table %s tid %d uid %" PRIu64 " since %s", REPO_ID(pRepo),
                     TABLE_CHAR_NAME(pIter->pTable), TABLE_TID(pIter->pTable), TABLE_UID(pIter->pTable),
                     tstrerror(terrno));
@@ -570,6 +577,8 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
       ASSERT(pDataCols->numOfRows == 0);
     }
+
+    taosRUnLockLatch(&(pIter->pTable->latch));
 
     // Move the last block to the new .l file if neccessary
     if (tsdbMoveLastBlockIfNeccessary(pHelper) < 0) {
@@ -680,10 +689,10 @@ static int tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIter
     if (dataRowKey(row) > maxKey) break;
 
     if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-      pSchema = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row));
+      pSchema = tsdbGetTableSchemaImpl(pTable, true, false, dataRowVersion(row));
       if (pSchema == NULL) {
         // TODO: deal with the error here
-        ASSERT(false);
+        ASSERT(0);
       }
     }
 

@@ -154,6 +154,7 @@ typedef struct SQuery {
 } SQuery;
 
 typedef struct SQueryRuntimeEnv {
+  jmp_buf              env;
   SResultInfo*         resultInfo;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
@@ -169,6 +170,9 @@ typedef struct SQueryRuntimeEnv {
   void*                pSecQueryHandle;  // another thread for
   bool                 stableQuery;      // super table query or not
   bool                 topBotQuery;      // false
+  bool                 groupbyNormalCol; // denote if this is a groupby normal column query
+  bool                 hasTagResults;    // if there are tag values in final result or not
+  int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
@@ -197,8 +201,10 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  _qinfo_free_fn_t freeFn;
-  jmp_buf          env;
+  _qinfo_free_fn_t freeFn;  //todo remove it
+
+  void*     pBuf; // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
+
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

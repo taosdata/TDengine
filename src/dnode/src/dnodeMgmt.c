@@ -106,6 +106,12 @@ int32_t dnodeInitMgmt() {
     }
   }
 
+  int32_t code = vnodeInitResources();
+  if (code != TSDB_CODE_SUCCESS) {
+    dnodeCleanupMgmt();
+    return -1;
+  }
+
   // create the queue and thread to handle the message 
   tsMgmtQset = taosOpenQset();
   if (tsMgmtQset == NULL) {
@@ -127,7 +133,7 @@ int32_t dnodeInitMgmt() {
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  int32_t code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
+  code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
   pthread_attr_destroy(&thAttr);
   if (code != 0) {
     dError("failed to create thread to process mgmt queue, reason:%s", strerror(errno));
@@ -141,6 +147,12 @@ int32_t dnodeInitMgmt() {
     return -1;
   }
 
+  dInfo("dnode mgmt is initialized");
+ 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dnodeInitMgmtTimer() {
   tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
   if (tsDnodeTmr == NULL) {
     dError("failed to init dnode timer");
@@ -149,13 +161,11 @@ int32_t dnodeInitMgmt() {
   }
 
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
-  
-  dInfo("dnode mgmt is initialized");
- 
+  dInfo("dnode mgmt timer is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupMgmt() {
+void dnodeCleanupMgmtTimer() {
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);
     tsStatusTimer = NULL;
@@ -165,7 +175,10 @@ void dnodeCleanupMgmt() {
     taosTmrCleanUp(tsDnodeTmr);
     tsDnodeTmr = NULL;
   }
+}
 
+void dnodeCleanupMgmt() {
+  dnodeCleanupMgmtTimer();
   dnodeCloseVnodes();
 
   if (tsMgmtQset) taosQsetThreadResume(tsMgmtQset);
@@ -282,13 +295,12 @@ static void *dnodeOpenVnode(void *param) {
 }
 
 static int32_t dnodeOpenVnodes() {
-  int32_t *vnodeList = calloc(TSDB_MAX_VNODES, sizeof(int32_t));
+  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
   int32_t numOfVnodes = 0;
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
-    free(vnodeList);
     return status;
   }
 
@@ -334,7 +346,6 @@ static int32_t dnodeOpenVnodes() {
     free(pThread->vnodeList);
   }
 
-  free(vnodeList);
   free(threads);
   dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, openVnodes, failedVnodes);
 
@@ -342,7 +353,7 @@ static int32_t dnodeOpenVnodes() {
 }
 
 void dnodeStartStream() {
-  int32_t vnodeList[TSDB_MAX_VNODES];
+  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
   int32_t numOfVnodes = 0;
   int32_t status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
 
@@ -359,7 +370,7 @@ void dnodeStartStream() {
 }
 
 static void dnodeCloseVnodes() {
-  int32_t vnodeList[TSDB_MAX_VNODES];
+  int32_t vnodeList[TSDB_MAX_VNODES]= {0};
   int32_t numOfVnodes = 0;
   int32_t status;
 
@@ -398,6 +409,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 
   void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
   if (pVnode != NULL) {
+    dDebug("vgId:%d, already exist, processed as alter msg", pCreate->cfg.vgId);
     int32_t code = vnodeAlter(pVnode, pCreate);
     vnodeRelease(pVnode);
     return code;

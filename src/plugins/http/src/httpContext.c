@@ -44,7 +44,7 @@ static void httpDestroyContext(void *data) {
   HttpThread *pThread = pContext->pThread;
   httpRemoveContextFromEpoll(pContext);
   httpReleaseSession(pContext);
-  atomic_sub_fetch_32(&pThread->numOfFds, 1);
+  atomic_sub_fetch_32(&pThread->numOfContexts, 1);
   
   pContext->pThread = 0;
   pContext->state = HTTP_CONTEXT_STATE_CLOSED;
@@ -171,38 +171,39 @@ bool httpInitContext(HttpContext *pContext) {
 
 void httpCloseContextByApp(HttpContext *pContext) {
   pContext->parsed = false;
-
   bool keepAlive = true;
+
   if (pContext->httpVersion == HTTP_VERSION_10 && pContext->httpKeepAlive != HTTP_KEEPALIVE_ENABLE) {
     keepAlive = false;
   } else if (pContext->httpVersion != HTTP_VERSION_10 && pContext->httpKeepAlive == HTTP_KEEPALIVE_DISABLE) {
     keepAlive = false;
-  } else {}
+  } else {
+  }
 
   if (keepAlive) {
     if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_READY)) {
-      httpDebug("context:%p, fd:%d, ip:%s, last state:handling, keepAlive:true, reuse connect",
-              pContext, pContext->fd, pContext->ipstr);
+      httpDebug("context:%p, fd:%d, ip:%s, last state:handling, keepAlive:true, reuse context", pContext, pContext->fd,
+                pContext->ipstr);
     } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_CLOSED)) {
       httpRemoveContextFromEpoll(pContext);
-      httpDebug("context:%p, fd:%d, ip:%s, last state:dropping, keepAlive:true, close connect",
-              pContext, pContext->fd, pContext->ipstr);
+      httpDebug("context:%p, fd:%d, ip:%s, last state:dropping, keepAlive:true, close connect", pContext, pContext->fd,
+                pContext->ipstr);
     } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_READY)) {
-      httpDebug("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, reuse connect",
-              pContext, pContext->fd, pContext->ipstr);
+      httpDebug("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, reuse context", pContext, pContext->fd,
+                pContext->ipstr);
     } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_CLOSED, HTTP_CONTEXT_STATE_CLOSED)) {
       httpRemoveContextFromEpoll(pContext);
-      httpDebug("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, close connect",
-                pContext, pContext->fd, pContext->ipstr);
+      httpDebug("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, close connect", pContext, pContext->fd,
+                pContext->ipstr);
     } else {
       httpRemoveContextFromEpoll(pContext);
-      httpError("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:true, close connect",
-              pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
+      httpError("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:true, close connect", pContext, pContext->fd,
+                pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
     }
   } else {
     httpRemoveContextFromEpoll(pContext);
-    httpDebug("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:false, close connect",
-              pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
+    httpDebug("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:false, close context", pContext, pContext->fd,
+              pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
   }
 
   httpReleaseContext(pContext);
@@ -214,7 +215,7 @@ void httpCloseContextByServer(HttpContext *pContext) {
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_DROPPING)) {
     httpDebug("context:%p, fd:%d, ip:%s, epoll already finished, wait app finished", pContext, pContext->fd, pContext->ipstr);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_CLOSED)) {
-    httpDebug("context:%p, fd:%d, ip:%s, epoll finished, close context", pContext, pContext->fd, pContext->ipstr);
+    httpDebug("context:%p, fd:%d, ip:%s, epoll finished, close connect", pContext, pContext->fd, pContext->ipstr);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_CLOSED, HTTP_CONTEXT_STATE_CLOSED)) {
     httpDebug("context:%p, fd:%d, ip:%s, epoll finished, will be closed soon", pContext, pContext->fd, pContext->ipstr);
   } else {

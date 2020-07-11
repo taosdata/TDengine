@@ -29,10 +29,8 @@ class TDSql:
         self.cursor = cursor
 
         if (log):
-            frame = inspect.stack()[1]
-            callerModule = inspect.getmodule(frame[0])
-            callerFilename = callerModule.__file__
-            self.cursor.log(callerFilename + ".sql")
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            self.cursor.log(caller.filename + ".sql")
 
     def close(self):
         self.cursor.close()
@@ -55,12 +53,8 @@ class TDSql:
         except BaseException:
             expectErrNotOccured = False
         if expectErrNotOccured:
-            frame = inspect.stack()[1]
-            callerModule = inspect.getmodule(frame[0])
-            callerFilename = callerModule.__file__
-            tdLog.exit(
-                "%s failed: sql:%s, expect error not occured" %
-                (callerFilename, sql))
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
         else:
             self.queryRows = 0
             self.queryCols = 0
@@ -69,75 +63,70 @@ class TDSql:
 
     def query(self, sql):
         self.sql = sql
-        self.cursor.execute(sql)
-        self.queryResult = self.cursor.fetchall()
-        self.queryRows = len(self.queryResult)
-        self.queryCols = len(self.cursor.description)
-        # if self.queryRows == 1 and self.queryCols == 1:
-        #	tdLog.info("sql:%s, rows:%d cols:%d data:%s" % (self.sql, self.queryRows, self.queryCols, self.queryResult[0][0]))
-        # else:
-        #	tdLog.info("sql:%s, rows:%d cols:%d" % (self.sql, self.queryRows, self.queryCols))
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
         return self.queryRows
 
+    def waitedQuery(self, sql, expectRows, timeout):
+        tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
+        self.sql = sql
+        try:
+            for i in range(timeout):
+                self.cursor.execute(sql)
+                self.queryResult = self.cursor.fetchall()
+                self.queryRows = len(self.queryResult)
+                self.queryCols = len(self.cursor.description)
+                if self.queryRows >= expectRows:
+                    return (self.queryRows, i)
+                time.sleep(1)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+        return (self.queryRows, timeout)
+
     def checkRows(self, expectRows):
-        if self.queryRows != expectRows:
-            frame = inspect.stack()[1]
-            callerModule = inspect.getmodule(frame[0])
-            callerFilename = callerModule.__file__
-            tdLog.exit(
-                "%s failed: sql:%s, queryRows:%d != expect:%d" %
-                (callerFilename, self.sql, self.queryRows, expectRows))
-        tdLog.info("sql:%s, queryRows:%d == expect:%d" %
-                   (self.sql, self.queryRows, expectRows))
+        if self.queryRows == expectRows:
+            tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
+            tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
+
+    def checkRowCol(self, row, col):
+        caller = inspect.getframeinfo(inspect.stack()[2][0])
+        if row < 0:
+            args = (caller.filename, caller.lineno, self.sql, row)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is smaller than zero" % args)
+        if col < 0:
+            args = (caller.filename, caller.lineno, self.sql, row)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
+        if row > self.queryRows:
+            args = (caller.filename, caller.lineno, self.sql, row, self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col > self.queryCols:
+            args = (caller.filename, caller.lineno, self.sql, col, self.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
 
     def checkDataType(self, row, col, dataType):
-        frame = inspect.stack()[1]
-        callerModule = inspect.getmodule(frame[0])
-        callerFilename = callerModule.__file__
-
-        if row < 0:
-            tdLog.exit(
-                "%s failed: sql:%s, row:%d is smaller than zero" %
-                (callerFilename, self.sql, row))
-        if col < 0:
-            tdLog.exit(
-                "%s failed: sql:%s, col:%d is smaller than zero" %
-                (callerFilename, self.sql, col))
-        if row > self.queryRows:
-            tdLog.exit(
-                "%s failed: sql:%s, row:%d is larger than queryRows:%d" %
-                (callerFilename, self.sql, row, self.queryRows))
-        if col > self.queryCols:
-            tdLog.exit(
-                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
-                (callerFilename, self.sql, col, self.queryCols))
-
+        self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
 
     def checkData(self, row, col, data):
-        frame = inspect.stack()[1]
-        callerModule = inspect.getmodule(frame[0])
-        callerFilename = callerModule.__file__
-
-        if row < 0:
-            tdLog.exit(
-                "%s failed: sql:%s, row:%d is smaller than zero" %
-                (callerFilename, self.sql, row))
-        if col < 0:
-            tdLog.exit(
-                "%s failed: sql:%s, col:%d is smaller than zero" %
-                (callerFilename, self.sql, col))
-        if row > self.queryRows:
-            tdLog.exit(
-                "%s failed: sql:%s, row:%d is larger than queryRows:%d" %
-                (callerFilename, self.sql, row, self.queryRows))
-        if col > self.queryCols:
-            tdLog.exit(
-                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
-                (callerFilename, self.sql, col, self.queryCols))
+        self.checkRowCol(row, col)
         if self.queryResult[row][col] != data:
-            tdLog.exit("%s failed: sql:%s row:%d col:%d data:%s != expect:%s" % (
-                callerFilename, self.sql, row, col, self.queryResult[row][col], data))
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
         if data is None:
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
@@ -153,26 +142,7 @@ class TDSql:
                        (self.sql, row, col, self.queryResult[row][col], data))
 
     def getData(self, row, col):
-        frame = inspect.stack()[1]
-        callerModule = inspect.getmodule(frame[0])
-        callerFilename = callerModule.__file__
-
-        if row < 0:
-            tdLog.exit(
-                "%s failed: sql:%s, row:%d is smaller than zero" %
-                (callerFilename, self.sql, row))
-        if col < 0:
-            tdLog.exit(
-                "%s failed: sql:%s, col:%d is smaller than zero" %
-                (callerFilename, self.sql, col))
-        if row > self.queryRows:
-            tdLog.exit(
-                "%s failed: sql:%s, row:%d is larger than queryRows:%d" %
-                (callerFilename, self.sql, row, self.queryRows))
-        if col > self.queryCols:
-            tdLog.exit(
-                "%s failed: sql:%s, col:%d is larger than queryCols:%d" %
-                (callerFilename, self.sql, col, self.queryCols))
+        self.checkRowCol(row, col)
         return self.queryResult[row][col]
 
     def executeTimes(self, sql, times):
@@ -185,20 +155,22 @@ class TDSql:
 
     def execute(self, sql):
         self.sql = sql
-        self.affectedRows = self.cursor.execute(sql)
+        try:
+            self.affectedRows = self.cursor.execute(sql)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
         return self.affectedRows
 
     def checkAffectedRows(self, expectAffectedRows):
         if self.affectedRows != expectAffectedRows:
-            frame = inspect.stack()[1]
-            callerModule = inspect.getmodule(frame[0])
-            callerFilename = callerModule.__file__
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, self.affectedRows, expectAffectedRows)
+            tdLog.exit("%s(%d) failed: sql:%s, affectedRows:%d != expect:%d" % args)
 
-            tdLog.exit(
-                "%s failed: sql:%s, affectedRows:%d != expect:%d" %
-                (callerFilename, self.sql, self.affectedRows, expectAffectedRows))
-        tdLog.info("sql:%s, affectedRows:%d == expect:%d" %
-                   (self.sql, self.affectedRows, expectAffectedRows))    
+        tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
 
 
 tdSql = TDSql()

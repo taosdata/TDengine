@@ -520,9 +520,8 @@ int main(int argc, char *argv[]) {
     snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
     queryDB(taos, command);
     printf("meters created!\n");
-
-    taos_close(taos);
   }
+  taos_close(taos);
   
   /* Wait for table to create  */
   multiThreadCreateTable(cols, use_metric, threads, ntables, db_name, tb_prefix, ip_addr, port, user, pass);
@@ -792,9 +791,6 @@ void * createTable(void *sarg)
       snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s%d (ts timestamp%s;", winfo->db_name, winfo->tb_prefix, i, winfo->cols);
       queryDB(winfo->taos, command);
     }
-
-    taos_close(winfo->taos);
-
   } else {
     /* Create all the tables; */
     printf("Creating table from %d to %d\n", winfo->start_table_id, winfo->end_table_id);
@@ -812,7 +808,6 @@ void * createTable(void *sarg)
     }
       queryDB(winfo->taos, command);
     }
-    taos_close(winfo->taos);
   }
 
   return NULL;
@@ -857,7 +852,6 @@ void multiThreadCreateTable(char* cols, bool use_metric, int threads, int ntable
 
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
-    taos_close(t_info->taos);
     sem_destroy(&(t_info->mutex_sem));
     sem_destroy(&(t_info->lock_sem));
   }
@@ -875,6 +869,11 @@ void *readTable(void *sarg) {
   int64_t sTime = rinfo->start_time;
   char *tb_prefix = rinfo->tb_prefix;
   FILE *fp = fopen(rinfo->fp, "a");
+  if (NULL == fp) {
+    printf("fopen %s fail, reason:%s.\n", rinfo->fp, strerror(errno));
+    return NULL;
+  }
+  
   int num_of_DPT = rinfo->nrecords_per_table;
   int num_of_tables = rinfo->end_table_id - rinfo->start_table_id + 1;
   int totalData = num_of_DPT * num_of_tables;
@@ -930,6 +929,11 @@ void *readMetric(void *sarg) {
   TAOS *taos = rinfo->taos;
   char command[BUFFER_SIZE] = "\0";
   FILE *fp = fopen(rinfo->fp, "a");
+  if (NULL == fp) {
+    printf("fopen %s fail, reason:%s.\n", rinfo->fp, strerror(errno));
+    return NULL;
+  }
+  
   int num_of_DPT = rinfo->nrecords_per_table;
   int num_of_tables = rinfo->end_table_id - rinfo->start_table_id + 1;
   int totalData = num_of_DPT * num_of_tables;
