@@ -75,6 +75,23 @@ char *simGetVariable(SScript *script, char *varName, int varLen) {
 
       for (int i = 0; i < MAX_QUERY_ROW_NUM; ++i) {
         if (strncmp(keyName, script->data[i][0], keyLen) == 0) {
+          simDebug("script:%s, keyName:%s, keyValue:%s", script->fileName, script->data[i][0], script->data[i][col]);
+          return script->data[i][col];
+        }
+      }
+      return "null";
+    } else if (varName[6] == '_') {
+      int col = (varName[4] - '0') * 10 + (varName[5] - '0');
+      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
+        return "null";
+      }
+
+      char *keyName;
+      int keyLen;
+      paGetToken(varName + 7, &keyName, &keyLen);
+
+      for (int i = 0; i < MAX_QUERY_ROW_NUM; ++i) {
+        if (strncmp(keyName, script->data[i][0], keyLen) == 0) {
           simTrace("script:%s, keyName:%s, keyValue:%s", script->fileName, script->data[i][0], script->data[i][col]);
           return script->data[i][col];
         }
@@ -90,7 +107,7 @@ char *simGetVariable(SScript *script, char *varName, int varLen) {
         return "null";
       }
 
-      simTrace("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
+      simDebug("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
       return script->data[row][col];
     }
   }
@@ -102,7 +119,7 @@ char *simGetVariable(SScript *script, char *varName, int varLen) {
     }
     if (strncmp(varName, var->varName, varLen) == 0) {
       // if (strlen(var->varValue) != 0)
-      //  simTrace("script:%s, var:%s, value:%s", script->fileName,
+      //  simDebug("script:%s, var:%s, value:%s", script->fileName,
       //  var->varName, var->varValue);
       return var->varValue;
     }
@@ -240,7 +257,7 @@ bool simExecuteRunCmd(SScript *script, char *option) {
     return false;
   }
 
-  simPrint("script:%s, start to execute", newScript->fileName);
+  simInfo("script:%s, start to execute", newScript->fileName);
 
   newScript->type = SIM_SCRIPT_TYPE_MAIN;
   simScriptPos++;
@@ -262,7 +279,7 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
     sprintf(script->error, "lineNum:%d. parse file:%s error", script->lines[script->linePos].lineNum, fileName);
     return false;
   }
-  simPrint("script:%s, start to execute in background", newScript->fileName);
+  simInfo("script:%s, start to execute in background", newScript->fileName);
 
   newScript->type = SIM_SCRIPT_TYPE_BACKGROUND;
   script->bgScripts[script->bgScriptLen++] = newScript;
@@ -336,7 +353,7 @@ bool simExecutePrintCmd(SScript *script, char *rest) {
   simVisuallizeOption(script, rest, buf);
   rest = buf;
 
-  simPrint("script:%s, %s", script->fileName, rest);
+  simInfo("script:%s, %s", script->fileName, rest);
   script->linePos++;
   return true;
 }
@@ -351,9 +368,9 @@ bool simExecuteSleepCmd(SScript *script, char *option) {
   delta = atoi(option);
   if (delta <= 0) delta = 5;
 
-  simPrint("script:%s, sleep %dms begin", script->fileName, delta);
+  simInfo("script:%s, sleep %dms begin", script->fileName, delta);
   taosMsleep(delta);
-  simPrint("script:%s, sleep %dms finished", script->fileName, delta);
+  simInfo("script:%s, sleep %dms finished", script->fileName, delta);
 
   script->linePos++;
   return true;
@@ -372,7 +389,7 @@ bool simExecuteReturnCmd(SScript *script, char *option) {
     sprintf(script->error, "lineNum:%d. error return %s", script->lines[script->linePos].lineNum, option);
     return false;
   } else {
-    simPrint("script:%s, return cmd execute with:%d", script->fileName, ret);
+    simInfo("script:%s, return cmd execute with:%d", script->fileName, ret);
     script->linePos = script->numOfLines;
   }
 
@@ -418,7 +435,7 @@ void simCloseRestFulConnect(SScript *script) {
 void simCloseNativeConnect(SScript *script) {
   if (script->taos == NULL) return;
 
-  simTrace("script:%s, taos:%p closed", script->fileName, script->taos);
+  simDebug("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
   taosMsleep(1200);
 
@@ -468,7 +485,7 @@ int simParseHttpCommandResult(SScript *script, char *command) {
       cJSON_Delete(root);
       return retcode;
     } else {
-      simTrace("script:%s, json:status:%s not equal to succ, but code is %d, response:%s", script->fileName,
+      simDebug("script:%s, json:status:%s not equal to succ, but code is %d, response:%s", script->fileName,
           status->valuestring, retcode, command);
       cJSON_Delete(root);
       return 0;
@@ -568,10 +585,10 @@ bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
   for (int attempt = 0; attempt < 10; ++attempt) {
     success = simExecuteRestFulCommand(script, command) == 0;
     if (!success) {
-      simTrace("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL), attempt);
+      simDebug("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL), attempt);
       taosMsleep(1000);
     } else {
-      simTrace("script:%s, user:%s connect taosd successed, attempt:%d", script->fileName, user, attempt);
+      simDebug("script:%s, user:%s connect taosd successed, attempt:%d", script->fileName, user, attempt);
       break;
     }
   }
@@ -581,7 +598,7 @@ bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
     return false;
   }
 
-  simTrace("script:%s, connect taosd successed, auth:%p", script->fileName, script->auth);
+  simDebug("script:%s, connect taosd successed, auth:%p", script->fileName, script->auth);
   return true;
 }
 
@@ -592,10 +609,10 @@ bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   for (int attempt = 0; attempt < 10; ++attempt) {
     taos = taos_connect(NULL, user, pass, NULL, tsDnodeShellPort);
     if (taos == NULL) {
-      simTrace("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL), attempt);
+      simDebug("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL), attempt);
       taosMsleep(1000);
     } else {
-      simTrace("script:%s, user:%s connect taosd successed, attempt:%d", script->fileName, user, attempt);
+      simDebug("script:%s, user:%s connect taosd successed, attempt:%d", script->fileName, user, attempt);
       break;
     }
   }
@@ -606,7 +623,7 @@ bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   }
 
   script->taos = taos;
-  simTrace("script:%s, connect taosd successed, taos:%p", script->fileName, taos);
+  simDebug("script:%s, connect taosd successed, taos:%p", script->fileName, taos);
 
   return true;
 }
@@ -643,11 +660,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     ret = taos_errno(pSql);
     
     if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST || ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
-      simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
+      simDebug("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;
     } else if (ret != 0) {
-      simTrace("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s",
+      simDebug("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s",
                script->fileName, script->taos, rest, ret, tstrerror(ret), taos_errstr(pSql));
 
       if (line->errorJump == SQL_JUMP_TRUE) {
@@ -672,7 +689,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   int num_fields = taos_field_count(pSql);
   if (num_fields != 0) {
     if (pSql == NULL) {
-      simTrace("script:%s, taos:%p, %s failed, result is null", script->fileName, script->taos, rest);
+      simDebug("script:%s, taos:%p, %s failed, result is null", script->fileName, script->taos, rest);
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
         return true;
@@ -794,11 +811,11 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
     ret = simExecuteRestFulCommand(script, command);
     if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST ||
         ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
-      simTrace("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
+      simDebug("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
       ret = 0;
       break;
     } else if (ret != 0) {
-      simTrace("script:%s, taos:%p, %s failed, ret:%d",
+      simDebug("script:%s, taos:%p, %s failed, ret:%d",
                script->fileName, script->taos, rest, ret);
 
       if (line->errorJump == SQL_JUMP_TRUE) {
@@ -827,7 +844,7 @@ bool simExecuteSqlImpCmd(SScript *script, char *rest, bool isSlow) {
   simVisuallizeOption(script, rest, buf);
   rest = buf;
 
-  simTrace("script:%s, exec:%s", script->fileName, rest);
+  simDebug("script:%s, exec:%s", script->fileName, rest);
   strcpy(script->rows, "-1");
   for (int row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int col = 0; col < MAX_QUERY_COL_NUM; ++col) {
@@ -883,7 +900,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   simVisuallizeOption(script, rest, buf);
   rest = buf;
 
-  simTrace("script:%s, exec:%s", script->fileName, rest);
+  simDebug("script:%s, exec:%s", script->fileName, rest);
   strcpy(script->rows, "-1");
   for (int row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int col = 0; col < MAX_QUERY_COL_NUM; ++col) {
@@ -929,7 +946,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   }
 
   if (ret != TSDB_CODE_SUCCESS) {
-    simTrace("script:%s, taos:%p, %s execute, expect failed, so success, ret:%d:%s",
+    simDebug("script:%s, taos:%p, %s execute, expect failed, so success, ret:%d:%s",
         script->fileName, script->taos, rest, ret, tstrerror(ret));
     script->linePos++;
     return true;

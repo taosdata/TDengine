@@ -44,10 +44,7 @@ void mnodeRemoveSuperTableFromDb(SDbObj *pDb);
 void mnodeAddTableIntoDb(SDbObj *pDb);
 void mnodeRemoveTableFromDb(SDbObj *pDb);
 void mnodeAddVgroupIntoDb(SVgObj *pVgroup);
-void mnodeAddVgroupIntoDbTail(SVgObj *pVgroup);
 void mnodeRemoveVgroupFromDb(SVgObj *pVgroup);
-void mnodeMoveVgroupToTail(SVgObj *pVgroup);
-void mnodeMoveVgroupToHead(SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

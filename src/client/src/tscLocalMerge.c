@@ -274,6 +274,10 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->numOfBuffer = idx;
 
   SCompareParam *param = malloc(sizeof(SCompareParam));
+  if (param == NULL) {
+    tfree(pReducer);
+    return;
+  }
   param->pLocalData = pReducer->pLocalDataSrc;
   param->pDesc = pReducer->pDesc;
   param->num = pReducer->pLocalDataSrc[0]->pMemBuffer->numOfElemsPerPage;
@@ -284,6 +288,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   pRes->code = tLoserTreeCreate(&pReducer->pLoserTree, pReducer->numOfBuffer, param, treeComparator);
   if (pReducer->pLoserTree == NULL || pRes->code != 0) {
+    tfree(param);
     tfree(pReducer);
     return;
   }
@@ -332,6 +337,8 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tfree(pReducer->pResultBuf);
     tfree(pReducer->pFinalRes);
     tfree(pReducer->prevRowOfInput);
+    tfree(pReducer->pLoserTree);
+    tfree(param);
     tfree(pReducer);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;

@@ -121,7 +121,7 @@ python3 ./test.py -f import_merge/importTORestart.py
 python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
-
+python3 ./test.py -f import_merge/importCSV.py
 # user
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
@@ -145,11 +145,18 @@ python3 ./test.py -f query/queryJoin.py
 python3 ./test.py -f query/select_last_crash.py
 
 #stream
+python3 ./test.py -f stream/metric_1.py
+python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
+python3 ./test.py -f stream/parser.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
 
 # client
 python3 ./test.py -f client/client.py
+
+# Misc
+python3 testCompress.py
+python3 testNoCompress.py

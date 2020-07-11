@@ -3,6 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 8
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 129
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 8
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -36,7 +37,7 @@ while $x > $y
 endw 
 
 sql show vgroups
-if $rows != 2 then 
+if $rows != 8 then 
   return -1
 endi
 
@@ -51,7 +52,7 @@ while $x > $y
 endw 
 
 sql show vgroups
-if $rows != 4 then 
+if $rows != 8 then 
   return -1
 endi
 
@@ -66,7 +67,7 @@ while $x > $y
 endw 
 
 sql show vgroups
-if $rows != 6 then 
+if $rows != 8 then 
   return -1
 endi
 

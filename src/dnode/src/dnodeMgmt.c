@@ -147,6 +147,12 @@ int32_t dnodeInitMgmt() {
     return -1;
   }
 
+  dInfo("dnode mgmt is initialized");
+ 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dnodeInitMgmtTimer() {
   tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
   if (tsDnodeTmr == NULL) {
     dError("failed to init dnode timer");
@@ -155,13 +161,11 @@ int32_t dnodeInitMgmt() {
   }
 
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
-  
-  dInfo("dnode mgmt is initialized");
- 
+  dInfo("dnode mgmt timer is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupMgmt() {
+void dnodeCleanupMgmtTimer() {
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);
     tsStatusTimer = NULL;
@@ -171,7 +175,10 @@ void dnodeCleanupMgmt() {
     taosTmrCleanUp(tsDnodeTmr);
     tsDnodeTmr = NULL;
   }
+}
 
+void dnodeCleanupMgmt() {
+  dnodeCleanupMgmtTimer();
   dnodeCloseVnodes();
 
   if (tsMgmtQset) taosQsetThreadResume(tsMgmtQset);
@@ -691,10 +698,12 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
 
   // fill cluster cfg parameters
-  pStatus->clusterCfg.numOfMnodes        = tsNumOfMnodes;
-  pStatus->clusterCfg.mnodeEqualVnodeNum = tsMnodeEqualVnodeNum;
-  pStatus->clusterCfg.offlineThreshold   = tsOfflineThreshold;
-  pStatus->clusterCfg.statusInterval     = tsStatusInterval;
+  pStatus->clusterCfg.numOfMnodes        = htonl(tsNumOfMnodes);
+  pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(tsMnodeEqualVnodeNum);
+  pStatus->clusterCfg.offlineThreshold   = htonl(tsOfflineThreshold);
+  pStatus->clusterCfg.statusInterval     = htonl(tsStatusInterval);
+  pStatus->clusterCfg.maxtablesPerVnode  = htonl(tsMaxTablePerVnode);
+  pStatus->clusterCfg.maxVgroupsPerDb    = htonl(tsMaxVgroupsPerDb);
   strcpy(pStatus->clusterCfg.arbitrator, tsArbitrator);
   strcpy(pStatus->clusterCfg.timezone, tsTimezone);
   strcpy(pStatus->clusterCfg.locale, tsLocale);
