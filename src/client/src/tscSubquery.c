@@ -152,8 +152,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   tsBufFlush(output1);
   tsBufFlush(output2);
 
-  tsBufDestory(pSupporter1->pTSBuf);
-  tsBufDestory(pSupporter2->pTSBuf);
+  tsBufDestroy(pSupporter1->pTSBuf);
+  tsBufDestroy(pSupporter2->pTSBuf);
 
   tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks "
            "intersecting, skey:%" PRId64 ", ekey:%" PRId64, pSql, numOfInput1, numOfInput2, output1->numOfTotal,
@@ -762,7 +762,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
       tsBufMerge(pSupporter->pTSBuf, pBuf, pTableMetaInfo->vgroupIndex);
-      tsBufDestory(pBuf);
+      tsBufDestroy(pBuf);
     }
 
     // continue to retrieve ts-comp data from vnode

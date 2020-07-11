@@ -3945,7 +3945,7 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
   tsBufFlush(pTSbuf);
   strcpy(pCtx->aOutputBuf, pTSbuf->path);
   
-  tsBufDestory(pTSbuf);
+  tsBufDestroy(pTSbuf);
   doFinalizer(pCtx);
 }
 

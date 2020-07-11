@@ -1544,7 +1544,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
     pQueryInfo->groupbyExpr.columnInfo = NULL;
   }
   
-  pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
+  pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
   tfree(pQueryInfo->fillVal);
 }
