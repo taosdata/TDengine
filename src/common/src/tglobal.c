@@ -555,7 +555,7 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsMinIntervalTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
+  cfg.minValue = 1;
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;

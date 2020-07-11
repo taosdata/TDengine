@@ -152,8 +152,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   tsBufFlush(output1);
   tsBufFlush(output2);
 
-  tsBufDestory(pSupporter1->pTSBuf);
-  tsBufDestory(pSupporter2->pTSBuf);
+  tsBufDestroy(pSupporter1->pTSBuf);
+  tsBufDestroy(pSupporter2->pTSBuf);
 
   tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks "
            "intersecting, skey:%" PRId64 ", ekey:%" PRId64, pSql, numOfInput1, numOfInput2, output1->numOfTotal,
@@ -762,7 +762,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
       tsBufMerge(pSupporter->pTSBuf, pBuf, pTableMetaInfo->vgroupIndex);
-      tsBufDestory(pBuf);
+      tsBufDestroy(pBuf);
     }
 
     // continue to retrieve ts-comp data from vnode
@@ -2106,9 +2106,9 @@ static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) 
 void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  
+
   assert(pRes->row >= 0 && pRes->row <= pRes->numOfRows);
-  
+
   if(pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     if (pRes->completed) {
       tfree(pRes->tsrow);
@@ -2116,29 +2116,31 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
 
     return pRes->tsrow;
   }
-  
+
   if (pRes->row >= pRes->numOfRows) {  // all the results has returned to invoker
     tfree(pRes->tsrow);
     return pRes->tsrow;
   }
-  
+
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
+
   size_t size = tscNumOfFields(pQueryInfo);
   for (int i = 0; i < size; ++i) {
-    SFieldSupInfo* pSup = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, i);
+    SFieldSupInfo* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pSupportInfo, i);
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
     }
-    
+
     // primary key column cannot be null in interval query, no need to check
     if (i == 0 && pQueryInfo->intervalTime > 0) {
       continue;
     }
-    
-    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-    transferNcharData(pSql, i, pField);
-    
+
+    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pFields, i);
+    if (pRes->tsrow[i] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
+      transferNcharData(pSql, i, pField);
+    }
+
     // calculate the result from several other columns
     if (pSup->pArithExprInfo != NULL) {
       if (pRes->pArithSup == NULL) {
@@ -2148,10 +2150,10 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
         sas->numOfCols  = tscSqlExprNumOfExprs(pQueryInfo);
         sas->exprList   = pQueryInfo->exprList;
         sas->data       = calloc(sas->numOfCols, POINTER_BYTES);
-        
+
         pRes->pArithSup = sas;
       }
-      
+
       if (pRes->buffer[i] == NULL) {
         TAOS_FIELD* field = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
         pRes->buffer[i] = malloc(field->bytes);
@@ -2161,13 +2163,13 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
         SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
         pRes->pArithSup->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
       }
-  
+
       tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
           TSDB_ORDER_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
     }
   }
-  
+
   pRes->row++;  // index increase one-step
   return pRes->tsrow;
 }

@@ -192,7 +192,6 @@ typedef struct SQInfo {
   int32_t          offset;  // offset in group result set of subgroup, todo refactor
   SArray*          arrTableIdInfo;
 
-  T_REF_DECLARE()
   /*
    * the query is executed position on which meter of the whole list.
    * when the index reaches the last one of the list, it means the query is completed.
@@ -201,8 +200,6 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  _qinfo_free_fn_t freeFn;  //todo remove it
-
   void*     pBuf; // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
 } SQInfo;

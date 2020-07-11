@@ -52,7 +52,7 @@ public class TDNode {
     public void start() {
         String selfPath = System.getProperty("user.dir");
         String binPath = "";
-        String projDir = selfPath + "/../../../../";
+        String projDir = selfPath + "/../../../";
 
         try {
             ArrayList<String> taosdPath = new ArrayList<>();
@@ -68,7 +68,7 @@ public class TDNode {
                 return;
             } else {
                 for(String p : taosdPath) {
-                    if(!p.contains("packing")) {
+                    if(!p.contains("packaging")) {
                         binPath = p;
                     }
                 }
