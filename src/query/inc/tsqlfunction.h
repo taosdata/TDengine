@@ -187,7 +187,7 @@ typedef struct SQLFunctionCtx {
 } SQLFunctionCtx;
 
 typedef struct SQLAggFuncElem {
-  char aName[TSDB_FUNCTIONS_NAME_MAX_LENGTH];
+  char     aName[TSDB_FUNCTIONS_NAME_MAX_LENGTH];
 
   uint8_t  nAggIdx;       // index of function in aAggs
   int8_t   stableFuncId;  // transfer function for super table query
