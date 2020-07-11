@@ -508,7 +508,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   // release local resources only after cutting off outside connections
-  qSetQueryMgmtClosed(pVnode->qMgmt);
+  qQueryMgmtNotifyClosed(pVnode->qMgmt);
   vnodeRelease(pVnode);
 }
 
