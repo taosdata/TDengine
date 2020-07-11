@@ -37,17 +37,8 @@ class TDTestCase:
         except Exception as e:
             tdLog.exit(e)
 
-        try:
-            tdSql.execute("select * from db.st")
-        except Exception as e:
-            if e.args[0] != 'mnode invalid table name':
-                tdLog.exit(e)
-
-        try:
-            tdSql.execute("select * from db.tb")
-        except Exception as e:
-            if e.args[0] != 'mnode invalid table name':
-                tdLog.exit(e)
+        tdSql.error("select * from db.st")
+        tdSql.error("select * from db.tb")
 
     def stop(self):
         tdSql.close()
