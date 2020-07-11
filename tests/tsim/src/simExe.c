@@ -80,6 +80,23 @@ char *simGetVariable(SScript *script, char *varName, int varLen) {
         }
       }
       return "null";
+    } else if (varName[6] == '_') {
+      int col = (varName[4] - '0') * 10 + (varName[5] - '0');
+      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
+        return "null";
+      }
+
+      char *keyName;
+      int keyLen;
+      paGetToken(varName + 7, &keyName, &keyLen);
+
+      for (int i = 0; i < MAX_QUERY_ROW_NUM; ++i) {
+        if (strncmp(keyName, script->data[i][0], keyLen) == 0) {
+          simTrace("script:%s, keyName:%s, keyValue:%s", script->fileName, script->data[i][0], script->data[i][col]);
+          return script->data[i][col];
+        }
+      }
+      return "null";
     } else {
       int row = varName[4] - '0';
       int col = varName[5] - '0';

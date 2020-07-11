@@ -28,8 +28,9 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "anyIp": "0",
-            "sdbDebugFlag": "135",
+            "maxTablesPerVnode": "4",
+            "maxVgroupsPerDb": "1000",
+            "sdbDebugFlag": "143",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "cDebugFlag": "135",
@@ -37,7 +38,6 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             }
-
     def init(self, path):
         self.__init__()
         self.path = path

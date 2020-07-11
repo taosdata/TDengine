@@ -1,8 +1,8 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 1000
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
 
 system sh/exec.sh -n dnode1 -s start
 
@@ -17,7 +17,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
-sql create database $db replica 1 days 20 keep 2000
+sql create database $db replica 1 days 20 keep 2000 cache 16
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data00 != $db then 
@@ -35,7 +35,7 @@ endi
 if $data05 != 20 then 
   return -1
 endi
-if $data07 != 1000 then 
+if $data07 != 16 then 
   return -1
 endi
  
@@ -75,13 +75,6 @@ endi
 if $data05 != 15 then 
   return -1
 endi
-
-#if $data06 != 1500,15000,1500 then 
-#  return -1
-#endi
-if $data07 != 1000 then 
-  return -1
-endi 
 
 print =============== step6
 sql use $db

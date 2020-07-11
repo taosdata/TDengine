@@ -63,6 +63,11 @@ if $data41 != 9 then
 endi
 
 sql select * from $stb order by ts asc limit 5
+print select * from $stb order by ts asc limit 5
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+
 if $rows != 5 then
   return -1
 endi

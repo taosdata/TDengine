@@ -1778,7 +1778,6 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
   
-  printf("------------alloc:%p\n", pNew);
   return pNew;
 }
 

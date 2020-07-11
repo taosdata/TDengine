@@ -133,11 +133,13 @@ echo "monitorInterval     1"              >> $TAOS_CFG
 echo "http                0"              >> $TAOS_CFG
 echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
 echo "defaultPass         taosdata"       >> $TAOS_CFG
-echo "numOfLogLines       10000000"      >> $TAOS_CFG
-echo "mnodeEqualVnodeNum   0"              >> $TAOS_CFG
+echo "numOfLogLines       10000000"       >> $TAOS_CFG
+echo "mnodeEqualVnodeNum  0"              >> $TAOS_CFG
 echo "clog                2"              >> $TAOS_CFG
 echo "statusInterval      1"              >> $TAOS_CFG
 echo "numOfTotalVnodes    4"              >> $TAOS_CFG
+echo "maxVgroupsPerDb     4"              >> $TAOS_CFG
+echo "maxTablesPerVnode   1000"           >> $TAOS_CFG
 echo "asyncLog            0"              >> $TAOS_CFG
 echo "numOfMnodes         1"              >> $TAOS_CFG
 echo "locale    en_US.UTF-8"              >> $TAOS_CFG

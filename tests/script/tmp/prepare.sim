@@ -25,6 +25,12 @@ system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 20
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 20
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 20
 
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 20
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 20
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 20
+system sh/cfg.sh -n dnode4 -c maxVgroupsPerDb -v 20
+
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode2 -c http -v 1
 system sh/cfg.sh -n dnode3 -c http -v 1
+system sh/cfg.sh -n dnode4 -c http -v 1
