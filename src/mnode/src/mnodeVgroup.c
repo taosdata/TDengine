@@ -969,7 +969,7 @@ void mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
 
   sdbFreeIter(pIter);
 
-  mInfo("dnode:%d, all vgroups is dropped from sdb", pDropDnode->dnodeId);
+  mInfo("dnode:%d, all vgroups:%d is dropped from sdb", pDropDnode->dnodeId, numOfVgroups);
 }
 
 #if 0

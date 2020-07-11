@@ -491,18 +491,22 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
 
-  mnodeDecDnodeRef(pDnode);
   if (strcmp(pDnode->dnodeEp, mnodeGetMnodeMasterEp()) == 0) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
+    mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
   }
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
+
 #ifndef _SYNC
-  return mnodeDropDnode(pDnode, pMsg);
+  int32_t code = mnodeDropDnode(pDnode, pMsg);
 #else
-  return balanceDropDnode(pDnode);
+  int32_t code = balanceDropDnode(pDnode);
 #endif
+
+  mnodeDecDnodeRef(pDnode);
+  return code;
 }
 
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
