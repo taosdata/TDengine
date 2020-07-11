@@ -233,10 +233,11 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
   }
 }
 
-void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
+void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
+  int32_t code = taos_errno(result);
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -260,8 +261,8 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int code) {
     return;
   }
 
-  int num_fields = taos_field_count(result);
-  if (num_fields == 0) {
+  bool isUpdate = tscIsUpdateQuery(result);
+  if (isUpdate) {
     // not select or show commands
     int affectRows = taos_affected_rows(result);
 

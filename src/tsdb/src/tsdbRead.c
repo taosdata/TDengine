@@ -110,9 +110,10 @@ typedef struct STsdbQueryHandle {
   SFileGroupIter fileIter;
   SRWHelper      rhelper;
   STableBlockInfo* pDataBlockInfo;
+  int32_t        allocSize;        // allocated data block size
   SMemTable*     mem;              // mem-table
   SMemTable*     imem;             // imem-table, acquired from snapshot
-  
+  SArray*        defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
   SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
 } STsdbQueryHandle;
@@ -136,6 +137,34 @@ static void tsdbInitCompBlockLoadInfo(SLoadCompBlockInfo* pCompBlockLoadInfo) {
   pCompBlockLoadInfo->fileId = -1;
 }
 
+static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
+  size_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
+  assert(numOfCols <= TSDB_MAX_COLUMNS);
+
+  SArray* pIdList = taosArrayInit(numOfCols, sizeof(int16_t));
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
+    taosArrayPush(pIdList, &pCol->info.colId);
+  }
+
+  return pIdList;
+}
+
+static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS) {
+  SArray* pLocalIdList = getColumnIdList(pQueryHandle);
+
+  // check if the primary time stamp column needs to load
+  int16_t colId = *(int16_t*)taosArrayGet(pLocalIdList, 0);
+
+  // the primary timestamp column does not be included in the the specified load column list, add it
+  if (loadTS && colId != 0) {
+    int16_t columnId = 0;
+    taosArrayInsert(pLocalIdList, 0, &columnId);
+  }
+
+  return pLocalIdList;
+}
+
 TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, void* qinfo) {
   STsdbQueryHandle* pQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
   pQueryHandle->order       = pCond->order;
@@ -148,7 +177,8 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   pQueryHandle->activeIndex = 0;   // current active table index
   pQueryHandle->qinfo       = qinfo;
   pQueryHandle->outputCapacity = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
-  
+  pQueryHandle->allocSize   = 0;
+
   tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb);
   tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
 
@@ -195,7 +225,9 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
       taosArrayPush(pQueryHandle->pTableCheckInfo, &info);
     }
   }
-  
+
+  pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
+
   tsdbDebug("%p total numOfTable:%zu in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
 
   tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
@@ -546,33 +578,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
                     .tid = (_checkInfo)->tableId.tid,                                  \
                     .uid = (_checkInfo)->tableId.uid})
 
-static SArray* getColumnIdList(STsdbQueryHandle* pQueryHandle) {
-  size_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
-  assert(numOfCols <= TSDB_MAX_COLUMNS);
-  
-  SArray* pIdList = taosArrayInit(numOfCols, sizeof(int16_t));
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
-    taosArrayPush(pIdList, &pCol->info.colId);
-  }
-  
-  return pIdList;
-}
 
-static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS) {
-  SArray* pLocalIdList = getColumnIdList(pQueryHandle);
-  
-  // check if the primary time stamp column needs to load
-  int16_t colId = *(int16_t*)taosArrayGet(pLocalIdList, 0);
-  
-  // the primary timestamp column does not be included in the the specified load column list, add it
-  if (loadTS && colId != 0) {
-    int16_t columnId = 0;
-    taosArrayInsert(pLocalIdList, 0, &columnId);
-  }
-  
-  return pLocalIdList;
-}
 
 static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo) {
   STsdbRepo *pRepo = pQueryHandle->pTsdb;
@@ -584,8 +590,6 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   data->uid = pCheckInfo->pTableObj->tableId.uid;
 
   bool    blockLoaded = false;
-  SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
-
   int64_t st = taosGetTimestampUs();
 
   if (pCheckInfo->pDataCols == NULL) {
@@ -613,7 +617,6 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   assert(pCols->numOfRows != 0 && pCols->numOfRows <= pBlock->numOfRows);
 
   pBlock->numOfRows = pCols->numOfRows;
-  taosArrayDestroy(sa);
   tfree(data);
 
   int64_t et = taosGetTimestampUs() - st;
@@ -656,12 +659,8 @@ static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* 
       return;
     }
   
-    SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
-  
     doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
-    doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, sa);
-    taosArrayDestroy(sa);
-    
+    doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, pQueryHandle->defaultLoadColumn);
   } else {
     /*
      * no data in cache, only load data from file
@@ -681,14 +680,12 @@ static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* 
 }
 
 static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo) {
-  SArray*        sa = getDefaultLoadColumns(pQueryHandle, true);
   SQueryFilePos* cur = &pQueryHandle->cur;
 
   if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
     // query ended in current block
     if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
       if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
-        taosArrayDestroy(sa);
         return false;
       }
 
@@ -702,7 +699,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         cur->pos = 0;
       }
       
-      doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, sa);
+      doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, pQueryHandle->defaultLoadColumn);
     } else {  // the whole block is loaded in to buffer
       handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
     }
@@ -719,13 +716,12 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         cur->pos = pBlock->numOfRows - 1;
       }
       
-      doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, sa);
+      doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock, pQueryHandle->defaultLoadColumn);
     } else {
       handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
     }
   }
 
-  taosArrayDestroy(sa);
   return pQueryHandle->realNumOfRows > 0;
 }
 
@@ -1250,13 +1246,19 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
 }
 
 static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numOfBlocks, int32_t* numOfAllocBlocks) {
-  char* tmp = realloc(pQueryHandle->pDataBlockInfo, sizeof(STableBlockInfo) * numOfBlocks);
-  if (tmp == NULL) {
-    return TSDB_CODE_TDB_OUT_OF_MEMORY;
+  size_t size = sizeof(STableBlockInfo) * numOfBlocks;
+
+  if (pQueryHandle->allocSize < size) {
+    pQueryHandle->allocSize = size;
+    char* tmp = realloc(pQueryHandle->pDataBlockInfo, pQueryHandle->allocSize);
+    if (tmp == NULL) {
+      return TSDB_CODE_TDB_OUT_OF_MEMORY;
+    }
+
+    pQueryHandle->pDataBlockInfo = (STableBlockInfo*) tmp;
   }
 
-  pQueryHandle->pDataBlockInfo = (STableBlockInfo*) tmp;
-  memset(pQueryHandle->pDataBlockInfo, 0, sizeof(STableBlockInfo) * numOfBlocks);
+  memset(pQueryHandle->pDataBlockInfo, 0, size);
   *numOfAllocBlocks = numOfBlocks;
 
   int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -1492,9 +1494,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       return false;
     }
     
-    SArray* sa = getDefaultLoadColumns(pQueryHandle, true);
     /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo(pHandle, &blockInfo);
-    /*SArray *pDataBlock = */tsdbRetrieveDataBlock(pHandle, sa);
+    /*SArray *pDataBlock = */tsdbRetrieveDataBlock(pHandle, pQueryHandle->defaultLoadColumn);
   
     if (pQueryHandle->cur.win.ekey == pQueryHandle->window.skey) {
       // data already retrieve, discard other data rows and return
@@ -1508,7 +1509,6 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pQueryHandle->window   = pQueryHandle->cur.win;
       pQueryHandle->cur.rows = 1;
       pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
-      taosArrayDestroy(sa);
       return true;
     } else {
       STsdbQueryHandle* pSecQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
@@ -1565,7 +1565,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       assert(ret);
 
       /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
-      /*SArray *pDataBlock = */tsdbRetrieveDataBlock((void*) pSecQueryHandle, sa);
+      /*SArray *pDataBlock = */tsdbRetrieveDataBlock((void*) pSecQueryHandle, pSecQueryHandle->defaultLoadColumn);
   
       for (int32_t i = 0; i < numOfCols; ++i) {
         SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
@@ -2333,6 +2333,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
    }
 
   taosArrayDestroy(pQueryHandle->pColumns);
+  taosArrayDestroy(pQueryHandle->defaultLoadColumn);
   tfree(pQueryHandle->pDataBlockInfo);
   tfree(pQueryHandle->statis);
 

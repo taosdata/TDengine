@@ -255,6 +255,9 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     // release the metric/meter meta information reference, so data in cache can be updated
 
     taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
+    tscFreeSqlResult(pSql);
+    tfree(pSql->pSubs);
+    pSql->numOfSubs = 0;
     tfree(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
   }

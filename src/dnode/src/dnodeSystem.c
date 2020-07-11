@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "dnodeInt.h"
 #include "dnodeMain.h"
+#include "tfile.h"
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static sem_t exitSem;
@@ -65,6 +66,18 @@ int32_t main(int32_t argc, char *argv[]) {
         taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, argv[++i], true);
       } else {
         taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, NULL, true);
+      }
+    }
+#endif
+#ifdef TAOS_RANDOM_FILE_FAIL
+    else if (strcmp(argv[i], "--random-file-fail-factor") == 0) {
+      if ( (i+1) < argc ) {
+        int factor = atoi(argv[i+1]);
+        printf("The factor of random failure is %d\n", factor);
+        taosSetRandomFileFailFactor(factor);
+      } else {
+        printf("Please specify a number for random failure factor!");
+        exit(EXIT_FAILURE);
       }
     }
 #endif

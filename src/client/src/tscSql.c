@@ -403,7 +403,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     sem_wait(&pSql->rspSem);
   }
-  
+
   return doSetResultRowData(pSql, true);
 }
 

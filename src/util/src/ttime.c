@@ -317,29 +317,34 @@ int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
 static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* result) {
   *result = val;
 
+  int64_t factor = 1000L;
+
   switch (unit) {
     case 's':
-      (*result) *= MILLISECOND_PER_SECOND;
+      (*result) *= MILLISECOND_PER_SECOND*factor;
       break;
     case 'm':
-      (*result) *= MILLISECOND_PER_MINUTE;
+      (*result) *= MILLISECOND_PER_MINUTE*factor;
       break;
     case 'h':
-      (*result) *= MILLISECOND_PER_HOUR;
+      (*result) *= MILLISECOND_PER_HOUR*factor;
       break;
     case 'd':
-      (*result) *= MILLISECOND_PER_DAY;
+      (*result) *= MILLISECOND_PER_DAY*factor;
       break;
     case 'w':
-      (*result) *= MILLISECOND_PER_WEEK;
+      (*result) *= MILLISECOND_PER_WEEK*factor;
       break;
     case 'n':
-      (*result) *= MILLISECOND_PER_MONTH;
+      (*result) *= MILLISECOND_PER_MONTH*factor;
       break;
     case 'y':
-      (*result) *= MILLISECOND_PER_YEAR;
+      (*result) *= MILLISECOND_PER_YEAR*factor;
       break;
     case 'a':
+      (*result) *= factor;
+      break;
+    case 'u':
       break;
     default: {
       ;
@@ -348,7 +353,6 @@ static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* resu
   }
 
   /* get the value in microsecond */
-  (*result) *= 1000L;
   return 0;
 }
 

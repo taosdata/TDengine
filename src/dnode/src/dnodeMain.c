@@ -57,6 +57,7 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"server",  dnodeInitServer,     dnodeCleanupServer},
   {"mgmt",    dnodeInitMgmt,       dnodeCleanupMgmt},
   {"modules", dnodeInitModules,    dnodeCleanupModules},
+  {"mgmt-tmr",dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
   {"shell",   dnodeInitShell,      dnodeCleanupShell}
 };
 

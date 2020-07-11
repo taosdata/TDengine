@@ -129,7 +129,7 @@ int32_t tsMnodeEqualVnodeNum = 4;
 int32_t  tsEnableHttpModule = 1;
 int32_t  tsRestRowLimit = 10240;
 uint16_t tsHttpPort = 6020;  // only tcp, range tcp[6020]
-int32_t  tsHttpCacheSessions = 100;
+int32_t  tsHttpCacheSessions = 1000;
 int32_t  tsHttpSessionExpire = 36000;
 int32_t  tsHttpMaxThreads = 2;
 int32_t  tsHttpEnableCompress = 0;
@@ -560,7 +560,7 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsMinIntervalTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
+  cfg.minValue = 1;
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;

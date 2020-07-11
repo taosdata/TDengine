@@ -794,7 +794,7 @@ SFieldSupInfo* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
 }
 
 SFieldSupInfo* tscFieldInfoGetSupp(SFieldInfo* pFieldInfo, int32_t index) {
-  return taosArrayGet(pFieldInfo->pSupportInfo, index);
+  return TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, index);
 }
 
 SFieldSupInfo* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field) {
@@ -858,10 +858,8 @@ void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src) {
 }
 
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
-  return taosArrayGet(pFieldInfo->pFields, index);
+  return TARRAY_GET_ELEM(pFieldInfo->pFields, index);
 }
-
-int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, index);
@@ -1546,7 +1544,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
     pQueryInfo->groupbyExpr.columnInfo = NULL;
   }
   
-  pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
+  pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
   tfree(pQueryInfo->fillVal);
 }
@@ -1822,7 +1820,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     STableMeta*  pPrevTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
     
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
-    pPrevInfo->vgroupList = NULL;
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList);
   }
 
@@ -2086,42 +2083,42 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   }
 }
 
-void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);
-  assert(pInfo->pSqlExpr != NULL);
-
-  int32_t type = pInfo->pSqlExpr->resType;
-  int32_t bytes = pInfo->pSqlExpr->resBytes;
-  
-  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-  
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-    int32_t realLen = varDataLen(pData);
-    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
-    
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
-    } else {
-      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
-    }
-  
-    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
-    }
-    
-    pRes->length[columnIndex] = realLen;
-  } else {
-    assert(bytes == tDataTypeDesc[type].nSize);
-    
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
-    } else {
-      pRes->tsrow[columnIndex] = pData;
-    }
-    
-    pRes->length[columnIndex] = bytes;
-  }
-}
+//void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
+//  SFieldSupInfo* pInfo = TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);
+//  assert(pInfo->pSqlExpr != NULL);
+//
+//  int32_t type = pInfo->pSqlExpr->resType;
+//  int32_t bytes = pInfo->pSqlExpr->resBytes;
+//
+//  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
+//
+//  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+//    int32_t realLen = varDataLen(pData);
+//    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
+//
+//    if (isNull(pData, type)) {
+//      pRes->tsrow[columnIndex] = NULL;
+//    } else {
+//      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
+//    }
+//
+//    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
+//      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
+//    }
+//
+//    pRes->length[columnIndex] = realLen;
+//  } else {
+//    assert(bytes == tDataTypeDesc[type].nSize);
+//
+//    if (isNull(pData, type)) {
+//      pRes->tsrow[columnIndex] = NULL;
+//    } else {
+//      pRes->tsrow[columnIndex] = pData;
+//    }
+//
+//    pRes->length[columnIndex] = bytes;
+//  }
+//}
 
 void* malloc_throw(size_t size) {
   void* p = malloc(size);
