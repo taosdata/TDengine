@@ -399,16 +399,26 @@ static void syncAddArbitrator(SSyncNode *pNode)
 {
   SSyncPeer *pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
 
-  if (pPeer) syncRemovePeer(pPeer);
-  pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = NULL;
-
-  // if not configured, or number of replications is odd, dont start arbitrator
-  if (tsArbitrator[0] == 0 || (pNode->replica & 1)) return;
+  // if not configured, return right away
+  if (tsArbitrator[0] == 0) {
+    if (pPeer) syncRemovePeer(pPeer);
+    pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = NULL;
+    return;
+  }
 
   SNodeInfo nodeInfo;
   nodeInfo.nodeId = 0;
   taosGetFqdnPortFromEp(tsArbitrator, nodeInfo.nodeFqdn, &nodeInfo.nodePort);
   nodeInfo.nodePort += TSDB_PORT_SYNC;
+  
+  if (pPeer) {
+    if ((strcmp(nodeInfo.nodeFqdn, pPeer->fqdn) == 0) && (nodeInfo.nodePort == pPeer->port)) {
+      return;
+    } else {
+      syncRemovePeer(pPeer);
+      pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = NULL;
+    }
+  }   
 
   pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = syncAddPeer(pNode, &nodeInfo);
 }
@@ -521,8 +531,9 @@ void syncBroadcastStatus(SSyncNode *pNode)
 
 static void syncChooseMaster(SSyncNode *pNode) {
   SSyncPeer *pPeer;
-  int8_t     onlineNum = 0;
-  int8_t     index = -1;
+  int        onlineNum = 0;
+  int        index = -1;
+  int        replica = pNode->replica;
 
   sDebug("vgId:%d, choose master", pNode->vgId);
 
@@ -542,10 +553,12 @@ static void syncChooseMaster(SSyncNode *pNode) {
 
   // add arbitrator connection
   SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
-  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE)
+  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE) {
     onlineNum++;
+    replica = pNode->replica + 1;
+  }
 
-  if (index < 0 && onlineNum > pNode->replica/2.0) {
+  if (index < 0 && onlineNum > replica/2.0) {
     // over half of nodes are online
     for (int i = 0; i < pNode->replica; ++i) {
       //slave with highest version shall be master
@@ -574,6 +587,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
 static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
   int onlineNum = 0;
   int index = -1;
+  int replica = pNode->replica;
 
   for (int i = 0; i < pNode->replica; ++i) {
     if (pNode->peerInfo[i]->role != TAOS_SYNC_ROLE_OFFLINE) 
@@ -582,15 +596,17 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
 
   // add arbitrator connection
   SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
-  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE)
+  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE) {
     onlineNum++;
+    replica = pNode->replica + 1;
+  }
 
-  if (onlineNum <= pNode->replica*0.5) {
+  if (onlineNum <= replica*0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
       pNode->peerInfo[pNode->selfIndex]->role = nodeRole;
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
-      sInfo("vgId:%d, change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, pNode->replica);
+      sInfo("vgId:%d, change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, replica);
     }
   } else {
     for (int i=0; i<pNode->replica; ++i) {
