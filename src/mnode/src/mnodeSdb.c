@@ -393,7 +393,7 @@ void sdbCleanUp() {
 }
 
 void sdbIncRef(void *handle, void *pObj) {
-  if (pObj == NULL) return;
+  if (pObj == NULL || handle == NULL) return;
 
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
@@ -402,7 +402,7 @@ void sdbIncRef(void *handle, void *pObj) {
 }
 
 void sdbDecRef(void *handle, void *pObj) {
-  if (pObj == NULL) return;
+  if (pObj == NULL || handle == NULL) return;
 
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);

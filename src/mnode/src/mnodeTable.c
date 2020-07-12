@@ -751,7 +751,9 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     mInfo("app:%p:%p, table:%s, start to drop stable", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
     return mnodeProcessDropSuperTableMsg(pMsg);
   } else {
-    mInfo("app:%p:%p, table:%s, start to drop ctable", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
+    SChildTableObj *pCTable = (SChildTableObj *)pMsg->pTable;
+    mInfo("app:%p:%p, table:%s, start to drop ctable, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
+          pDrop->tableId, pCTable->vgId, pCTable->sid, pCTable->uid);
     return mnodeProcessDropChildTableMsg(pMsg);
   }
 }
@@ -1780,7 +1782,9 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
 
   SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
 
-  mInfo("app:%p:%p, table:%s, send drop ctable msg", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
+  mInfo("app:%p:%p, table:%s, send drop ctable msg, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
+        pDrop->tableId, pTable->vgId, pTable->sid, pTable->uid);
+
   SRpcMsg rpcMsg = {
     .ahandle = pMsg,
     .pCont   = pDrop,
@@ -2187,12 +2191,15 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
   assert(pTable);
-  mInfo("app:%p:%p, table:%s, drop table rsp received, thandle:%p result:%s", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
-         pTable->info.tableId, mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
+
+  mInfo("app:%p:%p, table:%s, drop table rsp received, vgId:%d sid:%d uid:%" PRIu64 ", thandle:%p result:%s",
+        mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+        mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
-    mError("app:%p:%p, table:%s, failed to drop in dnode, reason:%s", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
-           pTable->info.tableId, tstrerror(rpcMsg->code));
+    mError("app:%p:%p, table:%s, failed to drop in dnode, vgId:%d sid:%d uid:%" PRIu64 ", reason:%s",
+           mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+           tstrerror(rpcMsg->code));
     dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
     return;
   }
