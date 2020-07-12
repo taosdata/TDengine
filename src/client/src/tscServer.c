@@ -412,7 +412,7 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    pSql->ipList = tscMgmtIpSet; //?
+    pSql->ipList = tscMgmtIpSet;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -1372,7 +1372,6 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pRes->code = TSDB_CODE_SUCCESS;
-
   if (pRes->rspType == 0) {
     pRes->numOfRows = numOfRes;
     pRes->row = 0;

@@ -420,14 +420,14 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
+  pRes->code = code;
 
   if (code != TSDB_CODE_SUCCESS) {
-    pRes->code = code;
-    tscQueueAsyncRes(pSql);
-    return;
+    tscError("%p ge tableMeta failed, code:%s", pSql, tstrerror(code));
+    goto _error;
+  } else {
+    tscDebug("%p get tableMeta successfully", pSql);
   }
-
-  tscDebug("%p get tableMeta successfully", pSql);
 
   if (pSql->pStream == NULL) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -453,11 +453,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vgroupIndex &&
           pTableMetaInfo->vgroupIndex >= 0 && pTableMetaInfo->vgroupList != NULL);
 
-      if ((code = tscProcessSql(pSql)) == TSDB_CODE_SUCCESS) {
-        return;
-      }
-
-      goto _error;
+      // tscProcessSql can add error into async res
+      tscProcessSql(pSql);
+      return;
     } else {  // continue to process normal async query
       if (pCmd->parseFinished) {
         tscDebug("%p update table meta in local cache, continue to process sql and send corresponding query", pSql);
@@ -481,26 +479,21 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             return;
+          } else if (code != TSDB_CODE_SUCCESS) {
+            goto _error;
           }
 
-          if (code == TSDB_CODE_SUCCESS) {
-            /*
-             * Discard previous built submit blocks, and then parse the sql string again and build up all submit blocks,
-             * and send the required submit block according to index value in supporter to server.
-             */
-            pSql->fp = pSql->fetchFp;  // restore the fp
-            if ((code = tscHandleInsertRetry(pSql)) == TSDB_CODE_SUCCESS) {
-              return;
-            }
-          }
-
+          /*
+           * Discard previous built submit blocks, and then parse the sql string again and build up all submit blocks,
+           * and send the required submit block according to index value in supporter to server.
+           */
+          pSql->fp = pSql->fetchFp;  // restore the fp
+          tscHandleInsertRetry(pSql);
         } else {// in case of other query type, continue
-          if ((code = tscProcessSql(pSql)) == TSDB_CODE_SUCCESS) {
-            return;
-          }
+          tscProcessSql(pSql);
         }
 
-        goto _error;
+        return;
       } else {
         tscDebug("%p continue parse sql after get table meta", pSql);
 
@@ -538,7 +531,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       goto _error;
     }
 
-    if (code == TSDB_CODE_SUCCESS && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       code = tscGetSTableVgroupInfo(pSql, pCmd->clauseIndex);
       if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         return;

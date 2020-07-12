@@ -487,19 +487,8 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
       (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
 
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s", pSql, sqlCmd[pCmd->command]);
+    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s, ", pSql, sqlCmd[pCmd->command]);
     tscProcessSql(pSql);
-
-    // in case of sync model query, waits for response and then goes on
-//    if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
-//      sem_wait(&pSql->rspSem);
-
-//      tscFreeSqlObj(pSql);
-//      tscDebug("%p sqlObj is freed by app", pSql);
-//    } else {
-      tscDebug("%p sqlObj will be freed while rsp received", pSql);
-//    }
-
     return true;
   }
 
