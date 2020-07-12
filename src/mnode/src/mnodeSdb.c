@@ -661,6 +661,14 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool sdbCheckRowDeleted(void *pTableInput, void *pRow) {
+  SSdbTable *pTable = pTableInput;
+  if (pTable == NULL) return false;
+
+  int8_t *updateEnd = pRow + pTable->refCountPos - 1;
+  return (*updateEnd == 1);
+}
+
 int32_t sdbDeleteRow(SSdbOper *pOper) {
   SSdbTable *pTable = (SSdbTable *)pOper->table;
   if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
