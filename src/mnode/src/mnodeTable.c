@@ -2253,8 +2253,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
     mDebug("app:%p:%p, table:%s, create table rsp received, but a deleting opertion incoming, vgId:%d sid:%d uid:%" PRIu64,
            mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid);
     mnodeProcessDropChildTableMsg(mnodeMsg, false);
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
-    return;
+    rpcMsg->code = TSDB_CODE_SUCCESS;
   }
 
   if (rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
