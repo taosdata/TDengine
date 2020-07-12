@@ -72,7 +72,7 @@ static void    mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessDropTableMsg(SMnodeMsg *mnodeMsg);
 static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg);
-static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn);
 static void    mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg);
 
 static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *mnodeMsg);
@@ -754,7 +754,7 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     SChildTableObj *pCTable = (SChildTableObj *)pMsg->pTable;
     mInfo("app:%p:%p, table:%s, start to drop ctable, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
           pDrop->tableId, pCTable->vgId, pCTable->sid, pCTable->uid);
-    return mnodeProcessDropChildTableMsg(pMsg);
+    return mnodeProcessDropChildTableMsg(pMsg, true);
   }
 }
 
@@ -1758,7 +1758,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   }
 }
 
-static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
+static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
   if (pMsg->pVgroup == NULL) pMsg->pVgroup = mnodeGetVgroup(pTable->vgId);
   if (pMsg->pVgroup == NULL) {
@@ -1792,6 +1792,8 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
+
+  if (!needReturn) rpcMsg.ahandle = NULL;
 
   dnodeSendMsgToDnode(&ipSet, &rpcMsg);
 
@@ -2245,6 +2247,15 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
   SChildTableObj *pTable = (SChildTableObj *)mnodeMsg->pTable;
   assert(pTable);
+
+  // If the table is deleted by another thread during creation, stop creating and send drop msg to vnode
+  if (sdbCheckRowDeleted(tsChildTableSdb, pTable)) {
+    mDebug("app:%p:%p, table:%s, create table rsp received, but a deleting opertion incoming, vgId:%d sid:%d uid:%" PRIu64,
+           mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid);
+    mnodeProcessDropChildTableMsg(mnodeMsg, false);
+    dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+    return;
+  }
 
   if (rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
     SCMCreateTableMsg *pCreate = mnodeMsg->rpcMsg.pCont;

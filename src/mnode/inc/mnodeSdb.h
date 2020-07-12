@@ -94,6 +94,7 @@ void     sdbDecRef(void *thandle, void *pRow);
 int64_t  sdbGetNumOfRows(void *handle);
 int32_t  sdbGetId(void *handle);
 uint64_t sdbGetVersion();
+bool     sdbCheckRowDeleted(void *thandle, void *pRow);
 
 #ifdef __cplusplus
 }
