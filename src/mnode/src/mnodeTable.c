@@ -385,6 +385,8 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
   if (pStable->vgHash != NULL) {
     if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
       taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
+      mDebug("table:%s, vgId:%d is put into stable vgList, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
+             (int32_t)taosHashGetSize(pStable->vgHash));
     }
   }
 }
@@ -397,6 +399,8 @@ static void mnodeRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *
   SVgObj *pVgroup = mnodeGetVgroup(pCtable->vgId);
   if (pVgroup == NULL) {
     taosHashRemove(pStable->vgHash, (char *)&pCtable->vgId, sizeof(pCtable->vgId));
+    mDebug("table:%s, vgId:%d is remove from stable vgList, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
+           (int32_t)taosHashGetSize(pStable->vgHash));
   }
   mnodeDecVgroupRef(pVgroup);
 }
@@ -748,7 +752,9 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
   }
 
   if (pMsg->pTable->type == TSDB_SUPER_TABLE) {
-    mInfo("app:%p:%p, table:%s, start to drop stable", pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId);
+    SSuperTableObj *pSTable = (SSuperTableObj *)pMsg->pTable;
+    mInfo("app:%p:%p, table:%s, start to drop stable, uid:%" PRIu64 ", numOfChildTables:%d, sizeOfVgList:%d",
+          pMsg->rpcMsg.ahandle, pMsg, pDrop->tableId, pSTable->uid, pSTable->numOfTables, (int32_t)taosHashGetSize(pSTable->vgHash));
     return mnodeProcessDropSuperTableMsg(pMsg);
   } else {
     SChildTableObj *pCTable = (SChildTableObj *)pMsg->pTable;
@@ -801,7 +807,7 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   assert(pTable);
 
   if (code == TSDB_CODE_SUCCESS) {
-    mLInfo("stable:%s, is created in sdb", pTable->info.tableId);
+    mLInfo("stable:%s, is created in sdb, uid:%" PRIu64, pTable->info.tableId, pTable->uid);
   } else {
     mError("app:%p:%p, stable:%s, failed to create in sdb, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
            tstrerror(code));
@@ -2118,7 +2124,7 @@ static void mnodeDropAllChildTablesInStable(SSuperTableObj *pStable) {
   int32_t numOfTables = 0;
   SChildTableObj *pTable = NULL;
 
-  mInfo("stable:%s, all child tables(%d) will dropped from sdb", pStable->info.tableId, numOfTables);
+  mInfo("stable:%s, all child tables:%d will dropped from sdb", pStable->info.tableId, pStable->numOfTables);
 
   while (1) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);
