@@ -376,7 +376,7 @@ static void mnodeCleanupChildTables() {
 }
 
 static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
-  pStable->numOfTables++;
+  atomic_add_fetch_32(&pStable->numOfTables, 1);
 
   if (pStable->vgHash == NULL) {
     pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
@@ -390,7 +390,7 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
 }
 
 static void mnodeRemoveTableFromStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
-  pStable->numOfTables--;
+  atomic_sub_fetch_32(&pStable->numOfTables, 1);
 
   if (pStable->vgHash == NULL) return;
 
@@ -889,7 +889,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
   SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
-  if (pStable->numOfTables != 0) {
+   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
     SHashMutableIterator *pIter = taosHashCreateIter(pStable->vgHash);
     while (taosHashIterNext(pIter)) {
       int32_t *pVgId = taosHashIterGet(pIter);
