@@ -69,7 +69,7 @@ void httpCleanUpConnect() {
   httpDebug("http server:%s is cleaned up", pServer->label);
 }
 
-bool httpReadDataImp(HttpContext *pContext) {
+int httpReadDataImp(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
 
   while (pParser->bufsize <= (HTTP_BUFFER_SIZE - HTTP_STEP_SIZE)) {
@@ -85,8 +85,7 @@ bool httpReadDataImp(HttpContext *pContext) {
       } else {
         httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, errno);
-        httpReleaseContext(pContext);      
-        return false;
+        return HTTP_READ_DATA_FAILED;
       }
     } else {
       pParser->bufsize += nread;
@@ -95,15 +94,13 @@ bool httpReadDataImp(HttpContext *pContext) {
     if (pParser->bufsize >= (HTTP_BUFFER_SIZE - HTTP_STEP_SIZE)) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, request big than:%d",
                 pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, HTTP_BUFFER_SIZE);
-      httpSendErrorResp(pContext, HTTP_REQUSET_TOO_BIG);
-      httpNotifyContextClose(pContext);
-      return false;
+      return HTTP_REQUSET_TOO_BIG;
     }
   }
 
   pParser->buffer[pParser->bufsize] = 0;
 
-  return true;
+  return HTTP_READ_DATA_SUCCESS;
 }
 
 static bool httpDecompressData(HttpContext *pContext) {
@@ -141,8 +138,14 @@ static bool httpReadData(HttpContext *pContext) {
     httpInitContext(pContext);
   }
 
-  if (!httpReadDataImp(pContext)) {
-    httpNotifyContextClose(pContext);
+  int32_t code = httpReadDataImp(pContext);
+  if (code != HTTP_READ_DATA_SUCCESS) {
+    if (code == HTTP_READ_DATA_FAILED) {
+      httpReleaseContext(pContext);
+    } else {
+      httpSendErrorResp(pContext, code);
+      httpNotifyContextClose(pContext);
+    }
     return false;
   }
 

@@ -1,11 +1,13 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 2
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 2
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 5
 
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c wallevel -v 2
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 2
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 5
 
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
@@ -17,7 +19,7 @@ sleep 1000
 
 print ============================ step1
 
-sql create database db maxTables 5
+sql create database db
 sql create table db.st (ts timestamp, i int) tags(t int)
 sql create table db.t000 using db.st tags(0)
 sql create table db.t001 using db.st tags(1)
@@ -74,9 +76,14 @@ if $rows != 20 then
 endi
 
 print ============================ step3
-
-sql alter database db maxTables 10
-sleep 1000
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 10
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 10
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sleep 5000
 
 sql create table db.t100 using db.st tags(0)
 sql create table db.t101 using db.st tags(1)
@@ -133,9 +140,14 @@ if $rows != 40 then
 endi
 
 print ============================ step5
-
-sql alter database db maxTables 15
-sleep 1000
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 15
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 15
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sleep 5000
 
 sql create table db.t200 using db.st tags(0)
 sql create table db.t201 using db.st tags(1)
@@ -252,9 +264,14 @@ if $rows != 60 then
 endi
 
 print ============================ step9
-
-sql alter database db maxTables 20
-sleep 1000
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 20
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sleep 5000
 
 sql create table db.t300 using db.st tags(0)
 sql create table db.t301 using db.st tags(1)
@@ -380,9 +397,14 @@ if $rows != 80 then
 endi
 
 print ============================ step9
-
-sql alter database db maxTables 25
-sleep 1000
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 25
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 25
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sleep 5000
 
 sql create table db.t400 using db.st tags(0)
 sql create table db.t401 using db.st tags(1)

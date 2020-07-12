@@ -113,7 +113,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
-  pSql->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pSql->maxRetry = TSDB_MAX_REPLICA;
   tsem_init(&pSql->rspSem, 0, 0);
   
   pObj->pDnodeConn = pDnodeConn;
@@ -403,7 +403,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     sem_wait(&pSql->rspSem);
   }
-  
+
   return doSetResultRowData(pSql, true);
 }
 

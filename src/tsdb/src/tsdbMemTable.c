@@ -111,7 +111,8 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 
 int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   if (pMemTable == NULL) return 0;
-  T_REF_INC(pMemTable);
+  int ref = T_REF_INC(pMemTable);
+	tsdbDebug("vgId:%d ref memtable %p ref %d", REPO_ID(pRepo), pMemTable, ref);
   return 0;
 }
 
@@ -119,7 +120,9 @@ int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
 int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   if (pMemTable == NULL) return 0;
 
-  if (T_REF_DEC(pMemTable) == 0) {
+	int ref = T_REF_DEC(pMemTable);
+	tsdbDebug("vgId:%d unref memtable %p ref %d", REPO_ID(pRepo), pMemTable, ref);
+  if (ref == 0) {
     STsdbCfg *    pCfg = &pRepo->config;
     STsdbBufPool *pBufPool = pRepo->pPool;
 
@@ -159,6 +162,7 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
   tsdbRefMemTable(pRepo, *pIMem);
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
+	tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), *pMem, *pIMem);
 
   return 0;
 }

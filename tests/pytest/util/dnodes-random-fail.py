@@ -28,9 +28,8 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "maxTablesPerVnode": "4",
-            "maxVgroupsPerDb": "1000",
-            "sdbDebugFlag": "143",
+            "anyIp": "0",
+            "sdbDebugFlag": "135",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "cDebugFlag": "135",
@@ -38,6 +37,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             }
+
     def init(self, path):
         self.__init__()
         self.path = path
@@ -240,7 +240,7 @@ class TDDnode:
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
 
-            cmd = "nohup %s %s -c %s 2>&1 & " % (
+            cmd = "nohup %s %s -c %s --random-file-fail-factor 5 2>&1 & " % (
                 valgrindCmdline, binPath, self.cfgDir)
 
             print(cmd)

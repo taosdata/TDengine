@@ -569,6 +569,8 @@ typedef struct {
   char     timezone[64];              // tsTimezone
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
+  int32_t  maxtablesPerVnode;
+  int32_t  maxVgroupsPerDb;
 } SClusterCfg;
 
 typedef struct {
@@ -644,7 +646,7 @@ typedef struct SCMSTableVgroupMsg {
 typedef struct {
   int32_t   vgId;
   int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_MAX_REPLICA_NUM];
+  SIpAddr   ipAddr[TSDB_MAX_REPLICA];
 } SCMVgroupInfo;
 
 typedef struct {

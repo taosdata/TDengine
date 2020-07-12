@@ -60,6 +60,7 @@ bool httpParseURL(HttpContext* pContext) {
   char* pSeek;
   char* pEnd = strchr(pParser->pLast, ' ');
   if (pEnd == NULL) {
+    httpSendErrorResp(pContext, HTTP_UNSUPPORT_URL);    
     return false;
   }
 
@@ -275,14 +276,14 @@ bool httpParseChunkedBody(HttpContext* pContext, HttpParser* pParser, bool test)
   return true;
 }
 
-bool httpReadChunkedBody(HttpContext* pContext, HttpParser* pParser) {
+int httpReadChunkedBody(HttpContext* pContext, HttpParser* pParser) {
   bool parsedOk = httpParseChunkedBody(pContext, pParser, true);
   if (parsedOk) {
     httpParseChunkedBody(pContext, pParser, false);
     return HTTP_CHECK_BODY_SUCCESS;
   } else {
     httpTrace("context:%p, fd:%d, ip:%s, chunked body not finished, continue read", pContext, pContext->fd, pContext->ipstr);
-    if (!httpReadDataImp(pContext)) {
+    if (httpReadDataImp(pContext) != HTTP_READ_DATA_SUCCESS) {
       httpError("context:%p, fd:%d, ip:%s, read chunked request error", pContext, pContext->fd, pContext->ipstr);
       return HTTP_CHECK_BODY_ERROR;
     } else {
@@ -296,7 +297,6 @@ int httpReadUnChunkedBody(HttpContext* pContext, HttpParser* pParser) {
   if (dataReadLen > pParser->data.len) {
     httpError("context:%p, fd:%d, ip:%s, un-chunked body length invalid, read size:%d dataReadLen:%d > pContext->data.len:%d",
               pContext, pContext->fd, pContext->ipstr, pContext->parser.bufsize, dataReadLen, pParser->data.len);
-    httpSendErrorResp(pContext, HTTP_PARSE_BODY_ERROR);
     return HTTP_CHECK_BODY_ERROR;
   } else if (dataReadLen < pParser->data.len) {
     httpTrace("context:%p, fd:%d, ip:%s, un-chunked body not finished, read size:%d dataReadLen:%d < pContext->data.len:%d, continue read",
@@ -358,20 +358,13 @@ bool httpParseRequest(HttpContext* pContext) {
 }
 
 int httpCheckReadCompleted(HttpContext* pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pContext->httpChunked == HTTP_UNCUNKED) {
-    int ret = httpReadUnChunkedBody(pContext, pParser);
-    if (ret != HTTP_CHECK_BODY_SUCCESS) {
-      return ret;
-    }
-  } else {
-    int ret = httpReadChunkedBody(pContext, pParser);
-    if (ret != HTTP_CHECK_BODY_SUCCESS) {
-      return ret;
-    }
-  }
+  HttpParser* pParser = &pContext->parser;
 
-  return HTTP_CHECK_BODY_SUCCESS;
+  if (pContext->httpChunked == HTTP_UNCUNKED) {
+    return httpReadUnChunkedBody(pContext, pParser);
+  } else {
+    return httpReadChunkedBody(pContext, pParser);
+  }
 }
 
 bool httpDecodeRequest(HttpContext* pContext) {

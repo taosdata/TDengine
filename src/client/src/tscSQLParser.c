@@ -175,7 +175,6 @@ static int32_t handlePassword(SSqlCmd* pCmd, SSQLToken* pPwd) {
   return TSDB_CODE_SUCCESS;
 }
 
-// todo handle memory leak in error handle function
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo == NULL || pSql == NULL || pSql->signature != pSql) {
     return TSDB_CODE_TSC_APP_ERROR;
@@ -5490,9 +5489,9 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   }
 
   if (pCreate->replications != -1 &&
-      (pCreate->replications < TSDB_MIN_REPLICA_NUM || pCreate->replications > TSDB_MAX_REPLICA_NUM)) {
+      (pCreate->replications < TSDB_MIN_DB_REPLICA_OPTION || pCreate->replications > TSDB_MAX_DB_REPLICA_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
-             TSDB_MIN_REPLICA_NUM, TSDB_MAX_REPLICA_NUM);
+             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 

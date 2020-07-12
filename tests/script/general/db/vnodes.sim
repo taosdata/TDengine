@@ -6,7 +6,8 @@ $totalRows = $totalVnodes * $maxTables
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel            -v 0
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode   -v $maxTables
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode   -v $maxTables
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb     -v $totalVnodes
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v $totalVnodes
 system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 100000
 system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 100000
@@ -17,7 +18,7 @@ print ==========  prepare data
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect 
-sql create database db blocks 2 cache 1 maxTables $maxTables
+sql create database db blocks 2 cache 1
 sql use db
 
 print ==========  step1

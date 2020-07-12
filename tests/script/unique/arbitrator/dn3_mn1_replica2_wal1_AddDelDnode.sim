@@ -23,6 +23,12 @@ system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode5 -c balanceInterval -v 10
 
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 16
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 16
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 16
+system sh/cfg.sh -n dnode4 -c maxVgroupsPerDb -v 16
+system sh/cfg.sh -n dnode5 -c maxVgroupsPerDb -v 16
+
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
@@ -215,6 +221,7 @@ system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode3 -c enableCoreFile -v 1
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 16
 
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
@@ -322,7 +329,7 @@ $totalRows = 0
 $tsStart = 1420041600000
 
 $db = db1
-sql create database $db replica 2 maxTables 4
+sql create database $db replica 2
 sql use $db
 $stb = stb
 sql create table $stb (ts timestamp, c1 int) tags(t1 int)
