@@ -323,7 +323,7 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
   if (pDb == NULL) return TSDB_CODE_MND_APP_ERROR;
 
   int32_t minIdPoolSize = TSDB_MAX_TABLES;
-  int32_t maxIdPoolSize = TSDB_MIN_TABLES;
+  int32_t maxIdPoolSize = tsMinTablePerVnode;
   for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
     SVgObj *pVgroup = pDb->vgList[v];
     if (pVgroup == NULL) continue;
@@ -347,10 +347,10 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
 
   // realloc all vgroups in db
   int32_t newIdPoolSize;
-  if (minIdPoolSize * 4 < TSDB_TABLES_STEP) {
+  if (minIdPoolSize * 4 < tsTableIncStepPerVnode) {
     newIdPoolSize = minIdPoolSize * 4;
   } else {
-    newIdPoolSize = ((minIdPoolSize / TSDB_TABLES_STEP) + 1) * TSDB_TABLES_STEP;
+    newIdPoolSize = ((minIdPoolSize / tsTableIncStepPerVnode) + 1) * tsTableIncStepPerVnode;
   }
 
   if (newIdPoolSize > tsMaxTablePerVnode) {
