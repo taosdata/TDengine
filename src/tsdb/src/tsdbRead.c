@@ -2217,7 +2217,8 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
 
   } CATCH( code ) {
     CLEANUP_EXECUTE();
-    ret = code;
+    terrno = code;
+    goto _error; 
     // TODO: more error handling
   } END_TRY
 

@@ -139,7 +139,9 @@ echo "clog                2"              >> $TAOS_CFG
 echo "statusInterval      1"              >> $TAOS_CFG
 echo "numOfTotalVnodes    4"              >> $TAOS_CFG
 echo "maxVgroupsPerDb     4"              >> $TAOS_CFG
+echo "minTablesPerVnode   4"              >> $TAOS_CFG
 echo "maxTablesPerVnode   1000"           >> $TAOS_CFG
+echo "tableIncStepPerVnode 10000"         >> $TAOS_CFG
 echo "asyncLog            0"              >> $TAOS_CFG
 echo "numOfMnodes         1"              >> $TAOS_CFG
 echo "locale    en_US.UTF-8"              >> $TAOS_CFG
