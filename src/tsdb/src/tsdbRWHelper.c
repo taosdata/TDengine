@@ -1111,7 +1111,7 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
     return -1;
   }
 
-  int64_t offset = pCompBlock->offset + sizeof(SCompData) + sizeof(SCompCol) * pCompBlock->numOfCols + pCompCol->offset;
+  int64_t offset = pCompBlock->offset + TSDB_GET_COMPCOL_LEN(pCompBlock->numOfCols) + pCompCol->offset;
   if (lseek(pFile->fd, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pHelper->pRepo), pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
