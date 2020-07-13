@@ -32,8 +32,8 @@ static void        tsdbEndCommit(STsdbRepo *pRepo);
 static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
 static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
-static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo);
-static void         tsdbDestroyTableIters(SCommitIter *iters, int maxTables);
+static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
+static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
@@ -430,7 +430,7 @@ static void *tsdbCommitData(void *arg) {
 
   // Create the iterator to read from cache
   if (pMem->numOfRows > 0) {
-    iters = tsdbCreateTableIters(pRepo);
+    iters = tsdbCreateCommitIters(pRepo);
     if (iters == NULL) {
       tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
       goto _exit;
@@ -470,7 +470,7 @@ static void *tsdbCommitData(void *arg) {
 
 _exit:
   tdFreeDataCols(pDataCols);
-  tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyCommitIters(iters, pCfg->maxTables);
   tsdbDestroyHelper(&whelper);
   tsdbEndCommit(pRepo);
   tsdbInfo("vgId:%d commit over", pRepo->config.tsdbId);
@@ -636,7 +636,7 @@ _err:
   return -1;
 }
 
-static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo) {
+static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo) {
   STsdbCfg * pCfg = &(pRepo->config);
   SMemTable *pMem = pRepo->imem;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
@@ -666,21 +666,18 @@ static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo) {
         goto _err;
       }
 
-      if (!tSkipListIterNext(iters[i].pIter)) {
-        terrno = TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM;
-        goto _err;
-      }
+      tSkipListIterNext(iters[i].pIter);
     }
   }
 
   return iters;
 
 _err:
-  tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyCommitIters(iters, pCfg->maxTables);
   return NULL;
 }
 
-static void tsdbDestroyTableIters(SCommitIter *iters, int maxTables) {
+static void tsdbDestroyCommitIters(SCommitIter *iters, int maxTables) {
   if (iters == NULL) return;
 
   for (int i = 1; i < maxTables; i++) {
