@@ -1534,6 +1534,7 @@ static int tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIte
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                          pTarget->maxPoints);
       }
+      pTarget->numOfRows++;
       (*iter)++;
       if (key1 == key2) tSkipListIterNext(pCommitIter->pIter);
     } else {
