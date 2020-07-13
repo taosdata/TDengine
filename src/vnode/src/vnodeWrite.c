@@ -184,6 +184,8 @@ int vnodeWriteToQueue(void *param, void *data, int type) {
   memcpy(pWal, pHead, size);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
+  vDebug("vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+
   taosWriteQitem(pVnode->wqueue, type, pWal);
 
   return 0;
