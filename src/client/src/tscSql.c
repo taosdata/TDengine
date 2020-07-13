@@ -481,10 +481,10 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && !tscIsTwoStageSTableQuery(pQueryInfo, 0) &&
       (pCmd->command == TSDB_SQL_SELECT ||
-          pCmd->command == TSDB_SQL_SHOW ||
-          pCmd->command == TSDB_SQL_RETRIEVE ||
-          pCmd->command == TSDB_SQL_FETCH) &&
-      (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
+       pCmd->command == TSDB_SQL_SHOW ||
+       pCmd->command == TSDB_SQL_RETRIEVE ||
+       pCmd->command == TSDB_SQL_FETCH) &&
+      (pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
 
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s, ", pSql, sqlCmd[pCmd->command]);
