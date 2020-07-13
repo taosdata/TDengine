@@ -393,7 +393,7 @@ void sdbCleanUp() {
 }
 
 void sdbIncRef(void *handle, void *pObj) {
-  if (pObj == NULL) return;
+  if (pObj == NULL || handle == NULL) return;
 
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
@@ -402,7 +402,7 @@ void sdbIncRef(void *handle, void *pObj) {
 }
 
 void sdbDecRef(void *handle, void *pObj) {
-  if (pObj == NULL) return;
+  if (pObj == NULL || handle == NULL) return;
 
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
@@ -659,6 +659,14 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
   sdbIncRef(pNewOper->table, pNewOper->pObj);
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
   return TSDB_CODE_SUCCESS;
+}
+
+bool sdbCheckRowDeleted(void *pTableInput, void *pRow) {
+  SSdbTable *pTable = pTableInput;
+  if (pTable == NULL) return false;
+
+  int8_t *updateEnd = pRow + pTable->refCountPos - 1;
+  return (*updateEnd == 1);
 }
 
 int32_t sdbDeleteRow(SSdbOper *pOper) {

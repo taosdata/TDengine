@@ -61,6 +61,9 @@
 #define HTTP_CHECK_BODY_CONTINUE    0
 #define HTTP_CHECK_BODY_SUCCESS     1
 
+#define HTTP_READ_DATA_SUCCESS      0
+#define HTTP_READ_DATA_FAILED       1
+
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_EXPIRED_TIME           60000

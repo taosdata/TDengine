@@ -550,7 +550,7 @@ static bool checkForDuplicateTagVal(SQueryInfo* pQueryInfo, SJoinSupporter* p1, 
   return true;
 }
 
-static void getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray** s1, SArray** s2) {
+static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray** s1, SArray** s2) {
   tscDebug("%p all subqueries retrieve <tid, tags> complete, do tags match", pParentSql);
 
   SJoinSupporter* p1 = pParentSql->pSubs[0]->param;
@@ -568,10 +568,7 @@ static void getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParent
   *s2 = taosArrayInit(p2->num, p2->tagSize);
 
   if (!(checkForDuplicateTagVal(pQueryInfo, p1, pParentSql) && checkForDuplicateTagVal(pQueryInfo, p2, pParentSql))) {
-    freeJoinSubqueryObj(pParentSql);
-    pParentSql->res.code = TSDB_CODE_QRY_DUP_JOIN_KEY;
-    tscQueueAsyncRes(pParentSql);
-    return;
+    return TSDB_CODE_QRY_DUP_JOIN_KEY;
   }
 
   int32_t i = 0, j = 0;
@@ -594,6 +591,8 @@ static void getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParent
       i++;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRows) {
@@ -680,7 +679,14 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   SArray *s1 = NULL, *s2 = NULL;
-  getIntersectionOfTableTuple(pQueryInfo, pParentSql, &s1, &s2);
+  int32_t code = getIntersectionOfTableTuple(pQueryInfo, pParentSql, &s1, &s2);
+  if (code != TSDB_CODE_SUCCESS) {
+    freeJoinSubqueryObj(pParentSql);
+    pParentSql->res.code = code;
+    tscQueueAsyncRes(pParentSql);
+    return;
+  }
+
   if (taosArrayGetSize(s1) == 0 || taosArrayGetSize(s2) == 0) {  // no results,return.
     tscDebug("%p tag intersect does not generated qualified tables for join, free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);

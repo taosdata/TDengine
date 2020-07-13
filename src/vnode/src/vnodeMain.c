@@ -176,16 +176,28 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   pVnode->status = TAOS_VN_STATUS_UPDATING;
 
   int32_t code = vnodeSaveCfg(pVnodeCfg);
-  if (code != TSDB_CODE_SUCCESS) return code; 
+  if (code != TSDB_CODE_SUCCESS) {
+    pVnode->status = TAOS_VN_STATUS_READY;
+    return code; 
+  }
 
   code = vnodeReadCfg(pVnode);
-  if (code != TSDB_CODE_SUCCESS) return code; 
+  if (code != TSDB_CODE_SUCCESS) {
+    pVnode->status = TAOS_VN_STATUS_READY;
+    return code; 
+  }
 
   code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
-  if (code != TSDB_CODE_SUCCESS) return code; 
+  if (code != TSDB_CODE_SUCCESS) {
+    pVnode->status = TAOS_VN_STATUS_READY;
+    return code; 
+  } 
 
   code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
-  if (code != TSDB_CODE_SUCCESS) return code; 
+  if (code != TSDB_CODE_SUCCESS) {
+    pVnode->status = TAOS_VN_STATUS_READY;
+    return code; 
+  }
 
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is altered", pVnode->vgId);
