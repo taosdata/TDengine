@@ -61,10 +61,11 @@ sql create dnode $hostname3
 sleep 3000
 
 print ============== step2: create db1 with replica 3
+$replica = 3
 $db = db1
-print create database $db replica 3
+print create database $db replica $replica
 #sql create database $db replica 3 maxTables $totalTableNum
-sql create database $db replica 3
+sql create database $db replica $replica
 sql use $db
 
 print ============== step3: create stable stb1
@@ -73,16 +74,16 @@ print create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(16))
 sql create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(16))
 
 print ============== step4: start others client
-run_back unique/cluster/client1_0.sim
-run_back unique/cluster/client1_1.sim
-run_back unique/cluster/client1_2.sim
-run_back unique/cluster/client1_3.sim
-#run_back unique/cluster/client2_0.sim
-#run_back unique/cluster/client2_1.sim
-#run_back unique/cluster/client2_2.sim
-#run_back unique/cluster/client2_3.sim
-#run_back unique/cluster/client3.sim
-#run_back unique/cluster/client4.sim
+run_back unique/cluster/main2_client1_0.sim
+run_back unique/cluster/main2_client1_1.sim
+run_back unique/cluster/main2_client1_2.sim
+run_back unique/cluster/main2_client1_3.sim
+run_back unique/cluster/main2_client2_0.sim
+run_back unique/cluster/main2_client2_1.sim
+run_back unique/cluster/main2_client2_2.sim
+run_back unique/cluster/main2_client2_3.sim
+run_back unique/cluster/client3.sim
+run_back unique/cluster/client4.sim
 
 sleep 20000
 
@@ -115,9 +116,7 @@ system sh/exec.sh -n dnode4 -s start
 system sh/exec.sh -n dnode5 -s start
 sql create dnode $hostname4
 sql create dnode $hostname5
-
 sleep 5000
-
 
 print ============== step6: stop dnode1
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -232,27 +231,48 @@ print ============== step13: alter replica 2
 sql alter database $db replica 2
 sql show databases
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
 
-if $data04 != 2 then
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 2 then
   print rplica is not modify to 2, error!!!!!!
   return -1
 endi
 
-print ============== step14: stop and drop dnode4/dnode5, then remove data dir of dnode4/dnode5 
-system sh/exec.sh -n dnode4 -s stop -x SIGINT
-system sh/exec.sh -n dnode5 -s stop -x SIGINT
-sleep 3000
+print ============== step14: drop dnode4, then remove data dir
 sql drop dnode $hostname4
-sql drop dnode $hostname5
-system rm -rf ../../../sim/dnode4/data
-system rm -rf ../../../sim/dnode5/data
 sleep 20000
+system rm -rf ../../../sim/dnode4/data
+
+print ============== step14-1: drop dnode5, then remove data dir
+sql drop dnode $hostname5
+sleep 20000
+system rm -rf ../../../sim/dnode5/data
 
 print ============== step15: alter replica 1
 sql alter database $db replica 1
 sql show databases
-print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09
-if $data04 != 1 then
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 1 then
   print rplica is not modify to 1, error!!!!!!
   return -1
 endi
@@ -260,8 +280,19 @@ endi
 print ============== step16: alter replica 2
 sql alter database $db replica 2
 sql show databases
-print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09
-if $data04 != 2 then
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 2 then
   print rplica is not modify to 2, error!!!!!!
   return -1
 endi
@@ -277,8 +308,19 @@ endi
 print ============== step18: alter replica 3
 sql alter database $db replica 3
 sql show databases
-print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09
-if $data04 != 3 then
+print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07   $data08  $data09 
+print $data10  $data11  $data12  $data13  $data14  $data15  $data16  $data17   $data18  $data19 
+
+if $data00 == db1 then
+  $replica = $data04
+elif $data10 == db1 then
+  $replica = $data14
+else then
+  print ==== db1 already not exists!!!!!
+  return -1
+endi
+
+if $replica != 3 then
   print rplica is not modify to 3, error!!!!!!
   return -1
 endi
