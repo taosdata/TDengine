@@ -1541,8 +1541,9 @@ static int tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIte
       if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
         pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
         ASSERT(pSchema != NULL);
-        tdAppendDataRowToDataCol(row, pSchema, pTarget);
       }
+
+      tdAppendDataRowToDataCol(row, pSchema, pTarget);
       tSkipListIterNext(pCommitIter->pIter);
     }
 
