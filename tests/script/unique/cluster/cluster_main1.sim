@@ -104,15 +104,18 @@ endi
 print wait for a while to let clients start insert data
 sleep 5000    
 
-$loop_cnt = 0
-loop_cluster_do:
-print **** **** **** START loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
-print ============== step5: start dnode4/dnode5 and add into cluster, then wait ready
-system sh/exec.sh -n dnode4 -s start
-system sh/exec.sh -n dnode5 -s start
+print ============== step4-1: add dnode4/dnode5 into cluster
 sql create dnode $hostname4
 sql create dnode $hostname5
 sleep 5000
+
+$loop_cnt = 0
+loop_cluster_do:
+print **** **** **** START loop cluster do (loop_cnt: $loop_cnt )**** **** **** ****
+print ============== step5: start dnode4/dnode5
+system sh/exec.sh -n dnode4 -s start
+system sh/exec.sh -n dnode5 -s start
+sleep 20000
 
 print ============== step6: stop dnode1
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -207,9 +210,9 @@ print ============== step11: stop dnode4, then wait sync end
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sleep 20000
 
-print ============== step12: restart dnode4, then wait sync end
-system sh/exec.sh -n dnode4 -s start
-sleep 20000
+#print ============== step12: restart dnode4, then wait sync end
+#system sh/exec.sh -n dnode4 -s start
+#sleep 20000
 sql show mnodes
 print show mnodes
 print rows: $rows
@@ -243,15 +246,15 @@ if $replica != 2 then
   return -1
 endi
 
-print ============== step14: drop dnode4, then remove data dir
-sql drop dnode $hostname4
+print ============== step14: stop dnode5
+system sh/exec.sh -n dnode5 -s stop -x SIGINT
 sleep 20000
-system rm -rf ../../../sim/dnode4/data
+#system rm -rf ../../../sim/dnode5/data
 
-print ============== step14-1: drop dnode5, then remove data dir
-sql drop dnode $hostname5
-sleep 20000
-system rm -rf ../../../sim/dnode5/data
+#print ============== step14-1: drop dnode5, then remove data dir
+#sql drop dnode $hostname5
+#sleep 20000
+#system rm -rf ../../../sim/dnode5/data
 
 print ============== step15: alter replica 1
 sql alter database $db replica 1
