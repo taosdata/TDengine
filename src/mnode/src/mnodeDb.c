@@ -287,14 +287,14 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->replications < TSDB_MIN_DB_REPLICA_OPTION || pCfg->replications > TSDB_MAX_DB_REPLICA_OPTION) {
-    mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_DB_REPLICA_OPTION,
-           TSDB_MAX_DB_REPLICA_OPTION);
+  if (pCfg->fsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->fsyncPeriod > TSDB_MAX_FSYNC_PERIOD) {
+    mError("invalid db option fsyncPeriod:%d, valid range: [%d, %d]", pCfg->fsyncPeriod, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL) {
-    mError("invalid db option walLevel:%d must be greater than 0", pCfg->walLevel);
+  if (pCfg->replications < TSDB_MIN_DB_REPLICA_OPTION || pCfg->replications > TSDB_MAX_DB_REPLICA_OPTION) {
+    mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_DB_REPLICA_OPTION,
+           TSDB_MAX_DB_REPLICA_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
@@ -318,6 +318,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep;
   if (pCfg->minRowsPerFileBlock < 0) pCfg->minRowsPerFileBlock = tsMinRowsInFileBlock;
   if (pCfg->maxRowsPerFileBlock < 0) pCfg->maxRowsPerFileBlock = tsMaxRowsInFileBlock;
+  if (pCfg->fsyncPeriod <0) pCfg->fsyncPeriod = tsFsyncPeriod;
   if (pCfg->commitTime < 0) pCfg->commitTime = tsCommitTime;
   if (pCfg->precision < 0) pCfg->precision = tsTimePrecision;
   if (pCfg->compression < 0) pCfg->compression = tsCompression;
@@ -367,6 +368,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
     .daysToKeep2         = pCreate->daysToKeep2,
     .minRowsPerFileBlock = pCreate->minRowsPerFileBlock,
     .maxRowsPerFileBlock = pCreate->maxRowsPerFileBlock,
+    .fsyncPeriod         = pCreate->fsyncPeriod,
     .commitTime          = pCreate->commitTime,
     .precision           = pCreate->precision,
     .compression         = pCreate->compression,
@@ -683,6 +685,10 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int8_t *)pWrite = pDb->cfg.compression;
       cols++;
 #ifndef __CLOUD_VERSION__
@@ -785,6 +791,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   int32_t minRows        = htonl(pAlter->minRowsPerFileBlock);
   int32_t maxRows        = htonl(pAlter->maxRowsPerFileBlock);
   int32_t commitTime     = htonl(pAlter->commitTime);
+  int32_t fsyncPeriod    = htonl(pAlter->fsyncPeriod);
   int8_t  compression    = pAlter->compression;
   int8_t  walLevel       = pAlter->walLevel;
   int8_t  replications   = pAlter->replications;
@@ -858,6 +865,11 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
   if (walLevel > 0 && walLevel != pDb->cfg.walLevel) {
     mError("db:%s, can't alter walLevel option", pDb->name);
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
+  if (fsyncPeriod >= 0 && fsyncPeriod != pDb->cfg.fsyncPeriod) {
+    mError("db:%s, can't alter fsyncPeriod option", pDb->name);
     terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 

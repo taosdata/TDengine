@@ -755,6 +755,7 @@ SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
   pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
   pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
+  pCfg->fsyncPeriod         = htonl(pDb->cfg.fsyncPeriod);
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;

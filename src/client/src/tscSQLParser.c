@@ -4962,6 +4962,7 @@ static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->commitTime = htonl(pCreateDb->commitTime);
   pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
   pMsg->maxRowsPerFileBlock = htonl(pCreateDb->maxRowsPerBlock);
+  pMsg->fsyncPeriod = htonl(pCreateDb->fsyncPeriod);
   pMsg->compression = pCreateDb->compressionLevel;
   pMsg->walLevel = (char)pCreateDb->walLevel;
   pMsg->replications = pCreateDb->replica;
