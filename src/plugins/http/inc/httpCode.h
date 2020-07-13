@@ -105,7 +105,7 @@
 #define HTTP_OP_VALUE_TYPE            79
 
 //tgf
-#define HTTP_TG_STABLE_NOT_EXIST     80
+#define HTTP_TG_STABLE_NOT_EXIST      80
 
 extern char *httpMsg[];
 

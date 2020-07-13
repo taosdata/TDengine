@@ -200,6 +200,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CREATE_TB_MSG,    0, 0x060E, "tsdb inval
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM,     0, 0x060F, "tsdb no table data in memory skiplist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_ALREADY_EXISTS,      0, 0x0610, "tsdb file already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECONFIGURE,        0, 0x0611, "tsdb need to reconfigure table")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    0, 0x0612, "tsdb create table information")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          0, 0x0700, "query invalid handle")
@@ -208,6 +209,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_DISKSPACE,             0, 0x0702, "query no d
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_OUT_OF_MEMORY,            0, 0x0703, "query out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_APP_ERROR,                0, 0x0704, "query app error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUP_JOIN_KEY,             0, 0x0705, "query duplicated join key")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT,        0, 0x0706, "query tag conditon too many")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "grant expired")
