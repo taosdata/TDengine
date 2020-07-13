@@ -754,7 +754,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
   pCompBlock->keyFirst = dataColsKeyFirst(pDataCols);
   pCompBlock->keyLast = dataColsKeyAt(pDataCols, rowsToWrite - 1);
 
-  tsdbTrace("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
+  tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
             REPO_ID(helperRepo(pHelper)), pHelper->tableInfo.tid, pFile->fname, (int64_t)(pCompBlock->offset),
             (int)(pCompBlock->numOfRows), pCompBlock->len, pCompBlock->numOfCols, pCompBlock->keyFirst,
@@ -1111,7 +1111,8 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
     return -1;
   }
 
-  if (lseek(pFile->fd, pCompCol->offset, SEEK_SET) < 0) {
+  int64_t offset = pCompBlock->offset + sizeof(SCompData) + sizeof(SCompCol) * pCompBlock->numOfCols + pCompCol->offset;
+  if (lseek(pFile->fd, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pHelper->pRepo), pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
