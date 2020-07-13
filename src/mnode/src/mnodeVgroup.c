@@ -471,6 +471,8 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
   }
 
   pMsg->expected = pVgroup->numOfVnodes;
+  pMsg->successed = 0;
+  pMsg->received = 0;
   mnodeSendCreateVgroupMsg(pVgroup, pMsg);
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -835,6 +837,8 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   mDebug("vgId:%d, create vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
          pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
          mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
+
+  assert(mnodeMsg->received <= mnodeMsg->expected);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
