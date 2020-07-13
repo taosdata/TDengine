@@ -962,10 +962,13 @@ static UNUSED_FUNC char* exception_strdup(const char* str) {
 
 static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
   int32_t anchor = CLEANUP_GET_ANCHOR();
+  if (CLEANUP_EXCEED_LIMIT()) {
+    THROW(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT);
+    return NULL;
+  }
 
   tExprNode* pExpr = exception_calloc(1, sizeof(tExprNode));
   CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, pExpr, NULL);
-
   pExpr->nodeType = tbufReadUint8(br);
   
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
@@ -995,7 +998,6 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pExpr->_node.hasPK = tbufReadUint8(br);
     pExpr->_node.pLeft = exprTreeFromBinaryImpl(br);
     pExpr->_node.pRight = exprTreeFromBinaryImpl(br);
-    
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
   }
   
