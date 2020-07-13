@@ -1650,7 +1650,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pNew->fp = fp;
   pNew->fetchFp = fp;
   pNew->param = param;
-  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pNew->maxRetry = TSDB_MAX_REPLICA;
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
@@ -1807,7 +1807,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   pNew->fetchFp = fp;
 
   pNew->param = param;
-  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pNew->maxRetry = TSDB_MAX_REPLICA;
 
   char* name = pTableMetaInfo->name;
   STableMetaInfo* pFinalInfo = NULL;

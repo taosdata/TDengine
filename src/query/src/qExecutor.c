@@ -5616,16 +5616,22 @@ static void freeQInfo(SQInfo *pQInfo);
 
 static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
                                STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols) {
-  SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
-  if (pQInfo == NULL) {
-    return NULL;
-  }
-
-  SQuery *pQuery = calloc(1, sizeof(SQuery));
-  pQInfo->runtimeEnv.pQuery = pQuery;
-
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
+
+  SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
+  if (pQInfo == NULL) {
+    goto _cleanup_qinfo;
+  }
+  // to make sure third party won't overwrite this structure
+  pQInfo->signature = pQInfo;
+  pQInfo->tableGroupInfo = *pTableGroupInfo;
+
+  SQuery *pQuery = calloc(1, sizeof(SQuery));
+  if (pQuery == NULL) {
+    goto _cleanup_query;
+  }
+  pQInfo->runtimeEnv.pQuery = pQuery;
 
   pQuery->numOfCols       = numOfCols;
   pQuery->numOfOutput     = numOfOutput;
@@ -5640,6 +5646,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   pQuery->slidingTimeUnit = pQueryMsg->slidingTimeUnit;
   pQuery->fillType        = pQueryMsg->fillType;
   pQuery->numOfTags       = pQueryMsg->numOfTags;
+  pQuery->tagColList      = pTagCols;
   
   // todo do not allocate ??
   pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
@@ -5651,8 +5658,6 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     pQuery->colList[i] = pQueryMsg->colList[i];
     pQuery->colList[i].filters = tscFilterInfoClone(pQueryMsg->colList[i].filters, pQuery->colList[i].numOfFilters);
   }
-
-  pQuery->tagColList = pTagCols;
 
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
@@ -5698,10 +5703,6 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     memcpy(pQuery->fillVal, (char *)pQueryMsg->fillVal, pQuery->numOfOutput * sizeof(int64_t));
   }
 
-  // to make sure third party won't overwrite this structure
-  pQInfo->signature = pQInfo;
-
-  pQInfo->tableGroupInfo = *pTableGroupInfo;
   size_t numOfGroups = 0;
   if (pTableGroupInfo->pGroupList != NULL) {
     numOfGroups = taosArrayGetSize(pTableGroupInfo->pGroupList);
@@ -5763,6 +5764,21 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
 
   qDebug("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
   return pQInfo;
+
+_cleanup_qinfo:
+  tsdbDestoryTableGroup(pTableGroupInfo);
+
+_cleanup_query:
+  taosArrayDestroy(pGroupbyExpr->columnInfo);
+  tfree(pGroupbyExpr);
+  tfree(pTagCols);
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SExprInfo* pExprInfo = &pExprs[i];
+    if (pExprInfo->pExpr != NULL) {
+      tExprTreeDestroy(&pExprInfo->pExpr, NULL);
+    }
+  }
+  tfree(pExprs);
 
 _cleanup:
   freeQInfo(pQInfo);
@@ -5882,19 +5898,21 @@ static void freeQInfo(SQInfo *pQInfo) {
   }
 
   // todo refactor, extract method to destroytableDataInfo
-  int32_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
-  for (int32_t i = 0; i < numOfGroups; ++i) {
-    SArray *p = GET_TABLEGROUP(pQInfo, i);
+  if (pQInfo->tableqinfoGroupInfo.pGroupList != NULL) {
+    int32_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
+    for (int32_t i = 0; i < numOfGroups; ++i) {
+      SArray *p = GET_TABLEGROUP(pQInfo, i);
 
-    size_t num = taosArrayGetSize(p);
-    for(int32_t j = 0; j < num; ++j) {
-      STableQueryInfo* item = taosArrayGetP(p, j);
-      if (item != NULL) {
-        destroyTableQueryInfo(item, pQuery->numOfOutput);
+      size_t num = taosArrayGetSize(p);
+      for(int32_t j = 0; j < num; ++j) {
+        STableQueryInfo* item = taosArrayGetP(p, j);
+        if (item != NULL) {
+          destroyTableQueryInfo(item, pQuery->numOfOutput);
+        }
       }
-    }
 
-    taosArrayDestroy(p);
+      taosArrayDestroy(p);
+    }
   }
 
   tfree(pQInfo->pBuf);

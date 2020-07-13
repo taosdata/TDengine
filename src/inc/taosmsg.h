@@ -646,7 +646,7 @@ typedef struct SCMSTableVgroupMsg {
 typedef struct {
   int32_t   vgId;
   int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_MAX_REPLICA_NUM];
+  SIpAddr   ipAddr[TSDB_MAX_REPLICA];
 } SCMVgroupInfo;
 
 typedef struct {
