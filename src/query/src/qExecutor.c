@@ -5366,7 +5366,7 @@ static int32_t buildAirthmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTable
   qDebug("qmsg:%p create arithmetic expr from binary string: %s", pQueryMsg, pArithExprInfo->base.arg[0].argValue.pz);
 
   tExprNode* pExprNode = NULL;
-  TRY(32) {
+  TRY(TSDB_MAX_TAGS) {
     pExprNode = exprTreeFromBinary(pArithExprInfo->base.arg[0].argValue.pz, pArithExprInfo->base.arg[0].argBytes);
   } CATCH( code ) {
     CLEANUP_EXECUTE();
