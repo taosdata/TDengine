@@ -235,7 +235,7 @@ static void *dnodeProcessWriteQueue(void *param) {
         dDebug("%p, rpc msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
       } else {
         pHead = (SWalHead *)item;
-        dDebug("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType], pHead->version);
+        dTrace("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType], pHead->version);
       }
 
       int32_t code = vnodeProcessWrite(pVnode, type, pHead, pRspRet);
