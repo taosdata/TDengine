@@ -810,16 +810,16 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   if (tsize > 0) {
     ASSERT(sizeof(SCompInfo) + sizeof(SCompBlock) * (blkIdx + 1) < tsizeof(pHelper->pCompInfo));
     ASSERT(sizeof(SCompInfo) + sizeof(SCompBlock) * (blkIdx + 1) + tsize <= tsizeof(pHelper->pCompInfo));
-    memmove((void *)((char *)pHelper->pCompInfo + sizeof(SCompInfo) + sizeof(SCompBlock) * (blkIdx + 1)),
-            (void *)((char *)pHelper->pCompInfo + sizeof(SCompInfo) + sizeof(SCompBlock) * blkIdx), tsize);
+    memmove(POINTER_SHIFT(pHelper->pCompInfo, sizeof(SCompInfo) + sizeof(SCompBlock) * (blkIdx + 1)),
+            POINTER_SHIFT(pHelper->pCompInfo, sizeof(SCompInfo) + sizeof(SCompBlock) * blkIdx), tsize);
   }
   pHelper->pCompInfo->blocks[blkIdx] = *pCompBlock;
 
   pIdx->numOfBlocks++;
   pIdx->len += sizeof(SCompBlock);
   ASSERT(pIdx->len <= tsizeof(pHelper->pCompInfo));
-  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].keyLast;
-  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].last;
+  pIdx->maxKey = blockAtIdx(pHelper, pIdx->numOfBlocks - 1)->keyLast;
+  pIdx->hasLast = blockAtIdx(pHelper, pIdx->numOfBlocks - 1)->last;
 
   if (pIdx->numOfBlocks > 1) {
     ASSERT(pHelper->pCompInfo->blocks[0].keyLast < pHelper->pCompInfo->blocks[1].keyFirst);
@@ -933,8 +933,8 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
   if (pSCompBlock->numOfSubBlocks > 1) {
     size_t tsize = pIdx->len - (pSCompBlock->offset + pSCompBlock->len);
     if (tsize > 0) {
-      memmove((void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset),
-              (void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len), tsize);
+      memmove(POINTER_SHIFT(pHelper->pCompInfo, pSCompBlock->offset),
+              POINTER_SHIFT(pHelper->pCompInfo, pSCompBlock->offset + pSCompBlock->len), tsize);
     }
 
     for (int i = blkIdx + 1; i < pIdx->numOfBlocks; i++) {
@@ -947,8 +947,8 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   *pSCompBlock = *pCompBlock;
 
-  pIdx->maxKey = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].keyLast;
-  pIdx->hasLast = pHelper->pCompInfo->blocks[pIdx->numOfBlocks - 1].last;
+  pIdx->maxKey = blockAtIdx(pHelper, pIdx->numOfBlocks - 1)->keyLast;
+  pIdx->hasLast = blockAtIdx(pHelper, pIdx->numOfBlocks - 1)->last;
 
   tsdbDebug("vgId:%d tid:%d a super block is updated at index %d", REPO_ID(pHelper->pRepo), pHelper->tableInfo.tid,
             blkIdx);
