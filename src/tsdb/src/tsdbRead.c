@@ -2201,7 +2201,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
   int32_t ret = TSDB_CODE_SUCCESS;
   tExprNode* expr = NULL;
 
-  TRY(32) {
+  TRY(TSDB_MAX_TAGS) {
     expr = exprTreeFromTableName(tbnameCond);
     if (expr == NULL) {
       expr = exprTreeFromBinary(pTagCond, len);
