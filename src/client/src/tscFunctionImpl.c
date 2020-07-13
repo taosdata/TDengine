@@ -708,6 +708,11 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY en
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
+
+  // not initialized yet, it is the first block, load it.
+  if (pCtx->aOutputBuf == NULL) {
+    return BLK_DATA_ALL_NEEDED;
+  }
   
   SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
   if (pInfo->hasResult != DATA_SET_FLAG) {
@@ -721,7 +726,12 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end
   if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
-  
+
+  // not initialized yet, it is the first block, load it.
+  if (pCtx->aOutputBuf == NULL) {
+    return BLK_DATA_ALL_NEEDED;
+  }
+
   SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
   if (pInfo->hasResult != DATA_SET_FLAG) {
     return BLK_DATA_ALL_NEEDED;
@@ -1540,6 +1550,8 @@ static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t in
  * to decide if the value is earlier than current intermediate result
  */
 static void first_dist_function(SQLFunctionCtx *pCtx) {
+  assert(pCtx->size > 0);
+
   if (pCtx->size == 0) {
     return;
   }
@@ -1554,7 +1566,12 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
   }
   
   int32_t notNullElems = 0;
-  
+
+  // data block is discard, not loaded, do not need to check it
+  if (!pCtx->preAggVals.dataBlockLoaded) {
+    return;
+  }
+
   // find the first not null value
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
@@ -1575,10 +1592,6 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
 }
 
 static void first_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  if (pCtx->size == 0) {
-    return;
-  }
-  
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
@@ -1706,10 +1719,6 @@ static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t ind
 }
 
 static void last_dist_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->size == 0) {
-    return;
-  }
-  
   /*
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
@@ -1717,7 +1726,12 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
   if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
-  
+
+  // data block is discard, not loaded, do not need to check it
+  if (!pCtx->preAggVals.dataBlockLoaded) {
+    return;
+  }
+
   int32_t notNullElems = 0;
   
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {

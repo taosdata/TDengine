@@ -1648,6 +1648,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   }
 
   pNew->fp = fp;
+  pNew->fetchFp = fp;
   pNew->param = param;
   pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
 
@@ -1803,6 +1804,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   pNew->fp = fp;
+  pNew->fetchFp = fp;
+
   pNew->param = param;
   pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
 
@@ -2041,10 +2044,8 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     // set the callback function
     pSql->fp = fp;
-    int32_t ret = tscProcessSql(pSql);
-    if (ret == TSDB_CODE_SUCCESS) {
-      return;
-    } else {// todo check for failure
+    if (tscProcessSql(pSql) != 0) {
+      break;
     }
   }
 }

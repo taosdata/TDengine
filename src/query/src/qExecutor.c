@@ -1358,6 +1358,8 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY 
     pCtx->preAggVals.isSet = false;
   }
 
+  pCtx->preAggVals.dataBlockLoaded = (inputData != NULL);
+
   // limit/offset query will affect this value
   pCtx->startOffset = QUERY_IS_ASC_QUERY(pQuery) ? pQuery->pos:0;
   pCtx->size = QUERY_IS_ASC_QUERY(pQuery) ? pBlockInfo->rows - pQuery->pos : pQuery->pos + 1;
@@ -1928,7 +1930,7 @@ char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWi
          pQuery->pSelectExpr[columnIndex].bytes * realRowId;
 }
 
-#define IS_PREFILTER_TYPE(_t) ((_t) != TSDB_DATA_TYPE_DOUBLE && (_t) != TSDB_DATA_TYPE_FLOAT)
+#define IS_PREFILTER_TYPE(_t) ((_t) != TSDB_DATA_TYPE_BINARY && (_t) != TSDB_DATA_TYPE_NCHAR)
 
 static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDataStatis, SQLFunctionCtx *pCtx,
     int32_t numOfRows) {
@@ -1948,13 +1950,14 @@ static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDat
       }
     }
 
+    // no statistics data
     if (index == -1) {
-      continue;
+      return true;
     }
 
     // not support pre-filter operation on binary/nchar data type
     if (!IS_PREFILTER_TYPE(pFilterInfo->info.type)) {
-      continue;
+      return true;
     }
 
     // all points in current column are NULL, no need to check its boundary value
@@ -2203,7 +2206,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     summary->totalBlocks += 1;
 
     if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
-      finalizeQueryResult(pRuntimeEnv); // clean up allocated resource during query
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
@@ -3357,12 +3359,10 @@ void destroyTableQueryInfo(STableQueryInfo *pTableQueryInfo, int32_t numOfCols) 
   cleanupTimeWindowInfo(&pTableQueryInfo->windowResInfo, numOfCols);
 }
 
-#define SET_CURRENT_QUERY_TABLE_INFO(_runtime, _tableInfo)                                      \
-  do {                                                                                          \
-    SQuery *_query = (_runtime)->pQuery;                                                        \
-    _query->current = _tableInfo;                                                               \
-    assert((((_tableInfo)->lastKey >= (_tableInfo)->win.skey) && QUERY_IS_ASC_QUERY(_query)) || \
-           (((_tableInfo)->lastKey <= (_tableInfo)->win.skey) && !QUERY_IS_ASC_QUERY(_query))); \
+#define CHECK_QUERY_TIME_RANGE(_q, _tableInfo)                                              \
+  do {                                                                                      \
+    assert((((_tableInfo)->lastKey >= (_tableInfo)->win.skey) && QUERY_IS_ASC_QUERY(_q)) || \
+           (((_tableInfo)->lastKey <= (_tableInfo)->win.skey) && !QUERY_IS_ASC_QUERY(_q))); \
   } while (0)
 
 /**
@@ -4212,6 +4212,23 @@ static void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 }
 
+static FORCE_INLINE void setEnvForEachBlock(SQInfo* pQInfo, STableQueryInfo* pTableQueryInfo, SDataBlockInfo* pBlockInfo) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+
+  if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
+    setExecutionContext(pQInfo, pTableQueryInfo->groupIndex, pBlockInfo->window.ekey + step);
+  } else {  // interval query
+    TSKEY nextKey = pBlockInfo->window.skey;
+    setIntervalQueryRange(pQInfo, nextKey);
+
+    if (pRuntimeEnv->hasTagResults || pRuntimeEnv->pTSBuf != NULL) {
+      setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
+    }
+  }
+}
+
 static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery*           pQuery = pRuntimeEnv->pQuery;
@@ -4226,6 +4243,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
 
   while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
+    
     if (IS_QUERY_KILLED(pQInfo)) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
@@ -4236,24 +4254,16 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
       break;
     }
 
-    assert(*pTableQueryInfo != NULL);
-    SET_CURRENT_QUERY_TABLE_INFO(pRuntimeEnv, *pTableQueryInfo);
+    pQuery->current = *pTableQueryInfo;
+    CHECK_QUERY_TIME_RANGE(pQuery, *pTableQueryInfo);
 
     if (!pRuntimeEnv->groupbyNormalCol) {
-      if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
-        setExecutionContext(pQInfo, (*pTableQueryInfo)->groupIndex, blockInfo.window.ekey + step);
-      } else {  // interval query
-        TSKEY nextKey = blockInfo.window.skey;
-        setIntervalQueryRange(pQInfo, nextKey);
-
-        if (pRuntimeEnv->hasTagResults || pRuntimeEnv->pTSBuf != NULL) {
-          setAdditionalInfo(pQInfo, (*pTableQueryInfo)->pTable, *pTableQueryInfo);
-        }
-      }
+      setEnvForEachBlock(pQInfo, *pTableQueryInfo, &blockInfo);
     }
 
     SDataStatis *pStatis = NULL;
     SArray *pDataBlock = NULL;
+
     if (loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis, &pDataBlock) == BLK_DATA_DISCARD) {
       pQuery->current->lastKey = QUERY_IS_ASC_QUERY(pQuery)? blockInfo.window.ekey + step:blockInfo.window.skey + step;
       continue;
@@ -4516,7 +4526,6 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
     while (pQInfo->tableIndex < pQInfo->tableqinfoGroupInfo.numOfTables) {
       if (IS_QUERY_KILLED(pQInfo)) {
-        finalizeQueryResult(pRuntimeEnv); // clean up allocated resource during query
         longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
       }
 
@@ -5014,6 +5023,7 @@ static void stableQueryImpl(SQInfo *pQInfo) {
             isFirstLastRowQuery(pQuery) || pRuntimeEnv->groupbyNormalCol);
 
     sequentialTableProcess(pQInfo);
+
   }
 
   // record the total elapsed time
@@ -6112,11 +6122,6 @@ _over:
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {
     *pQInfo = NULL;
-  } else {
-//    SQInfo* pq = (SQInfo*) (*pQInfo);
-
-//    T_REF_INC(pq);
-//    T_REF_INC(pq);
   }
 
   // if failed to add ref for all meters in this query, abort current query

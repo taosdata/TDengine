@@ -125,7 +125,8 @@ typedef struct SArithmeticSupport {
 } SArithmeticSupport;
 
 typedef struct SQLPreAggVal {
-  bool    isSet;
+  bool        isSet;             // statistics info set or not
+  bool        dataBlockLoaded;   // data block is loaded or not
   SDataStatis statis;
 } SQLPreAggVal;
 

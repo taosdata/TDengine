@@ -45,6 +45,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->pTscObj   = pObj;
   pSql->maxRetry  = TSDB_MAX_REPLICA_NUM;
   pSql->fp        = fp;
+  pSql->fetchFp   = fp;
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
@@ -159,7 +160,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
       pRes->code = numOfRows;
     }
 
-    tscQueueAsyncError(pSql->fetchFp, param, pRes->code);
+    tscQueueAsyncRes(pSql);
     return;
   }
 
@@ -346,31 +347,32 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
 
 void tscProcessAsyncRes(SSchedMsg *pMsg) {
   SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  SSqlCmd *pCmd = &pSql->cmd;
+//  SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  void *taosres = pSql;
+//  void *taosres = pSql;
 
   // pCmd may be released, so cache pCmd->command
-  int cmd = pCmd->command;
-  int code = pRes->code;
+//  int cmd = pCmd->command;
+//  int code = pRes->code;
 
   // in case of async insert, restore the user specified callback function
-  bool shouldFree = tscShouldBeFreed(pSql);
+//  bool shouldFree = tscShouldBeFreed(pSql);
 
-  if (cmd == TSDB_SQL_INSERT) {
-    assert(pSql->fp != NULL);
-    pSql->fp = pSql->fetchFp;
-  }
+//  if (pCmd->command == TSDB_SQL_INSERT) {
+//    assert(pSql->fp != NULL);
+  assert(pSql->fp != NULL && pSql->fetchFp != NULL);
+//  }
 
-  if (pSql->fp) {
-    (*pSql->fp)(pSql->param, taosres, code);
-  }
+//  if (pSql->fp) {
+  pSql->fp = pSql->fetchFp;
+  (*pSql->fp)(pSql->param, pSql, pRes->code);
+//  }
 
-  if (shouldFree) {
-    tscDebug("%p sqlObj is automatically freed in async res", pSql);
-    tscFreeSqlObj(pSql);
-  }
+//  if (shouldFree) {
+//    tscDebug("%p sqlObj is automatically freed in async res", pSql);
+//    tscFreeSqlObj(pSql);
+//  }
 }
 
 static void tscProcessAsyncError(SSchedMsg *pMsg) {
