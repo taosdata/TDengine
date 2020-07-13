@@ -5370,6 +5370,7 @@ static int32_t buildAirthmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTable
     pExprNode = exprTreeFromBinary(pArithExprInfo->base.arg[0].argValue.pz, pArithExprInfo->base.arg[0].argBytes);
   } CATCH( code ) {
     CLEANUP_EXECUTE();
+    qError("qmsg:%p failed to create arithmetic expression string from:%s, reason: %s", pQueryMsg, pArithExprInfo->base.arg[0].argValue.pz, tstrerror(code));
     return code;
   } END_TRY
 
@@ -6104,6 +6105,9 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, vo
       code = tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &tableGroupInfo, pGroupColIndex,
                                           numOfGroupByCols);
       if (code != TSDB_CODE_SUCCESS) {
+        if (code == TSDB_CODE_QRY_EXCEED_TAGS_LIMIT) {
+          qError("qmsg:%p failed to QueryStable, reason: %s", pQueryMsg, tstrerror(code));
+        }
         goto _over;
       }
     } else {
