@@ -2008,7 +2008,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
-  while (++pTableMetaInfo->vgroupIndex < totalVgroups) {
+  if (++pTableMetaInfo->vgroupIndex < totalVgroups) {
     tscDebug("%p results from vgroup index:%d completed, try next:%d. total vgroups:%d. current numOfRes:%" PRId64, pSql,
              pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVgroups, pRes->numOfClauseTotal);
 
@@ -2044,9 +2044,9 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     // set the callback function
     pSql->fp = fp;
-    if (tscProcessSql(pSql) != 0) {
-      break;
-    }
+    tscProcessSql(pSql);
+  } else {
+    tscDebug("%p try all %d vnodes, query complete. current numOfRes:%" PRId64, pSql, totalVgroups, pRes->numOfClauseTotal);
   }
 }
 
