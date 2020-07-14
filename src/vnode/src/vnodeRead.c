@@ -108,6 +108,8 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (code == TSDB_CODE_SUCCESS) {
       handle = qRegisterQInfo(pVnode->qMgmt, (uint64_t) pQInfo);
       if (handle == NULL) {  // failed to register qhandle
+        vError("vgId:%d QInfo:%p register qhandle failed, return to app, code:%s", pVnode->vgId, (void *)pQInfo,
+               tstrerror(pRsp->code));
         pRsp->code = TSDB_CODE_QRY_INVALID_QHANDLE;
         qDestroyQueryInfo(pQInfo);  // destroy it directly
       } else {
@@ -125,12 +127,14 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     } else {
       assert(pQInfo == NULL);
     }
+
     if (handle != NULL) {
+      vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, register qhandle and return to app", vgId, *handle);
+
       dnodePutItemIntoReadQueue(pVnode, *handle);
       qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
     }
 
-    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
   } else {
     assert(pCont != NULL);
     handle = qAcquireQInfo(pVnode->qMgmt, (uint64_t) pCont);
@@ -138,12 +142,13 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       vWarn("QInfo:%p invalid qhandle in continuing exec query, conn:%p", (void*) pCont, pReadMsg->rpcMsg.handle);
       code = TSDB_CODE_QRY_INVALID_QHANDLE;
     } else {
-      vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, (void*) pCont);
+      vDebug("vgId:%d, QInfo:%p, dnode continue exec query", pVnode->vgId, (void*) pCont);
       code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
       qTableQuery(*handle); // do execute query
     }
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
   }
+
   return code;
 }
 
