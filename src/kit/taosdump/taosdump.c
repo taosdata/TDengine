@@ -406,7 +406,7 @@ int main(int argc, char *argv[]) {
     printf("password: %s\n", tsArguments.password);
     printf("port: %u\n", tsArguments.port);
     printf("cversion: %s\n", tsArguments.cversion);    
-    printf("mysqlFlag: %d", tsArguments.mysqlFlag);    
+    printf("mysqlFlag: %d\n", tsArguments.mysqlFlag);    
     printf("outpath: %s\n", tsArguments.outpath);
     printf("inpath: %s\n", tsArguments.inpath);
     printf("encode: %s\n", tsArguments.encode);
@@ -1083,7 +1083,6 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
     taos_free_result(tmpResult);
     exit(-1);
   }
-  taos_free_result(tmpResult);
 
   TAOS_FIELD *fields = taos_fetch_fields(tmpResult);
 
@@ -1363,7 +1362,7 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
     return -1;
   }
 
-  numFields = taos_field_count(taosCon);
+  numFields = taos_field_count(tmpResult);
   assert(numFields > 0);
   TAOS_FIELD *fields = taos_fetch_fields(tmpResult);
   tbuf = (char *)malloc(COMMAND_SIZE);
