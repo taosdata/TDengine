@@ -1,113 +1,53 @@
 $tblStart = 0
 $tblEnd = 2000
 $tsStart = 1325347200000  # 2012-01-01 00:00:00.000
+$tsEnd   = 1325347210000
 ###############################################################
 
 sql connect
+$db = db1
+$stb = stb1
+#subtable: tb0 - tb4999
+#print create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(16))
+
+sleep 20000 # wait other client insert data
 
 loop_lable:
 print ====================== client5 start loop query
 
-$db = db2
-$stb = stb2
+sql use $db   
 
-print create database if not exists $db replica 2
-sql create database if not exists $db replica 2
-sql use $db
+sql select count(*) from $stb
 
-print ==== client4start create table
-$i = $tblStart
-while $i < $tblEnd
-  $tb = dtb . $i
-  sql create table $tb (ts timestamp, c1 int)
-  $i = $i + 1
-endw 
+$tsQueryStart = $tsStart
+$tsQueryStart = $tsStart + 90000
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart order by ts asc limit 500 offset 7
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart order by ts desc limit 500 offset 7
 
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_0'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_1'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_2'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client1_3'
 
-print ==== client4start insert, include multi table data in one insert sql
-$totalRows = 0
-$totalRowsPerTbl = 0
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_0'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_1'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_2'
+sql select * from $stb where ts > $tsQueryStart and ts < $tsQueryStart and t2 == 'client2_3'
 
-$rowsPerLoop = 100
-$ts = $tsStart
+sql select min(c1)      from $stb
+sql select max(c1)      from $stb
+sql select first(*)     from $stb
+sql select last(*)      from $stb
+sql select last_row(*)  from $stb
+sql select sum(c1)      from $stb
+sql select avg(c1)      from $stb
 
-$i = $tblStart
-while $i < $tblEnd
-  $tb0 = dtb . $i
-  $i = $i + 1
-  $tb1 = dtb . $i
-  $i = $i + 1
-  $tb2 = dtb . $i
-  $i = $i + 1
-  $tb3 = dtb . $i
-  $i = $i + 1
-  $tb4 = dtb . $i  
-  $i = $i + 1  
-  
-  $x = 0
-  while $x < $rowsPerLoop
-    sql insert into $tb0 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb1 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb2 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb3 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb4 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) 
-    $x = $x + 20
-    $ts = $ts + 40a
-  endw 
-  
-  $totalRowsPerTbl = $totalRowsPerTbl + $x
-  $x = $x * 5
-  $totalRows = $totalRows + $x  
-endw 
-   
-sql select count(*) from tb10
-if $data00 != $totalRowsPerTbl then
-  print data00 $data00 totalRowsPerTbl $totalRowsPerTbl
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  print ************ client4   insert loss: $deltaRows *****
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-endi
+sql select min(c1)      from tb1
+sql select max(c1)      from tb10
+sql select first(*)     from tb100
+sql select last(*)      from tb1000
+sql select last_row(*)  from tb20
+sql select sum(c1)      from tb200
+sql select avg(c1)      from tb2000
 
-
-print ====client4 start alter table
-$i = $tblStart
-while $i < $tblEnd
-  $tb = dtb . $i
-  sql alter table $tb add c2 float
-  $i = $i + 1
-endw 
-
-print ====client4 continue insert, include multi table data in one insert sql
-
-$i = $tblStart
-while $i < $tblEnd
-  $tb0 = dtb . $i
-  $i = $i + 1
-  $tb1 = dtb . $i
-  $i = $i + 1
-  $tb2 = dtb . $i
-  $i = $i + 1
-  $tb3 = dtb . $i
-  $i = $i + 1
-  $tb4 = dtb . $i  
-  $i = $i + 1  
-  
-  $x = 0
-  while $x < $rowsPerLoop
-    sql insert into $tb0 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb1 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb2 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb3 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) $tb4 values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x ) 
-    $x = $x + 20
-    $ts = $ts + 40a
-  endw 
-  
-  $totalRowsPerTbl = $totalRowsPerTbl + $x
-  $x = $x * 5
-  $totalRows = $totalRows + $x  
-endw 
-   
-sql select count(*) from tb10
-if $data00 != $totalRowsPerTbl then
-  print data00 $data00 totalRowsPerTbl $totalRowsPerTbl
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  print ************ client4   insert loss: $deltaRows *****
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-endi
-
-print ====================== client4 drop database
-sql drop if exists database $db 
 goto loop_lable
