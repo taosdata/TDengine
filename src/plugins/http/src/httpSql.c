@@ -226,9 +226,9 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
     if (numOfRows < 0) {
       httpError("context:%p, fd:%d, ip:%s, user:%s, retrieve failed, code:%s", pContext, pContext->fd, pContext->ipstr,
                 pContext->user, tstrerror(numOfRows));
-    } 
-    
-    taos_free_result(result);    
+    }
+
+    taos_free_result(result);
 
     if (encode->stopJsonFp) {
       (encode->stopJsonFp)(pContext, &pContext->singleCmd);

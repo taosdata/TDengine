@@ -6545,13 +6545,14 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
 
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool == NULL) {
+    qError("QInfo:%p failed to add qhandle into qMgmt, since qMgmt is closed", (void *)qInfo);
     return NULL;
   }
 
   pthread_mutex_lock(&pQueryMgmt->lock);
   if (pQueryMgmt->closed) {
     pthread_mutex_unlock(&pQueryMgmt->lock);
-
+    qError("QInfo:%p failed to add qhandle into cache, since qMgmt is colsing", (void *)qInfo);
     return NULL;
   } else {
     uint64_t handleVal = (uint64_t) qInfo;
