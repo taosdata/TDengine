@@ -1740,10 +1740,12 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
         return code;
       }
 
-      if (pMsg->pVgroup == NULL) {
-        pMsg->pVgroup = pVgroup;
-        mnodeIncVgroupRef(pVgroup);
+      if (pMsg->pVgroup != NULL) {
+        mnodeDecVgroupRef(pMsg->pVgroup);
       }
+
+      pMsg->pVgroup = pVgroup;
+      mnodeIncVgroupRef(pVgroup);
 
       mDebug("app:%p:%p, table:%s, allocated in vgroup, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
              pVgroup->vgId, sid);

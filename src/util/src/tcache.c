@@ -413,57 +413,90 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   *data = NULL;
 
   // note: extend lifespan before dec ref count
-  if (pCacheObj->extendLifespan) {
+  bool inTrashCan = pNode->inTrashCan;
+
+  if (pCacheObj->extendLifespan && (!inTrashCan)) {
     atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
     uDebug("cache:%s data:%p extend life time to %"PRId64 "  before release", pCacheObj->name, pNode->data, pNode->expireTime);
   }
 
-  bool inTrashCan = pNode->inTrashCan;
-  uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, T_REF_VAL_GET(pNode) - 1);
+  if (_remove) {
+    __cache_wr_lock(pCacheObj);
 
-  // NOTE: once refcount is decrease, pNode may be free by other thread immediately.
-  int32_t ref = T_REF_DEC(pNode);
+    // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
+    int32_t ref = T_REF_DEC(pNode);
+    uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, ref);
 
-  if (inTrashCan) {
-    // Remove it if the ref count is 0.
-    // The ref count does not need to load and check again after lock acquired, since ref count can not be increased when
-    // the node is in trashcan.
-    if (ref == 0) {
-      __cache_wr_lock(pCacheObj);
-      assert(pNode->pTNodeHeader->pData == pNode);
-      taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
-      __cache_unlock(pCacheObj);
+    /*
+     * If it is not referenced by other users, remove it immediately. Otherwise move this node to trashcan wait for all users
+     * releasing this resources.
+     *
+     * NOTE: previous ref is 0, and current ref is still 0, remove it. If previous is not 0, there is another thread
+     * that tries to do the same thing.
+     */
+    if (pNode->inTrashCan) {
+      if (ref == 0) {
+        assert(pNode->pTNodeHeader->pData == pNode);
+        taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
+      }
+    } else {
+      if (ref > 0) {
+        assert(pNode->pTNodeHeader == NULL);
+        taosCacheMoveToTrash(pCacheObj, pNode);
+      } else {
+        taosCacheReleaseNode(pCacheObj, pNode);
+      }
     }
+
+    __cache_unlock(pCacheObj);
 
   } else {
-    assert(pNode->pTNodeHeader == NULL);
+    uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, T_REF_VAL_GET(pNode) - 1);
 
-    if (_remove) { // not in trash can, but need to remove it
-      __cache_wr_lock(pCacheObj);
+    // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
+    int32_t ref = T_REF_DEC(pNode);
 
-      /*
-       * If not referenced by other users. Otherwise move this node to trashcan wait for all users
-       * releasing this resources.
-       *
-       * NOTE: previous ref is 0, and current ref is still 0, remove it. If previous is not 0, there is another thread
-       * that tries to do the same thing.
-       */
+    if (inTrashCan) {
+      // Remove it if the ref count is 0.
+      // The ref count does not need to load and check again after lock acquired, since ref count can not be increased when
+      // the node is in trashcan.
       if (ref == 0) {
-        if (T_REF_VAL_GET(pNode) == 0) {
-          taosCacheReleaseNode(pCacheObj, pNode);
-        } else {
-          taosCacheMoveToTrash(pCacheObj, pNode);
-        }
+        __cache_wr_lock(pCacheObj);
+        assert(pNode->pTNodeHeader->pData == pNode);
+        taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
+        __cache_unlock(pCacheObj);
       }
 
-      __cache_unlock(pCacheObj);
-//    } else { // extend its life time
-//      if (pCacheObj->extendLifespan) {
-//        atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
-//        uDebug("cache:%s data:%p extend life time to %"PRId64 " after release", pCacheObj->name, pNode->data, pNode->expireTime);
-//      }
     }
   }
+
+//   else {
+//    if (_remove) { // not in trash can, but need to remove it
+//      __cache_wr_lock(pCacheObj);
+//
+//      /*
+//       * If not referenced by other users. Otherwise move this node to trashcan wait for all users
+//       * releasing this resources.
+//       *
+//       * NOTE: previous ref is 0, and current ref is still 0, remove it. If previous is not 0, there is another thread
+//       * that tries to do the same thing.
+//       */
+//      if (ref == 0) {
+//        if (T_REF_VAL_GET(pNode) == 0) {
+//          taosCacheReleaseNode(pCacheObj, pNode);
+//        } else {
+//          taosCacheMoveToTrash(pCacheObj, pNode);
+//        }
+//      } else if (ref > 0) {
+//        if (!pNode->inTrashCan) {
+//          assert(pNode->pTNodeHeader == NULL);
+//          taosCacheMoveToTrash(pCacheObj, pNode);
+//        }
+//      }
+//
+//      __cache_unlock(pCacheObj);
+//    }
+//  }
 }
 
 void taosCacheEmpty(SCacheObj *pCacheObj) {
