@@ -30,8 +30,12 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
+#include "qsqlparser.h"
+#include "tcmdtype.h"
+#include "tstoken.h"
+#include "ttokendef.h"
 #include "tutil.h"
-
+#include "tvariant.h"
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols
 ** in a format understandable to "makeheaders".  This section is blank unless
@@ -2252,7 +2256,7 @@ static void yy_reduce(
   yymsp[-1].minor.yy158 = yylhsminor.yy158;
         break;
       case 93: /* db_optr ::= db_optr fsync */
-{ yylhsminor.yy158 = yymsp[-1].minor.yy158; yylhsminor.yy158.fsyncPeriod = strtod(yymsp[0].minor.yy0.z, NULL); }
+{ yylhsminor.yy158 = yymsp[-1].minor.yy158; yylhsminor.yy158.fsyncPeriod = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
   yymsp[-1].minor.yy158 = yylhsminor.yy158;
         break;
       case 94: /* db_optr ::= db_optr comp */
@@ -2273,7 +2277,7 @@ static void yy_reduce(
 { setDefaultCreateDbOption(&yymsp[1].minor.yy158);}
         break;
       case 104: /* alter_db_optr ::= alter_db_optr fsync */
-{ yylhsminor.yy158 = yymsp[-1].minor.yy158; yylhsminor.yy158.fsyncPeriod = strtod(yymsp[0].minor.yy0.z, NULL, 10); }
+{ yylhsminor.yy158 = yymsp[-1].minor.yy158; yylhsminor.yy158.fsyncPeriod = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
   yymsp[-1].minor.yy158 = yylhsminor.yy158;
         break;
       case 105: /* typename ::= ids */

@@ -237,7 +237,7 @@ db_optr(Y) ::= db_optr(Z) maxrows(X).        { Y = Z; Y.maxRowsPerBlock = strtod
 db_optr(Y) ::= db_optr(Z) blocks(X).         { Y = Z; Y.numOfBlocks = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) ctime(X).          { Y = Z; Y.commitTime = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) wal(X).            { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
-db_optr(Y) ::= db_optr(Z) fsync(X).          { Y = Z; Y.fsyncPeriod = strtod(X.z, NULL); }
+db_optr(Y) ::= db_optr(Z) fsync(X).          { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) comp(X).           { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
 db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }

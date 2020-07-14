@@ -68,7 +68,10 @@ static void walRelease(SWal *pWal);
 
 static void walModuleInitFunc() {
   walTmrCtrl = taosTmrInit(1000, 100, 300000, "WAL");
-  if (walTmrCtrl == NULL) walModuleInit = PTHREAD_ONCE_INIT;
+  if (walTmrCtrl == NULL) 
+    walModuleInit = PTHREAD_ONCE_INIT;
+  else
+    wDebug("WAL module is initialized");
 }
 
 void *walOpen(const char *path, const SWalCfg *pCfg) {
@@ -343,6 +346,7 @@ static void walRelease(SWal *pWal) {
     if (walTmrCtrl) taosTmrCleanUp(walTmrCtrl);
     walTmrCtrl = NULL;
     walModuleInit = PTHREAD_ONCE_INIT;
+    wDebug("WAL module is cleaned up");
   }
 }
 

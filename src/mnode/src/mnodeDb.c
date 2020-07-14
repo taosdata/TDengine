@@ -561,6 +561,12 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
+    pShow->bytes[cols] = 4;
+    pSchema[cols].type = TSDB_DATA_TYPE_INT;
+    strcpy(pSchema[cols].name, "fsync");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+
     pShow->bytes[cols] = 1;
     pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
     strcpy(pSchema[cols].name, "comp");
@@ -764,6 +770,7 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
   pCreate->daysToKeep2     = htonl(pCreate->daysToKeep2);
   pCreate->commitTime      = htonl(pCreate->commitTime);
+  pCreate->fsyncPeriod     = htonl(pCreate->fsyncPeriod);
   pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
   pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
   

@@ -5530,6 +5530,13 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
+  val = htonl(pCreate->fsyncPeriod);
+  if (val != -1 && (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD)) {
+    snprintf(msg, tListLen(msg), "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val,
+             TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+  }
+
   if (pCreate->compression != -1 &&
       (pCreate->compression < TSDB_MIN_COMP_LEVEL || pCreate->compression > TSDB_MAX_COMP_LEVEL)) {
     snprintf(msg, tListLen(msg), "invalid db option compression: %d valid range: [%d, %d]", pCreate->compression,
