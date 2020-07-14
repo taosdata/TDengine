@@ -12,6 +12,12 @@ system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 10
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 10
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 2
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 2
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 2
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 1000
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 1000
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
@@ -23,7 +29,7 @@ sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 
 print ======== step1 
-sql create database db replica 3 blocks 2 maxtables 1000
+sql create database db replica 3 blocks 2
 sql create table db.mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 $tbPrefix = db.t

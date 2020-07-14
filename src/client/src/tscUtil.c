@@ -1648,8 +1648,9 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   }
 
   pNew->fp = fp;
+  pNew->fetchFp = fp;
   pNew->param = param;
-  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pNew->maxRetry = TSDB_MAX_REPLICA;
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
@@ -1803,8 +1804,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   pNew->fp = fp;
+  pNew->fetchFp = fp;
+
   pNew->param = param;
-  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pNew->maxRetry = TSDB_MAX_REPLICA;
 
   char* name = pTableMetaInfo->name;
   STableMetaInfo* pFinalInfo = NULL;
@@ -2005,7 +2008,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
-  while (++pTableMetaInfo->vgroupIndex < totalVgroups) {
+  if (++pTableMetaInfo->vgroupIndex < totalVgroups) {
     tscDebug("%p results from vgroup index:%d completed, try next:%d. total vgroups:%d. current numOfRes:%" PRId64, pSql,
              pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVgroups, pRes->numOfClauseTotal);
 
@@ -2041,11 +2044,9 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     // set the callback function
     pSql->fp = fp;
-    int32_t ret = tscProcessSql(pSql);
-    if (ret == TSDB_CODE_SUCCESS) {
-      return;
-    } else {// todo check for failure
-    }
+    tscProcessSql(pSql);
+  } else {
+    tscDebug("%p try all %d vnodes, query complete. current numOfRes:%" PRId64, pSql, totalVgroups, pRes->numOfClauseTotal);
   }
 }
 

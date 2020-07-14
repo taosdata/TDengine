@@ -330,10 +330,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   return TSDB_CODE_SUCCESS;
 }
 
-bool stableQueryFunctChanged(int32_t funcId) {
-  return (aAggs[funcId].stableFuncId != funcId);
-}
-
 /**
  * the numOfRes should be kept, since it may be used later
  * and allow the ResultInfo to be re initialized
@@ -361,7 +357,6 @@ static bool function_setup(SQLFunctionCtx *pCtx) {
   }
   
   memset(pCtx->aOutputBuf, 0, (size_t)pCtx->outputBytes);
-  
   initResultInfo(pResInfo);
   return true;
 }
@@ -675,16 +670,16 @@ static void sum_func_second_merge(SQLFunctionCtx *pCtx) {
   }
 }
 
-static int32_t precal_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t statisRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
   return BLK_DATA_STATIS_NEEDED;
 }
 
-static int32_t data_req_load_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t dataBlockRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
   return BLK_DATA_ALL_NEEDED;
 }
 
 // todo: if  column in current data block are null, opt for this case
-static int32_t first_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -697,7 +692,7 @@ static int32_t first_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end,
   }
 }
 
-static int32_t last_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -709,34 +704,40 @@ static int32_t last_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, 
   }
 }
 
-static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
+
+  // not initialized yet, it is the first block, load it.
+  if (pCtx->aOutputBuf == NULL) {
+    return BLK_DATA_ALL_NEEDED;
+  }
   
-  // result buffer has not been set yet.
-  return BLK_DATA_ALL_NEEDED;
-  //todo optimize the filter info
-//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-//  if (pInfo->hasResult != DATA_SET_FLAG) {
-//    return BLK_DATA_ALL_NEEDED;
-//  } else {  // data in current block is not earlier than current result
-//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-//  }
+  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+  if (pInfo->hasResult != DATA_SET_FLAG) {
+    return BLK_DATA_ALL_NEEDED;
+  } else {  // data in current block is not earlier than current result
+    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+  }
 }
 
-static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i64Key) {
     return BLK_DATA_NO_NEEDED;
   }
-  
-  return BLK_DATA_ALL_NEEDED;
-//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-//  if (pInfo->hasResult != DATA_SET_FLAG) {
-//    return BLK_DATA_ALL_NEEDED;
-//  } else {
-//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-//  }
+
+  // not initialized yet, it is the first block, load it.
+  if (pCtx->aOutputBuf == NULL) {
+    return BLK_DATA_ALL_NEEDED;
+  }
+
+  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+  if (pInfo->hasResult != DATA_SET_FLAG) {
+    return BLK_DATA_ALL_NEEDED;
+  } else {
+    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1549,6 +1550,8 @@ static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t in
  * to decide if the value is earlier than current intermediate result
  */
 static void first_dist_function(SQLFunctionCtx *pCtx) {
+  assert(pCtx->size > 0);
+
   if (pCtx->size == 0) {
     return;
   }
@@ -1563,7 +1566,12 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
   }
   
   int32_t notNullElems = 0;
-  
+
+  // data block is discard, not loaded, do not need to check it
+  if (!pCtx->preAggVals.dataBlockLoaded) {
+    return;
+  }
+
   // find the first not null value
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
@@ -1584,10 +1592,6 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
 }
 
 static void first_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  if (pCtx->size == 0) {
-    return;
-  }
-  
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
@@ -1715,10 +1719,6 @@ static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t ind
 }
 
 static void last_dist_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->size == 0) {
-    return;
-  }
-  
   /*
    * 1. for scan data in asc order, no need to check data
    * 2. for data blocks that are not loaded, no need to check data
@@ -1726,7 +1726,12 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
   if (pCtx->order != pCtx->param[0].i64Key) {
     return;
   }
-  
+
+  // data block is discard, not loaded, do not need to check it
+  if (!pCtx->preAggVals.dataBlockLoaded) {
+    return;
+  }
+
   int32_t notNullElems = 0;
   
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
@@ -2123,55 +2128,6 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   tfree(pData);
 }
 
-bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *minval, char *maxval) {
-  STopBotInfo *pTopBotInfo = (STopBotInfo *)GET_RES_INFO(pCtx)->interResultBuf;
-  
-  int32_t numOfExistsRes = pTopBotInfo->num;
-  
-  // required number of results are not reached, continue load data block
-  if (numOfExistsRes < pCtx->param[0].i64Key) {
-    return true;
-  }
-  
-  tValuePair *pRes = (tValuePair*) pTopBotInfo->res;
-  
-  if (functionId == TSDB_FUNC_TOP) {
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        return GET_INT8_VAL(maxval) > pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_SMALLINT:
-        return GET_INT16_VAL(maxval) > pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_INT:
-        return GET_INT32_VAL(maxval) > pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_BIGINT:
-        return GET_INT64_VAL(maxval) > pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_FLOAT:
-        return GET_FLOAT_VAL(maxval) > pRes[0].v.dKey;
-      case TSDB_DATA_TYPE_DOUBLE:
-        return GET_DOUBLE_VAL(maxval) > pRes[0].v.dKey;
-      default:
-        return true;
-    }
-  } else {
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        return GET_INT8_VAL(minval) < pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_SMALLINT:
-        return GET_INT16_VAL(minval) < pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_INT:
-        return GET_INT32_VAL(minval) < pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_BIGINT:
-        return GET_INT64_VAL(minval) < pRes[0].v.i64Key;
-      case TSDB_DATA_TYPE_FLOAT:
-        return GET_FLOAT_VAL(minval) < pRes[0].v.dKey;
-      case TSDB_DATA_TYPE_DOUBLE:
-        return GET_DOUBLE_VAL(minval) < pRes[0].v.dKey;
-      default:
-        return true;
-    }
-  }
-}
-
 /*
  * Parameters values:
  * 1. param[0]: maximum allowable results
@@ -2182,12 +2138,59 @@ bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *mi
  */
 static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   // only the first_stage_merge is directly written data into final output buffer
   if (pResInfo->superTableQ && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
     return (STopBotInfo*) pCtx->aOutputBuf;
-  } else {  // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
+  } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
     return pResInfo->interResultBuf;
+  }
+}
+
+bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval) {
+  STopBotInfo *pTopBotInfo = getTopBotOutputInfo(pCtx);
+  
+  // required number of results are not reached, continue load data block
+  if (pTopBotInfo->num < pCtx->param[0].i64Key) {
+    return true;
+  }
+  
+  tValuePair **pRes = (tValuePair**) pTopBotInfo->res;
+  
+  if (functionId == TSDB_FUNC_TOP) {
+    switch (pCtx->inputType) {
+      case TSDB_DATA_TYPE_TINYINT:
+        return GET_INT8_VAL(maxval) > pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_SMALLINT:
+        return GET_INT16_VAL(maxval) > pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_INT:
+        return GET_INT32_VAL(maxval) > pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_BIGINT:
+        return GET_INT64_VAL(maxval) > pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_FLOAT:
+        return GET_FLOAT_VAL(maxval) > pRes[0]->v.dKey;
+      case TSDB_DATA_TYPE_DOUBLE:
+        return GET_DOUBLE_VAL(maxval) > pRes[0]->v.dKey;
+      default:
+        return true;
+    }
+  } else {
+    switch (pCtx->inputType) {
+      case TSDB_DATA_TYPE_TINYINT:
+        return GET_INT8_VAL(minval) < pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_SMALLINT:
+        return GET_INT16_VAL(minval) < pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_INT:
+        return GET_INT32_VAL(minval) < pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_BIGINT:
+        return GET_INT64_VAL(minval) < pRes[0]->v.i64Key;
+      case TSDB_DATA_TYPE_FLOAT:
+        return GET_FLOAT_VAL(minval) < pRes[0]->v.dKey;
+      case TSDB_DATA_TYPE_DOUBLE:
+        return GET_DOUBLE_VAL(minval) < pRes[0]->v.dKey;
+      default:
+        return true;
+    }
   }
 }
 
@@ -3376,7 +3379,7 @@ static void spread_function(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   SSpreadInfo *pInfo = pResInfo->interResultBuf;
   
-  int32_t numOfElems = pCtx->size;
+  int32_t numOfElems = 0;
   
   // todo : opt with pre-calculated result
   // column missing cause the hasNull to be true
@@ -4412,7 +4415,7 @@ static void sumrate_finalizer(SQLFunctionCtx *pCtx) {
  *    e.g., count/sum/avg/min/max/stddev/percentile/apercentile/first/last...
  *
  */
-int32_t funcCompatDefList[] = {
+int32_t functionCompatList[] = {
     // count,       sum,      avg,       min,      max,  stddev,    percentile, apercentile, first,   last
     1,          1,        1,         1,        1,      1,          1,           1,        1,      1,
     // last_row,    top,    bottom,     spread,    twa,  leastsqr,     ts,       ts_dummy, tag_dummy, ts_z
@@ -4451,7 +4454,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               sum_func_merge,
                               sum_func_second_merge,
-                              precal_req_load_info,
+                              statisRequired,
                           },
                           {
                               // 2
@@ -4466,7 +4469,7 @@ SQLAggFuncElem aAggs[] = {{
                               avg_finalizer,
                               avg_func_merge,
                               avg_func_second_merge,
-                              precal_req_load_info,
+                              statisRequired,
                           },
                           {
                               // 3
@@ -4481,7 +4484,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               min_func_merge,
                               min_func_second_merge,
-                              precal_req_load_info,
+                              statisRequired,
                           },
                           {
                               // 4
@@ -4496,7 +4499,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               max_func_merge,
                               max_func_second_merge,
-                              precal_req_load_info,
+                              statisRequired,
                           },
                           {
                               // 5
@@ -4511,7 +4514,7 @@ SQLAggFuncElem aAggs[] = {{
                               stddev_finalizer,
                               noop1,
                               noop1,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 6
@@ -4526,7 +4529,7 @@ SQLAggFuncElem aAggs[] = {{
                               percentile_finalizer,
                               noop1,
                               noop1,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 7
@@ -4541,7 +4544,7 @@ SQLAggFuncElem aAggs[] = {{
                               apercentile_finalizer,
                               apercentile_func_merge,
                               apercentile_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 8
@@ -4556,7 +4559,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               noop1,
                               noop1,
-                              first_data_req_info,
+                              firstFuncRequired,
                           },
                           {
                               // 9
@@ -4571,7 +4574,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               noop1,
                               noop1,
-                              last_data_req_info,
+                              lastFuncRequired,
                           },
                           {
                               // 10
@@ -4587,7 +4590,7 @@ SQLAggFuncElem aAggs[] = {{
                               last_row_finalizer,
                               noop1,
                               last_dist_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 11
@@ -4603,7 +4606,7 @@ SQLAggFuncElem aAggs[] = {{
                               top_bottom_func_finalizer,
                               top_func_merge,
                               top_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 12
@@ -4619,7 +4622,7 @@ SQLAggFuncElem aAggs[] = {{
                               top_bottom_func_finalizer,
                               bottom_func_merge,
                               bottom_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 13
@@ -4649,7 +4652,7 @@ SQLAggFuncElem aAggs[] = {{
                               twa_function_finalizer,
                               twa_func_merge,
                               twa_function_copy,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 15
@@ -4664,7 +4667,7 @@ SQLAggFuncElem aAggs[] = {{
                               leastsquares_finalizer,
                               noop1,
                               noop1,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 16
@@ -4694,7 +4697,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               copy_function,
                               copy_function,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 18
@@ -4724,7 +4727,7 @@ SQLAggFuncElem aAggs[] = {{
                               ts_comp_finalize,
                               copy_function,
                               copy_function,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 20
@@ -4754,7 +4757,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               copy_function,
                               copy_function,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 22, multi-output, tag function has only one result
@@ -4784,7 +4787,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               copy_function,
                               copy_function,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 24
@@ -4799,7 +4802,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               noop1,
                               noop1,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
     // distributed version used in two-stage aggregation processes
                           {
@@ -4815,7 +4818,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               first_dist_func_merge,
                               first_dist_func_second_merge,
-                              first_dist_data_req_info,
+                              firstDistFuncRequired,
                           },
                           {
                               // 26
@@ -4830,7 +4833,7 @@ SQLAggFuncElem aAggs[] = {{
                               function_finalizer,
                               last_dist_func_merge,
                               last_dist_func_second_merge,
-                              last_dist_data_req_info,
+                              lastDistFuncRequired,
                           },
                           {
                               // 27
@@ -4845,7 +4848,7 @@ SQLAggFuncElem aAggs[] = {{
                               doFinalizer,
                               noop1,
                               copy_function,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 28
@@ -4860,7 +4863,7 @@ SQLAggFuncElem aAggs[] = {{
                               rate_finalizer,
                               rate_func_merge,
                               rate_func_copy,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 29
@@ -4875,7 +4878,7 @@ SQLAggFuncElem aAggs[] = {{
                               rate_finalizer,
                               rate_func_merge,
                               rate_func_copy,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 30
@@ -4890,7 +4893,7 @@ SQLAggFuncElem aAggs[] = {{
                               sumrate_finalizer,
                               sumrate_func_merge,
                               sumrate_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 31
@@ -4905,7 +4908,7 @@ SQLAggFuncElem aAggs[] = {{
                               sumrate_finalizer,
                               sumrate_func_merge,
                               sumrate_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 32
@@ -4920,7 +4923,7 @@ SQLAggFuncElem aAggs[] = {{
                               sumrate_finalizer,
                               sumrate_func_merge,
                               sumrate_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 33
@@ -4935,7 +4938,7 @@ SQLAggFuncElem aAggs[] = {{
                               sumrate_finalizer,
                               sumrate_func_merge,
                               sumrate_func_second_merge,
-                              data_req_load_info,
+                              dataBlockRequired,
                           },
                           {
                               // 34
@@ -4950,5 +4953,5 @@ SQLAggFuncElem aAggs[] = {{
                               noop1,
                               noop1,
                               noop1,
-                              data_req_load_info,
+                              dataBlockRequired,
                           }};

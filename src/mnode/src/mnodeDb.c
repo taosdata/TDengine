@@ -38,6 +38,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
+#define VG_LIST_SIZE 8
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
@@ -50,8 +51,14 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 
+static void mnodeDestroyDb(SDbObj *pDb) {
+  pthread_mutex_destroy(&pDb->mutex);
+  tfree(pDb->vgList);
+  tfree(pDb);
+}
+
 static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
-  tfree(pOper->pObj);
+  mnodeDestroyDb(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -59,8 +66,9 @@ static int32_t mnodeDbActionInsert(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
-  pDb->pHead = NULL;
-  pDb->pTail = NULL;
+  pthread_mutex_init(&pDb->mutex, NULL);
+  pDb->vgListSize = VG_LIST_SIZE;
+  pDb->vgList = calloc(pDb->vgListSize, sizeof(SVgObj *));
   pDb->numOfVgroups = 0;
   pDb->numOfTables = 0;
   pDb->numOfSuperTables = 0;
@@ -94,14 +102,15 @@ static int32_t mnodeDbActionDelete(SSdbOper *pOper) {
 }
 
 static int32_t mnodeDbActionUpdate(SSdbOper *pOper) {
-  SDbObj *pDb = pOper->pObj;
-  SDbObj *pSaved = mnodeGetDb(pDb->name);
-  if (pDb != pSaved) {
-    memcpy(pSaved, pDb, pOper->rowSize);
-    free(pDb);
+  SDbObj *pNew = pOper->pObj;
+  SDbObj *pDb = mnodeGetDb(pNew->name);
+  if (pDb != NULL && pNew != pDb) {
+    memcpy(pDb, pNew, pOper->rowSize);
+    free(pNew->vgList);
+    free(pNew);
   }
-  mnodeUpdateAllDbVgroups(pSaved);
-  mnodeDecDbRef(pSaved);
+  //mnodeUpdateAllDbVgroups(pDb);
+  mnodeDecDbRef(pDb);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -278,9 +287,9 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->replications < TSDB_MIN_REPLICA_NUM || pCfg->replications > TSDB_MAX_REPLICA_NUM) {
-    mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_REPLICA_NUM,
-           TSDB_MAX_REPLICA_NUM);
+  if (pCfg->replications < TSDB_MIN_DB_REPLICA_OPTION || pCfg->replications > TSDB_MAX_DB_REPLICA_OPTION) {
+    mError("invalid db option replications:%d valid range: [%d, %d]", pCfg->replications, TSDB_MIN_DB_REPLICA_OPTION,
+           TSDB_MAX_DB_REPLICA_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
@@ -384,7 +393,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);
+    mnodeDestroyDb(pDb);
     mLInfo("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     return code;
   } else {
@@ -421,45 +430,33 @@ void mnodePrintVgroups(SDbObj *pDb, char *oper) {
 void mnodeAddVgroupIntoDb(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
 
-  pVgroup->next = pDb->pHead;
-  pVgroup->prev = NULL;
+  pthread_mutex_lock(&pDb->mutex);
+  int32_t vgPos = pDb->numOfVgroups++;
+  if (vgPos >= pDb->vgListSize) {
+    pDb->vgList = realloc(pDb->vgList, pDb->vgListSize * 2 * sizeof(SVgObj *));
+    memset(pDb->vgList + pDb->vgListSize, 0, pDb->vgListSize * sizeof(SVgObj *));
+    pDb->vgListSize *= 2;
+  }
 
-  if (pDb->pHead) pDb->pHead->prev = pVgroup;
-  if (pDb->pTail == NULL) pDb->pTail = pVgroup;
-
-  pDb->pHead = pVgroup;
-  pDb->numOfVgroups++;
-}
-
-void mnodeAddVgroupIntoDbTail(SVgObj *pVgroup) {
-  SDbObj *pDb = pVgroup->pDb;
-  pVgroup->next = NULL;
-  pVgroup->prev = pDb->pTail;
-
-  if (pDb->pTail) pDb->pTail->next = pVgroup;
-  if (pDb->pHead == NULL) pDb->pHead = pVgroup;
-
-  pDb->pTail = pVgroup;
-  pDb->numOfVgroups++;
+  pDb->vgList[vgPos] = pVgroup;
+  pthread_mutex_unlock(&pDb->mutex);
 }
 
 void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
-  if (pVgroup->prev) pVgroup->prev->next = pVgroup->next;
-  if (pVgroup->next) pVgroup->next->prev = pVgroup->prev;
-  if (pVgroup->prev == NULL) pDb->pHead = pVgroup->next;
-  if (pVgroup->next == NULL) pDb->pTail = pVgroup->prev;
-  pDb->numOfVgroups--;
-}
 
-void mnodeMoveVgroupToTail(SVgObj *pVgroup) {
-  mnodeRemoveVgroupFromDb(pVgroup);
-  mnodeAddVgroupIntoDbTail(pVgroup);
-}
+  pthread_mutex_lock(&pDb->mutex);
+  for (int32_t v1 = 0; v1 < pDb->numOfVgroups; ++v1) {
+    if (pDb->vgList[v1] == pVgroup) {
+      for (int32_t v2 = v1; v2 < pDb->numOfVgroups - 1; ++v2) {
+        pDb->vgList[v2] = pDb->vgList[v2 + 1];
+      }
+      pDb->numOfVgroups--;
+      break;
+    }
+  }
 
-void mnodeMoveVgroupToHead(SVgObj *pVgroup) {
-  mnodeRemoveVgroupFromDb(pVgroup);
-  mnodeAddVgroupIntoDb(pVgroup);
+  pthread_mutex_unlock(&pDb->mutex);
 }
 
 void mnodeCleanupDbs() {
@@ -531,11 +528,6 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 #ifndef __CLOUD_VERSION__
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
-    pShow->bytes[cols] = 4;
-    pSchema[cols].type = TSDB_DATA_TYPE_INT;
-    strcpy(pSchema[cols].name, "maxtables");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
 
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -558,12 +550,6 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
     strcpy(pSchema[cols].name, "maxrows");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 4;
-    pSchema[cols].type = TSDB_DATA_TYPE_INT;
-    strcpy(pSchema[cols].name, "ctime(Sec.)");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -677,10 +663,6 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int32_t *)pWrite = pDb->cfg.maxTables;  // table num can be created should minus 1
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
       cols++;
 
@@ -696,10 +678,6 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
       *(int32_t *)pWrite = pDb->cfg.maxRowsPerFileBlock;
       cols++;
       
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int32_t *)pWrite = pDb->cfg.commitTime;
-      cols++;
-
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int8_t *)pWrite = pDb->cfg.walLevel;
       cols++;

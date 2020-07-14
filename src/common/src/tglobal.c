@@ -38,7 +38,7 @@ uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
 uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
 uint16_t tsSyncPort = 6040;
 int32_t  tsStatusInterval = 1;  // second
-int16_t  tsNumOfVnodesPerCore = 8;
+int16_t  tsNumOfVnodesPerCore = 32;
 int16_t  tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 int32_t  tsNumOfMnodes = 3;
 int32_t  tsEnableVnodeBak = 1;
@@ -110,13 +110,11 @@ int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
 int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
 int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
 int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
-int32_t tsReplications  = TSDB_DEFAULT_REPLICA_NUM;
-
-#ifdef _TD_ARM_32_
-  int32_t tsMaxTablePerVnode = 100;
-#else
-  int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
-#endif
+int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
+int32_t tsMaxVgroupsPerDb  = 0;
+int32_t tsMinTablePerVnode = 100;
+int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
+int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 
 // balance
 int32_t tsEnableBalance = 1;
@@ -394,16 +392,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "numOfVnodesPerCore";
-  cfg.ptr = &tsNumOfVnodesPerCore;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 64;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "numOfTotalVnodes";
   cfg.ptr = &tsNumOfTotalVnodes;
   cfg.valType = TAOS_CFG_VTYPE_INT16;
@@ -606,9 +594,39 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "maxVgroupsPerDb";
+  cfg.ptr = &tsMaxVgroupsPerDb;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 8192;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   // database configs
-  cfg.option = "maxtablesPerVnode";
+  cfg.option = "maxTablesPerVnode";
   cfg.ptr = &tsMaxTablePerVnode;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_TABLES;
+  cfg.maxValue = TSDB_MAX_TABLES;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "minTablesPerVnode";
+  cfg.ptr = &tsMinTablePerVnode;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_TABLES;
+  cfg.maxValue = TSDB_MAX_TABLES;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tableIncStepPerVnode";
+  cfg.ptr = &tsTableIncStepPerVnode;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_TABLES;
@@ -701,8 +719,8 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsReplications;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_REPLICA_NUM;
-  cfg.maxValue = TSDB_MAX_REPLICA_NUM;
+  cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

@@ -128,12 +128,12 @@ endi
 if $data06 != 365,365,365 then 
  return -1
 endi
-print data08 = $data08
-if $data08 != $cache then
- print expect $cache, actual:$data08
+print data07 = $data07
+if $data07 != $cache then
+ print expect $cache, actual:$data07
  return -1
 endi
-if $data09 != 4 then
+if $data08 != 4 then
  return -1
 endi
 

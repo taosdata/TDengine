@@ -2471,7 +2471,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
     startIdx++;
   }
 
-  int32_t factor = funcCompatDefList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
+  int32_t factor = functionCompatList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
 
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
@@ -2489,7 +2489,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (funcCompatDefList[functionId] != factor) {
+    if (functionCompatList[functionId] != factor) {
       return false;
     }
   }
@@ -5489,9 +5489,9 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   }
 
   if (pCreate->replications != -1 &&
-      (pCreate->replications < TSDB_MIN_REPLICA_NUM || pCreate->replications > TSDB_MAX_REPLICA_NUM)) {
+      (pCreate->replications < TSDB_MIN_DB_REPLICA_OPTION || pCreate->replications > TSDB_MAX_DB_REPLICA_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
-             TSDB_MIN_REPLICA_NUM, TSDB_MAX_REPLICA_NUM);
+             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 

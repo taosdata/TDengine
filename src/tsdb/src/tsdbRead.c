@@ -1801,7 +1801,8 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   }
   
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
-  
+
+  // todo opt perf
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
   for(int32_t i = 0; i < numOfCols; ++i) {
     SDataStatis* st = &pHandle->statis[i];
@@ -1819,6 +1820,13 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   for(int32_t i = 0; i < numOfCols; ++i) {
     if (pHandle->statis[i].numOfNull == -1) { // set the column data are all NULL
       pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
+    }
+
+    // todo opt perf
+    SColumnInfo* pColInfo = taosArrayGet(pHandle->pColumns, i);
+    if (pColInfo->type == TSDB_DATA_TYPE_TIMESTAMP) {
+      pHandle->statis[i].min = pBlockInfo->compBlock->keyFirst;
+      pHandle->statis[i].max = pBlockInfo->compBlock->keyLast;
     }
   }
   
@@ -2193,7 +2201,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
   int32_t ret = TSDB_CODE_SUCCESS;
   tExprNode* expr = NULL;
 
-  TRY(32) {
+  TRY(TSDB_MAX_TAGS) {
     expr = exprTreeFromTableName(tbnameCond);
     if (expr == NULL) {
       expr = exprTreeFromBinary(pTagCond, len);
@@ -2217,7 +2225,8 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
 
   } CATCH( code ) {
     CLEANUP_EXECUTE();
-    ret = code;
+    terrno = code;
+    goto _error; 
     // TODO: more error handling
   } END_TRY
 

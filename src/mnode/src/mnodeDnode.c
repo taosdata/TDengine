@@ -69,6 +69,7 @@ static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
+    pDnode->lastAccess = tsAccessSquence;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -187,7 +188,27 @@ int32_t mnodeGetDnodesNum() {
   return sdbGetNumOfRows(tsDnodeSdb);
 }
 
-int32_t mnodeGetOnlinDnodesNum(char *ep) {
+int32_t mnodeGetOnlinDnodesCpuCoreNum() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    cpuCores = 0;
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) {
+      cpuCores += pDnode->numOfCores;
+    }
+    mnodeDecDnodeRef(pDnode);
+  }
+
+  sdbFreeIter(pIter);
+
+  if (cpuCores < 2) cpuCores = 2;
+  return cpuCores;
+}
+
+int32_t mnodeGetOnlinDnodesNum() {
   SDnodeObj *pDnode = NULL;
   void *     pIter = NULL;
   int32_t    onlineDnodes = 0;
@@ -283,15 +304,17 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
-  if (clusterCfg->numOfMnodes        != tsNumOfMnodes)        return false;
-  if (clusterCfg->mnodeEqualVnodeNum != tsMnodeEqualVnodeNum) return false;
-  if (clusterCfg->offlineThreshold   != tsOfflineThreshold)   return false;
-  if (clusterCfg->statusInterval     != tsStatusInterval)     return false;
+  if (clusterCfg->numOfMnodes        != htonl(tsNumOfMnodes))        return false;
+  if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) return false;
+  if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold))   return false;
+  if (clusterCfg->statusInterval     != htonl(tsStatusInterval))     return false;
+  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode))   return false;
+  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb))    return false;
 
   if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) return false;
   if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone)))       return false;
-  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))              return false;
-  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))           return false;
+  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))             return false;
+  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))          return false;
     
   return true;
 }
@@ -376,7 +399,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     if (false == ret) {
       mnodeDecDnodeRef(pDnode);
       rpcFreeCont(pRsp);
-      mError("dnode %s cluster cfg parameters inconsistent", pStatus->dnodeEp);
+      mError("dnode:%d, %s cluster cfg parameters inconsistent", pDnode->dnodeId, pStatus->dnodeEp);
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }
     
@@ -468,18 +491,22 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
 
-  mnodeDecDnodeRef(pDnode);
   if (strcmp(pDnode->dnodeEp, mnodeGetMnodeMasterEp()) == 0) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
+    mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
   }
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
+
 #ifndef _SYNC
-  return mnodeDropDnode(pDnode, pMsg);
+  int32_t code = mnodeDropDnode(pDnode, pMsg);
 #else
-  return balanceDropDnode(pDnode);
+  int32_t code = balanceDropDnode(pDnode);
 #endif
+
+  mnodeDecDnodeRef(pDnode);
+  return code;
 }
 
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {

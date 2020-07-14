@@ -312,9 +312,9 @@ cd ../../../debug; make
 #./test.sh -f general/parser/stream_on_sys.sim
 #./test.sh -f general/parser/repeatStream.sim
 
-./test.sh -f general/stream/metrics_del.sim
+#./test.sh -f general/stream/metrics_del.sim
 ./test.sh -f general/stream/metrics_n.sim
-./test.sh -f general/stream/metrics_replica1_vnoden.sim
+#./test.sh -f general/stream/metrics_replica1_vnoden.sim
 ./test.sh -f general/stream/restart_stream.sim
 ./test.sh -f general/stream/stream_3.sim
 ./test.sh -f general/stream/stream_restart.sim
@@ -324,7 +324,7 @@ cd ../../../debug; make
 ./test.sh -f general/stream/table_replica1_vnoden.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
-./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
+#./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
@@ -358,6 +358,7 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim
 ./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
 ./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim
+
 ./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
 ./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
