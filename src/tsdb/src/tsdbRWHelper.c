@@ -256,7 +256,7 @@ int tsdbCommitTableData(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols 
     TSKEY keyFirst = tsdbNextIterKey(pCommitIter->pIter);
     if (keyFirst < 0 || keyFirst > maxKey) break;  // iter over
 
-    if (pIdx->offset <= 0 || keyFirst > pIdx->maxKey) {
+    if (pIdx->len <= 0 || keyFirst > pIdx->maxKey) {
       if (tsdbProcessAppendCommit(pHelper, pCommitIter, pDataCols, maxKey) < 0) return -1;
       blkIdx = pIdx->numOfBlocks;
     } else {
@@ -340,27 +340,30 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
       }
     }
   } else {
-    pHelper->pCompInfo->delimiter = TSDB_FILE_DELIMITER;
-    pHelper->pCompInfo->uid = pHelper->tableInfo.uid;
-    pHelper->pCompInfo->checksum = 0;
-    ASSERT((pIdx->len - sizeof(SCompInfo) - sizeof(TSCKSUM)) % sizeof(SCompBlock) == 0);
-    taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompInfo, pIdx->len);
-    offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
-    if (offset < 0) {
-      tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pHelper->pRepo), pHelper->files.nHeadF.fname,
-                strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
-    }
-    pIdx->offset = offset;
-    pIdx->uid = pHelper->tableInfo.uid;
-    ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
+    if (pIdx->len > 0) {
+      pHelper->pCompInfo->delimiter = TSDB_FILE_DELIMITER;
+      pHelper->pCompInfo->uid = pHelper->tableInfo.uid;
+      pHelper->pCompInfo->checksum = 0;
+      ASSERT(pIdx->len > sizeof(SCompInfo) + sizeof(TSCKSUM) &&
+             (pIdx->len - sizeof(SCompInfo) - sizeof(TSCKSUM)) % sizeof(SCompBlock) == 0);
+      taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompInfo, pIdx->len);
+      offset = lseek(pHelper->files.nHeadF.fd, 0, SEEK_END);
+      if (offset < 0) {
+        tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pHelper->pRepo), pHelper->files.nHeadF.fname,
+                  strerror(errno));
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return -1;
+      }
+      pIdx->offset = offset;
+      pIdx->uid = pHelper->tableInfo.uid;
+      ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
 
-    if (twrite(pHelper->files.nHeadF.fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
-      tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
-                pHelper->files.nHeadF.fname, strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
+      if (twrite(pHelper->files.nHeadF.fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
+        tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
+                  pHelper->files.nHeadF.fname, strerror(errno));
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return -1;
+      }
     }
   }
 
@@ -1337,9 +1340,9 @@ static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter,
   int        defaultRowsInBlock = pCfg->maxRowsPerFileBlock * 4 / 5;
   SCompBlock compBlock = {0};
 
-  ASSERT(pIdx->offset <= 0 || keyFirst > pIdx->maxKey);
+  ASSERT(pIdx->len <= 0 || keyFirst > pIdx->maxKey);
   if (pIdx->hasLast) {  // append to with last block
-    ASSERT(pIdx->offset > 0);
+    ASSERT(pIdx->len > 0);
     SCompBlock *pCompBlock = blockAtIdx(pHelper, pIdx->numOfBlocks - 1);
     ASSERT(pCompBlock->last && pCompBlock->numOfRows < pCfg->minRowsPerFileBlock);
     tdResetDataCols(pDataCols);
