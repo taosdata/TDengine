@@ -603,6 +603,8 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   tdInitDataCols(pQueryHandle->rhelper.pDataCols[0], pSchema);
   tdInitDataCols(pQueryHandle->rhelper.pDataCols[1], pSchema);
 
+//  int16_t* colIds = pQueryHandle->defaultLoadColumn->pData;
+//  int32_t ret = tsdbLoadBlockDataCols(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, QH_GET_NUM_OF_COLS(pQueryHandle));
   if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo) == 0) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
@@ -1361,7 +1363,6 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
   return TSDB_CODE_SUCCESS;
 }
 
-// todo opt for only one table case
 static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* exists) {
   pQueryHandle->numOfBlocks = 0;
   SQueryFilePos* cur = &pQueryHandle->cur;

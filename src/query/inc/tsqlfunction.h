@@ -132,12 +132,9 @@ typedef struct SQLPreAggVal {
 
 typedef struct SInterpInfoDetail {
   TSKEY  ts;  // interp specified timestamp
-  int8_t hasResult;
   int8_t type;
   int8_t primaryCol;
 } SInterpInfoDetail;
-
-typedef struct SInterpInfo { SInterpInfoDetail *pInterpDetail; } SInterpInfo;
 
 typedef struct SResultInfo {
   int8_t  hasResult;       // result generated, not NULL value
@@ -146,7 +143,7 @@ typedef struct SResultInfo {
   bool    superTableQ;     // is super table query
   int32_t numOfRes;        // num of output result in current buffer
   int32_t bufLen;          // buffer size
-  void *  interResultBuf;  // output result buffer
+  void*   interResultBuf;  // output result buffer
 } SResultInfo;
 
 struct SQLFunctionCtx;

@@ -86,7 +86,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOf
   return TSDB_CODE_SUCCESS;
 }
 
-static bool noMoreAvailablePages(SDiskbasedResultBuf* pResultBuf) {
+static FORCE_INLINE bool noMoreAvailablePages(SDiskbasedResultBuf* pResultBuf) {
   return (pResultBuf->allocateId == pResultBuf->numOfPages - 1);
 }
 
