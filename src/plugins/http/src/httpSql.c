@@ -243,10 +243,6 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode)
   if (pContext == NULL) return;
 
   int32_t code = taos_errno(result);
-  if (code != unUsedCode) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, resultset code:%s input code:%s not matched, sqlObj:%p", pContext,
-              pContext->fd, pContext->ipstr, pContext->user, tstrerror(code), tstrerror(unUsedCode), (SSqlObj *)result);
-  }
 
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
