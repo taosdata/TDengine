@@ -6333,6 +6333,7 @@ int32_t qKillQuery(qinfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
+  sem_post(&pQInfo->dataReady);
   setQueryKilled(pQInfo);
   return TSDB_CODE_SUCCESS;
 }
