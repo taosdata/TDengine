@@ -125,7 +125,8 @@ typedef struct SArithmeticSupport {
 } SArithmeticSupport;
 
 typedef struct SQLPreAggVal {
-  bool    isSet;
+  bool        isSet;             // statistics info set or not
+  bool        dataBlockLoaded;   // data block is loaded or not
   SDataStatis statis;
 } SQLPreAggVal;
 
@@ -224,24 +225,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)
 #define IS_OUTER_FORWARD(x)       (((x)&TSDB_FUNCSTATE_OF) != 0)
 
-/*
- * the status of one block, used in metric query. all blocks are mixed together,
- * we need the status to decide if one block is a first/end/inter block of one meter
- */
-enum {
-  BLK_FILE_BLOCK = 0x1,
-  BLK_BLOCK_LOADED = 0x2,
-  BLK_CACHE_BLOCK = 0x4,  // in case of cache block, block must be loaded
-};
-
 /* determine the real data need to calculated the result */
 enum {
-  BLK_DATA_NO_NEEDED = 0x0,
+  BLK_DATA_NO_NEEDED     = 0x0,
   BLK_DATA_STATIS_NEEDED = 0x1,
-  BLK_DATA_ALL_NEEDED = 0x3,
+  BLK_DATA_ALL_NEEDED    = 0x3,
+  BLK_DATA_DISCARD       = 0x4,   // discard current data block since it is not qualified for filter
 };
-
-#define SET_DATA_BLOCK_NOT_LOADED(x) ((x) &= (~BLK_BLOCK_LOADED));
 
 typedef struct STwaInfo {
   TSKEY   lastKey;
@@ -264,12 +254,9 @@ typedef struct STwaInfo {
 /* global sql function array */
 extern struct SQLAggFuncElem aAggs[];
 
-/* compatible check array list */
-extern int32_t funcCompatDefList[];
+extern int32_t functionCompatList[]; // compatible check array list
 
-bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *minval, char *maxval);
-
-bool stableQueryFunctChanged(int32_t funcId);
+bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval);
 
 void resetResultInfo(SResultInfo *pResInfo);
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf);
