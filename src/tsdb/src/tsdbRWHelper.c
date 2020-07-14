@@ -1476,7 +1476,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
         int rows3 = tsdbLoadDataFromCache(pTable, &slIter, keyLimit, INT_MAX, NULL, NULL, 0) + rows2;
         ASSERT(rows3 >= rows2);
 
-        if (pCompBlok->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && rows1 >= rows2) {
+        if (pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && rows1 >= rows2) {
           int rows = (rows1 >= rows3) ? rows3 : rows2;
           tdResetDataCols(pDataCols);
           int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, keyLimit, rows, pDataCols,
