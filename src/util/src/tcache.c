@@ -453,21 +453,20 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   } else {
     uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, T_REF_VAL_GET(pNode) - 1);
 
+    __cache_wr_lock(pCacheObj);
+
     // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
     int32_t ref = T_REF_DEC(pNode);
 
-    if (inTrashCan) {
+    if (inTrashCan && (ref == 0)) {
       // Remove it if the ref count is 0.
       // The ref count does not need to load and check again after lock acquired, since ref count can not be increased when
       // the node is in trashcan.
-      if (ref == 0) {
-        __cache_wr_lock(pCacheObj);
-        assert(pNode->pTNodeHeader->pData == pNode);
-        taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
-        __cache_unlock(pCacheObj);
-      }
-
+      assert(pNode->pTNodeHeader->pData == pNode);
+      taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
     }
+
+    __cache_unlock(pCacheObj);
   }
 
 //   else {
