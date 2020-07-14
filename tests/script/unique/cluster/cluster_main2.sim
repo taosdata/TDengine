@@ -84,6 +84,7 @@ run_back unique/cluster/main2_client2_2.sim
 run_back unique/cluster/main2_client2_3.sim
 run_back unique/cluster/client3.sim
 run_back unique/cluster/client4.sim
+run_back unique/cluster/client5.sim
 
 sleep 20000
 
