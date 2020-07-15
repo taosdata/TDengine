@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "taos.h"
 #include "tulog.h"
 #include "ttime.h"
@@ -154,7 +155,7 @@ void *threadFunc(void *param) {
     TAOS_RES *pSql = taos_query(con, qstr);
     code = taos_errno(pSql);
     if (code != 0) {
-      pError("failed to create table %s%d, reason:%s", stableName, t, taos_errstr(con));
+      pError("failed to create table %s%d, reason:%s", stableName, t, tstrerror(code));
     }
     taos_free_result(pSql);
   }
