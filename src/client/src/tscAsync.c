@@ -478,6 +478,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           tscDebug("%p redo parse sql string to build submit block", pSql);
 
           pCmd->parseFinished = false;
+          tscResetSqlCmdObj(pCmd);
+          
           code = tsParseSql(pSql, true);
 
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
