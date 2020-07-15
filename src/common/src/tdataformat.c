@@ -384,9 +384,11 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 }
 
 void tdResetDataCols(SDataCols *pCols) {
-  pCols->numOfRows = 0;
-  for (int i = 0; i < pCols->maxCols; i++) {
-    dataColReset(pCols->cols + i);
+  if (pCols != NULL) {
+    pCols->numOfRows = 0;
+    for (int i = 0; i < pCols->maxCols; i++) {
+      dataColReset(pCols->cols + i);
+    }
   }
 }
 

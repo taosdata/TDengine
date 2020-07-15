@@ -160,6 +160,7 @@ typedef struct {
   int32_t minRowsPerFileBlock;
   int32_t maxRowsPerFileBlock;
   int32_t commitTime;
+  int32_t fsyncPeriod;
   int8_t  precision;
   int8_t  compression;
   int8_t  walLevel;
