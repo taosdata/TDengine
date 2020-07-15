@@ -246,25 +246,25 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
   } else {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-    if (rpcMsg->code != TSDB_CODE_SUCCESS) {
-      if (pCmd->command == TSDB_SQL_CONNECT) {
-        rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-        rpcFreeCont(rpcMsg->pCont);
-        return;
-      }
+    // if (rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    //   if (pCmd->command == TSDB_SQL_CONNECT) {
+    //     rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    //     rpcFreeCont(rpcMsg->pCont);
+    //     return;
+    //   }
 
-      if (pCmd->command == TSDB_SQL_HB) {
-        rpcMsg->code = TSDB_CODE_RPC_NOT_READY;
-        rpcFreeCont(rpcMsg->pCont);
-        return;
-      }
+    //   if (pCmd->command == TSDB_SQL_HB) {
+    //     rpcMsg->code = TSDB_CODE_RPC_NOT_READY;
+    //     rpcFreeCont(rpcMsg->pCont);
+    //     return;
+    //   }
 
-      if (pCmd->command == TSDB_SQL_META || pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
-          pCmd->command == TSDB_SQL_STABLEVGROUP || pCmd->command == TSDB_SQL_SHOW ||
-          pCmd->command == TSDB_SQL_RETRIEVE) {
-        // get table meta/vgroup query will not retry, do nothing
-      }
-    }
+    //   if (pCmd->command == TSDB_SQL_META || pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
+    //       pCmd->command == TSDB_SQL_STABLEVGROUP || pCmd->command == TSDB_SQL_SHOW ||
+    //       pCmd->command == TSDB_SQL_RETRIEVE) {
+    //     // get table meta/vgroup query will not retry, do nothing
+    //   }
+    // }
 
     if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_INSERT ||
          pCmd->command == TSDB_SQL_UPDATE_TAGS_VAL) &&
