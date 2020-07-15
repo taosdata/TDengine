@@ -84,8 +84,17 @@ class WorkerThread:
         # Let us have a DB connection of our own
         if (gConfig.per_thread_db_connection):  # type: ignore
             # print("connector_type = {}".format(gConfig.connector_type))
-            self._dbConn = DbConn.createNative() if (
-                gConfig.connector_type == 'native') else DbConn.createRest()
+            if gConfig.connector_type == 'native':
+                self._dbConn = DbConn.createNative() 
+            elif gConfig.connector_type == 'rest':
+                self._dbConn = DbConn.createRest() 
+            elif gConfig.connector_type == 'mixed':
+                if Dice.throw(2) == 0: # 1/2 chance
+                    self._dbConn = DbConn.createNative() 
+                else:
+                    self._dbConn = DbConn.createRest() 
+            else:
+                raise RuntimeError("Unexpected connector type: {}".format(gConfig.connector_type))
 
         self._dbInUse = False  # if "use db" was executed already
 
@@ -528,7 +537,7 @@ class LinearQueue():
 
 class DbConn:
     TYPE_NATIVE = "native-c"
-    TYPE_REST = "rest-api"
+    TYPE_REST =   "rest-api"
     TYPE_INVALID = "invalid"
 
     @classmethod
@@ -735,7 +744,7 @@ class MyTDSql:
 class DbConnNative(DbConn):
     def __init__(self):
         super().__init__()
-        self._type = self.TYPE_REST
+        self._type = self.TYPE_NATIVE
         self._conn = None
         self._cursor = None
 
