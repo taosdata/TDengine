@@ -175,8 +175,7 @@ class TDDnode:
         self.cfg("logDir", self.logDir)
         self.cfg("numOfLogLines", "100000000")
         self.cfg("mnodeEqualVnodeNum", "0")
-        self.cfg("walLevel", "2")
-        self.cfg("fsync", "1000")
+        self.cfg("walLevel", "1")
         self.cfg("statusInterval", "1")
         self.cfg("numOfTotalVnodes", "64")
         self.cfg("numOfMnodes", "3")
@@ -236,7 +235,7 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s --alloc-random-fail --random-file-fail-factor 5 > /dev/null 2>&1 & " % (
+            cmd = "nohup %s -c %s --random-file-fail-factor 0 > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
