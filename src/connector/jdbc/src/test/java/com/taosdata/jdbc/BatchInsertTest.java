@@ -62,7 +62,7 @@ public class BatchInsertTest extends BaseTest {
     @Test
     public void testBatchInsert() throws SQLException{
         
-        ExecutorService executorService = Executors.newFixedThreadPool(numOfTables);
+        ExecutorService executorService = Executors.newFixedThreadPool(numOfTables);        
                     
         for (int i = 0; i < numOfTables; i++) { 
             final int index = i;                       
@@ -92,6 +92,14 @@ public class BatchInsertTest extends BaseTest {
                     }
                 }
             });
+        }
+
+        executorService.shutdown();
+
+        try {
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
         Statement statement = connection.createStatement();
