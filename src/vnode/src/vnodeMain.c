@@ -193,10 +193,12 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
     return code; 
   } 
 
-  code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
-  if (code != TSDB_CODE_SUCCESS) {
-    pVnode->status = TAOS_VN_STATUS_READY;
-    return code; 
+  if (pVnode->tsdb) {
+    code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
+    if (code != TSDB_CODE_SUCCESS) {
+      pVnode->status = TAOS_VN_STATUS_READY;
+      return code; 
+    }
   }
 
   pVnode->status = TAOS_VN_STATUS_READY;
@@ -572,7 +574,9 @@ static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
   // clsoe tsdb, then open tsdb
-  tsdbCloseRepo(pVnode->tsdb, 0);
+  void *tsdb = pVnode->tsdb;
+  pVnode->tsdb = NULL;
+  tsdbCloseRepo(tsdb, 0);
   STsdbAppH appH = {0};
   appH.appH = (void *)pVnode;
   appH.notifyStatus = vnodeProcessTsdbStatus;
