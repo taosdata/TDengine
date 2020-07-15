@@ -47,9 +47,9 @@ void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numO
     }
   }
 
-  if (tscResultsetFetchCompleted(result)) {
-    isContinue = false;
-  }
+  // if (tscResultsetFetchCompleted(result)) {
+  //   isContinue = false;
+  // }
 
   if (isContinue) {
     // retrieve next batch of rows
