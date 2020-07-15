@@ -6499,7 +6499,8 @@ void* qOpenQueryMgmt(int32_t vgId) {
 }
 
 static void queryMgmtKillQueryFn(void* handle) {
-  qKillQuery(handle);
+  void** fp = (void**)handle;
+  qKillQuery(*fp);
 }
 
 void qQueryMgmtNotifyClosed(void* pQMgmt) {
