@@ -401,6 +401,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.daysToKeep          = htonl(pCreate->cfg.daysToKeep);
   pCreate->cfg.minRowsPerFileBlock = htonl(pCreate->cfg.minRowsPerFileBlock);
   pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
+  pCreate->cfg.fsyncPeriod         = htonl(pCreate->cfg.fsyncPeriod);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
 
   for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {

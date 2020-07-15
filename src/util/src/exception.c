@@ -147,3 +147,6 @@ void cleanupExecuteTo( int32_t anchor, bool failed ) {
 void cleanupExecute( SExceptionNode* node, bool failed ) {
     doExecuteCleanup( node, 0, failed );
 }
+bool cleanupExceedLimit() {
+  return expList->numCleanupAction >= expList->maxCleanupAction;
+}

@@ -50,8 +50,15 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   
   // use the pointer arraylist
   pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
+  if (pWindowResInfo->pResult == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
-    createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
+    int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
   
   return TSDB_CODE_SUCCESS;
@@ -65,7 +72,7 @@ void destroyTimeWindowRes(SWindowResult *pWindowRes) {
   free(pWindowRes->resultInfo);
 }
 
-void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, int32_t numOfCols) {
+void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
   if (pWindowResInfo == NULL) {
     return;
   }
@@ -74,9 +81,10 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, int32_t numOfCols) {
     return;
   }
   
-  for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
-    SWindowResult *pResult = &pWindowResInfo->pResult[i];
-    destroyTimeWindowRes(pResult);
+  if (pWindowResInfo->pResult != NULL) {
+    for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
+      destroyTimeWindowRes(&pWindowResInfo->pResult[i]);
+    }
   }
   
   taosHashCleanup(pWindowResInfo->hashList);

@@ -294,7 +294,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);
-    uDebug("cache:%s, key:%p, %p exist in cache, updated", pCacheObj->name, key, pNode->data);
+    uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode->data, pOld);
   }
 
   __cache_unlock(pCacheObj);
@@ -307,26 +307,30 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     return NULL;
   }
 
+  void *pData = NULL;
+
   __cache_rd_lock(pCacheObj);
-  
+
   SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
 
   int32_t ref = 0;
   if (ptNode != NULL) {
     ref = T_REF_INC(*ptNode);
+    pData = (*ptNode)->data;
   }
+
   __cache_unlock(pCacheObj);
-  
-  if (ptNode != NULL) {
+
+  if (pData != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, (*ptNode)->data, ref);
+    uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, ref);
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
     uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
   }
-  
+
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
-  return (ptNode != NULL) ? (*ptNode)->data : NULL;
+  return pData;
 }
 
 void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime) {
@@ -453,21 +457,20 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   } else {
     uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, T_REF_VAL_GET(pNode) - 1);
 
+    __cache_wr_lock(pCacheObj);
+
     // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
     int32_t ref = T_REF_DEC(pNode);
 
-    if (inTrashCan) {
+    if (inTrashCan && (ref == 0)) {
       // Remove it if the ref count is 0.
       // The ref count does not need to load and check again after lock acquired, since ref count can not be increased when
       // the node is in trashcan.
-      if (ref == 0) {
-        __cache_wr_lock(pCacheObj);
-        assert(pNode->pTNodeHeader->pData == pNode);
-        taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
-        __cache_unlock(pCacheObj);
-      }
-
+      assert(pNode->pTNodeHeader->pData == pNode);
+      taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
     }
+
+    __cache_unlock(pCacheObj);
   }
 
 //   else {

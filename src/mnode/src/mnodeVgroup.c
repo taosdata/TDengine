@@ -323,7 +323,7 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
   if (pDb == NULL) return TSDB_CODE_MND_APP_ERROR;
 
   int32_t minIdPoolSize = TSDB_MAX_TABLES;
-  int32_t maxIdPoolSize = TSDB_MIN_TABLES;
+  int32_t maxIdPoolSize = tsMinTablePerVnode;
   for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
     SVgObj *pVgroup = pDb->vgList[v];
     if (pVgroup == NULL) continue;
@@ -347,10 +347,10 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
 
   // realloc all vgroups in db
   int32_t newIdPoolSize;
-  if (minIdPoolSize * 4 < TSDB_TABLES_STEP) {
+  if (minIdPoolSize * 4 < tsTableIncStepPerVnode) {
     newIdPoolSize = minIdPoolSize * 4;
   } else {
-    newIdPoolSize = ((minIdPoolSize / TSDB_TABLES_STEP) + 1) * TSDB_TABLES_STEP;
+    newIdPoolSize = ((minIdPoolSize / tsTableIncStepPerVnode) + 1) * tsTableIncStepPerVnode;
   }
 
   if (newIdPoolSize > tsMaxTablePerVnode) {
@@ -471,6 +471,8 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
   }
 
   pMsg->expected = pVgroup->numOfVnodes;
+  pMsg->successed = 0;
+  pMsg->received = 0;
   mnodeSendCreateVgroupMsg(pVgroup, pMsg);
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -755,6 +757,7 @@ SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
   pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
   pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
   pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
+  pCfg->fsyncPeriod         = htonl(pDb->cfg.fsyncPeriod);
   pCfg->commitTime          = htonl(pDb->cfg.commitTime);
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
@@ -835,6 +838,8 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   mDebug("vgId:%d, create vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
          pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
          mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
+
+  assert(mnodeMsg->received <= mnodeMsg->expected);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 

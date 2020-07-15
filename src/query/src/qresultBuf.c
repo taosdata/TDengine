@@ -26,27 +26,24 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t si
   pResBuf->path = strdup(path);
 
   pResBuf->fd = open(pResBuf->path, O_CREAT | O_RDWR, 0666);
-  
-  memset(path, 0, tListLen(path));
-
   if (!FD_VALID(pResBuf->fd)) {
     qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
-    return TSDB_CODE_QRY_NO_DISKSPACE;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   int32_t ret = ftruncate(pResBuf->fd, pResBuf->numOfPages * DEFAULT_INTERN_BUF_PAGE_SIZE);
   if (ret != TSDB_CODE_SUCCESS) {
     qError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
-    return TSDB_CODE_QRY_NO_DISKSPACE;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   pResBuf->pBuf = mmap(NULL, pResBuf->totalBufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pResBuf->fd, 0);
   if (pResBuf->pBuf == MAP_FAILED) {
     qError("QInfo:%p failed to map temp file: %s. %s", handle, pResBuf->path, strerror(errno));
-    return TSDB_CODE_QRY_OUT_OF_MEMORY; // todo change error code
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
-  qDebug("QInfo:%p create tmp file for output result: %s, %" PRId64 "bytes", handle, pResBuf->path,
+  qDebug("QInfo:%p create tmp file for output result:%s, %" PRId64 "bytes", handle, pResBuf->path,
       pResBuf->totalBufSize);
   
   return TSDB_CODE_SUCCESS;

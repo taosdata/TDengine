@@ -23,7 +23,7 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* dst, con
 int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type);
 
-void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo, int32_t numOfCols);
+void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo);
 void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
 void    clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
 
@@ -43,9 +43,7 @@ static FORCE_INLINE SWindowResult *getWindowResult(SWindowResInfo *pWindowResInf
 
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
-void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, size_t interBufSize);
-
-//char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult);
+int32_t createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, size_t interBufSize);
 
 static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult) {
   assert(pResult != NULL && pRuntimeEnv != NULL);

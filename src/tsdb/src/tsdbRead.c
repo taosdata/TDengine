@@ -93,7 +93,7 @@ typedef struct SBlockOrderSupporter {
 typedef struct SIOCostSummary {
   int64_t blockLoadTime;
   int64_t statisInfoLoadTime;
-  int64_t blockMergeTime;
+  int64_t checkForNextTime;
 } SIOCostSummary;
 
 typedef struct STsdbQueryHandle {
@@ -388,7 +388,7 @@ SDataRow getSDataRowInTableMem(STableCheckInfo* pCheckInfo) {
   return NULL;
 }
 
-bool moveToNextRow(STableCheckInfo* pCheckInfo) {
+static bool moveToNextRow(STableCheckInfo* pCheckInfo) {
   bool hasNext = false;
   if (pCheckInfo->chosen == 0) {
     if (pCheckInfo->iter != NULL) {
@@ -587,22 +587,13 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
                     .uid = (_checkInfo)->tableId.uid})
 
 
-
 static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo) {
   STsdbRepo *pRepo = pQueryHandle->pTsdb;
-
-  // TODO refactor
-  SCompData* data = calloc(1, sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols);
-
-  data->numOfCols = pBlock->numOfCols;
-  data->uid = pCheckInfo->pTableObj->tableId.uid;
-
-  bool    blockLoaded = false;
-  int64_t st = taosGetTimestampUs();
+  bool       blockLoaded = false;
+  int64_t    st = taosGetTimestampUs();
 
   if (pCheckInfo->pDataCols == NULL) {
     STsdbMeta* pMeta = tsdbGetMeta(pRepo);
-    // TODO
     pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
   }
 
@@ -611,9 +602,10 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   tdInitDataCols(pQueryHandle->rhelper.pDataCols[0], pSchema);
   tdInitDataCols(pQueryHandle->rhelper.pDataCols[1], pSchema);
 
-//  int16_t* colIds = pQueryHandle->defaultLoadColumn->pData;
-//  int32_t ret = tsdbLoadBlockDataCols(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, QH_GET_NUM_OF_COLS(pQueryHandle));
-  if (tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo) == 0) {
+  int16_t* colIds = pQueryHandle->defaultLoadColumn->pData;
+  int32_t ret = tsdbLoadBlockDataCols(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, QH_GET_NUM_OF_COLS(pQueryHandle));
+//  int32_t ret = tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo);
+    if (ret == TSDB_CODE_SUCCESS) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
     pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;
@@ -627,12 +619,10 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   assert(pCols->numOfRows != 0 && pCols->numOfRows <= pBlock->numOfRows);
 
   pBlock->numOfRows = pCols->numOfRows;
-  tfree(data);
 
-  int64_t et = taosGetTimestampUs() - st;
-
-  pQueryHandle->cost.blockLoadTime += et;
-  tsdbDebug("%p load file block into buffer, elapsed time:%"PRId64 " us", pQueryHandle, et);
+  int64_t elapsedTime = (taosGetTimestampUs() - st);
+  pQueryHandle->cost.blockLoadTime += elapsedTime;
+  tsdbDebug("%p load file block into buffer, elapsed time:%"PRId64 " us", pQueryHandle, elapsedTime);
 
   return blockLoaded;
 }
@@ -1492,7 +1482,10 @@ static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
 // handle data in cache situation
 bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
-  
+
+  int64_t stime = taosGetTimestampUs();
+  int64_t elapsedTime = stime;
+
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
 
@@ -1609,6 +1602,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     }
 
     if (exists) {
+      elapsedTime = taosGetTimestampUs() - stime;
+      pQueryHandle->cost.checkForNextTime += elapsedTime;
       return exists;
     }
   
@@ -1617,7 +1612,11 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   }
   
   // TODO: opt by consider the scan order
-  return doHasDataInBuffer(pQueryHandle);
+  bool ret = doHasDataInBuffer(pQueryHandle);
+
+  elapsedTime = taosGetTimestampUs() - stime;
+  pQueryHandle->cost.checkForNextTime += elapsedTime;
+  return ret;
 }
 
 void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {
@@ -1894,8 +1893,6 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
     }
   }
 }
-
-SArray* tsdbRetrieveDataRow(TsdbQueryHandleT* pQueryHandle, SArray* pIdList, SQueryRowCond* pCond) { return NULL; }
 
 static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
   SSkipListIterator* iter = tSkipListCreateIter(pSuperTable->pIndex);
@@ -2214,7 +2211,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
   int32_t ret = TSDB_CODE_SUCCESS;
   tExprNode* expr = NULL;
 
-  TRY(32) {
+  TRY(TSDB_MAX_TAGS) {
     expr = exprTreeFromTableName(tbnameCond);
     if (expr == NULL) {
       expr = exprTreeFromBinary(pTagCond, len);
@@ -2238,7 +2235,8 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, const char* pT
 
   } CATCH( code ) {
     CLEANUP_EXECUTE();
-    ret = code;
+    terrno = code;
+    goto _error; 
     // TODO: more error handling
   } END_TRY
 
@@ -2364,8 +2362,9 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
 
-  tsdbDebug(":io-cost summary: statis-info time:%"PRId64"us, datablock time:%" PRId64"us ,%p", pQueryHandle->cost.statisInfoLoadTime,
-      pQueryHandle->cost.blockLoadTime, pQueryHandle->qinfo);
+  SIOCostSummary* pCost = &pQueryHandle->cost;
+  tsdbDebug(":io-cost summary: statis-info:%"PRId64"us, datablock:%" PRId64"us, check data:%"PRId64"us, %p",
+      pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qinfo);
 
   tfree(pQueryHandle);
 }

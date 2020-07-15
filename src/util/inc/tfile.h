@@ -19,13 +19,14 @@
 #ifdef TAOS_RANDOM_FILE_FAIL
 
 void taosSetRandomFileFailFactor(int factor);
-ssize_t taos_tread(int fd, void *buf, size_t count);
-ssize_t taos_twrite(int fd, void *buf, size_t count);
-off_t taos_lseek(int fd, off_t offset, int whence);
+void taosSetRandomFileFailOutput(const char *path);
+ssize_t taos_tread(int fd, void *buf, size_t count, const char *file, uint32_t line);
+ssize_t taos_twrite(int fd, void *buf, size_t count, const char *file, uint32_t line);
+off_t taos_lseek(int fd, off_t offset, int whence, const char *file, uint32_t line);
 
-#define tread(fd, buf, count)  taos_tread(fd, buf, count)
-#define twrite(fd, buf, count)  taos_twrite(fd, buf, count)
-#define lseek(fd, offset, whence)  taos_lseek(fd, offset, whence)
+#define tread(fd, buf, count)  taos_tread(fd, buf, count, __FILE__, __LINE__)
+#define twrite(fd, buf, count)  taos_twrite(fd, buf, count, __FILE__, __LINE__)
+#define lseek(fd, offset, whence)  taos_lseek(fd, offset, whence, __FILE__, __LINE__)
 
 #endif  // TAOS_RANDOM_FILE_FAIL
 
