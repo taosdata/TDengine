@@ -116,6 +116,7 @@ typedef struct SCreateDBInfo {
   int32_t   daysPerFile;
   int32_t   minRowsPerBlock;
   int32_t   maxRowsPerBlock;
+  int32_t   fsyncPeriod;
   int64_t   commitTime;
   int32_t   walLevel;
   int32_t   compressionLevel;

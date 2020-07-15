@@ -69,6 +69,7 @@ int32_t vnodeInitResources() {
 }
 
 void vnodeCleanupResources() {
+
   if (tsDnodeVnodesHash != NULL) {
     taosHashCleanup(tsDnodeVnodesHash);
     tsDnodeVnodesHash = NULL;
@@ -137,7 +138,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_VND_INIT_FAILED;
   }
 
-  vInfo("vgId:%d, vnode is created, clog:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel);
+  vInfo("vgId:%d, vnode is created, walLevel:%d fsyncPeriod:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel, pVnodeCfg->cfg.fsyncPeriod);
   code = vnodeOpen(pVnodeCfg->cfg.vgId, rootDir);
 
   return code;
@@ -618,6 +619,7 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnodeCfg->cfg.precision);
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnodeCfg->cfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pVnodeCfg->cfg.walLevel);
+  len += snprintf(content + len, maxLen - len, "  \"fsync\": %d,\n", pVnodeCfg->cfg.fsyncPeriod);
   len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pVnodeCfg->cfg.replications);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pVnodeCfg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
@@ -781,6 +783,13 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     goto PARSE_OVER;
   }
   pVnode->walCfg.walLevel = (int8_t) walLevel->valueint;
+
+  cJSON *fsyncPeriod = cJSON_GetObjectItem(root, "fsync");
+  if (!walLevel || walLevel->type != cJSON_Number) {
+    vError("vgId:%d, failed to read vnode cfg, fsyncPeriod not found", pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->walCfg.fsyncPeriod = fsyncPeriod->valueint;
 
   cJSON *wals = cJSON_GetObjectItem(root, "wals");
   if (!wals || wals->type != cJSON_Number) {
