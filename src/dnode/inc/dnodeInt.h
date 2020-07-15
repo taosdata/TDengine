@@ -26,10 +26,10 @@ extern int32_t dDebugFlag;
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", 255, __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN  ", 255, __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND INFO  ", 255, __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND DEBUG ", dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND TRACE ", dDebugFlag, __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ", 255, __VA_ARGS__); }}
+#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", 255, __VA_ARGS__); }}
+#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
+#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 #ifdef __cplusplus
 }

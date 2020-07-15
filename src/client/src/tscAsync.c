@@ -478,6 +478,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           tscDebug("%p redo parse sql string to build submit block", pSql);
 
           pCmd->parseFinished = false;
+          tscResetSqlCmdObj(pCmd);
+          
           code = tsParseSql(pSql, true);
 
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -492,7 +494,23 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
            */
           pSql->fp = pSql->fetchFp;  // restore the fp
           tscHandleInsertRetry(pSql);
-        } else {// in case of other query type, continue
+        } else if (pCmd->command == TSDB_SQL_SELECT) {  // in case of other query type, continue
+          tscDebug("%p redo parse sql string and proceed", pSql);
+          //tscDebug("before  %p fp:%p, fetchFp:%p", pSql, pSql->fp, pSql->fetchFp);
+          pCmd->parseFinished = false;
+          tscResetSqlCmdObj(pCmd);
+
+          //tscDebug("after %p fp:%p, fetchFp:%p", pSql, pSql->fp, pSql->fetchFp);
+          code = tsParseSql(pSql, true);
+
+          if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            return;
+          } else if (code != TSDB_CODE_SUCCESS) {
+            goto _error;
+          }
+
+          tscProcessSql(pSql);
+        } else {  // in all other cases, simple retry
           tscProcessSql(pSql);
         }
 

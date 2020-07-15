@@ -50,6 +50,7 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup);
 static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
+static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) ;
 static void    mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
@@ -217,6 +218,7 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mnodeGetVgroupMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mnodeRetrieveVgroups);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
+  mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mnodeProcessDropVnodeRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mnodeProcessVnodeCfgMsg);
 
@@ -247,7 +249,7 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   if (sdbUpdateRow(&oper) != TSDB_CODE_SUCCESS) {
     mError("vgId:%d, failed to update vgroup", pVgroup->vgId);
   }
-  mnodeSendCreateVgroupMsg(pVgroup, NULL);
+  mnodeSendAlterVgroupMsg(pVgroup);
 }
 
 /*
@@ -272,9 +274,18 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
     }
 
     if (i == openVnodes && pVgroup->status == TAOS_VG_STATUS_READY) {
-      mnodeSendCreateVgroupMsg(pVgroup, NULL);
+      SDbObj *pDb = pVgroup->pDb;
+      if (pDb->cfgVersion != 0) {
+        mDebug("vgId:%d, not exist in dnode:%d and cfgVersion is %d, send alter msg", pVgroup->vgId, pDnode->dnodeId,
+               pDb->cfgVersion);
+        mnodeSendAlterVgroupMsg(pVgroup);
+      } else {
+        mDebug("vgId:%d, not exist in dnode:%d and cfgVersion is %d, send create msg", pVgroup->vgId, pDnode->dnodeId,
+               pDb->cfgVersion);
+        mnodeSendCreateVgroupMsg(pVgroup, NULL);
+      }
     }
-    
+
     mnodeDecVgroupRef(pVgroup);
   }
 
@@ -314,7 +325,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
     mError("dnode:%d, vgId:%d, vnode cfgVersion:%d repica:%d not match with mnode cfgVersion:%d replica:%d",
            pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
            pVgroup->numOfVnodes);
-    mnodeSendCreateVgroupMsg(pVgroup, NULL);
+    mnodeSendAlterVgroupMsg(pVgroup);
   }
 }
 
@@ -536,7 +547,7 @@ void mnodeCleanupVgroups() {
   tsVgroupSdb = NULL;
 }
 
-int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_MND_DB_NOT_SELECTED;
@@ -630,7 +641,7 @@ static bool mnodeFilterVgroups(SVgObj *pVgroup, STableObj *pTable) {
   }
 }
 
-int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
@@ -733,7 +744,7 @@ void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   }
 }
 
-SMDCreateVnodeMsg *mnodeBuildCreateVnodeMsg(SVgObj *pVgroup) {
+static SMDCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
   if (pDb == NULL) return NULL;
 
@@ -800,8 +811,31 @@ SRpcIpSet mnodeGetIpSetFromIp(char *ep) {
   return ipSet;
 }
 
-void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
-  SMDCreateVnodeMsg *pCreate = mnodeBuildCreateVnodeMsg(pVgroup);
+static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet) {
+  SMDAlterVnodeMsg *pAlter = mnodeBuildVnodeMsg(pVgroup);
+  SRpcMsg rpcMsg = {
+    .ahandle = NULL,
+    .pCont   = pAlter,
+    .contLen = pAlter ? sizeof(SMDAlterVnodeMsg) : 0,
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_ALTER_VNODE
+  };
+  dnodeSendMsgToDnode(ipSet, &rpcMsg);
+}
+
+void mnodeSendAlterVgroupMsg(SVgObj *pVgroup) {
+  mDebug("vgId:%d, send alter all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes,
+         pVgroup->dbName);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SRpcIpSet ipSet = mnodeGetIpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mDebug("vgId:%d, index:%d, send alter vnode msg to dnode %s", pVgroup->vgId, i,
+           pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mnodeSendAlterVnodeMsg(pVgroup, &ipSet);
+  }
+}
+
+static void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
+  SMDCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .ahandle = ahandle,
     .pCont   = pCreate,
@@ -821,6 +855,10 @@ void mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
            i, pVgroup->vnodeGid[i].pDnode->dnodeEp, ahandle);
     mnodeSendCreateVnodeMsg(pVgroup, &ipSet, ahandle);
   }
+}
+
+static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
+  mDebug("alter vnode rsp received");
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
