@@ -97,6 +97,11 @@ typedef struct {
 
 // ------------------ tsdbMemTable.c
 typedef struct {
+  STable *           pTable;
+  SSkipListIterator *pIter;
+} SCommitIter;
+
+typedef struct {
   uint64_t   uid;
   TSKEY      keyFirst;
   TSKEY      keyLast;
@@ -206,10 +211,10 @@ typedef struct {
   int64_t offset : 63;
   int32_t algorithm : 8;
   int32_t numOfRows : 24;
-  int32_t sversion;
   int32_t len;
+  int32_t keyLen;     // key column length, keyOffset = offset+sizeof(SCompData)+sizeof(SCompCol)*numOfCols
   int16_t numOfSubBlocks;
-  int16_t numOfCols;
+  int16_t numOfCols; // not including timestamp column
   TSKEY   keyFirst;
   TSKEY   keyLast;
 } SCompBlock;
@@ -377,6 +382,24 @@ int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
+int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
+                            TSKEY* filterKeys, int nFilterKeys);
+
+static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
+  if (pIter == NULL) return NULL;
+
+  SSkipListNode* node = tSkipListIterGet(pIter);
+  if (node == NULL) return NULL;
+
+  return SL_GET_NODE_DATA(node);
+}
+
+static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator* pIter) {
+  SDataRow row = tsdbNextIterRow(pIter);
+  if (row == NULL) return -1;
+
+  return dataRowKey(row);
+}
 
 // ------------------ tsdbFile.c
 #define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
@@ -421,25 +444,36 @@ void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 #define helperType(h) (h)->type
 #define helperRepo(h) (h)->pRepo
 #define helperState(h) (h)->state
+#define TSDB_NLAST_FILE_OPENED(h) ((h)->files.nLastF.fd > 0)
 
-int   tsdbInitReadHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
-int   tsdbInitWriteHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
-void  tsdbDestroyHelper(SRWHelper* pHelper);
-void  tsdbResetHelper(SRWHelper* pHelper);
-int   tsdbSetAndOpenHelperFile(SRWHelper* pHelper, SFileGroup* pGroup);
-int   tsdbCloseHelperFile(SRWHelper* pHelper, bool hasError);
-void  tsdbSetHelperTable(SRWHelper* pHelper, STable* pTable, STsdbRepo* pRepo);
-int   tsdbWriteDataBlock(SRWHelper* pHelper, SDataCols* pDataCols);
-int   tsdbMoveLastBlockIfNeccessary(SRWHelper* pHelper);
-int   tsdbWriteCompInfo(SRWHelper* pHelper);
-int   tsdbWriteCompIdx(SRWHelper* pHelper);
-int   tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
-int   tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
-int   tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
-void  tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
-int   tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo, int16_t* colIds,
-                            int numOfColIds);
-int   tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo);
+int  tsdbInitReadHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
+int  tsdbInitWriteHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
+void tsdbDestroyHelper(SRWHelper* pHelper);
+void tsdbResetHelper(SRWHelper* pHelper);
+int  tsdbSetAndOpenHelperFile(SRWHelper* pHelper, SFileGroup* pGroup);
+int  tsdbCloseHelperFile(SRWHelper* pHelper, bool hasError);
+void tsdbSetHelperTable(SRWHelper* pHelper, STable* pTable, STsdbRepo* pRepo);
+int  tsdbCommitTableData(SRWHelper* pHelper, SCommitIter* pCommitIter, SDataCols* pDataCols, TSKEY maxKey);
+int  tsdbMoveLastBlockIfNeccessary(SRWHelper* pHelper);
+int  tsdbWriteCompInfo(SRWHelper* pHelper);
+int  tsdbWriteCompIdx(SRWHelper* pHelper);
+int  tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
+int  tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
+int  tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
+void tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
+int  tsdbLoadBlockDataCols(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo, int16_t* colIds,
+                           int numOfColIds);
+int  tsdbLoadBlockData(SRWHelper* pHelper, SCompBlock* pCompBlock, SCompInfo* pCompInfo);
+
+static FORCE_INLINE int compTSKEY(const void* key1, const void* key2) {
+  if (*(TSKEY*)key1 > *(TSKEY*)key2) {
+    return 1;
+  } else if (*(TSKEY*)key1 == *(TSKEY*)key2) {
+    return 0;
+  } else {
+    return -1;
+  }
+}
 
 // ------------------ tsdbMain.c
 #define REPO_ID(r) (r)->config.tsdbId
