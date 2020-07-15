@@ -172,7 +172,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
 
   if (pBufBlock != NULL && pBufBlock->remain < bytes) {
-    if (listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 2) {  // need to commit mem
+    if (listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) {  // need to commit mem
       if (tsdbAsyncCommit(pRepo) < 0) return NULL;
     } else {
       if (tsdbLockRepo(pRepo) < 0) return NULL;
