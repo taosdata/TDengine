@@ -90,7 +90,7 @@ if [ "$EXEC_OPTON" = "start" ]; then
   if [ "$SHELL_OPTION" = "true" ]; then 
     nohup valgrind --log-file=${LOG_DIR}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
   else
-    nohup $EXE_DIR/taosd -c $CFG_DIR --alloc-random-fail --random-file-fail-factor 5 > /dev/null 2>&1 & 
+    nohup $EXE_DIR/taosd -c $CFG_DIR --random-file-fail-factor 0 > /dev/null 2>&1 & 
   fi
   
 else
