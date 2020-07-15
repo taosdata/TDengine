@@ -44,7 +44,7 @@ static int      vnodeProcessTsdbStatus(void *arg, int status);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
-static void     vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
+static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 #ifndef _SYNC
 tsync_h syncStart(const SSyncInfo *info) { return NULL; }
@@ -224,6 +224,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   pVnode->rootDir = strdup(rootDir);
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
+  tsem_init(&pVnode->sem, 0, 0);
 
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -348,6 +349,8 @@ void vnodeRelease(void *pVnodeRaw) {
 
   if (refCount > 0) {
     vDebug("vgId:%d, release vnode, refCount:%d", vgId, refCount);
+    if (pVnode->status == TAOS_VN_STATUS_RESET && refCount == 2) 
+      tsem_post(&pVnode->sem);
     return;
   }
 
@@ -384,13 +387,14 @@ void vnodeRelease(void *pVnodeRaw) {
     taosRemoveDir(rootDir);
   }
 
+  tsem_destroy(&pVnode->sem);
   free(pVnode);
 
   int32_t count = taosHashGetSize(tsDnodeVnodesHash);
   vDebug("vgId:%d, vnode is released, vnodes:%d", vgId, count);
 }
 
-void *vnodeGetVnode(int32_t vgId) {
+void *vnodeAcquireVnode(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -398,12 +402,12 @@ void *vnodeGetVnode(int32_t vgId) {
     return NULL;
   }
 
-  return *ppVnode;
-}
-
-void *vnodeAcquireVnode(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeGetVnode(vgId);
-  if (pVnode == NULL) return pVnode;
+  SVnodeObj *pVnode = *ppVnode;
+  if (pVnode->status == TAOS_VN_STATUS_RESET) {           
+    terrno = TSDB_CODE_VND_INVALID_STATUS;
+    vInfo("vgId:%d, status is in reset", vgId);
+    return NULL;
+  }
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
   vDebug("vgId:%d, get vnode, refCount:%d", pVnode->vgId, pVnode->refCount);
@@ -411,20 +415,13 @@ void *vnodeAcquireVnode(int32_t vgId) {
   return pVnode;
 }
 
-void *vnodeAcquireRqueue(void *param) {
-  SVnodeObj *pVnode = param;
+void *vnodeAcquireRqueue(int32_t vgId) {
+  SVnodeObj *pVnode = vnodeAcquireVnode(vgId);
   if (pVnode == NULL) return NULL;
-
-  atomic_add_fetch_32(&pVnode->refCount, 1);
-  vDebug("vgId:%d, get vnode rqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
-  return ((SVnodeObj *)pVnode)->rqueue;
+  return pVnode->rqueue;
 }
 
-void *vnodeGetRqueue(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->rqueue;
-}
-
-void *vnodeGetWqueue(int32_t vgId) {
+void *vnodeAcquireWqueue(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquireVnode(vgId);
   if (pVnode == NULL) return NULL;
   return pVnode->wqueue;
@@ -563,7 +560,7 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStop(pVnode->cq);
 }
 
-static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
+static int vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   SVnodeObj *pVnode = ahandle;
   vDebug("vgId:%d, data file is synced, fversion:%" PRId64, pVnode->vgId, fversion);
 
@@ -573,8 +570,19 @@ static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
 
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
-  // clsoe tsdb, then open tsdb
+
+  if (atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_READY, TAOS_VN_STATUS_RESET) != TAOS_VN_STATUS_READY)
+    return -1;
+
+  // acquire vnode
+  int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1); 
+
+  if (refCount > 2) 
+    tsem_wait(&pVnode->sem);
+
+  // close tsdb, then open tsdb
   void *tsdb = pVnode->tsdb;
+
   pVnode->tsdb = NULL;
   tsdbCloseRepo(tsdb, 0);
   STsdbAppH appH = {0};
@@ -585,6 +593,12 @@ static void vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   appH.cqDropFunc = cqDrop;
   appH.configFunc = dnodeSendCfgTableToRecv;
   pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
+
+  // vnode status may be changed to DELETING or CLOSING
+  atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_RESET, TAOS_VN_STATUS_READY);
+  vnodeRelease(pVnode);  
+
+  return 0;
 }
 
 static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {

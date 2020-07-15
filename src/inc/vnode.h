@@ -23,6 +23,7 @@ extern "C" {
 typedef enum _VN_STATUS {
   TAOS_VN_STATUS_INIT,
   TAOS_VN_STATUS_UPDATING,
+  TAOS_VN_STATUS_RESET,
   TAOS_VN_STATUS_READY,
   TAOS_VN_STATUS_CLOSING,
   TAOS_VN_STATUS_DELETING,
@@ -48,13 +49,11 @@ int32_t vnodeStartStream(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeClose(int32_t vgId);
 
-void    vnodeRelease(void *pVnode);
 void*   vnodeAcquireVnode(int32_t vgId); // add refcount
-void*   vnodeGetVnode(int32_t vgId);      // keep refcount unchanged
+void    vnodeRelease(void *pVnode);
 
-void*   vnodeAcquireRqueue(void *);
-void*   vnodeGetRqueue(void *);
-void*   vnodeGetWqueue(int32_t vgId);
+void*   vnodeAcquireRqueue(int32_t vgId);
+void*   vnodeAcquireWqueue(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);

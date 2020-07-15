@@ -26,6 +26,7 @@
 #include "tsdb.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "tqueue.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SReadMsg *pReadMsg);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg);
@@ -51,6 +52,11 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
     return TSDB_CODE_VND_INVALID_STATUS; 
   }
 
+  // tsdb may be in reset state  
+  if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING || pVnode->status == TAOS_VN_STATUS_DELETING)
+    return TSDB_CODE_RPC_NOT_READY;
+
   // TODO: Later, let slave to support query
   if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
     vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
@@ -58,6 +64,16 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
   }
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
+}
+
+static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void *qhandle) {
+  SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
+  pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
+  pRead->pCont = qhandle;
+  pRead->contLen = 0;
+
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  taosWriteQitem(pVnode->rqueue, TAOS_QTYPE_QUERY, pRead);
 }
 
 static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
@@ -131,7 +147,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (handle != NULL) {
       vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, register qhandle and return to app", vgId, *handle);
 
-      dnodePutItemIntoReadQueue(pVnode, *handle);
+      vnodePutItemIntoReadQueue(pVnode, *handle);
       qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
     }
 
@@ -208,7 +224,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   } else { // if failed to dump result, free qhandle immediately
     if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len)) == TSDB_CODE_SUCCESS) {
       if (qHasMoreResultsToRetrieve(*handle)) {
-        dnodePutItemIntoReadQueue(pVnode, *handle);
+        vnodePutItemIntoReadQueue(pVnode, *handle);
         pRet->qhandle = *handle;
         freeHandle = false;
       } else {

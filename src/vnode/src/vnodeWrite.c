@@ -60,7 +60,9 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   }
 
   // tsdb may be in reset state 
-  if (pVnode->tsdb == NULL) return 0;
+  if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING || pVnode->status == TAOS_VN_STATUS_DELETING) 
+    return TSDB_CODE_RPC_NOT_READY;
   
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) {

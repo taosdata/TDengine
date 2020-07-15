@@ -91,23 +91,21 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
-  void        *pVnode;
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
-    pVnode = vnodeAcquireVnode(pHead->vgId);
+    taos_queue queue = vnodeAcquireRqueue(pHead->vgId);
 
-    if (pVnode == NULL) {
+    if (queue == NULL) {
       leftLen -= pHead->contLen;
       pCont -= pHead->contLen;
       continue;
     }
 
     // put message into queue
-    taos_queue queue = vnodeGetRqueue(pVnode);
     SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
     pRead->rpcMsg      = *pMsg;
     pRead->pCont       = pCont;
@@ -173,18 +171,6 @@ void dnodeFreeVnodeRqueue(void *rqueue) {
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads
-}
-
-void dnodePutItemIntoReadQueue(void *pVnode, void *qhandle) {
-  SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
-  pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
-  pRead->pCont = qhandle;
-  pRead->contLen = 0;
-
-  assert(pVnode != NULL);
-  taos_queue queue = vnodeAcquireRqueue(pVnode);
-
-  taosWriteQitem(queue, TAOS_QTYPE_QUERY, pRead);
 }
 
 void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
