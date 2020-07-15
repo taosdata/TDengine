@@ -18,11 +18,6 @@
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 
-typedef struct {
-  STable *           pTable;
-  SSkipListIterator *pIter;
-} SCommitIter;
-
 static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo);
 
 static void        tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes);
@@ -34,14 +29,11 @@ static char *      tsdbGetTsTupleKey(const void *data);
 static void *      tsdbCommitData(void *arg);
 static int         tsdbCommitMeta(STsdbRepo *pRepo);
 static void        tsdbEndCommit(STsdbRepo *pRepo);
-static TSKEY       tsdbNextIterKey(SCommitIter *pIter);
 static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
 static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
-static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo);
-static void         tsdbDestroyTableIters(SCommitIter *iters, int maxTables);
-static int          tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey,
-                                          int maxRowsToRead, SDataCols *pCols);
+static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
+static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
@@ -252,6 +244,66 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
+int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
+                          TSKEY *filterKeys, int nFilterKeys) {
+  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
+  if (pIter == NULL) return 0;
+  STSchema *pSchema = NULL;
+  int       numOfRows = 0;
+  TSKEY     keyNext = 0;
+  int       filterIter = 0;
+
+  if (nFilterKeys != 0) { // for filter purpose
+    ASSERT(filterKeys != NULL);
+    keyNext = tsdbNextIterKey(pIter);
+    if (keyNext < 0 || keyNext > maxKey) return numOfRows;
+    void *ptr = taosbsearch((void *)(&keyNext), (void *)filterKeys, nFilterKeys, sizeof(TSKEY), compTSKEY, TD_GE);
+    filterIter = (ptr == NULL) ? nFilterKeys : (POINTER_DISTANCE(ptr, filterKeys) / sizeof(TSKEY));
+  }
+
+  do {
+    if (numOfRows >= maxRowsToRead) break;
+
+    SDataRow row = tsdbNextIterRow(pIter);
+    if (row == NULL) break;
+
+    keyNext = dataRowKey(row);
+    if (keyNext < 0 || keyNext > maxKey) break;
+
+    bool keyFiltered = false;
+    if (nFilterKeys != 0) {
+      while (true) {
+        if (filterIter >= nFilterKeys) break;
+        if (keyNext == filterKeys[filterIter]) {
+          keyFiltered = true;
+          filterIter++;
+          break;
+        } else if (keyNext < filterKeys[filterIter]) {
+          break;
+        } else {
+          filterIter++;
+        }
+      }
+    }
+
+    if (!keyFiltered) {
+      if (pCols) {
+        if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
+          pSchema = tsdbGetTableSchemaImpl(pTable, false, false, dataRowVersion(row));
+          if (pSchema == NULL) {
+            ASSERT(0);
+          }
+        }
+
+        tdAppendDataRowToDataCol(row, pSchema, pCols);
+      }
+      numOfRows++;
+    }
+  } while (tSkipListIterNext(pIter));
+
+  return numOfRows;
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL);
@@ -378,7 +430,7 @@ static void *tsdbCommitData(void *arg) {
 
   // Create the iterator to read from cache
   if (pMem->numOfRows > 0) {
-    iters = tsdbCreateTableIters(pRepo);
+    iters = tsdbCreateCommitIters(pRepo);
     if (iters == NULL) {
       tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
       goto _exit;
@@ -418,7 +470,7 @@ static void *tsdbCommitData(void *arg) {
 
 _exit:
   tdFreeDataCols(pDataCols);
-  tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyCommitIters(iters, pCfg->maxTables);
   tsdbDestroyHelper(&whelper);
   tsdbEndCommit(pRepo);
   tsdbInfo("vgId:%d commit over", pRepo->config.tsdbId);
@@ -479,19 +531,9 @@ static void tsdbEndCommit(STsdbRepo *pRepo) {
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER);
 }
 
-static TSKEY tsdbNextIterKey(SCommitIter *pIter) {
-  if (pIter == NULL) return -1;
-
-  SSkipListNode *node = tSkipListIterGet(pIter->pIter);
-  if (node == NULL) return -1;
-
-  SDataRow row = SL_GET_NODE_DATA(node);
-  return dataRowKey(row);
-}
-
 static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {
   for (int i = 0; i < nIters; i++) {
-    TSKEY nextKey = tsdbNextIterKey(iters + i);
+    TSKEY nextKey = tsdbNextIterKey((iters + i)->pIter);
     if (nextKey > 0 && (nextKey >= minKey && nextKey <= maxKey)) return 1;
   }
   return 0;
@@ -504,7 +546,6 @@ static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TS
 
 static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols) {
   char *      dataDir = NULL;
-  STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCfg *  pCfg = &pRepo->config;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
@@ -549,33 +590,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     if (pIter->pIter != NULL) {
       tdInitDataCols(pDataCols, tsdbGetTableSchemaImpl(pIter->pTable, false, false, -1));
 
-      int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
-      int nLoop = 0;
-      while (true) {
-        int rowsRead = tsdbReadRowsFromCache(pMeta, pIter->pTable, pIter->pIter, maxKey, maxRowsToRead, pDataCols);
-        ASSERT(rowsRead >= 0);
-        if (pDataCols->numOfRows == 0) break;
-        nLoop++;
-
-        ASSERT(dataColsKeyFirst(pDataCols) >= minKey && dataColsKeyFirst(pDataCols) <= maxKey);
-        ASSERT(dataColsKeyLast(pDataCols) >= minKey && dataColsKeyLast(pDataCols) <= maxKey);
-
-        int rowsWritten = tsdbWriteDataBlock(pHelper, pDataCols);
-        ASSERT(rowsWritten != 0);
-        if (rowsWritten < 0) {
-          taosRUnLockLatch(&(pIter->pTable->latch));
-          tsdbError("vgId:%d failed to write data block to table %s tid %d uid %" PRIu64 " since %s", REPO_ID(pRepo),
-                    TABLE_CHAR_NAME(pIter->pTable), TABLE_TID(pIter->pTable), TABLE_UID(pIter->pTable),
-                    tstrerror(terrno));
-          goto _err;
-        }
-        ASSERT(rowsWritten <= pDataCols->numOfRows);
-
-        tdPopDataColsPoints(pDataCols, rowsWritten);
-        maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pDataCols->numOfRows;
+      if (tsdbCommitTableData(pHelper, pIter, pDataCols, maxKey) < 0) {
+        taosRUnLockLatch(&(pIter->pTable->latch));
+        tsdbError("vgId:%d failed to write data of table %s tid %d uid %" PRIu64 " since %s", REPO_ID(pRepo),
+                  TABLE_CHAR_NAME(pIter->pTable), TABLE_TID(pIter->pTable), TABLE_UID(pIter->pTable),
+                  tstrerror(terrno));
+        goto _err;
       }
-
-      ASSERT(pDataCols->numOfRows == 0);
     }
 
     taosRUnLockLatch(&(pIter->pTable->latch));
@@ -615,7 +636,7 @@ _err:
   return -1;
 }
 
-static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo) {
+static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo) {
   STsdbCfg * pCfg = &(pRepo->config);
   SMemTable *pMem = pRepo->imem;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
@@ -645,21 +666,18 @@ static SCommitIter *tsdbCreateTableIters(STsdbRepo *pRepo) {
         goto _err;
       }
 
-      if (!tSkipListIterNext(iters[i].pIter)) {
-        terrno = TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM;
-        goto _err;
-      }
+      tSkipListIterNext(iters[i].pIter);
     }
   }
 
   return iters;
 
 _err:
-  tsdbDestroyTableIters(iters, pCfg->maxTables);
+  tsdbDestroyCommitIters(iters, pCfg->maxTables);
   return NULL;
 }
 
-static void tsdbDestroyTableIters(SCommitIter *iters, int maxTables) {
+static void tsdbDestroyCommitIters(SCommitIter *iters, int maxTables) {
   if (iters == NULL) return;
 
   for (int i = 1; i < maxTables; i++) {
@@ -670,35 +688,4 @@ static void tsdbDestroyTableIters(SCommitIter *iters, int maxTables) {
   }
 
   free(iters);
-}
-
-static int tsdbReadRowsFromCache(STsdbMeta *pMeta, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
-  ASSERT(maxRowsToRead > 0);
-  if (pIter == NULL) return 0;
-  STSchema *pSchema = NULL;
-
-  int numOfRows = 0;
-
-  do {
-    if (numOfRows >= maxRowsToRead) break;
-
-    SSkipListNode *node = tSkipListIterGet(pIter);
-    if (node == NULL) break;
-
-    SDataRow row = SL_GET_NODE_DATA(node);
-    if (dataRowKey(row) > maxKey) break;
-
-    if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-      pSchema = tsdbGetTableSchemaImpl(pTable, true, false, dataRowVersion(row));
-      if (pSchema == NULL) {
-        // TODO: deal with the error here
-        ASSERT(0);
-      }
-    }
-
-    tdAppendDataRowToDataCol(row, pSchema, pCols);
-    numOfRows++;
-  } while (tSkipListIterNext(pIter));
-
-  return numOfRows;
 }
