@@ -332,6 +332,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
+#define TSDB_MIN_FSYNC_PERIOD           0
+#define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
+#define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
+
 #define TSDB_MIN_DB_REPLICA_OPTION      1
 #define TSDB_MAX_DB_REPLICA_OPTION      3
 #define TSDB_DEFAULT_DB_REPLICA_OPTION  1
