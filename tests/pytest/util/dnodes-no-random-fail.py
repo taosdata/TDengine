@@ -235,7 +235,7 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s --alloc-random-fail --random-file-fail-factor 5 > /dev/null 2>&1 & " % (
+            cmd = "nohup %s -c %s --random-file-fail-factor 0 > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
