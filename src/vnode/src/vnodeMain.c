@@ -153,7 +153,7 @@ int32_t vnodeDrop(int32_t vgId) {
 
   SVnodeObj *pVnode = *ppVnode;
   vTrace("vgId:%d, vnode will be dropped, refCount:%d", pVnode->vgId, pVnode->refCount);
-  pVnode->status = TAOS_VN_STATUS_DELETING;
+  pVnode->dropped = 1;
   vnodeCleanUp(pVnode);
 
   return TSDB_CODE_SUCCESS;
@@ -335,7 +335,6 @@ int32_t vnodeClose(int32_t vgId) {
 
   SVnodeObj *pVnode = *ppVnode;
   vDebug("vgId:%d, vnode will be closed", pVnode->vgId);
-  pVnode->status = TAOS_VN_STATUS_CLOSING;
   vnodeCleanUp(pVnode);
 
   return 0;
@@ -381,7 +380,7 @@ void vnodeRelease(void *pVnodeRaw) {
  
   tfree(pVnode->rootDir);
 
-  if (pVnode->status == TAOS_VN_STATUS_DELETING) {
+  if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
     taosMvDir(tsVnodeBakDir, rootDir);
@@ -510,6 +509,8 @@ void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
 static void vnodeCleanUp(SVnodeObj *pVnode) {
   // remove from hash, so new messages wont be consumed
   taosHashRemove(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t));
+
+  pVnode->status = TSDB_VN_STATUS_CLOSING;
 
   // stop replication module
   if (pVnode->sync) {

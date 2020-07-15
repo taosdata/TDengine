@@ -54,7 +54,7 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
 
   // tsdb may be in reset state  
   if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
-  if (pVnode->status == TAOS_VN_STATUS_CLOSING || pVnode->status == TAOS_VN_STATUS_DELETING)
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING)
     return TSDB_CODE_RPC_NOT_READY;
 
   // TODO: Later, let slave to support query

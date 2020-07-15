@@ -56,6 +56,7 @@ typedef struct {
   void        *qMgmt;
   char        *rootDir;
   tsem_t       sem;
+  int8_t       dropped;
   char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
