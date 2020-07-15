@@ -28,11 +28,8 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "minTablesPerVnode": "4",
-            "maxTablesPerVnode": "1000",
-            "tableIncStepPerVnode": "10000",
-            "maxVgroupsPerDb": "1000",
-            "sdbDebugFlag": "143",
+            "anyIp": "0",
+            "sdbDebugFlag": "135",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "cDebugFlag": "135",
@@ -40,6 +37,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             }
+
     def init(self, path):
         self.__init__()
         self.path = path
@@ -238,7 +236,7 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+            cmd = "nohup %s -c %s --random-file-fail-factor 0 > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
