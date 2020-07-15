@@ -90,6 +90,12 @@ typedef struct SBlockOrderSupporter {
   int32_t*            numOfBlocksPerTable;
 } SBlockOrderSupporter;
 
+typedef struct SIOCostSummary {
+  int64_t blockLoadTime;
+  int64_t statisInfoLoadTime;
+  int64_t blockMergeTime;
+} SIOCostSummary;
+
 typedef struct STsdbQueryHandle {
   STsdbRepo*     pTsdb;
   SQueryFilePos  cur;              // current position
@@ -116,6 +122,8 @@ typedef struct STsdbQueryHandle {
   SArray*        defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
   SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
+
+  SIOCostSummary cost;
 } STsdbQueryHandle;
 
 static void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle);
@@ -622,6 +630,8 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   tfree(data);
 
   int64_t et = taosGetTimestampUs() - st;
+
+  pQueryHandle->cost.blockLoadTime += et;
   tsdbDebug("%p load file block into buffer, elapsed time:%"PRId64 " us", pQueryHandle, et);
 
   return blockLoaded;
@@ -1784,23 +1794,22 @@ void tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle, SDataBlockInfo* p
 int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataStatis** pBlockStatis) {
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
   
-  SQueryFilePos* cur = &pHandle->cur;
-  if (cur->mixBlock) {
+  SQueryFilePos* c = &pHandle->cur;
+  if (c->mixBlock) {
     *pBlockStatis = NULL;
     return TSDB_CODE_SUCCESS;
   }
   
-  assert((cur->slot >= 0 && cur->slot < pHandle->numOfBlocks) ||
-      ((cur->slot == pHandle->numOfBlocks) && (cur->slot == 0)));
-  
-  STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[cur->slot];
-  
-  // file block with subblocks has no statistics data
+  STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[c->slot];
+  assert((c->slot >= 0 && c->slot < pHandle->numOfBlocks) || ((c->slot == pHandle->numOfBlocks) && (c->slot == 0)));
+
+  // file block with sub-blocks has no statistics data
   if (pBlockInfo->compBlock->numOfSubBlocks > 1) {
     *pBlockStatis = NULL;
     return TSDB_CODE_SUCCESS;
   }
-  
+
+  int64_t stime = taosGetTimestampUs();
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
 
   // todo opt perf
@@ -1830,7 +1839,10 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
       pHandle->statis[i].max = pBlockInfo->compBlock->keyLast;
     }
   }
-  
+
+  int64_t elapsed = taosGetTimestampUs() - stime;
+  pHandle->cost.statisInfoLoadTime += elapsed;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2351,6 +2363,10 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tsdbUnRefMemTable(pQueryHandle->pTsdb, pQueryHandle->imem);
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
+
+  tsdbDebug(":io-cost summary: statis-info time:%"PRId64"us, datablock time:%" PRId64"us ,%p", pQueryHandle->cost.statisInfoLoadTime,
+      pQueryHandle->cost.blockLoadTime, pQueryHandle->qinfo);
+
   tfree(pQueryHandle);
 }
 

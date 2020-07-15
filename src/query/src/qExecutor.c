@@ -361,7 +361,7 @@ static bool hasTagValOutput(SQuery* pQuery) {
  * @return
  */
 static bool hasNullValue(SColIndex* pColIndex, SDataStatis *pStatis, SDataStatis **pColStatis) {
-  if (pStatis != NULL) {
+  if (pStatis != NULL && !TSDB_COL_IS_TAG(pColIndex->flag)) {
     *pColStatis = &pStatis[pColIndex->colIndex];
     assert((*pColStatis)->colId == pColIndex->colId);
   } else {
@@ -472,10 +472,10 @@ static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SDiskbasedResult
   int32_t pageId = -1;
   SIDList list = getDataBufPagesIdList(pResultBuf, sid);
 
-  if (list.size == 0) {
+  if (taosArrayGetSize(list) == 0) {
     pData = getNewDataBuf(pResultBuf, sid, &pageId);
   } else {
-    pageId = getLastPageId(&list);
+    pageId = getLastPageId(list);
     pData = GET_RES_BUF_PAGE_BY_ID(pResultBuf, pageId);
 
     if (pData->num >= numOfRowsPerPage) {
@@ -2069,7 +2069,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, void* pQueryHandle,
         int32_t colId = pSqlFunc->colInfo.colId;
 
         status |= aAggs[functionId].dataReqFunc(&pRuntimeEnv->pCtx[i], pBlockInfo->window.skey, pBlockInfo->window.ekey, colId);
-        if ((status & BLK_DATA_ALL_NEEDED) != 0) {
+        if ((status & BLK_DATA_ALL_NEEDED) == BLK_DATA_ALL_NEEDED) {
           break;
         }
       }
@@ -2670,16 +2670,19 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   SIDList list = getDataBufPagesIdList(pResultBuf, pQInfo->offset + id);
 
   int32_t total = 0;
-  for (int32_t i = 0; i < list.size; ++i) {
-    tFilePage *pData = GET_RES_BUF_PAGE_BY_ID(pResultBuf, list.pData[i]);
+  int32_t size = taosArrayGetSize(list);
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t* pgId = taosArrayGet(list, i);
+    tFilePage *pData = GET_RES_BUF_PAGE_BY_ID(pResultBuf, *pgId);
     total += pData->num;
   }
 
   int32_t rows = total;
 
   int32_t offset = 0;
-  for (int32_t num = 0; num < list.size; ++num) {
-    tFilePage *pData = GET_RES_BUF_PAGE_BY_ID(pResultBuf, list.pData[num]);
+  for (int32_t j = 0; j < size; ++j) {
+    int32_t* pgId = taosArrayGet(list, j);
+    tFilePage *pData = GET_RES_BUF_PAGE_BY_ID(pResultBuf, *pgId);
 
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
@@ -2745,7 +2748,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
     STableQueryInfo *item = taosArrayGetP(pGroup, i);
 
     SIDList list = getDataBufPagesIdList(pRuntimeEnv->pResultBuf, TSDB_TABLEID(item->pTable)->tid);
-    if (list.size > 0 && item->windowResInfo.size > 0) {
+    if (taosArrayGetSize(list) > 0 && item->windowResInfo.size > 0) {
       pTableList[numOfTables] = item;
       numOfTables += 1;
     }
@@ -4208,14 +4211,14 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
   pRuntimeEnv->numOfRowsPerPage = getNumOfRowsInResultPage(pQuery, pRuntimeEnv->topBotQuery, isSTableQuery);
 
-  if (isSTableQuery) {
+  if (isSTableQuery && !onlyQueryTags(pRuntimeEnv->pQuery)) {
     int32_t rows = getInitialPageNum(pQInfo);
     code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rows, pQuery->rowSize, pQInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    if (pQuery->intervalTime == 0) {
+    if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
       int16_t type = TSDB_DATA_TYPE_NULL;
 
       if (pRuntimeEnv->groupbyNormalCol) {  // group by columns not tags;
