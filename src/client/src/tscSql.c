@@ -181,6 +181,19 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   return NULL;
 }
+TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t userLen, 
+    const char *pass, uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
+    char ipBuf[TSDB_EP_LEN] = {0};
+    char userBuf[TSDB_USER_LEN] = {0};
+    char passBuf[TSDB_PASSWORD_LEN] = {0};
+    char dbBuf[TSDB_DB_NAME_LEN] = {0};
+    strncpy(ipBuf,   ip,   MIN(TSDB_EP_LEN - 1,     ipLen)); 
+    strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1,    userLen)); 
+    strncpy(passBuf, pass, MIN(TSDB_PASSWORD_LEN - 1,passLen)); 
+    strncpy(dbBuf,   db,   MIN(TSDB_DB_NAME_LEN - 1, dbLen)); 
+    return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);  
+}
+
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
@@ -249,7 +262,14 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   tsem_wait(&pSql->rspSem);
   return pSql;
 }
-
+TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
+  char* buf = malloc(sqlLen + 1);
+  buf[sqlLen] = 0;
+  strncpy(buf, sqlstr, sqlLen);
+  TAOS_RES *res = taos_query(taos, buf);
+  free(buf);
+  return res; 
+}
 int taos_result_precision(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
