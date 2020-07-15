@@ -21,11 +21,10 @@
 #include "tkvstore.h"
 #include "tlist.h"
 #include "tlog.h"
-#include "tref.h"
+#include "tlockfree.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "trwlatch.h"
 
 #ifdef __cplusplus
 extern "C" {
