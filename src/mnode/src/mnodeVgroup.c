@@ -40,8 +40,17 @@
 
 typedef enum {
   TAOS_VG_STATUS_READY,
-  TAOS_VG_STATUS_DROPPING
+  TAOS_VG_STATUS_DROPPING,
+  TAOS_VG_STATUS_CREATING,
+  TAOS_VG_STATUS_UPDATING,
 } EVgroupStatus;
+
+char* vgroupStatus[] = {
+  "ready",
+  "dropping",
+  "creating",
+  "updating"
+};
 
 static void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
@@ -84,6 +93,7 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   }
 
   pVgroup->pDb = pDb;
+  pVgroup->status = TAOS_VG_STATUS_CREATING;
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
   if (mnodeAllocVgroupIdPool(pVgroup) < 0) {
     mError("vgId:%d, failed to init idpool for vgroups", pVgroup->vgId);
@@ -273,15 +283,13 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
       pNextV++;
     }
 
-    if (i == openVnodes && pVgroup->status == TAOS_VG_STATUS_READY) {
-      SDbObj *pDb = pVgroup->pDb;
-      if (pDb->cfgVersion != 0) {
-        mDebug("vgId:%d, not exist in dnode:%d and cfgVersion is %d, send alter msg", pVgroup->vgId, pDnode->dnodeId,
-               pDb->cfgVersion);
-        mnodeSendAlterVgroupMsg(pVgroup);
+    if (i == openVnodes) {
+      if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_DROPPING) {
+        mDebug("vgId:%d, not exist in dnode:%d and status is %s, do nothing", pVgroup->vgId, pDnode->dnodeId,
+               vgroupStatus[pVgroup->status]);
       } else {
-        mDebug("vgId:%d, not exist in dnode:%d and cfgVersion is %d, send create msg", pVgroup->vgId, pDnode->dnodeId,
-               pDb->cfgVersion);
+        mDebug("vgId:%d, not exist in dnode:%d and status is %s, send create msg", pVgroup->vgId, pDnode->dnodeId,
+               vgroupStatus[pVgroup->status]);
         mnodeSendCreateVgroupMsg(pVgroup, NULL);
       }
     }
@@ -472,6 +480,10 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
     SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
     sdbDeleteRow(&desc);
     return code;
+  } else {
+    pVgroup->status = TAOS_VG_STATUS_READY;
+    SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
+    sdbUpdateRow(&desc);
   }
 
   mInfo("app:%p:%p, vgId:%d, is created in mnode, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
