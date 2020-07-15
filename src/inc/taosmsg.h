@@ -54,6 +54,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_TABLE, "create-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_TABLE, "drop-table" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_TABLE, "alter-table" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_VNODE, "create-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_VNODE, "drop-vnode" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
@@ -515,6 +516,7 @@ typedef struct {
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int32_t  commitTime;
+  int32_t  fsyncPeriod;
   uint8_t  precision;   // time resolution
   int8_t   compression;
   int8_t   walLevel;
@@ -608,6 +610,7 @@ typedef struct {
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int32_t  commitTime;
+  int32_t  fsyncPeriod;
   int8_t   precision;
   int8_t   compression;
   int8_t   walLevel;
@@ -626,7 +629,7 @@ typedef struct {
   char db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   SMDVnodeCfg  cfg;
   SMDVnodeDesc nodes[TSDB_MAX_REPLICA];
-} SMDCreateVnodeMsg;
+} SMDCreateVnodeMsg, SMDAlterVnodeMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];

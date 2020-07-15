@@ -110,6 +110,7 @@ int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
 int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
 int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
 int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
+int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = 100;
@@ -193,7 +194,7 @@ int32_t monitorDebugFlag = 131;
 int32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
-int32_t debugFlag = 131;
+int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
@@ -201,7 +202,7 @@ int32_t tsdbDebugFlag = 131;
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
-  for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
+  if (debugFlag != 0) { 
     mDebugFlag = debugFlag;
     sdbDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
@@ -218,8 +219,8 @@ void taosSetAllDebugFlag() {
     wDebugFlag = debugFlag;
     tsdbDebugFlag = debugFlag;
     qDebugFlag = debugFlag;    
+    uInfo("all debug flag are set to %d", debugFlag);
   }
-  uInfo("all debug flag are set to %d", debugFlag);
 }
 
 bool taosCfgDynamicOptions(char *msg) {
@@ -711,6 +712,16 @@ static void doInitGlobalConfig() {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_WAL_LEVEL;
   cfg.maxValue = TSDB_MAX_WAL_LEVEL;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "fsync";
+  cfg.ptr = &tsFsyncPeriod;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_FSYNC_PERIOD;
+  cfg.maxValue = TSDB_MAX_FSYNC_PERIOD;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

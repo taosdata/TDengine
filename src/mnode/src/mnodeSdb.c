@@ -170,7 +170,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1};
+  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -252,13 +252,15 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   int32_t processedCount = atomic_add_fetch_32(&pOper->processedCount, 1);
   if (processedCount <= 1) {
     if (pMsg != NULL) {
-      sdbDebug("app:%p:%p, waiting for confirm this operation, count:%d", pMsg->rpcMsg.ahandle, pMsg, processedCount);
+      sdbDebug("app:%p:%p, waiting for confirm this operation, count:%d result:%s", pMsg->rpcMsg.ahandle, pMsg,
+               processedCount, tstrerror(code));
     }
     return;
   }
 
   if (pMsg != NULL) {
-    sdbDebug("app:%p:%p, is confirmed and will do callback func", pMsg->rpcMsg.ahandle, pMsg);
+    sdbDebug("app:%p:%p, is confirmed and will do callback func, result:%s", pMsg->rpcMsg.ahandle, pMsg,
+             tstrerror(code));
   }
 
   if (pOper->cb != NULL) {

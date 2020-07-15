@@ -24,7 +24,7 @@
 #include "qtsbuf.h"
 #include "taosdef.h"
 #include "tarray.h"
-#include "tref.h"
+#include "tlockfree.h"
 #include "tsdb.h"
 #include "tsqlfunction.h"
 #include "query.h"

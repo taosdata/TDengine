@@ -179,7 +179,10 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   pQueryHandle->outputCapacity = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
   pQueryHandle->allocSize   = 0;
 
-  tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb);
+  if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
+    free(pQueryHandle);
+    return NULL;
+  }
   tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
 
   size_t sizeOfGroup = taosArrayGetSize(groupList->pGroupList);
@@ -238,11 +241,11 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
-  
-  pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
-  pQueryHandle->order = TSDB_ORDER_DESC;
-  
-  changeQueryHandleForLastrowQuery(pQueryHandle);
+  if (pQueryHandle != NULL) {
+    pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
+    pQueryHandle->order = TSDB_ORDER_DESC;
+    changeQueryHandleForLastrowQuery(pQueryHandle);
+  }
   return pQueryHandle;
 }
 
@@ -264,9 +267,10 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle) {
 
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, void* qinfo) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
-  
-  pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
-  changeQueryHandleForInterpQuery(pQueryHandle);
+  if (pQueryHandle != NULL) {
+    pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
+    changeQueryHandleForInterpQuery(pQueryHandle);
+  }
   return pQueryHandle;
 }
 
@@ -1237,10 +1241,12 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   STableBlockInfo* pRightBlockInfoEx = &pSupporter->pDataBlockInfo[rightTableIndex][rightTableBlockIndex];
 
   //    assert(pLeftBlockInfoEx->compBlock->offset != pRightBlockInfoEx->compBlock->offset);
+#if 0	// TODO: temporarily comment off requested by Dr. Liao
   if (pLeftBlockInfoEx->compBlock->offset == pRightBlockInfoEx->compBlock->offset &&
       pLeftBlockInfoEx->compBlock->last == pRightBlockInfoEx->compBlock->last) {
     tsdbError("error in header file, two block with same offset:%" PRId64, (int64_t)pLeftBlockInfoEx->compBlock->offset);
   }
+#endif 
 
   return pLeftBlockInfoEx->compBlock->offset > pRightBlockInfoEx->compBlock->offset ? 1 : -1;
 }
@@ -1522,7 +1528,10 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pSecQueryHandle->activeIndex = 0;
       pSecQueryHandle->outputCapacity = ((STsdbRepo*)pSecQueryHandle->pTsdb)->config.maxRowsPerFileBlock;
   
-      tsdbInitReadHelper(&pSecQueryHandle->rhelper, (STsdbRepo*) pSecQueryHandle->pTsdb);
+      if (tsdbInitReadHelper(&pSecQueryHandle->rhelper, (STsdbRepo*) pSecQueryHandle->pTsdb) != 0) {
+        free(pSecQueryHandle);
+        return false;
+      }
       tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem);
 
       // allocate buffer in order to load data blocks from file
@@ -1606,7 +1615,9 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   }
   
   // TODO: opt by consider the scan order
-  return doHasDataInBuffer(pQueryHandle);
+  bool ret = doHasDataInBuffer(pQueryHandle);
+  terrno = TSDB_CODE_SUCCESS;
+  return ret;
 }
 
 void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {

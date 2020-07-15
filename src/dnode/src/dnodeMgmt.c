@@ -72,6 +72,7 @@ static void  *dnodeProcessMgmtQueue(void *param);
 static int32_t  dnodeOpenVnodes();
 static void     dnodeCloseVnodes();
 static int32_t  dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
+static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
@@ -79,6 +80,7 @@ static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 
 int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = dnodeProcessAlterVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
@@ -388,7 +390,7 @@ static void dnodeCloseVnodes() {
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
-static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
+static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
   SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
   pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
@@ -401,20 +403,42 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.daysToKeep          = htonl(pCreate->cfg.daysToKeep);
   pCreate->cfg.minRowsPerFileBlock = htonl(pCreate->cfg.minRowsPerFileBlock);
   pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
+  pCreate->cfg.fsyncPeriod         = htonl(pCreate->cfg.fsyncPeriod);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
 
   for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
   }
 
+  return pCreate;
+}
+
+static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
+  SMDCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
+
   void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist, processed as alter msg", pCreate->cfg.vgId);
-    int32_t code = vnodeAlter(pVnode, pCreate);
+    dDebug("vgId:%d, already exist, return success", pCreate->cfg.vgId);
+    vnodeRelease(pVnode);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    dDebug("vgId:%d, create vnode msg is received", pCreate->cfg.vgId);
+    return vnodeCreate(pCreate);
+  }
+}
+
+static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
+  SMDAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
+
+  void *pVnode = vnodeAcquireVnode(pAlter->cfg.vgId);
+  if (pVnode != NULL) {
+    dDebug("vgId:%d, alter vnode msg is received", pAlter->cfg.vgId);
+    int32_t code = vnodeAlter(pVnode, pAlter);
     vnodeRelease(pVnode);
     return code;
   } else {
-    return vnodeCreate(pCreate);
+    dError("vgId:%d, vnode not exist, can't alter it", pAlter->cfg.vgId);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 }
 

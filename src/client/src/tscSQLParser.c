@@ -4962,6 +4962,7 @@ static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->commitTime = htonl(pCreateDb->commitTime);
   pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
   pMsg->maxRowsPerFileBlock = htonl(pCreateDb->maxRowsPerBlock);
+  pMsg->fsyncPeriod = htonl(pCreateDb->fsyncPeriod);
   pMsg->compression = pCreateDb->compressionLevel;
   pMsg->walLevel = (char)pCreateDb->walLevel;
   pMsg->replications = pCreateDb->replica;
@@ -5526,6 +5527,13 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   if (val != -1 && (val < TSDB_MIN_COMMIT_TIME || val > TSDB_MAX_COMMIT_TIME)) {
     snprintf(msg, tListLen(msg), "invalid db option commitTime: %d valid range: [%d, %d]", val,
              TSDB_MIN_COMMIT_TIME, TSDB_MAX_COMMIT_TIME);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+  }
+
+  val = htonl(pCreate->fsyncPeriod);
+  if (val != -1 && (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD)) {
+    snprintf(msg, tListLen(msg), "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val,
+             TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
