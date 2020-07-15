@@ -15,8 +15,7 @@
 // #define _GNU_SOURCE
 // #include <pthread.h>
 
-#include "trwlatch.h"
-#include "os.h"
+#include "tlockfree.h"
 
 #define TD_RWLATCH_WRITE_FLAG 0x40000000
 
