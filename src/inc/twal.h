@@ -35,6 +35,7 @@ typedef struct {
 
 typedef struct {
   int8_t    walLevel;  // wal level
+  int32_t   fsyncPeriod; // millisecond
   int8_t    wals;      // number of WAL files;
   int8_t    keep;      // keep the wal file when closed
 } SWalCfg;

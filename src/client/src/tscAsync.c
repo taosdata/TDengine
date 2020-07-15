@@ -198,16 +198,16 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
+  // user-defined callback function is stored in fetchFp
+  pSql->fetchFp = fp;
+  pSql->fp = tscAsyncFetchRowsProxy;
+
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     tscQueueAsyncRes(pSql);
     return;
   }
-
-  // user-defined callback function is stored in fetchFp
-  pSql->fetchFp = fp;
-  pSql->fp = tscAsyncFetchRowsProxy;
 
   pSql->param = param;
   tscResetForNextRetrieve(pRes);

@@ -896,6 +896,7 @@ void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
   pDBInfo->compressionLevel = -1;
 
   pDBInfo->walLevel = -1;
+  pDBInfo->fsyncPeriod = -1;
   pDBInfo->commitTime = -1;
   pDBInfo->maxTablesPerVnode = -1;
 
