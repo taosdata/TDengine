@@ -61,77 +61,116 @@ class TDTestCase:
         tdSql.execute("alter table meters add column col2 tinyint")
         tdSql.execute("alter table meters drop column col1")        
         tdSql.query("select * from meters")        
+        tdSql.checkRows(10)
+        tdSql.query("select col2 from meters")        
         tdSql.checkRows(10)        
 
         tdSql.execute("alter table meters add column col1 int")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select col1 from meters")        
+        tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col3 smallint")
         tdSql.query("select * from meters")
+        tdSql.checkRows(10)
+        tdSql.query("select col3 from meters")        
         tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col4 bigint")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select col4 from meters")        
+        tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col5 float")
         tdSql.query("select * from meters")
+        tdSql.checkRows(10)
+        tdSql.query("select col5 from meters")        
         tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col6 double")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select col6 from meters")        
+        tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col7 bool")
         tdSql.query("select * from meters")
+        tdSql.checkRows(10)
+        tdSql.query("select col7 from meters")        
         tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col8 binary(20)")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select col8 from meters")        
+        tdSql.checkRows(10)
 
         tdSql.execute("alter table meters add column col9 nchar(20)")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select col9 from meters")        
+        tdSql.checkRows(10)
         
         tdSql.execute("alter table meters add tag tgcol2 tinyint")
         tdSql.query("select * from meters")
-        tdSql.checkRows(10)        
+        tdSql.checkRows(10)
+        tdSql.query("select tgcol2 from meters")
+        tdSql.checkRows(1)
+                
 
         tdSql.execute("alter table meters add tag tgcol3 smallint")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol3 from meters")
+        tdSql.checkRows(1)
+        
 
         tdSql.execute("alter table meters add tag tgcol4 bigint")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol4 from meters")
+        tdSql.checkRows(1)
 
         tdSql.execute("alter table meters add tag tgcol5 float")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol5 from meters")
+        tdSql.checkRows(1)
 
         tdSql.execute("alter table meters add tag tgcol6 double")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol6 from meters")
+        tdSql.checkRows(1)
 
         tdSql.execute("alter table meters add tag tgcol7 bool")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol7 from meters")
+        tdSql.checkRows(1)
 
         tdSql.execute("alter table meters add tag tgcol8 binary(20)")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol8 from meters")
+        tdSql.checkRows(1)
 
         tdSql.execute("alter table meters add tag tgcol9 nchar(20)")
         tdSql.query("select * from meters")
         tdSql.checkRows(10)
+        tdSql.query("select tgcol9 from meters")
+        tdSql.checkRows(1)
 
         self.restartTaosd()
         tdSql.query("select * from meters")        
         tdSql.checkRows(10)
         if self.checkNullValue(tdSql.queryResult) is False:
             tdLog.exit("non None value is detected")
+
+
+        
 
     def stop(self):
         tdSql.close()

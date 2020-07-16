@@ -763,10 +763,16 @@ class DbConnNative(DbConn):
                     break
         return buildPath
 
+    connInfoDisplayed = False
     def openByType(self):  # Open connection
         cfgPath = self.getBuildPath() + "/test/cfg"
+        hostAddr = "127.0.0.1"
+        if not self.connInfoDisplayed:
+            logger.info("Initiating TAOS native connection to {}, using config at {}".format(hostAddr, cfgPath))
+            self.connInfoDisplayed = True
+
         self._conn = taos.connect(
-            host="127.0.0.1",
+            host=hostAddr,
             config=cfgPath)  # TODO: make configurable
         self._cursor = self._conn.cursor()
 
