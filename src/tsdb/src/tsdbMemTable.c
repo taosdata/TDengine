@@ -204,6 +204,9 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   pBufBlock->offset += bytes;
   pBufBlock->remain -= bytes;
 
+  tsdbTrace("vgId:%d allocate %d bytes from buffer block, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
+            listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
+
   return ptr;
 }
 
@@ -324,6 +327,8 @@ static void tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes) {
   pBufBlock->offset -= bytes;
   pBufBlock->remain += bytes;
   ASSERT(ptr == POINTER_SHIFT(pBufBlock->data, pBufBlock->offset));
+  tsdbTrace("vgId:%d return %d bytes to buffer block, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
+            listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
 }
 
 static SMemTable* tsdbNewMemTable(STsdbCfg* pCfg) {
