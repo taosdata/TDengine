@@ -269,18 +269,37 @@ void mnodeUpdateDnode(SDnodeObj *pDnode) {
 }
 
 static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
+  if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
+    mError("failed to cfg dnode, no rights");
+    return TSDB_CODE_MND_NO_RIGHTS;
+  }
+  
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->rpcMsg.pCont;
   if (pCmCfgDnode->ep[0] == 0) {
-    strcpy(pCmCfgDnode->ep, tsLocalEp);
-  } else {
-    // TODO temporary disabled for compiling: strcpy(pCmCfgDnode->ep, pCmCfgDnode->ep); 
-  }
+    tstrncpy(pCmCfgDnode->ep, tsLocalEp, TSDB_EP_LEN);
+  } 
 
-  if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
-    return TSDB_CODE_MND_NO_RIGHTS;
+  int32_t dnodeId = 0;
+  char* pos = strchr(pCmCfgDnode->ep, ':');
+  if (NULL == pos) {
+    dnodeId = strtol(pCmCfgDnode->ep, NULL, 10);
+    if (dnodeId <= 0 || dnodeId > 65536) {
+      mError("failed to cfg dnode, invalid dnodeId:%s", pCmCfgDnode->ep);
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
   }
 
   SRpcIpSet ipSet = mnodeGetIpSetFromIp(pCmCfgDnode->ep);
+  if (dnodeId != 0) {
+    SDnodeObj *pDnode = mnodeGetDnode(dnodeId);
+    if (pDnode == NULL) {
+      mError("failed to cfg dnode, invalid dnodeId:%d", dnodeId);
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
+    ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
+    mnodeDecDnodeRef(pDnode);
+  }
+
   SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
   strcpy(pMdCfgDnode->ep, pCmCfgDnode->ep);
   strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
@@ -292,9 +311,9 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     .pCont = pMdCfgDnode,
     .contLen = sizeof(SMDCfgDnodeMsg)
   };
-  dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
 
   mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
+  dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -305,6 +324,7 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 
 static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
   if (clusterCfg->numOfMnodes        != htonl(tsNumOfMnodes))        return false;
+  if (clusterCfg->enableBalance      != htonl(tsEnableBalance))        return false;
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) return false;
   if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold))   return false;
   if (clusterCfg->statusInterval     != htonl(tsStatusInterval))     return false;

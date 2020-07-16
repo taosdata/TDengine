@@ -4642,21 +4642,24 @@ typedef struct SDNodeDynConfOption {
 } SDNodeDynConfOption;
 
 
-int32_t validateEp(char* ep) {
+int32_t validateEp(char* ep) {  
   char buf[TSDB_EP_LEN + 1] = {0};
   tstrncpy(buf, ep, TSDB_EP_LEN);
 
-  char *pos = strchr(buf, ':');
-  if (NULL == pos) {   
-    return TSDB_CODE_TSC_INVALID_SQL;
+  char* pos = strchr(buf, ':');
+  if (NULL == pos) {
+    int32_t val = strtol(ep, NULL, 10);
+    if (val <= 0 || val > 65536) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+  } else {
+    uint16_t port = atoi(pos + 1);
+    if (0 == port) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
   }
-  
-  uint16_t port = atoi(pos+1);
-  if (0 == port) {   
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }  
 
-  return TSDB_CODE_SUCCESS;   
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t validateDNodeConfig(tDCLSQL* pOptions) {
@@ -4664,13 +4667,13 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  const int DNODE_DYNAMIC_CFG_OPTIONS_SIZE = 17;
+  const int DNODE_DYNAMIC_CFG_OPTIONS_SIZE = 19;
   const SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[] = {
       {"resetLog", 8},       {"resetQueryCache", 15},  {"debugFlag", 9},     {"mDebugFlag", 10},
       {"dDebugFlag", 10},    {"sdbDebugFlag", 12},     {"vDebugFlag", 10},   {"cDebugFlag", 10},
       {"httpDebugFlag", 13}, {"monitorDebugFlag", 16}, {"rpcDebugFlag", 12}, {"uDebugFlag", 10},
       {"tmrDebugFlag", 12},  {"qDebugflag", 10},       {"sDebugflag", 10},   {"tsdbDebugFlag", 13},
-      {"monitor", 7}};
+      {"mqttDebugFlag", 13}, {"wDebugFlag", 10},       {"monitor", 7}};
 
   SSQLToken* pOptionToken = &pOptions->a[1];
 
@@ -4694,7 +4697,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     SSQLToken* pValToken = &pOptions->a[2];
 
     int32_t val = strtol(pValToken->z, NULL, 10);
-    if (val < 131 || val > 199) {
+    if (val < 0 || val > 256) {
       /* options value is out of valid range */
       return TSDB_CODE_TSC_INVALID_SQL;
     }

@@ -563,15 +563,16 @@ typedef struct {
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
+  int32_t  enableBalance;             // tsEnableBalance
   int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
   int32_t  offlineThreshold;          // tsOfflineThreshold
   int32_t  statusInterval;            // tsStatusInterval
+  int32_t  maxtablesPerVnode;
+  int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
   char     timezone[64];              // tsTimezone
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
-  int32_t  maxtablesPerVnode;
-  int32_t  maxVgroupsPerDb;
 } SClusterCfg;
 
 typedef struct {

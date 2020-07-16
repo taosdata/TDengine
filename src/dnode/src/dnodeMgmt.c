@@ -706,6 +706,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 
   // fill cluster cfg parameters
   pStatus->clusterCfg.numOfMnodes        = htonl(tsNumOfMnodes);
+  pStatus->clusterCfg.enableBalance      = htonl(tsEnableBalance);
   pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(tsMnodeEqualVnodeNum);
   pStatus->clusterCfg.offlineThreshold   = htonl(tsOfflineThreshold);
   pStatus->clusterCfg.statusInterval     = htonl(tsStatusInterval);
