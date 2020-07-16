@@ -1241,10 +1241,12 @@ static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void*
   STableBlockInfo* pRightBlockInfoEx = &pSupporter->pDataBlockInfo[rightTableIndex][rightTableBlockIndex];
 
   //    assert(pLeftBlockInfoEx->compBlock->offset != pRightBlockInfoEx->compBlock->offset);
+#if 0	// TODO: temporarily comment off requested by Dr. Liao
   if (pLeftBlockInfoEx->compBlock->offset == pRightBlockInfoEx->compBlock->offset &&
       pLeftBlockInfoEx->compBlock->last == pRightBlockInfoEx->compBlock->last) {
     tsdbError("error in header file, two block with same offset:%" PRId64, (int64_t)pLeftBlockInfoEx->compBlock->offset);
   }
+#endif 
 
   return pLeftBlockInfoEx->compBlock->offset > pRightBlockInfoEx->compBlock->offset ? 1 : -1;
 }

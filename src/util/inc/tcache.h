@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "tref.h"
+#include "tlockfree.h"
 #include "hash.h"
 
 typedef void (*__cache_free_fn_t)(void*);
