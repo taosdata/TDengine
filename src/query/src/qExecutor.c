@@ -2250,7 +2250,13 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-  while (tsdbNextDataBlock(pQueryHandle)) {
+  while (true) {
+    if (!tsdbNextDataBlock(pQueryHandle)) {
+      if (terrno != TSDB_CODE_SUCCESS) {
+        longjmp(pRuntimeEnv->env, terrno);
+      }
+      break;
+    }
     summary->totalBlocks += 1;
 
     if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -3234,6 +3240,9 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
 
   // add ref for table
   pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
+  if (pRuntimeEnv->pSecQueryHandle == NULL) {
+    longjmp(pRuntimeEnv->env, terrno);
+  }
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
   switchCtxOrder(pRuntimeEnv);
@@ -3306,6 +3315,9 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
     }
 
     pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
+    if (pRuntimeEnv->pSecQueryHandle == NULL) {
+      longjmp(pRuntimeEnv->env, terrno);
+    }
     pRuntimeEnv->windowResInfo.curIndex = qstatus.windowIndex;
 
     setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
@@ -3928,7 +3940,14 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-  while (tsdbNextDataBlock(pQueryHandle)) {
+  while (true) {
+    if (!tsdbNextDataBlock(pQueryHandle)) {
+      if (terrno != TSDB_CODE_SUCCESS) {
+        longjmp(pRuntimeEnv->env, terrno);
+      }
+      break;
+    }
+
     if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
       finalizeQueryResult(pRuntimeEnv); // clean up allocated resource during query
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
@@ -3972,7 +3991,14 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   STableQueryInfo *pTableQueryInfo = pQuery->current;
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-  while (tsdbNextDataBlock(pRuntimeEnv->pQueryHandle)) {
+  while (true) {
+    if (!tsdbNextDataBlock(pRuntimeEnv->pQueryHandle)) {
+      if (terrno != TSDB_CODE_SUCCESS) {
+        longjmp(pRuntimeEnv->env, terrno);
+      }
+      break;
+    }
+
     tsdbRetrieveDataBlockInfo(pRuntimeEnv->pQueryHandle, &blockInfo);
 
     if (QUERY_IS_ASC_QUERY(pQuery)) {
@@ -4071,16 +4097,16 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   return true;
 }
 
-static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
+static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
   if (onlyQueryTags(pQuery)) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (isSTableQuery && (!QUERY_IS_INTERVAL_QUERY(pQuery)) && (!isFixedOutputQuery(pRuntimeEnv))) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   STsdbQueryCond cond = {
@@ -4102,6 +4128,7 @@ static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
     cond.twindow = pCheckInfo->win;
   }
 
+  terrno = TSDB_CODE_SUCCESS;
   if (isFirstLastRowQuery(pQuery)) {
     pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
   } else if (isPointInterpoQuery(pQuery)) {
@@ -4109,6 +4136,7 @@ static void setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
   } else {
     pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
   }
+  return terrno;
 }
 
 static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
@@ -4145,7 +4173,10 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
   setScanLimitationByResultBuffer(pQuery);
   changeExecuteScanOrder(pQInfo, false);
-  setupQueryHandle(tsdb, pQInfo, isSTableQuery);
+  code = setupQueryHandle(tsdb, pQInfo, isSTableQuery);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   
   pQInfo->tsdb = tsdb;
   pQInfo->vgId = vgId;
@@ -4269,7 +4300,14 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
-  while (tsdbNextDataBlock(pQueryHandle)) {
+  while (true) {
+    if (!tsdbNextDataBlock(pQueryHandle)) {
+      if (terrno != TSDB_CODE_SUCCESS) {
+        longjmp(pRuntimeEnv->env, terrno);
+      }
+      break;
+    }
+
     summary->totalBlocks += 1;
     
     if (IS_QUERY_KILLED(pQInfo)) {
@@ -4349,6 +4387,9 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
   pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp, pQInfo);
   taosArrayDestroy(tx);
   taosArrayDestroy(g1);
+  if (pRuntimeEnv->pQueryHandle == NULL) {
+    longjmp(pRuntimeEnv->env, terrno);
+  }
 
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vgroupIndex == -1) {
@@ -4416,7 +4457,13 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       } else {
         pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(pQInfo->tsdb, &cond, &gp, pQInfo);
       }
-      
+
+      taosArrayDestroy(tx);
+      taosArrayDestroy(g1);
+      if (pRuntimeEnv->pQueryHandle == NULL) {
+        longjmp(pRuntimeEnv->env, terrno);
+      }
+
       initCtxOutputBuf(pRuntimeEnv);
       
       SArray* s = tsdbGetQueriedTableList(pRuntimeEnv->pQueryHandle);
@@ -4480,6 +4527,9 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp, pQInfo);
       taosArrayDestroy(g1);
       taosArrayDestroy(tx);
+      if (pRuntimeEnv->pQueryHandle == NULL) {
+        longjmp(pRuntimeEnv->env, terrno);
+      }
 
       SArray* s = tsdbGetQueriedTableList(pRuntimeEnv->pQueryHandle);
       assert(taosArrayGetSize(s) >= 1);
@@ -4674,7 +4724,10 @@ static void doSaveContext(SQInfo *pQInfo) {
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
   pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
-  
+  if (pRuntimeEnv->pSecQueryHandle == NULL) {
+    longjmp(pRuntimeEnv->env, terrno);
+  }
+
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
   switchCtxOrder(pRuntimeEnv);
   disableFuncInReverseScan(pQInfo);
@@ -6512,8 +6565,8 @@ void* qOpenQueryMgmt(int32_t vgId) {
 }
 
 static void queryMgmtKillQueryFn(void* handle) {
-  void** h = (void**) handle;
-  qKillQuery(*h);
+  void** fp = (void**)handle;
+  qKillQuery(*fp);
 }
 
 void qQueryMgmtNotifyClosed(void* pQMgmt) {
