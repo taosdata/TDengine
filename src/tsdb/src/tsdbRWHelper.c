@@ -589,7 +589,7 @@ void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols) 
 
 int tsdbLoadBlockDataCols(SRWHelper *pHelper, SCompBlock *pCompBlock, SCompInfo *pCompInfo, int16_t *colIds, int numOfColIds) {
   ASSERT(pCompBlock->numOfSubBlocks >= 1);  // Must be super block
-  SCompBlock *pTCompBlock = NULL;
+  SCompBlock *pTCompBlock = pCompBlock;
 
   int numOfSubBlocks = pCompBlock->numOfSubBlocks;
   if (numOfSubBlocks > 1)
@@ -615,7 +615,7 @@ _err:
 }
 
 int tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SCompInfo *pCompInfo) {
-  SCompBlock *pTCompBlock = NULL;
+  SCompBlock *pTCompBlock = pCompBlock;
 
   int numOfSubBlock = pCompBlock->numOfSubBlocks;
   if (numOfSubBlock > 1)
