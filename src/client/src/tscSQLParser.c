@@ -1385,6 +1385,11 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   return numOfTotalColumns;
 }
 
+static void tscInsertPrimaryTSSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+  SColumnIndex tsCol = {.tableIndex = pIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+  tscColumnListInsert(pQueryInfo->colList, &tsCol);
+}
+
 int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExprItem* pItem) {
   const char* msg0 = "invalid column name";
   const char* msg1 = "tag for normal table query is not allowed";
@@ -1427,6 +1432,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 
       addProjectQueryCol(pQueryInfo, startPos, &index, pItem);
     }
+
+    tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -1499,8 +1506,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
   switch (optr) {
     case TK_COUNT: {
-      if (pItem->pNode->pParam != NULL && pItem->pNode->pParam->nExpr != 1) {
         /* more than one parameter for count() function */
+      if (pItem->pNode->pParam != NULL && pItem->pNode->pParam->nExpr != 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -1551,11 +1558,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
       } else {  // count(*) is equalled to count(primary_timestamp_key)
         index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-
         int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
         pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size, false);
       }
-      
+
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+
       memset(pExpr->aliasName, 0, tListLen(pExpr->aliasName));
       getColumnName(pItem, pExpr->aliasName, sizeof(pExpr->aliasName) - 1);
       
@@ -1570,9 +1578,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       // the time stamp may be always needed
-      if (index.tableIndex > 0 && index.tableIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
-        SColumnIndex tsCol = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-        tscColumnListInsert(pQueryInfo->colList, &tsCol);
+      if (index.tableIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
+        tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
       }
 
       return TSDB_CODE_SUCCESS;
@@ -1682,10 +1689,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           tscColumnListInsert(pQueryInfo->colList, &(ids.ids[i]));
         }
       }
-  
-      SColumnIndex tsCol = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-      tscColumnListInsert(pQueryInfo->colList, &tsCol);
-      
+
+      tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
       return TSDB_CODE_SUCCESS;
     }
     case TK_FIRST:

@@ -4564,7 +4564,6 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       // TODO handle the limit offset problem
       if (pQuery->numOfFilterCols == 0 && pQuery->limit.offset > 0) {
-        //        skipBlocks(pRuntimeEnv);
         if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
           pQInfo->tableIndex++;
           continue;
@@ -4799,7 +4798,7 @@ static void tableFixedOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  if (!isTopBottomQuery(pQuery) && pQuery->limit.offset > 0) {  // no need to execute, since the output will be ignore.
+  if (!pRuntimeEnv->topBotQuery && pQuery->limit.offset > 0) {  // no need to execute, since the output will be ignore.
     return;
   }
   
@@ -5639,6 +5638,20 @@ static int compareTableIdInfo(const void* a, const void* b) {
 
 static void freeQInfo(SQInfo *pQInfo);
 
+static void calResultBufSize(SQuery* pQuery) {
+  const int32_t RESULT_MSG_MIN_SIZE  = 1024 * (1024 + 512);  // bytes
+  const int32_t RESULT_MSG_MIN_ROWS  = 8192;
+  const float RESULT_THRESHOLD_RATIO = 0.85;
+
+  int32_t numOfRes = RESULT_MSG_MIN_SIZE / pQuery->rowSize;
+  if (numOfRes < RESULT_MSG_MIN_ROWS) {
+    numOfRes = RESULT_MSG_MIN_ROWS;
+  }
+
+  pQuery->rec.capacity = numOfRes;
+  pQuery->rec.threshold = numOfRes * RESULT_THRESHOLD_RATIO;
+}
+
 static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
                                STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols) {
   int16_t numOfCols = pQueryMsg->numOfCols;
@@ -5672,8 +5685,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   pQuery->fillType        = pQueryMsg->fillType;
   pQuery->numOfTags       = pQueryMsg->numOfTags;
   pQuery->tagColList      = pTagCols;
-  
-  // todo do not allocate ??
+
   pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQuery->colList == NULL) {
     goto _cleanup;
@@ -5703,9 +5715,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     goto _cleanup;
   }
 
-  // set the output buffer capacity
-  pQuery->rec.capacity = 4096;
-  pQuery->rec.threshold = 4000;
+  calResultBufSize(pQuery);
 
   for (int32_t col = 0; col < pQuery->numOfOutput; ++col) {
     assert(pExprs[col].interBytes >= pExprs[col].bytes);
@@ -5967,7 +5977,6 @@ static void freeQInfo(SQInfo *pQInfo) {
   }
 
   tfree(pQuery->sdata);
-
   tfree(pQuery);
 
   qDebug("QInfo:%p QInfo is freed", pQInfo);
@@ -6503,7 +6512,8 @@ void* qOpenQueryMgmt(int32_t vgId) {
 }
 
 static void queryMgmtKillQueryFn(void* handle) {
-  qKillQuery(handle);
+  void** h = (void**) handle;
+  qKillQuery(*h);
 }
 
 void qQueryMgmtNotifyClosed(void* pQMgmt) {

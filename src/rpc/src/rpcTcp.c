@@ -374,7 +374,7 @@ int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chand
 
   if (chandle == NULL) return -1;
 
-  return (int)send(pFdObj->fd, data, (size_t)len, 0);
+  return taosWriteMsg(pFdObj->fd, data, len);
 }
 
 static void taosReportBrokenLink(SFdObj *pFdObj) {

@@ -604,7 +604,6 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
   int16_t* colIds = pQueryHandle->defaultLoadColumn->pData;
   int32_t ret = tsdbLoadBlockDataCols(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, QH_GET_NUM_OF_COLS(pQueryHandle));
-//  int32_t ret = tsdbLoadBlockData(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo);
     if (ret == TSDB_CODE_SUCCESS) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
@@ -1534,7 +1533,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   
       pSecQueryHandle->statis = calloc(numOfCols, sizeof(SDataStatis));
       pSecQueryHandle->pColumns = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  
+
       for (int32_t i = 0; i < numOfCols; ++i) {
         SColumnInfoData colInfo = {{0}, 0};
         SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
@@ -1542,7 +1541,6 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
         colInfo.info = pCol->info;
         colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCol->info.bytes);
         taosArrayPush(pSecQueryHandle->pColumns, &colInfo);
-        pSecQueryHandle->statis[i].colId = colInfo.info.colId;
       }
   
       size_t si = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -1564,7 +1562,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   
       tsdbInitDataBlockLoadInfo(&pSecQueryHandle->dataBlockLoadInfo);
       tsdbInitCompBlockLoadInfo(&pSecQueryHandle->compBlockLoadInfo);
-  
+      pSecQueryHandle->defaultLoadColumn = taosArrayClone(pQueryHandle->defaultLoadColumn);
+
       bool ret = tsdbNextDataBlock((void*) pSecQueryHandle);
       assert(ret);
 
@@ -1811,22 +1810,26 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   int64_t stime = taosGetTimestampUs();
   tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
 
-  // todo opt perf
+  int16_t* colIds = pHandle->defaultLoadColumn->pData;
+
   size_t numOfCols = QH_GET_NUM_OF_COLS(pHandle);
+  memset(pHandle->statis, 0, numOfCols * sizeof(SDataStatis));
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SDataStatis* st = &pHandle->statis[i];
-    int32_t colId = st->colId;
-    
-    memset(st, 0, sizeof(SDataStatis));
-    st->colId = colId;
+    pHandle->statis[i].colId = colIds[i];
   }
   
   tsdbGetDataStatis(&pHandle->rhelper, pHandle->statis, numOfCols);
-  
-  *pBlockStatis = pHandle->statis;
-  
+
+  // always load the first primary timestamp column data
+  SDataStatis* pPrimaryColStatis = &pHandle->statis[0];
+  assert(pPrimaryColStatis->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX);
+
+  pPrimaryColStatis->numOfNull = 0;
+  pPrimaryColStatis->min = pBlockInfo->compBlock->keyFirst;
+  pPrimaryColStatis->max = pBlockInfo->compBlock->keyLast;
+
   //update the number of NULL data rows
-  for(int32_t i = 0; i < numOfCols; ++i) {
+  for(int32_t i = 1; i < numOfCols; ++i) {
     if (pHandle->statis[i].numOfNull == -1) { // set the column data are all NULL
       pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
     }
@@ -1842,6 +1845,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   int64_t elapsed = taosGetTimestampUs() - stime;
   pHandle->cost.statisInfoLoadTime += elapsed;
 
+  *pBlockStatis = pHandle->statis;
   return TSDB_CODE_SUCCESS;
 }
 
