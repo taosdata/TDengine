@@ -564,8 +564,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscDebug("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
     if (!pSql->cmd.parseFinished) {
       tsParseSql(pSql, false);
-      sem_post(&pSql->rspSem);
     }
+    (*pSql->fp)(pSql->param, pSql, code);
 
     return;
   }
