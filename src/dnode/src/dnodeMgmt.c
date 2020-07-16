@@ -416,7 +416,7 @@ static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SMDCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
 
-  void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
+  void *pVnode = vnodeAcquire(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, already exist, return success", pCreate->cfg.vgId);
     vnodeRelease(pVnode);
@@ -430,7 +430,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   SMDAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
 
-  void *pVnode = vnodeAcquireVnode(pAlter->cfg.vgId);
+  void *pVnode = vnodeAcquire(pAlter->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, alter vnode msg is received", pAlter->cfg.vgId);
     int32_t code = vnodeAlter(pVnode, pAlter);

@@ -314,7 +314,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 }
 
 int32_t vnodeStartStream(int32_t vnode) {
-  SVnodeObj* pVnode = vnodeAcquireVnode(vnode);
+  SVnodeObj* pVnode = vnodeAcquire(vnode);
   if (pVnode != NULL) {
     tsdbStartStream(pVnode->tsdb);
     vnodeRelease(pVnode);
@@ -387,7 +387,7 @@ void vnodeRelease(void *pVnodeRaw) {
   vDebug("vgId:%d, vnode is released, vnodes:%d", vgId, count);
 }
 
-void *vnodeAcquireVnode(int32_t vgId) {
+void *vnodeAcquire(int32_t vgId) {
   SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -403,7 +403,7 @@ void *vnodeAcquireVnode(int32_t vgId) {
 }
 
 void *vnodeAcquireRqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquireVnode(vgId);
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) return NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_RESET) {           
@@ -417,7 +417,7 @@ void *vnodeAcquireRqueue(int32_t vgId) {
 }
 
 void *vnodeAcquireWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquireVnode(vgId);
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) return NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_RESET) {           
@@ -498,7 +498,7 @@ void vnodeBuildStatusMsg(void *param) {
 void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pAccess[i].vgId = htonl(pAccess[i].vgId);
-    SVnodeObj *pVnode = vnodeAcquireVnode(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAcquire(pAccess[i].vgId);
     if (pVnode != NULL) {
       pVnode->accessState = pAccess[i].accessState;
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {

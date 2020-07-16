@@ -48,11 +48,10 @@ int32_t vnodeStartStream(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeClose(int32_t vgId);
 
-void*   vnodeAcquireVnode(int32_t vgId); // add refcount
-void    vnodeRelease(void *pVnode);
-
-void*   vnodeAcquireRqueue(int32_t vgId);
-void*   vnodeAcquireWqueue(int32_t vgId);
+void*   vnodeAcquire(int32_t vgId);        // add refcount
+void*   vnodeAcquireRqueue(int32_t vgId);  // add refCount, get read queue 
+void*   vnodeAcquireWqueue(int32_t vgId);  // add recCount, get write queue
+void    vnodeRelease(void *pVnode);        // dec refCount
 void*   vnodeGetWal(void *pVnode);
 
 int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
