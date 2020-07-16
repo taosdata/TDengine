@@ -133,6 +133,8 @@ char **strsplit(char *src, const char *delim, int32_t *num);
 
 char* strtolower(char *dst, const char *src);
 
+char* strntolower(char *dst, const char *src, int32_t n);
+
 int64_t strnatoi(char *num, int32_t len);
 
 //char* strreplace(const char* str, const char* pattern, const char* rep);
