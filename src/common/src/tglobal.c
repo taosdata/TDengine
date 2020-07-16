@@ -194,7 +194,7 @@ int32_t monitorDebugFlag = 131;
 int32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
-int32_t debugFlag = 131;
+int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
@@ -202,7 +202,7 @@ int32_t tsdbDebugFlag = 131;
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
-  for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
+  if (debugFlag != 0) { 
     mDebugFlag = debugFlag;
     sdbDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
@@ -219,8 +219,8 @@ void taosSetAllDebugFlag() {
     wDebugFlag = debugFlag;
     tsdbDebugFlag = debugFlag;
     qDebugFlag = debugFlag;    
+    uInfo("all debug flag are set to %d", debugFlag);
   }
-  uInfo("all debug flag are set to %d", debugFlag);
 }
 
 bool taosCfgDynamicOptions(char *msg) {

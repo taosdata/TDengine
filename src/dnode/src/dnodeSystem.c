@@ -135,7 +135,7 @@ int32_t main(int32_t argc, char *argv[]) {
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   if (signum == SIGUSR1) {
-    taosCfgDynamicOptions("debugFlag 151");
+    taosCfgDynamicOptions("debugFlag 143");
     return;
   }
   if (signum == SIGUSR2) {
