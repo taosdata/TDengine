@@ -303,10 +303,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 #endif
 
-  // start continuous query
-  if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
-    cqStart(pVnode->cq);
-
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
@@ -314,15 +310,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   taosHashPut(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
 
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t vnodeStartStream(int32_t vnode) {
-  SVnodeObj* pVnode = vnodeAcquireVnode(vnode);
-  if (pVnode != NULL) {
-    tsdbStartStream(pVnode->tsdb);
-    vnodeRelease(pVnode);
-  }
   return TSDB_CODE_SUCCESS;
 }
 
