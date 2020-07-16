@@ -589,19 +589,24 @@ void tsdbGetDataStatis(SRWHelper *pHelper, SDataStatis *pStatis, int numOfCols) 
 
 int tsdbLoadBlockDataCols(SRWHelper *pHelper, SCompBlock *pCompBlock, SCompInfo *pCompInfo, int16_t *colIds, int numOfColIds) {
   ASSERT(pCompBlock->numOfSubBlocks >= 1);  // Must be super block
+  SCompBlock *pTCompBlock = NULL;
 
   int numOfSubBlocks = pCompBlock->numOfSubBlocks;
   if (numOfSubBlocks > 1)
-    pCompBlock = (SCompBlock *)POINTER_SHIFT((pCompInfo == NULL) ? pHelper->pCompInfo : pCompInfo, pCompBlock->offset);
+    pTCompBlock = (SCompBlock *)POINTER_SHIFT((pCompInfo == NULL) ? pHelper->pCompInfo : pCompInfo, pCompBlock->offset);
 
   tdResetDataCols(pHelper->pDataCols[0]);
-  if (tsdbLoadBlockDataColsImpl(pHelper, pCompBlock, pHelper->pDataCols[0], colIds, numOfColIds) < 0) goto _err;
+  if (tsdbLoadBlockDataColsImpl(pHelper, pTCompBlock, pHelper->pDataCols[0], colIds, numOfColIds) < 0) goto _err;
   for (int i = 1; i < numOfSubBlocks; i++) {
     tdResetDataCols(pHelper->pDataCols[1]);
-    pCompBlock++;
-    if (tsdbLoadBlockDataColsImpl(pHelper, pCompBlock, pHelper->pDataCols[1], colIds, numOfColIds) < 0) goto _err;
+    pTCompBlock++;
+    if (tsdbLoadBlockDataColsImpl(pHelper, pTCompBlock, pHelper->pDataCols[1], colIds, numOfColIds) < 0) goto _err;
     if (tdMergeDataCols(pHelper->pDataCols[0], pHelper->pDataCols[1], pHelper->pDataCols[1]->numOfRows) < 0) goto _err;
   }
+
+  ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows &&
+         dataColsKeyFirst(pHelper->pDataCols[0]) == pCompBlock->keyFirst &&
+         dataColsKeyLast(pHelper->pDataCols[0]) == pCompBlock->keyLast);
 
   return 0;
 
@@ -610,18 +615,24 @@ _err:
 }
 
 int tsdbLoadBlockData(SRWHelper *pHelper, SCompBlock *pCompBlock, SCompInfo *pCompInfo) {
+  SCompBlock *pTCompBlock = NULL;
+
   int numOfSubBlock = pCompBlock->numOfSubBlocks;
   if (numOfSubBlock > 1)
-    pCompBlock = (SCompBlock *)POINTER_SHIFT((pCompInfo == NULL) ? pHelper->pCompInfo : pCompInfo, pCompBlock->offset);
+    pTCompBlock = (SCompBlock *)POINTER_SHIFT((pCompInfo == NULL) ? pHelper->pCompInfo : pCompInfo, pCompBlock->offset);
 
   tdResetDataCols(pHelper->pDataCols[0]);
-  if (tsdbLoadBlockDataImpl(pHelper, pCompBlock, pHelper->pDataCols[0]) < 0) goto _err;
+  if (tsdbLoadBlockDataImpl(pHelper, pTCompBlock, pHelper->pDataCols[0]) < 0) goto _err;
   for (int i = 1; i < numOfSubBlock; i++) {
     tdResetDataCols(pHelper->pDataCols[1]);
-    pCompBlock++;
-    if (tsdbLoadBlockDataImpl(pHelper, pCompBlock, pHelper->pDataCols[1]) < 0) goto _err;
+    pTCompBlock++;
+    if (tsdbLoadBlockDataImpl(pHelper, pTCompBlock, pHelper->pDataCols[1]) < 0) goto _err;
     if (tdMergeDataCols(pHelper->pDataCols[0], pHelper->pDataCols[1], pHelper->pDataCols[1]->numOfRows) < 0) goto _err;
   }
+
+  ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows &&
+         dataColsKeyFirst(pHelper->pDataCols[0]) == pCompBlock->keyFirst &&
+         dataColsKeyLast(pHelper->pDataCols[0]) == pCompBlock->keyLast);
 
   return 0;
 
@@ -1227,7 +1238,6 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  ASSERT(pCompData->numOfCols == pCompBlock->numOfCols);
 
   int32_t tsize = TSDB_GET_COMPCOL_LEN(pCompBlock->numOfCols);
   if (!taosCheckChecksumWhole((uint8_t *)pCompData, tsize)) {
@@ -1236,6 +1246,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     goto _err;
   }
+  ASSERT(pCompData->numOfCols == pCompBlock->numOfCols);
 
   pDataCols->numOfRows = pCompBlock->numOfRows;
 
