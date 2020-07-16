@@ -67,6 +67,8 @@ DLL_EXPORT void  taos_init();
 DLL_EXPORT void  taos_cleanup();
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t userLen,
+                 const char *pass, uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 typedef struct TAOS_BIND {
@@ -88,6 +90,7 @@ TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
 int        taos_stmt_close(TAOS_STMT *stmt);
 
 DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);
+DLL_EXPORT TAOS_RES *taos_query_c(TAOS *taos, const char *sql, uint32_t sqlLen);
 DLL_EXPORT TAOS_ROW taos_fetch_row(TAOS_RES *res);
 DLL_EXPORT int taos_result_precision(TAOS_RES *res);  // get the time precision of result
 DLL_EXPORT void taos_free_result(TAOS_RES *res);

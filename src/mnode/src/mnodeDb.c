@@ -913,7 +913,7 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
-      mnodeSendCreateVgroupMsg(pVgroup, NULL);
+      mnodeSendAlterVgroupMsg(pVgroup);
     }
     mnodeDecVgroupRef(pVgroup);
   }
