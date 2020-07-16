@@ -305,6 +305,7 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 
 static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
   if (clusterCfg->numOfMnodes        != htonl(tsNumOfMnodes))        return false;
+  if (clusterCfg->enableBalance      != htonl(tsEnableBalance))        return false;
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) return false;
   if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold))   return false;
   if (clusterCfg->statusInterval     != htonl(tsStatusInterval))     return false;
