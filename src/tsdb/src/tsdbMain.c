@@ -69,6 +69,8 @@ static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
 static void *      tsdbDecodeCfg(void *buf, STsdbCfg *pCfg);
 static int         tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int         tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
+static void        tsdbStartStream(STsdbRepo *pRepo);
+static void        tsdbStopStream(STsdbRepo *pRepo);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
@@ -127,6 +129,7 @@ TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
     goto _err;
   }
 
+  tsdbStartStream(pRepo);
   // pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   tsdbDebug("vgId:%d open tsdb repository succeed!", REPO_ID(pRepo));
@@ -144,6 +147,8 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   int        vgId = REPO_ID(pRepo);
+
+  tsdbStopStream(repo);
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
@@ -263,19 +268,6 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   tfree(fname);
   return magic;
-}
-
-void tsdbStartStream(TSDB_REPO_T *repo) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-
-  for (int i = 0; i < pRepo->config.maxTables; i++) {
-    STable *pTable = pMeta->tables[i];
-    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
-                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1));
-    }
-  }
 }
 
 STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo) {
@@ -1121,3 +1113,26 @@ TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid) {
 }
 
 #endif
+
+static void tsdbStartStream(STsdbRepo *pRepo) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
+                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1));
+    }
+  }
+}
+
+static void tsdbStopStream(STsdbRepo *pRepo) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      (*pRepo->appH.cqDropFunc)(pTable->cqhandle);
+    }
+  }
+}

@@ -117,7 +117,6 @@ int   tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg);
 int   tsdbDropTable(TSDB_REPO_T *pRepo, STableId tableId);
 int   tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg);
 TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid);
-void  tsdbStartStream(TSDB_REPO_T *repo);
 
 uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_t eindex, int32_t *size);
 
