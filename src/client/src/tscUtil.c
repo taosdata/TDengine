@@ -2146,16 +2146,19 @@ char* strdup_throw(const char* str) {
 }
 
 int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
-  tscMgmtIpSet.numOfIps = 0;
-  tscMgmtIpSet.inUse = 0;
+  // init mgmt ip set 
+  tscMgmtIpSet.version = 0;
+  SRpcIpSet *mgmtIpSet = &(tscMgmtIpSet.ipSet);
+  mgmtIpSet->numOfIps = 0;
+  mgmtIpSet->inUse = 0;
 
   if (first && first[0] != 0) {
     if (strlen(first) >= TSDB_EP_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(first, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
-    tscMgmtIpSet.numOfIps++;
+    taosGetFqdnPortFromEp(first, mgmtIpSet->fqdn[mgmtIpSet->numOfIps], &(mgmtIpSet->port[mgmtIpSet->numOfIps]));
+    mgmtIpSet->numOfIps++;
   }
 
   if (second && second[0] != 0) {
@@ -2163,11 +2166,11 @@ int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(second, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
-    tscMgmtIpSet.numOfIps++;
+    taosGetFqdnPortFromEp(second, mgmtIpSet->fqdn[mgmtIpSet->numOfIps], &(mgmtIpSet->port[mgmtIpSet->numOfIps]));
+    mgmtIpSet->numOfIps++;
   }
 
-  if ( tscMgmtIpSet.numOfIps == 0) {
+  if (mgmtIpSet->numOfIps == 0) {
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;
   }

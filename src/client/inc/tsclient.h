@@ -457,7 +457,7 @@ extern void *    tscQhandle;
 extern int       tscKeepConn[];
 extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
-extern SRpcIpSet tscMgmtIpSet;
+extern SRpcCorIpSet tscMgmtIpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

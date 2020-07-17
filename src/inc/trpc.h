@@ -35,6 +35,11 @@ typedef struct SRpcIpSet {
   char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SRpcIpSet;
 
+typedef struct SRpcCorIpSet {
+  int32_t version; 
+  SRpcIpSet ipSet; 
+} SRpcCorIpSet;
+
 typedef struct SRpcConnInfo {
   uint32_t  clientIp;
   uint16_t  clientPort;

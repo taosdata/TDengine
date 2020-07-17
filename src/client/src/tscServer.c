@@ -29,7 +29,7 @@
 
 #define TSC_MGMT_VNODE 999
 
-SRpcIpSet  tscMgmtIpSet;
+SRpcCorIpSet  tscMgmtIpSet;
 SRpcIpSet  tscDnodeIpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
@@ -44,6 +44,42 @@ void tscSaveSubscriptionProgress(void* sub);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 
+static void tscDumpMgmtIpSet(SRpcIpSet *ipSet) {
+  taosCorBeginRead(&tscMgmtIpSet.version);
+  *ipSet = tscMgmtIpSet.ipSet;
+  taosCorEndRead(&tscMgmtIpSet.version);
+}  
+
+bool tscIpSetIsEqual(SRpcIpSet *s1, SRpcIpSet *s2) {
+   if (s1->numOfIps != s2->numOfIps 
+        || s1->inUse != s1->inUse) {
+     return false;
+   } 
+   for (int32_t i = 0; i < s1->numOfIps; i++) {
+     if (s1->port[i] != s2->port[i] 
+        || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
+        return false;
+   }
+   return true;
+}
+void tscSetMgmtIpList(SRpcIpSet *pIpSet) {
+  // no need to update if equal
+  SRpcIpSet dump;
+  tscDumpMgmtIpSet(&dump);
+  if (tscIpSetIsEqual(&dump, pIpSet)) {
+    return; 
+  }
+   
+  taosCorBeginWrite(&tscMgmtIpSet.version);
+  SRpcIpSet *mgmtIpSet = &tscMgmtIpSet.ipSet;
+  mgmtIpSet->numOfIps = pIpSet->numOfIps;
+  mgmtIpSet->inUse = pIpSet->inUse;
+  for (int32_t i = 0; i < mgmtIpSet->numOfIps; ++i) {
+     mgmtIpSet->port[i] = htons(pIpSet->port[i]);
+     strncpy(mgmtIpSet->fqdn[i], pIpSet->fqdn[i], TSDB_FQDN_LEN);
+  }
+  taosCorEndWrite(&tscMgmtIpSet.version);
+}
 static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
   SRpcIpSet* pIpList = &pSql->ipList;
   pIpList->inUse    = 0;
@@ -60,28 +96,14 @@ static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
 }
 
 void tscPrintMgmtIp() {
-  if (tscMgmtIpSet.numOfIps <= 0) {
-    tscError("invalid mnode IP list:%d", tscMgmtIpSet.numOfIps);
+  SRpcIpSet dump;
+  tscDumpMgmtIpSet(&dump);
+  if (dump.numOfIps <= 0) {
+    tscError("invalid mnode IP list:%d", dump.numOfIps);
   } else {
-    for (int i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-      tscDebug("mnode index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
+    for (int i = 0; i < dump.numOfIps; ++i) {
+      tscDebug("mnode index:%d %s:%d", i, dump.fqdn[i], dump.port[i]);
     }
-  }
-}
-
-void tscSetMgmtIpList(SRpcIpSet *pIpList) {
-  tscMgmtIpSet.numOfIps = pIpList->numOfIps;
-  tscMgmtIpSet.inUse = pIpList->inUse;
-  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-    tscMgmtIpSet.port[i] = htons(pIpList->port[i]);
-  }
-}
-
-void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
-  tscMgmtIpSet = *pIpSet;
-  tscDebug("mnode IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
-  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-    tscDebug("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
   }
 }
 
@@ -95,7 +117,9 @@ void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
 UNUSED_FUNC
 static int32_t tscGetMgmtConnMaxRetryTimes() {
   int32_t factor = 2;
-  return tscMgmtIpSet.numOfIps * factor;
+  SRpcIpSet dump;
+  tscDumpMgmtIpSet(&dump);
+  return dump.numOfIps * factor;
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -185,7 +209,9 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    pSql->ipList = tscMgmtIpSet;
+    SRpcIpSet dump;
+    tscDumpMgmtIpSet(&dump);
+    pSql->ipList = dump;
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
@@ -239,7 +265,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   if (pCmd->command < TSDB_SQL_MGMT) {
     if (pIpSet) pSql->ipList = *pIpSet;
   } else {
-    if (pIpSet) tscMgmtIpSet = *pIpSet;
+    if (pIpSet) tscSetMgmtIpList(pIpSet);  
   }
 
   if (rpcMsg->pCont == NULL) {
@@ -421,7 +447,9 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    pSql->ipList = tscMgmtIpSet;
+    SRpcIpSet dump;
+    tscDumpMgmtIpSet(&dump);
+    pSql->ipList = dump;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
