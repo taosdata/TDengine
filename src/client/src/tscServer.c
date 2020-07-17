@@ -48,7 +48,7 @@ void tscIpSetCopy(SRpcIpSet *dst, SRpcIpSet *src) {
   dst->numOfIps = src->numOfIps;
   dst->inUse = src->inUse;
   for (int32_t i = 0; i < src->numOfIps; ++i) {
-     dst->port[i] = htons(dst->port[i]);
+     dst->port[i] = src->port[i];
      strncpy(dst->fqdn[i], src->fqdn[i], TSDB_FQDN_LEN);
   }
 }
@@ -58,7 +58,11 @@ static void tscDumpMgmtIpSet(SRpcIpSet *ipSet) {
   tscIpSetCopy(ipSet, src); 
   taosCorEndRead(&tscMgmtIpSet.version);
 }  
-
+static void tscIpSetHtons(SRpcIpSet *s) {
+   for (int32_t i = 0; i < s->numOfIps; i++) {
+      s->port[i] = htons(s->port[i]);    
+   }
+} 
 bool tscIpSetIsEqual(SRpcIpSet *s1, SRpcIpSet *s2) {
    if (s1->numOfIps != s2->numOfIps /*|| s1->inUse != s1->inUse*/) {
      return false;
@@ -149,6 +153,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
     SRpcIpSet *      pIpList = &pRsp->ipList;
     if (pIpList->numOfIps > 0) 
+      tscIpSetHtons(pIpList);
       tscUpdateMgmtIpList(pIpList);
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
@@ -275,13 +280,15 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     return;
   }
 
-  if (pIpSet) {
-    if (!tscIpSetIsEqual(&pSql->ipList, pIpSet)) {
-      if (pCmd->command < TSDB_SQL_MGMT)  { 
+  if (pIpSet) { 
+    //SRpcIpSet dump; 
+    tscIpSetHtons(pIpSet); 
+    if (tscIpSetIsEqual(&pSql->ipList, pIpSet)) {
+      if(pCmd->command < TSDB_SQL_MGMT)  { 
         tscUpdateVgroupInfo(pSql, pIpSet); 
       } else {
         tscUpdateMgmtIpList(pIpSet);
-      }
+    }
     }
   }
 
@@ -464,10 +471,8 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    SRpcIpSet dump;
-    tscDumpMgmtIpSet(&dump);
-    pSql->ipList = dump;
-  } else {  // local handler
+    tscDumpMgmtIpSet(&pSql->ipList);
+  } else {  
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
   
@@ -1991,6 +1996,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
   if (pConnect->ipList.numOfIps > 0) 
+    tscIpSetHtons(&pConnect->ipList);
     tscUpdateMgmtIpList(&pConnect->ipList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
