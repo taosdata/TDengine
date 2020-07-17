@@ -26,7 +26,6 @@
 #include "query.h"
 #include "queryLog.h"
 #include "qast.h"
-#include "tfile.h"
 #include "tlosertree.h"
 #include "tscompression.h"
 #include "ttime.h"
@@ -35,8 +34,8 @@
  * check if the primary column is load by default, otherwise, the program will
  * forced to load primary column explicitly.
  */
-#define Q_STATUS_EQUAL(p, s) (((p) & (s)) != 0)
-#define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
+#define Q_STATUS_EQUAL(p, s)  (((p) & (s)) != 0)
+#define TSDB_COL_IS_TAG(f)    (((f)&TSDB_COL_TAG) != 0)
 #define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)

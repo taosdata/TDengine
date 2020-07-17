@@ -515,7 +515,7 @@ static int32_t binarySearchForBlock(SCompBlock* pBlock, int32_t numOfBlocks, TSK
   return midSlot;
 }
 
-static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlocks, int32_t type) {
+static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlocks) {
   SFileGroup* fileGroup = pQueryHandle->pFileGroup;
   assert(fileGroup->files[TSDB_FILE_TYPE_HEAD].fname > 0);
 
@@ -532,52 +532,61 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    pCheckInfo->numOfBlocks = 0;
 
     SCompIdx* compIndex = &pQueryHandle->rhelper.pCompIdx[pCheckInfo->tableId.tid];
-    if (compIndex->len == 0 || compIndex->numOfBlocks == 0 ||
-        compIndex->uid != pCheckInfo->tableId.uid) {  // no data block in this file, try next file
-      pCheckInfo->numOfBlocks = 0;
-      continue;  // no data blocks in the file belongs to pCheckInfo->pTable
-    } else {
-      if (pCheckInfo->compSize < compIndex->len) {
-        assert(compIndex->len > 0);
-        
-        char* t = realloc(pCheckInfo->pCompInfo, compIndex->len);
-        assert(t != NULL);
-        
-        pCheckInfo->pCompInfo = (SCompInfo*) t;
-        pCheckInfo->compSize = compIndex->len;
-      }
-      
-      tsdbSetHelperTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj, pQueryHandle->pTsdb);
 
-      tsdbLoadCompInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
-      SCompInfo* pCompInfo = pCheckInfo->pCompInfo;
-      
-      TSKEY s = MIN(pCheckInfo->lastKey, pQueryHandle->window.ekey);
-      TSKEY e = MAX(pCheckInfo->lastKey, pQueryHandle->window.ekey);
-      
-      // discard the unqualified data block based on the query time window
-      int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
-      int32_t end = start;
-      
-      if (s > pCompInfo->blocks[start].keyLast) {
-        continue;
-      }
-
-      // todo speedup the procedure of located end block
-      while (end < compIndex->numOfBlocks && (pCompInfo->blocks[end].keyFirst <= e)) {
-        end += 1;
-      }
-
-      pCheckInfo->numOfBlocks = (end - start);
-      
-      if (start > 0) {
-        memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SCompBlock));
-      }
-
-      (*numOfBlocks) += pCheckInfo->numOfBlocks;
+    // no data block in this file, try next file
+    if (compIndex->len == 0 || compIndex->numOfBlocks == 0 || compIndex->uid != pCheckInfo->tableId.uid) {
+      continue; // no data blocks in the file belongs to pCheckInfo->pTable
     }
+
+    if (pCheckInfo->compSize < compIndex->len) {
+      assert(compIndex->len > 0);
+
+      char* t = realloc(pCheckInfo->pCompInfo, compIndex->len);
+      assert(t != NULL);
+
+      pCheckInfo->pCompInfo = (SCompInfo*) t;
+      pCheckInfo->compSize = compIndex->len;
+    }
+
+    tsdbSetHelperTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj, pQueryHandle->pTsdb);
+
+    tsdbLoadCompInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
+    SCompInfo* pCompInfo = pCheckInfo->pCompInfo;
+
+    TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
+
+    if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+      assert(pCheckInfo->lastKey >= pQueryHandle->window.ekey && pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+    } else {
+      assert(pCheckInfo->lastKey <= pQueryHandle->window.ekey && pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+    }
+
+    s = MIN(pCheckInfo->lastKey, pQueryHandle->window.ekey);
+    e = MAX(pCheckInfo->lastKey, pQueryHandle->window.ekey);
+
+    // discard the unqualified data block based on the query time window
+    int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
+    int32_t end = start;
+
+    if (s > pCompInfo->blocks[start].keyLast) {
+      continue;
+    }
+
+    // todo speedup the procedure of located end block
+    while (end < compIndex->numOfBlocks && (pCompInfo->blocks[end].keyFirst <= e)) {
+      end += 1;
+    }
+
+    pCheckInfo->numOfBlocks = (end - start);
+
+    if (start > 0) {
+      memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SCompBlock));
+    }
+
+    (*numOfBlocks) += pCheckInfo->numOfBlocks;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1378,8 +1387,7 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
   int32_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   
   while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
-    int32_t type = ASCENDING_TRAVERSE(pQueryHandle->order)? QUERY_RANGE_GREATER_EQUAL:QUERY_RANGE_LESS_EQUAL;
-    if ((code = getFileCompInfo(pQueryHandle, &numOfBlocks, type)) != TSDB_CODE_SUCCESS) {
+    if ((code = getFileCompInfo(pQueryHandle, &numOfBlocks)) != TSDB_CODE_SUCCESS) {
       break;
     }
     
