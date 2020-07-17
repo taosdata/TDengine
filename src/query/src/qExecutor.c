@@ -5859,7 +5859,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   return pQInfo;
 
 _cleanup_qinfo:
-  tsdbDestoryTableGroup(pTableGroupInfo);
+  tsdbDestroyTableGroup(pTableGroupInfo);
 
 _cleanup_query:
   taosArrayDestroy(pGroupbyExpr->columnInfo);
@@ -6009,7 +6009,7 @@ static void freeQInfo(SQInfo *pQInfo) {
   tfree(pQInfo->pBuf);
   taosArrayDestroy(pQInfo->tableqinfoGroupInfo.pGroupList);
   taosHashCleanup(pQInfo->tableqinfoGroupInfo.map);
-  tsdbDestoryTableGroup(&pQInfo->tableGroupInfo);
+  tsdbDestroyTableGroup(&pQInfo->tableGroupInfo);
   taosArrayDestroy(pQInfo->arrTableIdInfo);
   
   if (pQuery->pGroupbyExpr != NULL) {
