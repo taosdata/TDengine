@@ -880,6 +880,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  pSql->pTscObj = taos;
+  pSql->signature = pSql;
   SSqlRes *pRes = &pSql->res;
 
   pRes->numOfTotal = 0;  // the number of getting table meta from server
