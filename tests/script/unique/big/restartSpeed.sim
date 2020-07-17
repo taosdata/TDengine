@@ -8,10 +8,8 @@ $totalRows = $totalVnodes * $maxTables
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel            -v 2
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v $totalVnodes
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c walLevel            -v 2
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes    -v $totalVnodes
 
 
 print ==========  prepare data
