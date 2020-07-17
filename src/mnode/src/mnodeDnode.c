@@ -452,10 +452,23 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
     return grantCode;
   }
 
+  char dnodeEp[TSDB_EP_LEN] = {0};
+  tstrncpy(dnodeEp, ep, TSDB_EP_LEN);
+  strtrim(dnodeEp);
+
+  char *temp = strchr(dnodeEp, ':');
+  if (!temp) {
+    int len = strlen(dnodeEp);
+    if (dnodeEp[len - 1] == ';') dnodeEp[len - 1] = 0;
+    len = strlen(dnodeEp);
+    snprintf(dnodeEp + len, TSDB_EP_LEN - len, ":%d", tsServerPort);
+  }
+  ep = dnodeEp;
+
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode != NULL) {
     mnodeDecDnodeRef(pDnode);
-    mError("dnode:%d is alredy exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
+    mError("dnode:%d is already exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
     return TSDB_CODE_MND_DNODE_ALREADY_EXIST;
   }
 
@@ -507,8 +520,12 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
 static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
-    mError("dnode:%s, is not exist", ep);
-    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    int32_t dnodeId = (int32_t)strtol(ep, NULL, 10);
+    pDnode = mnodeGetDnode(dnodeId);
+    if (pDnode == NULL) {
+      mError("dnode:%s, is not exist", ep);
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
   }
 
   if (strcmp(pDnode->dnodeEp, mnodeGetMnodeMasterEp()) == 0) {
