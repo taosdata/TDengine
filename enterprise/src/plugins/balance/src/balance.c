@@ -68,8 +68,8 @@ static bool balanceCheckFree(SDnodeObj *pDnode) {
     return false;
   }
   
-  if (pDnode->totalVnodes <= pDnode->openVnodes) {
-    mError("dnode:%d, openVnodes:%d totalVnodes:%d not available", pDnode->dnodeId, pDnode->openVnodes, pDnode->totalVnodes);
+  if (pDnode->openVnodes >= TSDB_MAX_VNODES) {
+    mError("dnode:%d, openVnodes:%d maxVnodes:%d not available", pDnode->dnodeId, pDnode->openVnodes, TSDB_MAX_VNODES);
     return false;
   }
 
@@ -314,13 +314,14 @@ static bool balanceMonitorBalance() {
 
   for (int32_t src = tsBalanceDnodeListSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = tsBalanceDnodeList[src];
-    mDebug("%d-dnode:%d, state:%s, score:%.1f, totalVnodes:%d, openVnodes:%d", tsBalanceDnodeListSize - src - 1,
-           pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status), pDnode->score, pDnode->totalVnodes,
+    mDebug("%d-dnode:%d, state:%s, score:%.1f, numOfCores:%d, openVnodes:%d", tsBalanceDnodeListSize - src - 1,
+           pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status), pDnode->score, pDnode->numOfCores,
            pDnode->openVnodes);
   }
 
-  if ((tsBalanceDnodeList[tsBalanceDnodeListSize - 1]->score - tsBalanceDnodeList[0]->score) < 2) {
-    mDebug("all dnodes:%d is already balanced", tsBalanceDnodeListSize);
+  float scoresDiff = tsBalanceDnodeList[tsBalanceDnodeListSize - 1]->score - tsBalanceDnodeList[0]->score;
+  if (scoresDiff < 0.01) {
+    mDebug("all dnodes:%d is already balanced, scoresDiff:%f", tsBalanceDnodeListSize, scoresDiff);
     return false;
   }
 
@@ -624,7 +625,7 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
     if (pTempDnode == NULL) break;
 
     if (pTempDnode != pDnode && balanceCheckFree(pTempDnode)) {
-      totalFreeVnodes += (pTempDnode->totalVnodes - pTempDnode->openVnodes);
+      totalFreeVnodes += (TSDB_MAX_VNODES - pTempDnode->openVnodes);
     }
 
     mnodeDecDnodeRef(pTempDnode);
@@ -682,17 +683,17 @@ static int32_t balanceCalcBandwidthScore(SDnodeObj *pDnode) {
 }
 
 static float balanceCalcModuleScore(SDnodeObj *pDnode) {
-  if (pDnode->totalVnodes <= 1) return 0;
+  if (pDnode->numOfCores <= 0) return 0;
   if (pDnode->isMgmt) {
-     return (float)tsMnodeEqualVnodeNum / pDnode->totalVnodes * 100;
+     return (float)tsMnodeEqualVnodeNum / pDnode->numOfCores;
   }
   return 0;
 }
 
 static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
-  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 100000;
-  if (pDnode->totalVnodes <= 1) return 0;
-  return (float)(pDnode->openVnodes + extra) / pDnode->totalVnodes * 100;
+  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 1000000;
+  if (pDnode->numOfCores <= 0) return 0;
+  return (float)(pDnode->openVnodes + extra) / pDnode->numOfCores;
 }
 
 /**
@@ -798,31 +799,31 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "system scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "custom scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "module scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "vnode scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "total scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -835,7 +836,7 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "total vnodes");
+  strcpy(pSchema[cols].name, "cpu cores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -884,23 +885,23 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = systemScore;
+    *(float *)pWrite = systemScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDnode->customScore;
+    *(float *)pWrite = pDnode->customScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = (int32_t)moduleScore;
+    *(float *)pWrite = (int32_t)moduleScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = (int32_t)vnodeScore;
+    *(float *)pWrite = (int32_t)vnodeScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = (int32_t)(vnodeScore + moduleScore + pDnode->customScore + systemScore);
+    *(float *)pWrite = (int32_t)(vnodeScore + moduleScore + pDnode->customScore + systemScore);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -908,7 +909,7 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDnode->totalVnodes;
+    *(int32_t *)pWrite = pDnode->numOfCores;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
