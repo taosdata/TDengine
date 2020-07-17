@@ -169,7 +169,11 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
   }
 
-  tscProcessSql(pSql);
+  if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
+    tscFetchDatablockFromSubquery(pSql);
+  } else {
+    tscProcessSql(pSql);
+  }
 }
 
 /*

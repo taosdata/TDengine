@@ -1,10 +1,10 @@
-system sh/stop_dnodes.sh
-
-system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c debugFlag -v 135
-system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
-system sh/exec.sh -n dnode1 -s start
+#system sh/stop_dnodes.sh
+#
+#system sh/deploy.sh -n dnode1 -i 1
+#system sh/cfg.sh -n dnode1 -c walLevel -v 0
+#system sh/cfg.sh -n dnode1 -c debugFlag -v 135
+#system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
+#system sh/exec.sh -n dnode1 -s start
 sleep 1000
 sql connect
 
@@ -24,77 +24,77 @@ $mt = $mtPrefix . $i
 $j = 1
 
 $mt1 = $mtPrefix . $j
-
-sql drop database if exits $db -x step1
-step1:
-sql create database if not exists $db maxtables 4
+#
+#sql drop database if exits $db -x step1
+#step1:
+#sql create database if not exists $db maxtables 4
 sql use $db
-sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
-
-$i = 0
-$t = 1578203484000
-
-while $i < $tbNum
-  $tb = $tbPrefix . $i
-  sql create table $tb using $mt tags( $i )
-
-  $x = 0
-  while $x < $rowNum
-    $ms = $x * 1000
-    $ms = $ms * 60
-
-    $c = $x / 100
-    $c = $c * 100
-    $c = $x - $c
-    $binary = 'binary . $c
-    $binary = $binary . '
-    $nchar = 'nchar . $c
-    $nchar = $nchar . '
-
-    $t1 = $t + $ms
-    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
-    $x = $x + 1
-  endw
-
-  $i = $i + 1
-endw
-
-sql create table $mt1 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
-
-$j = 0
-$t = 1578203484000
-$rowNum = 1000
-$tbNum = 5
-$i = 0
-
-while $i < $tbNum
-  $tb1 = $tbPrefix1 . $j
-  sql create table $tb1 using $mt1 tags( $i )
-
-  $x = 0
-  while $x < $rowNum
-    $ms = $x * 1000
-    $ms = $ms * 60
-
-    $c = $x / 100
-    $c = $c * 100
-    $c = $x - $c
-    $binary = 'binary . $c
-    $binary = $binary . '
-    $nchar = 'nchar . $c
-    $nchar = $nchar . '
-
-    $t1 = $t + $ms
-    sql insert into $tb1 values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
-    $x = $x + 1
-  endw
-
-  $i = $i + 1
-  $j = $j + 1
-endw
-
-print sleep 1sec.
-sleep 1000
+#sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+#
+#$i = 0
+#$t = 1578203484000
+#
+#while $i < $tbNum
+#  $tb = $tbPrefix . $i
+#  sql create table $tb using $mt tags( $i )
+#
+#  $x = 0
+#  while $x < $rowNum
+#    $ms = $x * 1000
+#    $ms = $ms * 60
+#
+#    $c = $x / 100
+#    $c = $c * 100
+#    $c = $x - $c
+#    $binary = 'binary . $c
+#    $binary = $binary . '
+#    $nchar = 'nchar . $c
+#    $nchar = $nchar . '
+#
+#    $t1 = $t + $ms
+#    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+#    $x = $x + 1
+#  endw
+#
+#  $i = $i + 1
+#endw
+#
+#sql create table $mt1 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+#
+#$j = 0
+#$t = 1578203484000
+#$rowNum = 1000
+#$tbNum = 5
+#$i = 0
+#
+#while $i < $tbNum
+#  $tb1 = $tbPrefix1 . $j
+#  sql create table $tb1 using $mt1 tags( $i )
+#
+#  $x = 0
+#  while $x < $rowNum
+#    $ms = $x * 1000
+#    $ms = $ms * 60
+#
+#    $c = $x / 100
+#    $c = $c * 100
+#    $c = $x - $c
+#    $binary = 'binary . $c
+#    $binary = $binary . '
+#    $nchar = 'nchar . $c
+#    $nchar = $nchar . '
+#
+#    $t1 = $t + $ms
+#    sql insert into $tb1 values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+#    $x = $x + 1
+#  endw
+#
+#  $i = $i + 1
+#  $j = $j + 1
+#endw
+#
+#print sleep 1sec.
+#sleep 1000
 
 $i = 1
 $tb = $tbPrefix . $i
@@ -222,7 +222,7 @@ endi
 
 print ===========================================tags union
 # two super table tag union, limit is not active during retrieve tags query
-sql select t1 from union_mt0 union all select t1 from union_mt0 limit 1
+sql select t1 from union_mt0 union all select t1 from union_mt0
 if $rows != 20 then
   return -1
 endi
@@ -235,6 +235,10 @@ if $data90 != 9 then
   return -1
 endi
 
+#sql select t1 from union_mt0 union all select t1 from union_mt0 limit 1
+#if $row != 11 then
+#  return -1
+#endi
 #========================================== two super table join subclause
 print ================two super table join subclause
 sql select avg(union_mt0.c1) as c from union_mt0 interval(1h) limit 10 union all select union_mt1.ts, union_mt1.c1/1.0 as c from union_mt0, union_mt1 where union_mt1.ts=union_mt0.ts and union_mt1.t1=union_mt0.t1 limit 5;

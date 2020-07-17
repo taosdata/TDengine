@@ -485,7 +485,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_SELECT: {
-      assert(pCmd->numOfClause == 1);
       const char* msg1 = "columns in select clause not identical";
 
       for (int32_t i = pCmd->numOfClause; i < pInfo->subclauseInfo.numOfClause; ++i) {
@@ -496,16 +495,19 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       assert(pCmd->numOfClause == pInfo->subclauseInfo.numOfClause);
-      for (int32_t i = 0; i < pInfo->subclauseInfo.numOfClause; ++i) {
+      for (int32_t i = pCmd->clauseIndex; i < pInfo->subclauseInfo.numOfClause; ++i) {
         SQuerySQL* pQuerySql = pInfo->subclauseInfo.pClause[i];
-
+        tscTrace("%p start to parse %dth subclause, total:%d", pSql, i, pInfo->subclauseInfo.numOfClause);
         if ((code = doCheckForQuery(pSql, pQuerySql, i)) != TSDB_CODE_SUCCESS) {
           return code;
         }
 
         tscPrintSelectClause(pSql, i);
+        pCmd->clauseIndex += 1;
       }
 
+      // restore the clause index
+      pCmd->clauseIndex = 0;
       // set the command/global limit parameters from the first subclause to the sqlcmd object
       SQueryInfo* pQueryInfo1 = tscGetQueryInfoDetail(pCmd, 0);
       pCmd->command = pQueryInfo1->command;
@@ -5867,6 +5869,8 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
   }
 
+  assert(pCmd->clauseIndex == index);
+
   // too many result columns not support order by in query
   if (pQuerySql->pSelection->nExpr > TSDB_MAX_COLUMNS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
@@ -5980,12 +5984,11 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
     }
   } else {  // set the time rang
-    pQueryInfo->window.skey = TSKEY_INITIAL_VAL;
-    pQueryInfo->window.ekey = INT64_MAX;
+    pQueryInfo->window = TSWINDOW_INITIALIZER;
   }
 
   // user does not specified the query time window, twa is not allowed in such case.
-  if ((pQueryInfo->window.skey == 0 || pQueryInfo->window.ekey == INT64_MAX ||
+  if ((pQueryInfo->window.skey == INT64_MIN || pQueryInfo->window.ekey == INT64_MAX ||
        (pQueryInfo->window.ekey == INT64_MAX / 1000 && tinfo.precision == TSDB_TIME_PRECISION_MILLI)) && tscIsTWAQuery(pQueryInfo)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
   }
