@@ -79,7 +79,7 @@ typedef void     (*FConfirmForward)(void *ahandle, void *mhandle, int32_t code);
 typedef void     (*FNotifyRole)(void *ahandle, int8_t role);
 
 // when data file is synced successfully, notity app
-typedef void     (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
+typedef int      (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
 
 typedef struct {
   int32_t    vgId;      // vgroup ID

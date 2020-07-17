@@ -53,7 +53,6 @@ void *dnodeAllocateVnodeWqueue(void *pVnode);
 void  dnodeFreeVnodeWqueue(void *queue);
 void *dnodeAllocateVnodeRqueue(void *pVnode);
 void  dnodeFreeVnodeRqueue(void *rqueue);
-void  dnodePutItemIntoReadQueue(void *pVnode, void *qhandle);
 void  dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code);
 
 int32_t dnodeAllocateMnodePqueue();

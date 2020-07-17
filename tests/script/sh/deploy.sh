@@ -136,6 +136,8 @@ echo "defaultPass         taosdata"       >> $TAOS_CFG
 echo "numOfLogLines       20000000"       >> $TAOS_CFG
 echo "mnodeEqualVnodeNum  0"              >> $TAOS_CFG
 echo "clog                2"              >> $TAOS_CFG
+#echo "cache              1"              >> $TAOS_CFG
+#echo "block              2"              >> $TAOS_CFG
 echo "statusInterval      1"              >> $TAOS_CFG
 echo "numOfTotalVnodes    4"              >> $TAOS_CFG
 echo "maxVgroupsPerDb     4"              >> $TAOS_CFG

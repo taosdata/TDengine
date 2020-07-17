@@ -318,7 +318,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
   pCols->maxPoints = maxRows;
   pCols->bufSize = maxRowSize * maxRows;
 
-  pCols->buf = malloc(pCols->bufSize);
+  pCols->buf = calloc(1, pCols->bufSize);
   if (pCols->buf == NULL) {
     free(pCols);
     return NULL;

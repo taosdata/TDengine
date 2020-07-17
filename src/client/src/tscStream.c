@@ -70,6 +70,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   SSqlObj *   pSql = pStream->pSql;
 
   pSql->fp = tscProcessStreamQueryCallback;
+  pSql->fetchFp = tscProcessStreamQueryCallback;
   pSql->param = pStream;
   pSql->res.completed = false;
   
@@ -471,6 +472,41 @@ static void setErrorInfo(SSqlObj* pSql, int32_t code, char* info) {
   }
 }
 
+static void tscCreateStream(void *param, TAOS_RES *res, int code) {
+  SSqlStream* pStream = (SSqlStream*)param;
+  SSqlObj* pSql = pStream->pSql;
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrorInfo(pSql, code, pCmd->payload);
+    tscError("%p open stream failed, sql:%s, reason:%s, code:0x%08x", pSql, pSql->sqlstr, pCmd->payload, code);
+    pStream->fp(pStream->param, NULL, NULL);
+    return;
+  }
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  pStream->isProject = isProjectStream(pQueryInfo);
+  pStream->precision = tinfo.precision;
+
+  pStream->ctime = taosGetTimestamp(pStream->precision);
+  pStream->etime = pQueryInfo->window.ekey;
+
+  tscAddIntoStreamList(pStream);
+
+  tscSetSlidingWindowInfo(pSql, pStream);
+  pStream->stime = tscGetStreamStartTimestamp(pSql, pStream, pStream->stime);
+
+  int64_t starttime = tscGetLaunchTimestamp(pStream);
+  pCmd->command = TSDB_SQL_SELECT;
+  taosTmrReset(tscProcessStreamTimer, starttime, pStream, tscTmr, &pStream->pTimer);
+
+  tscDebug("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,
+           pStream, pTableMetaInfo->name, pStream->interval, pStream->slidingTime, starttime, pSql->sqlstr);
+}
+
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {
   STscObj *pObj = (STscObj *)taos;
@@ -482,7 +518,6 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
 
   pSql->signature = pSql;
-  pSql->param = pSql;
   pSql->pTscObj = pObj;
 
   SSqlCmd *pCmd = &pSql->cmd;
@@ -494,7 +529,14 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     tscFreeSqlObj(pSql);
     return NULL;
   }
+
+  pStream->stime = stime;
+  pStream->fp = fp;
+  pStream->callback = callback;
+  pStream->param = param;
+  pStream->pSql = pSql;
   pSql->pStream = pStream;
+  pSql->param = pStream;
 
   pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
@@ -507,44 +549,17 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   tsem_init(&pSql->rspSem, 0, 0);
 
+  pSql->fp = tscCreateStream;
+  pSql->fetchFp = tscCreateStream;
   int32_t code = tsParseSql(pSql, true);
-  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    sem_wait(&pSql->rspSem);
-  }
-
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    setErrorInfo(pSql, pRes->code, pCmd->payload);
-
-    tscError("%p open stream failed, sql:%s, reason:%s, code:0x%08x", pSql, sqlstr, pCmd->payload, pRes->code);
+  if (code == TSDB_CODE_SUCCESS) {
+    tscCreateStream(pStream, pSql, code);
+  } else if (code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    tscError("%p open stream failed, sql:%s, code:%s", pSql, sqlstr, tstrerror(pRes->code));
     tscFreeSqlObj(pSql);
+    free(pStream);
     return NULL;
   }
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  
-  pStream->isProject = isProjectStream(pQueryInfo);
-  pStream->fp = fp;
-  pStream->callback = callback;
-  pStream->param = param;
-  pStream->pSql = pSql;
-  pStream->precision = tinfo.precision;
-
-  pStream->ctime = taosGetTimestamp(pStream->precision);
-  pStream->etime = pQueryInfo->window.ekey;
-
-  tscAddIntoStreamList(pStream);
-
-  tscSetSlidingWindowInfo(pSql, pStream);
-  pStream->stime = tscGetStreamStartTimestamp(pSql, pStream, stime);
-
-  int64_t starttime = tscGetLaunchTimestamp(pStream);
-  pCmd->command = TSDB_SQL_SELECT;
-  taosTmrReset(tscProcessStreamTimer, starttime, pStream, tscTmr, &pStream->pTimer);
-
-  tscDebug("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,
-           pStream, pTableMetaInfo->name, pStream->interval, pStream->slidingTime, starttime, sqlstr);
 
   return pStream;
 }
