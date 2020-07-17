@@ -475,7 +475,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
   pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   pRetrieveMsg->free = htons(pQueryInfo->type);
 
   // todo valid the vgroupId at the client side

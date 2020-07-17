@@ -121,7 +121,6 @@ typedef struct SQueryCostInfo {
   uint32_t loadBlockStatis;
   uint32_t discardBlocks;
   uint64_t elapsedTime;
-  uint64_t ioTime;
   uint64_t computTime;
 } SQueryCostInfo;
 
@@ -201,7 +200,7 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  void*     pBuf; // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
+  void*            pBuf; // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
 } SQInfo;
 

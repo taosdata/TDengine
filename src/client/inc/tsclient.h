@@ -422,7 +422,6 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t bytes = pInfo->pSqlExpr->resBytes;
 
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
     assert(realLen <= bytes - VARSTR_HEADER_SIZE);

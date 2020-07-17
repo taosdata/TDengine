@@ -26,7 +26,7 @@ sleep 2000
 run general/parser/fill.sim
 sleep 2000
 run general/parser/fill_stb.sim
-sleep 2000                                    
+sleep 2000
 #run general/parser/fill_us.sim               #
 sleep 2000
 run general/parser/first_last.sim
@@ -91,13 +91,11 @@ run general/parser/select_with_tags.sim
 sleep 2000
 run general/parser/groupby.sim
 sleep 2000
+run general/parser/tags_filter.sim
+sleep 2000
 run general/parser/union.sim
 sleep 2000
 run general/parser/sliding.sim
-sleep 2000
-run general/parser/fill_us.sim
-sleep 2000
-run general/parser/tags_filter.sim
 
 #sleep 2000
 #run general/parser/repeatStream.sim

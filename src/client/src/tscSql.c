@@ -424,7 +424,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   }
   
   // current data set are exhausted, fetch more data from node
-  if (pRes->row >= pRes->numOfRows && (pRes->completed != true || hasMoreVnodesToTry(pSql)) &&
+  if (pRes->row >= pRes->numOfRows && (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
       (pCmd->command == TSDB_SQL_RETRIEVE ||
        pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE ||
        pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
