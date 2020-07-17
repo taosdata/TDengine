@@ -1,6 +1,7 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 4
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -77,10 +78,6 @@ if $rows != 0 then
   return -1
 endi
 
-sql create table table1 (ts timestamp, speed int) -x error2
-	return -1
-error2:
-
 $i = 0
 $db = $dbPrefix . $i
 sql drop database $db
@@ -133,9 +130,6 @@ $i = 4
 $db = $dbPrefix . $i
 sql create database $db
 sql use $db
-sql create table table5 (ts timestamp, speed int) -x error3
-	return -1
-error3:
 
 sql show databases
 if $rows != 5 then 
