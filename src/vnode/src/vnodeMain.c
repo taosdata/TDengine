@@ -299,10 +299,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 #endif
 
-  // start continuous query
-  if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
-    cqStart(pVnode->cq);
-
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
@@ -310,15 +306,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   taosHashPut(tsDnodeVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
 
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t vnodeStartStream(int32_t vnode) {
-  SVnodeObj* pVnode = vnodeAcquire(vnode);
-  if (pVnode != NULL) {
-    tsdbStartStream(pVnode->tsdb);
-    vnodeRelease(pVnode);
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -353,11 +340,6 @@ void vnodeRelease(void *pVnodeRaw) {
   if (pVnode->tsdb)
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
-
-  // stop continuous query
-  if (pVnode->cq) 
-    cqClose(pVnode->cq);
-  pVnode->cq = NULL;
 
   if (pVnode->wal) 
     walClose(pVnode->wal);
@@ -525,8 +507,16 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 
   // stop replication module
   if (pVnode->sync) {
-    syncStop(pVnode->sync);
+    void *sync = pVnode->sync;
     pVnode->sync = NULL;
+    syncStop(sync);
+  }
+
+  // stop continuous query
+  if (pVnode->cq) {
+    void *cq = pVnode->cq;
+    pVnode->cq = NULL;
+    cqClose(cq);
   }
 
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
