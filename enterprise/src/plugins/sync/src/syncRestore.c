@@ -267,8 +267,12 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
   }
 
   // if code > 0, data file is changed, notify app, and pass the version 
-  if (code > 0 && pNode->notifyFileSynced) 
-    (*pNode->notifyFileSynced)(pNode->ahandle, fversion);
+  if (code > 0 && pNode->notifyFileSynced) {
+    if ( (*pNode->notifyFileSynced)(pNode->ahandle, fversion) < 0 ) {
+      sError("%s, app not in ready state", pPeer->id);
+      return -1;
+    }
+  }
 
   nodeVersion = fversion;
 

@@ -22,10 +22,10 @@ extern "C" {
 
 #define sFatal(...) { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); }}
 #define sError(...) { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", sDebugFlag, __VA_ARGS__); }}
-#define sWarn(...)  { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN  ", sDebugFlag, __VA_ARGS__); }}
-#define sInfo(...)  { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN INFO  ", sDebugFlag, __VA_ARGS__); }}
-#define sDebug(...) { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN DEBUG ", sDebugFlag, __VA_ARGS__); }}
-#define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN TRACE ", sDebugFlag, __VA_ARGS__); }}
+#define sWarn(...)  { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ", sDebugFlag, __VA_ARGS__); }}
+#define sInfo(...)  { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
+#define sDebug(...) { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
+#define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 
 #define TAOS_SMSG_SYNC_DATA    1
 #define TAOS_SMSG_FORWARD      2

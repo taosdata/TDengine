@@ -92,6 +92,11 @@ int main(int argc, char *argv[]) {
   info.processIncomingConn = arbProcessIncommingConnection;
   tsArbTcpPool = taosOpenTcpThreadPool(&info);
   
+  if (tsArbTcpPool == NULL) {
+   sDebug("failed to open TCP thread pool, exit...");
+   return -1;
+  }
+
   sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
 
   for (int res = sem_wait(&tsArbSem); res != 0; res = sem_wait(&tsArbSem)) {

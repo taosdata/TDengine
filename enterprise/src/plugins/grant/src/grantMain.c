@@ -46,6 +46,7 @@ static char   *grantSecondsToString(uint32_t seconds);
 static void    grantCheckGrantInfo();
 static void    grantSendMsgToMgmt();
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg);
+static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -78,6 +79,7 @@ int32_t grantInit() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_GRANT_RSP, grantProcessRspInDnode);
   taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMnodeTmr, &grantSendTimer);
 
   uTrace("grant data is initialized");
@@ -477,6 +479,12 @@ int32_t grantCheck(EGrantType grant) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static void grantProcessRspInDnode(SRpcMsg *rpcMsg) {
+  if (rpcMsg->code != TSDB_CODE_SUCCESS && tsMnodeTmr != NULL) {
+    taosTmrReset(grantSendMsgToMgmt, 3000, NULL, tsMnodeTmr, &grantSendTimer);
+  }
 }
 
 static void grantSendMsgToMgmt() {
