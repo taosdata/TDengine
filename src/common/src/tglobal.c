@@ -199,6 +199,9 @@ int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 
+int32_t (*monitorStartSystemFp)() = NULL;
+void (*monitorStopSystemFp)() = NULL;
+
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
@@ -248,11 +251,17 @@ bool taosCfgDynamicOptions(char *msg) {
     *((int32_t *)cfg->ptr) = vint;
 
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
-      // if (0 == vint) {
-      //   monitorStartSystem();
-      // } else {
-      //   monitorStopSystem();
-      // }
+      if (1 == vint) {
+        if (monitorStartSystemFp) {
+          (*monitorStartSystemFp)();
+          uInfo("monitor is enabled");
+        }
+      } else {
+        if (monitorStopSystemFp) {
+          (*monitorStopSystemFp)();
+          uInfo("monitor is disabled");
+        }
+      }
       return true;
     }
 
