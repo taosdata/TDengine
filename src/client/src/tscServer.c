@@ -100,6 +100,7 @@ static void tscDumpIpSetFromVgroupInfo(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pI
 static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
   SSqlCmd *pCmd = &pObj->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
   SCMVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->vgroupInfo;
 
   taosCorBeginWrite(&pVgroupInfo->version);
