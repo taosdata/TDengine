@@ -54,7 +54,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
     return;
   }
 
-  strtolower(pSql->sqlstr, sqlstr);
+  strntolower(pSql->sqlstr, sqlstr, sqlLen);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   pSql->cmd.curSql = pSql->sqlstr;
@@ -564,8 +564,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscDebug("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
     if (!pSql->cmd.parseFinished) {
       tsParseSql(pSql, false);
-      sem_post(&pSql->rspSem);
     }
+    (*pSql->fp)(pSql->param, pSql, code);
 
     return;
   }

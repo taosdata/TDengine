@@ -593,7 +593,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "maxTables");
+  strcpy(pSchema[cols].name, "onlineVnodes");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -692,8 +692,15 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
     *(int32_t *)pWrite = taosIdPoolMaxSize(pVgroup->idPool);
     cols++;
 
+    int32_t onlineVnodes = 0;
+    for (int32_t i = 0; i < pShow->maxReplica; ++i) {
+      if (pVgroup->vnodeGid[i].role == TAOS_SYNC_ROLE_SLAVE || pVgroup->vnodeGid[i].role == TAOS_SYNC_ROLE_MASTER) {
+        onlineVnodes++;
+      }
+    }
+
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = tsMaxTablePerVnode;
+    *(int32_t *)pWrite = onlineVnodes;
     cols++;
 
     for (int32_t i = 0; i < pShow->maxReplica; ++i) {

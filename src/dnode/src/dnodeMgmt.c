@@ -354,23 +354,6 @@ static int32_t dnodeOpenVnodes() {
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeStartStream() {
-  int32_t vnodeList[TSDB_MAX_VNODES] = {0};
-  int32_t numOfVnodes = 0;
-  int32_t status = vnodeGetVnodeList(vnodeList, &numOfVnodes);
-
-  if (status != TSDB_CODE_SUCCESS) {
-    dInfo("get dnode list failed");
-    return;
-  }
-
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    vnodeStartStream(vnodeList[i]);
-  }
-
-  dInfo("streams started");
-}
-
 static void dnodeCloseVnodes() {
   int32_t vnodeList[TSDB_MAX_VNODES]= {0};
   int32_t numOfVnodes = 0;
@@ -416,7 +399,7 @@ static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SMDCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
 
-  void *pVnode = vnodeAcquireVnode(pCreate->cfg.vgId);
+  void *pVnode = vnodeAcquire(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, already exist, return success", pCreate->cfg.vgId);
     vnodeRelease(pVnode);
@@ -430,7 +413,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   SMDAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
 
-  void *pVnode = vnodeAcquireVnode(pAlter->cfg.vgId);
+  void *pVnode = vnodeAcquire(pAlter->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, alter vnode msg is received", pAlter->cfg.vgId);
     int32_t code = vnodeAlter(pVnode, pAlter);
@@ -723,6 +706,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 
   // fill cluster cfg parameters
   pStatus->clusterCfg.numOfMnodes        = htonl(tsNumOfMnodes);
+  pStatus->clusterCfg.enableBalance      = htonl(tsEnableBalance);
   pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(tsMnodeEqualVnodeNum);
   pStatus->clusterCfg.offlineThreshold   = htonl(tsOfflineThreshold);
   pStatus->clusterCfg.statusInterval     = htonl(tsStatusInterval);

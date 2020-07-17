@@ -270,6 +270,14 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
     return -1;
   }
 
+  /* set REUSEADDR option, so the portnumber can be re-used */
+  int reuse = 1;
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
+    uError("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    close(sockFd);
+    return -1;
+  };
+
   if ( clientIp != 0) {
     memset((char *)&clientAddr, 0, sizeof(clientAddr));
     clientAddr.sin_family = AF_INET;

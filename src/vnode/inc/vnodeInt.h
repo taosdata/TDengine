@@ -37,7 +37,7 @@ extern int32_t vDebugFlag;
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
-  int          status; 
+  int8_t       status; 
   int8_t       role;   
   int8_t       accessState;
   int64_t      version;   // current version 
@@ -55,6 +55,8 @@ typedef struct {
   SWalCfg      walCfg;
   void        *qMgmt;
   char        *rootDir;
+  tsem_t       sem;
+  int8_t       dropped;
   char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
