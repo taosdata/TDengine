@@ -157,6 +157,9 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;
   pTableMeta->vgroupInfo = pTableMetaMsg->vgroup;
+  //init version here
+  pTableMeta->vgroupInfo.version = 0; 
+  
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;
   
