@@ -319,8 +319,9 @@ static bool balanceMonitorBalance() {
            pDnode->openVnodes);
   }
 
-  if ((tsBalanceDnodeList[tsBalanceDnodeListSize - 1]->score - tsBalanceDnodeList[0]->score) < 2) {
-    mDebug("all dnodes:%d is already balanced", tsBalanceDnodeListSize);
+  float scoresDiff = tsBalanceDnodeList[tsBalanceDnodeListSize - 1]->score - tsBalanceDnodeList[0]->score;
+  if (scoresDiff < 0.01) {
+    mDebug("all dnodes:%d is already balanced, scoresDiff:%f", tsBalanceDnodeListSize, scoresDiff);
     return false;
   }
 
@@ -798,31 +799,31 @@ static int32_t balanceGetScoresMeta(STableMetaMsg *pMeta, SShowObj *pShow, void 
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "system scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "custom scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "module scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "vnode scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pSchema[cols].type = TSDB_DATA_TYPE_FLOAT;
   strcpy(pSchema[cols].name, "total scores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -884,23 +885,23 @@ static int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = systemScore;
+    *(float *)pWrite = systemScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDnode->customScore;
+    *(float *)pWrite = pDnode->customScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = (int32_t)moduleScore;
+    *(float *)pWrite = (int32_t)moduleScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = (int32_t)vnodeScore;
+    *(float *)pWrite = (int32_t)vnodeScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = (int32_t)(vnodeScore + moduleScore + pDnode->customScore + systemScore);
+    *(float *)pWrite = (int32_t)(vnodeScore + moduleScore + pDnode->customScore + systemScore);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
