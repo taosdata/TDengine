@@ -1936,6 +1936,7 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
+#define TAG_INVALID_COLUMN_INDEX  -2
 static int32_t getTagColumnIndex(STSchema* pTSchema, SSchema* pSchema) {
   // filter on table name(TBNAME)
   if (strcasecmp(pSchema->name, TSQL_TBNAME_L) == 0) {
@@ -1967,9 +1968,8 @@ void filterPrepare(void* expr, void* param) {
   tVariant*   pCond = pExpr->_node.pRight->pVal;
   SSchema*    pSchema = pExpr->_node.pLeft->pSchema;
 
-  // todo : if current super table does not change schema yet, this function may fail to get correct schema, test case
   int32_t index = getTagColumnIndex(pTSSchema, pSchema);
-  assert((index >= 0 && i < TSDB_MAX_TAGS) || (index == TSDB_TBNAME_COLUMN_INDEX));
+  assert((index >= 0 && i < TSDB_MAX_TAGS) || (index == TSDB_TBNAME_COLUMN_INDEX) || index == TAG_INVALID_COLUMN_INDEX);
 
   pInfo->sch      = *pSchema;
   pInfo->colIndex = index;
