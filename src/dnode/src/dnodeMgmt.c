@@ -699,7 +699,6 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->dnodeId          = htonl(tsDnodeCfg.dnodeId);
   strcpy(pStatus->dnodeEp, tsLocalEp);
   pStatus->lastReboot       = htonl(tsRebootTime);
-  pStatus->numOfTotalVnodes = htons((uint16_t) tsNumOfTotalVnodes);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;

@@ -30,8 +30,6 @@ extern uint16_t tsDnodeShellPort;
 extern uint16_t tsDnodeDnodePort;
 extern uint16_t tsSyncPort;
 extern int32_t  tsStatusInterval;
-extern int16_t  tsNumOfVnodesPerCore;
-extern int16_t  tsNumOfTotalVnodes;
 extern int32_t  tsNumOfMnodes;
 extern int32_t  tsEnableVnodeBak;
 
