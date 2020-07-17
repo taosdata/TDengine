@@ -263,12 +263,29 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   return pSql;
 }
 TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
-  char* buf = malloc(sqlLen + 1);
-  buf[sqlLen] = 0;
-  strncpy(buf, sqlstr, sqlLen);
-  TAOS_RES *res = taos_query(taos, buf);
-  free(buf);
-  return res; 
+  STscObj *pObj = (STscObj *)taos;
+  if (pObj == NULL || pObj->signature != pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+  
+  if (sqlLen > tsMaxSQLStringLen) {
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+    terrno = TSDB_CODE_TSC_INVALID_SQL;
+    return NULL;
+  }
+  
+  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  if (pSql == NULL) {
+    tscError("failed to malloc sqlObj");
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+  
+  doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
+
+  tsem_wait(&pSql->rspSem);
+  return pSql; 
 }
 int taos_result_precision(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;

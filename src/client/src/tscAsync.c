@@ -54,7 +54,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
     return;
   }
 
-  strtolower(pSql->sqlstr, sqlstr);
+  strntolower(pSql->sqlstr, sqlstr, sqlLen);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   pSql->cmd.curSql = pSql->sqlstr;
