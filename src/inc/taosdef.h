@@ -293,7 +293,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_MIN_TOTAL_BLOCKS           2
 #define TSDB_MAX_TOTAL_BLOCKS           10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS       4
+#define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000
