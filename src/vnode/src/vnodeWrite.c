@@ -59,13 +59,18 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     return TSDB_CODE_VND_NO_WRITE_AUTH;
   }
 
+  // tsdb may be in reset state 
+  if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING) 
+    return TSDB_CODE_RPC_NOT_READY;
+  
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) {
       vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->status);
       return TSDB_CODE_VND_INVALID_STATUS;  // it may be in deleting or closing state
     }
 
-    if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+    if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
       vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->syncCfg.replica, pVnode->role);
       return TSDB_CODE_RPC_NOT_READY;
     }
@@ -184,6 +189,8 @@ int vnodeWriteToQueue(void *param, void *data, int type) {
   memcpy(pWal, pHead, size);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
+  vDebug("vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+
   taosWriteQitem(pVnode->wqueue, type, pWal);
 
   return 0;

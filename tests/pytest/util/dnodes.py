@@ -28,8 +28,11 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "anyIp": "0",
-            "sdbDebugFlag": "135",
+            "minTablesPerVnode": "4",
+            "maxTablesPerVnode": "1000",
+            "tableIncStepPerVnode": "10000",
+            "maxVgroupsPerDb": "1000",
+            "sdbDebugFlag": "143",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "cDebugFlag": "135",
@@ -37,7 +40,6 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             }
-
     def init(self, path):
         self.__init__()
         self.path = path
@@ -175,7 +177,8 @@ class TDDnode:
         self.cfg("logDir", self.logDir)
         self.cfg("numOfLogLines", "100000000")
         self.cfg("mnodeEqualVnodeNum", "0")
-        self.cfg("walLevel", "1")
+        self.cfg("walLevel", "2")
+        self.cfg("fsync", "1000")
         self.cfg("statusInterval", "1")
         self.cfg("numOfTotalVnodes", "64")
         self.cfg("numOfMnodes", "3")

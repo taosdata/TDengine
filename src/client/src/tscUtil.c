@@ -794,7 +794,7 @@ SFieldSupInfo* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
 }
 
 SFieldSupInfo* tscFieldInfoGetSupp(SFieldInfo* pFieldInfo, int32_t index) {
-  return taosArrayGet(pFieldInfo->pSupportInfo, index);
+  return TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, index);
 }
 
 SFieldSupInfo* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field) {
@@ -858,10 +858,8 @@ void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src) {
 }
 
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
-  return taosArrayGet(pFieldInfo->pFields, index);
+  return TARRAY_GET_ELEM(pFieldInfo->pFields, index);
 }
-
-int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, index);
@@ -1546,7 +1544,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
     pQueryInfo->groupbyExpr.columnInfo = NULL;
   }
   
-  pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
+  pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
   tfree(pQueryInfo->fillVal);
 }
@@ -1650,8 +1648,9 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   }
 
   pNew->fp = fp;
+  pNew->fetchFp = fp;
   pNew->param = param;
-  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pNew->maxRetry = TSDB_MAX_REPLICA;
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
@@ -1805,8 +1804,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   pNew->fp = fp;
+  pNew->fetchFp = fp;
+
   pNew->param = param;
-  pNew->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pNew->maxRetry = TSDB_MAX_REPLICA;
 
   char* name = pTableMetaInfo->name;
   STableMetaInfo* pFinalInfo = NULL;
@@ -2007,7 +2008,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
-  while (++pTableMetaInfo->vgroupIndex < totalVgroups) {
+  if (++pTableMetaInfo->vgroupIndex < totalVgroups) {
     tscDebug("%p results from vgroup index:%d completed, try next:%d. total vgroups:%d. current numOfRes:%" PRId64, pSql,
              pTableMetaInfo->vgroupIndex - 1, pTableMetaInfo->vgroupIndex, totalVgroups, pRes->numOfClauseTotal);
 
@@ -2043,11 +2044,9 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     // set the callback function
     pSql->fp = fp;
-    int32_t ret = tscProcessSql(pSql);
-    if (ret == TSDB_CODE_SUCCESS) {
-      return;
-    } else {// todo check for failure
-    }
+    tscProcessSql(pSql);
+  } else {
+    tscDebug("%p try all %d vnodes, query complete. current numOfRes:%" PRId64, pSql, totalVgroups, pRes->numOfClauseTotal);
   }
 }
 
@@ -2085,42 +2084,42 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   }
 }
 
-void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = taosArrayGet(pFieldInfo->pSupportInfo, columnIndex);
-  assert(pInfo->pSqlExpr != NULL);
-
-  int32_t type = pInfo->pSqlExpr->resType;
-  int32_t bytes = pInfo->pSqlExpr->resBytes;
-  
-  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-  
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-    int32_t realLen = varDataLen(pData);
-    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
-    
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
-    } else {
-      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
-    }
-  
-    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
-    }
-    
-    pRes->length[columnIndex] = realLen;
-  } else {
-    assert(bytes == tDataTypeDesc[type].nSize);
-    
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
-    } else {
-      pRes->tsrow[columnIndex] = pData;
-    }
-    
-    pRes->length[columnIndex] = bytes;
-  }
-}
+//void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
+//  SFieldSupInfo* pInfo = TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);
+//  assert(pInfo->pSqlExpr != NULL);
+//
+//  int32_t type = pInfo->pSqlExpr->resType;
+//  int32_t bytes = pInfo->pSqlExpr->resBytes;
+//
+//  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
+//
+//  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+//    int32_t realLen = varDataLen(pData);
+//    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
+//
+//    if (isNull(pData, type)) {
+//      pRes->tsrow[columnIndex] = NULL;
+//    } else {
+//      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
+//    }
+//
+//    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
+//      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
+//    }
+//
+//    pRes->length[columnIndex] = realLen;
+//  } else {
+//    assert(bytes == tDataTypeDesc[type].nSize);
+//
+//    if (isNull(pData, type)) {
+//      pRes->tsrow[columnIndex] = NULL;
+//    } else {
+//      pRes->tsrow[columnIndex] = pData;
+//    }
+//
+//    pRes->length[columnIndex] = bytes;
+//  }
+//}
 
 void* malloc_throw(size_t size) {
   void* p = malloc(size);

@@ -113,7 +113,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
 
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
-  pSql->maxRetry = TSDB_MAX_REPLICA_NUM;
+  pSql->maxRetry = TSDB_MAX_REPLICA;
   tsem_init(&pSql->rspSem, 0, 0);
   
   pObj->pDnodeConn = pDnodeConn;
@@ -181,6 +181,19 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   return NULL;
 }
+TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t userLen, 
+    const char *pass, uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
+    char ipBuf[TSDB_EP_LEN] = {0};
+    char userBuf[TSDB_USER_LEN] = {0};
+    char passBuf[TSDB_PASSWORD_LEN] = {0};
+    char dbBuf[TSDB_DB_NAME_LEN] = {0};
+    strncpy(ipBuf,   ip,   MIN(TSDB_EP_LEN - 1,     ipLen)); 
+    strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1,    userLen)); 
+    strncpy(passBuf, pass, MIN(TSDB_PASSWORD_LEN - 1,passLen)); 
+    strncpy(dbBuf,   db,   MIN(TSDB_DB_NAME_LEN - 1, dbLen)); 
+    return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);  
+}
+
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
@@ -249,7 +262,31 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   tsem_wait(&pSql->rspSem);
   return pSql;
 }
+TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
+  STscObj *pObj = (STscObj *)taos;
+  if (pObj == NULL || pObj->signature != pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+  
+  if (sqlLen > tsMaxSQLStringLen) {
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+    terrno = TSDB_CODE_TSC_INVALID_SQL;
+    return NULL;
+  }
+  
+  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  if (pSql == NULL) {
+    tscError("failed to malloc sqlObj");
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+  
+  doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
+  tsem_wait(&pSql->rspSem);
+  return pSql; 
+}
 int taos_result_precision(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
@@ -403,7 +440,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     sem_wait(&pSql->rspSem);
   }
-  
+
   return doSetResultRowData(pSql, true);
 }
 
@@ -481,25 +518,14 @@ static bool tscFreeQhandleInVnode(SSqlObj* pSql) {
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && !tscIsTwoStageSTableQuery(pQueryInfo, 0) &&
       (pCmd->command == TSDB_SQL_SELECT ||
-          pCmd->command == TSDB_SQL_SHOW ||
-          pCmd->command == TSDB_SQL_RETRIEVE ||
-          pCmd->command == TSDB_SQL_FETCH) &&
-      (pCmd->command == TSDB_SQL_SELECT && pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
+       pCmd->command == TSDB_SQL_SHOW ||
+       pCmd->command == TSDB_SQL_RETRIEVE ||
+       pCmd->command == TSDB_SQL_FETCH) &&
+      (pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
 
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s", pSql, sqlCmd[pCmd->command]);
+    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s, ", pSql, sqlCmd[pCmd->command]);
     tscProcessSql(pSql);
-
-    // in case of sync model query, waits for response and then goes on
-//    if (pSql->fp == waitForQueryRsp || pSql->fp == waitForRetrieveRsp) {
-//      sem_wait(&pSql->rspSem);
-
-//      tscFreeSqlObj(pSql);
-//      tscDebug("%p sqlObj is freed by app", pSql);
-//    } else {
-      tscDebug("%p sqlObj will be freed while rsp received", pSql);
-//    }
-
     return true;
   }
 

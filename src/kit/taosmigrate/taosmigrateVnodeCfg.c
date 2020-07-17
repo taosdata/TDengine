@@ -48,6 +48,7 @@ static int32_t saveVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
   len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnode->tsdbCfg.precision);
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnode->tsdbCfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pVnode->walCfg.walLevel);
+  len += snprintf(content + len, maxLen - len, "  \"fsync\": %d,\n", pVnode->walCfg.fsyncPeriod);
   len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pVnode->syncCfg.replica);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pVnode->walCfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnode->syncCfg.quorum);
@@ -211,6 +212,13 @@ static int32_t readVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
     goto PARSE_OVER;
   }
   pVnode->walCfg.walLevel = (int8_t) walLevel->valueint;
+
+  cJSON *fsyncPeriod = cJSON_GetObjectItem(root, "fsync");
+  if (!fsyncPeriod || fsyncPeriod->type != cJSON_Number) {
+    printf("vgId:%d, failed to read vnode cfg, fsyncPeriod not found\n", pVnode->vgId);
+    goto PARSE_OVER;
+  }
+  pVnode->walCfg.fsyncPeriod = fsyncPeriod->valueint;
 
   cJSON *wals = cJSON_GetObjectItem(root, "wals");
   if (!wals || wals->type != cJSON_Number) {

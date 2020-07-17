@@ -70,7 +70,13 @@ int32_t main(int32_t argc, char *argv[]) {
     }
 #endif
 #ifdef TAOS_RANDOM_FILE_FAIL
-    else if (strcmp(argv[i], "--random-file-fail-factor") == 0) {
+    else if (strcmp(argv[i], "--random-file-fail-output") == 0) {
+      if ((i < argc - 1) && (argv[i + 1][0] != '-')) {
+        taosSetRandomFileFailOutput(argv[++i]);
+      } else {
+        taosSetRandomFileFailOutput(NULL);
+      }
+    } else if (strcmp(argv[i], "--random-file-fail-factor") == 0) {
       if ( (i+1) < argc ) {
         int factor = atoi(argv[i+1]);
         printf("The factor of random failure is %d\n", factor);
@@ -129,7 +135,7 @@ int32_t main(int32_t argc, char *argv[]) {
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   if (signum == SIGUSR1) {
-    taosCfgDynamicOptions("debugFlag 151");
+    taosCfgDynamicOptions("debugFlag 143");
     return;
   }
   if (signum == SIGUSR2) {

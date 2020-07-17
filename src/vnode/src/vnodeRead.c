@@ -26,6 +26,7 @@
 #include "tsdb.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "tqueue.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SReadMsg *pReadMsg);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg);
@@ -51,6 +52,11 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
     return TSDB_CODE_VND_INVALID_STATUS; 
   }
 
+  // tsdb may be in reset state  
+  if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING)
+    return TSDB_CODE_RPC_NOT_READY;
+
   // TODO: Later, let slave to support query
   if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
     vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
@@ -58,6 +64,16 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
   }
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
+}
+
+static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void *qhandle) {
+  SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
+  pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
+  pRead->pCont = qhandle;
+  pRead->contLen = 0;
+
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  taosWriteQitem(pVnode->rqueue, TAOS_QTYPE_QUERY, pRead);
 }
 
 static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
@@ -82,6 +98,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       vWarn("QInfo:%p invalid qhandle, no matched query handle, conn:%p", (void*) killQueryMsg->qhandle, pReadMsg->rpcMsg.handle);
     } else {
       assert(*qhandle == (void*) killQueryMsg->qhandle);
+      qKillQuery(*qhandle);
       qReleaseQInfo(pVnode->qMgmt, (void**) &qhandle, true);
     }
 
@@ -93,7 +110,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
   if (contLen != 0) {
     qinfo_t pQInfo = NULL;
-    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, pVnode, NULL, &pQInfo);
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, pVnode, &pQInfo);
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code    = code;
@@ -107,10 +124,10 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (code == TSDB_CODE_SUCCESS) {
       handle = qRegisterQInfo(pVnode->qMgmt, (uint64_t) pQInfo);
       if (handle == NULL) {  // failed to register qhandle
+        vError("vgId:%d QInfo:%p register qhandle failed, return to app, code:%s", pVnode->vgId, (void *)pQInfo,
+               tstrerror(pRsp->code));
         pRsp->code = TSDB_CODE_QRY_INVALID_QHANDLE;
-
-        qKillQuery(pQInfo);
-        qKillQuery(pQInfo);
+        qDestroyQueryInfo(pQInfo);  // destroy it directly
       } else {
         assert(*handle == pQInfo);
         pRsp->qhandle = htobe64((uint64_t) pQInfo);
@@ -120,21 +137,20 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       if (handle != NULL && vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
         vError("vgId:%d, QInfo:%p, query discarded since link is broken, %p", pVnode->vgId, *handle, pReadMsg->rpcMsg.handle);
         pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-
-        // NOTE: there two refcount, needs to kill twice
-        // query has not been put into qhandle pool, kill it directly.
-        qKillQuery(*handle);
         qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
         return pRsp->code;
       }
     } else {
       assert(pQInfo == NULL);
     }
+
     if (handle != NULL) {
-      dnodePutItemIntoReadQueue(pVnode, *handle);
+      vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, register qhandle and return to app", vgId, *handle);
+
+      vnodePutItemIntoReadQueue(pVnode, *handle);
       qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
     }
-    vDebug("vgId:%d, QInfo:%p, dnode query msg disposed", vgId, pQInfo);
+
   } else {
     assert(pCont != NULL);
     handle = qAcquireQInfo(pVnode->qMgmt, (uint64_t) pCont);
@@ -142,12 +158,13 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       vWarn("QInfo:%p invalid qhandle in continuing exec query, conn:%p", (void*) pCont, pReadMsg->rpcMsg.handle);
       code = TSDB_CODE_QRY_INVALID_QHANDLE;
     } else {
-      vDebug("vgId:%d, QInfo:%p, dnode query msg in progress", pVnode->vgId, (void*) pCont);
+      vDebug("vgId:%d, QInfo:%p, dnode continue exec query", pVnode->vgId, (void*) pCont);
       code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
       qTableQuery(*handle); // do execute query
     }
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
   }
+
   return code;
 }
 
@@ -159,7 +176,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
   pRetrieve->free = htons(pRetrieve->free);
 
-  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, *(void**) pRetrieve->qhandle);
+  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, (void*) pRetrieve->qhandle);
 
   memset(pRet, 0, sizeof(SRspRet));
 
@@ -183,6 +200,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
   if (pRetrieve->free == 1) {
     vDebug("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
+    qKillQuery(*handle);
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
 
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -206,9 +224,12 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   } else { // if failed to dump result, free qhandle immediately
     if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len)) == TSDB_CODE_SUCCESS) {
       if (qHasMoreResultsToRetrieve(*handle)) {
-        dnodePutItemIntoReadQueue(pVnode, *handle);
+        vnodePutItemIntoReadQueue(pVnode, *handle);
         pRet->qhandle = *handle;
         freeHandle = false;
+      } else {
+        qKillQuery(*handle);
+        freeHandle = true;
       }
     }
   }

@@ -160,7 +160,32 @@ extern tDataTypeDescriptor tDataTypeDesc[11];
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
 bool isValidDataType(int32_t type);
-bool isNull(const char *val, int32_t type);
+//bool isNull(const char *val, int32_t type);
+static inline __attribute__((always_inline)) bool isNull(const char *val, int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return *(uint8_t *)val == TSDB_DATA_BOOL_NULL;
+    case TSDB_DATA_TYPE_TINYINT:
+      return *(uint8_t *)val == TSDB_DATA_TINYINT_NULL;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return *(uint16_t *)val == TSDB_DATA_SMALLINT_NULL;
+    case TSDB_DATA_TYPE_INT:
+      return *(uint32_t *)val == TSDB_DATA_INT_NULL;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return *(uint64_t *)val == TSDB_DATA_BIGINT_NULL;
+    case TSDB_DATA_TYPE_FLOAT:
+      return *(uint32_t *)val == TSDB_DATA_FLOAT_NULL;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
+    case TSDB_DATA_TYPE_NCHAR:
+      return *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
+    case TSDB_DATA_TYPE_BINARY:
+      return *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+    default:
+      return false;
+  };
+}
 
 void setVardataNull(char* val, int32_t type);
 void setNull(char *val, int32_t type, int32_t bytes);
@@ -249,8 +274,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120   // default payload size, greater than PATH_MAX value
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
-#define TSDB_MAX_VNODES           256
-#define TSDB_MIN_VNODES           50
+#define TSDB_MAX_VNODES           2048
+#define TSDB_MIN_VNODES           256
 #define TSDB_INVALID_VNODE_NUM    0
 
 #define TSDB_DNODE_ROLE_ANY       0
@@ -271,8 +296,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DEFAULT_TOTAL_BLOCKS       4
 
 #define TSDB_MIN_TABLES                 4
-#define TSDB_MAX_TABLES                 200000
-#define TSDB_DEFAULT_TABLES             1000
+#define TSDB_MAX_TABLES                 10000000
+#define TSDB_DEFAULT_TABLES             1000000
+#define TSDB_TABLES_STEP                1000
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
@@ -306,9 +332,13 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
-#define TSDB_MIN_REPLICA_NUM            1
-#define TSDB_MAX_REPLICA_NUM            3
-#define TSDB_DEFAULT_REPLICA_NUM        1
+#define TSDB_MIN_FSYNC_PERIOD           0
+#define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
+#define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
+
+#define TSDB_MIN_DB_REPLICA_OPTION      1
+#define TSDB_MAX_DB_REPLICA_OPTION      3
+#define TSDB_DEFAULT_DB_REPLICA_OPTION  1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
 #define TSDB_MAX_UNION_CLAUSE           5

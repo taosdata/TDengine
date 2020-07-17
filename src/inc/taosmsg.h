@@ -58,7 +58,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_VNODE, "drop-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY4, "dummy4" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY5, "dummy5" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
@@ -515,6 +515,7 @@ typedef struct {
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int32_t  commitTime;
+  int32_t  fsyncPeriod;
   uint8_t  precision;   // time resolution
   int8_t   compression;
   int8_t   walLevel;
@@ -562,9 +563,12 @@ typedef struct {
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
+  int32_t  enableBalance;             // tsEnableBalance
   int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
   int32_t  offlineThreshold;          // tsOfflineThreshold
   int32_t  statusInterval;            // tsStatusInterval
+  int32_t  maxtablesPerVnode;
+  int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
   char     timezone[64];              // tsTimezone
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
@@ -606,6 +610,7 @@ typedef struct {
   int32_t  minRowsPerFileBlock;
   int32_t  maxRowsPerFileBlock;
   int32_t  commitTime;
+  int32_t  fsyncPeriod;
   int8_t   precision;
   int8_t   compression;
   int8_t   walLevel;
@@ -624,7 +629,7 @@ typedef struct {
   char db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   SMDVnodeCfg  cfg;
   SMDVnodeDesc nodes[TSDB_MAX_REPLICA];
-} SMDCreateVnodeMsg;
+} SMDCreateVnodeMsg, SMDAlterVnodeMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];
@@ -644,7 +649,7 @@ typedef struct SCMSTableVgroupMsg {
 typedef struct {
   int32_t   vgId;
   int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_MAX_REPLICA_NUM];
+  SIpAddr   ipAddr[TSDB_MAX_REPLICA];
 } SCMVgroupInfo;
 
 typedef struct {

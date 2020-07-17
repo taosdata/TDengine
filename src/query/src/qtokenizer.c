@@ -124,6 +124,7 @@ static SKeyword keywordTable[] = {
     {"CACHE",        TK_CACHE},
     {"CTIME",        TK_CTIME},
     {"WAL",          TK_WAL},
+    {"FSYNC",        TK_FSYNC},
     {"COMP",         TK_COMP},
     {"PRECISION",    TK_PRECISION},
     {"LP",           TK_LP},
@@ -509,10 +510,11 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
-      /* here is the 1a/2s/3m/9y */
-      if ((z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' || z[i] == 'y' ||
-          z[i] == 'w' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
-          z[i] == 'Y' || z[i] == 'W') &&
+      /* here is the 1u/1a/2s/3m/9y */
+      if ((z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
+           z[i] == 'y' || z[i] == 'w' ||
+           z[i] == 'U' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
+           z[i] == 'Y' || z[i] == 'W') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenType = TK_VARIABLE;
         i += 1;

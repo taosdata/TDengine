@@ -23,14 +23,13 @@ extern "C" {
 #include "os.h"
 
 #define TARRAY_MIN_SIZE 8
-#define TARRAY_GET_ELEM(array, index) ((array)->pData + (index) * (array)->elemSize)
+#define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
 
 typedef struct SArray {
   size_t size;
   size_t capacity;
   size_t elemSize;
-
-  void* pData;
+  void*  pData;
 } SArray;
 
 /**

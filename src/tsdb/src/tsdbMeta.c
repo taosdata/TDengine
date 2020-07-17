@@ -57,8 +57,30 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   STable *   super = NULL;
   STable *   table = NULL;
   int        newSuper = 0;
+  int        tid = pCfg->tableId.tid;
+  STable *   pTable = NULL;
 
-  STable *pTable = tsdbGetTableByUid(pMeta, pCfg->tableId.uid);
+  if (tid < 0 || tid >= pRepo->config.maxTables) {
+    tsdbError("vgId:%d failed to create table since invalid tid %d", REPO_ID(pRepo), tid);
+    terrno = TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO;
+    goto _err;
+  }
+
+  if (pMeta->tables[tid] != NULL) {
+    if (TABLE_UID(pMeta->tables[tid]) == pCfg->tableId.uid) {
+      tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                TABLE_TID(pTable), TABLE_UID(pTable));
+      return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    } else {
+      tsdbError("vgId:%d table %s at tid %d uid %" PRIu64
+                " exists, replace it with new table, this can be not reasonable",
+                REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
+                TABLE_UID(pMeta->tables[tid]));
+      tsdbDropTable(pRepo, pMeta->tables[tid]->tableId);
+    }
+  }
+
+  pTable = tsdbGetTableByUid(pMeta, pCfg->tableId.uid);
   if (pTable != NULL) {
     tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
               TABLE_TID(pTable), TABLE_UID(pTable));
@@ -72,10 +94,10 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
       super = tsdbNewTable(pCfg, true);
       if (super == NULL) goto _err;
     } else {
-      // TODO
-      if (super->type != TSDB_SUPER_TABLE) return -1;
-      if (super->tableId.uid != pCfg->superUid) return -1;
-      // tsdbUpdateTable(pRepo, super, pCfg);
+      if (TABLE_TYPE(super) != TSDB_SUPER_TABLE || TABLE_UID(super) != pCfg->superUid) {
+        terrno = TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO;
+        goto _err;
+      }
     }
   }
 
@@ -705,6 +727,9 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
 
   T_REF_INC(pTable);
 
+  tsdbTrace("table %s tid %d uid %" PRIu64 " is created", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
+            TABLE_UID(pTable));
+
   return pTable;
 
 _err:
@@ -714,7 +739,9 @@ _err:
 
 static void tsdbFreeTable(STable *pTable) {
   if (pTable) {
-    if (pTable->name != NULL) tsdbDebug("table %s is destroyed", TABLE_CHAR_NAME(pTable));
+    if (pTable->name != NULL)
+      tsdbTrace("table %s tid %d uid %" PRIu64 " is freed", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
+                TABLE_UID(pTable));
     tfree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
@@ -782,7 +809,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
                                                    tsdbGetTableSchemaImpl(pTable, false, false, -1));
   }
 
-  tsdbTrace("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+  tsdbDebug("vgId:%d table %s tid %d uid %" PRIu64 " is added to meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
             TABLE_TID(pTable), TABLE_UID(pTable));
   return 0;
 

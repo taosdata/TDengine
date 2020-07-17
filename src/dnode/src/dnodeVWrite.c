@@ -104,7 +104,7 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   pHead->vgId     = htonl(pHead->vgId);
   pHead->contLen  = htonl(pHead->contLen);
 
-  taos_queue queue = vnodeGetWqueue(pHead->vgId);
+  taos_queue queue = vnodeAcquireWqueue(pHead->vgId);
   if (queue) {
     // put message into queue
     SWriteMsg *pWrite = (SWriteMsg *)taosAllocateQitem(sizeof(SWriteMsg));
@@ -232,9 +232,10 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
-        dDebug("%p, msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
+        dDebug("%p, rpc msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
       } else {
         pHead = (SWalHead *)item;
+        dTrace("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType], pHead->version);
       }
 
       int32_t code = vnodeProcessWrite(pVnode, type, pHead, pRspRet);

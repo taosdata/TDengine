@@ -175,7 +175,6 @@ static int32_t handlePassword(SSqlCmd* pCmd, SSQLToken* pPwd) {
   return TSDB_CODE_SUCCESS;
 }
 
-// todo handle memory leak in error handle function
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo == NULL || pSql == NULL || pSql->signature != pSql) {
     return TSDB_CODE_TSC_APP_ERROR;
@@ -2472,7 +2471,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
     startIdx++;
   }
 
-  int32_t factor = funcCompatDefList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
+  int32_t factor = functionCompatList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
 
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
@@ -2490,7 +2489,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (funcCompatDefList[functionId] != factor) {
+    if (functionCompatList[functionId] != factor) {
       return false;
     }
   }
@@ -4643,21 +4642,24 @@ typedef struct SDNodeDynConfOption {
 } SDNodeDynConfOption;
 
 
-int32_t validateEp(char* ep) {
+int32_t validateEp(char* ep) {  
   char buf[TSDB_EP_LEN + 1] = {0};
   tstrncpy(buf, ep, TSDB_EP_LEN);
 
-  char *pos = strchr(buf, ':');
-  if (NULL == pos) {   
-    return TSDB_CODE_TSC_INVALID_SQL;
+  char* pos = strchr(buf, ':');
+  if (NULL == pos) {
+    int32_t val = strtol(ep, NULL, 10);
+    if (val <= 0 || val > 65536) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+  } else {
+    uint16_t port = atoi(pos + 1);
+    if (0 == port) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
   }
-  
-  uint16_t port = atoi(pos+1);
-  if (0 == port) {   
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }  
 
-  return TSDB_CODE_SUCCESS;   
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t validateDNodeConfig(tDCLSQL* pOptions) {
@@ -4665,13 +4667,13 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  const int DNODE_DYNAMIC_CFG_OPTIONS_SIZE = 17;
+  const int DNODE_DYNAMIC_CFG_OPTIONS_SIZE = 19;
   const SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[] = {
       {"resetLog", 8},       {"resetQueryCache", 15},  {"debugFlag", 9},     {"mDebugFlag", 10},
       {"dDebugFlag", 10},    {"sdbDebugFlag", 12},     {"vDebugFlag", 10},   {"cDebugFlag", 10},
       {"httpDebugFlag", 13}, {"monitorDebugFlag", 16}, {"rpcDebugFlag", 12}, {"uDebugFlag", 10},
       {"tmrDebugFlag", 12},  {"qDebugflag", 10},       {"sDebugflag", 10},   {"tsdbDebugFlag", 13},
-      {"monitor", 7}};
+      {"mqttDebugFlag", 13}, {"wDebugFlag", 10},       {"monitor", 7}};
 
   SSQLToken* pOptionToken = &pOptions->a[1];
 
@@ -4695,7 +4697,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     SSQLToken* pValToken = &pOptions->a[2];
 
     int32_t val = strtol(pValToken->z, NULL, 10);
-    if (val < 131 || val > 199) {
+    if (val < 0 || val > 256) {
       /* options value is out of valid range */
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -4963,6 +4965,7 @@ static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->commitTime = htonl(pCreateDb->commitTime);
   pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
   pMsg->maxRowsPerFileBlock = htonl(pCreateDb->maxRowsPerBlock);
+  pMsg->fsyncPeriod = htonl(pCreateDb->fsyncPeriod);
   pMsg->compression = pCreateDb->compressionLevel;
   pMsg->walLevel = (char)pCreateDb->walLevel;
   pMsg->replications = pCreateDb->replica;
@@ -5490,9 +5493,9 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   }
 
   if (pCreate->replications != -1 &&
-      (pCreate->replications < TSDB_MIN_REPLICA_NUM || pCreate->replications > TSDB_MAX_REPLICA_NUM)) {
+      (pCreate->replications < TSDB_MIN_DB_REPLICA_OPTION || pCreate->replications > TSDB_MAX_DB_REPLICA_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
-             TSDB_MIN_REPLICA_NUM, TSDB_MAX_REPLICA_NUM);
+             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
@@ -5527,6 +5530,13 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   if (val != -1 && (val < TSDB_MIN_COMMIT_TIME || val > TSDB_MAX_COMMIT_TIME)) {
     snprintf(msg, tListLen(msg), "invalid db option commitTime: %d valid range: [%d, %d]", val,
              TSDB_MIN_COMMIT_TIME, TSDB_MAX_COMMIT_TIME);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+  }
+
+  val = htonl(pCreate->fsyncPeriod);
+  if (val != -1 && (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD)) {
+    snprintf(msg, tListLen(msg), "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val,
+             TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 

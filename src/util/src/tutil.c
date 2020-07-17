@@ -234,6 +234,35 @@ char* strtolower(char *dst, const char *src) {
   *p = 0;
   return dst;
 }
+char* strntolower(char *dst, const char *src, int32_t n) {
+  int esc = 0;
+  char quote = 0, *p = dst, c;
+
+  assert(dst != NULL);
+  if (n == 0) {
+    *p = 0;
+    return dst;
+  } 
+  for (c = *src++; n-- > 0; c = *src++) {
+    if (esc) {
+      esc = 0;
+    } else if (quote) {
+      if (c == '\\') {
+        esc = 1;
+      } else if (c == quote) {
+        quote = 0;
+      }
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    } else if (c == '\'' || c == '"') {
+      quote = c;
+    }
+    *p++ = c;
+  }
+
+  *p = 0;
+  return dst;
+}
 
 char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   char quote = 0;

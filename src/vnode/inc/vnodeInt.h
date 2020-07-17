@@ -29,15 +29,15 @@ extern int32_t vDebugFlag;
 
 #define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __VA_ARGS__); }}
 #define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __VA_ARGS__); }}
-#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN  ", 255, __VA_ARGS__); }}
-#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND INFO  ", 255, __VA_ARGS__); }}
-#define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND DEBUG ", vDebugFlag, __VA_ARGS__); }}
-#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND TRACE ", vDebugFlag, __VA_ARGS__); }}
+#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", 255, __VA_ARGS__); }}
+#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", 255, __VA_ARGS__); }}
+#define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
+#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
-  int          status; 
+  int8_t       status; 
   int8_t       role;   
   int8_t       accessState;
   int64_t      version;   // current version 
@@ -55,6 +55,8 @@ typedef struct {
   SWalCfg      walCfg;
   void        *qMgmt;
   char        *rootDir;
+  tsem_t       sem;
+  int8_t       dropped;
   char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
 

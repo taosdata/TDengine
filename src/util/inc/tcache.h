@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "tref.h"
+#include "tlockfree.h"
 #include "hash.h"
 
 typedef void (*__cache_free_fn_t)(void*);
@@ -33,17 +33,20 @@ typedef struct SCacheStatis {
   int64_t refreshCount;
 } SCacheStatis;
 
+struct STrashElem;
+
 typedef struct SCacheDataNode {
-  uint64_t addedTime;    // the added time when this element is added or updated into cache
-  uint64_t lifespan;     // expiredTime expiredTime when this element should be remove from cache
-  uint64_t signature;
-  uint32_t size;         // allocated size for current SCacheDataNode
+  uint64_t           addedTime;    // the added time when this element is added or updated into cache
+  uint64_t           lifespan;     // life duration when this element should be remove from cache
+  uint64_t           expireTime;   // expire time
+  uint64_t           signature;
+  struct STrashElem *pTNodeHeader; // point to trash node head
+  uint16_t           keySize: 15;  // max key size: 32kb
+  bool               inTrashCan: 1;// denote if it is in trash or not
+  uint32_t           size;         // allocated size for current SCacheDataNode
   T_REF_DECLARE()
-  uint16_t keySize: 15;  // max key size: 32kb
-  bool     inTrashCan: 1;// denote if it is in trash or not
-  int32_t  extendFactor; // number of life span extend
-  char    *key;
-  char     data[];
+  char              *key;
+  char               data[];
 } SCacheDataNode;
 
 typedef struct STrashElem {

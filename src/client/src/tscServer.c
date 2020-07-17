@@ -246,43 +246,52 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
   } else {
     STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-    if (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID || 
-        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      if (pCmd->command == TSDB_SQL_CONNECT) {
-        rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-        rpcFreeCont(rpcMsg->pCont);
-        return;
-      } else if (pCmd->command == TSDB_SQL_HB) {
-        rpcMsg->code = TSDB_CODE_RPC_NOT_READY;
-        rpcFreeCont(rpcMsg->pCont);
-        return;
-      } else if (pCmd->command == TSDB_SQL_META) {
-        // get table meta query will not retry, do nothing
+    // if (rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    //   if (pCmd->command == TSDB_SQL_CONNECT) {
+    //     rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    //     rpcFreeCont(rpcMsg->pCont);
+    //     return;
+    //   }
+
+    //   if (pCmd->command == TSDB_SQL_HB) {
+    //     rpcMsg->code = TSDB_CODE_RPC_NOT_READY;
+    //     rpcFreeCont(rpcMsg->pCont);
+    //     return;
+    //   }
+
+    //   if (pCmd->command == TSDB_SQL_META || pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
+    //       pCmd->command == TSDB_SQL_STABLEVGROUP || pCmd->command == TSDB_SQL_SHOW ||
+    //       pCmd->command == TSDB_SQL_RETRIEVE) {
+    //     // get table meta/vgroup query will not retry, do nothing
+    //   }
+    // }
+
+    if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_INSERT ||
+         pCmd->command == TSDB_SQL_UPDATE_TAGS_VAL) &&
+        (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
+         rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
+      tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
+      // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
+      if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+        pSql->cmd.submitSchema = 1;
+      }
+
+      pSql->res.code = rpcMsg->code;  // keep the previous error code
+      if (pSql->retry > pSql->maxRetry) {
+        tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
       } else {
-        tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
+        rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
 
-        // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
-        if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-          pSql->cmd.submitSchema = 1;
-        }
-
-        pSql->res.code = rpcMsg->code;  // keep the previous error code
-        if (pSql->retry > pSql->maxRetry) {
-          tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
-        } else {
-          rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
-
-          // if there is an error occurring, proceed to the following error handling procedure.
-          // todo add test cases
-          if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-            rpcFreeCont(rpcMsg->pCont);
-            return;
-          }
+        // if there is an error occurring, proceed to the following error handling procedure.
+        // todo add test cases
+        if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          rpcFreeCont(rpcMsg->pCont);
+          return;
         }
       }
     }
   }
-  
+
   pRes->rspLen = 0;
   
   if (pRes->code != TSDB_CODE_TSC_QUERY_CANCELLED) {
@@ -339,7 +348,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
   }
 
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? pRes->numOfRows: pRes->code;
+    rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS)? pRes->numOfRows: pRes->code;
     
     bool shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
@@ -412,7 +421,7 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    pSql->ipList = tscMgmtIpSet; //?
+    pSql->ipList = tscMgmtIpSet;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -476,6 +485,8 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
     
     SVgroupsInfo* pVgroupInfo = pTableMetaInfo->vgroupList;
+    assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
+
     pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
@@ -549,6 +560,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
       assert(index >= 0);
   
       if (pTableMetaInfo->vgroupList->numOfVgroups > 0) {
+        assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
         pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
       }
       tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
@@ -1372,7 +1384,6 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pRes->code = TSDB_CODE_SUCCESS;
-
   if (pRes->rspType == 0) {
     pRes->numOfRows = numOfRes;
     pRes->row = 0;

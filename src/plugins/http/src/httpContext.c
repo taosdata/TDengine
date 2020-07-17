@@ -137,7 +137,7 @@ void httpReleaseContext(HttpContext *pContext) {
   assert(refCount >= 0);
 
   HttpContext **ppContext = pContext->ppContext;
-  httpDebug("context:%p, is releasd, data:%p refCount:%d", pContext, ppContext, refCount);
+  httpDebug("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
 
   if (tsHttpServer.contextCache != NULL) {
     taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);

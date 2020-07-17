@@ -7,6 +7,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <inttypes.h>
 
 typedef struct {
   char sql[256];
@@ -123,19 +124,21 @@ void writeDataImp(void *param) {
   if (taos == NULL)
     taos_error(taos);
 
-  int code = taos_query(taos, "use db");
+  TAOS_RES* result = taos_query(taos, "use db");
+  int32_t code = taos_errno(result);
   if (code != 0) {
     taos_error(taos);
   }
+  taos_free_result(result);
 
-  char sql[65000];
+  char *sql = calloc(1, 8*1024*1024);
   int sqlLen = 0;
   int lastMachineid = 0;
   int counter = 0;
   int totalRecords = 0;
 
   for (int j = pThread->sID; j <= pThread->eID; j++) {
-    char fileName[256];
+    char fileName[300];
     sprintf(fileName, "%s/testdata%d.csv", arguments.dataDir, j);
 
     FILE *fp = fopen(fileName, "r");
@@ -162,7 +165,7 @@ void writeDataImp(void *param) {
       int64_t timestamp;
       int temperature;
       float humidity;
-      sscanf(line, "%d%s%d%lld%d%f", &machineid, machinename, &machinegroup, &timestamp, &temperature, &humidity);
+      sscanf(line, "%d%s%d%" PRId64 "%d%f", &machineid, machinename, &machinegroup, &timestamp, &temperature, &humidity);
 
       if (counter == 0) {
         sqlLen = sprintf(sql, "insert into");
@@ -174,14 +177,16 @@ void writeDataImp(void *param) {
                           machineid, machineid, machinename, machinegroup);
       }
 
-      sqlLen += sprintf(sql + sqlLen, "(%lld,%d,%f)", timestamp, temperature, humidity);
+      sqlLen += sprintf(sql + sqlLen, "(%" PRId64 ",%d,%f)", timestamp, temperature, humidity);
       counter++;
 
       if (counter >= arguments.rowsPerRequest) {
-        int code = taos_query(taos, sql);
+        TAOS_RES *result = taos_query(taos, sql);
+        int32_t   code = taos_errno(result);
         if (code != 0) {
-          printf("thread:%d error:%d reason:%s\n", pThread->pid, code, taos_errstr(taos));
+          printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(taos));
         }
+        taos_free_result(result);
 
         totalRecords += counter;
         counter = 0;
@@ -194,15 +199,18 @@ void writeDataImp(void *param) {
   }
 
   if (counter > 0) {
-    int code = taos_query(taos, sql);
+    TAOS_RES *result = taos_query(taos, sql);
+    int32_t   code = taos_errno(result);
     if (code != 0) {
-      printf("thread:%d error:%d reason:%s\n", pThread->pid, code, taos_errstr(taos));
+      printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(taos));
     }
+    taos_free_result(result);
 
     totalRecords += counter;
   }
 
   __sync_fetch_and_add(&statis.totalRows, totalRecords);
+  free(sql);
 }
 
 void writeData() {
@@ -215,19 +223,23 @@ void writeData() {
   taos_init();
 
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  if (taos == NULL)
-    taos_error(taos);
+  if (taos == NULL) taos_error(taos);
 
-  int code = taos_query(taos, "create database if not exists db");
+  TAOS_RES *result = taos_query(taos, "create database if not exists db");
+  int32_t   code = taos_errno(result);
   if (code != 0) {
     taos_error(taos);
   }
+  taos_free_result(result);
 
-  code = taos_query(taos, "create table if not exists db.devices(ts timestamp, temperature int, humidity float) "
-    "tags(devid int, devname binary(16), devgroup int)");
+  result = taos_query(taos,
+                      "create table if not exists db.devices(ts timestamp, temperature int, humidity float) "
+                      "tags(devid int, devname binary(16), devgroup int)");
+  code = taos_errno(result);
   if (code != 0) {
     taos_error(taos);
   }
+  taos_free_result(result);
 
   int64_t st = getTimeStampMs();
 
@@ -292,15 +304,10 @@ void readData() {
 
     int64_t st = getTimeStampMs();
 
-    int code = taos_query(taos, line);
+    TAOS_RES *result = taos_query(taos, line);
+    int32_t   code = taos_errno(result);
     if (code != 0) {
       taos_error(taos);
-    }
-
-    void *result = taos_use_result(taos);
-    if (result == NULL) {
-      printf("failed to get result, reason:%s\n", taos_errstr(taos));
-      exit(1);
     }
 
     TAOS_ROW row;

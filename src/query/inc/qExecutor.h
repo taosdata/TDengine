@@ -24,7 +24,7 @@
 #include "qtsbuf.h"
 #include "taosdef.h"
 #include "tarray.h"
-#include "tref.h"
+#include "tlockfree.h"
 #include "tsdb.h"
 #include "tsqlfunction.h"
 #include "query.h"
@@ -121,6 +121,7 @@ typedef struct SQueryCostInfo {
   uint32_t loadBlockStatis;
   uint32_t discardBlocks;
   uint64_t elapsedTime;
+  uint64_t ioTime;
   uint64_t computTime;
 } SQueryCostInfo;
 
@@ -192,7 +193,6 @@ typedef struct SQInfo {
   int32_t          offset;  // offset in group result set of subgroup, todo refactor
   SArray*          arrTableIdInfo;
 
-  T_REF_DECLARE()
   /*
    * the query is executed position on which meter of the whole list.
    * when the index reaches the last one of the list, it means the query is completed.
@@ -201,8 +201,6 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  _qinfo_free_fn_t freeFn;  //todo remove it
-
   void*     pBuf; // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
 } SQInfo;

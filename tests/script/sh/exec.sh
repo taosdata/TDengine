@@ -88,7 +88,9 @@ if [ "$EXEC_OPTON" = "start" ]; then
   echo "ExcuteCmd:" $EXE_DIR/taosd -c $CFG_DIR
   
   if [ "$SHELL_OPTION" = "true" ]; then 
-    nohup valgrind --log-file=${LOG_DIR}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
+    TT=`date +%s`
+    mkdir ${LOG_DIR}/${TT}
+    nohup valgrind --log-file=${LOG_DIR}/${TT}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
   else
     nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
   fi

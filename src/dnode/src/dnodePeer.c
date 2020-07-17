@@ -44,6 +44,7 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeDispatchToVnodeWriteQueue;
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToMgmtQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeDispatchToMgmtQueue; 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeDispatchToMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToMgmtQueue;
@@ -60,7 +61,7 @@ int32_t dnodeInitServer() {
   rpcInit.label        = "DND-S";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
-  rpcInit.sessions     = 100;
+  rpcInit.sessions     = TSDB_MAX_VNODES;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
 
@@ -122,7 +123,7 @@ int32_t dnodeInitClient() {
   rpcInit.label        = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromDnode;
-  rpcInit.sessions     = 100;
+  rpcInit.sessions     = TSDB_MAX_VNODES;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "t";

@@ -37,7 +37,7 @@ SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot);
 #define curTimeWindow(_winres)  ((_winres)->curIndex)
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
-void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo, size_t interBufSize);
+int32_t createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo, size_t interBufSize);
 
 char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult);
 

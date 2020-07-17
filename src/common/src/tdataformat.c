@@ -318,7 +318,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
   pCols->maxPoints = maxRows;
   pCols->bufSize = maxRowSize * maxRows;
 
-  pCols->buf = malloc(pCols->bufSize);
+  pCols->buf = calloc(1, pCols->bufSize);
   if (pCols->buf == NULL) {
     free(pCols);
     return NULL;
@@ -384,9 +384,11 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 }
 
 void tdResetDataCols(SDataCols *pCols) {
-  pCols->numOfRows = 0;
-  for (int i = 0; i < pCols->maxCols; i++) {
-    dataColReset(pCols->cols + i);
+  if (pCols != NULL) {
+    pCols->numOfRows = 0;
+    for (int i = 0; i < pCols->maxCols; i++) {
+      dataColReset(pCols->cols + i);
+    }
   }
 }
 

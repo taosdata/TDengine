@@ -30,8 +30,8 @@
 #define MAX_FILE_NAME_LEN 256
 #define MAX_ERROR_LEN 1024
 #define MAX_QUERY_VALUE_LEN 40
-#define MAX_QUERY_COL_NUM 10
-#define MAX_QUERY_ROW_NUM 10
+#define MAX_QUERY_COL_NUM 20
+#define MAX_QUERY_ROW_NUM 20
 #define MAX_SYSTEM_RESULT_LEN 2048
 #define MAX_VAR_LEN 100
 #define MAX_VAR_NAME_LEN 32
@@ -53,10 +53,10 @@
 
 #define simFatal(...) { if (simDebugFlag & DEBUG_FATAL) { taosPrintLog("SIM FATAL ", 255, __VA_ARGS__); }}
 #define simError(...) { if (simDebugFlag & DEBUG_ERROR) { taosPrintLog("SIM ERROR ", 255, __VA_ARGS__); }}
-#define simWarn(...)  { if (simDebugFlag & DEBUG_WARN)  { taosPrintLog("SIM WARN  ", 255, __VA_ARGS__); }}
-#define simInfo(...)  { if (simDebugFlag & DEBUG_INFO)  { taosPrintLog("SIM INFO  ", 255, __VA_ARGS__); }}
-#define simDebug(...) { if (simDebugFlag & DEBUG_DEBUG) { taosPrintLog("SIM DEBUG ", simDebugFlag, __VA_ARGS__); }}
-#define simTrace(...) { if (simDebugFlag & DEBUG_TRACE) { taosPrintLog("SIM TRACE ", simDebugFlag, __VA_ARGS__); }}
+#define simWarn(...)  { if (simDebugFlag & DEBUG_WARN)  { taosPrintLog("SIM WARN ", 255, __VA_ARGS__); }}
+#define simInfo(...)  { if (simDebugFlag & DEBUG_INFO)  { taosPrintLog("SIM ", 255, __VA_ARGS__); }}
+#define simDebug(...) { if (simDebugFlag & DEBUG_DEBUG) { taosPrintLog("SIM ", simDebugFlag, __VA_ARGS__); }}
+#define simTrace(...) { if (simDebugFlag & DEBUG_TRACE) { taosPrintLog("SIM ", simDebugFlag, __VA_ARGS__); }}
 
 enum { SIM_SCRIPT_TYPE_MAIN, SIM_SCRIPT_TYPE_BACKGROUND };
 

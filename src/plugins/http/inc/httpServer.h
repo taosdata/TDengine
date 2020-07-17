@@ -23,6 +23,6 @@ void httpCleanUpConnect();
 
 void *httpInitServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void httpCleanUpServer(HttpServer *pServer);
-bool httpReadDataImp(HttpContext *pContext);
+int  httpReadDataImp(HttpContext *pContext);
 
 #endif

@@ -52,9 +52,9 @@ system sh/cfg.sh -n dnode1 -c qdebugFlag -v 131
 system sh/cfg.sh -n dnode2 -c qdebugFlag -v 131
 system sh/cfg.sh -n dnode3 -c qdebugFlag -v 131
 
-system sh/cfg.sh -n dnode1 -c cDebugFlag -v 131
-system sh/cfg.sh -n dnode2 -c cDebugFlag -v 131
-system sh/cfg.sh -n dnode3 -c cDebugFlag -v 131
+system sh/cfg.sh -n dnode1 -c cDebugFlag -v 135
+system sh/cfg.sh -n dnode2 -c cDebugFlag -v 135
+system sh/cfg.sh -n dnode3 -c cDebugFlag -v 135
 
 system sh/cfg.sh -n dnode1 -c udebugFlag -v 131
 system sh/cfg.sh -n dnode2 -c udebugFlag -v 131
@@ -63,6 +63,10 @@ system sh/cfg.sh -n dnode3 -c udebugFlag -v 131
 system sh/cfg.sh -n dnode1 -c wdebugFlag -v 131
 system sh/cfg.sh -n dnode2 -c wdebugFlag -v 131
 system sh/cfg.sh -n dnode3 -c wdebugFlag -v 131
+
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000000
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 1000000
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 1000000
 
 print ============== deploy
 

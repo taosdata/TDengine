@@ -47,6 +47,10 @@ void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numO
     }
   }
 
+  // if (tscResultsetFetchCompleted(result)) {
+  //   isContinue = false;
+  // }
+
   if (isContinue) {
     // retrieve next batch of rows
     httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, continue retrieve, numOfRows:%d, sql:%s",
@@ -75,7 +79,8 @@ void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
-  HttpSqlCmds *     multiCmds = pContext->multiCmds;
+  code = taos_errno(result);  
+  HttpSqlCmds *multiCmds = pContext->multiCmds;
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   HttpSqlCmd *singleCmd = multiCmds->cmds + multiCmds->pos;
@@ -109,8 +114,8 @@ void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
     return;
   }
 
-  int num_fields = taos_field_count(result);
-  if (num_fields == 0) {
+  bool isUpdate = tscIsUpdateQuery(result);
+  if (isUpdate) {
     // not select or show commands
     int affectRows = taos_affected_rows(result);
     httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, affect rows:%d, sql:%s",
@@ -221,9 +226,9 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
     if (numOfRows < 0) {
       httpError("context:%p, fd:%d, ip:%s, user:%s, retrieve failed, code:%s", pContext, pContext->fd, pContext->ipstr,
                 pContext->user, tstrerror(numOfRows));
-    } 
-    
-    taos_free_result(result);    
+    }
+
+    taos_free_result(result);
 
     if (encode->stopJsonFp) {
       (encode->stopJsonFp)(pContext, &pContext->singleCmd);
@@ -238,6 +243,7 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode)
   if (pContext == NULL) return;
 
   int32_t code = taos_errno(result);
+
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
