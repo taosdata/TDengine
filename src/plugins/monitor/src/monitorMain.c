@@ -76,6 +76,8 @@ static void monitorInitDatabase();
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code);
 static void monitorStartTimer();
 static void monitorSaveSystemInfo();
+extern int32_t (*monitorStartSystemFp)();
+extern void (*monitorStopSystemFp)();
 
 static void monitorCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -85,6 +87,8 @@ static void monitorCheckDiskUsage(void *para, void *unused) {
 int32_t monitorInitSystem() {
   taos_init();
   taosTmrReset(monitorCheckDiskUsage, CHECK_INTERVAL, NULL, tscTmr, &tsMonitorConn.diskTimer);
+  monitorStartSystemFp = monitorStartSystem;
+  monitorStopSystemFp = monitorStopSystem;
   return 0;
 }
 

@@ -9,15 +9,6 @@ system sh/deploy.sh -n dnode6 -i 6
 system sh/deploy.sh -n dnode7 -i 7
 system sh/deploy.sh -n dnode8 -i 8
 
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode6 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode7 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode8 -c numOfTotalVnodes -v 4
-
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3

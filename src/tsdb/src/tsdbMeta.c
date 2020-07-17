@@ -592,7 +592,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
     int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
     void *buf = tsdbAllocBytes(pRepo, tlen);
     ASSERT(buf != NULL);
-    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pTable);
+    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pCTable);
   }
 }
 

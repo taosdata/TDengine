@@ -20,7 +20,6 @@ system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 30000
 system sh/cfg.sh -n dnode1 -c maxMgmtConnections -v 30000
 system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 30000
 system sh/cfg.sh -n dnode1 -c maxShellConns       -v 30000
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v 60
 
 system sh/exec.sh -n dnode1 -s start
 sql connect

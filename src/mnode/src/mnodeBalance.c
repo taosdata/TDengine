@@ -39,11 +39,11 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
 
-    if (pDnode->totalVnodes > 0 && pDnode->openVnodes < pDnode->totalVnodes) {
+    if (pDnode->numOfCores > 0 && pDnode->openVnodes < TSDB_MAX_VNODES) {
       float openVnodes = pDnode->openVnodes;
       if (pDnode->isMgmt) openVnodes += tsMnodeEqualVnodeNum;
 
-      float usage = openVnodes / pDnode->totalVnodes;
+      float usage = openVnodes / pDnode->numOfCores;
       if (usage <= vnodeUsage) {
         pSelDnode = pDnode;
         vnodeUsage = usage;

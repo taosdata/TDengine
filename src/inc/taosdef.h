@@ -274,9 +274,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120   // default payload size, greater than PATH_MAX value
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
+#define TSDB_MIN_VNODES           64
 #define TSDB_MAX_VNODES           2048
-#define TSDB_MIN_VNODES           256
-#define TSDB_INVALID_VNODE_NUM    0
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1
@@ -293,7 +292,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_MIN_TOTAL_BLOCKS           2
 #define TSDB_MAX_TOTAL_BLOCKS           10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS       4
+#define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000

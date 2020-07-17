@@ -585,9 +585,9 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "poolSize");
+  pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -688,8 +688,9 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
     *(int32_t *) pWrite = pVgroup->numOfTables;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = taosIdPoolMaxSize(pVgroup->idPool);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
+    char* status = vgroupStatus[pVgroup->status];
+    STR_TO_VARSTR(pWrite, status);
     cols++;
 
     int32_t onlineVnodes = 0;

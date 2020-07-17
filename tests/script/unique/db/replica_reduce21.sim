@@ -13,9 +13,6 @@ system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
@@ -62,9 +59,6 @@ endi
 
 print ======== step2 create d5
 sql create database d5 replica 1
-sql create table d5.t5 (ts timestamp, i int) -x error1
-	return -1
-error1:
 
 print ========= step3 alter d1
 sql alter database d1 replica 1

@@ -29,12 +29,6 @@ system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 16
 system sh/cfg.sh -n dnode4 -c maxVgroupsPerDb -v 16
 system sh/cfg.sh -n dnode5 -c maxVgroupsPerDb -v 16
 
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
-
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
@@ -47,11 +41,11 @@ system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 200
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 200
 system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 200
 
-system sh/cfg.sh -n dnode1 -c alternativeRole -v 1
-system sh/cfg.sh -n dnode2 -c alternativeRole -v 2
-system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
-system sh/cfg.sh -n dnode4 -c alternativeRole -v 2
-system sh/cfg.sh -n dnode5 -c alternativeRole -v 2
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
+system sh/cfg.sh -n dnode4 -c role -v 2
+system sh/cfg.sh -n dnode5 -c role -v 2
 
 system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
@@ -214,10 +208,9 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode3 -c walLevel -v 1
 system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 200
-system sh/cfg.sh -n dnode3 -c alternativeRole -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
 system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
 system sh/cfg.sh -n dnode3 -c offlineThreshold -v 10
 system sh/cfg.sh -n dnode3 -c enableCoreFile -v 1
