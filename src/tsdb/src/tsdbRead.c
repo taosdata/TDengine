@@ -1525,7 +1525,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pQueryHandle->cur.win  = (STimeWindow){pQueryHandle->window.skey, pQueryHandle->window.skey};
       pQueryHandle->window   = pQueryHandle->cur.win;
       pQueryHandle->cur.rows = 1;
-      pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
+      pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
       return true;
     } else {
       STsdbQueryHandle* pSecQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
@@ -1584,8 +1584,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       bool ret = tsdbNextDataBlock((void*) pSecQueryHandle);
       assert(ret);
 
-      /*SDataBlockInfo* pBlockInfo =*/ tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
-      /*SArray *pDataBlock = */tsdbRetrieveDataBlock((void*) pSecQueryHandle, pSecQueryHandle->defaultLoadColumn);
+      tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
+      tsdbRetrieveDataBlock((void*) pSecQueryHandle, pSecQueryHandle->defaultLoadColumn);
   
       for (int32_t i = 0; i < numOfCols; ++i) {
         SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
@@ -1598,15 +1598,25 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       }
   
       SColumnInfoData* pTSCol = taosArrayGet(pQueryHandle->pColumns, 0);
-      
+
+      // it is ascending order
       pQueryHandle->cur.win  = (STimeWindow){((TSKEY*)pTSCol->pData)[0], ((TSKEY*)pTSCol->pData)[1]};
       pQueryHandle->window   = pQueryHandle->cur.win;
       pQueryHandle->cur.rows = 2;
-      
+      pQueryHandle->cur.mixBlock = true;
+      pQueryHandle->order = TSDB_ORDER_ASC;
+
+      int32_t step = -1;
+      for (int32_t j = 0; j < si; ++j) {
+        STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, j);
+        pCheckInfo->lastKey = pQueryHandle->cur.win.ekey + step;
+      }
+
       tsdbCleanupQueryHandle(pSecQueryHandle);
     }
-    
-    pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
+
+//    disable it after retrieve data
+    pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
     return true;
   }
   
