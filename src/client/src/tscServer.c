@@ -44,9 +44,18 @@ void tscSaveSubscriptionProgress(void* sub);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 
+void tscIpSetCopy(SRpcIpSet *dst, SRpcIpSet *src) {
+  dst->numOfIps = src->numOfIps;
+  dst->inUse = src->inUse;
+  for (int32_t i = 0; i < src->numOfIps; ++i) {
+     dst->port[i] = htons(dst->port[i]);
+     strncpy(dst->fqdn[i], src->fqdn[i], TSDB_FQDN_LEN);
+  }
+}
 static void tscDumpMgmtIpSet(SRpcIpSet *ipSet) {
   taosCorBeginRead(&tscMgmtIpSet.version);
-  *ipSet = tscMgmtIpSet.ipSet;
+  SRpcIpSet*  src = &tscMgmtIpSet.ipSet;
+  tscIpSetCopy(ipSet, src); 
   taosCorEndRead(&tscMgmtIpSet.version);
 }  
 
@@ -71,12 +80,7 @@ void tscSetMgmtIpList(SRpcIpSet *pIpSet) {
    
   taosCorBeginWrite(&tscMgmtIpSet.version);
   SRpcIpSet *mgmtIpSet = &tscMgmtIpSet.ipSet;
-  mgmtIpSet->numOfIps = pIpSet->numOfIps;
-  mgmtIpSet->inUse = pIpSet->inUse;
-  for (int32_t i = 0; i < mgmtIpSet->numOfIps; ++i) {
-     mgmtIpSet->port[i] = htons(pIpSet->port[i]);
-     strncpy(mgmtIpSet->fqdn[i], pIpSet->fqdn[i], TSDB_FQDN_LEN);
-  }
+  tscIpSetCopy(mgmtIpSet, pIpSet);
   taosCorEndWrite(&tscMgmtIpSet.version);
 }
 static void tscDumpIpSetFromVgroupInfo(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pIpSet, int32_t *vgId) {
@@ -227,7 +231,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
     SRpcIpSet dump;
     tscDumpMgmtIpSet(&dump);
-    pSql->ipList = dump;
+    tscIpSetCopy(&pSql->ipList, &dump);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
