@@ -214,7 +214,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   char *prefix = dirname(sdup);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    int fid = (*index) / 3;
+    int fid = (*index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
       if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
@@ -228,11 +228,11 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        fname = strdup(pFGroup->files[(*index) % 3].fname);
+        fname = strdup(pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].fname);
       } else {
-        if (pFGroup->fileId * 3 + 2 < eindex) {
+        if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < eindex) {
           fname = strdup(pFGroup->files[0].fname);
-          *index = pFGroup->fileId * 3;
+          *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
         } else {
           tfree(sdup);
           return 0;
@@ -244,14 +244,14 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
       fname = tsdbGetMetaFileName(pRepo->rootDir);
     } else {
-      int         fid = (*index) / 3;
+      int         fid = (*index) / TSDB_FILE_TYPE_MAX;
       SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
       if (pFGroup == NULL) {  // not found
         tfree(sdup);
         return 0;
       }
 
-      SFile *pFile = &pFGroup->files[(*index) % 3];
+      SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
       fname = strdup(pFile->fname);
     }
   }

@@ -132,21 +132,23 @@ typedef struct {
 // ------------------ tsdbFile.c
 extern const char* tsdbFileSuffix[];
 typedef enum {
-  TSDB_FILE_TYPE_HEAD = 0,
+  TSDB_FILE_TYPE_IDX = 0,
+  TSDB_FILE_TYPE_HEAD,
   TSDB_FILE_TYPE_DATA,
   TSDB_FILE_TYPE_LAST,
   TSDB_FILE_TYPE_MAX,
+  TSDB_FILE_TYPE_NIDX,
   TSDB_FILE_TYPE_NHEAD,
   TSDB_FILE_TYPE_NLAST
 } TSDB_FILE_TYPE;
 
 typedef struct {
-  uint32_t offset;
+  uint32_t magic;
   uint32_t len;
-  uint64_t size;      // total size of the file
-  uint64_t tombSize;  // unused file size
   uint32_t totalBlocks;
   uint32_t totalSubBlocks;
+  uint64_t size;      // total size of the file
+  uint64_t tombSize;  // unused file size
 } STsdbFileInfo;
 
 typedef struct {
@@ -249,16 +251,12 @@ typedef struct {
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
 typedef struct {
-  int   fid;
-  TSKEY minKey;
-  TSKEY maxKey;
-  // For read/write purpose
-  SFile headF;
-  SFile dataF;
-  SFile lastF;
-  // For write purpose only
-  SFile nHeadF;
-  SFile nLastF;
+  TSKEY      minKey;
+  TSKEY      maxKey;
+  SFileGroup fGroup;
+  SFile      nIdxF;
+  SFile      nHeadF;
+  SFile      nLastF;
 } SHelperFile;
 
 typedef struct {
@@ -444,6 +442,14 @@ void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 #define helperRepo(h) (h)->pRepo
 #define helperState(h) (h)->state
 #define TSDB_NLAST_FILE_OPENED(h) ((h)->files.nLastF.fd > 0)
+#define helperFileId(h) ((h)->files.fGroup.fileId)
+#define helperIdxF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_IDX]))
+#define helperHeadF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_HEAD]))
+#define helperDataF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_DATA]))
+#define helperLastF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_LAST]))
+#define helperNewIdxF(h) (&((h)->files.nIdxF))
+#define helperNewHeadF(h) (&((h)->files.nHeadF))
+#define helperNewLastF(h) (&((h)->files.nLastF))
 
 int  tsdbInitReadHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
 int  tsdbInitWriteHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
