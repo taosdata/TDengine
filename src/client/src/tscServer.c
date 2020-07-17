@@ -70,15 +70,10 @@ bool tscIpSetIsEqual(SRpcIpSet *s1, SRpcIpSet *s2) {
    }
    return true;
 }
-void tscSetMgmtIpList(SRpcIpSet *pIpSet) {
+void tscUpdateMgmtIpList(SRpcIpSet *pIpSet) {
   // no need to update if equal
-  SRpcIpSet dump;
-  tscDumpMgmtIpSet(&dump);
-  if (tscIpSetIsEqual(&dump, pIpSet)) {
-    return; 
-  }
-   
   taosCorBeginWrite(&tscMgmtIpSet.version);
+  // or copy directly,  tscMgmtIpSet.ipSet = *pIpSet
   SRpcIpSet *mgmtIpSet = &tscMgmtIpSet.ipSet;
   tscIpSetCopy(mgmtIpSet, pIpSet);
   taosCorEndWrite(&tscMgmtIpSet.version);
@@ -97,7 +92,12 @@ static void tscDumpIpSetFromVgroupInfo(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pI
   }
   taosCorEndRead(&pVgroupInfo->version);
 }
-static void tscSetVgroupInfoWithIpSet(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pIpSet) {
+
+static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
+  SSqlCmd *pCmd = &pObj->cmd;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  SCMVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->vgroupInfo;
+
   taosCorBeginWrite(&pVgroupInfo->version);
   //TODO(dengyihao), dont care vgid  
   pVgroupInfo->numOfIps = pIpSet->numOfIps;
@@ -106,14 +106,6 @@ static void tscSetVgroupInfoWithIpSet(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pIp
     pVgroupInfo->ipAddr[i].port = pIpSet->port[i];
   }
   taosCorEndWrite(&pVgroupInfo->version);
-}
-static void tscSetVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
-  if (tscIpSetIsEqual(&pObj->ipList, pIpSet)) {
-    return;
-  }
-  SSqlCmd *pCmd = &pObj->cmd;
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  tscSetVgroupInfoWithIpSet(&pTableMetaInfo->pTableMeta->vgroupInfo, pIpSet);  
 }
 void tscPrintMgmtIp() {
   SRpcIpSet dump;
@@ -157,7 +149,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
     SRpcIpSet *      pIpList = &pRsp->ipList;
     if (pIpList->numOfIps > 0) 
-      tscSetMgmtIpList(pIpList);
+      tscUpdateMgmtIpList(pIpList);
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
 
@@ -231,6 +223,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
     SRpcIpSet dump;
     tscDumpMgmtIpSet(&dump);
+    // no need to update pSql->ipList
     tscIpSetCopy(&pSql->ipList, &dump);
   }
 
@@ -282,10 +275,14 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     return;
   }
 
-  if (pCmd->command < TSDB_SQL_MGMT) {
-    if (pIpSet) tscSetVgroupInfo(pSql, pIpSet); 
-  } else {
-    if (pIpSet) tscSetMgmtIpList(pIpSet);  
+  if (pIpSet) {
+    if (!tscIpSetIsEqual(&pSql->ipList, pIpSet)) {
+      if (pCmd->command < TSDB_SQL_MGMT)  { 
+        tscUpdateVgroupInfo(pSql, pIpSet); 
+      } else {
+        tscUpdateMgmtIpList(pIpSet);
+      }
+    }
   }
 
   if (rpcMsg->pCont == NULL) {
@@ -1994,7 +1991,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
   if (pConnect->ipList.numOfIps > 0) 
-    tscSetMgmtIpList(&pConnect->ipList);
+    tscUpdateMgmtIpList(&pConnect->ipList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
