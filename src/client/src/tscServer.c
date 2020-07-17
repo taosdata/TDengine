@@ -226,10 +226,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    SRpcIpSet dump;
-    tscDumpMgmtIpSet(&dump);
-    // no need to update pSql->ipList
-    tscIpSetCopy(&pSql->ipList, &dump);
+    tscDumpMgmtIpSet(&pSql->ipList);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
@@ -471,7 +468,7 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    tscDumpMgmtIpSet(&pSql->ipList);
+    //tscDumpMgmtIpSet(&pSql->ipList);
   } else {  
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
