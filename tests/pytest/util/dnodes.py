@@ -180,7 +180,6 @@ class TDDnode:
         self.cfg("walLevel", "2")
         self.cfg("fsync", "1000")
         self.cfg("statusInterval", "1")
-        self.cfg("numOfTotalVnodes", "64")
         self.cfg("numOfMnodes", "3")
         self.cfg("numOfThreadsPerCore", "2.0")
         self.cfg("monitor", "0")

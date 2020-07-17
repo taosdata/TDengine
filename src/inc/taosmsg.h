@@ -581,12 +581,12 @@ typedef struct {
   char        dnodeEp[TSDB_EP_LEN];
   uint32_t    moduleStatus;
   uint32_t    lastReboot;        // time stamp for last reboot
-  uint16_t    numOfTotalVnodes;  // from config file
+  uint16_t    reserve1;          // from config file
   uint16_t    openVnodes;
   uint16_t    numOfCores;
   float       diskAvailable;  // GB
   uint8_t     alternativeRole;
-  uint8_t     reserve[15];
+  uint8_t     reserve2[15];
   SClusterCfg clusterCfg;
   SVnodeLoad  load[];
 } SDMStatusMsg;
