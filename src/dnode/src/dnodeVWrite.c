@@ -104,7 +104,7 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   pHead->vgId     = htonl(pHead->vgId);
   pHead->contLen  = htonl(pHead->contLen);
 
-  taos_queue queue = vnodeGetWqueue(pHead->vgId);
+  taos_queue queue = vnodeAcquireWqueue(pHead->vgId);
   if (queue) {
     // put message into queue
     SWriteMsg *pWrite = (SWriteMsg *)taosAllocateQitem(sizeof(SWriteMsg));
