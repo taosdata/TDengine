@@ -23,10 +23,10 @@
 
 static SDMMnodeInfos tsDnodeIpInfos = {0};
 
-static bool dnodeReadMnodeInfos(char* dnodeIpList) {
-  FILE *fp = fopen(dnodeIpList, "r");
+static bool dnodeReadMnodeInfos(char* dnodeEpSet) {
+  FILE *fp = fopen(dnodeEpSet, "r");
   if (!fp) {
-    printf("failed to read mnodeIpList.json, file not exist\n");
+    printf("failed to read mnodeEpSet.json, file not exist\n");
     return false;
   }
 
@@ -37,40 +37,40 @@ static bool dnodeReadMnodeInfos(char* dnodeIpList) {
   if (len <= 0) {
     free(content);
     fclose(fp);
-    printf("failed to read mnodeIpList.json, content is null\n");
+    printf("failed to read mnodeEpSet.json, content is null\n");
     return false;
   }
 
   content[len] = 0;
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
-    printf("failed to read mnodeIpList.json, invalid json format\n");
+    printf("failed to read mnodeEpSet.json, invalid json format\n");
     goto PARSE_OVER;
   }
 
   cJSON* inUse = cJSON_GetObjectItem(root, "inUse");
   if (!inUse || inUse->type != cJSON_Number) {
-    printf("failed to read mnodeIpList.json, inUse not found\n");
+    printf("failed to read mnodeEpSet.json, inUse not found\n");
     goto PARSE_OVER;
   }
   tsDnodeIpInfos.inUse = inUse->valueint;
 
   cJSON* nodeNum = cJSON_GetObjectItem(root, "nodeNum");
   if (!nodeNum || nodeNum->type != cJSON_Number) {
-    printf("failed to read mnodeIpList.json, nodeNum not found\n");
+    printf("failed to read mnodeEpSet.json, nodeNum not found\n");
     goto PARSE_OVER;
   }
   tsDnodeIpInfos.nodeNum = nodeNum->valueint;
 
   cJSON* nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
-    printf("failed to read mnodeIpList.json, nodeInfos not found\n");
+    printf("failed to read mnodeEpSet.json, nodeInfos not found\n");
     goto PARSE_OVER;
   }
 
   int size = cJSON_GetArraySize(nodeInfos);
   if (size != tsDnodeIpInfos.nodeNum) {
-    printf("failed to read mnodeIpList.json, nodeInfos size not matched\n");
+    printf("failed to read mnodeEpSet.json, nodeInfos size not matched\n");
     goto PARSE_OVER;
   }
 
@@ -80,14 +80,14 @@ static bool dnodeReadMnodeInfos(char* dnodeIpList) {
 
     cJSON *nodeId = cJSON_GetObjectItem(nodeInfo, "nodeId");
     if (!nodeId || nodeId->type != cJSON_Number) {
-      printf("failed to read mnodeIpList.json, nodeId not found\n");
+      printf("failed to read mnodeEpSet.json, nodeId not found\n");
       goto PARSE_OVER;
     }
     tsDnodeIpInfos.nodeInfos[i].nodeId = nodeId->valueint;
 
     cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
     if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
-      printf("failed to read mnodeIpList.json, nodeName not found\n");
+      printf("failed to read mnodeEpSet.json, nodeName not found\n");
       goto PARSE_OVER;
     }
     strncpy(tsDnodeIpInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
@@ -102,7 +102,7 @@ static bool dnodeReadMnodeInfos(char* dnodeIpList) {
 
   ret = true;
 
-  //printf("read mnode iplist successed, numOfIps:%d inUse:%d\n", tsDnodeIpInfos.nodeNum, tsDnodeIpInfos.inUse);
+  //printf("read mnode epSet successed, numOfEps:%d inUse:%d\n", tsDnodeIpInfos.nodeNum, tsDnodeIpInfos.inUse);
   //for (int32_t i = 0; i < tsDnodeIpInfos.nodeNum; i++) {
   //  printf("mnode:%d, %s\n", tsDnodeIpInfos.nodeInfos[i].nodeId, tsDnodeIpInfos.nodeInfos[i].nodeEp);
   //}
@@ -115,8 +115,8 @@ PARSE_OVER:
 }
 
 
-static void dnodeSaveMnodeInfos(char* dnodeIpList) {
-  FILE *fp = fopen(dnodeIpList, "w");
+static void dnodeSaveMnodeInfos(char* dnodeEpSet) {
+  FILE *fp = fopen(dnodeEpSet, "w");
   if (!fp) return;
 
   int32_t len = 0;
@@ -143,13 +143,13 @@ static void dnodeSaveMnodeInfos(char* dnodeIpList) {
   fclose(fp);
   free(content);
   
-  printf("mod mnode iplist successed\n");
+  printf("mod mnode epSet successed\n");
 }
 
-void modDnodeIpList(char* dnodeIpList)
+void modDnodeEpSet(char* dnodeEpSet)
 {
-  (void)dnodeReadMnodeInfos(dnodeIpList);
-  dnodeSaveMnodeInfos(dnodeIpList);
+  (void)dnodeReadMnodeInfos(dnodeEpSet);
+  dnodeSaveMnodeInfos(dnodeEpSet);
   return;
 }
 

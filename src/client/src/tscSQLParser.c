@@ -2355,9 +2355,9 @@ bool validateIpAddress(const char* ip, size_t size) {
 
   strncpy(tmp, ip, size);
 
-  in_addr_t ipAddr = inet_addr(tmp);
+  in_addr_t epAddr = inet_addr(tmp);
 
-  return ipAddr != INADDR_NONE;
+  return epAddr != INADDR_NONE;
 }
 
 int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo* pQueryInfo) {

@@ -44,12 +44,12 @@ int32_t mnodeGetAvailableVgroup(struct SMnodeMsg *pMsg, SVgObj **pVgroup, int32_
 
 void    mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
 void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
-void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle);
+void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);
 
-SRpcIpSet mnodeGetIpSetFromVgroup(SVgObj *pVgroup);
-SRpcIpSet mnodeGetIpSetFromIp(char *ep);
+SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
+SRpcEpSet mnodeGetEpSetFromIp(char *ep);
 
 #ifdef __cplusplus
 }
