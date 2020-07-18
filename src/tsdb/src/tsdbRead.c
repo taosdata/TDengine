@@ -240,7 +240,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
 
   pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
 
-  tsdbDebug("%p total numOfTable:%zu in query", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo));
+  tsdbDebug("%p total numOfTable:%zu in query, %p", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo), pQueryHandle->qinfo);
 
   tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
@@ -1869,7 +1869,6 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
       pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
     }
 
-    // todo opt perf
     SColumnInfo* pColInfo = taosArrayGet(pHandle->pColumns, i);
     if (pColInfo->type == TSDB_DATA_TYPE_TIMESTAMP) {
       pHandle->statis[i].min = pBlockInfo->compBlock->keyFirst;
@@ -1961,43 +1960,20 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
-#define TAG_INVALID_COLUMN_INDEX  -2
-static int32_t getTagColumnIndex(STSchema* pTSchema, SSchema* pSchema) {
-  // filter on table name(TBNAME)
-  if (strcasecmp(pSchema->name, TSQL_TBNAME_L) == 0) {
-    return TSDB_TBNAME_COLUMN_INDEX;
-  }
-  
-  for(int32_t i = 0; i < schemaNCols(pTSchema); ++i) {
-    STColumn* pColumn = &pTSchema->columns[i];
-    if (pColumn->bytes == pSchema->bytes && pColumn->type  == pSchema->type  && pColumn->colId == pSchema->colId) {
-      return i;
-    }
-  }
-  
-  return -2;
-}
-
 void filterPrepare(void* expr, void* param) {
   tExprNode* pExpr = (tExprNode*)expr;
   if (pExpr->_node.info != NULL) {
     return;
   }
 
-  int32_t i = 0;
   pExpr->_node.info = calloc(1, sizeof(tQueryInfo));
   
-  STSchema* pTSSchema = (STSchema*) param;
-
+  STSchema*   pTSSchema = (STSchema*) param;
   tQueryInfo* pInfo = pExpr->_node.info;
   tVariant*   pCond = pExpr->_node.pRight->pVal;
   SSchema*    pSchema = pExpr->_node.pLeft->pSchema;
 
-  int32_t index = getTagColumnIndex(pTSSchema, pSchema);
-  assert((index >= 0 && i < TSDB_MAX_TAGS) || (index == TSDB_TBNAME_COLUMN_INDEX) || index == TAG_INVALID_COLUMN_INDEX);
-
   pInfo->sch      = *pSchema;
-  pInfo->colIndex = index;
   pInfo->optr     = pExpr->_node.optr;
   pInfo->compare  = getComparFunc(pSchema->type, pInfo->optr);
   pInfo->param    = pTSSchema;
@@ -2143,7 +2119,7 @@ bool indexedNodeFilterFp(const void* pNode, void* param) {
 
   char*  val = NULL;
 
-  if (pInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+  if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
     val = (char*) TABLE_NAME(pTable);
   } else {
     val = tdGetKVRowValOfCol(pTable->tagVal, pInfo->sch.colId);

@@ -678,7 +678,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
 
     tstr *name = (tstr*) tsdbGetTableName(*(void**) pData);
     // todo speed up by using hash
-    if (pQueryInfo->colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    if (pQueryInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
         addToResult = pQueryInfo->compare(name, pQueryInfo->q);
       } else if (pQueryInfo->optr == TSDB_RELATION_LIKE) {
@@ -716,7 +716,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
     }
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
-    if (pQueryInfo->colIndex == 0 && pQueryInfo->optr != TSDB_RELATION_LIKE) {
+    if (pQueryInfo->sch.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX && pQueryInfo->optr != TSDB_RELATION_LIKE) {
       tQueryIndexColumn(pSkipList, pQueryInfo, result);
     } else {
       tQueryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);
