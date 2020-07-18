@@ -23,7 +23,7 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* dst, con
 int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type);
 
-void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo, int32_t numOfCols);
+void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo);
 void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
 void    clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
 
@@ -32,14 +32,29 @@ int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
 void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
 void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
 void    removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
-SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot);
+
+static FORCE_INLINE SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot) {
+  assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
+  return &pWindowResInfo->pResult[slot];
+}
 
 #define curTimeWindow(_winres)  ((_winres)->curIndex)
+#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!sq))? (_q)->pSelectExpr[1].base.arg->argValue.i64:1)
+
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
-int32_t createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo, size_t interBufSize);
+int32_t createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, size_t interBufSize);
 
-char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult);
+static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult) {
+  assert(pResult != NULL && pRuntimeEnv != NULL);
+
+  SQuery    *pQuery = pRuntimeEnv->pQuery;
+  tFilePage *page = GET_RES_BUF_PAGE_BY_ID(pRuntimeEnv->pResultBuf, pResult->pos.pageId);
+  int32_t realRowId = pResult->pos.rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pRuntimeEnv->topBotQuery, pRuntimeEnv->stableQuery);
+
+  return ((char *)page->data) + pRuntimeEnv->offset[columnIndex] * pRuntimeEnv->numOfRowsPerPage +
+      pQuery->pSelectExpr[columnIndex].bytes * realRowId;
+}
 
 __filter_func_t *getRangeFilterFuncArray(int32_t type);
 __filter_func_t *getValueFilterFuncArray(int32_t type);

@@ -259,7 +259,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
-  appH.configFunc = dnodeSendCfgTableToRecv;
   sprintf(temp, "%s/tsdb", rootDir);
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
   if (pVnode->tsdb == NULL) {
@@ -588,7 +587,6 @@ static int vnodeResetTsdb(SVnodeObj *pVnode)
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
-  appH.configFunc = dnodeSendCfgTableToRecv;
   pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
 
   pVnode->status = TAOS_VN_STATUS_READY;

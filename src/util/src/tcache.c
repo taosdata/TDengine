@@ -225,7 +225,7 @@ static void doCleanupDataCache(SCacheObj *pCacheObj);
  * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
  * @param handle   Cache object handle
  */
-static void* taosCacheTimedRefresh(void *pCacheObj);
+static void* taosCacheTimedRefresh(void *handle);
 
 SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char* cacheName) {
   if (refreshTimeInSeconds <= 0) {
@@ -455,51 +455,11 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     __cache_unlock(pCacheObj);
 
   } else {
-    uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, T_REF_VAL_GET(pNode) - 1);
-
-    __cache_wr_lock(pCacheObj);
-
     // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
     int32_t ref = T_REF_DEC(pNode);
-
-    if (inTrashCan && (ref == 0)) {
-      // Remove it if the ref count is 0.
-      // The ref count does not need to load and check again after lock acquired, since ref count can not be increased when
-      // the node is in trashcan.
-      assert(pNode->pTNodeHeader->pData == pNode);
-      taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
-    }
-
-    __cache_unlock(pCacheObj);
+    uDebug("cache:%s, key:%p, %p is released, refcnt:%d, in trashcan:%d", pCacheObj->name, pNode->key, pNode->data, ref,
+        inTrashCan);
   }
-
-//   else {
-//    if (_remove) { // not in trash can, but need to remove it
-//      __cache_wr_lock(pCacheObj);
-//
-//      /*
-//       * If not referenced by other users. Otherwise move this node to trashcan wait for all users
-//       * releasing this resources.
-//       *
-//       * NOTE: previous ref is 0, and current ref is still 0, remove it. If previous is not 0, there is another thread
-//       * that tries to do the same thing.
-//       */
-//      if (ref == 0) {
-//        if (T_REF_VAL_GET(pNode) == 0) {
-//          taosCacheReleaseNode(pCacheObj, pNode);
-//        } else {
-//          taosCacheMoveToTrash(pCacheObj, pNode);
-//        }
-//      } else if (ref > 0) {
-//        if (!pNode->inTrashCan) {
-//          assert(pNode->pTNodeHeader == NULL);
-//          taosCacheMoveToTrash(pCacheObj, pNode);
-//        }
-//      }
-//
-//      __cache_unlock(pCacheObj);
-//    }
-//  }
 }
 
 void taosCacheEmpty(SCacheObj *pCacheObj) {

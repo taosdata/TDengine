@@ -53,9 +53,9 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   if (pWindowResInfo->pResult == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
-    SPosInfo posInfo = {-1, -1};
-    int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &posInfo, pRuntimeEnv->interBufSize);
+    int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -64,16 +64,15 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   return TSDB_CODE_SUCCESS;
 }
 
-void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols) {
+void destroyTimeWindowRes(SWindowResult *pWindowRes) {
   if (pWindowRes == NULL) {
     return;
   }
 
-  free(pWindowRes->resultInfo[0].interResultBuf);
   free(pWindowRes->resultInfo);
 }
 
-void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, int32_t numOfCols) {
+void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
   if (pWindowResInfo == NULL) {
     return;
   }
@@ -84,8 +83,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, int32_t numOfCols) {
   
   if (pWindowResInfo->pResult != NULL) {
     for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
-      SWindowResult *pResult = &pWindowResInfo->pResult[i];
-      destroyTimeWindowRes(pResult, numOfCols);
+      destroyTimeWindowRes(&pWindowResInfo->pResult[i]);
     }
   }
   
@@ -223,11 +221,6 @@ void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_
   if (i < pWindowResInfo->size) {
     pWindowResInfo->size = (i + 1);
   }
-}
-
-SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot) {
-  assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
-  return &pWindowResInfo->pResult[slot];
 }
 
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot) {
