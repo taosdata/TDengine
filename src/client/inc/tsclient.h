@@ -52,12 +52,20 @@ typedef struct STableComInfo {
   int32_t rowSize;
 } STableComInfo;
 
+typedef struct SCMCorVgroupInfo {
+  int32_t version;
+  int8_t inUse;
+  int8_t  numOfIps;
+  SIpAddr ipAddr[TSDB_MAX_REPLICA];
+} SCMCorVgroupInfo;
+
 typedef struct STableMeta {
   STableComInfo tableInfo;
   uint8_t       tableType;
   int16_t       sversion;
   int16_t       tversion;
-  SCMVgroupInfo vgroupInfo;
+  SCMVgroupInfo  vgroupInfo;
+  SCMCorVgroupInfo  corVgroupInfo;
   int32_t       sid;       // the index of one table in a virtual node
   uint64_t      uid;       // unique id of a table
   SSchema       schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
