@@ -64,7 +64,7 @@ static void tscIpSetHtons(SRpcIpSet *s) {
    }
 } 
 bool tscIpSetIsEqual(SRpcIpSet *s1, SRpcIpSet *s2) {
-   if (s1->numOfIps != s2->numOfIps /*|| s1->inUse != s1->inUse*/) {
+   if (s1->numOfIps != s2->numOfIps || s1->inUse != s2->inUse) {
      return false;
    } 
    for (int32_t i = 0; i < s1->numOfIps; i++) {
@@ -88,7 +88,8 @@ static void tscDumpIpSetFromVgroupInfo(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pI
   if (vgId) { 
     *vgId = pVgroupInfo->vgId; 
   }
-  pIpSet->inUse = 0; 
+  int8_t inUse = pVgroupInfo->inUse;
+  pIpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
   pIpSet->numOfIps = pVgroupInfo->numOfIps;  
   for (int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
     strncpy(pIpSet->fqdn[i], pVgroupInfo->ipAddr[i].fqdn, TSDB_FQDN_LEN);
@@ -104,7 +105,8 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
   SCMVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->vgroupInfo;
 
   taosCorBeginWrite(&pVgroupInfo->version);
-  //TODO(dengyihao), dont care vgid  
+  //TODO(dengyihao), dont care vgid 
+  pVgroupInfo->inUse = pIpSet->inUse;
   pVgroupInfo->numOfIps = pIpSet->numOfIps;
   for (int32_t i = 0; pVgroupInfo->numOfIps; i++) {
     strncpy(pVgroupInfo->ipAddr[i].fqdn, pIpSet->fqdn[i], TSDB_FQDN_LEN);
@@ -1897,6 +1899,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
       //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
       pVgroups->version = 0;
+      pVgroups->inUse = 0;
       pVgroups->vgId = htonl(pVgroups->vgId);
       assert(pVgroups->numOfIps >= 1);
       for (int32_t k = 0; k < pVgroups->numOfIps; ++k) {
