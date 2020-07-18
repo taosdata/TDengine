@@ -2236,6 +2236,27 @@ static void ensureOutputBuffer(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pB
   }
 }
 
+static void doSetInitialTimewindow(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pBlockInfo) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) && pRuntimeEnv->windowResInfo.prevSKey == TSKEY_INITIAL_VAL) {
+    STimeWindow w = TSWINDOW_INITIALIZER;
+    SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+
+    if (QUERY_IS_ASC_QUERY(pQuery)) {
+      getAlignQueryTimeWindow(pQuery, pBlockInfo->window.skey, pBlockInfo->window.skey, pQuery->window.ekey, &w);
+      pWindowResInfo->startTime = w.skey;
+      pWindowResInfo->prevSKey = w.skey;
+    } else {
+      // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
+      getAlignQueryTimeWindow(pQuery, pBlockInfo->window.ekey, pQuery->window.ekey, pBlockInfo->window.ekey, &w);
+
+      pWindowResInfo->startTime = pQuery->window.skey;
+      pWindowResInfo->prevSKey = w.skey;
+    }
+  }
+}
+
 static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   STableQueryInfo* pTableQueryInfo = pQuery->current;
@@ -2263,24 +2284,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     }
 
     tsdbRetrieveDataBlockInfo(pQueryHandle, &blockInfo);
-
-    // todo extract methods
-    if (QUERY_IS_INTERVAL_QUERY(pQuery) && pRuntimeEnv->windowResInfo.prevSKey == TSKEY_INITIAL_VAL) {
-      STimeWindow w = TSWINDOW_INITIALIZER;
-      SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
-
-      if (QUERY_IS_ASC_QUERY(pQuery)) {
-        getAlignQueryTimeWindow(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey, &w);
-        pWindowResInfo->startTime = w.skey;
-        pWindowResInfo->prevSKey = w.skey;
-      } else {
-        // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-        getAlignQueryTimeWindow(pQuery, blockInfo.window.ekey, pQuery->window.ekey, blockInfo.window.ekey, &w);
-
-        pWindowResInfo->startTime = pQuery->window.skey;
-        pWindowResInfo->prevSKey = w.skey;
-      }
-    }
+    doSetInitialTimewindow(pRuntimeEnv, &blockInfo);
 
     // in case of prj/diff query, ensure the output buffer is sufficient to accommodate the results of current block
     ensureOutputBuffer(pRuntimeEnv, &blockInfo);
@@ -2314,7 +2318,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   if (QUERY_IS_INTERVAL_QUERY(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
-//      removeRedundantWindow(&pRuntimeEnv->windowResInfo, pTableQueryInfo->lastKey - step, step);
       pRuntimeEnv->windowResInfo.curIndex = pRuntimeEnv->windowResInfo.size - 1;  // point to the last time window
     } else {
       assert(Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL));
@@ -3223,6 +3226,13 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
   SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
 
   SWITCH_ORDER(pQuery->order.order);
+
+  if (QUERY_IS_ASC_QUERY(pQuery)) {
+    assert(pQuery->window.skey <= pQuery->window.ekey);
+  } else {
+    assert(pQuery->window.skey >= pQuery->window.ekey);
+  }
+
   SET_REVERSE_SCAN_FLAG(pRuntimeEnv);
 
   STsdbQueryCond cond = {
@@ -3262,8 +3272,7 @@ static void clearEnvAfterReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus
 
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
 
-  // update the pQuery->window.skey and pQuery->window.ekey to limit the scan scope of sliding query
-  // during reverse scan
+  // update the pQuery->window.skey and pQuery->window.ekey to limit the scan scope of sliding query during reverse scan
   pTableQueryInfo->lastKey = pStatus->lastKey;
   pQuery->status = pStatus->status;
   
@@ -3289,7 +3298,12 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
 
     if (pRuntimeEnv->scanFlag == MASTER_SCAN) {
       qstatus.status = pQuery->status;
-      qstatus.curWindow.ekey = pTableQueryInfo->lastKey - step;
+
+      // do nothing if no data blocks are found qualified during scan
+      if (qstatus.lastKey != pTableQueryInfo->lastKey) {
+        qstatus.curWindow.ekey = pTableQueryInfo->lastKey - step;
+      }
+
       qstatus.lastKey = pTableQueryInfo->lastKey;
     }
 
@@ -6282,7 +6296,7 @@ void qTableQuery(qinfo_t qinfo) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   if (onlyQueryTags(pQInfo->runtimeEnv.pQuery)) {
     assert(pQInfo->runtimeEnv.pQueryHandle == NULL);
-    buildTagQueryResult(pQInfo);   // todo support the limit/offset
+    buildTagQueryResult(pQInfo);
   } else if (pQInfo->runtimeEnv.stableQuery) {
     stableQueryImpl(pQInfo);
   } else {
@@ -6494,7 +6508,9 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   } else {  // return only the tags|table name etc.
     count = 0;
     SSchema tbnameSchema = tGetTableNameColumnSchema();
-    while(pQInfo->tableIndex < num && count < pQuery->rec.capacity) {
+
+    int32_t maxNumOfTables = (pQuery->limit.limit < pQuery->rec.capacity)? pQuery->limit.limit:pQuery->rec.capacity;
+    while(pQInfo->tableIndex < num && count < maxNumOfTables) {
       int32_t i = pQInfo->tableIndex++;
 
       SExprInfo* pExprInfo = pQuery->pSelectExpr;
