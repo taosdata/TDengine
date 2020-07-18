@@ -53,64 +53,53 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
     return;
   }
 
-  pEpList->numOfEps = pVgroupInfo->numOfEps;
+  pEpSet->numOfEps = pVgroupInfo->numOfEps;
   for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    strcpy(pEpList->fqdn[i], pVgroupInfo->epAddr[i].fqdn);
-    pEpList->port[i] = pVgroupInfo->epAddr[i].port;
+    strcpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn);
+    pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
   }
 }
-void tscIpSetCopy(SRpcIpSet *dst, SRpcIpSet *src) {
-  dst->numOfIps = src->numOfIps;
-  dst->inUse = src->inUse;
-  for (int32_t i = 0; i < src->numOfIps; ++i) {
-     dst->port[i] = src->port[i];
-     strncpy(dst->fqdn[i], src->fqdn[i], TSDB_FQDN_LEN);
-  }
-}
-static void tscDumpMgmtIpSet(SRpcIpSet *ipSet) {
-  taosCorBeginRead(&tscMgmtIpSet.version);
-  SRpcIpSet*  src = &tscMgmtIpSet.ipSet;
-  tscIpSetCopy(ipSet, src); 
-  taosCorEndRead(&tscMgmtIpSet.version);
+static void tscDumpMgmtEpSet(SRpcEpSet *epSet) {
+  taosCorBeginRead(&tscMgmtEpSet.version);
+  *epSet = tscMgmtEpSet.epSet;
+  taosCorEndRead(&tscMgmtEpSet.version);
 }  
-static void tscIpSetHtons(SRpcIpSet *s) {
-   for (int32_t i = 0; i < s->numOfIps; i++) {
+static void tscEpSetHtons(SRpcEpSet *s) {
+   for (int32_t i = 0; i < s->numOfEps; i++) {
       s->port[i] = htons(s->port[i]);    
    }
 } 
-bool tscIpSetIsEqual(SRpcIpSet *s1, SRpcIpSet *s2) {
-   if (s1->numOfIps != s2->numOfIps || s1->inUse != s2->inUse) {
+bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
+   if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
      return false;
    } 
-   for (int32_t i = 0; i < s1->numOfIps; i++) {
+   for (int32_t i = 0; i < s1->numOfEps; i++) {
      if (s1->port[i] != s2->port[i] 
         || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
         return false;
    }
    return true;
 }
-void tscUpdateMgmtIpList(SRpcIpSet *pIpSet) {
+void tscUpdateMgmtEpSet(SRpcEpSet *pEpSet) {
   // no need to update if equal
-  taosCorBeginWrite(&tscMgmtIpSet.version);
-  // or copy directly,  tscMgmtIpSet.ipSet = *pIpSet
-  SRpcIpSet *mgmtIpSet = &tscMgmtIpSet.ipSet;
-  tscIpSetCopy(mgmtIpSet, pIpSet);
-  taosCorEndWrite(&tscMgmtIpSet.version);
+  taosCorBeginWrite(&tscMgmtEpSet.version);
+  tscMgmtEpSet.epSet = *pEpSet;
+  taosCorEndWrite(&tscMgmtEpSet.version);
 }
-static void tscDumpIpSetFromVgroupInfo(SCMCorVgroupInfo *pVgroupInfo, SRpcIpSet *pIpSet) {
+static void tscDumpEpSetFromVgroupInfo(SCMCorVgroupInfo *pVgroupInfo, SRpcEpSet *pEpSet) {
   if (pVgroupInfo == NULL) { return;}
   taosCorBeginRead(&pVgroupInfo->version);
   int8_t inUse = pVgroupInfo->inUse;
-  pIpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
-  pIpSet->numOfIps = pVgroupInfo->numOfIps;  
-  for (int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
-    strncpy(pIpSet->fqdn[i], pVgroupInfo->ipAddr[i].fqdn, TSDB_FQDN_LEN);
-    pIpSet->port[i] = pVgroupInfo->ipAddr[i].port;
+  pEpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
+  pEpSet->numOfEps = pVgroupInfo->numOfEps;  
+  for (int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
+    strncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
   }
   taosCorEndRead(&pVgroupInfo->version);
 }
 
-static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
+static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pObj->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
@@ -130,7 +119,7 @@ void tscPrintMgmtEp() {
   SRpcEpSet dump;
   tscDumpMgmtEpSet(&dump);
   if (dump.numOfEps <= 0) {
-    tscError("invalid mnode EP list:%d", dump.numOfEPs);
+    tscError("invalid mnode EP list:%d", dump.numOfEps);
   } else {
     for (int i = 0; i < dump.numOfEps; ++i) {
       tscDebug("mnode index:%d %s:%d", i, dump.fqdn[i], dump.port[i]);
@@ -166,10 +155,10 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
   if (code == 0) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
-    SRpcEpSet *      pEpList = &pRsp->epList;
-    if (pEpList->numOfEps > 0) {
-      tscEpSetHtons(pEpList);
-      tscUpdateMgmtEpList(pEpList);
+    SRpcEpSet *      epSet = &pRsp->epSet;
+    if (epSet->numOfEps > 0) {
+      tscEpSetHtons(epSet);
+      tscUpdateMgmtEpSet(epSet);
     } 
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
@@ -242,7 +231,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    tscDumpMgmtEpSet(&pSql->epList);
+    tscDumpMgmtEpSet(&pSql->epSet);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
@@ -296,11 +285,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if (pEpSet) { 
     //SRpcEpSet dump; 
     tscEpSetHtons(pEpSet); 
-    if (tscEpSetIsEqual(&pSql->epList, pEpSet)) {
+    if (tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
       if(pCmd->command < TSDB_SQL_MGMT)  { 
         tscUpdateVgroupInfo(pSql, pEpSet); 
       } else {
-        tscUpdateMgmtEpList(pEpSet);
+        tscUpdateMgmtEpSet(pEpSet);
     }
     }
   }
@@ -589,7 +578,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscDumpEpSetFromVgroupInfo(&pTableMeta->corVgroupInfo, &pSql->epList);
+  tscDumpEpSetFromVgroupInfo(&pTableMeta->corVgroupInfo, &pSql->epSet);
 
   tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, vgId, pSql->cmd.numOfTablesInSubmit,
       pSql->epSet.numOfEps);
@@ -631,7 +620,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
-    tscSetDnodeEpList(pSql, pVgroupInfo);
+    tscSetDnodeEpSet(pSql, pVgroupInfo);
 
     if (pVgroupInfo != NULL) {
       pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
@@ -654,7 +643,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
 
     // set the vgroup info 
-    tscSetDnodeEpList(pSql, &pTableIdList->vgInfo);
+    tscSetDnodeEpSet(pSql, &pTableIdList->vgInfo);
     pQueryMsg->head.vgId = htonl(pTableIdList->vgInfo.vgId);
     
     int32_t numOfTables = taosArrayGetSize(pTableIdList->itemList);
@@ -1200,11 +1189,11 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pShowMsg->payloadLen = htons(pPattern->n);
     }
   } else {
-    SSQLToken *pIpAddr = &pShowInfo->prefix;
-    assert(pIpAddr->n > 0 && pIpAddr->type > 0);
+    SSQLToken *pEpAddr = &pShowInfo->prefix;
+    assert(pEpAddr->n > 0 && pEpAddr->type > 0);
 
-    strncpy(pShowMsg->payload, pIpAddr->z, pIpAddr->n);
-    pShowMsg->payloadLen = htons(pIpAddr->n);
+    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
+    pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
   pCmd->payloadLen = sizeof(SCMShowMsg) + pShowMsg->payloadLen;
@@ -1387,7 +1376,7 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  tscDumpEpSetFromVgroupInfo(&pTableMetaInfo->pTableMeta->corVgroupInfo, &pSql->epList);
+  tscDumpEpSetFromVgroupInfo(&pTableMetaInfo->pTableMeta->corVgroupInfo, &pSql->epSet);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2011,9 +2000,9 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= sizeof(pObj->db));
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
-  if (pConnect->epList.numOfEps > 0) {
-    tscEpSetHtons(&pConnect->epList);
-    tscUpdateMgmtEpList(&pConnect->epList);
+  if (pConnect->epSet.numOfEps > 0) {
+    tscEpSetHtons(&pConnect->epSet);
+    tscUpdateMgmtEpSet(&pConnect->epSet);
   } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);

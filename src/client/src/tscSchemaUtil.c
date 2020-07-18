@@ -143,10 +143,10 @@ struct SSchema tscGetTbnameColumnSchema() {
 static void tscInitCorVgroupInfo(SCMCorVgroupInfo *corVgroupInfo, SCMVgroupInfo *vgroupInfo) {
   corVgroupInfo->version = 0;
   corVgroupInfo->inUse = 0;
-  corVgroupInfo->numOfIps = vgroupInfo->numOfIps;
-  for (int32_t i = 0; i < corVgroupInfo->numOfIps; i++) {
-    strncpy(corVgroupInfo->ipAddr[i].fqdn, vgroupInfo->ipAddr[i].fqdn, TSDB_FQDN_LEN);
-    corVgroupInfo->ipAddr[i].port = vgroupInfo->ipAddr[i].port;
+  corVgroupInfo->numOfEps = vgroupInfo->numOfEps;
+  for (int32_t i = 0; i < corVgroupInfo->numOfEps; i++) {
+    strncpy(corVgroupInfo->epAddr[i].fqdn, vgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    corVgroupInfo->epAddr[i].port = vgroupInfo->epAddr[i].port;
   }
 }
 STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size) {

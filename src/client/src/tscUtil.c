@@ -2145,7 +2145,7 @@ char* strdup_throw(const char* str) {
   return p;
 }
 
-int tscSetMgmtEpListFromCfg(const char *first, const char *second) {
+int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
   // init mgmt ip set 
   tscMgmtEpSet.version = 0;
   SRpcEpSet *mgmtEpSet = &(tscMgmtEpSet.epSet);
