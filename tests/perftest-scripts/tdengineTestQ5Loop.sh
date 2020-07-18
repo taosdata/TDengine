@@ -2,9 +2,6 @@
 
 DATA_DIR=/mnt/root/testdata
 NUM_LOOP=5
-NUM_OF_FILES=100
-
-rowsPerRequest=(1 100 500 1000 2000)
 
 function printTo {
   if $verbose ; then
@@ -12,43 +9,35 @@ function printTo {
   fi
 }
 
-function runTest {
-  printf "R/R, "
-  for c in `seq 1 $clients`; do
-    if [ "$c" == "1" ]; then
-      printf "$c client, "
-    else
-      printf "$c clients, "
-    fi
-  done
-  printf "\n"
+TDTESTQ5OUT=tdengineTestQ5.out
 
-  for r in ${rowsPerRequest[@]}; do
-    printf "$r, "
+function runTest {
+  totalThroughput=0
+  for i in `seq 1 $NUM_LOOP`; do
     for c in `seq 1 $clients`; do
-      totalRPR=0
-      for i in `seq 1 $NUM_LOOP`; do
-	restartTaosd
-        $TAOSD_DIR/taos -s "drop database db" > /dev/null 2>&1
-        printTo "loop i:$i, $TDTEST_DIR/tdengineTest \
-	      -dataDir $DATA_DIR \
-	      -numOfFiles $NUM_OF_FILES \
-	      -w -clients $c \
-	      -rowsPerRequest $r"
-        RPR=`$TDTEST_DIR/tdengineTest \
-          -dataDir $DATA_DIR \
-          -numOfFiles 1 \
-          -w -clients $c \
-          -rowsPerRequest $r \
-          | grep speed | awk '{print $(NF-1)}'`
-        totalRPR=`echo "scale=4; $totalRPR + $RPR" | bc`
-        printTo "rows:$r, clients:$c, i:$i RPR:$RPR"
-      done
-      avgRPR=`echo "scale=4; $totalRPR / $NUM_LOOP" | bc`
-      printf "$avgRPR, "
+      records[$c]=0
+      spentTime[$c]=0
+      throughput[$c]=0
     done
-    printf "\n"
+    printTo "loop i:$i, $TDTEST_DIR/tdengineTest \
+	      -clients $clients -sql q5.txt"
+    restartTaosd
+    beginMS=`date +%s%3N`
+    $TDTEST_DIR/tdengineTest \
+      -clients $clients -sql $TDTEST_DIR/q5.txt > $TDTESTQ5OUT
+    endMS=`date +%s%3N`
+    totalRecords=0
+    for c in `seq 1 $clients`; do
+      records[$c]=`grep Thread:$c $TDTESTQ5OUT | awk '{print $7}'`
+      totalRecords=`echo "$totalRecords + ${records[$c]}"|bc`
+    done
+    spending=`echo "scale=4; x = ($endMS - $beginMS)/1000; if (x<1) print 0; x"|bc`
+    throughput=`echo "scale=4; x= $totalRecords / $spending; if (x<1) print 0; x" | bc`
+    printTo "spending: $spending sec, throughput: $throughput"
+    totalThroughput=`echo "scale=4; x = $totalThroughput + $throughput; if(x<1) print 0; x"|bc`
   done
+  avgThrougput=`echo "scale=4; x = $totalThroughput / $NUM_LOOP; if (x<1) print 0; x"|bc`
+  echo "avg Throughput: $avgThrougput"
 }
 
 function restartTaosd {
@@ -72,6 +61,7 @@ function restartTaosd {
 master=false
 develop=true
 verbose=false
+
 clients=1
 
 while : ; do
@@ -93,17 +83,18 @@ while : ; do
     -c)
       clients=$2
       shift 2;;
+
     *)
       break ;;
   esac
 done
 
 if $master ; then
-  echo "Test master branch.."
+  printTo "Test master branch.."
   cp /mnt/root/cfg/master/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine.master
 else
-  echo "Test develop branch.."
+  printTo "Test develop branch.."
   cp /mnt/root/cfg/10billion/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine
 fi
@@ -113,4 +104,4 @@ TDTEST_DIR=$WORK_DIR/tests/comparisonTest/tdengine
 
 runTest
 
-echo "Test done!"
+printTo "Test done!"
