@@ -155,9 +155,10 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   if (code == 0) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
     SRpcIpSet *      pIpList = &pRsp->ipList;
-    if (pIpList->numOfIps > 0) 
+    if (pIpList->numOfIps > 0) {
       tscIpSetHtons(pIpList);
       tscUpdateMgmtIpList(pIpList);
+    } 
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
 
@@ -1996,9 +1997,10 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= sizeof(pObj->db));
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
-  if (pConnect->ipList.numOfIps > 0) 
+  if (pConnect->ipList.numOfIps > 0) {
     tscIpSetHtons(&pConnect->ipList);
     tscUpdateMgmtIpList(&pConnect->ipList);
+  } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
