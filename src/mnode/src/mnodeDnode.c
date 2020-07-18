@@ -289,14 +289,14 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  SRpcIpSet ipSet = mnodeGetIpSetFromIp(pCmCfgDnode->ep);
+  SRpcEpSet epSet = mnodeGetEpSetFromIp(pCmCfgDnode->ep);
   if (dnodeId != 0) {
     SDnodeObj *pDnode = mnodeGetDnode(dnodeId);
     if (pDnode == NULL) {
       mError("failed to cfg dnode, invalid dnodeId:%d", dnodeId);
       return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
-    ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
+    epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
     mnodeDecDnodeRef(pDnode);
   }
 
@@ -313,7 +313,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   };
 
   mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
-  dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
+  dnodeSendMsgToDnode(&epSet, &rpcMdCfgDnodeMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -399,9 +399,9 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
 
     SVgObj *pVgroup = mnodeGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
-      SRpcIpSet ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
+      SRpcEpSet epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
       mInfo("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
-      mnodeSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
+      mnodeSendDropVnodeMsg(pVload->vgId, &epSet, NULL);
     } else {
       mnodeUpdateVgroupStatus(pVgroup, pDnode, pVload);
       pAccess->vgId = htonl(pVload->vgId);

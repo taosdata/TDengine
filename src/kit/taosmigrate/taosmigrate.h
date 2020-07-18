@@ -71,7 +71,7 @@ int tSystemShell(const char * cmd);
 void taosMvFile(char* destFile, char *srcFile) ;
 void walModWalFile(char* walfile);
 SdnodeIfo* getDnodeInfo(int32_t      dnodeId);
-void modDnodeIpList(char* dnodeIpList);
+void modDnodeEpSet(char* dnodeEpSet);
 void modAllVnode(char *vnodeDir);
 
 #endif
