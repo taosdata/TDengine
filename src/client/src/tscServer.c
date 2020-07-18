@@ -26,6 +26,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tlockfree.h"
 
 #define TSC_MGMT_VNODE 999
 
