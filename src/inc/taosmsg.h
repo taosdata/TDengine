@@ -176,7 +176,7 @@ extern char *taosMsg[];
 typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SIpAddr;
+} SEpAddr;
 
 typedef struct {
   int32_t numOfVnodes;
@@ -306,7 +306,7 @@ typedef struct {
   int8_t    reserved1;
   int8_t    reserved2;
   int32_t   connId;
-  SRpcIpSet ipList;
+  SRpcEpSet epSet;
 } SCMConnectRsp;
 
 typedef struct {
@@ -581,12 +581,12 @@ typedef struct {
   char        dnodeEp[TSDB_EP_LEN];
   uint32_t    moduleStatus;
   uint32_t    lastReboot;        // time stamp for last reboot
-  uint16_t    numOfTotalVnodes;  // from config file
+  uint16_t    reserve1;          // from config file
   uint16_t    openVnodes;
   uint16_t    numOfCores;
   float       diskAvailable;  // GB
   uint8_t     alternativeRole;
-  uint8_t     reserve[15];
+  uint8_t     reserve2[15];
   SClusterCfg clusterCfg;
   SVnodeLoad  load[];
 } SDMStatusMsg;
@@ -648,8 +648,8 @@ typedef struct SCMSTableVgroupMsg {
 
 typedef struct {
   int32_t   vgId;
-  int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_MAX_REPLICA];
+  int8_t    numOfEps;
+  SEpAddr   epAddr[TSDB_MAX_REPLICA];
 } SCMVgroupInfo;
 
 typedef struct {
@@ -753,7 +753,7 @@ typedef struct {
   uint32_t  onlineDnodes;
   uint32_t  connId;
   int8_t    killConnection;
-  SRpcIpSet ipList;
+  SRpcEpSet epSet;
 } SCMHeartBeatRsp;
 
 typedef struct {

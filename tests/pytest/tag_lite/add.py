@@ -100,6 +100,8 @@ class TDTestCase:
         # TSIM: sql alter table $mt add tag tgcol4 int
         tdLog.info('alter table %s add tag tgcol4 int' % (mt))
         tdSql.execute('alter table %s add tag tgcol4 int' % (mt))
+        tdLog.info('select * from %s where tgcol4=6' % (mt))
+        tdSql.query('select * from %s where tgcol4=6' % (mt))
         # TSIM: sql reset query cache
         tdLog.info('reset query cache')
         tdSql.execute('reset query cache')

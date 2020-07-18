@@ -38,11 +38,8 @@ uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
 uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
 uint16_t tsSyncPort = 6040;
 int32_t  tsStatusInterval = 1;  // second
-int16_t  tsNumOfVnodesPerCore = 32;
-int16_t  tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 int32_t  tsNumOfMnodes = 3;
 int32_t  tsEnableVnodeBak = 1;
-
 
 // common
 int32_t tsRpcTimer = 1000;
@@ -199,6 +196,9 @@ int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 
+int32_t (*monitorStartSystemFp)() = NULL;
+void (*monitorStopSystemFp)() = NULL;
+
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
@@ -248,11 +248,17 @@ bool taosCfgDynamicOptions(char *msg) {
     *((int32_t *)cfg->ptr) = vint;
 
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
-      // if (0 == vint) {
-      //   monitorStartSystem();
-      // } else {
-      //   monitorStopSystem();
-      // }
+      if (1 == vint) {
+        if (monitorStartSystemFp) {
+          (*monitorStartSystemFp)();
+          uInfo("monitor is enabled");
+        }
+      } else {
+        if (monitorStopSystemFp) {
+          (*monitorStopSystemFp)();
+          uInfo("monitor is disabled");
+        }
+      }
       return true;
     }
 
@@ -393,16 +399,6 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "numOfTotalVnodes";
-  cfg.ptr = &tsNumOfTotalVnodes;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = TSDB_MAX_VNODES;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "numOfMnodes";
   cfg.ptr = &tsNumOfMnodes;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -444,7 +440,7 @@ static void doInitGlobalConfig() {
   taosInitConfigOption(cfg);
 
   // 0-any; 1-mnode; 2-vnode
-  cfg.option = "alternativeRole";
+  cfg.option = "role";
   cfg.ptr = &tsAlternativeRole;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
@@ -1269,12 +1265,6 @@ bool taosCheckGlobalCfg() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
-  }
-
-  if (tsNumOfTotalVnodes == TSDB_INVALID_VNODE_NUM) {
-    tsNumOfTotalVnodes = tsNumOfCores * tsNumOfVnodesPerCore;
-    tsNumOfTotalVnodes = tsNumOfTotalVnodes > TSDB_MAX_VNODES ? TSDB_MAX_VNODES : tsNumOfTotalVnodes;
-    tsNumOfTotalVnodes = tsNumOfTotalVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : tsNumOfTotalVnodes;     
   }
 
   // todo refactor

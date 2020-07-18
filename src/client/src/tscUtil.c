@@ -1994,6 +1994,10 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
          (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vgroupIndex < numOfVgroups - 1);
 }
 
+bool hasMoreClauseToTry(SSqlObj* pSql) {
+  return pSql->cmd.clauseIndex < pSql->cmd.numOfClause - 1;
+}
+
 void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
@@ -2050,7 +2054,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   }
 }
 
-void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
+void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
@@ -2070,17 +2074,13 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
-  
-  if (pSql->fp != NULL) {
-    pSql->fp = queryFp;
-    assert(queryFp != NULL);
-  }
+  pSql->fp = fp;
 
   tscDebug("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else {
-    tscProcessSql(pSql);
+    tscDoQuery(pSql);
   }
 }
 
@@ -2145,20 +2145,20 @@ char* strdup_throw(const char* str) {
   return p;
 }
 
-int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
+int tscSetMgmtEpListFromCfg(const char *first, const char *second) {
   // init mgmt ip set 
-  tscMgmtIpSet.version = 0;
-  SRpcIpSet *mgmtIpSet = &(tscMgmtIpSet.ipSet);
-  mgmtIpSet->numOfIps = 0;
-  mgmtIpSet->inUse = 0;
+  tscMgmtEpSet.version = 0;
+  SRpcEpSet *mgmtEpSet = &(tscMgmtEpSet.epSet);
+  mgmtEpSet->numOfEps = 0;
+  mgmtEpSet->inUse = 0;
 
   if (first && first[0] != 0) {
     if (strlen(first) >= TSDB_EP_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(first, mgmtIpSet->fqdn[mgmtIpSet->numOfIps], &(mgmtIpSet->port[mgmtIpSet->numOfIps]));
-    mgmtIpSet->numOfIps++;
+    taosGetFqdnPortFromEp(first, mgmtEpSet->fqdn[mgmtEpSet->numOfEps], &(mgmtEpSet->port[mgmtEpSet->numOfEps]));
+    mgmtEpSet->numOfEps++;
   }
 
   if (second && second[0] != 0) {
@@ -2166,11 +2166,11 @@ int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(second, mgmtIpSet->fqdn[mgmtIpSet->numOfIps], &(mgmtIpSet->port[mgmtIpSet->numOfIps]));
-    mgmtIpSet->numOfIps++;
+    taosGetFqdnPortFromEp(second, mgmtEpSet->fqdn[mgmtEpSet->numOfEps], &(mgmtEpSet->port[mgmtEpSet->numOfEps]));
+    mgmtEpSet->numOfEps++;
   }
 
-  if (mgmtIpSet->numOfIps == 0) {
+  if (mgmtEpSet->numOfEps == 0) {
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;
   }

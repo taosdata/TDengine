@@ -208,7 +208,6 @@ public class TDNode {
         setCfgConfig("mnodeEqualVnodeNum", "0");
         setCfgConfig("walLevel", "1");
         setCfgConfig("statusInterval", "1");
-        setCfgConfig("numOfTotalVnodes", "64");
         setCfgConfig("numOfMnodes", "3");
         setCfgConfig("numOfThreadsPerCore", "2.0");
         setCfgConfig("monitor", "0");

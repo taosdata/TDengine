@@ -19,20 +19,15 @@ system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
 
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 8
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 8
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 8
-system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 8
-
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c alternativeRole -v 0
-system sh/cfg.sh -n dnode2 -c alternativeRole -v 0
-system sh/cfg.sh -n dnode3 -c alternativeRole -v 0
-system sh/cfg.sh -n dnode4 -c alternativeRole -v 0
+system sh/cfg.sh -n dnode1 -c role -v 0
+system sh/cfg.sh -n dnode2 -c role -v 0
+system sh/cfg.sh -n dnode3 -c role -v 0
+system sh/cfg.sh -n dnode4 -c role -v 0
 
 $totalTableNum = 12
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v $totalTableNum
@@ -150,8 +145,8 @@ system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c alternativeRole -v 1
-system sh/cfg.sh -n dnode2 -c alternativeRole -v 0
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 0
 
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start

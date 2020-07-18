@@ -9,9 +9,6 @@ system sh/deploy.sh -n dnode3 -i 3
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode2 -c walLevel -v 0
 system sh/cfg.sh -n dnode3 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 8
-system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 8
-system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 8
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4

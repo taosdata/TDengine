@@ -41,8 +41,7 @@ int tscNumOfThreads;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
-//void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet);
-
+//void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet);
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosGetDisk();
@@ -117,8 +116,8 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  if (tscSetMgmtIpListFromCfg(tsFirst, tsSecond) < 0) {
-    tscError("failed to init mnode IP list");
+  if (tscSetMgmtEpSetFromCfg(tsFirst, tsSecond) < 0) {
+    tscError("failed to init mnode EP list");
     return;
   } 
 

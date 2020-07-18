@@ -21,7 +21,7 @@
 #include "tutil.h"
 #include "cJSON.h"
 
-void simLogSql(char *sql) {
+void simLogSql(char *sql, bool useSharp) {
   static FILE *fp = NULL;
   char filename[256];
   sprintf(filename, "%s/sim.sql", tsScriptDir);
@@ -32,7 +32,12 @@ void simLogSql(char *sql) {
       return;
     }
   }
-  fprintf(fp, "%s;\n", sql);
+  if (useSharp) {
+    fprintf(fp, "# %s;\n", sql);
+  } else {
+    fprintf(fp, "%s;\n", sql);
+  }
+  
   fflush(fp);
 }
 
@@ -300,6 +305,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 
+  simLogSql(buf, true);
   int code = system(buf);
   int repeatTimes = 0;
   while (code < 0) {
@@ -371,6 +377,10 @@ bool simExecuteSleepCmd(SScript *script, char *option) {
   simInfo("script:%s, sleep %dms begin", script->fileName, delta);
   taosMsleep(delta);
   simInfo("script:%s, sleep %dms finished", script->fileName, delta);
+
+  char sleepStr[32] = {0};
+  sprintf(sleepStr, "sleep %d", delta);
+  simLogSql(sleepStr, true);
 
   script->linePos++;
   return true;
@@ -655,7 +665,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   TAOS_RES* pSql = NULL;
   
   for (int attempt = 0; attempt < 3; ++attempt) {
-    simLogSql(rest);
+    simLogSql(rest, false);
     pSql = taos_query(script->taos, rest);
     ret = taos_errno(pSql);
     
