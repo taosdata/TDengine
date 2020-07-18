@@ -85,7 +85,7 @@ void tscUpdateMgmtIpList(SRpcIpSet *pIpSet) {
 }
 static void tscDumpIpSetFromVgroupInfo(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pIpSet, int32_t *vgId) {
   if (pVgroupInfo == NULL) { return;}
-  taosCorBeginRead(&pVgroupInfo->version);
+  //taosCorBeginRead(&pVgroupInfo->version);
   if (vgId) { 
     *vgId = pVgroupInfo->vgId; 
   }
@@ -96,7 +96,7 @@ static void tscDumpIpSetFromVgroupInfo(SCMVgroupInfo *pVgroupInfo, SRpcIpSet *pI
     strncpy(pIpSet->fqdn[i], pVgroupInfo->ipAddr[i].fqdn, TSDB_FQDN_LEN);
     pIpSet->port[i] = pVgroupInfo->ipAddr[i].port;
   }
-  taosCorEndRead(&pVgroupInfo->version);
+  //taosCorEndRead(&pVgroupInfo->version);
 }
 
 static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
@@ -105,7 +105,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
   if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
   SCMVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->vgroupInfo;
 
-  taosCorBeginWrite(&pVgroupInfo->version);
+  //taosCorBeginWrite(&pVgroupInfo->version);
   //TODO(dengyihao), dont care vgid 
   pVgroupInfo->inUse = pIpSet->inUse;
   pVgroupInfo->numOfIps = pIpSet->numOfIps;
@@ -113,7 +113,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcIpSet *pIpSet) {
     strncpy(pVgroupInfo->ipAddr[i].fqdn, pIpSet->fqdn[i], TSDB_FQDN_LEN);
     pVgroupInfo->ipAddr[i].port = pIpSet->port[i];
   }
-  taosCorEndWrite(&pVgroupInfo->version);
+  //taosCorEndWrite(&pVgroupInfo->version);
 }
 void tscPrintMgmtIp() {
   SRpcIpSet dump;
