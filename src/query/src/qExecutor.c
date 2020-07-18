@@ -6417,6 +6417,22 @@ int32_t qKillQuery(qinfo_t qinfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    if (val == NULL) {
+      setVardataNull(output, type);
+    } else {
+      memcpy(output, val, varDataTLen(val));
+    }
+  } else {
+    if (val == NULL) {
+      setNull(output, type, bytes);
+    } else {  // todo here stop will cause client crash
+      memcpy(output, val, bytes);
+    }
+  }
+}
+
 static void buildTagQueryResult(SQInfo* pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
@@ -6473,25 +6489,11 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       output += sizeof(pQInfo->vgId);
 
       if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
-        char *data = tsdbGetTableName(item->pTable);
+        char* data = tsdbGetTableName(item->pTable);
         memcpy(output, data, varDataTLen(data));
       } else {
-        char *val = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);
-
-        // todo refactor
-        if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-          if (val == NULL) {
-            setVardataNull(output, type);
-          } else {
-            memcpy(output, val, varDataTLen(val));
-          }
-        } else {
-          if (val == NULL) {
-            setNull(output, type, bytes);
-          } else {  // todo here stop will cause client crash
-            memcpy(output, val, bytes);
-          }
-        }
+        char* data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);
+        doSetTagValueToResultBuf(output, data, type, bytes);
       }
 
       count += 1;
@@ -6509,39 +6511,43 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
     count = 0;
     SSchema tbnameSchema = tGetTableNameColumnSchema();
 
-    int32_t maxNumOfTables = (pQuery->limit.limit < pQuery->rec.capacity)? pQuery->limit.limit:pQuery->rec.capacity;
+    int32_t maxNumOfTables = pQuery->rec.capacity;
+    if (pQuery->limit.limit >= 0 && pQuery->limit.limit < pQuery->rec.capacity) {
+      maxNumOfTables = pQuery->limit.limit;
+    }
+
     while(pQInfo->tableIndex < num && count < maxNumOfTables) {
       int32_t i = pQInfo->tableIndex++;
+
+      // discard current result due to offset
+      if (pQuery->limit.offset > 0) {
+        pQuery->limit.offset -= 1;
+        continue;
+      }
 
       SExprInfo* pExprInfo = pQuery->pSelectExpr;
       STableQueryInfo* item = taosArrayGetP(pa, i);
 
+      char *data = NULL, *dst = NULL;
+      int16_t type = 0, bytes = 0;
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-        if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
-          char* data = tsdbGetTableName(item->pTable);
-          char* dst = pQuery->sdata[j]->data + count * tbnameSchema.bytes;
-          memcpy(dst, data, varDataTLen(data));
-        } else {// todo refactor
-          int16_t type = pExprInfo[j].type;
-          int16_t bytes = pExprInfo[j].bytes;
-          
-          char* data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
-          char* dst = pQuery->sdata[j]->data + count * pExprInfo[j].bytes;
 
-          if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-            if (data == NULL) {
-              setVardataNull(dst, type);
-            } else {
-              memcpy(dst, data, varDataTLen(data));
-            }
-          } else {
-            if (data == NULL) {
-              setNull(dst, type, bytes);
-            } else {
-              memcpy(dst, data, pExprInfo[j].bytes);
-            }
-          }
+        if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+          bytes = tbnameSchema.bytes;
+          type = tbnameSchema.type;
+
+          data = tsdbGetTableName(item->pTable);
+          dst = pQuery->sdata[j]->data + count * tbnameSchema.bytes;
+        } else {
+          type = pExprInfo[j].type;
+          bytes = pExprInfo[j].bytes;
+          
+          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
+          dst = pQuery->sdata[j]->data + count * pExprInfo[j].bytes;
+
         }
+
+        doSetTagValueToResultBuf(dst, data, type, bytes);
       }
       count += 1;
     }
