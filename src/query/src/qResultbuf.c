@@ -207,7 +207,8 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
 
   taosArrayDestroy(pResultBuf->list);
   taosHashCleanup(pResultBuf->idsTable);
-  
+
+  tfree(pResultBuf->iBuf);
   tfree(pResultBuf);
 }
 
