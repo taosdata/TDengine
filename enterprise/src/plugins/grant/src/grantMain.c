@@ -524,9 +524,9 @@ static void grantSendMsgToMgmt() {
     .msgType = TSDB_MSG_TYPE_DM_GRANT
   };
 
-  SRpcIpSet ipSet = {0};
-  dnodeGetMnodeIpSetForPeer(&ipSet);
-  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+  SRpcEpSet epSet = {0};
+  dnodeGetMnodeEpSetForPeer(&epSet);
+  dnodeSendMsgToDnode(&epSet, &rpcMsg);
 }
 
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)

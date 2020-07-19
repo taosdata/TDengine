@@ -21,7 +21,7 @@
 
 typedef struct {
   int       index;
-  SRpcIpSet ipSet;
+  SRpcEpSet epSet;
   int       num;
   int       numOfReqs;
   int       msgSize;
@@ -31,11 +31,11 @@ typedef struct {
   void     *pRpc;
 } SInfo;
 
-void processResponse(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
+void processResponse(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->ahandle;
   uDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
-  if (pIpSet) pInfo->ipSet = *pIpSet;
+  if (pEpSet) pInfo->epSet = *pEpSet;
   rpcFreeCont(pMsg->pCont);
 
   sem_post(&pInfo->rspSem); 
@@ -56,7 +56,7 @@ void *sendRequest(void *param) {
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
     uDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
-    rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, &rpcMsg);
+    rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg);
     if ( pInfo->num % 20000 == 0 ) 
       uInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     sem_wait(&pInfo->rspSem);
@@ -70,7 +70,7 @@ void *sendRequest(void *param) {
 
 int main(int argc, char *argv[]) {
   SRpcInit  rpcInit;
-  SRpcIpSet ipSet;
+  SRpcEpSet epSet;
   char      secret[TSDB_KEY_LEN] = "mypassword";
   int      msgSize = 128;
   int      numOfReqs = 0;
@@ -81,12 +81,12 @@ int main(int argc, char *argv[]) {
   pthread_attr_t thattr;
 
   // server info
-  ipSet.numOfIps = 1;
-  ipSet.inUse = 0;
-  ipSet.port[0] = 7000;
-  ipSet.port[1] = 7000;
-  strcpy(ipSet.fqdn[0], serverIp);
-  strcpy(ipSet.fqdn[1], "192.168.0.1");
+  epSet.numOfEps = 1;
+  epSet.inUse = 0;
+  epSet.port[0] = 7000;
+  epSet.port[1] = 7000;
+  strcpy(epSet.fqdn[0], serverIp);
+  strcpy(epSet.fqdn[1], "192.168.0.1");
 
   // client info
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -104,9 +104,9 @@ int main(int argc, char *argv[]) {
 
   for (int i=1; i<argc; ++i) { 
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      ipSet.port[0] = atoi(argv[++i]);
+      epSet.port[0] = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
-      strcpy(ipSet.fqdn[0], argv[++i]); 
+      strcpy(epSet.fqdn[0], argv[++i]); 
     } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-i ip]: first server IP address, default is:%s\n", serverIp);
-      printf("  [-p port]: server port number, default is:%d\n", ipSet.port[0]);
+      printf("  [-p port]: server port number, default is:%d\n", epSet.port[0]);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of rpc sessions, default is:%d\n", rpcInit.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
 
   for (int i=0; i<appThreads; ++i) {
     pInfo->index = i;
-    pInfo->ipSet = ipSet;
+    pInfo->epSet = epSet;
     pInfo->numOfReqs = numOfReqs;
     pInfo->msgSize = msgSize;
     sem_init(&pInfo->rspSem, 0, 0);
