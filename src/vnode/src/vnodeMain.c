@@ -340,6 +340,13 @@ void vnodeRelease(void *pVnodeRaw) {
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
 
+  // stop continuous query
+  if (pVnode->cq) {
+    void *cq = pVnode->cq;
+    pVnode->cq = NULL;
+    cqClose(cq);
+  }
+
   if (pVnode->wal) 
     walClose(pVnode->wal);
   pVnode->wal = NULL;
@@ -509,13 +516,6 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     void *sync = pVnode->sync;
     pVnode->sync = NULL;
     syncStop(sync);
-  }
-
-  // stop continuous query
-  if (pVnode->cq) {
-    void *cq = pVnode->cq;
-    pVnode->cq = NULL;
-    cqClose(cq);
   }
 
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);

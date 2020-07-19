@@ -38,7 +38,7 @@
     "q": "^1.5.0"
   },
   "dependencies": {
-    "lodash": "^4.17.13",
+    "lodash": "^4.17.19",
     "yarn": "^1.22.0"
   },
   "homepage": "https://github.com/taosdata/TDengine/tree/develop/src/connector/grafana/tdengine"

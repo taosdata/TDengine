@@ -62,8 +62,8 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   }
 
   if (ip) {
-    if (tscSetMgmtIpListFromCfg(ip, NULL) < 0) return NULL;
-    if (port) tscMgmtIpSet.port[0] = port;
+    if (tscSetMgmtEpSetFromCfg(ip, NULL) < 0) return NULL;
+    if (port) tscMgmtEpSet.port[0] = port;
   } 
  
   void *pDnodeConn = NULL;

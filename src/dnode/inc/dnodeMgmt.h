@@ -35,8 +35,8 @@ void*   dnodeGetVnodeTsdb(void *pVnode);
 void    dnodeReleaseVnode(void *pVnode);
 
 void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
-void    dnodeGetMnodeIpSetForPeer(void *ipSet);
-void    dnodeGetMnodeIpSetForShell(void *ipSet);
+void    dnodeGetMnodeEpSetForPeer(void *epSet);
+void    dnodeGetMnodeEpSetForShell(void *epSet);
 
 #ifdef __cplusplus
 }
