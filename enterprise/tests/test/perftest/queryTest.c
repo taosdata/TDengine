@@ -2,7 +2,7 @@
 #include <float.h>
 #include <limits.h>
 #include <locale.h>
-#include <qtsbuf.h>
+#include <qTsbuf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -318,8 +318,8 @@ static UNUSED_FUNC void createEnv(void* conn) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
   taos_init();
@@ -329,7 +329,14 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  executeSQL(conn, "use t1", NULL);
+  executeSQL(conn, "use union_db0", NULL);
+  executeSQL(conn, "select tbname from mt0 limit 1", NULL);
+//  executeSQL(conn, "select count(*) as c from union_tb0, union_tb1 where union_tb0.ts=union_tb1.ts", NULL);
+//  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
+  //  createEnvironment(conn, 100, 100, 100000, 30);
+
+//  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
+  return 0;
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
 //  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
@@ -395,13 +402,13 @@ int main(int argc, char** argv) {
   //
   //    executeSQL(conn, "select m1.ts from m1 where m1.ts<now and (m1.a=9 and m1.a=20) and m1.ts>10000", NULL);
 
-  for(int32_t i = 0; i < 2000000; ++i) {
-    executeSQL(conn, "select * from m1", NULL);
-    executeSQL(conn, "select count(*) from tm99 group by k", NULL);
-    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99')", NULL);
-    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99') interval(1m)", NULL);
-    executeSQL(conn, "select count(tm99.ts) from tm99, tm98 where tm99.ts=tm98.ts", NULL);
-  }
+//  for(int32_t i = 0; i < 2000000; ++i) {
+//    executeSQL(conn, "select * from m1", NULL);
+//    executeSQL(conn, "select count(*) from tm99 group by k", NULL);
+//    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99')", NULL);
+//    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99') interval(1m)", NULL);
+//    executeSQL(conn, "select count(tm99.ts) from tm99, tm98 where tm99.ts=tm98.ts", NULL);
+//  }
   //    executeSQL(conn, "create database test precision 'us' rows 20000 ablocks 1.9 days 20", NULL);
   struct SInsertParam p = {.conn = conn, .id = 0};
 //  taos_query_a(conn, "insert into tm0 values(1433955661000, 1)", insertCallBack, &p);

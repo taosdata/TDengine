@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#include "qextbuffer.h"
-#include "qpercentile.h"
+#include "qExtbuffer.h"
+#include "qPercentile.h"
 #include "taos.h"
 #include "taosmsg.h"
 
