@@ -1,6 +1,6 @@
-#include "qresultbuf.h"
+#include "qResultbuf.h"
 #include "hash.h"
-#include "qextbuffer.h"
+#include "qExtbuffer.h"
 #include "queryLog.h"
 #include "taoserror.h"
 

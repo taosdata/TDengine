@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "qexecutor.h"
+#include "qExecutor.h"
 #include "taosmsg.h"
 #include "tcompare.h"
 #include "tsqlfunction.h"

@@ -2,7 +2,7 @@
 #include <cassert>
 #include <iostream>
 
-#include "qresultbuf.h"
+#include "qResultbuf.h"
 #include "taos.h"
 #include "tsdb.h"
 

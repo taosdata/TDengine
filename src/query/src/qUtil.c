@@ -19,8 +19,8 @@
 #include "taosmsg.h"
 #include "ttime.h"
 
-#include "qexecutor.h"
-#include "qutil.h"
+#include "qExecutor.h"
+#include "qUtil.h"
 
 int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   int32_t size = 0;

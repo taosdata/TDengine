@@ -18,9 +18,9 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
+#include "qAst.h"
 #include "taos.h"
 #include "taosmsg.h"
-#include "qast.h"
 #include "tcompare.h"
 #include "tname.h"
 #include "tscLog.h"

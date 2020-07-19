@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "hash.h"
 #include "tscUtil.h"
+#include "hash.h"
+#include "os.h"
+#include "qAst.h"
 #include "taosmsg.h"
-#include "qast.h"
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"

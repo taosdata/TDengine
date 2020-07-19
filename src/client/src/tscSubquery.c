@@ -14,8 +14,8 @@
  */
 #include "os.h"
 
-#include "qtsbuf.h"
-#include "qast.h"
+#include "qAst.h"
+#include "qTsbuf.h"
 #include "tcompare.h"
 #include "tscLog.h"
 #include "tscSubquery.h"

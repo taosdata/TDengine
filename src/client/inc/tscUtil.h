@@ -23,11 +23,11 @@ extern "C" {
 /*
  * @date   2018/09/30
  */
-#include "os.h"
-#include "tbuffer.h"
 #include "exception.h"
-#include "qextbuffer.h"
+#include "os.h"
+#include "qExtbuffer.h"
 #include "taosdef.h"
+#include "tbuffer.h"
 #include "tscLocalMerge.h"
 #include "tsclient.h"
 

@@ -18,10 +18,10 @@
 #include "os.h"
 
 #include "hash.h"
-#include "qfill.h"
-#include "qresultbuf.h"
+#include "qFill.h"
+#include "qResultbuf.h"
+#include "qTsbuf.h"
 #include "qsqlparser.h"
-#include "qtsbuf.h"
 #include "query.h"
 #include "taosdef.h"
 #include "tarray.h"

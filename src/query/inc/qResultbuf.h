@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "qextbuffer.h"
 #include "hash.h"
+#include "os.h"
+#include "qExtbuffer.h"
 
 typedef struct SArray* SIDList;
 
