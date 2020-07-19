@@ -19,19 +19,17 @@
 #include "taosmsg.h"
 #include "ttime.h"
 
-#include "qExecutor.h"
-#include "qUtil.h"
+#include "qexecutor.h"
+#include "qutil.h"
 
 int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   int32_t size = 0;
 
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    assert(pQuery->pSelectExpr[i].interBytes <= DEFAULT_INTERN_BUF_PAGE_SIZE);
     size += pQuery->pSelectExpr[i].interBytes;
   }
 
   assert(size > 0);
-
   return size;
 }
 
@@ -243,7 +241,7 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
     size_t size = pRuntimeEnv->pQuery->pSelectExpr[i].bytes;
     memset(s, 0, size);
     
-    resetResultInfo(pResultInfo);
+    RESET_RESULT_INFO(pResultInfo);
   }
   
   pWindowRes->numOfRows = 0;

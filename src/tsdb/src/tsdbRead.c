@@ -1376,7 +1376,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
    * }
    */
 
-  tsdbDebug("%p %d data blocks sort completed", pQueryHandle, cnt);
+  tsdbDebug("%p %d data blocks sort completed, %p", pQueryHandle, cnt, pQueryHandle->qinfo);
   cleanBlockOrderSupporter(&sup, numOfTables);
   free(pTree);
 

@@ -30,7 +30,7 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-#include "qExecutor.h"
+#include "qexecutor.h"
 #include "qsqlparser.h"
 #include "qtsbuf.h"
 #include "tcmdtype.h"
