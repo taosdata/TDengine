@@ -103,9 +103,6 @@ void cqClose(void *handle) {
   SCqContext *pContext = handle;
   if (handle == NULL) return;
 
-  taosTmrCleanUp(pContext->tmrCtrl);
-  pContext->tmrCtrl = NULL;
-
   // stop all CQs
   cqStop(pContext);
 
@@ -124,6 +121,9 @@ void cqClose(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 
   pthread_mutex_destroy(&pContext->mutex);
+
+  taosTmrCleanUp(pContext->tmrCtrl);
+  pContext->tmrCtrl = NULL;
 
   cTrace("vgId:%d, CQ is closed", pContext->vgId);
   free(pContext);

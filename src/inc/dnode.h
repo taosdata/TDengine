@@ -39,13 +39,13 @@ SDnodeStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
 char *  dnodeGetMnodeMasterEp();
-void    dnodeGetMnodeIpSetForPeer(void *ipSet);
-void    dnodeGetMnodeIpSetForShell(void *ipSet);
+void    dnodeGetMnodeEpSetForPeer(void *epSet);
+void    dnodeGetMnodeEpSetForShell(void *epSet);
 void *  dnodeGetMnodeInfos();
 int32_t dnodeGetDnodeId();
 
 void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
-void  dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
+void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
 void  dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp);
 void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid);
 

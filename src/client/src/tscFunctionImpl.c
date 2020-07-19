@@ -1481,7 +1481,7 @@ static bool first_last_function_setup(SQLFunctionCtx *pCtx) {
 
 // todo opt for null block
 static void first_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC || pCtx->preAggVals.dataBlockLoaded == false) {
     return;
   }
   
@@ -1550,27 +1550,16 @@ static void first_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t in
  * to decide if the value is earlier than current intermediate result
  */
 static void first_dist_function(SQLFunctionCtx *pCtx) {
-  assert(pCtx->size > 0);
-
-  if (pCtx->size == 0) {
-    return;
-  }
-  
   /*
    * do not to check data in the following cases:
    * 1. data block that are not loaded
    * 2. scan data files in desc order
    */
-  if (pCtx->order == TSDB_ORDER_DESC) {
+  if (pCtx->order == TSDB_ORDER_DESC || pCtx->preAggVals.dataBlockLoaded == false) {
     return;
   }
   
   int32_t notNullElems = 0;
-
-  // data block is discard, not loaded, do not need to check it
-  if (!pCtx->preAggVals.dataBlockLoaded) {
-    return;
-  }
 
   // find the first not null value
   for (int32_t i = 0; i < pCtx->size; ++i) {
@@ -1655,7 +1644,7 @@ static void first_dist_func_second_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order != pCtx->param[0].i64Key) {
+  if (pCtx->order != pCtx->param[0].i64Key || pCtx->preAggVals.dataBlockLoaded == false) {
     return;
   }
   
@@ -2303,8 +2292,9 @@ static void top_func_second_merge(SQLFunctionCtx *pCtx) {
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
+    int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->outputType;
     do_top_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
-                        pCtx->outputType, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+                        type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
   
   SET_VAL(pCtx, pInput->num, pOutput->num);

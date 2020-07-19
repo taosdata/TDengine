@@ -122,7 +122,6 @@ echo "numOfLogLines       100000000"      >> $TAOS_CFG
 echo "mnodeEqualVnodeNum   0"              >> $TAOS_CFG
 echo "clog                0"              >> $TAOS_CFG
 echo "statusInterval      1"              >> $TAOS_CFG
-echo "numOfTotalVnodes    4"              >> $TAOS_CFG
 echo "asyncLog            0"              >> $TAOS_CFG
 echo "numOfMnodes         1"              >> $TAOS_CFG
 echo "locale    en_US.UTF-8"              >> $TAOS_CFG

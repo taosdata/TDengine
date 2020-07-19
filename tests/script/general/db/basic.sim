@@ -99,9 +99,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 sql create database $db
 sql use $db
-sql create table $tb (ts timestamp, speed int) -x step6
-	return -1
-step6:
+sql create table $tb (ts timestamp, speed int)
 
 print =============== step7
 $i = 0

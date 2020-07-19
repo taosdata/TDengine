@@ -1994,6 +1994,10 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
          (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vgroupIndex < numOfVgroups - 1);
 }
 
+bool hasMoreClauseToTry(SSqlObj* pSql) {
+  return pSql->cmd.clauseIndex < pSql->cmd.numOfClause - 1;
+}
+
 void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
@@ -2050,7 +2054,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   }
 }
 
-void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
+void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
@@ -2070,17 +2074,13 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
-  
-  if (pSql->fp != NULL) {
-    pSql->fp = queryFp;
-    assert(queryFp != NULL);
-  }
+  pSql->fp = fp;
 
   tscDebug("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else {
-    tscProcessSql(pSql);
+    tscDoQuery(pSql);
   }
 }
 
@@ -2145,17 +2145,17 @@ char* strdup_throw(const char* str) {
   return p;
 }
 
-int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
-  tscMgmtIpSet.numOfIps = 0;
-  tscMgmtIpSet.inUse = 0;
+int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
+  tscMgmtEpSet.numOfEps = 0;
+  tscMgmtEpSet.inUse = 0;
 
   if (first && first[0] != 0) {
     if (strlen(first) >= TSDB_EP_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(first, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
-    tscMgmtIpSet.numOfIps++;
+    taosGetFqdnPortFromEp(first, tscMgmtEpSet.fqdn[tscMgmtEpSet.numOfEps], &tscMgmtEpSet.port[tscMgmtEpSet.numOfEps]);
+    tscMgmtEpSet.numOfEps++;
   }
 
   if (second && second[0] != 0) {
@@ -2163,11 +2163,11 @@ int tscSetMgmtIpListFromCfg(const char *first, const char *second) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(second, tscMgmtIpSet.fqdn[tscMgmtIpSet.numOfIps], &tscMgmtIpSet.port[tscMgmtIpSet.numOfIps]);
-    tscMgmtIpSet.numOfIps++;
+    taosGetFqdnPortFromEp(second, tscMgmtEpSet.fqdn[tscMgmtEpSet.numOfEps], &tscMgmtEpSet.port[tscMgmtEpSet.numOfEps]);
+    tscMgmtEpSet.numOfEps++;
   }
 
-  if ( tscMgmtIpSet.numOfIps == 0) {
+  if ( tscMgmtEpSet.numOfEps == 0) {
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;
   }

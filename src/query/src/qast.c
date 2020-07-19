@@ -1064,10 +1064,9 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
       if (*e == TS_PATH_DELIMITER[0]) {
         cond = e + 1;
       } else if (*e == ',') {
-        size_t len = e - cond + VARSTR_HEADER_SIZE;
-        char* p = exception_malloc(len);
-        varDataSetLen(p, len - VARSTR_HEADER_SIZE);
-        memcpy(varDataVal(p), cond, len);
+        size_t len = e - cond;
+        char* p = exception_malloc(len + VARSTR_HEADER_SIZE);
+        STR_WITH_SIZE_TO_VARSTR(p, cond, len);
         cond += len;
         taosArrayPush(pVal->arr, &p);
       }

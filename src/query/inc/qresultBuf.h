@@ -22,26 +22,22 @@ extern "C" {
 
 #include "os.h"
 #include "qextbuffer.h"
+#include "hash.h"
 
-typedef struct SIDList {
-  uint32_t alloc;
-  int32_t  size;
-  int32_t* pData;
-} SIDList;
+typedef struct SArray* SIDList;
 
 typedef struct SDiskbasedResultBuf {
-  int32_t  numOfRowsPerPage;
-  int32_t  numOfPages;
-  int64_t  totalBufSize;
-  int32_t  fd;                  // data file fd
-  int32_t  allocateId;          // allocated page id
-  int32_t  incStep;             // minimum allocated pages
-  char*    pBuf;                // mmap buffer pointer
-  char*    path;                // file path
+  int32_t   numOfRowsPerPage;
+  int32_t   numOfPages;
+  int64_t   totalBufSize;
+  int32_t   fd;                  // data file fd
+  int32_t   allocateId;          // allocated page id
+  int32_t   incStep;             // minimum allocated pages
+  char*     pBuf;                // mmap buffer pointer
+  char*     path;                // file path
   
-  uint32_t numOfAllocGroupIds;  // number of allocated id list
-  void*    idsTable;            // id hash table
-  SIDList* list;                // for each id, there is a page id list
+  SHashObj* idsTable;            // id hash table
+  SIDList   list;                // for each id, there is a page id list
 } SDiskbasedResultBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE (8192L*5)
@@ -112,7 +108,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle);
  * @param pList
  * @return
  */
-int32_t getLastPageId(SIDList *pList);
+int32_t getLastPageId(SIDList pList);
 
 #ifdef __cplusplus
 }

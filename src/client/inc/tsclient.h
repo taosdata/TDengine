@@ -306,7 +306,7 @@ typedef struct SSqlObj {
   char *           sqlstr;
   char             retry;
   char             maxRetry;
-  SRpcIpSet        ipList;
+  SRpcEpSet        epSet;
   char             listed;
   tsem_t           rspSem;
   SSqlCmd          cmd;
@@ -350,7 +350,7 @@ void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool initial);
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
 int  tscRenewTableMeta(SSqlObj *pSql, char *tableId);
@@ -422,7 +422,6 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t bytes = pInfo->pSqlExpr->resBytes;
 
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
     int32_t realLen = varDataLen(pData);
     assert(realLen <= bytes - VARSTR_HEADER_SIZE);
@@ -457,7 +456,7 @@ extern void *    tscQhandle;
 extern int       tscKeepConn[];
 extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
-extern SRpcIpSet tscMgmtIpSet;
+extern SRpcEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

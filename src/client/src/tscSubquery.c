@@ -458,7 +458,7 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
           break;
         }
       }
-      assert(info.vgInfo.numOfIps != 0);
+      assert(info.vgInfo.numOfEps != 0);
 
       vgTables = taosArrayInit(4, sizeof(STableIdInfo));
       info.itemList = vgTables;
@@ -848,13 +848,14 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SSqlRes* pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
-  // TODO put to async res?
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     assert(numOfRows == taos_errno(pSql));
 
     pParentSql->res.code = numOfRows;
     tscError("%p retrieve failed, index:%d, code:%s", pSql, pSupporter->subqueryIndex, tstrerror(numOfRows));
+
+    tscQueueAsyncRes(pParentSql);
+    return;
   }
 
   if (numOfRows >= 0) {
@@ -941,31 +942,22 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     
     SSqlRes *pRes = &pSub->res;
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSub->cmd, 0);
-//    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
-//    if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-//      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vgroupIndex < pTableMetaInfo->vgroupList->numOfVgroups &&
-//          (!tscHasReachLimitation(pQueryInfo, pRes)) && !pRes->completed) {
-//        numOfFetch++;
-//      }
-//    } else {
-      if (!tscHasReachLimitation(pQueryInfo, pRes)) {
-        if (pRes->row >= pRes->numOfRows) {
-          hasData = false;
 
-          if (!pRes->completed) {
-            numOfFetch++;
-          }
-        }
-      } else {  // has reach the limitation, no data anymore
-        if (pRes->row >= pRes->numOfRows) {
-          hasData = false;
-          break;
+    if (!tscHasReachLimitation(pQueryInfo, pRes)) {
+      if (pRes->row >= pRes->numOfRows) {
+        hasData = false;
+
+        if (!pRes->completed) {
+          numOfFetch++;
         }
       }
-      
+    } else {  // has reach the limitation, no data anymore
+      if (pRes->row >= pRes->numOfRows) {
+        hasData = false;
+        break;
+      }
     }
-//  }
+  }
 
   // has data remains in client side, and continue to return data to app
   if (hasData) {
@@ -1026,7 +1018,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  tscDebug("%p all subquery response, retrieve data", pSql);
+  tscDebug("%p all subquery response, retrieve data for subclause:%d", pSql, pCmd->clauseIndex);
 
   // the column transfer support struct has been built
   if (pRes->pColumnIndex != NULL) {
@@ -1195,8 +1187,11 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
     pNew->cmd.numOfCols = 0;
     pNewQueryInfo->intervalTime = 0;
-    memset(&pNewQueryInfo->limit, 0, sizeof(SLimitVal));
-    
+    pSupporter->limit = pNewQueryInfo->limit;
+
+    pNewQueryInfo->limit.limit = -1;
+    pNewQueryInfo->limit.offset = 0;
+
     // backup the data and clear it in the sqlcmd object
     pSupporter->groupbyExpr = pNewQueryInfo->groupbyExpr;
     memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
@@ -1307,7 +1302,7 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
       break;
     }
   }
-  
+
   pSql->cmd.command = (pSql->numOfSubs <= 0)? TSDB_SQL_RETRIEVE_EMPTY_RESULT:TSDB_SQL_TABLE_JOIN_RETRIEVE;
   
   return TSDB_CODE_SUCCESS;
@@ -1605,8 +1600,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num;
-    tscDebug("%p sub:%p all data retrieved from ip:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
-        pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
+    tscDebug("%p sub:%p all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
+        pTableMetaInfo->vgroupList->vgroups[0].epAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
   
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
@@ -1724,8 +1719,8 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-    tscDebug("%p sub:%p retrieve numOfRows:%" PRId64 " totalNumOfRows:%" PRIu64 " from ip:%s, orderOfSub:%d", pParentSql, pSql,
-             pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
+    tscDebug("%p sub:%p retrieve numOfRows:%" PRId64 " totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d", pParentSql, pSql,
+             pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
@@ -1833,8 +1828,8 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
     return;
   }
 
-  tscTrace("%p sub:%p query complete, ip:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql, pSql,
-             pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
+  tscTrace("%p sub:%p query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql, pSql,
+             pVgroup->epAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
 
   if (pSql->res.qhandle == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
     tscRetrieveFromDnodeCallBack(param, pSql, 0);
@@ -1982,88 +1977,119 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   return TSDB_CODE_TSC_OUT_OF_MEMORY;
 }
 
+static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
+  SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pSupportInfo, columnIndex);
+  assert(pInfo->pSqlExpr != NULL);
+
+  *bytes = pInfo->pSqlExpr->resBytes;
+  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows;
+
+  return pData;
+}
+
+static void doBuildResFromSubqueries(SSqlObj* pSql) {
+  SSqlRes* pRes = &pSql->res;
+
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+
+  int32_t numOfRes = INT32_MAX;
+  for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+    if (pSql->pSubs[i] == NULL) {
+      continue;
+    }
+
+    numOfRes = MIN(numOfRes, pSql->pSubs[i]->res.numOfRows);
+  }
+
+  int32_t totalSize = tscGetResRowLength(pQueryInfo->exprList);
+  pRes->pRsp = realloc(pRes->pRsp, numOfRes * totalSize);
+  pRes->data = pRes->pRsp;
+
+  char* data = pRes->data;
+  int16_t bytes = 0;
+
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  for(int32_t i = 0; i < numOfExprs; ++i) {
+    SColumnIndex* pIndex = &pRes->pColumnIndex[i];
+    SSqlRes *pRes1 = &pSql->pSubs[pIndex->tableIndex]->res;
+    SSqlCmd *pCmd1 = &pSql->pSubs[pIndex->tableIndex]->cmd;
+
+    char* pData = getResultBlockPosition(pCmd1, pRes1, pIndex->columnIndex, &bytes);
+    memcpy(data, pData, bytes * numOfRes);
+
+    data += bytes * numOfRes;
+    pRes1->row = numOfRes;
+  }
+
+  pRes->numOfRows = numOfRes;
+  pRes->numOfClauseTotal += numOfRes;
+}
+
 void tscBuildResFromSubqueries(SSqlObj *pSql) {
-  SSqlRes *pRes = &pSql->res;
-  
+  SSqlRes* pRes = &pSql->res;
+
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscQueueAsyncRes(pSql);
     return;
   }
-  
-  while (1) {
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+
+  if (pRes->tsrow == NULL) {
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    
-    if (pRes->tsrow == NULL) {
-      pRes->tsrow = calloc(numOfExprs, POINTER_BYTES);
-      pRes->length = calloc(numOfExprs, sizeof(int32_t));
+    pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
+    pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
+    pRes->length = calloc(numOfExprs, sizeof(int32_t));
+
+    tscRestoreSQLFuncForSTableQuery(pQueryInfo);
+  }
+
+  while (1) {
+    if (pRes->row < pRes->numOfRows) {
+      assert(0);
     }
-    
-    bool success = false;
-    
-    int32_t numOfTableHasRes = 0;
-    for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-      if (pSql->pSubs[i] != NULL) {
-        numOfTableHasRes++;
-      }
-    }
-    
-    if (numOfTableHasRes >= 2) {  // do merge result
-      success = (doSetResultRowData(pSql->pSubs[0], false) != NULL) && (doSetResultRowData(pSql->pSubs[1], false) != NULL);
-    } else {  // only one subquery
-      SSqlObj *pSub = pSql->pSubs[0];
-      if (pSub == NULL) {
-        pSub = pSql->pSubs[1];
-      }
-      
-      success = (doSetResultRowData(pSub, false) != NULL);
-    }
-    
-    if (success) {  // current row of final output has been built, return to app
-      for (int32_t i = 0; i < numOfExprs; ++i) {
-        SColumnIndex* pIndex = &pRes->pColumnIndex[i];
-        SSqlRes *pRes1 = &pSql->pSubs[pIndex->tableIndex]->res;
-        pRes->tsrow[i] = pRes1->tsrow[pIndex->columnIndex];
-        pRes->length[i] = pRes1->length[pIndex->columnIndex];
-      }
-      
-      pRes->numOfClauseTotal++;
-      break;
-    } else {  // continue retrieve data from vnode
-      if (!tscHasRemainDataInSubqueryResultSet(pSql)) {
-        tscDebug("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
-        SSubqueryState *pState = NULL;
-        
-        // free all sub sqlobj
-        for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-          SSqlObj *pChildObj = pSql->pSubs[i];
-          if (pChildObj == NULL) {
-            continue;
-          }
-          
-          SJoinSupporter *pSupporter = (SJoinSupporter *)pChildObj->param;
-          pState = pSupporter->pState;
-          
-          tscDestroyJoinSupporter(pChildObj->param);
-          taos_free_result(pChildObj);
-        }
-        
-        free(pState);
-        
-        pRes->completed = true; // set query completed
-        sem_post(&pSql->rspSem);
-        return;
-      }
-      
-      tscFetchDatablockFromSubquery(pSql);
-      if (pRes->code != TSDB_CODE_SUCCESS) {
-        return;
-      }
+
+    doBuildResFromSubqueries(pSql);
+    sem_post(&pSql->rspSem);
+
+    return;
+
+    // continue retrieve data from vnode
+//    if (!tscHasRemainDataInSubqueryResultSet(pSql)) {
+//      tscDebug("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
+//      SSubqueryState* pState = NULL;
+//
+//      // free all sub sqlobj
+//      for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+//        SSqlObj* pChildObj = pSql->pSubs[i];
+//        if (pChildObj == NULL) {
+//          continue;
+//        }
+//
+//        SJoinSupporter* pSupporter = (SJoinSupporter*)pChildObj->param;
+//        pState = pSupporter->pState;
+//
+//        tscDestroyJoinSupporter(pChildObj->param);
+//        taos_free_result(pChildObj);
+//      }
+//
+//      free(pState);
+//
+//      pRes->completed = true;  // set query completed
+//      sem_post(&pSql->rspSem);
+//      return;
+//    }
+
+    tscFetchDatablockFromSubquery(pSql);
+    if (pRes->code != TSDB_CODE_SUCCESS) {
+      return;
     }
   }
-  
+
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
-    (*pSql->fp)(pSql->param, pSql, 0);
+    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
     tscQueueAsyncRes(pSql);
   }
@@ -2116,14 +2142,6 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   SSqlRes *pRes = &pSql->res;
 
   assert(pRes->row >= 0 && pRes->row <= pRes->numOfRows);
-
-  if(pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    if (pRes->completed) {
-      tfree(pRes->tsrow);
-    }
-
-    return pRes->tsrow;
-  }
 
   if (pRes->row >= pRes->numOfRows) {  // all the results has returned to invoker
     tfree(pRes->tsrow);
@@ -2182,7 +2200,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   return pRes->tsrow;
 }
 
-static bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
+static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   bool     hasData = true;
   SSqlCmd *pCmd = &pSql->cmd;
   
