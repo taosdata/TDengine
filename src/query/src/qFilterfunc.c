@@ -554,5 +554,3 @@ __filter_func_t* getValueFilterFuncArray(int32_t type) {
     default: return NULL;
   }
 }
-
-bool supportPrefilter(int32_t type) { return type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR; }

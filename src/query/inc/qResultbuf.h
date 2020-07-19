@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "qextbuffer.h"
 #include "hash.h"
+#include "os.h"
+#include "qExtbuffer.h"
 
 typedef struct SArray* SIDList;
 
@@ -33,14 +33,19 @@ typedef struct SDiskbasedResultBuf {
   int32_t   fd;                  // data file fd
   int32_t   allocateId;          // allocated page id
   int32_t   incStep;             // minimum allocated pages
-  char*     pBuf;                // mmap buffer pointer
+  void*     pBuf;                // mmap buffer pointer
   char*     path;                // file path
-  
+  int32_t   pageSize;            // current used page size
+  int32_t   inMemPages;          // numOfPages that are allocated in memory
   SHashObj* idsTable;            // id hash table
   SIDList   list;                // for each id, there is a page id list
+
+  void*     iBuf;                // inmemory buf
+  void*     handle;              // for debug purpose
 } SDiskbasedResultBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE (8192L*5)
+#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)
+#define DEFAULT_INMEM_BUF_PAGES       10
 
 /**
  * create disk-based result buffer
@@ -49,7 +54,8 @@ typedef struct SDiskbasedResultBuf {
  * @param rowSize
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize, void* handle);
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t numOfPages, int32_t rowSize, int32_t pagesize,
+    int32_t inMemPages, void* handle);
 
 /**
  *
@@ -81,8 +87,14 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
  * @param id
  * @return
  */
-#define GET_RES_BUF_PAGE_BY_ID(buf, id)  ((tFilePage*)((buf)->pBuf + DEFAULT_INTERN_BUF_PAGE_SIZE*(id)))
-
+//#define getResBufPage(buf, id)  ((tFilePage*)((buf)->pBuf + (buf)->pageSize * (id)))
+static FORCE_INLINE tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
+  if (id < pResultBuf->inMemPages) {
+    return pResultBuf->iBuf + id * pResultBuf->pageSize;
+  } else {
+    return pResultBuf->pBuf + (id - pResultBuf->inMemPages) * pResultBuf->pageSize;
+  }
+}
 /**
  * get the total buffer size in the format of disk file
  * @param pResultBuf

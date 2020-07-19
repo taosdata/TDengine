@@ -2,8 +2,8 @@
 #include <cassert>
 #include <iostream>
 
+#include "qResultbuf.h"
 #include "taos.h"
-#include "qresultBuf.h"
 #include "tsdb.h"
 
 namespace {
