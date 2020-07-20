@@ -148,7 +148,7 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   int        vgId = REPO_ID(pRepo);
 
-  tsdbStopStream(repo);
+  tsdbStopStream(pRepo);
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
@@ -1125,6 +1125,7 @@ static void tsdbStartStream(STsdbRepo *pRepo) {
     }
   }
 }
+
 
 static void tsdbStopStream(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;

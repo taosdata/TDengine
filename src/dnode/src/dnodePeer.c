@@ -29,11 +29,11 @@
 #include "dnodeVWrite.h"
 #include "dnodeMPeer.h"
 
-extern void dnodeUpdateMnodeIpSetForPeer(SRpcIpSet *pIpSet);
+extern void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
-static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *);
+static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
-static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet);
+static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
 static void *tsDnodeServerRpc = NULL;
 static void *tsDnodeClientRpc = NULL;
 
@@ -83,7 +83,7 @@ void dnodeCleanupServer() {
   }
 }
 
-static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
+static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   SRpcMsg rspMsg = {
     .handle  = pMsg->handle,
     .pCont   = NULL,
@@ -148,9 +148,9 @@ void dnodeCleanupClient() {
   }
 }
 
-static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcIpSet *pIpSet) {
-  if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pIpSet) {
-    dnodeUpdateMnodeIpSetForPeer(pIpSet);
+static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
+    dnodeUpdateMnodeEpSetForPeer(pEpSet);
   }
 
   if (dnodeProcessRspMsgFp[pMsg->msgType]) {    
@@ -166,12 +166,12 @@ void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
   dnodeProcessRspMsgFp[msgType] = fp;
 }
 
-void dnodeSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg) {
-  rpcSendRequest(tsDnodeClientRpc, ipSet, rpcMsg);
+void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
+  rpcSendRequest(tsDnodeClientRpc, epSet, rpcMsg);
 }
 
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
-  SRpcIpSet ipSet = {0};
-  dnodeGetMnodeIpSetForPeer(&ipSet);
-  rpcSendRecv(tsDnodeClientRpc, &ipSet, rpcMsg, rpcRsp);
+  SRpcEpSet epSet = {0};
+  dnodeGetMnodeEpSetForPeer(&epSet);
+  rpcSendRecv(tsDnodeClientRpc, &epSet, rpcMsg, rpcRsp);
 }

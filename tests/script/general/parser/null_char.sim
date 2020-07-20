@@ -105,6 +105,21 @@ if $data03 != 1 then
   return -1
 endi
 
+sql select tag1 from st2 limit 20 offset 1
+if $rows != 0 then
+  return -1
+endi
+
+sql select tag1 from st2 limit 10 offset 2
+if $rows != 0 then
+  return -1
+endi
+
+sql select tag1 from st2 limit 0 offset 0
+if $rows != 0 then
+  return -1
+endi
+
 sql create table st3 using mt2 tags (NULL, 'ABC', 103, 'FALSE')
 sql select tag1, tag2, tag3, tag5 from st3
 if $rows != 1 then

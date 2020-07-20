@@ -289,14 +289,14 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  SRpcIpSet ipSet = mnodeGetIpSetFromIp(pCmCfgDnode->ep);
+  SRpcEpSet epSet = mnodeGetEpSetFromIp(pCmCfgDnode->ep);
   if (dnodeId != 0) {
     SDnodeObj *pDnode = mnodeGetDnode(dnodeId);
     if (pDnode == NULL) {
       mError("failed to cfg dnode, invalid dnodeId:%d", dnodeId);
       return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
-    ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
+    epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
     mnodeDecDnodeRef(pDnode);
   }
 
@@ -313,7 +313,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   };
 
   mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
-  dnodeSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
+  dnodeSendMsgToDnode(&epSet, &rpcMdCfgDnodeMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -345,8 +345,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
-  pStatus->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
-
+  
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
     mError("status msg version:%d not equal with mnode:%d", version, tsVersion);
@@ -372,7 +371,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->numOfCores       = pStatus->numOfCores;
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
-  pDnode->totalVnodes      = pStatus->numOfTotalVnodes; 
   pDnode->moduleStatus     = pStatus->moduleStatus;
   
   if (pStatus->dnodeId == 0) {
@@ -401,9 +399,9 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
 
     SVgObj *pVgroup = mnodeGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
-      SRpcIpSet ipSet = mnodeGetIpSetFromIp(pDnode->dnodeEp);
+      SRpcEpSet epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
       mInfo("dnode:%d, vgId:%d not exist in mnode, drop it", pDnode->dnodeId, pVload->vgId);
-      mnodeSendDropVnodeMsg(pVload->vgId, &ipSet, NULL);
+      mnodeSendDropVnodeMsg(pVload->vgId, &epSet, NULL);
     } else {
       mnodeUpdateVgroupStatus(pVgroup, pDnode, pVload);
       pAccess->vgId = htonl(pVload->vgId);
@@ -452,17 +450,29 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
     return grantCode;
   }
 
+  char dnodeEp[TSDB_EP_LEN] = {0};
+  tstrncpy(dnodeEp, ep, TSDB_EP_LEN);
+  strtrim(dnodeEp);
+
+  char *temp = strchr(dnodeEp, ':');
+  if (!temp) {
+    int len = strlen(dnodeEp);
+    if (dnodeEp[len - 1] == ';') dnodeEp[len - 1] = 0;
+    len = strlen(dnodeEp);
+    snprintf(dnodeEp + len, TSDB_EP_LEN - len, ":%d", tsServerPort);
+  }
+  ep = dnodeEp;
+
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode != NULL) {
     mnodeDecDnodeRef(pDnode);
-    mError("dnode:%d is alredy exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
+    mError("dnode:%d is already exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
     return TSDB_CODE_MND_DNODE_ALREADY_EXIST;
   }
 
   pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TAOS_DN_STATUS_OFFLINE; 
-  pDnode->totalVnodes = TSDB_INVALID_VNODE_NUM; 
   tstrncpy(pDnode->dnodeEp, ep, TSDB_EP_LEN);
   taosGetFqdnPortFromEp(ep, pDnode->dnodeFqdn, &pDnode->dnodePort);
 
@@ -507,8 +517,12 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
 static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
-    mError("dnode:%s, is not exist", ep);
-    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    int32_t dnodeId = (int32_t)strtol(ep, NULL, 10);
+    pDnode = mnodeGetDnode(dnodeId);
+    if (pDnode == NULL) {
+      mError("dnode:%s, is not exist", ep);
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
   }
 
   if (strcmp(pDnode->dnodeEp, mnodeGetMnodeMasterEp()) == 0) {
@@ -575,13 +589,13 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "open_vnodes");
+  strcpy(pSchema[cols].name, "vnodes");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "total_vnodes");
+  strcpy(pSchema[cols].name, "cores");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -593,7 +607,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "alternativeRole");
+  strcpy(pSchema[cols].name, "role");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -645,7 +659,7 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDnode->totalVnodes;
+    *(int16_t *)pWrite = pDnode->numOfCores;
     cols++;
     
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  

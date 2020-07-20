@@ -49,16 +49,16 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
 
   if (!sdbIsMaster()) {
     SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
-    SRpcIpSet *ipSet = rpcMallocCont(sizeof(SRpcIpSet));
-    mnodeGetMnodeIpSetForShell(ipSet);
-    rpcRsp->rsp = ipSet;
-    rpcRsp->len = sizeof(SRpcIpSet);
+    SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
+    mnodeGetMnodeEpSetForShell(epSet);
+    rpcRsp->rsp = epSet;
+    rpcRsp->len = sizeof(SRpcEpSet);
 
     mDebug("app:%p:%p, msg:%s will be redireced inUse:%d", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType],
-           ipSet->inUse);
-    for (int32_t i = 0; i < ipSet->numOfIps; ++i) {
-      mDebug("app:%p:%p, mnode index:%d ip:%s:%d", pMsg->rpcMsg.ahandle, pMsg, i, ipSet->fqdn[i],
-             htons(ipSet->port[i]));
+           epSet->inUse);
+    for (int32_t i = 0; i < epSet->numOfEps; ++i) {
+      mDebug("app:%p:%p, mnode index:%d ep:%s:%d", pMsg->rpcMsg.ahandle, pMsg, i, epSet->fqdn[i],
+             htons(epSet->port[i]));
     }
 
     return TSDB_CODE_RPC_REDIRECT;

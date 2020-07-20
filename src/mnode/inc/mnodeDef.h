@@ -40,7 +40,7 @@ typedef struct SDnodeObj {
   int32_t    dnodeId;
   int32_t    openVnodes;
   int64_t    createdTime;
-  int32_t    totalVnodes;      // from dnode status msg, config information
+  int32_t    resever0;         // from dnode status msg, config information
   int32_t    customScore;      // config by user
   uint32_t   lastAccess;
   uint16_t   numOfCores;       // from dnode status msg
@@ -50,7 +50,7 @@ typedef struct SDnodeObj {
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
   int8_t     status;           // set in balance function
   int8_t     isMgmt;
-  int8_t     reserved0[14];  
+  int8_t     reserve1[14];  
   int8_t     updateEnd[1];
   int32_t    refCount;
   uint32_t   moduleStatus;
@@ -61,7 +61,7 @@ typedef struct SDnodeObj {
   int16_t    cpuAvgUsage;      // calc from sys.cpu
   int16_t    memoryAvgUsage;   // calc from sys.mem
   int16_t    bandwidthUsage;   // calc from sys.band
-  int8_t     reserved1[2];
+  int8_t     reserved2[2];
 } SDnodeObj;
 
 typedef struct SMnodeObj {

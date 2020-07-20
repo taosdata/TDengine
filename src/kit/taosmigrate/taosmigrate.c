@@ -210,10 +210,10 @@ int32_t main(int32_t argc, char *argv[]) {
   (void)snprintf(mnodeWal, TSDB_FILENAME_LEN*2, "%s/mnode/wal/wal0", arguments.dataDir);
   walModWalFile(mnodeWal);
 
-  // 2. modfiy dnode config: mnodeIpList.json
-  char dnodeIpList[TSDB_FILENAME_LEN*2] = {0};
-  (void)snprintf(dnodeIpList, TSDB_FILENAME_LEN*2, "%s/dnode/mnodeIpList.json", arguments.dataDir);
-  modDnodeIpList(dnodeIpList);
+  // 2. modfiy dnode config: mnodeEpSet.json
+  char dnodeEpSet[TSDB_FILENAME_LEN*2] = {0};
+  (void)snprintf(dnodeEpSet, TSDB_FILENAME_LEN*2, "%s/dnode/mnodeEpSet.json", arguments.dataDir);
+  modDnodeEpSet(dnodeEpSet);
 
   // 3. modify vnode config: config.json
   char vnodeDir[TSDB_FILENAME_LEN*2] = {0};

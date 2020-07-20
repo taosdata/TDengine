@@ -107,42 +107,41 @@ static int32_t mnodeChildTableActionInsert(SSdbOper *pOper) {
   SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("ctable:%s, not in vgId:%d", pTable->info.tableId, pTable->vgId);
-    return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
-  mnodeDecVgroupRef(pVgroup);
 
-  SDbObj *pDb = mnodeGetDb(pVgroup->dbName);
-  if (pDb == NULL) {
-    mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
-    return TSDB_CODE_MND_INVALID_DB;
+  SDbObj *pDb = NULL;
+  if (pVgroup != NULL) {
+    pDb = mnodeGetDb(pVgroup->dbName);
+    if (pDb == NULL) {
+      mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
+    }
   }
-  
-  if (pDb->status != TSDB_DB_STATUS_READY) {
-    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
-    return TSDB_CODE_MND_DB_IN_DROPPING;
-  }
-  mnodeDecDbRef(pDb);
 
-  SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
-  if (pAcct == NULL) {
-    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
-    return TSDB_CODE_MND_INVALID_ACCT;
+  SAcctObj *pAcct = NULL;
+  if (pDb != NULL) {
+    pAcct = mnodeGetAcct(pDb->acct);
+    if (pAcct == NULL) {
+      mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
+    }
   }
-  mnodeDecAcctRef(pAcct);
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     // add ref
     pTable->superTable = mnodeGetSuperTableByUid(pTable->suid);
     mnodeAddTableIntoStable(pTable->superTable, pTable);
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
-    pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
+    if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
   } else {
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
-    pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
+    if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
   }
 
-  mnodeAddTableIntoDb(pDb);
-  mnodeAddTableIntoVgroup(pVgroup, pTable);
+  if (pDb) mnodeAddTableIntoDb(pDb);
+  if (pVgroup) mnodeAddTableIntoVgroup(pVgroup, pTable);
+
+  mnodeDecVgroupRef(pVgroup);
+  mnodeDecDbRef(pDb);
+  mnodeDecAcctRef(pAcct);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -910,9 +909,9 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 
       mInfo("app:%p:%p, stable:%s, send drop stable msg to vgId:%d", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId,
              pVgroup->vgId);
-      SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pVgroup);
+      SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pVgroup);
       SRpcMsg   rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
-      dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+      dnodeSendMsgToDnode(&epSet, &rpcMsg);
       mnodeDecVgroupRef(pVgroup);
     }
     taosHashDestroyIter(pIter);
@@ -1484,10 +1483,10 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
           SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
           if (pDnode == NULL) break;
 
-          tstrncpy(pVgroupInfo->vgroups[vgSize].ipAddr[vn].fqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
-          pVgroupInfo->vgroups[vgSize].ipAddr[vn].port = htons(pDnode->dnodePort);
+          tstrncpy(pVgroupInfo->vgroups[vgSize].epAddr[vn].fqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
+          pVgroupInfo->vgroups[vgSize].epAddr[vn].port = htons(pDnode->dnodePort);
 
-          pVgroupInfo->vgroups[vgSize].numOfIps++;
+          pVgroupInfo->vgroups[vgSize].numOfEps++;
         }
 
         vgSize++;
@@ -1615,7 +1614,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     return terrno;
   }
 
-  SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
+  SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pMsg->pVgroup);
   SRpcMsg rpcMsg = {
       .ahandle = pMsg,
       .pCont   = pMDCreate,
@@ -1624,7 +1623,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
   };
 
-  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&epSet, &rpcMsg);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
@@ -1788,7 +1787,7 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
   pDrop->sid     = htonl(pTable->sid);
   pDrop->uid     = htobe64(pTable->uid);
 
-  SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
+  SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pMsg->pVgroup);
 
   mInfo("app:%p:%p, table:%s, send drop ctable msg, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
         pDrop->tableId, pTable->vgId, pTable->sid, pTable->uid);
@@ -1803,7 +1802,7 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
 
   if (!needReturn) rpcMsg.ahandle = NULL;
 
-  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&epSet, &rpcMsg);
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
@@ -1842,7 +1841,7 @@ static int32_t mnodeAlterNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
     }
   }
 
-  SRpcIpSet ipSet = mnodeGetIpSetFromVgroup(pMsg->pVgroup);
+  SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pMsg->pVgroup);
   SRpcMsg rpcMsg = {
       .ahandle = pMsg,
       .pCont   = pMDCreate,
@@ -1854,7 +1853,7 @@ static int32_t mnodeAlterNormalTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   mDebug("app:%p:%p, ctable %s, send alter column msg to vgId:%d", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
          pMsg->pVgroup->vgId);
 
-  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+  dnodeSendMsgToDnode(&epSet, &rpcMsg);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
@@ -1996,9 +1995,9 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   for (int32_t i = 0; i < pMsg->pVgroup->numOfVnodes; ++i) {
     SDnodeObj *pDnode = mnodeGetDnode(pMsg->pVgroup->vnodeGid[i].dnodeId);
     if (pDnode == NULL) break;
-    strcpy(pMeta->vgroup.ipAddr[i].fqdn, pDnode->dnodeFqdn);
-    pMeta->vgroup.ipAddr[i].port = htons(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
-    pMeta->vgroup.numOfIps++;
+    strcpy(pMeta->vgroup.epAddr[i].fqdn, pDnode->dnodeFqdn);
+    pMeta->vgroup.epAddr[i].port = htons(pDnode->dnodePort + TSDB_PORT_DNODESHELL);
+    pMeta->vgroup.numOfEps++;
     mnodeDecDnodeRef(pDnode);
   }
   pMeta->vgroup.vgId = htonl(pMsg->pVgroup->vgId);
