@@ -92,6 +92,7 @@ static void asyncCallback(void *param, TAOS_RES *tres, int code) {
 
 static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char* sql) {
   int code = TSDB_CODE_SUCCESS, line = __LINE__;
+  SSqlObj* pSql = NULL;
 
   SSub* pSub = calloc(1, sizeof(SSub));
   if (pSub == NULL) {
@@ -113,7 +114,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     goto fail;
   }
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     line = __LINE__;
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
