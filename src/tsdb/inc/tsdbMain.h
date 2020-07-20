@@ -199,6 +199,7 @@ typedef struct {
 
 // ------------------ tsdbRWHelper.c
 typedef struct {
+  int32_t  tid;
   uint32_t len;
   uint32_t offset;
   uint32_t hasLast : 2;
@@ -262,8 +263,13 @@ typedef struct {
 typedef struct {
   uint64_t uid;
   int32_t  tid;
-  int32_t  sversion;
 } SHelperTable;
+
+typedef struct {
+  SCompIdx* pIdxArray;
+  int       numOfIdx;
+  int       curIdx;
+} SIdxH;
 
 typedef struct {
   tsdb_rw_helper_t type;
@@ -272,7 +278,9 @@ typedef struct {
   int8_t     state;
   // For file set usage
   SHelperFile files;
-  SCompIdx*   pCompIdx;
+  SIdxH       idxH;
+  SCompIdx    curCompIdx;
+  void*       pWIdx;
   // For table set usage
   SHelperTable tableInfo;
   SCompInfo*   pCompInfo;
@@ -283,7 +291,6 @@ typedef struct {
   void*      pBuffer;     // Buffer to hold the whole data block
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
-
 
 // Operations
 // ------------------ tsdbMeta.c

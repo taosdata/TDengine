@@ -793,7 +793,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
     for (int i = 1; i < pRepo->config.maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      SCompIdx *pIdx = &rhelper.pCompIdx[i];
+      SCompIdx *pIdx = &(rhelper.curCompIdx);
 
       if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
     }
