@@ -132,12 +132,18 @@ typedef struct {
 // ------------------ tsdbFile.c
 extern const char* tsdbFileSuffix[];
 typedef enum {
+#ifdef TSDB_IDX
   TSDB_FILE_TYPE_IDX = 0,
   TSDB_FILE_TYPE_HEAD,
+#else
+  TSDB_FILE_TYPE_HEAD = 0,
+#endif
   TSDB_FILE_TYPE_DATA,
   TSDB_FILE_TYPE_LAST,
   TSDB_FILE_TYPE_MAX,
+#ifdef TSDB_IDX
   TSDB_FILE_TYPE_NIDX,
+#endif
   TSDB_FILE_TYPE_NHEAD,
   TSDB_FILE_TYPE_NLAST
 } TSDB_FILE_TYPE;
@@ -147,6 +153,7 @@ typedef struct {
   uint32_t len;
   uint32_t totalBlocks;
   uint32_t totalSubBlocks;
+  uint32_t offset;
   uint64_t size;      // total size of the file
   uint64_t tombSize;  // unused file size
 } STsdbFileInfo;
@@ -450,11 +457,13 @@ void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 #define helperState(h) (h)->state
 #define TSDB_NLAST_FILE_OPENED(h) ((h)->files.nLastF.fd > 0)
 #define helperFileId(h) ((h)->files.fGroup.fileId)
+#ifdef TSDB_IDX
 #define helperIdxF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_IDX]))
+#define helperNewIdxF(h) (&((h)->files.nIdxF))
+#endif
 #define helperHeadF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_HEAD]))
 #define helperDataF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_DATA]))
 #define helperLastF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_LAST]))
-#define helperNewIdxF(h) (&((h)->files.nIdxF))
 #define helperNewHeadF(h) (&((h)->files.nHeadF))
 #define helperNewLastF(h) (&((h)->files.nLastF))
 

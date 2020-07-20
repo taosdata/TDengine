@@ -30,7 +30,11 @@
 #include "ttime.h"
 #include "tfile.h"
 
+#ifdef TSDB_IDX
 const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};
+#else
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".l"};
+#endif
 
 static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
@@ -108,7 +112,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
 
     memset((void *)(&fileGroup), 0, sizeof(SFileGroup));
     fileGroup.fileId = fid;
-    for (int type = TSDB_FILE_TYPE_IDX; type < TSDB_FILE_TYPE_MAX; type++) {
+    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
       if (tsdbInitFile(&fileGroup.files[type], pRepo, fid, type) < 0) {
         tsdbError("vgId:%d failed to init file fid %d type %d", REPO_ID(pRepo), fid, type);
         goto _err;
@@ -126,7 +130,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   return 0;
 
 _err:
-  for (int type = TSDB_FILE_TYPE_IDX; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&fileGroup.files[type]);
+  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&fileGroup.files[type]);
 
   tfree(tDataDir);
   if (dir != NULL) closedir(dir);
@@ -139,7 +143,7 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
 
   for (int i = 0; i < pFileH->nFGroups; i++) {
     SFileGroup *pFGroup = pFileH->pFGroup + i;
-    for (int type = TSDB_FILE_TYPE_IDX; type < TSDB_FILE_TYPE_MAX; type++) {
+    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
       tsdbDestroyFile(&pFGroup->files[type]);
     }
   }
@@ -156,7 +160,7 @@ SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid, int
   SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
   if (pGroup == NULL) {  // if not exists, create one
     pFGroup->fileId = fid;
-    for (int type = TSDB_FILE_TYPE_IDX; type < TSDB_FILE_TYPE_MAX; type++) {
+    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
       if (tsdbCreateFile(&pFGroup->files[type], pRepo, fid, type) < 0)
         goto _err;
     }
@@ -169,7 +173,7 @@ SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid, int
   return pGroup;
 
 _err:
-  for (int type = TSDB_FILE_TYPE_IDX; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&pGroup->files[type]);
+  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&pGroup->files[type]);
   return NULL;
 }
 
@@ -325,10 +329,11 @@ int tsdbEncodeSFileInfo(void **buf, const STsdbFileInfo *pInfo) {
   int tlen = 0;
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
   tlen += taosEncodeFixedU32(buf, pInfo->len);
-  tlen += taosEncodeFixedU64(buf, pInfo->size);
-  tlen += taosEncodeFixedU64(buf, pInfo->tombSize);
   tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
   tlen += taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
+  tlen += taosEncodeFixedU32(buf, pInfo->offset);
+  tlen += taosEncodeFixedU64(buf, pInfo->size);
+  tlen += taosEncodeFixedU64(buf, pInfo->tombSize);
 
   return tlen;
 }
@@ -336,10 +341,11 @@ int tsdbEncodeSFileInfo(void **buf, const STsdbFileInfo *pInfo) {
 void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
   buf = taosDecodeFixedU32(buf, &(pInfo->len));
-  buf = taosDecodeFixedU64(buf, &(pInfo->size));
-  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
   buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
   buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
+  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
+  buf = taosDecodeFixedU64(buf, &(pInfo->size));
+  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
 
   return buf;
 }
@@ -358,7 +364,7 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   pFileH->nFGroups--;
   ASSERT(pFileH->nFGroups >= 0);
 
-  for (int type = TSDB_FILE_TYPE_IDX; type < TSDB_FILE_TYPE_MAX; type++) {
+  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
     if (remove(fileGroup.files[type].fname) < 0) {
       tsdbError("vgId:%d failed to remove file %s", REPO_ID(pRepo), fileGroup.files[type].fname);
     }
