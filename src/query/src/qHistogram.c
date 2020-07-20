@@ -14,7 +14,7 @@
  */
 #include "os.h"
 
-#include "qhistogram.h"
+#include "qHistogram.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tlosertree.h"

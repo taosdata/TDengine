@@ -45,7 +45,6 @@ typedef void (*__do_filter_suppl_fn_t)(void *, void *);
  *
  */
 typedef struct tQueryInfo {
-  int32_t       colIndex; // index of column in schema
   uint8_t       optr;     // expression operator
   SSchema       sch;      // schema of tags
   char*         q;

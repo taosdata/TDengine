@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "qextbuffer.h"
-#include "qfill.h"
+#include "qExtbuffer.h"
+#include "qFill.h"
 #include "taosmsg.h"
 #include "tlosertree.h"
 #include "tsclient.h"

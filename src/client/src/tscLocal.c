@@ -16,14 +16,14 @@
 #include "os.h"
 #include "taosmsg.h"
 
-#include "tcache.h"
-#include "tscUtil.h"
-#include "tsclient.h"
+#include "qExtbuffer.h"
 #include "taosdef.h"
-#include "tscLog.h"
-#include "qextbuffer.h"
-#include "tschemautil.h"
+#include "tcache.h"
 #include "tname.h"
+#include "tscLog.h"
+#include "tscUtil.h"
+#include "tschemautil.h"
+#include "tsclient.h"
 
 static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, int16_t type, size_t valueLength);
 

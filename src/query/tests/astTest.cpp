@@ -3,8 +3,8 @@
 #include <cassert>
 #include <iostream>
 
+#include "qAst.h"
 #include "taosmsg.h"
-#include "qast.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 
