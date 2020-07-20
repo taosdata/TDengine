@@ -22,7 +22,7 @@ void simpleTest() {
   ASSERT_EQ(getResBufSize(pResultBuf), 1000*16384L);
   
   SIDList list = getDataBufPagesIdList(pResultBuf, groupId);
-  ASSERT_EQ(list.size, 1);
+  ASSERT_EQ(taosArrayGetSize(list), 1);
   
   ASSERT_EQ(getNumOfResultBufGroupId(pResultBuf), 1);
   
