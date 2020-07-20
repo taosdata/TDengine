@@ -218,9 +218,9 @@ void verify_prepare(TAOS* taos) {
 
   int code = taos_errno(result);
   if (code != 0) {
-    printf("failed to create database, reason:%s\n", taos_errstr(result));
+    printf("\033[31mfailed to create database, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(1);
+    return;
   }
   taos_free_result(result);
 
@@ -232,9 +232,9 @@ void verify_prepare(TAOS* taos) {
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
-    printf("failed to create table, reason:%s\n", taos_errstr(result));
+    printf("\033[31mfailed to create table, reason:%s\033[0m\n", taos_errstr(result));
     taos_free_result(result);
-    exit(1);
+    return;
   }
   taos_free_result(result);
 
@@ -320,7 +320,7 @@ void verify_prepare(TAOS* taos) {
   sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
+    printf("\033[31mfailed to execute taos_stmt_prepare. code:0x%x\033[0m\n", code);
   }
   v.ts = 1591060628000;
   for (int i = 0; i < 10; ++i) {
@@ -343,8 +343,8 @@ void verify_prepare(TAOS* taos) {
     taos_stmt_add_batch(stmt);
   }
   if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
+    printf("\033[31mfailed to execute insert statement.\033[0m\n");
+    return;
   }
   taos_stmt_close(stmt);
 
@@ -355,8 +355,8 @@ void verify_prepare(TAOS* taos) {
   v.v2 = 15;
   taos_stmt_bind_param(stmt, params + 2);
   if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute select statement.\n");
-    exit(1);
+    printf("\033[31mfailed to execute select statement.\033[0m\n");
+    return;
   }
 
   result = taos_stmt_use_result(stmt);
@@ -444,7 +444,7 @@ int main(int argc, char *argv[]) {
 
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {
-    printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
+    printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));
     exit(1);
   }
 
