@@ -724,6 +724,13 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   return len;
 }
 
+static void asyncCallback(void *param, TAOS_RES *tres, int code) {
+  assert(param != NULL);
+  SSqlObj *pSql = ((SSqlObj *)param);
+  pSql->res.code = code;
+  sem_post(&pSql->rspSem);
+}
+
 int taos_validate_sql(TAOS *taos, const char *sql) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -732,7 +739,8 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
-  
+  pSql->pTscObj = taos;
+  pSql->signature = pSql;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
@@ -766,10 +774,17 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     pCmd->pTableList = NULL;
   }
 
-  pRes->code = (uint8_t)tsParseSql(pSql, false);
-  int code = pRes->code;
-
-  tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+  pSql->fp = asyncCallback;
+  pSql->fetchFp = asyncCallback;
+  pSql->param = pSql;
+  int code = tsParseSql(pSql, true);
+  if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    sem_wait(&pSql->rspSem);
+    code = pSql->res.code;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(taos), pObj);
+  }
   taos_free_result(pSql);
 
   return code;
@@ -865,6 +880,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  pSql->pTscObj = taos;
+  pSql->signature = pSql;
   SSqlRes *pRes = &pSql->res;
 
   pRes->numOfTotal = 0;  // the number of getting table meta from server
