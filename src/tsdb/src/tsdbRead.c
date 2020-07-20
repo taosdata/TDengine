@@ -995,6 +995,8 @@ static void getQualifiedRowsPos(STsdbQueryHandle* pQueryHandle, int32_t startPos
     int32_t remain = endPos - startPos + 1;
     if (remain + numOfExisted > pQueryHandle->outputCapacity) {
       *end = (pQueryHandle->outputCapacity - numOfExisted) + startPos - 1;
+    } else {
+      *end = endPos;
     }
 
     *start = startPos;
@@ -1002,6 +1004,8 @@ static void getQualifiedRowsPos(STsdbQueryHandle* pQueryHandle, int32_t startPos
     int32_t remain = (startPos - endPos) + 1;
     if (remain + numOfExisted > pQueryHandle->outputCapacity) {
       *end = startPos + 1 - (pQueryHandle->outputCapacity - numOfExisted);
+    } else {
+      *end = endPos;
     }
 
     *start = *end;
