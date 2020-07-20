@@ -212,6 +212,8 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   char *sdup = strdup(pRepo->rootDir);
   char *prefix = dirname(sdup);
+  int   prefixLen = strlen(prefix);
+  tfree(sdup);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
     int fid = (*index) / TSDB_FILE_TYPE_MAX;
@@ -220,8 +222,8 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
         fname = tsdbGetMetaFileName(pRepo->rootDir);
         *index = TSDB_META_FILE_INDEX;
+        magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
       } else {
-        tfree(sdup);
         return 0;
       }
     } else {
@@ -229,42 +231,42 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
         fname = strdup(pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].fname);
+        magic = pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].info.magic;
       } else {
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < eindex) {
           fname = strdup(pFGroup->files[0].fname);
           *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
+          magic = pFGroup->files[0].info.magic;
         } else {
-          tfree(sdup);
           return 0;
         }
       }
     }
-    strcpy(name, fname + strlen(prefix));
+    strcpy(name, fname + prefixLen);
   } else {                                 // get the named file at the specified index. If not there, return 0
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
       fname = tsdbGetMetaFileName(pRepo->rootDir);
+      magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
     } else {
       int         fid = (*index) / TSDB_FILE_TYPE_MAX;
       SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
       if (pFGroup == NULL) {  // not found
-        tfree(sdup);
         return 0;
       }
 
       SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
       fname = strdup(pFile->fname);
+      magic = pFile->info.magic;
     }
   }
 
   if (stat(fname, &fState) < 0) {
-    tfree(sdup);
     tfree(fname);
     return 0;
   }
 
-  tfree(sdup);
   *size = fState.st_size;
-  magic = *size;
+  // magic = *size;
 
   tfree(fname);
   return magic;

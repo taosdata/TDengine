@@ -34,6 +34,7 @@
 #define TD_KVSTORE_MAINOR_VERSION 0
 #define TD_KVSTORE_SNAP_SUFFIX ".snap"
 #define TD_KVSTORE_NEW_SUFFIX ".new"
+#define TD_KVSTORE_INIT_MAGIC 0xFFFFFFFF
 
 typedef struct {
   uint64_t uid;
@@ -251,6 +252,8 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
     return -1;
   }
 
+  pStore->info.magic =
+      taosCalcChecksum(pStore->info.magic, (uint8_t *)POINTER_SHIFT(cont, contLen - sizeof(TSCKSUM)), sizeof(TSCKSUM));
   pStore->info.size += (sizeof(SKVRecord) + contLen);
   SKVRecord *pRecord = taosHashGet(pStore->map, (void *)&uid, sizeof(uid));
   if (pRecord != NULL) {  // just to insert
@@ -288,6 +291,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
     return -1;
   }
 
+  pStore->info.magic = taosCalcChecksum(pStore->info.magic, (uint8_t *)buf, POINTER_DISTANCE(pBuf, buf));
   pStore->info.size += POINTER_DISTANCE(pBuf, buf);
   pStore->info.nDels++;
   pStore->info.nRecords--;
@@ -371,7 +375,7 @@ static int tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
 }
 
 static int tdInitKVStoreHeader(int fd, char *fname) {
-  SStoreInfo info = {TD_KVSTORE_HEADER_SIZE, 0, 0, 0};
+  SStoreInfo info = {TD_KVSTORE_HEADER_SIZE, 0, 0, 0, TD_KVSTORE_INIT_MAGIC};
 
   return tdUpdateKVStoreHeader(fd, fname, &info);
 }
@@ -382,6 +386,7 @@ static int tdEncodeStoreInfo(void **buf, SStoreInfo *pInfo) {
   tlen += taosEncodeVariantI64(buf, pInfo->tombSize);
   tlen += taosEncodeVariantI64(buf, pInfo->nRecords);
   tlen += taosEncodeVariantI64(buf, pInfo->nDels);
+  tlen += taosEncodeFixedU32(buf, pInfo->magic);
 
   return tlen;
 }
@@ -391,6 +396,7 @@ static void *tdDecodeStoreInfo(void *buf, SStoreInfo *pInfo) {
   buf = taosDecodeVariantI64(buf, &(pInfo->tombSize));
   buf = taosDecodeVariantI64(buf, &(pInfo->nRecords));
   buf = taosDecodeVariantI64(buf, &(pInfo->nDels));
+  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
 
   return buf;
 }

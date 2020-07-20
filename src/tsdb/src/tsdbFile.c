@@ -264,6 +264,7 @@ int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   }
 
   pFile->info.size = TSDB_FILE_HEAD_SIZE;
+  pFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
   if (tsdbUpdateFileHeader(pFile, 0) < 0) {
     tsdbCloseFile(pFile);

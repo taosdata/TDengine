@@ -100,6 +100,7 @@ void tsdbResetHelper(SRWHelper *pHelper) {
 
 int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   ASSERT(pHelper != NULL && pGroup != NULL);
+  SFile *pFile = NULL;
 
   // Clear the helper object
   tsdbResetHelper(pHelper);
@@ -127,18 +128,27 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
 #ifdef TSDB_IDX
     // Create and open .i file
-    if (tsdbOpenFile(helperNewIdxF(pHelper), O_WRONLY | O_CREAT) < 0) return -1;
-    if (tsdbUpdateFileHeader(helperNewIdxF(pHelper), 0) < 0) return -1;
+    pFile = helperNewIdxF(pHelper);
+    if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
+    pFile->info.size = TSDB_FILE_HEAD_SIZE;
+    pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+    if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
 #endif
 
     // Create and open .h
-    if (tsdbOpenFile(helperNewHeadF(pHelper), O_WRONLY | O_CREAT) < 0) return -1;
-    if (tsdbUpdateFileHeader(helperNewHeadF(pHelper), 0) < 0) return -1;
+    pFile = helperNewHeadF(pHelper);
+    if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
+    pFile->info.size = TSDB_FILE_HEAD_SIZE;
+    pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+    if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
 
     // Create and open .l file if should
     if (tsdbShouldCreateNewLast(pHelper)) {
-      if (tsdbOpenFile(helperNewLastF(pHelper), O_WRONLY | O_CREAT) < 0) goto _err;
-      if (tsdbUpdateFileHeader(helperNewLastF(pHelper), 0) < 0) return -1;
+      pFile = helperNewLastF(pHelper);
+      if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) goto _err;
+      pFile->info.size = TSDB_FILE_HEAD_SIZE;
+      pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+      if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
     }
   } else {
     if (tsdbOpenFile(helperDataF(pHelper), O_RDONLY) < 0) goto _err;
@@ -334,7 +344,15 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
 
     SCompBlock *pCompBlock = blockAtIdx(pHelper, pIdx->numOfBlocks - 1);
     ASSERT(pCompBlock->last);
+    if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
+    ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows &&
+           pHelper->pDataCols[0]->numOfRows < pCfg->minRowsPerFileBlock);
+    if (tsdbWriteBlockToFile(pHelper, helperNewLastF(pHelper), pHelper->pDataCols[0], &compBlock, true, true) < 0)
+      return -1;
 
+    if (tsdbUpdateSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1) < 0) return -1;
+
+#if 0
     if (pCompBlock->numOfSubBlocks > 1) {
       if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
       ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows &&
@@ -365,6 +383,7 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
         return -1;
       }
     }
+#endif
 
     pHelper->hasOldLastBlock = false;
   }
@@ -379,50 +398,34 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
 
   if (pIdx->len > 0) {
     if (!helperHasState(pHelper, TSDB_HELPER_INFO_LOAD)) {
-      offset = lseek(pFile->fd, 0, SEEK_END);
-      if (offset < 0) {
-        tsdbError("vgId:%d failed to lseed file %s since %s", REPO_ID(pHelper->pRepo), pFile->fname,
-                  strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return -1;
-      }
-
-      pIdx->offset = offset;
-      pIdx->uid = pHelper->tableInfo.uid;
-      pIdx->tid = pHelper->tableInfo.tid;
-      ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
-
-      if (tsendfile(pFile->fd, helperHeadF(pHelper)->fd, NULL, pIdx->len) < pIdx->len) {
-        tsdbError("vgId:%d failed to send %d bytes from file %s to %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
-                  helperHeadF(pHelper)->fname, pFile->fname, strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return -1;
-      }
+      if (tsdbLoadCompInfo(pHelper, NULL) < 0) return -1;
     } else {
       pHelper->pCompInfo->delimiter = TSDB_FILE_DELIMITER;
       pHelper->pCompInfo->uid = pHelper->tableInfo.uid;
-      pHelper->pCompInfo->checksum = 0;
+      pHelper->pCompInfo->tid = pHelper->tableInfo.tid;
       ASSERT(pIdx->len > sizeof(SCompInfo) + sizeof(TSCKSUM) &&
              (pIdx->len - sizeof(SCompInfo) - sizeof(TSCKSUM)) % sizeof(SCompBlock) == 0);
       taosCalcChecksumAppend(0, (uint8_t *)pHelper->pCompInfo, pIdx->len);
-      offset = lseek(pFile->fd, 0, SEEK_END);
-      if (offset < 0) {
-        tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pHelper->pRepo), pFile->fname,
-                  strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return -1;
-      }
-      pIdx->offset = offset;
-      pIdx->uid = pHelper->tableInfo.uid;
-      pIdx->tid = pHelper->tableInfo.tid;
-      ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
+    }
 
-      if (twrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
-        tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
-                  pFile->fname, strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return -1;
-      }
+    pFile->info.magic = taosCalcChecksum(
+        pFile->info.magic, (uint8_t *)POINTER_SHIFT(pHelper->pCompInfo, pIdx->len - sizeof(TSCKSUM)), sizeof(TSCKSUM));
+    offset = lseek(pFile->fd, 0, SEEK_END);
+    if (offset < 0) {
+      tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pHelper->pRepo), pFile->fname, strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+    pIdx->offset = offset;
+    pIdx->uid = pHelper->tableInfo.uid;
+    pIdx->tid = pHelper->tableInfo.tid;
+    ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
+
+    if (twrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
+      tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
+                pFile->fname, strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
     }
 
 #ifdef TSDB_IDX
@@ -463,6 +466,8 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
     }
   }
   taosCalcChecksumAppend(0, (uint8_t *)pHelper->pWIdx, pFile->info.len);
+  pFile->info.magic = taosCalcChecksum(
+      pFile->info.magic, (uint8_t *)POINTER_SHIFT(pHelper->pWIdx, pFile->info.len - sizeof(TSCKSUM)), sizeof(TSCKSUM));
 
   offset = lseek(pFile->fd, 0, SEEK_END);
   if (offset < 0) {
@@ -594,7 +599,7 @@ int tsdbLoadCompInfo(SRWHelper *pHelper, void *target) {
         return -1;
       }
 
-      ASSERT(pIdx->uid == pHelper->pCompInfo->uid);
+      ASSERT(pIdx->uid == pHelper->pCompInfo->uid && pIdx->tid == pHelper->pCompInfo->tid);
     }
 
     helperSetState(pHelper, TSDB_HELPER_INFO_LOAD);
@@ -813,6 +818,8 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
     ASSERT(flen > 0);
     flen += sizeof(TSCKSUM);
     taosCalcChecksumAppend(0, (uint8_t *)tptr, flen);
+    pFile->info.magic =
+        taosCalcChecksum(pFile->info.magic, (uint8_t *)POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)), sizeof(TSCKSUM));
 
     if (ncol != 0) {
       pCompCol->offset = toffset;
@@ -831,6 +838,8 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
   pCompData->numOfCols = nColsNotAllNull;
 
   taosCalcChecksumAppend(0, (uint8_t *)pCompData, tsize);
+  pFile->info.magic = taosCalcChecksum(pFile->info.magic, (uint8_t *)POINTER_SHIFT(pCompData, tsize - sizeof(TSCKSUM)),
+                                       sizeof(TSCKSUM));
 
   // Write the whole block to file
   if (twrite(pFile->fd, (void *)pCompData, lsize) < lsize) {

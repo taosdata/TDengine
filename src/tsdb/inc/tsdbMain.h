@@ -42,6 +42,7 @@ extern int tsdbDebugFlag;
 #define TSDB_MAX_TABLE_SCHEMAS 16
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
+#define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 
 // Definitions
 // ------------------ tsdbMeta.c
@@ -230,7 +231,7 @@ typedef struct {
 
 typedef struct {
   int32_t    delimiter;  // For recovery usage
-  int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
+  int32_t    tid;
   uint64_t   uid;
   SCompBlock blocks[];
 } SCompInfo;
@@ -308,6 +309,7 @@ typedef struct {
 #define TABLE_TID(t) (t)->tableId.tid
 #define TABLE_SUID(t) (t)->suid
 #define TABLE_LASTKEY(t) (t)->lastKey
+#define TSDB_META_FILE_MAGIC(m) KVSTORE_MAGIC((m)->pStore)
 
 STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
 void       tsdbFreeMeta(STsdbMeta* pMeta);
