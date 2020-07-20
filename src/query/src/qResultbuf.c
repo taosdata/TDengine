@@ -36,6 +36,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t nu
 
   pResBuf->fd = FD_INITIALIZER;
   pResBuf->pBuf = NULL;
+  pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
   qDebug("QInfo:%p create resBuf for output, page size:%d, initial pages:%d, %" PRId64 "bytes", handle,
       pResBuf->pageSize, pResBuf->numOfPages, pResBuf->totalBufSize);
@@ -173,7 +174,7 @@ int32_t getNumOfRowsPerPage(SDiskbasedResultBuf* pResultBuf) { return pResultBuf
 SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   int32_t slot = getGroupIndex(pResultBuf, groupId);
   if (slot < 0) {
-    return taosArrayInit(1, sizeof(int32_t));
+    return pResultBuf->emptyDummyIdList;
   } else {
     return taosArrayGetP(pResultBuf->list, slot);
   }
@@ -206,6 +207,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
   }
 
   taosArrayDestroy(pResultBuf->list);
+  taosArrayDestroy(pResultBuf->emptyDummyIdList);
   taosHashCleanup(pResultBuf->idsTable);
 
   tfree(pResultBuf->iBuf);
