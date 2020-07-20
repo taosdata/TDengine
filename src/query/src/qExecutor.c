@@ -4932,7 +4932,7 @@ static void tableMultiOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
         pQuery->current->lastKey, pQuery->window.ekey);
   } else if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
     STableIdInfo tidInfo;
-    STableId* id = TSDB_TABLEID(pQuery->current);
+    STableId* id = TSDB_TABLEID(pQuery->current->pTable);
 
     tidInfo.uid = id->uid;
     tidInfo.tid = id->tid;
