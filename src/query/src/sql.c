@@ -30,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-#include "qsqlparser.h"
+#include "qSqlparser.h"
 #include "tcmdtype.h"
 #include "tstoken.h"
 #include "ttokendef.h"

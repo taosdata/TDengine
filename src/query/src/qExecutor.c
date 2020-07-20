@@ -6617,14 +6617,16 @@ void* qOpenQueryMgmt(int32_t vgId) {
   char cacheName[128] = {0};
   sprintf(cacheName, "qhandle_%d", vgId);
 
-  SQueryMgmt* pQueryHandle = calloc(1, sizeof(SQueryMgmt));
+  SQueryMgmt* pQueryMgmt = calloc(1, sizeof(SQueryMgmt));
 
-  pQueryHandle->qinfoPool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true, freeqinfoFn, cacheName);
-  pQueryHandle->closed    = false;
-  pthread_mutex_init(&pQueryHandle->lock, NULL);
+  pQueryMgmt->qinfoPool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true, freeqinfoFn, cacheName);
+  pQueryMgmt->closed    = false;
+  pQueryMgmt->vgId      = vgId;
+
+  pthread_mutex_init(&pQueryMgmt->lock, NULL);
 
   qDebug("vgId:%d, open querymgmt success", vgId);
-  return pQueryHandle;
+  return pQueryMgmt;
 }
 
 static void queryMgmtKillQueryFn(void* handle) {
@@ -6664,7 +6666,7 @@ void qCleanupQueryMgmt(void* pQMgmt) {
   pthread_mutex_destroy(&pQueryMgmt->lock);
   tfree(pQueryMgmt);
 
-  qDebug("vgId:%d querymgmt cleanup completed", vgId);
+  qDebug("vgId:%d queryMgmt cleanup completed", vgId);
 }
 
 void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {

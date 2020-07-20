@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "qsqlparser.h"
+#include "qSqlparser.h"
 #include "queryLog.h"
 #include "taosdef.h"
 #include "taosmsg.h"

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODEQUERYUTIL_H
-#define TDENGINE_VNODEQUERYUTIL_H
+#ifndef TDENGINE_QRESULTBUF_H
+#define TDENGINE_QRESULTBUF_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,11 +26,18 @@ extern "C" {
 
 typedef struct SArray* SIDList;
 
+typedef struct SPageInfo {
+  int32_t pageId;
+  int32_t offset;
+  int32_t lengthOnDisk;
+} SPageInfo;
+
 typedef struct SDiskbasedResultBuf {
   int32_t   numOfRowsPerPage;
   int32_t   numOfPages;
   int64_t   totalBufSize;
-  int32_t   fd;                  // data file fd
+  FILE*     file;
+//  int32_t   fd;                  // data file fd
   int32_t   allocateId;          // allocated page id
   int32_t   incStep;             // minimum allocated pages
   void*     pBuf;                // mmap buffer pointer
@@ -43,6 +50,8 @@ typedef struct SDiskbasedResultBuf {
   void*     iBuf;                // inmemory buf
   void*     handle;              // for debug purpose
   void*     emptyDummyIdList;    // dummy id list
+  bool      comp;
+
 } SDiskbasedResultBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)
@@ -56,7 +65,7 @@ typedef struct SDiskbasedResultBuf {
  * @return
  */
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t numOfPages, int32_t rowSize, int32_t pagesize,
-    int32_t inMemPages, void* handle);
+    int32_t inMemPages, const void* handle);
 
 /**
  *
@@ -126,4 +135,4 @@ int32_t getLastPageId(SIDList pList);
 }
 #endif
 
-#endif  // TDENGINE_VNODEQUERYUTIL_H
+#endif  // TDENGINE_QRESULTBUF_H
