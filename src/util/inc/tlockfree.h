@@ -75,7 +75,7 @@ void taosRUnLockLatch(SRWLatch *pLatch);
 
 // copy on read
 #define taosCorBeginRead(x) for (uint32_t i_ = 1; 1; ++i_) { \
-    int32_t old_ = atomic_load_32(x); \
+    int32_t old_ = atomic_add_fetch_32((x), 0); \
     if (old_ & 0x00000001) { \
       if (i_ % 1000 == 0) { \
         sched_yield(); \
@@ -84,7 +84,7 @@ void taosRUnLockLatch(SRWLatch *pLatch);
     }
 
 #define taosCorEndRead(x) \
-    if (atomic_load_32(x) == old_) { \
+    if (atomic_add_fetch_32((x), 0) == old_) { \
       break; \
     } \
   }

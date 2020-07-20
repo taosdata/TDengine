@@ -42,6 +42,7 @@ typedef struct SDiskbasedResultBuf {
 
   void*     iBuf;                // inmemory buf
   void*     handle;              // for debug purpose
+  void*     emptyDummyIdList;    // dummy id list
 } SDiskbasedResultBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)
