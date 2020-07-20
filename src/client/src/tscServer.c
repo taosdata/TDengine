@@ -26,10 +26,11 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tlockfree.h"
 
 #define TSC_MGMT_VNODE 999
 
-SRpcEpSet  tscMgmtEpSet;
+SRpcCorEpSet  tscMgmtEpSet;
 SRpcEpSet  tscDnodeEpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
@@ -51,37 +52,78 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
     pEpSet->numOfEps = 0;
     return;
   }
-  
+
   pEpSet->numOfEps = pVgroupInfo->numOfEps;
   for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
     strcpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn);
     pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
   }
 }
+static void tscDumpMgmtEpSet(SRpcEpSet *epSet) {
+  taosCorBeginRead(&tscMgmtEpSet.version);
+  *epSet = tscMgmtEpSet.epSet;
+  taosCorEndRead(&tscMgmtEpSet.version);
+}  
+static void tscEpSetHtons(SRpcEpSet *s) {
+   for (int32_t i = 0; i < s->numOfEps; i++) {
+      s->port[i] = htons(s->port[i]);    
+   }
+} 
+bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
+   if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
+     return false;
+   } 
+   for (int32_t i = 0; i < s1->numOfEps; i++) {
+     if (s1->port[i] != s2->port[i] 
+        || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
+        return false;
+   }
+   return true;
+}
+void tscUpdateMgmtEpSet(SRpcEpSet *pEpSet) {
+  // no need to update if equal
+  taosCorBeginWrite(&tscMgmtEpSet.version);
+  tscMgmtEpSet.epSet = *pEpSet;
+  taosCorEndWrite(&tscMgmtEpSet.version);
+}
+static void tscDumpEpSetFromVgroupInfo(SCMCorVgroupInfo *pVgroupInfo, SRpcEpSet *pEpSet) {
+  if (pVgroupInfo == NULL) { return;}
+  taosCorBeginRead(&pVgroupInfo->version);
+  int8_t inUse = pVgroupInfo->inUse;
+  pEpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
+  pEpSet->numOfEps = pVgroupInfo->numOfEps;  
+  for (int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
+    strncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
+  }
+  taosCorEndRead(&pVgroupInfo->version);
+}
 
+static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
+  SSqlCmd *pCmd = &pObj->cmd;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
+  SCMCorVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->corVgroupInfo;
+
+  taosCorBeginWrite(&pVgroupInfo->version);
+  //TODO(dengyihao), dont care vgid 
+  pVgroupInfo->inUse = pEpSet->inUse;
+  pVgroupInfo->numOfEps = pEpSet->numOfEps;
+  for (int32_t i = 0; pVgroupInfo->numOfEps; i++) {
+    strncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    pVgroupInfo->epAddr[i].port = pEpSet->port[i];
+  }
+  taosCorEndWrite(&pVgroupInfo->version);
+}
 void tscPrintMgmtEp() {
-  if (tscMgmtEpSet.numOfEps <= 0) {
-    tscError("invalid mnode EP list:%d", tscMgmtEpSet.numOfEps);
+  SRpcEpSet dump;
+  tscDumpMgmtEpSet(&dump);
+  if (dump.numOfEps <= 0) {
+    tscError("invalid mnode EP list:%d", dump.numOfEps);
   } else {
-    for (int i = 0; i < tscMgmtEpSet.numOfEps; ++i) {
-      tscDebug("mnode index:%d %s:%d", i, tscMgmtEpSet.fqdn[i], tscMgmtEpSet.port[i]);
+    for (int i = 0; i < dump.numOfEps; ++i) {
+      tscDebug("mnode index:%d %s:%d", i, dump.fqdn[i], dump.port[i]);
     }
-  }
-}
-
-void tscSetMgmtEpSet(SRpcEpSet *pEpSet) {
-  tscMgmtEpSet.numOfEps = pEpSet->numOfEps;
-  tscMgmtEpSet.inUse = pEpSet->inUse;
-  for (int32_t i = 0; i < tscMgmtEpSet.numOfEps; ++i) {
-    tscMgmtEpSet.port[i] = htons(pEpSet->port[i]);
-  }
-}
-
-void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet) {
-  tscMgmtEpSet = *pEpSet;
-  tscDebug("mnode EP list is changed for ufp is called, numOfEps:%d inUse:%d", tscMgmtEpSet.numOfEps, tscMgmtEpSet.inUse);
-  for (int32_t i = 0; i < tscMgmtEpSet.numOfEps; ++i) {
-    tscDebug("index:%d fqdn:%s port:%d", i, tscMgmtEpSet.fqdn[i], tscMgmtEpSet.port[i]);
   }
 }
 
@@ -95,7 +137,9 @@ void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet) {
 UNUSED_FUNC
 static int32_t tscGetMgmtConnMaxRetryTimes() {
   int32_t factor = 2;
-  return tscMgmtEpSet.numOfEps * factor;
+  SRpcEpSet dump;
+  tscDumpMgmtEpSet(&dump);
+  return dump.numOfEps * factor;
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -111,9 +155,11 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
   if (code == 0) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
-    SRpcEpSet *      pEpSet = &pRsp->epSet;
-    if (pEpSet->numOfEps > 0) 
-      tscSetMgmtEpSet(pEpSet);
+    SRpcEpSet *      epSet = &pRsp->epSet;
+    if (epSet->numOfEps > 0) {
+      tscEpSetHtons(epSet);
+      tscUpdateMgmtEpSet(epSet);
+    } 
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
 
@@ -185,7 +231,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    pSql->epSet = tscMgmtEpSet;
+    tscDumpMgmtEpSet(&pSql->epSet);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
@@ -236,10 +282,16 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     return;
   }
 
-  if (pCmd->command < TSDB_SQL_MGMT) {
-    if (pEpSet) pSql->epSet = *pEpSet;
-  } else {
-    if (pEpSet) tscMgmtEpSet = *pEpSet;
+  if (pEpSet) { 
+    //SRpcEpSet dump; 
+    tscEpSetHtons(pEpSet); 
+    if (tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
+      if(pCmd->command < TSDB_SQL_MGMT)  { 
+        tscUpdateVgroupInfo(pSql, pEpSet); 
+      } else {
+        tscUpdateMgmtEpSet(pEpSet);
+    }
+    }
   }
 
   if (rpcMsg->pCont == NULL) {
@@ -421,7 +473,8 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    pSql->epSet = tscMgmtEpSet;
+
+    //pSql->epSet = tscMgmtEpSet;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -525,8 +578,8 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscSetDnodeEpSet(pSql, &pTableMeta->vgroupInfo);
-  
+  tscDumpEpSetFromVgroupInfo(&pTableMeta->corVgroupInfo, &pSql->epSet);
+
   tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, vgId, pSql->cmd.numOfTablesInSubmit,
       pSql->epSet.numOfEps);
   return TSDB_CODE_SUCCESS;
@@ -567,11 +620,11 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
-
     tscSetDnodeEpSet(pSql, pVgroupInfo);
+
     if (pVgroupInfo != NULL) {
       pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
-    }
+    } 
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
     pTableIdInfo->tid = htonl(pTableMeta->sid);
@@ -588,8 +641,8 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
 
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
-    
-    // set the vgroup info
+
+    // set the vgroup info 
     tscSetDnodeEpSet(pSql, &pTableIdList->vgInfo);
     pQueryMsg->head.vgId = htonl(pTableIdList->vgInfo.vgId);
     
@@ -1136,11 +1189,11 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pShowMsg->payloadLen = htons(pPattern->n);
     }
   } else {
-    SSQLToken *pIpAddr = &pShowInfo->prefix;
-    assert(pIpAddr->n > 0 && pIpAddr->type > 0);
+    SSQLToken *pEpAddr = &pShowInfo->prefix;
+    assert(pEpAddr->n > 0 && pEpAddr->type > 0);
 
-    strncpy(pShowMsg->payload, pIpAddr->z, pIpAddr->n);
-    pShowMsg->payloadLen = htons(pIpAddr->n);
+    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
+    pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
   pCmd->payloadLen = sizeof(SCMShowMsg) + pShowMsg->payloadLen;
@@ -1323,7 +1376,7 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  tscSetDnodeEpSet(pSql, &pTableMetaInfo->pTableMeta->vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pTableMetaInfo->pTableMeta->corVgroupInfo, &pSql->epSet);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1847,13 +1900,14 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     memcpy(pInfo->vgroupList, pVgroupInfo, size);
     for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
+      //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
-
       pVgroups->vgId = htonl(pVgroups->vgId);
       assert(pVgroups->numOfEps >= 1);
 
       for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
         pVgroups->epAddr[k].port = htons(pVgroups->epAddr[k].port);
+
       }
 
       pMsg += size;
@@ -1946,8 +2000,10 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= sizeof(pObj->db));
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
-  if (pConnect->epSet.numOfEps > 0) 
-    tscSetMgmtEpSet(&pConnect->epSet);
+  if (pConnect->epSet.numOfEps > 0) {
+    tscEpSetHtons(&pConnect->epSet);
+    tscUpdateMgmtEpSet(&pConnect->epSet);
+  } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;

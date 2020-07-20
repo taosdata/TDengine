@@ -107,42 +107,41 @@ static int32_t mnodeChildTableActionInsert(SSdbOper *pOper) {
   SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("ctable:%s, not in vgId:%d", pTable->info.tableId, pTable->vgId);
-    return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
-  mnodeDecVgroupRef(pVgroup);
 
-  SDbObj *pDb = mnodeGetDb(pVgroup->dbName);
-  if (pDb == NULL) {
-    mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
-    return TSDB_CODE_MND_INVALID_DB;
+  SDbObj *pDb = NULL;
+  if (pVgroup != NULL) {
+    pDb = mnodeGetDb(pVgroup->dbName);
+    if (pDb == NULL) {
+      mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
+    }
   }
-  
-  if (pDb->status != TSDB_DB_STATUS_READY) {
-    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
-    return TSDB_CODE_MND_DB_IN_DROPPING;
-  }
-  mnodeDecDbRef(pDb);
 
-  SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
-  if (pAcct == NULL) {
-    mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
-    return TSDB_CODE_MND_INVALID_ACCT;
+  SAcctObj *pAcct = NULL;
+  if (pDb != NULL) {
+    pAcct = mnodeGetAcct(pDb->acct);
+    if (pAcct == NULL) {
+      mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
+    }
   }
-  mnodeDecAcctRef(pAcct);
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     // add ref
     pTable->superTable = mnodeGetSuperTableByUid(pTable->suid);
     mnodeAddTableIntoStable(pTable->superTable, pTable);
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
-    pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
+    if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
   } else {
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
-    pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
+    if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
   }
 
-  mnodeAddTableIntoDb(pDb);
-  mnodeAddTableIntoVgroup(pVgroup, pTable);
+  if (pDb) mnodeAddTableIntoDb(pDb);
+  if (pVgroup) mnodeAddTableIntoVgroup(pVgroup, pTable);
+
+  mnodeDecVgroupRef(pVgroup);
+  mnodeDecDbRef(pDb);
+  mnodeDecAcctRef(pAcct);
 
   return TSDB_CODE_SUCCESS;
 }

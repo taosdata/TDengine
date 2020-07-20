@@ -41,7 +41,7 @@ int tscNumOfThreads;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
-void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet);
+//void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet);
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosGetDisk();
