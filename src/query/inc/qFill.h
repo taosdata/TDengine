@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "qExtbuffer.h"
 #include "taosdef.h"
-#include "qextbuffer.h"
 
 typedef struct {
   STColumn col;             // column info

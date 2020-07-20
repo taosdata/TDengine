@@ -522,7 +522,7 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
 void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char* tdengineTmpFileNamePrefix = "tdengine-";
   
-  char tmpPath[PATH_MAX] = {0};
+  char tmpPath[PATH_MAX];
 
 #ifdef WINDOWS
   char *tmpDir = getenv("tmp");

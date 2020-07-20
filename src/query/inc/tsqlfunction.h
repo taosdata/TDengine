@@ -255,7 +255,15 @@ extern int32_t functionCompatList[]; // compatible check array list
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval);
 
-void resetResultInfo(SResultInfo *pResInfo);
+/**
+ * the numOfRes should be kept, since it may be used later
+ * and allow the ResultInfo to be re initialized
+ */
+#define RESET_RESULT_INFO(_r)  \
+  do {                         \
+    (_r)->initialized = false; \
+  } while (0)
+
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf);
 
 static FORCE_INLINE void initResultInfo(SResultInfo *pResInfo) {

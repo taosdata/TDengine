@@ -35,12 +35,12 @@ extern "C" {
 #define WCHAR wchar_t
 
 #define tfree(x)         \
-  {                      \
+  do {                   \
     if (x) {             \
       free((void *)(x)); \
       x = 0;             \
     }                    \
-  }
+  } while(0);
 
 #define tstrncpy(dst, src, size)   \
   do {                             \

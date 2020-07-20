@@ -15,7 +15,7 @@
 
 #include "hash.h"
 #include "os.h"
-#include "qast.h"
+#include "qAst.h"
 #include "tcache.h"
 #include "tnote.h"
 #include "trpc.h"

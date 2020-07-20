@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qFill.h"
 #include "os.h"
-#include "qfill.h"
-#include "qextbuffer.h"
+#include "qExtbuffer.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tsqlfunction.h"

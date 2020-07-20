@@ -14,15 +14,15 @@
  */
 
 #include "os.h"
-#include "qextbuffer.h"
-#include "qfill.h"
-#include "qhistogram.h"
-#include "qpercentile.h"
-#include "qsyntaxtreefunction.h"
-#include "qtsbuf.h"
+#include "qAst.h"
+#include "qExtbuffer.h"
+#include "qFill.h"
+#include "qHistogram.h"
+#include "qPercentile.h"
+#include "qSyntaxtreefunction.h"
+#include "qTsbuf.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "qast.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscompression.h"
@@ -74,7 +74,7 @@ for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) {                  \
 void noop1(SQLFunctionCtx *UNUSED_PARAM(pCtx)) {}
 void noop2(SQLFunctionCtx *UNUSED_PARAM(pCtx), int32_t UNUSED_PARAM(index)) {}
 
-void doFinalizer(SQLFunctionCtx *pCtx) { resetResultInfo(GET_RES_INFO(pCtx)); }
+void doFinalizer(SQLFunctionCtx *pCtx) { RESET_RESULT_INFO(GET_RES_INFO(pCtx)); }
 
 typedef struct tValuePair {
   tVariant v;
@@ -329,12 +329,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   
   return TSDB_CODE_SUCCESS;
 }
-
-/**
- * the numOfRes should be kept, since it may be used later
- * and allow the ResultInfo to be re initialized
- */
-void resetResultInfo(SResultInfo *pResInfo) { pResInfo->initialized = false; }
 
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf) {
   assert(pResInfo->interResultBuf == NULL);
