@@ -674,6 +674,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {
+      uDebug("%s refresh threads quit", pCacheObj->name);
       break;
     }
 
