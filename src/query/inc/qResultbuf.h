@@ -90,9 +90,9 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
 //#define getResBufPage(buf, id)  ((tFilePage*)((buf)->pBuf + (buf)->pageSize * (id)))
 static FORCE_INLINE tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
   if (id < pResultBuf->inMemPages) {
-    return pResultBuf->iBuf + id * pResultBuf->pageSize;
+    return (tFilePage*) ((char*) pResultBuf->iBuf + id * pResultBuf->pageSize);
   } else {
-    return pResultBuf->pBuf + (id - pResultBuf->inMemPages) * pResultBuf->pageSize;
+    return (tFilePage*) ((char*) pResultBuf->pBuf + (id - pResultBuf->inMemPages) * pResultBuf->pageSize);
   }
 }
 /**
