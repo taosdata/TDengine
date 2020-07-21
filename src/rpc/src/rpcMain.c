@@ -446,7 +446,10 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   // set the idle timer to monitor the activity
   taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
-  pConn->secured = 1; // connection shall be secured
+
+  // if not set to secured, set it expcet NOT_READY case, since client wont treat it as secured
+  if (pConn->secured == 0 && pMsg->code != TSDB_CODE_RPC_NOT_READY)
+    pConn->secured = 1; // connection shall be secured
 
   if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);
   pConn->pReqMsg = NULL;

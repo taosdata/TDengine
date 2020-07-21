@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     # Create a database named db
     try:
-        c1.execute('create database db')
+        c1.execute('create database if not exists db ')
     except Exception as err:
         conn.close()
         raise(err)
