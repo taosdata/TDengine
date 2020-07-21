@@ -263,7 +263,9 @@ typedef struct {
   TSKEY      minKey;
   TSKEY      maxKey;
   SFileGroup fGroup;
-  SFile      nIdxF;
+#ifdef TSDB_IDX
+  SFile nIdxF;
+#endif
   SFile      nHeadF;
   SFile      nLastF;
 } SHelperFile;
