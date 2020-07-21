@@ -64,7 +64,7 @@ int32_t mqttInitSystem() {
   }
 
   char* _begin_hostname = strstr(url, recntStatus.hostname);
-  if (strstr(_begin_hostname, ":") != NULL) {
+  if (_begin_hostname != NULL && strstr(_begin_hostname, ":") != NULL) {
     recntStatus.port = strbetween(_begin_hostname, ":", "/");
   } else {
     recntStatus.port = strbetween("'1883'", "'", "'");

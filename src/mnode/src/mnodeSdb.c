@@ -453,7 +453,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
     keySize = strlen((char *)key);
   }
 
-  taosHashPut(pTable->iHandle, key, keySize, &pOper->pObj, sizeof(void **));
+  taosHashPut(pTable->iHandle, key, keySize, &pOper->pObj, sizeof(int64_t));
 
   sdbIncRef(pTable, pOper->pObj);
   atomic_add_fetch_32(&pTable->numOfRows, 1);
