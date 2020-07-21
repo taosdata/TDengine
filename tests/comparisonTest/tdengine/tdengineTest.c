@@ -12,8 +12,9 @@ typedef struct {
   char sql[256];
   char dataDir[256];
   int filesNum;
-  int writeClients;
+  int clients;
   int rowsPerRequest;
+  int write;
 } ProArgs;
 
 typedef struct {
@@ -40,7 +41,7 @@ int main(int argc, char *argv[]) {
   statis.totalRows = 0;
   parseArg(argc, argv);
 
-  if (arguments.writeClients > 0) {
+  if (arguments.write) {
     writeData();
   } else {
     readData();
@@ -51,7 +52,7 @@ void parseArg(int argc, char *argv[]) {
   strcpy(arguments.sql, "./sqlCmd.txt");
   strcpy(arguments.dataDir, "./testdata");
   arguments.filesNum = 2;
-  arguments.writeClients = 0;
+  arguments.clients = 0;
   arguments.rowsPerRequest = 100;
 
   for (int i = 1; i < argc; ++i) {
@@ -82,12 +83,12 @@ void parseArg(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     }
-    else if (strcmp(argv[i], "-writeClients") == 0) {
+    else if (strcmp(argv[i], "-clients") == 0) {
       if (i < argc - 1) {
-        arguments.writeClients = atoi(argv[++i]);
+        arguments.clients = atoi(argv[++i]);
       }
       else {
-        fprintf(stderr, "'-writeClients' requires a parameter, default:%d\n", arguments.writeClients);
+        fprintf(stderr, "'-clients' requires a parameter, default:%d\n", arguments.clients);
         exit(EXIT_FAILURE);
       }
     }
@@ -99,6 +100,9 @@ void parseArg(int argc, char *argv[]) {
         fprintf(stderr, "'-rowsPerRequest' requires a parameter, default:%d\n", arguments.rowsPerRequest);
         exit(EXIT_FAILURE);
       }
+    }
+    else if (strcmp(argv[i], "-w") == 0) {
+      arguments.write = 1;
     }
   }
 }
@@ -207,7 +211,7 @@ void writeDataImp(void *param) {
 
 void writeData() {
   printf("write data\n");
-  printf("---- writeClients: %d\n", arguments.writeClients);
+  printf("---- clients: %d\n", arguments.clients);
   printf("---- dataDir: %s\n", arguments.dataDir);
   printf("---- numOfFiles: %d\n", arguments.filesNum);
   printf("---- rowsPerRequest: %d\n", arguments.rowsPerRequest);
@@ -231,12 +235,12 @@ void writeData() {
 
   int64_t st = getTimeStampMs();
 
-  int a = arguments.filesNum / arguments.writeClients;
-  int b = arguments.filesNum % arguments.writeClients;
+  int a = arguments.filesNum / arguments.clients;
+  int b = arguments.filesNum % arguments.clients;
   int last = 0;
 
-  ThreadObj *threads = calloc((size_t)arguments.writeClients, sizeof(ThreadObj));
-  for (int i = 0; i < arguments.writeClients; ++i) {
+  ThreadObj *threads = calloc((size_t)arguments.clients, sizeof(ThreadObj));
+  for (int i = 0; i < arguments.clients; ++i) {
     ThreadObj *pthread = threads + i;
     pthread_attr_t thattr;
     pthread->threadId = i + 1;
@@ -252,7 +256,7 @@ void writeData() {
     pthread_create(&pthread->pid, &thattr, (void *(*)(void *))writeDataImp, pthread);
   }
 
-  for (int i = 0; i < arguments.writeClients; i++) {
+  for (int i = 0; i < arguments.clients; i++) {
     pthread_join(threads[i].pid, NULL);
   }
 
@@ -263,20 +267,20 @@ void writeData() {
   printf("---- Spent %f seconds to insert %ld records, speed: %f Rows/Second\n", seconds, statis.totalRows, rs);
 }
 
-void readData() {
-  printf("read data\n");
-  printf("---- sql: %s\n", arguments.sql);
-
-  void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  if (taos == NULL)
-    taos_error(taos);
-
+void readDataImp(void *param)
+{
+  ThreadObj *pThread = (ThreadObj *)param;
+  printf("Thread %d\n", pThread->threadId);
   FILE *fp = fopen(arguments.sql, "r");
   if (fp == NULL) {
     printf("failed to open file %s\n", arguments.sql);
     exit(1);
   }
   printf("open file %s success\n", arguments.sql);
+
+  void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  if (taos == NULL)
+    taos_error(taos);
 
   char *line = NULL;
   size_t len = 0;
@@ -318,9 +322,36 @@ void readData() {
 
     int64_t elapsed = getTimeStampMs() - st;
     float seconds = (float)elapsed / 1000;
-    printf("---- Spent %f seconds to query: %s", seconds, line);
+    printf("---- Spent %f seconds to retrieve %d records, Thread:%d query: %s\n", seconds, rows, pThread->threadId, line);
   }
 
   fclose(fp);
+}
+
+void readData() {
+  printf("read data\n");
+  printf("---- sql: %s\n", arguments.sql);
+  printf("---- clients: %d\n", arguments.clients);
+
+  void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  if (taos == NULL)
+    taos_error(taos);
+
+  ThreadObj *threads = calloc((size_t)arguments.clients, sizeof(ThreadObj));
+
+  for (int i = 0; i < arguments.clients; ++i) {
+    ThreadObj *pthread = threads + i;
+    pthread_attr_t thattr;
+    pthread->threadId = i + 1;
+    pthread_attr_init(&thattr);
+    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+    pthread_create(&pthread->pid, &thattr, (void *(*)(void *))readDataImp, pthread);
+  }
+
+  for (int i = 0; i < arguments.clients; i++) {
+    pthread_join(threads[i].pid, NULL);
+  }
+
+  free(threads);
 }
 
