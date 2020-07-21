@@ -31,7 +31,6 @@ static int         tsdbCommitMeta(STsdbRepo *pRepo);
 static void        tsdbEndCommit(STsdbRepo *pRepo);
 static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
-static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 
@@ -544,7 +543,7 @@ static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSK
   return 0;
 }
 
-static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
+void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
   *minKey = fileId * daysPerFile * tsMsPerDay[precision];
   *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
 }

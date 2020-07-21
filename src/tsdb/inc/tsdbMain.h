@@ -440,6 +440,7 @@ int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
+void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
