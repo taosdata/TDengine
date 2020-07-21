@@ -2,15 +2,15 @@
 #include <cassert>
 #include <iostream>
 
+#include "qResultbuf.h"
 #include "taos.h"
-#include "qresultBuf.h"
 #include "tsdb.h"
 
 namespace {
 // simple test
 void simpleTest() {
   SDiskbasedResultBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1000, 64, NULL);
+  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1000, 64, 1024, 4, NULL);
   
   int32_t pageId = 0;
   int32_t groupId = 0;
@@ -22,8 +22,7 @@ void simpleTest() {
   ASSERT_EQ(getResBufSize(pResultBuf), 1000*16384L);
   
   SIDList list = getDataBufPagesIdList(pResultBuf, groupId);
-  ASSERT_EQ(list.size, 1);
-  
+  ASSERT_EQ(taosArrayGetSize(list), 1);
   ASSERT_EQ(getNumOfResultBufGroupId(pResultBuf), 1);
   
   destroyResultBuf(pResultBuf, NULL);

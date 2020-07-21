@@ -9,7 +9,7 @@
 #include "tstoken.h"
 #include "tutil.h"
 
-#include "qhistogram.h"
+#include "qHistogram.h"
 
 /* test validate the names for table/database */
 TEST(testCase, histogram_binary_search) {

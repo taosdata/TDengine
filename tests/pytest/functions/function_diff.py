@@ -30,16 +30,15 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        intData = []        
-        floatData = []
-
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20)) tags(loc nchar(20))''')
         tdSql.execute("create table test1 using test tags('beijing')")
         tdSql.execute("insert into test1 values(%d, 0, 0, 0, 0, 0.0, 0.0, False, ' ', ' ')" % (self.ts - 1))
+        
+        # diff verifacation 
         tdSql.query("select diff(col1) from test1")
         tdSql.checkRows(0)
-
+        
         tdSql.query("select diff(col2) from test1")
         tdSql.checkRows(0)
 
@@ -57,11 +56,8 @@ class TDTestCase:
 
         for i in range(self.rowNum):
             tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)                        
-
-        # diff verifacation 
+                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))                                
+        
         tdSql.error("select diff(ts) from test")
         tdSql.error("select diff(ts) from test1")
         tdSql.error("select diff(col1) from test")

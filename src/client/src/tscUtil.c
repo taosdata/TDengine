@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "hash.h"
 #include "tscUtil.h"
+#include "hash.h"
+#include "os.h"
+#include "qAst.h"
 #include "taosmsg.h"
-#include "qast.h"
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"
@@ -2146,16 +2146,19 @@ char* strdup_throw(const char* str) {
 }
 
 int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
-  tscMgmtEpSet.numOfEps = 0;
-  tscMgmtEpSet.inUse = 0;
+  // init mgmt ip set 
+  tscMgmtEpSet.version = 0;
+  SRpcEpSet *mgmtEpSet = &(tscMgmtEpSet.epSet);
+  mgmtEpSet->numOfEps = 0;
+  mgmtEpSet->inUse = 0;
 
   if (first && first[0] != 0) {
     if (strlen(first) >= TSDB_EP_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(first, tscMgmtEpSet.fqdn[tscMgmtEpSet.numOfEps], &tscMgmtEpSet.port[tscMgmtEpSet.numOfEps]);
-    tscMgmtEpSet.numOfEps++;
+    taosGetFqdnPortFromEp(first, mgmtEpSet->fqdn[mgmtEpSet->numOfEps], &(mgmtEpSet->port[mgmtEpSet->numOfEps]));
+    mgmtEpSet->numOfEps++;
   }
 
   if (second && second[0] != 0) {
@@ -2163,11 +2166,11 @@ int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
       terrno = TSDB_CODE_TSC_INVALID_FQDN;
       return -1;
     }
-    taosGetFqdnPortFromEp(second, tscMgmtEpSet.fqdn[tscMgmtEpSet.numOfEps], &tscMgmtEpSet.port[tscMgmtEpSet.numOfEps]);
-    tscMgmtEpSet.numOfEps++;
+    taosGetFqdnPortFromEp(second, mgmtEpSet->fqdn[mgmtEpSet->numOfEps], &(mgmtEpSet->port[mgmtEpSet->numOfEps]));
+    mgmtEpSet->numOfEps++;
   }
 
-  if ( tscMgmtEpSet.numOfEps == 0) {
+  if (mgmtEpSet->numOfEps == 0) {
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;
   }

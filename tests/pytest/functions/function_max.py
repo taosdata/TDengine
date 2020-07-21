@@ -42,7 +42,7 @@ class TDTestCase:
             intData.append(i + 1)            
             floatData.append(i + 0.1)                        
 
-        # min verifacation 
+        # max verifacation 
         tdSql.error("select max(ts) from test")
         tdSql.error("select max(ts) from test1")
         tdSql.error("select max(col7) from test")

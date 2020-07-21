@@ -57,8 +57,7 @@ class TDTestCase:
         tdSql.query("select sum(col4) from test")
         tdSql.checkData(0, 0, np.sum(intData))
         tdSql.query("select sum(col5) from test")
-        print("query result for folat sum function: %f" % tdSql.getData(0, 0))
-        print("calculation result for numpy sum function: %f" % np.sum(floatData))
+        tdSql.checkData(0, 0, np.sum(floatData)) 
         tdSql.query("select sum(col6) from test")
         tdSql.checkData(0, 0, np.sum(floatData))              
 

@@ -5,10 +5,10 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#include "qTsbuf.h"
 #include "tstoken.h"
 #include "ttime.h"
 #include "tutil.h"
-#include "qtsbuf.h"
 
 namespace {
 /**
