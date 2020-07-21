@@ -406,7 +406,7 @@ void sdbDecRef(void *handle, void *pObj) {
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
   sdbTrace("def ref of table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
 
-  int8_t *updateEnd = pObj + pTable->refCountPos - 1;
+  int32_t *updateEnd = pObj + pTable->refCountPos - 4;
   if (refCount <= 0 && *updateEnd) {
     sdbTrace("table:%s, record:%p:%s:%d is destroyed", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
     SSdbOper oper = {.pObj = pObj};
@@ -472,6 +472,14 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
 }
 
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
+  int32_t *updateEnd = pOper->pObj + pTable->refCountPos - 4;
+  bool set = atomic_val_compare_exchange_32(updateEnd, 0, 1) == 0;
+  if (!set) {
+    sdbError("table:%s, failed to delete record:%s from hash, for it already removed", pTable->tableName,
+             sdbGetKeyStrFromObj(pTable, pOper->pObj));
+    return TSDB_CODE_MND_SDB_OBJ_NOT_THERE;
+  }
+
   (*pTable->deleteFp)(pOper);
   
   void *  key = sdbGetObjKey(pTable, pOper->pObj);
@@ -486,8 +494,6 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
   sdbDebug("table:%s, delete record:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pTable->numOfRows, pOper->pMsg);
 
-  int8_t *updateEnd = pOper->pObj + pTable->refCountPos - 1;
-  *updateEnd = 1;
   sdbDecRef(pTable, pOper->pObj);
 
   return TSDB_CODE_SUCCESS;
@@ -654,7 +660,7 @@ bool sdbCheckRowDeleted(void *pTableInput, void *pRow) {
   SSdbTable *pTable = pTableInput;
   if (pTable == NULL) return false;
 
-  int8_t *updateEnd = pRow + pTable->refCountPos - 1;
+  int32_t *updateEnd = pRow + pTable->refCountPos - 4;
   return (*updateEnd == 1);
 }
 
