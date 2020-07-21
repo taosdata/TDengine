@@ -141,6 +141,7 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
   if (tdLoadKVStoreHeader(pStore->fd, pStore->fname, &info) < 0) goto _err;
 
   pStore->info.size = TD_KVSTORE_HEADER_SIZE;
+  pStore->info.magic = info.magic;
 
   if (tdRestoreKVStore(pStore) < 0) goto _err;
 
