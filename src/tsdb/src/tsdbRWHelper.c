@@ -530,7 +530,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
         size_t tlen = tsizeof(pHelper->idxH.pIdxArray);
         pHelper->idxH.numOfIdx++;
 
-        if (tlen < pHelper->idxH.numOfIdx) {
+        if (tlen < pHelper->idxH.numOfIdx * sizoef(SCompIdx)) {
           pHelper->idxH.pIdxArray = (SCompIdx *)trealloc(pHelper->idxH.pIdxArray, (tlen == 0) ? 1024 : tlen * 2);
           if (pHelper->idxH.pIdxArray == NULL) {
             terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
