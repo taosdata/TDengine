@@ -54,7 +54,7 @@ int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->tota
 
 static int32_t createDiskResidesBuf(SDiskbasedResultBuf* pResultBuf) {
 //  pResultBuf->fd = open(pResultBuf->path, O_CREAT | O_RDWR, 0666);
-  pResultBuf->file = fopen(pResultBuf->path, "r+");
+  pResultBuf->file = fopen(pResultBuf->path, "w");
   if (pResultBuf->file == NULL) {
     qError("failed to create tmp file: %s on disk. %s", pResultBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
