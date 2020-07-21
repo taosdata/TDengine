@@ -1474,6 +1474,10 @@ class Task():
         elif errno == 0x200 : # invalid SQL, we need to div in a bit more
             if msg.find("invalid column name") != -1:
                 return True 
+            elif msg.find("tags number not matched") != -1: # mismatched tags after modification
+                return True
+            elif msg.find("duplicated column names") != -1: # also alter table tag issues
+                return True
         
         return False # Not an acceptable error
 
