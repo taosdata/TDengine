@@ -381,7 +381,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
 }
 
 void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
-  if (pCacheObj == NULL || data == NULL) return NULL;
+  if (pCacheObj == NULL || data == NULL || *data == NULL) return NULL;
   
   size_t          offset = offsetof(SCacheDataNode, data);
   SCacheDataNode *ptNode = (SCacheDataNode *)((char *)(*data) - offset);
