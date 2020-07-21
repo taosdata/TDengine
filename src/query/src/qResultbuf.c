@@ -35,7 +35,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t nu
   getTmpfilePath("qbuf", path);
   pResBuf->path = strdup(path);
 
-  pResBuf->file = NULL;
+  pResBuf->fd = FD_INITIALIZER;
   pResBuf->pBuf = NULL;
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
@@ -53,9 +53,9 @@ int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->tota
 #define FILE_SIZE_ON_DISK(_r) (NUM_OF_PAGES_ON_DISK(_r) * (_r)->pageSize)
 
 static int32_t createDiskResidesBuf(SDiskbasedResultBuf* pResultBuf) {
-//  pResultBuf->fd = open(pResultBuf->path, O_CREAT | O_RDWR, 0666);
-  pResultBuf->file = fopen(pResultBuf->path, "w");
-  if (pResultBuf->file == NULL) {
+  pResultBuf->fd = open(pResultBuf->path, O_CREAT | O_RDWR, 0666);
+//  pResultBuf->file = fopen(pResultBuf->path, "w");
+  if (!FD_VALID(pResultBuf->fd)) {
     qError("failed to create tmp file: %s on disk. %s", pResultBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -63,14 +63,13 @@ static int32_t createDiskResidesBuf(SDiskbasedResultBuf* pResultBuf) {
   assert(pResultBuf->numOfPages == pResultBuf->inMemPages);
   pResultBuf->numOfPages += pResultBuf->incStep;
 
-  int32_t ret = ftruncate(fileno(pResultBuf->file), NUM_OF_PAGES_ON_DISK(pResultBuf) * pResultBuf->pageSize);
+  int32_t ret = ftruncate(pResultBuf->fd, NUM_OF_PAGES_ON_DISK(pResultBuf) * pResultBuf->pageSize);
   if (ret != TSDB_CODE_SUCCESS) {
     qError("failed to create tmp file: %s on disk. %s", pResultBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  pResultBuf->pBuf = mmap(NULL, FILE_SIZE_ON_DISK(pResultBuf), PROT_READ | PROT_WRITE, MAP_SHARED,
-      fileno(pResultBuf->file), 0);
+  pResultBuf->pBuf = mmap(NULL, FILE_SIZE_ON_DISK(pResultBuf), PROT_READ | PROT_WRITE, MAP_SHARED, pResultBuf->fd, 0);
 
   if (pResultBuf->pBuf == MAP_FAILED) {
     qError("QInfo:%p failed to map temp file: %s. %s", pResultBuf->handle, pResultBuf->path, strerror(errno));
@@ -86,7 +85,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t incNu
   int32_t ret = TSDB_CODE_SUCCESS;
 
   if (pResultBuf->pBuf == NULL) {
-    assert(pResultBuf->file == NULL);
+    assert(!FD_VALID(pResultBuf->fd));
 
     if ((ret = createDiskResidesBuf(pResultBuf)) != TSDB_CODE_SUCCESS) {
       return ret;
@@ -99,7 +98,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t incNu
      * disk-based output buffer is exhausted, try to extend the disk-based buffer, the available disk space may
      * be insufficient
      */
-    ret = ftruncate(fileno(pResultBuf->file), NUM_OF_PAGES_ON_DISK(pResultBuf) * pResultBuf->pageSize);
+    ret = ftruncate(pResultBuf->fd, NUM_OF_PAGES_ON_DISK(pResultBuf) * pResultBuf->pageSize);
     if (ret != TSDB_CODE_SUCCESS) {
       //    dError("QInfo:%p failed to create intermediate result output file:%s. %s", pQInfo, pSupporter->extBufFile,
       //           strerror(errno));
@@ -107,7 +106,7 @@ static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t incNu
     }
 
     pResultBuf->totalBufSize = pResultBuf->numOfPages * pResultBuf->pageSize;
-    pResultBuf->pBuf = mmap(NULL, FILE_SIZE_ON_DISK(pResultBuf), PROT_READ | PROT_WRITE, MAP_SHARED, fileno(pResultBuf->file), 0);
+    pResultBuf->pBuf = mmap(NULL, FILE_SIZE_ON_DISK(pResultBuf), PROT_READ | PROT_WRITE, MAP_SHARED, pResultBuf->fd, 0);
 
     if (pResultBuf->pBuf == MAP_FAILED) {
       //    dError("QInfo:%p failed to map temp file: %s. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
@@ -189,11 +188,11 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
     return;
   }
 
-  if (pResultBuf->file != NULL) {
+  if (FD_VALID(pResultBuf->fd)) {
     qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file created:%s, file size:%d", handle,
         pResultBuf->totalBufSize, pResultBuf->path, FILE_SIZE_ON_DISK(pResultBuf));
 
-    fclose(pResultBuf->file);
+    close(pResultBuf->fd);
     munmap(pResultBuf->pBuf, FILE_SIZE_ON_DISK(pResultBuf));
     pResultBuf->pBuf = NULL;
   } else {

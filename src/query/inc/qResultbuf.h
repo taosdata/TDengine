@@ -36,7 +36,8 @@ typedef struct SDiskbasedResultBuf {
   int32_t   numOfRowsPerPage;
   int32_t   numOfPages;
   int64_t   totalBufSize;
-  FILE*     file;
+  int32_t   fd;
+//  FILE*     file;
   int32_t   allocateId;          // allocated page id
   int32_t   incStep;             // minimum allocated pages
   void*     pBuf;                // mmap buffer pointer
