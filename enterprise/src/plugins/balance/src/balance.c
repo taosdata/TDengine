@@ -610,9 +610,10 @@ void balanceCleanUp() {
   if (tsBalanceTimer != NULL) {
     taosTmrStopA(&tsBalanceTimer);
     pthread_mutex_destroy(&tsBalanceMutex);
-    balanceCleanupDnodeList();
+    tsBalanceTimer = NULL;
     mDebug("stop balance timer");
   }
+  balanceCleanupDnodeList();
 }
 
 int32_t balanceDropDnode(SDnodeObj *pDnode) {
