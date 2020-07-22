@@ -661,7 +661,8 @@ bool sdbCheckRowDeleted(void *pTableInput, void *pRow) {
   if (pTable == NULL) return false;
 
   int32_t *updateEnd = pRow + pTable->refCountPos - 4;
-  return (*updateEnd == 1);
+  return atomic_val_compare_exchange_32(updateEnd, 1, 1) == 1;
+  // return (*updateEnd == 1);
 }
 
 int32_t sdbDeleteRow(SSdbOper *pOper) {
