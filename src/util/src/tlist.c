@@ -76,6 +76,7 @@ int tdListPrepend(SList *list, void *data) {
   SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
+  node->next = node->prev = NULL;
   memcpy((void *)(node->data), data, list->eleSize);
   tdListPrependNode(list, node);
 

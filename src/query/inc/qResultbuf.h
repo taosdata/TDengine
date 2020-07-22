@@ -20,42 +20,56 @@
 extern "C" {
 #endif
 
+#include <tlist.h>
 #include "hash.h"
 #include "os.h"
 #include "qExtbuffer.h"
+#include "tlockfree.h"
 
 typedef struct SArray* SIDList;
 
-typedef struct SPageInfo {
-  int32_t pageId;
+typedef struct SPageDiskInfo {
   int32_t offset;
-  int32_t lengthOnDisk;
+  int32_t length;
+} SPageDiskInfo;
+
+typedef struct SPageInfo {
+  int32_t       pageId;
+  SPageDiskInfo info;
+  void*         pData;
+  T_REF_DECLARE();
 } SPageInfo;
+
+typedef struct SFreeListItem {
+  int32_t offset;
+  int32_t len;
+} SFreeListItem;
 
 typedef struct SDiskbasedResultBuf {
   int32_t   numOfRowsPerPage;
   int32_t   numOfPages;
   int64_t   totalBufSize;
-  int32_t   fd;
-//  FILE*     file;
+//  int32_t   fd;
+  FILE*     file;
   int32_t   allocateId;          // allocated page id
-  int32_t   incStep;             // minimum allocated pages
+//  int32_t   incStep;             // minimum allocated pages
   void*     pBuf;                // mmap buffer pointer
   char*     path;                // file path
   int32_t   pageSize;            // current used page size
   int32_t   inMemPages;          // numOfPages that are allocated in memory
   SHashObj* idsTable;            // id hash table
-  SIDList   list;                // for each id, there is a page id list
-
-  void*     iBuf;                // inmemory buf
+  SHashObj* all;
+  SList*    pPageList;
   void*     handle;              // for debug purpose
   void*     emptyDummyIdList;    // dummy id list
   bool      comp;
-
+  SArray*   pFree;               // free area in file
+  int32_t   nextPos;             // next page flush position
 } SDiskbasedResultBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)
 #define DEFAULT_INMEM_BUF_PAGES       10
+#define PAGE_INFO_INITIALIZER         (SPageDiskInfo){-1, -1}
 
 /**
  * create disk-based result buffer
@@ -65,7 +79,7 @@ typedef struct SDiskbasedResultBuf {
  * @return
  */
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t numOfPages, int32_t rowSize, int32_t pagesize,
-    int32_t inMemPages, const void* handle);
+                                    int32_t inMemPages, const void* handle);
 
 /**
  *
@@ -97,13 +111,10 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
  * @param id
  * @return
  */
-static FORCE_INLINE tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
-  if (id < pResultBuf->inMemPages) {
-    return (tFilePage*) ((char*) pResultBuf->iBuf + id * pResultBuf->pageSize);
-  } else {
-    return (tFilePage*) ((char*) pResultBuf->pBuf + (id - pResultBuf->inMemPages) * pResultBuf->pageSize);
-  }
-}
+tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
+
+void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page);
+
 /**
  * get the total buffer size in the format of disk file
  * @param pResultBuf
