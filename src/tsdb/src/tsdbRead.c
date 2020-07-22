@@ -1492,7 +1492,7 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
     return code;
   }
 
-  assert(pQueryHandle->pFileGroup != NULL);
+  assert(pQueryHandle->pFileGroup != NULL && pQueryHandle->numOfBlocks > 0);
   cur->slot = ASCENDING_TRAVERSE(pQueryHandle->order)? 0:pQueryHandle->numOfBlocks-1;
   cur->fid = pQueryHandle->pFileGroup->fileId;
 
