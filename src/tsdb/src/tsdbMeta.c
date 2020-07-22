@@ -123,7 +123,10 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   int   tlen2 = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
   int   tlen = tlen1 + tlen2;
   void *buf = tsdbAllocBytes(pRepo, tlen);
-  ASSERT(buf != NULL);
+  if (buf == NULL) {
+    goto _err;
+  }
+
   if (newSuper) {
     void *pBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, super);
     ASSERT(POINTER_DISTANCE(pBuf, buf) == tlen1);
