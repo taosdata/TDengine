@@ -25,10 +25,11 @@ typedef int (*iterFunc)(void *, void *cont, int contLen);
 typedef void (*afterFunc)(void *);
 
 typedef struct {
-  int64_t size;  // including 512 bytes of header size
-  int64_t tombSize;
-  int64_t nRecords;
-  int64_t nDels;
+  int64_t  size;  // including 512 bytes of header size
+  int64_t  tombSize;
+  int64_t  nRecords;
+  int64_t  nDels;
+  uint32_t magic;
 } SStoreInfo;
 
 typedef struct {
@@ -44,6 +45,8 @@ typedef struct {
   void *     appH;
   SStoreInfo info;
 } SKVStore;
+
+#define KVSTORE_MAGIC(s) (s)->info.magic
 
 int       tdCreateKVStore(char *fname);
 int       tdDestroyKVStore(char *fname);
