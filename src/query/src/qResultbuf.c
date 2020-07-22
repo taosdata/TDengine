@@ -184,7 +184,10 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
           pResultBuf->inMemPages, pResultBuf->pageSize);
     } else {
       tdListPopNode(pResultBuf->pPageList, pn);
-      if (flushPageToDisk(pResultBuf, *(SPageInfo**)pn->data) != TSDB_CODE_SUCCESS) {
+      SPageInfo* d = *(SPageInfo**) pn->data;
+      tfree(pn);
+
+      if (flushPageToDisk(pResultBuf, d) != TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
@@ -275,6 +278,8 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
       fread(buf, (*pi)->info.length, 1, pResultBuf->file);
 
       (*pi)->pData = buf;
+
+      tfree(pn);
       return (*pi)->pData;
     }
   }
@@ -291,7 +296,6 @@ void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page) {
   assert(T_REF_VAL_GET(ppi) > 0);
   T_REF_DEC(ppi);
 }
-
 
 int32_t getNumOfRowsPerPage(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->numOfRowsPerPage; }
 
@@ -325,15 +329,18 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
   unlink(pResultBuf->path);
   tfree(pResultBuf->path);
 
-//  size_t size = taosArrayGetSize(pResultBuf->list);
-//  for (int32_t i = 0; i < size; ++i) {
-//    SArray* pa = taosArrayGetP(pResultBuf->list, i);
-//    taosArrayDestroy(pa);
-//  }
+  SHashMutableIterator* iter = taosHashCreateIter(pResultBuf->idsTable);
+  while(taosHashIterNext(iter)) {
+    SArray** p = (SArray**) taosHashIterGet(iter);
+    taosArrayDestroy(*p);
+  }
+
+  taosHashDestroyIter(iter);
 
   tdListFree(pResultBuf->pPageList);
   taosArrayDestroy(pResultBuf->emptyDummyIdList);
   taosHashCleanup(pResultBuf->idsTable);
+  taosHashCleanup(pResultBuf->all);
 
   tfree(pResultBuf);
 }
