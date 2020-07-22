@@ -97,13 +97,8 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
  * @param id
  * @return
  */
-static FORCE_INLINE tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
-  if (id < pResultBuf->inMemPages) {
-    return (tFilePage*) ((char*) pResultBuf->iBuf + id * pResultBuf->pageSize);
-  } else {
-    return (tFilePage*) ((char*) pResultBuf->pBuf + (id - pResultBuf->inMemPages) * pResultBuf->pageSize);
-  }
-}
+tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
+
 /**
  * get the total buffer size in the format of disk file
  * @param pResultBuf
