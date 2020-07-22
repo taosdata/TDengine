@@ -1450,9 +1450,11 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pQueryHandle->order) && win.skey > pQueryHandle->window.ekey) ||
-    (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
-      tsdbDebug("%p remain files are not qualified for qrange:%"PRId64"-%"PRId64", ignore, %p", pQueryHandle, pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qinfo)
+        (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
+      tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, %p", pQueryHandle,
+                pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qinfo);
       pQueryHandle->pFileGroup = NULL;
+      assert(pQueryHandle->numOfBlocks == 0);
       break;
     }
 
@@ -1460,8 +1462,8 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
       break;
     }
 
-    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %p", pQueryHandle, numOfBlocks,
-           numOfTables, pQueryHandle->pFileGroup->fileId, pQueryHandle->qinfo);
+    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %p", pQueryHandle, numOfBlocks, numOfTables,
+              pQueryHandle->pFileGroup->fileId, pQueryHandle->qinfo);
 
     assert(numOfBlocks >= 0);
     if (numOfBlocks == 0) {
@@ -1469,7 +1471,7 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
     }
 
     // todo return error code to query engine
-    if (createDataBlocksInfo(pQueryHandle, numOfBlocks, &pQueryHandle->numOfBlocks) != TSDB_CODE_SUCCESS) {
+    if ((code = createDataBlocksInfo(pQueryHandle, numOfBlocks, &pQueryHandle->numOfBlocks)) != TSDB_CODE_SUCCESS) {
       break;
     }
 
@@ -1480,7 +1482,7 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
   }
 
   // no data in file anymore
-  if (pQueryHandle->numOfBlocks <= 0) {
+  if (pQueryHandle->numOfBlocks <= 0 || code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_SUCCESS) {
       assert(pQueryHandle->pFileGroup == NULL);
     }
