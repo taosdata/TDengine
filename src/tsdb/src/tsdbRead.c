@@ -188,8 +188,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   pQueryHandle->allocSize   = 0;
 
   if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
-    free(pQueryHandle);
-    return NULL;
+    goto out_of_memory;
   }
 
   tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
@@ -202,13 +201,11 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   
   pQueryHandle->statis = calloc(numOfCols, sizeof(SDataStatis));
   if (pQueryHandle->statis == NULL) {
-    tsdbCleanupQueryHandle(pQueryHandle);
-    return NULL;
+    goto out_of_memory;
   }
   pQueryHandle->pColumns = taosArrayInit(numOfCols, sizeof(SColumnInfoData));  // todo: use list instead of array?
   if (pQueryHandle->pColumns == NULL) {
-    tsdbCleanupQueryHandle(pQueryHandle);
-    return NULL;
+    goto out_of_memory;
   }
   
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -217,8 +214,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
     colInfo.info = pCond->colList[i];
     colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCond->colList[i].bytes);
     if (colInfo.pData == NULL) {
-      tsdbCleanupQueryHandle(pQueryHandle);
-      return NULL;
+      goto out_of_memory;
     }
     taosArrayPush(pQueryHandle->pColumns, &colInfo);
     pQueryHandle->statis[i].colId = colInfo.info.colId;
@@ -226,8 +222,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   
   pQueryHandle->pTableCheckInfo = taosArrayInit(groupList->numOfTables, sizeof(STableCheckInfo));
   if (pQueryHandle->pTableCheckInfo == NULL) {
-    tsdbCleanupQueryHandle(pQueryHandle);
-    return NULL;
+    goto out_of_memory;
   }
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
@@ -263,6 +258,11 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
 
   return (TsdbQueryHandleT) pQueryHandle;
+
+out_of_memory:
+  terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  tsdbCleanupQueryHandle(pQueryHandle);
+  return NULL;
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
