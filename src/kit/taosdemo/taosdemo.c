@@ -361,7 +361,7 @@ int main(int argc, char *argv[]) {
   arguments.num_of_DPT = 100000;
   arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
-  arguments.insert_only = true;
+  arguments.insert_only = false;
   // end change
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -954,13 +954,13 @@ void *readMetric(void *sarg) {
 
     for (int i = 1; i <= m; i++) {
       if (i == 1) {
-        sprintf(tempS, "index = %d", i);
+        sprintf(tempS, "areaid = %d", i);
       } else {
-        sprintf(tempS, " or index = %d ", i);
+        sprintf(tempS, " or areaid = %d ", i);
       }
       strcat(condition, tempS);
 
-      sprintf(command, "select %s from m1 where %s", aggreFunc[j], condition);
+      sprintf(command, "select %s from meters where %s", aggreFunc[j], condition);
 
       printf("Where condition: %s\n", condition);
       fprintf(fp, "%s\n", command);

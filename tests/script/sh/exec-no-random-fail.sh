@@ -88,7 +88,9 @@ if [ "$EXEC_OPTON" = "start" ]; then
   echo "ExcuteCmd:" $EXE_DIR/taosd -c $CFG_DIR
   
   if [ "$SHELL_OPTION" = "true" ]; then 
-    nohup valgrind --log-file=${LOG_DIR}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
+    TT=`date +%s`
+    mkdir ${LOG_DIR}/${TT}
+    nohup valgrind --log-file=${LOG_DIR}/${TT}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
   else
     nohup $EXE_DIR/taosd -c $CFG_DIR --random-file-fail-factor 0 > /dev/null 2>&1 & 
   fi
@@ -99,12 +101,12 @@ else
   PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
   while [ -n "$PID" ]
   do
-    if [ "$SIGNAL" = "SIGINT" ]; then 
-      echo try to kill by signal SIGINT
-      kill -SIGINT $PID
-    else
+    if [ "$SIGNAL" = "SIGKILL" ]; then
       echo try to kill by signal SIGKILL
       kill -9 $PID
+    else
+      echo try to kill by signal SIGINT
+      kill -SIGINT $PID
     fi
     sleep 1
     PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`

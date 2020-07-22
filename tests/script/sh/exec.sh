@@ -101,12 +101,12 @@ else
   PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
   while [ -n "$PID" ]
   do
-    if [ "$SIGNAL" = "SIGINT" ]; then 
-      echo try to kill by signal SIGINT
-      kill -SIGINT $PID
-    else
+    if [ "$SIGNAL" = "SIGKILL" ]; then
       echo try to kill by signal SIGKILL
       kill -9 $PID
+    else
+      echo try to kill by signal SIGINT
+      kill -SIGINT $PID
     fi
     sleep 1
     PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
