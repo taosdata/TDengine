@@ -358,7 +358,7 @@ static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, voi
 }
 
 SUserObj *mnodeGetUserFromConn(void *pConn) {
-  SRpcConnInfo connInfo;
+  SRpcConnInfo connInfo = {0};
   if (rpcGetConnInfo(pConn, &connInfo) == 0) {
     return mnodeGetUser(connInfo.user);
   } else {
