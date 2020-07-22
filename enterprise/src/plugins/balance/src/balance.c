@@ -948,3 +948,8 @@ static void balanceMonitorDnodeModule() {
     if (numOfMnodes >= tsNumOfMnodes) return;
   }
 }
+
+int32_t balanceCfgDnode(struct SDnodeObj *pDnode, const char *option) { 
+  mInfo("dnode:%d, balance cfg option:%s is received", pDnode->dnodeId, option);
+  return TSDB_CODE_SUCCESS;
+}
