@@ -122,11 +122,16 @@ class TDSql:
         return self.cursor.istype(col, dataType)
 
     def checkData(self, row, col, data):
-        self.checkRowCol(row, col)
-        if self.queryResult[row][col] != data:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
-            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+        self.checkRowCol(row, col)                
+        if self.queryResult[row][col] != data:            
+            if isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:                
+                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
+                            (self.sql, row, col, self.queryResult[row][col], data)) 
+                return
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)        
 
         if data is None:
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
@@ -136,8 +141,11 @@ class TDSql:
                        (self.sql, row, col, self.queryResult[row][col], data))
         elif isinstance(data, datetime.date):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                       (self.sql, row, col, self.queryResult[row][col], data))        
+        elif isinstance(data, float):
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
-        else:
+        else:            
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
                        (self.sql, row, col, self.queryResult[row][col], data))
 
