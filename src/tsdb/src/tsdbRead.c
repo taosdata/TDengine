@@ -721,7 +721,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
   SQueryFilePos* cur = &pQueryHandle->cur;
 
   if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-    // query ended in current block
+    // query ended in/started from current block
     if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
       if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
         return false;
@@ -737,6 +737,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         cur->pos = 0;
       }
 
+      assert(pCheckInfo->lastKey <= pBlock->keyLast);
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
     } else {  // the whole block is loaded in to buffer
       handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
@@ -754,6 +755,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
         cur->pos = pBlock->numOfRows - 1;
       }
 
+      assert(pCheckInfo->lastKey >= pBlock->keyFirst);
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
     } else {
       handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
@@ -1059,7 +1061,9 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   initTableMemIterator(pQueryHandle, pCheckInfo);
 
   SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
-  assert(pCols->cols[0].type == TSDB_DATA_TYPE_TIMESTAMP && pCols->cols[0].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX);
+  assert(pCols->cols[0].type == TSDB_DATA_TYPE_TIMESTAMP && pCols->cols[0].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX &&
+      cur->pos >= 0 && cur->pos < pBlock->numOfRows);
+
   TSKEY* tsArray = pCols->cols[0].pData;
 
   // for search the endPos, so the order needs to reverse
@@ -1069,8 +1073,8 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
 
   STable* pTable = pCheckInfo->pTableObj;
-
   int32_t endPos = cur->pos;
+
   if (ASCENDING_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
     endPos = blockInfo.rows - 1;
     cur->mixBlock = (cur->pos != 0);
