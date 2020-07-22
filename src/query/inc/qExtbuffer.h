@@ -19,7 +19,6 @@
 extern "C" {
 #endif
 
-
 #include "os.h"
 #include "taosmsg.h"
 

@@ -5963,8 +5963,6 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
            pQuery->window.ekey, pQuery->order.order);
     setQueryStatus(pQuery, QUERY_COMPLETED);
     pQInfo->tableqinfoGroupInfo.numOfTables = 0;
-
-    sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5973,8 +5971,6 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
   if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:%p no table qualified for tag filter, abort query", pQInfo);
     setQueryStatus(pQuery, QUERY_COMPLETED);
-  
-    sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6319,6 +6315,8 @@ void qTableQuery(qinfo_t qinfo) {
   }
 
   if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
+    setQueryStatus(pQInfo->runtimeEnv.pQuery, QUERY_COMPLETED);
+
     qDebug("QInfo:%p no table exists for query, abort", pQInfo);
     sem_post(&pQInfo->dataReady);
     return;
