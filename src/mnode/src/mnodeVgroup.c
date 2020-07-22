@@ -434,15 +434,22 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   }
 
   if (pDb->numOfVgroups < maxVgroupsPerDb) {
-    mDebug("app:%p:%p, db:%s, try to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle, pMsg,
-           pDb->name, pDb->numOfVgroups, maxVgroupsPerDb);
+    mDebug("app:%p:%p, db:%s, try to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle,
+           pMsg, pDb->name, pDb->numOfVgroups, maxVgroupsPerDb);
     pthread_mutex_unlock(&pDb->mutex);
     int32_t code = mnodeCreateVgroup(pMsg);
-    if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return code;
+    if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      return code;
+    } else {
+      pthread_mutex_lock(&pDb->mutex);
+    }
   }
 
   SVgObj *pVgroup = pDb->vgList[0];
-  if (pVgroup == NULL) return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+  if (pVgroup == NULL) {
+    pthread_mutex_unlock(&pDb->mutex);
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+  }
 
   int32_t code = mnodeAllocVgroupIdPool(pVgroup);
   if (code != TSDB_CODE_SUCCESS) {
@@ -483,7 +490,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     pVgroup->status = TAOS_VG_STATUS_READY;
     SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
-    sdbUpdateRow(&desc);
+    (void)sdbUpdateRow(&desc);
   }
 
   mInfo("app:%p:%p, vgId:%d, is created in mnode, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
