@@ -232,62 +232,35 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
 
 typedef struct {
   int   threadid;
-  int   start;
-  int   end;
-  int   metric_model;
-  char* startTime;
-  char* endTime;
-  bool  writeToFile;
-} TableRange;
+  char*   sql;
+} MultiThreadQueryInfo;
 
-void* oneLoader(void* param) {
+void* doQuery(void* param) {
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  MultiThreadQueryInfo* range = (MultiThreadQueryInfo*)param;
 
-  executeSQL(conn, "use evidev", NULL);
-  int64_t start = taosGetTimestampMs();
-
-  TableRange* range = (TableRange*)param;
-
-  char sql[1024] = {0};
-
-  for (int32_t i = range->start; i < range->end; ++i) {
-    sprintf(sql, "select * from device%d where receive_time>= '%s 0:0:0' and receive_time<'%s 0:0:0'", i,
-            range->startTime, range->endTime);
-
-    printf("%s", sql);
-    executeSQL(conn, sql, NULL);
-    memset(sql, 0, sizeof(sql) / sizeof(sql[0]));
+  for (int32_t i = 0; i < 100000; ++i) {
+    executeSQL(conn, range->sql, NULL);
   }
-
-  int64_t elapsed = taosGetTimestampMs() - start;
-  printf("total elapsed time: %ld ms", elapsed);
 
   taos_close(conn);
 
   return 0;
 }
 
-int multiThreadLoad(int32_t numOfThreads, int32_t totalMeters, char* startTime, char* endTime) {
+int multiThreadQuery(int32_t numOfThreads, char* sql) {
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
   pthread_t* threadId = malloc(sizeof(pthread_t) * numOfThreads);
 
-  TableRange* params = calloc(1, sizeof(TableRange) * numOfThreads);
-  //    int32_t numOfTablesPerThread = totalMeters/numOfThreads;
-
-  int32_t startTableIdArray[5] = {0, 3, 9, 6, 12};
+  MultiThreadQueryInfo* params = calloc(1, sizeof(MultiThreadQueryInfo) * numOfThreads);
 
   for (int i = 0; i < numOfThreads; ++i) {
     params[i].threadid = i;
-    params[i].start = startTableIdArray[i] * 10000 + 1;
-    params[i].end = params[i].start + 10000;
-
-    params[i].startTime = startTime;
-    params[i].endTime = endTime;
-
-    pthread_create(&threadId[i], NULL, oneLoader, &params[i]);
+    params[i].sql = sql;
+    pthread_create(&threadId[i], NULL, doQuery, &params[i]);
   }
 
   for (int32_t i = 0; i < numOfThreads; ++i) {
@@ -295,7 +268,6 @@ int multiThreadLoad(int32_t numOfThreads, int32_t totalMeters, char* startTime, 
   }
 
   pthread_attr_destroy(&thattr);
-
   return 0;
 }
 
@@ -319,7 +291,7 @@ static UNUSED_FUNC void createEnv(void* conn) {
 
 int main(int argc, char** argv) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
   taos_init();
@@ -329,8 +301,7 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  executeSQL(conn, "use union_db0", NULL);
-  executeSQL(conn, "select tbname from mt0 limit 1", NULL);
+  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  executeSQL(conn, "select count(*) as c from union_tb0, union_tb1 where union_tb0.ts=union_tb1.ts", NULL);
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
   //  createEnvironment(conn, 100, 100, 100000, 30);
@@ -367,9 +338,8 @@ int main(int argc, char** argv) {
   //    executeSQL(conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and
   //    join_mt0.t2=join_mt1.t2;", NULL);
   //     executeSQL(conn, "select count(join_mt0.c2),last(join_tb0.c2),first(join_mt0.c7) from join_mt0, join_tb0 where
-  //     join_mt0.t1=join_tb0.t1"
-  //                      "                     and join_mt0.ts=join_tb0.ts and join_mt0.t1=1 interval(500a) order by
-  //                      join_mt0.ts asc;", NULL);
+  //     join_mt0.t1=join_tb0.t1 and join_mt0.ts=join_tb0.ts and join_mt0.t1=1 interval(500a)
+  //                      order by join_mt0.ts asc;", NULL);
   //    return 0;
   //    executeSQL(conn, "select count(join_tb3.*) from join_tb1, join_tb0 where join_tb1.ts = join_tb0.ts and
   //    join_tb1.ts <= 100002 and join_tb0.c7 = true;", NULL); executeSQL(conn, "select join_tb1.*, join_tb0.ts from

@@ -204,20 +204,12 @@ void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *tem
     c += length;
   }
 
-  if (num_fields > 0) printf("%s\n", field);
-
   while ((row = taos_fetch_row(result))) {
     temp[0] = 0;
     numOfRows++;
 
     taos_print_row(temp, row, fields, num_fields);
     printf("%" PRId64 ": %s\n", numOfRows, temp);
-//    if (pRes != NULL) {
-//      validateData(fields, num_fields, row, pRes);
-//    }
-
-    //      taos_free_result(result);
-    //      break;
   }
 
   //    printf("total elapsed time:%"PRId64" ms, %"PRId64" rows\n", taosGetTimestampMs() - start, numOfRows);
