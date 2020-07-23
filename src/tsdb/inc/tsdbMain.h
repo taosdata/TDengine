@@ -42,6 +42,7 @@ extern int tsdbDebugFlag;
 #define TSDB_MAX_TABLE_SCHEMAS 16
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
+#define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 
 // Definitions
 // ------------------ tsdbMeta.c
@@ -132,21 +133,30 @@ typedef struct {
 // ------------------ tsdbFile.c
 extern const char* tsdbFileSuffix[];
 typedef enum {
+#ifdef TSDB_IDX
+  TSDB_FILE_TYPE_IDX = 0,
+  TSDB_FILE_TYPE_HEAD,
+#else
   TSDB_FILE_TYPE_HEAD = 0,
+#endif
   TSDB_FILE_TYPE_DATA,
   TSDB_FILE_TYPE_LAST,
   TSDB_FILE_TYPE_MAX,
+#ifdef TSDB_IDX
+  TSDB_FILE_TYPE_NIDX,
+#endif
   TSDB_FILE_TYPE_NHEAD,
   TSDB_FILE_TYPE_NLAST
 } TSDB_FILE_TYPE;
 
 typedef struct {
-  uint32_t offset;
+  uint32_t magic;
   uint32_t len;
-  uint64_t size;      // total size of the file
-  uint64_t tombSize;  // unused file size
   uint32_t totalBlocks;
   uint32_t totalSubBlocks;
+  uint32_t offset;
+  uint64_t size;      // total size of the file
+  uint64_t tombSize;  // unused file size
 } STsdbFileInfo;
 
 typedef struct {
@@ -197,6 +207,7 @@ typedef struct {
 
 // ------------------ tsdbRWHelper.c
 typedef struct {
+  int32_t  tid;
   uint32_t len;
   uint32_t offset;
   uint32_t hasLast : 2;
@@ -220,7 +231,7 @@ typedef struct {
 
 typedef struct {
   int32_t    delimiter;  // For recovery usage
-  int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
+  int32_t    tid;
   uint64_t   uid;
   SCompBlock blocks[];
 } SCompInfo;
@@ -249,23 +260,26 @@ typedef struct {
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
 typedef struct {
-  int   fid;
-  TSKEY minKey;
-  TSKEY maxKey;
-  // For read/write purpose
-  SFile headF;
-  SFile dataF;
-  SFile lastF;
-  // For write purpose only
-  SFile nHeadF;
-  SFile nLastF;
+  TSKEY      minKey;
+  TSKEY      maxKey;
+  SFileGroup fGroup;
+#ifdef TSDB_IDX
+  SFile nIdxF;
+#endif
+  SFile      nHeadF;
+  SFile      nLastF;
 } SHelperFile;
 
 typedef struct {
   uint64_t uid;
   int32_t  tid;
-  int32_t  sversion;
 } SHelperTable;
+
+typedef struct {
+  SCompIdx* pIdxArray;
+  int       numOfIdx;
+  int       curIdx;
+} SIdxH;
 
 typedef struct {
   tsdb_rw_helper_t type;
@@ -274,7 +288,9 @@ typedef struct {
   int8_t     state;
   // For file set usage
   SHelperFile files;
-  SCompIdx*   pCompIdx;
+  SIdxH       idxH;
+  SCompIdx    curCompIdx;
+  void*       pWIdx;
   // For table set usage
   SHelperTable tableInfo;
   SCompInfo*   pCompInfo;
@@ -286,7 +302,6 @@ typedef struct {
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
-
 // Operations
 // ------------------ tsdbMeta.c
 #define TABLE_TYPE(t) (t)->type
@@ -296,6 +311,7 @@ typedef struct {
 #define TABLE_TID(t) (t)->tableId.tid
 #define TABLE_SUID(t) (t)->suid
 #define TABLE_LASTKEY(t) (t)->lastKey
+#define TSDB_META_FILE_MAGIC(m) KVSTORE_MAGIC((m)->pStore)
 
 STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
 void       tsdbFreeMeta(STsdbMeta* pMeta);
@@ -426,6 +442,7 @@ int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
+void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
@@ -444,6 +461,16 @@ void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 #define helperRepo(h) (h)->pRepo
 #define helperState(h) (h)->state
 #define TSDB_NLAST_FILE_OPENED(h) ((h)->files.nLastF.fd > 0)
+#define helperFileId(h) ((h)->files.fGroup.fileId)
+#ifdef TSDB_IDX
+#define helperIdxF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_IDX]))
+#define helperNewIdxF(h) (&((h)->files.nIdxF))
+#endif
+#define helperHeadF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_HEAD]))
+#define helperDataF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_DATA]))
+#define helperLastF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_LAST]))
+#define helperNewHeadF(h) (&((h)->files.nHeadF))
+#define helperNewLastF(h) (&((h)->files.nLastF))
 
 int  tsdbInitReadHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
 int  tsdbInitWriteHelper(SRWHelper* pHelper, STsdbRepo* pRepo);

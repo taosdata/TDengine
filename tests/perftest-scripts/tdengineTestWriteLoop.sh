@@ -5,7 +5,6 @@ NUM_LOOP=5
 NUM_OF_FILES=100
 
 rowsPerRequest=(1 100 500 1000 2000)
-numOfClients=(1 2 3 4 5 6 7)
 
 function printTo {
   if $verbose ; then
@@ -15,7 +14,7 @@ function printTo {
 
 function runTest {
   printf "R/R, "
-  for c in ${numOfClients[@]}; do
+  for c in `seq 1 $clients`; do
     if [ "$c" == "1" ]; then
       printf "$c client, "
     else
@@ -26,7 +25,7 @@ function runTest {
 
   for r in ${rowsPerRequest[@]}; do
     printf "$r, "
-    for c in ${numOfClients[@]}; do
+    for c in `seq 1 $clients`; do
       totalRPR=0
       for i in `seq 1 $NUM_LOOP`; do
 	restartTaosd
@@ -34,12 +33,12 @@ function runTest {
         printTo "loop i:$i, $TDTEST_DIR/tdengineTest \
 	      -dataDir $DATA_DIR \
 	      -numOfFiles $NUM_OF_FILES \
-	      -writeClients $c \
+	      -w -clients $c \
 	      -rowsPerRequest $r"
         RPR=`$TDTEST_DIR/tdengineTest \
           -dataDir $DATA_DIR \
           -numOfFiles 1 \
-          -writeClients $c \
+          -w -clients $c \
           -rowsPerRequest $r \
           | grep speed | awk '{print $(NF-1)}'`
         totalRPR=`echo "scale=4; $totalRPR + $RPR" | bc`
@@ -73,25 +72,29 @@ function restartTaosd {
 master=false
 develop=true
 verbose=false
+clients=1
 
-for arg in "$@"
-do
-  case $arg in
+while : ; do
+  case $1 in
     -v)
       verbose=true
-      ;;
+      shift ;;
 
     master)
       master=true
       develop=false
-      ;;
+      shift ;;
 
     develop)
       master=false
       develop=true
-      ;;
+      shift ;;
+
+    -c)
+      clients=$2
+      shift 2;;
     *)
-      ;;
+      break ;;
   esac
 done
 

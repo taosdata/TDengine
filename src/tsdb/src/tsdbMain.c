@@ -148,7 +148,7 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   int        vgId = REPO_ID(pRepo);
 
-  tsdbStopStream(repo);
+  tsdbStopStream(pRepo);
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
@@ -212,59 +212,61 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   char *sdup = strdup(pRepo->rootDir);
   char *prefix = dirname(sdup);
+  int   prefixLen = strlen(prefix);
+  tfree(sdup);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    int fid = (*index) / 3;
+    int fid = (*index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
       if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
         fname = tsdbGetMetaFileName(pRepo->rootDir);
         *index = TSDB_META_FILE_INDEX;
+        magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
       } else {
-        tfree(sdup);
         return 0;
       }
     } else {
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        fname = strdup(pFGroup->files[(*index) % 3].fname);
+        fname = strdup(pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].fname);
+        magic = pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].info.magic;
       } else {
-        if (pFGroup->fileId * 3 + 2 < eindex) {
+        if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < eindex) {
           fname = strdup(pFGroup->files[0].fname);
-          *index = pFGroup->fileId * 3;
+          *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
+          magic = pFGroup->files[0].info.magic;
         } else {
-          tfree(sdup);
           return 0;
         }
       }
     }
-    strcpy(name, fname + strlen(prefix));
+    strcpy(name, fname + prefixLen);
   } else {                                 // get the named file at the specified index. If not there, return 0
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
       fname = tsdbGetMetaFileName(pRepo->rootDir);
+      magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
     } else {
-      int         fid = (*index) / 3;
+      int         fid = (*index) / TSDB_FILE_TYPE_MAX;
       SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
       if (pFGroup == NULL) {  // not found
-        tfree(sdup);
         return 0;
       }
 
-      SFile *pFile = &pFGroup->files[(*index) % 3];
+      SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
       fname = strdup(pFile->fname);
+      magic = pFile->info.magic;
     }
   }
 
   if (stat(fname, &fState) < 0) {
-    tfree(sdup);
     tfree(fname);
     return 0;
   }
 
-  tfree(sdup);
   *size = fState.st_size;
-  magic = *size;
+  // magic = *size;
 
   tfree(fname);
   return magic;
@@ -793,7 +795,8 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
     for (int i = 1; i < pRepo->config.maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      SCompIdx *pIdx = &rhelper.pCompIdx[i];
+      tsdbSetHelperTable(&rhelper, pTable, pRepo);
+      SCompIdx *pIdx = &(rhelper.curCompIdx);
 
       if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
     }
@@ -1125,6 +1128,7 @@ static void tsdbStartStream(STsdbRepo *pRepo) {
     }
   }
 }
+
 
 static void tsdbStopStream(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;

@@ -26,11 +26,12 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tlockfree.h"
 
 #define TSC_MGMT_VNODE 999
 
-SRpcIpSet  tscMgmtIpSet;
-SRpcIpSet  tscDnodeIpSet;
+SRpcCorEpSet  tscMgmtEpSet;
+SRpcEpSet  tscDnodeEpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -44,44 +45,85 @@ void tscSaveSubscriptionProgress(void* sub);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 
-static void tscSetDnodeIpList(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
-  SRpcIpSet* pIpList = &pSql->ipList;
-  pIpList->inUse    = 0;
+static void tscSetDnodeEpSet(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
+  SRpcEpSet* pEpSet = &pSql->epSet;
+  pEpSet->inUse    = 0;
   if (pVgroupInfo == NULL) {
-    pIpList->numOfIps = 0;
+    pEpSet->numOfEps = 0;
     return;
   }
-  
-  pIpList->numOfIps = pVgroupInfo->numOfIps;
-  for(int32_t i = 0; i < pVgroupInfo->numOfIps; ++i) {
-    strcpy(pIpList->fqdn[i], pVgroupInfo->ipAddr[i].fqdn);
-    pIpList->port[i] = pVgroupInfo->ipAddr[i].port;
+
+  pEpSet->numOfEps = pVgroupInfo->numOfEps;
+  for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
+    strcpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn);
+    pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
   }
 }
+static void tscDumpMgmtEpSet(SRpcEpSet *epSet) {
+  taosCorBeginRead(&tscMgmtEpSet.version);
+  *epSet = tscMgmtEpSet.epSet;
+  taosCorEndRead(&tscMgmtEpSet.version);
+}  
+static void tscEpSetHtons(SRpcEpSet *s) {
+   for (int32_t i = 0; i < s->numOfEps; i++) {
+      s->port[i] = htons(s->port[i]);    
+   }
+} 
+bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
+   if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
+     return false;
+   } 
+   for (int32_t i = 0; i < s1->numOfEps; i++) {
+     if (s1->port[i] != s2->port[i] 
+        || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
+        return false;
+   }
+   return true;
+}
+void tscUpdateMgmtEpSet(SRpcEpSet *pEpSet) {
+  // no need to update if equal
+  taosCorBeginWrite(&tscMgmtEpSet.version);
+  tscMgmtEpSet.epSet = *pEpSet;
+  taosCorEndWrite(&tscMgmtEpSet.version);
+}
+static void tscDumpEpSetFromVgroupInfo(SCMCorVgroupInfo *pVgroupInfo, SRpcEpSet *pEpSet) {
+  if (pVgroupInfo == NULL) { return;}
+  taosCorBeginRead(&pVgroupInfo->version);
+  int8_t inUse = pVgroupInfo->inUse;
+  pEpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
+  pEpSet->numOfEps = pVgroupInfo->numOfEps;  
+  for (int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
+    strncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
+  }
+  taosCorEndRead(&pVgroupInfo->version);
+}
 
-void tscPrintMgmtIp() {
-  if (tscMgmtIpSet.numOfIps <= 0) {
-    tscError("invalid mnode IP list:%d", tscMgmtIpSet.numOfIps);
+static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
+  SSqlCmd *pCmd = &pObj->cmd;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
+  SCMCorVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->corVgroupInfo;
+
+  taosCorBeginWrite(&pVgroupInfo->version);
+  //TODO(dengyihao), dont care vgid 
+  pVgroupInfo->inUse = pEpSet->inUse;
+  pVgroupInfo->numOfEps = pEpSet->numOfEps;
+  for (int32_t i = 0; pVgroupInfo->numOfEps; i++) {
+    strncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    pVgroupInfo->epAddr[i].port = pEpSet->port[i];
+  }
+  taosCorEndWrite(&pVgroupInfo->version);
+}
+void tscPrintMgmtEp() {
+  SRpcEpSet dump;
+  tscDumpMgmtEpSet(&dump);
+  if (dump.numOfEps <= 0) {
+    tscError("invalid mnode EP list:%d", dump.numOfEps);
   } else {
-    for (int i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-      tscDebug("mnode index:%d %s:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
+    for (int i = 0; i < dump.numOfEps; ++i) {
+      tscDebug("mnode index:%d %s:%d", i, dump.fqdn[i], dump.port[i]);
     }
-  }
-}
-
-void tscSetMgmtIpList(SRpcIpSet *pIpList) {
-  tscMgmtIpSet.numOfIps = pIpList->numOfIps;
-  tscMgmtIpSet.inUse = pIpList->inUse;
-  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-    tscMgmtIpSet.port[i] = htons(pIpList->port[i]);
-  }
-}
-
-void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
-  tscMgmtIpSet = *pIpSet;
-  tscDebug("mnode IP list is changed for ufp is called, numOfIps:%d inUse:%d", tscMgmtIpSet.numOfIps, tscMgmtIpSet.inUse);
-  for (int32_t i = 0; i < tscMgmtIpSet.numOfIps; ++i) {
-    tscDebug("index:%d fqdn:%s port:%d", i, tscMgmtIpSet.fqdn[i], tscMgmtIpSet.port[i]);
   }
 }
 
@@ -95,7 +137,9 @@ void tscUpdateIpSet(void *ahandle, SRpcIpSet *pIpSet) {
 UNUSED_FUNC
 static int32_t tscGetMgmtConnMaxRetryTimes() {
   int32_t factor = 2;
-  return tscMgmtIpSet.numOfIps * factor;
+  SRpcEpSet dump;
+  tscDumpMgmtEpSet(&dump);
+  return dump.numOfEps * factor;
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -111,9 +155,11 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
   if (code == 0) {
     SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
-    SRpcIpSet *      pIpList = &pRsp->ipList;
-    if (pIpList->numOfIps > 0) 
-      tscSetMgmtIpList(pIpList);
+    SRpcEpSet *      epSet = &pRsp->epSet;
+    if (epSet->numOfEps > 0) {
+      tscEpSetHtons(epSet);
+      tscUpdateMgmtEpSet(epSet);
+    } 
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
 
@@ -185,7 +231,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    pSql->ipList = tscMgmtIpSet;
+    tscDumpMgmtEpSet(&pSql->epSet);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
@@ -203,11 +249,11 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   // Otherwise, the pSql object may have been released already during the response function, which is
   // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
   // cause crash.
-  rpcSendRequest(pObj->pDnodeConn, &pSql->ipList, &rpcMsg);
+  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlObj *pSql = (SSqlObj *)rpcMsg->ahandle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released", pSql);
@@ -236,58 +282,43 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet) {
     return;
   }
 
-  if (pCmd->command < TSDB_SQL_MGMT) {
-    if (pIpSet) pSql->ipList = *pIpSet;
-  } else {
-    if (pIpSet) tscMgmtIpSet = *pIpSet;
+  if (pEpSet) { 
+    //SRpcEpSet dump; 
+    tscEpSetHtons(pEpSet); 
+    if (tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
+      if(pCmd->command < TSDB_SQL_MGMT)  { 
+        tscUpdateVgroupInfo(pSql, pEpSet); 
+      } else {
+        tscUpdateMgmtEpSet(pEpSet);
+    }
+    }
   }
 
-  if (rpcMsg->pCont == NULL) {
-    rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  } else {
-    STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-    // if (rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-    //   if (pCmd->command == TSDB_SQL_CONNECT) {
-    //     rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-    //     rpcFreeCont(rpcMsg->pCont);
-    //     return;
-    //   }
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
-    //   if (pCmd->command == TSDB_SQL_HB) {
-    //     rpcMsg->code = TSDB_CODE_RPC_NOT_READY;
-    //     rpcFreeCont(rpcMsg->pCont);
-    //     return;
-    //   }
+  int32_t cmd = pCmd->command;
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_INSERT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+      (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
+       rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
+       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+       rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
+    tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
 
-    //   if (pCmd->command == TSDB_SQL_META || pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
-    //       pCmd->command == TSDB_SQL_STABLEVGROUP || pCmd->command == TSDB_SQL_SHOW ||
-    //       pCmd->command == TSDB_SQL_RETRIEVE) {
-    //     // get table meta/vgroup query will not retry, do nothing
-    //   }
-    // }
+    // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
+    if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+      pSql->cmd.submitSchema = 1;
+    }
 
-    if ((pCmd->command == TSDB_SQL_SELECT || pCmd->command == TSDB_SQL_FETCH || pCmd->command == TSDB_SQL_INSERT ||
-         pCmd->command == TSDB_SQL_UPDATE_TAGS_VAL) &&
-        (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
-         rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
-      tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
-      // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
-      if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-        pSql->cmd.submitSchema = 1;
-      }
+    pSql->res.code = rpcMsg->code;  // keep the previous error code
+    if (pSql->retry > pSql->maxRetry) {
+      tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
+    } else {
+      rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
 
-      pSql->res.code = rpcMsg->code;  // keep the previous error code
-      if (pSql->retry > pSql->maxRetry) {
-        tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
-      } else {
-        rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
-
-        // if there is an error occurring, proceed to the following error handling procedure.
-        // todo add test cases
-        if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          rpcFreeCont(rpcMsg->pCont);
-          return;
-        }
+      // if there is an error occurring, proceed to the following error handling procedure.
+      if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        rpcFreeCont(rpcMsg->pCont);
+        return;
       }
     }
   }
@@ -421,7 +452,8 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command < TSDB_SQL_LOCAL) {
-    pSql->ipList = tscMgmtIpSet;
+
+    //pSql->epSet = tscMgmtEpSet;
   } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -525,10 +557,10 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscSetDnodeIpList(pSql, &pTableMeta->vgroupInfo);
-  
-  tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfIP:%d", pSql, vgId, pSql->cmd.numOfTablesInSubmit,
-      pSql->ipList.numOfIps);
+  tscDumpEpSetFromVgroupInfo(&pTableMeta->corVgroupInfo, &pSql->epSet);
+
+  tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, vgId, pSql->cmd.numOfTablesInSubmit,
+      pSql->epSet.numOfEps);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -567,11 +599,11 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
+    tscSetDnodeEpSet(pSql, pVgroupInfo);
 
-    tscSetDnodeIpList(pSql, pVgroupInfo);
     if (pVgroupInfo != NULL) {
       pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
-    }
+    } 
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
     pTableIdInfo->tid = htonl(pTableMeta->sid);
@@ -580,7 +612,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
     pMsg += sizeof(STableIdInfo);
-  } else { // it is a subquery of the super table query, this IP info is acquired from vgroupInfo
+  } else { // it is a subquery of the super table query, this EP info is acquired from vgroupInfo
     int32_t index = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
@@ -588,9 +620,9 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
 
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
-    
-    // set the vgroup info
-    tscSetDnodeIpList(pSql, &pTableIdList->vgInfo);
+
+    // set the vgroup info 
+    tscSetDnodeEpSet(pSql, &pTableIdList->vgInfo);
     pQueryMsg->head.vgId = htonl(pTableIdList->vgInfo.vgId);
     
     int32_t numOfTables = taosArrayGetSize(pTableIdList->itemList);
@@ -1136,11 +1168,11 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pShowMsg->payloadLen = htons(pPattern->n);
     }
   } else {
-    SSQLToken *pIpAddr = &pShowInfo->prefix;
-    assert(pIpAddr->n > 0 && pIpAddr->type > 0);
+    SSQLToken *pEpAddr = &pShowInfo->prefix;
+    assert(pEpAddr->n > 0 && pEpAddr->type > 0);
 
-    strncpy(pShowMsg->payload, pIpAddr->z, pIpAddr->n);
-    pShowMsg->payloadLen = htons(pIpAddr->n);
+    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
+    pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
   pCmd->payloadLen = sizeof(SCMShowMsg) + pShowMsg->payloadLen;
@@ -1323,7 +1355,7 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  tscSetDnodeIpList(pSql, &pTableMetaInfo->pTableMeta->vgroupInfo);
+  tscDumpEpSetFromVgroupInfo(&pTableMetaInfo->pTableMeta->corVgroupInfo, &pSql->epSet);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1658,8 +1690,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->contLen = htons(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
-  if (pMetaMsg->sid < 0 || pMetaMsg->vgroup.numOfIps < 0) {
-    tscError("invalid meter vgId:%d, sid%d", pMetaMsg->vgroup.numOfIps, pMetaMsg->sid);
+  if (pMetaMsg->sid < 0 || pMetaMsg->vgroup.numOfEps < 0) {
+    tscError("invalid meter vgId:%d, sid%d", pMetaMsg->vgroup.numOfEps, pMetaMsg->sid);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -1673,8 +1705,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  for (int i = 0; i < pMetaMsg->vgroup.numOfIps; ++i) {
-    pMetaMsg->vgroup.ipAddr[i].port = htons(pMetaMsg->vgroup.ipAddr[i].port);
+  for (int i = 0; i < pMetaMsg->vgroup.numOfEps; ++i) {
+    pMetaMsg->vgroup.epAddr[i].port = htons(pMetaMsg->vgroup.epAddr[i].port);
   }
 
   SSchema* pSchema = pMetaMsg->schema;
@@ -1847,13 +1879,14 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     memcpy(pInfo->vgroupList, pVgroupInfo, size);
     for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
+      //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
-
       pVgroups->vgId = htonl(pVgroups->vgId);
-      assert(pVgroups->numOfIps >= 1);
+      assert(pVgroups->numOfEps >= 1);
 
-      for (int32_t k = 0; k < pVgroups->numOfIps; ++k) {
-        pVgroups->ipAddr[k].port = htons(pVgroups->ipAddr[k].port);
+      for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
+        pVgroups->epAddr[k].port = htons(pVgroups->epAddr[k].port);
+
       }
 
       pMsg += size;
@@ -1946,8 +1979,10 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= sizeof(pObj->db));
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
   
-  if (pConnect->ipList.numOfIps > 0) 
-    tscSetMgmtIpList(&pConnect->ipList);
+  if (pConnect->epSet.numOfEps > 0) {
+    tscEpSetHtons(&pConnect->epSet);
+    tscUpdateMgmtEpSet(&pConnect->epSet);
+  } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;

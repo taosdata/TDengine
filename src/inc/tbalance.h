@@ -29,6 +29,7 @@ void    balanceAsyncNotify();
 void    balanceSyncNotify();
 void    balanceReset();
 int32_t balanceAllocVnodes(struct SVgObj *pVgroup);
+int32_t balanceCfgDnode(struct SDnodeObj *pDnode, const char *option);
 int32_t balanceDropDnode(struct SDnodeObj *pDnode);
 
 #ifdef __cplusplus

@@ -28,12 +28,17 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcIpSet {
+typedef struct SRpcEpSet {
   int8_t    inUse; 
-  int8_t    numOfIps;
+  int8_t    numOfEps;
   uint16_t  port[TSDB_MAX_REPLICA];
   char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
-} SRpcIpSet;
+} SRpcEpSet;
+
+typedef struct SRpcCorEpSet {
+  int32_t version; 
+  SRpcEpSet epSet; 
+} SRpcCorEpSet;
 
 typedef struct SRpcConnInfo {
   uint32_t  clientIp;
@@ -67,7 +72,7 @@ typedef struct SRpcInit {
   char *ckey;         // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
-  void (*cfp)(SRpcMsg *, SRpcIpSet *);  
+  void (*cfp)(SRpcMsg *, SRpcEpSet *);  
 
   // call back to retrieve the client auth info, for server app only 
   int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -78,11 +83,11 @@ void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
 void *rpcReallocCont(void *ptr, int contLen);
-void  rpcSendRequest(void *thandle, const SRpcIpSet *pIpSet, SRpcMsg *pMsg);
+void  rpcSendRequest(void *thandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg);
 void  rpcSendResponse(const SRpcMsg *pMsg);
-void  rpcSendRedirectRsp(void *pConn, const SRpcIpSet *pIpSet); 
+void  rpcSendRedirectRsp(void *pConn, const SRpcEpSet *pEpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+void  rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 void  rpcCancelRequest(void *pContext);
 

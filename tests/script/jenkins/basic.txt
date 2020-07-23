@@ -3,6 +3,7 @@ cd ../../../debug; make
 
 ./test.sh -f general/alter/cached_schema_after_alter.sim
 ./test.sh -f general/alter/count.sim
+./test.sh -f general/alter/dnode.sim
 ./test.sh -f general/alter/import.sim
 ./test.sh -f general/alter/insert1.sim
 ./test.sh -f general/alter/insert2.sim

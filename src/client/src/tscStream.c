@@ -122,7 +122,7 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
       pQueryInfo->window.ekey = pStream->etime;
     }
   } else {
-    pQueryInfo->window.skey = pStream->stime - pStream->interval;
+    pQueryInfo->window.skey = pStream->stime;
     int64_t etime = taosGetTimestamp(pStream->precision);
     // delay to wait all data in last time window
     if (pStream->precision == TSDB_TIME_PRECISION_MICRO) {
@@ -232,6 +232,9 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
       (*pStream->fp)(pStream->param, res, row);
     }
 
+    if (!pStream->isProject) {
+      pStream->stime += pStream->slidingTime;
+    }
     // actually only one row is returned. this following is not necessary
     taos_fetch_rows_a(res, tscProcessStreamRetrieveResult, pStream);
   } else {  // numOfRows == 0, all data has been retrieved
@@ -432,6 +435,7 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
   } else {             // timewindow based aggregation stream
     if (stime == 0) {  // no data in meter till now
       stime = ((int64_t)taosGetTimestamp(pStream->precision) / pStream->interval) * pStream->interval;
+      stime -= pStream->interval;
       tscWarn("%p stream:%p, last timestamp:0, reset to:%" PRId64, pSql, pStream, stime);
     } else {
       int64_t newStime = (stime / pStream->interval) * pStream->interval;

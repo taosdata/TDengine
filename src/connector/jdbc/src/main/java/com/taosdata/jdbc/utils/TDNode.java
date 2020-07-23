@@ -1,6 +1,8 @@
 package com.taosdata.jdbc.utils;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -29,6 +31,10 @@ public class TDNode {
 
     public void setTestCluster(boolean testCluster) {
         this.testCluster = testCluster;
+    }
+
+    public void setRunning(int running) {
+        this.running = running;
     }
 
     public void searchTaosd(File dir, ArrayList<String> taosdPath) {        
@@ -102,15 +108,46 @@ public class TDNode {
         this.running = 1;        
     }
 
-    public void stop() {
-        String toBeKilled = "taosd";
+    public Integer getTaosdPid() {
+        String cmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"; 
+        String[] cmds = {"sh", "-c", cmd};
+        try {
+            Process process = Runtime.getRuntime().exec(cmds);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line = null;
+            Integer res = null;
+            while((line = reader.readLine()) != null) {
+                if(!line.isEmpty()) {
+                    res = Integer.valueOf(line);
+                    break;
+                }
+            }
+            
+            return res;
+        } catch (Exception e) {
+            e.printStackTrace();
+        } 
+        return null;
+    }
+
+    public void stop() {        
 
         if (this.running != 0) {
-            String killCmd = "pkill -kill -x " + toBeKilled;
-            String[] killCmds = {"sh", "-c", killCmd};
-            try {                                
-                Runtime.getRuntime().exec(killCmds).waitFor();
+            Integer pid = null;                        
+            while((pid = getTaosdPid()) != null) {
+                
+                String killCmd = "kill -term " + pid;                                      
+                String[] killCmds = {"sh", "-c", killCmd};
+                try {                                
+                    Runtime.getRuntime().exec(killCmds).waitFor();                    
 
+                    TimeUnit.SECONDS.sleep(2);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }                
+            }
+
+            try {
                 for(int port = 6030; port < 6041; port ++) {
                     String fuserCmd = "fuser -k -n tcp " + port;
                     Runtime.getRuntime().exec(fuserCmd).waitFor();
@@ -120,7 +157,7 @@ public class TDNode {
             }
 
             this.running = 0;
-            System.out.println("dnode:" + this.index + " is stopped by pkill");
+            System.out.println("dnode:" + this.index + " is stopped by kill -term");
         }
     }
 

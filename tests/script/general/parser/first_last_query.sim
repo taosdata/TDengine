@@ -126,3 +126,14 @@ endi
 if $data01 != 0 then
   return -1
 endi
+
+#add check for out of range first/last query
+sql select first(ts),last(ts) from first_tb4 where ts>'2018-9-18 1:40:01';
+if $row != 0 then
+  return -1
+endi
+
+sql select first(ts),last(ts) from first_tb4 where ts<'2018-9-17 8:50:0';
+if $row != 0 then
+  return -1
+endi
