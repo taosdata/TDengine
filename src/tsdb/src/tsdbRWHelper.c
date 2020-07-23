@@ -1477,6 +1477,11 @@ static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter,
     if (tsdbInsertSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks) < 0) return -1;
   }
 
+#ifndef NDEBUG
+  TSKEY keyNext = tsdbNextIterKey(pCommitIter->pIter);
+  ASSERT(keyNext < 0 || keyNext > pIdx->maxKey);
+#endif
+
   return 0;
 }
 
@@ -1561,11 +1566,12 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
         if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
         tblkIdx++;
       }
+      ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
+                              tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
     } else {
       ASSERT(keyFirst <= blkKeyLast);
       int16_t colId = 0;
       if (tsdbLoadBlockDataCols(pHelper, pCompBlock, NULL, &colId, 1) < 0) return -1;
-      ASSERT(pDataCols0->numOfRows == pCompBlock->numOfRows);
 
       slIter = *(pCommitIter->pIter);
       int rows1 = (pCfg->maxRowsPerFileBlock - pCompBlock->numOfRows);
@@ -1574,9 +1580,10 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
 
       if (rows2 == 0) {  // all filtered out
         *(pCommitIter->pIter) = slIter;
+        ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
+                                tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
       } else {
         int rows3 = tsdbLoadDataFromCache(pTable, &slIter, keyLimit, INT_MAX, NULL, NULL, 0) + rows2;
-        ASSERT(rows3 >= rows2);
 
         if (pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && rows1 >= rows2) {
           int rows = (rows1 >= rows3) ? rows3 : rows2;
@@ -1588,6 +1595,8 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
             return -1;
           if (tsdbAddSubBlock(pHelper, &compBlock, tblkIdx, rowsRead) < 0) return -1;
           tblkIdx++;
+          ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
+                                  tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
         } else {
           if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
           int round = 0;
@@ -1608,6 +1617,8 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
             round++;
             tblkIdx++;
           }
+          ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
+                                  tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
         }
       }
     }
