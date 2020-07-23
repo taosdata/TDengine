@@ -127,6 +127,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_REMOVE_MASTER,         0, 0x0333, "mnode cant
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         0, 0x0334, "mnode no enough dnodes")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT, 0, 0x0335, "mnode cluster cfg inconsistent")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_CFG_OPTION, 0, 0x0336, "mnode invalid dnode cfg option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_BALANCE_NOT_ENABLED,      0, 0x0337, "mnode balance not enabled")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "mnode accounts already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "mnode invalid account")
