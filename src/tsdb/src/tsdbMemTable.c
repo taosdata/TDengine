@@ -264,13 +264,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   }
 
   do {
-    if (numOfRows >= maxRowsToRead) break;
-
     SDataRow row = tsdbNextIterRow(pIter);
     if (row == NULL) break;
 
     keyNext = dataRowKey(row);
-    if (keyNext < 0 || keyNext > maxKey) break;
+    if (keyNext > maxKey) break;
 
     bool keyFiltered = false;
     if (nFilterKeys != 0) {
@@ -289,6 +287,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
     }
 
     if (!keyFiltered) {
+      if (numOfRows >= maxRowsToRead) break;
       if (pCols) {
         if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
           pSchema = tsdbGetTableSchemaImpl(pTable, false, false, dataRowVersion(row));

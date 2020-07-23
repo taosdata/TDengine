@@ -96,7 +96,7 @@ if __name__ == "__main__":
             processID = subprocess.check_output(usePortPID, shell=True)
 
             if processID:
-                killCmd = "kill -9 %s" % processID
+                killCmd = "kill -TERM %s" % processID
                 os.system(killCmd)
             fuserCmd = "fuser -k -n tcp %d" % port
             os.system(fuserCmd)

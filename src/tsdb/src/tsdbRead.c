@@ -188,8 +188,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   pQueryHandle->allocSize   = 0;
 
   if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
-    free(pQueryHandle);
-    return NULL;
+    goto out_of_memory;
   }
 
   tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
@@ -199,20 +198,32 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
 
   // allocate buffer in order to load data blocks from file
   int32_t numOfCols = pCond->numOfCols;
-
+  
   pQueryHandle->statis = calloc(numOfCols, sizeof(SDataStatis));
+  if (pQueryHandle->statis == NULL) {
+    goto out_of_memory;
+  }
   pQueryHandle->pColumns = taosArrayInit(numOfCols, sizeof(SColumnInfoData));  // todo: use list instead of array?
+  if (pQueryHandle->pColumns == NULL) {
+    goto out_of_memory;
+  }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {{0}, 0};
-
+  
     colInfo.info = pCond->colList[i];
     colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCond->colList[i].bytes);
+    if (colInfo.pData == NULL) {
+      goto out_of_memory;
+    }
     taosArrayPush(pQueryHandle->pColumns, &colInfo);
     pQueryHandle->statis[i].colId = colInfo.info.colId;
   }
 
   pQueryHandle->pTableCheckInfo = taosArrayInit(groupList->numOfTables, sizeof(STableCheckInfo));
+  if (pQueryHandle->pTableCheckInfo == NULL) {
+    goto out_of_memory;
+  }
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
 
@@ -247,6 +258,11 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
 
   return (TsdbQueryHandleT) pQueryHandle;
+
+out_of_memory:
+  terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  tsdbCleanupQueryHandle(pQueryHandle);
+  return NULL;
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
@@ -2407,29 +2423,32 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   if (pQueryHandle == NULL) {
     return;
   }
+  
+  if (pQueryHandle->pTableCheckInfo != NULL) {
+    size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+    for (int32_t i = 0; i < size; ++i) {
+      STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+      destroyTableMemIterator(pTableCheckInfo);
 
-  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  for (int32_t i = 0; i < size; ++i) {
-    STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
-    destroyTableMemIterator(pTableCheckInfo);
+      if (pTableCheckInfo->pDataCols != NULL) {
+        tfree(pTableCheckInfo->pDataCols->buf);
+      }
 
-    if (pTableCheckInfo->pDataCols != NULL) {
-      tfree(pTableCheckInfo->pDataCols->buf);
+      tfree(pTableCheckInfo->pDataCols);
+      tfree(pTableCheckInfo->pCompInfo);
     }
-
-    tfree(pTableCheckInfo->pDataCols);
-    tfree(pTableCheckInfo->pCompInfo);
+    taosArrayDestroy(pQueryHandle->pTableCheckInfo);
   }
 
-  taosArrayDestroy(pQueryHandle->pTableCheckInfo);
+  if (pQueryHandle->pColumns != NULL) {
+    size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
+    for (int32_t i = 0; i < cols; ++i) {
+      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+      tfree(pColInfo->pData);
+    }
+    taosArrayDestroy(pQueryHandle->pColumns);
+  }
 
-   size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
-   for (int32_t i = 0; i < cols; ++i) {
-     SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-     tfree(pColInfo->pData);
-   }
-
-  taosArrayDestroy(pQueryHandle->pColumns);
   taosArrayDestroy(pQueryHandle->defaultLoadColumn);
   tfree(pQueryHandle->pDataBlockInfo);
   tfree(pQueryHandle->statis);

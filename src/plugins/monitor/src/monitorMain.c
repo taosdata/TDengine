@@ -27,7 +27,6 @@
 #include "dnode.h"
 #include "monitor.h"
 
-
 #define monitorFatal(...) { if (monitorDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", 255, __VA_ARGS__); }}
 #define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", 255, __VA_ARGS__); }}
 #define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN ", 255, __VA_ARGS__); }}
@@ -78,6 +77,7 @@ static void monitorStartTimer();
 static void monitorSaveSystemInfo();
 extern int32_t (*monitorStartSystemFp)();
 extern void (*monitorStopSystemFp)();
+extern void (*monitorExecuteSQLFp)(char *sql);
 
 static void monitorCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -207,6 +207,7 @@ static void monitorInitDatabase() {
     taos_query_a(tsMonitorConn.conn, tsMonitorConn.sql, monitorInitDatabaseCb, NULL);
   } else {
     tsMonitorConn.state = MONITOR_STATE_INITIALIZED;
+    monitorExecuteSQLFp = monitorExecuteSQL;
     monitorInfo("monitor service init success");
 
     monitorStartTimer();
@@ -230,6 +231,7 @@ static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
 
 void monitorStopSystem() {
   monitorInfo("monitor module is stopped");
+  monitorExecuteSQLFp = NULL;
   tsMonitorConn.state = MONITOR_STATE_STOPPED;
   if (tsMonitorConn.initTimer != NULL) {
     taosTmrStopA(&(tsMonitorConn.initTimer));
@@ -248,33 +250,13 @@ static void monitorStartTimer() {
   taosTmrReset(monitorSaveSystemInfo, tsMonitorInterval * 1000, NULL, tscTmr, &tsMonitorConn.timer);
 }
 
-static void dnodeMontiorInsertAcctCallback(void *param, TAOS_RES *result, int32_t code) {
+static void dnodeMontiorLogCallback(void *param, TAOS_RES *result, int32_t code) {
   if (code < 0) {
-    monitorError("monitor:%p, save account info failed, code:%s", tsMonitorConn.conn, tstrerror(code));
+    monitorError("monitor:%p, save %s failed, reason:%s", tsMonitorConn.conn, (char *)param, tstrerror(code));
   } else if (code == 0) {
-    monitorError("monitor:%p, save account info failed, affect rows:%d", tsMonitorConn.conn, code);
+    monitorError("monitor:%p, save %s failed, affect rows:%d", tsMonitorConn.conn, (char *)param, code);
   } else {
-    monitorDebug("monitor:%p, save account info success, code:%s", tsMonitorConn.conn, tstrerror(code));
-  }
-}
-
-static void dnodeMontiorInsertSysCallback(void *param, TAOS_RES *result, int32_t code) {
-  if (code < 0) {
-    monitorError("monitor:%p, save system info failed, code:%s %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
-  } else if (code == 0) {
-    monitorError("monitor:%p, save system info failed, affect rows:%d %s", tsMonitorConn.conn, code, tsMonitorConn.sql);
-  } else {
-    monitorDebug("monitor:%p, save system info success, code:%s %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
-  }
-}
-
-static void dnodeMontiorInsertLogCallback(void *param, TAOS_RES *result, int32_t code) {
-  if (code < 0) {
-    monitorError("monitor:%p, save log failed, code:%s", tsMonitorConn.conn, tstrerror(code));
-  } else if (code == 0) {
-    monitorError("monitor:%p, save log failed, affect rows:%d", tsMonitorConn.conn, code);
-  } else {
-    monitorDebug("monitor:%p, save log info success, code:%s", tsMonitorConn.conn, tstrerror(code));
+    monitorDebug("monitor:%p, save %s info success, reason:%s", tsMonitorConn.conn, (char *)param, tstrerror(code));
   }
 }
 
@@ -359,7 +341,7 @@ static void monitorSaveSystemInfo() {
   pos += monitorBuildReqSql(sql + pos);
 
   monitorDebug("monitor:%p, save system info, sql:%s", tsMonitorConn.conn, sql);
-  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorInsertSysCallback, "log");
+  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorLogCallback, "sys");
 
   if (tsMonitorConn.timer != NULL && tsMonitorConn.state != MONITOR_STATE_STOPPED) {
     monitorStartTimer();
@@ -397,7 +379,7 @@ void monitorSaveAcctLog(SAcctMonitorObj *pMon) {
           pMon->accessState);
 
   monitorDebug("monitor:%p, save account info, sql %s", tsMonitorConn.conn, sql);
-  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorInsertAcctCallback, "account");
+  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorLogCallback, "account");
 }
 
 void monitorSaveLog(int32_t level, const char *const format, ...) {
@@ -421,14 +403,11 @@ void monitorSaveLog(int32_t level, const char *const format, ...) {
   sql[len++] = 0;
 
   monitorDebug("monitor:%p, save log, sql: %s", tsMonitorConn.conn, sql);
-  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorInsertLogCallback, "log");
+  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorLogCallback, "log");
 }
 
 void monitorExecuteSQL(char *sql) {
   if (tsMonitorConn.state != MONITOR_STATE_INITIALIZED) return;
-
   monitorDebug("monitor:%p, execute sql: %s", tsMonitorConn.conn, sql);
-  
-  // bug while insert binary
-  // taos_query_a(tsMonitorConn.conn, sql, NULL, NULL);
+  taos_query_a(tsMonitorConn.conn, sql, dnodeMontiorLogCallback, "sql");
 }
