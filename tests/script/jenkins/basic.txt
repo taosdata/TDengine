@@ -327,10 +327,9 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
 #./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
-./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
-./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
