@@ -98,7 +98,7 @@ static void tsdbSetCfg(STsdbCfg *pCfg, int32_t tsdbId, int32_t cacheBlockSize, i
   pCfg->tsdbId = tsdbId;
   pCfg->cacheBlockSize = cacheBlockSize;
   pCfg->totalBlocks = totalBlocks;
-  pCfg->maxTables = maxTables;
+  // pCfg->maxTables = maxTables;
   pCfg->daysPerFile = daysPerFile;
   pCfg->keep = keep;
   pCfg->minRowsPerFileBlock = minRows;
