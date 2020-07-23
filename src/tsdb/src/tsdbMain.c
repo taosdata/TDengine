@@ -382,7 +382,7 @@ int tsdbGetNextMaxTables(int tid) {
   int maxTables = TSDB_INIT_NTABLES;
   while (true) {
     maxTables = MIN(maxTables, TSDB_MAX_TABLES);
-    if (tid <= maxTables + 1) break;
+    if (tid <= maxTables) break;
     maxTables *= 2;
   }
 

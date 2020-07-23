@@ -781,7 +781,9 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
       goto _err;
     }
   } else {
-    if (tsdbAdjustMetaTables(pRepo, TABLE_TID(pTable)) < 0) goto _err;
+    if (TABLE_TID(pTable) >= pMeta->maxTables) {
+      if (tsdbAdjustMetaTables(pRepo, TABLE_TID(pTable)) < 0) goto _err;
+    }
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE && addIdx) {  // add STABLE to the index
       if (tsdbAddTableIntoIndex(pMeta, pTable, true) < 0) {
         tsdbDebug("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
@@ -789,6 +791,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
         goto _err;
       }
     }
+    ASSERT(TABLE_TID(pTable) < pMeta->maxTables);
     pMeta->tables[TABLE_TID(pTable)] = pTable;
     pMeta->nTables++;
   }
@@ -1271,7 +1274,7 @@ static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
 
 static int tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
-  if (pMeta->maxTables >= tid) return 0;
+  ASSERT(tid >= pMeta->maxTables);
 
   int maxTables = tsdbGetNextMaxTables(tid);
 
