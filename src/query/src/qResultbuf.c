@@ -144,6 +144,14 @@ static int32_t addNewGroupId(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   return num;
 }
 
+tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
+  if (id < pResultBuf->inMemPages) {
+    return (tFilePage*) ((char*) pResultBuf->iBuf + id * pResultBuf->pageSize);
+  } else {
+    return (tFilePage*) ((char*) pResultBuf->pBuf + (id - pResultBuf->inMemPages) * pResultBuf->pageSize);
+  }
+}
+
 static void registerPageId(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t pageId) {
   int32_t slot = getGroupIndex(pResultBuf, groupId);
   if (slot < 0) {

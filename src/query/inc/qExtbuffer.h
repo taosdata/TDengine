@@ -19,7 +19,6 @@
 extern "C" {
 #endif
 
-
 #include "os.h"
 #include "taosmsg.h"
 
@@ -28,9 +27,9 @@ extern "C" {
 #include "tdataformat.h"
 #include "talgo.h"
 
-#define DEFAULT_PAGE_SIZE (1024L*4)  // 16k larger than the SHistoInfo
 #define MAX_TMPFILE_PATH_LENGTH PATH_MAX
-#define INITIAL_ALLOCATION_BUFFER_SIZE 64
+#define INITIAL_ALLOCATION_BUFFER_SIZE 64L
+#define DEFAULT_PAGE_SIZE (1024L*(INITIAL_ALLOCATION_BUFFER_SIZE))  // 16k larger than the SHistoInfo
 
 typedef enum EXT_BUFFER_FLUSH_MODEL {
   /*
