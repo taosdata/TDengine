@@ -50,8 +50,8 @@ typedef struct SDnodeObj {
   int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
   int8_t     status;           // set in balance function
   int8_t     isMgmt;
-  int8_t     reserve1[14];  
-  int8_t     updateEnd[1];
+  int8_t     reserve1[11];  
+  int8_t     updateEnd[4];
   int32_t    refCount;
   uint32_t   moduleStatus;
   uint32_t   lastReboot;       // time stamp for last reboot
@@ -68,8 +68,8 @@ typedef struct SMnodeObj {
   int32_t    mnodeId;
   int8_t     reserved0[4];
   int64_t    createdTime;
-  int8_t     reserved1[7];
-  int8_t     updateEnd[1];
+  int8_t     reserved1[4];
+  int8_t     updateEnd[4];
   int32_t    refCount;
   int8_t     role;
   int8_t     reserved2[3];
@@ -90,8 +90,7 @@ typedef struct SSuperTableObj {
   int32_t    tversion;
   int32_t    numOfColumns;
   int32_t    numOfTags;
-  int8_t     reserved1[3];
-  int8_t     updateEnd[1];
+  int8_t     updateEnd[4];
   int32_t    refCount;
   int32_t    numOfTables;
   SSchema *  schema;
@@ -111,8 +110,7 @@ typedef struct {
   int32_t    sid;
   int32_t    vgId;
   int32_t    sqlLen;
-  int8_t     updateEnd[1];
-  int8_t     reserved1[1]; 
+  int8_t     updateEnd[4];
   int32_t    refCount;
   char*      sql;          //used by normal table
   SSchema*   schema;       //used by normal table
@@ -138,8 +136,8 @@ typedef struct SVgObj {
   int8_t         status;
   int8_t         reserved0[4];
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
-  int8_t         reserved1[7];
-  int8_t         updateEnd[1];
+  int8_t         reserved1[4];
+  int8_t         updateEnd[4];
   int32_t        refCount;
   int32_t        numOfTables;
   int64_t        totalStorage;
@@ -176,8 +174,8 @@ typedef struct SDbObj {
   int32_t cfgVersion;
   SDbCfg  cfg;
   int8_t  status;
-  int8_t  reserved1[14];
-  int8_t  updateEnd[1];
+  int8_t  reserved1[11];
+  int8_t  updateEnd[4];
   int32_t refCount;
   int32_t numOfVgroups;
   int32_t numOfTables;
@@ -196,8 +194,8 @@ typedef struct SUserObj {
   int64_t           createdTime;
   int8_t            superAuth;
   int8_t            writeAuth;
-  int8_t            reserved[13];
-  int8_t            updateEnd[1];
+  int8_t            reserved[10];
+  int8_t            updateEnd[4];
   int32_t           refCount;
   struct SAcctObj * pAcct;
 } SUserObj;
@@ -228,11 +226,11 @@ typedef struct SAcctObj {
   int64_t   createdTime;
   int32_t   acctId;
   int8_t    status;
-  int8_t    reserved0[10];
-  int8_t    updateEnd[1];
-  SAcctInfo acctInfo;
+  int8_t    reserved0[7];
+  int8_t    updateEnd[4];
   int32_t   refCount;
   int8_t    reserved1[4];
+  SAcctInfo acctInfo;
   pthread_mutex_t  mutex;
 } SAcctObj;
 

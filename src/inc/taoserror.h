@@ -227,6 +227,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            0, 0x080B, "grant cpu 
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "sync invalid configuration")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "sync module not enabled")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "wal app error")

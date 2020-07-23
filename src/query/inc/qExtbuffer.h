@@ -28,8 +28,8 @@ extern "C" {
 #include "talgo.h"
 
 #define MAX_TMPFILE_PATH_LENGTH PATH_MAX
-#define INITIAL_ALLOCATION_BUFFER_SIZE 64L
-#define DEFAULT_PAGE_SIZE (1024L*(INITIAL_ALLOCATION_BUFFER_SIZE))  // 16k larger than the SHistoInfo
+#define INITIAL_ALLOCATION_BUFFER_SIZE 1L
+#define DEFAULT_PAGE_SIZE (4096L*(INITIAL_ALLOCATION_BUFFER_SIZE))  // 16k larger than the SHistoInfo
 
 typedef enum EXT_BUFFER_FLUSH_MODEL {
   /*
