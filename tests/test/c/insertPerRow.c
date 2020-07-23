@@ -51,7 +51,7 @@ int64_t numOfTablesPerThread = 100;
 char    dbName[32] = "db";
 char    stableName[64] = "st";
 int32_t cache = 4;
-int32_t replica = 5000;
+int32_t replica = 3;
 int32_t days = 10;
 int32_t interval = 1000;
 
@@ -314,7 +314,7 @@ void printHelp() {
   printf("%s%s\n", indent, "-replica");
   printf("%s%s%s%d\n", indent, indent, "Database parameters replica, default is ", replica);
   printf("%s%s\n", indent, "-cache");
-  printf("%s%s%s%d\n", indent, indent, "Database parameters replica, default is ", replica);
+  printf("%s%s%s%d\n", indent, indent, "Database parameters replica, default is ", cache);
   printf("%s%s\n", indent, "-days");
   printf("%s%s%s%d\n", indent, indent, "Database parameters days, default is ", days);
   printf("%s%s\n", indent, "-interval");
