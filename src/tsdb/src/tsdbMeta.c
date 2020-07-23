@@ -49,6 +49,7 @@ static int     tsdbGetTableEncodeSize(int8_t act, STable *pTable);
 static void *  tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STable *pTable);
 static int     tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
+static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 
 // ------------------ OUTER FUNCTIONS ------------------
 int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
@@ -60,13 +61,13 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   int        tid = pCfg->tableId.tid;
   STable *   pTable = NULL;
 
-  if (tid < 0 || tid >= pRepo->config.maxTables) {
+  if (tid < 1 || tid > TSDB_MAX_TABLES) {
     tsdbError("vgId:%d failed to create table since invalid tid %d", REPO_ID(pRepo), tid);
     terrno = TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO;
     goto _err;
   }
 
-  if (pMeta->tables[tid] != NULL) {
+  if (tid < pMeta->maxTables && pMeta->tables[tid] != NULL) {
     if (TABLE_UID(pMeta->tables[tid]) == pCfg->tableId.uid) {
       tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
                 TABLE_TID(pTable), TABLE_UID(pTable));
@@ -422,7 +423,8 @@ STsdbMeta *tsdbNewMeta(STsdbCfg *pCfg) {
     goto _err;
   }
 
-  pMeta->tables = (STable **)calloc(pCfg->maxTables, sizeof(STable *));
+  pMeta->maxTables = TSDB_INIT_NTABLES + 1;
+  pMeta->tables = (STable **)calloc(pMeta->maxTables, sizeof(STable *));
   if (pMeta->tables == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -434,7 +436,7 @@ STsdbMeta *tsdbNewMeta(STsdbCfg *pCfg) {
     goto _err;
   }
 
-  pMeta->uidMap = taosHashInit(pCfg->maxTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  pMeta->uidMap = taosHashInit(TSDB_INIT_NTABLES * 1.1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   if (pMeta->uidMap == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -484,14 +486,13 @@ _err:
 }
 
 int tsdbCloseMeta(STsdbRepo *pRepo) {
-  STsdbCfg * pCfg = &pRepo->config;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   SListNode *pNode = NULL;
   STable *   pTable = NULL;
 
   if (pMeta == NULL) return 0;
   tdCloseKVStore(pMeta->pStore);
-  for (int i = 1; i < pCfg->maxTables; i++) {
+  for (int i = 1; i < pMeta->maxTables; i++) {
     tsdbFreeTable(pMeta->tables[i]);
   }
 
@@ -624,9 +625,8 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
 static void tsdbOrgMeta(void *pHandle) {
   STsdbRepo *pRepo = (STsdbRepo *)pHandle;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
-  STsdbCfg * pCfg = &pRepo->config;
 
-  for (int i = 1; i < pCfg->maxTables; i++) {
+  for (int i = 1; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
       tsdbAddTableIntoIndex(pMeta, pTable, true);
@@ -781,6 +781,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
       goto _err;
     }
   } else {
+    if (tsdbAdjustMetaTables(pRepo, TABLE_TID(pTable)) < 0) goto _err;
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE && addIdx) {  // add STABLE to the index
       if (tsdbAddTableIntoIndex(pMeta, pTable, true) < 0) {
         tsdbDebug("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
@@ -827,7 +828,6 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   SListIter  lIter = {0};
   SListNode *pNode = NULL;
   STable *   tTable = NULL;
-  STsdbCfg * pCfg = &(pRepo->config);
 
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
   int       maxCols = schemaNCols(pSchema);
@@ -860,7 +860,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   if (maxCols == pMeta->maxCols || maxRowBytes == pMeta->maxRowBytes) {
     maxCols = 0;
     maxRowBytes = 0;
-    for (int i = 0; i < pCfg->maxTables; i++) {
+    for (int i = 0; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable != NULL) {
         pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
@@ -1265,6 +1265,29 @@ static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
     if ((TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) && pTable->cqhandle) pRepo->appH.cqDropFunc(pTable->cqhandle);
     tsdbRemoveTableFromMeta(pRepo, pTable, true, true);
   }
+
+  return 0;
+}
+
+static int tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  if (pMeta->maxTables >= tid) return 0;
+
+  int maxTables = tsdbGetNextMaxTables(tid);
+
+  STable **tables = (STable **)calloc(maxTables, sizeof(STable *));
+  if (tables == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  memcpy((void *)tables, (void *)pMeta->tables, sizeof(STable *) * pMeta->maxTables);
+  pMeta->maxTables = maxTables;
+
+  STable **tTables = pMeta->tables;
+  pMeta->tables = tables;
+  tfree(tTables);
+  tsdbDebug("vgId:%d tsdb meta maxTables is adjusted as %d", REPO_ID(pRepo), maxTables);
 
   return 0;
 }

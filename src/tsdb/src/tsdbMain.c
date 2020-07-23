@@ -62,7 +62,6 @@ static int         tsdbRestoreInfo(STsdbRepo *pRepo);
 static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
 static int         tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
-static int         tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables);
 static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 static int         keyFGroupCompFunc(const void *key, const void *fgroup);
 static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
@@ -85,10 +84,10 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
   if (tsdbSetRepoEnv(rootDir, pCfg) < 0) return -1;
 
   tsdbDebug(
-      "vgId:%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d maxTables %d daysPerFile %d keep "
+      "vgId:%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d daysPerFile %d keep "
       "%d minRowsPerFileBlock %d maxRowsPerFileBlock %d precision %d compression %d",
-      pCfg->tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->maxTables, pCfg->daysPerFile, pCfg->keep,
-      pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression);
+      pCfg->tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->daysPerFile, pCfg->keep, pCfg->minRowsPerFileBlock,
+      pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression);
   return 0;
 }
 
@@ -307,13 +306,6 @@ int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
     tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
     configChanged = true;
   }
-  if (pRCfg->maxTables != pCfg->maxTables) {
-    if (tsdbAlterMaxTables(pRepo, pCfg->maxTables) < 0) {
-      tsdbError("vgId:%d failed to configure repo when alter maxTables since %s", REPO_ID(pRepo), tstrerror(terrno));
-      return -1;
-    }
-    configChanged = true;
-  }
 
   if (configChanged) {
     if (tsdbSaveConfig(pRepo->rootDir, &pRepo->config) < 0) {
@@ -385,6 +377,18 @@ char *tsdbGetDataDirName(char *rootDir) {
   return fname;
 }
 
+int tsdbGetNextMaxTables(int tid) {
+  ASSERT(tid >= 1 && tid <= TSDB_MAX_TABLES);
+  int maxTables = TSDB_INIT_NTABLES;
+  while (true) {
+    maxTables = MIN(maxTables, TSDB_MAX_TABLES);
+    if (tid <= maxTables + 1) break;
+    maxTables *= 2;
+  }
+
+  return maxTables + 1;
+}
+
 STsdbMeta *    tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
 STsdbFileH *   tsdbGetFile(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbFileH; }
 STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo) { return NULL; }
@@ -415,17 +419,6 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->tsdbId < 0) {
     tsdbError("vgId:%d invalid vgroup ID", pCfg->tsdbId);
     goto _err;
-  }
-
-  // Check maxTables
-  if (pCfg->maxTables == -1) {
-    pCfg->maxTables = TSDB_DEFAULT_TABLES+1;
-  } else {
-    if (pCfg->maxTables - 1 < TSDB_MIN_TABLES || pCfg->maxTables - 1 > TSDB_MAX_TABLES) {
-      tsdbError("vgId:%d invalid maxTables configuration! maxTables %d TSDB_MIN_TABLES %d TSDB_MAX_TABLES %d",
-                pCfg->tsdbId, pCfg->maxTables - 1, TSDB_MIN_TABLES, TSDB_MAX_TABLES);
-      goto _err;
-    }
   }
 
   // Check daysPerFile
@@ -713,6 +706,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   int64_t    points = 0;
 
+  ASSERT(pBlock->tid < pMeta->maxTables);
   STable *pTable = pMeta->tables[pBlock->tid];
   ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
 
@@ -779,7 +773,6 @@ static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
 }
 
 static int tsdbRestoreInfo(STsdbRepo *pRepo) {
-  // TODO
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pFGroup = NULL;
@@ -792,7 +785,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_DESC);
   while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
     if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
-    for (int i = 1; i < pRepo->config.maxTables; i++) {
+    for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
       tsdbSetHelperTable(&rhelper, pTable, pRepo);
@@ -868,36 +861,6 @@ static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
   return 0;
 }
 
-static int tsdbAlterMaxTables(STsdbRepo *pRepo, int32_t maxTables) {
-  // TODO
-  int oldMaxTables = pRepo->config.maxTables;
-  if (oldMaxTables < pRepo->config.maxTables) {
-    terrno = TSDB_CODE_TDB_INVALID_ACTION;
-    return -1;
-  }
-
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-
-  pMeta->tables = realloc(pMeta->tables, maxTables * sizeof(STable *));
-  memset(&pMeta->tables[oldMaxTables], 0, sizeof(STable *) * (maxTables - oldMaxTables));
-  pRepo->config.maxTables = maxTables;
-
-  if (pRepo->mem) {
-    pRepo->mem->tData = realloc(pRepo->mem->tData, maxTables * sizeof(STableData *));
-    memset(POINTER_SHIFT(pRepo->mem->tData, sizeof(STableData *) * oldMaxTables), 0,
-           sizeof(STableData *) * (maxTables - oldMaxTables));
-  }
-
-  if (pRepo->imem) {
-    pRepo->imem->tData = realloc(pRepo->imem->tData, maxTables * sizeof(STableData *));
-    memset(POINTER_SHIFT(pRepo->imem->tData, sizeof(STableData *) * oldMaxTables), 0,
-           sizeof(STableData *) * (maxTables - oldMaxTables));
-  }
-
-  tsdbDebug("vgId:%d, tsdb maxTables is changed from %d to %d!", pRepo->config.tsdbId, oldMaxTables, maxTables);
-  return 0;
-}
-
 static int keyFGroupCompFunc(const void *key, const void *fgroup) {
   int         fid = *(int *)key;
   SFileGroup *pFGroup = (SFileGroup *)fgroup;
@@ -914,7 +877,6 @@ static int tsdbEncodeCfg(void **buf, STsdbCfg *pCfg) {
   tlen += taosEncodeVariantI32(buf, pCfg->tsdbId);
   tlen += taosEncodeFixedI32(buf, pCfg->cacheBlockSize);
   tlen += taosEncodeVariantI32(buf, pCfg->totalBlocks);
-  tlen += taosEncodeVariantI32(buf, pCfg->maxTables);
   tlen += taosEncodeVariantI32(buf, pCfg->daysPerFile);
   tlen += taosEncodeVariantI32(buf, pCfg->keep);
   tlen += taosEncodeVariantI32(buf, pCfg->keep1);
@@ -931,7 +893,6 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
   buf = taosDecodeVariantI32(buf, &(pCfg->tsdbId));
   buf = taosDecodeFixedI32(buf, &(pCfg->cacheBlockSize));
   buf = taosDecodeVariantI32(buf, &(pCfg->totalBlocks));
-  buf = taosDecodeVariantI32(buf, &(pCfg->maxTables));
   buf = taosDecodeVariantI32(buf, &(pCfg->daysPerFile));
   buf = taosDecodeVariantI32(buf, &(pCfg->keep));
   buf = taosDecodeVariantI32(buf, &(pCfg->keep1));
@@ -1037,7 +998,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
     pBlock->schemaLen = htonl(pBlock->schemaLen);
     pBlock->numOfRows = htons(pBlock->numOfRows);
 
-    if (pBlock->tid <= 0 || pBlock->tid >= pRepo->config.maxTables) {
+    if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
       tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
                 pBlock->tid);
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
@@ -1120,7 +1081,7 @@ TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid) {
 static void tsdbStartStream(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  for (int i = 0; i < pRepo->config.maxTables; i++) {
+  for (int i = 0; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
       pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
@@ -1133,7 +1094,7 @@ static void tsdbStartStream(STsdbRepo *pRepo) {
 static void tsdbStopStream(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  for (int i = 0; i < pRepo->config.maxTables; i++) {
+  for (int i = 0; i < pMeta->maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
       (*pRepo->appH.cqDropFunc)(pTable->cqhandle);

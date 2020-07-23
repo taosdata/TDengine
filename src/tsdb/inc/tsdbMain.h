@@ -70,6 +70,7 @@ typedef struct {
   pthread_rwlock_t rwLock;
 
   int32_t   nTables;
+  int32_t   maxTables;
   STable**  tables;
   SList*    superList;
   SHashObj* uidMap;
@@ -111,9 +112,11 @@ typedef struct {
 
 typedef struct {
   T_REF_DECLARE();
+  SRWLatch     latch;
   TSKEY        keyFirst;
   TSKEY        keyLast;
   int64_t      numOfRows;
+  int32_t      maxTables;
   STableData** tData;
   SList*       actList;
   SList*       bufBlockList;
@@ -304,6 +307,7 @@ typedef struct {
 
 // Operations
 // ------------------ tsdbMeta.c
+#define TSDB_INIT_NTABLES 1024
 #define TABLE_TYPE(t) (t)->type
 #define TABLE_NAME(t) (t)->name
 #define TABLE_CHAR_NAME(t) TABLE_NAME(t)->data
@@ -395,6 +399,7 @@ int   tsdbInsertRowToMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
+void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemTable* pMem, SMemTable* pIMem);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
@@ -429,7 +434,7 @@ STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
 void        tsdbFreeFileH(STsdbFileH* pFileH);
 int         tsdbOpenFileH(STsdbRepo* pRepo);
 void        tsdbCloseFileH(STsdbRepo* pRepo);
-SFileGroup* tsdbCreateFGroupIfNeed(STsdbRepo* pRepo, char* dataDir, int fid, int maxTables);
+SFileGroup* tsdbCreateFGroupIfNeed(STsdbRepo* pRepo, char* dataDir, int fid);
 void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
 void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
 SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
@@ -511,6 +516,7 @@ void        tsdbGetDataFileName(STsdbRepo* pRepo, int fid, int type, char* fname
 int         tsdbLockRepo(STsdbRepo* pRepo);
 int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);
+int         tsdbGetNextMaxTables(int tid);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
 STsdbFileH* tsdbGetFile(TSDB_REPO_T* pRepo);
 
