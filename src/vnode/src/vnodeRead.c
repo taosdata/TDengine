@@ -236,6 +236,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
         freeHandle = false;
       } else {
         qKillQuery(*handle);
+        qDestroyQueryInfo(*handle);
         freeHandle = true;
       }
     }
