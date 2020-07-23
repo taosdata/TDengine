@@ -4,12 +4,6 @@ include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNI
         ${TD_COMMUNITY_DIR}/src/query/inc  ${TD_COMMUNITY_DIR}/src/util/inc ../../tests/test/perftest/inc
         ${TD_COMMUNITY_DIR}/src/common/inc ${TD_OS_DIR}/inc)
 
-add_executable(synctest ./cdriver/synctest.c )
-target_link_libraries(synctest taos pthread)
-
-add_executable(sync_insert_bug ./bug/sync_insert.c )
-target_link_libraries(sync_insert_bug taos pthread)
-
 #add_executable(loadnsort ./perftest/loadnsort.c )
 #target_link_libraries(loadnsort taos pthread)
 
@@ -22,8 +16,8 @@ target_link_libraries(asynctest taos pthread)
 add_executable(percentiletest ./perftest/percentileTest.c)
 target_link_libraries(percentiletest taos_static tutil)
 
-add_executable(sqltest ./perftest/sqlTest.c ./perftest/testCommon.c)
-target_link_libraries(sqltest taos tutil)
+#add_executable(sqltest ./perftest/sqlTest.c ./perftest/testCommon.c)
+#target_link_libraries(sqltest taos tutil)
 
 #add_executable(asttest ./perftest/astTest.c ./perftest/testCommon.c)
 #target_link_libraries(asttest taos tutil)
@@ -31,20 +25,17 @@ target_link_libraries(sqltest taos tutil)
 #add_executable(localmerge ./perftest/localMergeTest.c)
 #target_link_libraries(localmerge taos tutil)
 
-add_executable(skiplisttest ./perftest/skipListTest.c)
-target_link_libraries(skiplisttest taos tutil)
-
 add_executable(querytest ./perftest/queryTest.c ./perftest/testCommon.c)
 target_link_libraries(querytest taos_static tutil)
 
-add_executable(functiontest ./perftest/sqlfunctionTest.c)
-target_link_libraries(functiontest taos tutil)
+#add_executable(functiontest ./perftest/sqlfunctionTest.c)
+#target_link_libraries(functiontest taos tutil)
 
-add_executable(sqlparseTest ./perftest/sqlparseTest.c ./perftest/testCommon.c)
-target_link_libraries(sqlparseTest taos tutil)
+#add_executable(sqlparseTest ./perftest/sqlparseTest.c ./perftest/testCommon.c)
+#target_link_libraries(sqlparseTest taos tutil)
 
-add_executable(metricInterpoTest ./perftest/metricInterpolationTest.c ./perftest/testCommon.c)
-target_link_libraries(metricInterpoTest taos tutil)
+#add_executable(metricInterpoTest ./perftest/metricInterpolationTest.c ./perftest/testCommon.c)
+#target_link_libraries(metricInterpoTest taos tutil)
 
 #add_executable(multiclientest ./perftest/perftestbase.cpp ./perftest/perftestcommon.c)
 #target_link_libraries(multiclientest taos pthread)

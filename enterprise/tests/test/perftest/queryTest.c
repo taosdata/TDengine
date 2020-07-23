@@ -1,15 +1,6 @@
-#include <fcntl.h>
-#include <float.h>
-#include <limits.h>
-#include <locale.h>
-#include <qTsbuf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-#include <tglobal.h>
-#include <time.h>
-#include <unistd.h>
 #include <wordexp.h>
 
 #include "taos.h"
