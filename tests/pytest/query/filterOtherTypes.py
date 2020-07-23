@@ -231,10 +231,12 @@ class TDTestCase:
         tdSql.error("select * from st where tagcol1 like '____'")
 
         # > for nchar type on tag
-        tdSql.error("select * from st where tagcol2 > 'table'")
+        tdSql.query("select * from st where tagcol2 > 'table1'")
+        tdSql.checkRows(5)
 
         # >= for nchar type on tag
-        tdSql.error("select * from st where tagcol2 >= 'table'")
+        tdSql.query("select * from st where tagcol2 >= 'table1'")
+        tdSql.checkRows(10)
 
         # = for nchar type on tag
         tdSql.query("select * from st where tagcol2 = 'table1'")
@@ -249,10 +251,12 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # > for nchar type on tag
-        tdSql.error("select * from st where tagcol2 < 'table'")
+        tdSql.query("select * from st where tagcol2 < 'table'")
+        tdSql.checkRows(0)
 
         # >= for nchar type on tag
-        tdSql.error("select * from st where tagcol2 <= 'table'")
+        tdSql.query("select * from st where tagcol2 <= 'table'")
+        tdSql.checkRows(0)
 
         # % for nchar type on tag case 1
         tdSql.query("select * from st where tagcol2 like '%'")
@@ -291,10 +295,12 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # > for binary type on tag
-        tdSql.error("select * from st where tagcol3 > '表'")
+        tdSql.query("select * from st where tagcol3 > '表'")
+        tdSql.checkRows(10)
 
         # >= for binary type on tag
-        tdSql.error("select * from st where tagcol3 >= '表'")
+        tdSql.query("select * from st where tagcol3 >= '表'")
+        tdSql.checkRows(10)
 
         # = for binary type on tag
         tdSql.query("select * from st where tagcol3 = '水表'")
@@ -309,10 +315,12 @@ class TDTestCase:
         tdSql.checkRows(5)
 
         # > for binary type on tag
-        tdSql.error("select * from st where tagcol3 < '水表'")
+        tdSql.query("select * from st where tagcol3 < '水表'")
+        tdSql.checkRows(0)
 
         # >= for binary type on tag
-        tdSql.error("select * from st where tagcol3 <= '水表'")
+        tdSql.query("select * from st where tagcol3 <= '水表'")
+        tdSql.checkRows(5)
 
         # % for binary type on tag case 1
         tdSql.query("select * from st where tagcol3 like '%'")

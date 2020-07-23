@@ -67,8 +67,11 @@ static int32_t mnodeDbActionInsert(SSdbOper *pOper) {
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   pthread_mutex_init(&pDb->mutex, NULL);
+  pthread_mutex_lock(&pDb->mutex);
   pDb->vgListSize = VG_LIST_SIZE;
   pDb->vgList = calloc(pDb->vgListSize, sizeof(SVgObj *));
+  pthread_mutex_unlock(&pDb->mutex);
+
   pDb->numOfVgroups = 0;
   pDb->numOfTables = 0;
   pDb->numOfSuperTables = 0;
@@ -395,8 +398,8 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    mnodeDestroyDb(pDb);
     mLInfo("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
+    mnodeDestroyDb(pDb);
     return code;
   } else {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -605,7 +608,9 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 
 static char *mnodeGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
-  return ++pos;
+  if (pos != NULL) ++pos;
+
+  return pos;
 }
 
 static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
@@ -622,10 +627,13 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 
     cols = 0;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
     char* name = mnodeGetDbStr(pDb->name);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
+    if (name != NULL) {
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
+    } else {
+      STR_TO_VARSTR(pWrite, "NULL");
+    }
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

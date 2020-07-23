@@ -121,6 +121,10 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
   for (int k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
+    if (row == NULL) {
+      cmd->numOfRows--;
+      continue;
+    }
     int32_t* length = taos_fetch_lengths(result);
 
     // for group by
