@@ -725,6 +725,7 @@ static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
+  memcpy((void *)pTableData, (void *)pMemTable->tData, sizeof(STableData *) * pMemTable->maxTables);
 
   STableData **tData = pMemTable->tData;
 
