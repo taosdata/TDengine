@@ -610,9 +610,10 @@ void balanceCleanUp() {
   if (tsBalanceTimer != NULL) {
     taosTmrStopA(&tsBalanceTimer);
     pthread_mutex_destroy(&tsBalanceMutex);
-    balanceCleanupDnodeList();
+    tsBalanceTimer = NULL;
     mDebug("stop balance timer");
   }
+  balanceCleanupDnodeList();
 }
 
 int32_t balanceDropDnode(SDnodeObj *pDnode) {
@@ -946,4 +947,9 @@ static void balanceMonitorDnodeModule() {
     numOfMnodes = mnodeGetMnodesNum();
     if (numOfMnodes >= tsNumOfMnodes) return;
   }
+}
+
+int32_t balanceCfgDnode(struct SDnodeObj *pDnode, const char *option) { 
+  mInfo("dnode:%d, balance cfg option:%s is received", pDnode->dnodeId, option);
+  return TSDB_CODE_SUCCESS;
 }
