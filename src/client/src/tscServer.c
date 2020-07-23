@@ -106,13 +106,14 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   SCMCorVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->corVgroupInfo;
 
   taosCorBeginWrite(&pVgroupInfo->version);
-  //TODO(dengyihao), dont care vgid 
+  tscDebug("before: Endpoint in use: %d", pVgroupInfo->inUse);
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
-  for (int32_t i = 0; pVgroupInfo->numOfEps; i++) {
+  for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
     strncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
+  tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
 void tscPrintMgmtEp() {
@@ -283,9 +284,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   if (pEpSet) { 
-    //SRpcEpSet dump; 
-    tscEpSetHtons(pEpSet); 
-    if (tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
+    if (!tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
       if(pCmd->command < TSDB_SQL_MGMT)  { 
         tscUpdateVgroupInfo(pSql, pEpSet); 
       } else {
