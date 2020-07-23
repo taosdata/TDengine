@@ -622,7 +622,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
                     .uid = (_checkInfo)->tableId.uid})
 
 
-static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo) {
+static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo, int32_t slotIndex) {
   STsdbRepo *pRepo = pQueryHandle->pTsdb;
   bool       blockLoaded = false;
   int64_t    st = taosGetTimestampUs();
@@ -657,8 +657,8 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
   int64_t elapsedTime = (taosGetTimestampUs() - st);
   pQueryHandle->cost.blockLoadTime += elapsedTime;
 
-  tsdbDebug("%p load file block into buffer, brange:%"PRId64"-%"PRId64" , rows:%d, elapsed time:%"PRId64 " us",
-      pQueryHandle, pBlock->keyFirst, pBlock->keyLast, pBlock->numOfRows, elapsedTime);
+  tsdbDebug("%p load file block into buffer, index:%d, brange:%"PRId64"-%"PRId64" , rows:%d, elapsed time:%"PRId64 " us, %p",
+      pQueryHandle, slotIndex, pBlock->keyFirst, pBlock->keyLast, pBlock->numOfRows, elapsedTime, pQueryHandle->qinfo);
   return blockLoaded;
 }
 
@@ -681,8 +681,7 @@ static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* 
       // do not load file block into buffer
       int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order) ? 1 : -1;
 
-      cur->rows = tsdbReadRowsFromCache(pCheckInfo, binfo.window.skey - step,
-                                        pQueryHandle->outputCapacity, &cur->win, pQueryHandle);
+      cur->rows = tsdbReadRowsFromCache(pCheckInfo, binfo.window.skey - step, pQueryHandle->outputCapacity, &cur->win, pQueryHandle);
       pQueryHandle->realNumOfRows = cur->rows;
 
       // update the last key value
@@ -696,7 +695,7 @@ static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* 
       return;
     }
 
-    doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo);
+    doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot);
     doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
   } else {
     /*
@@ -723,7 +722,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
   if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
     // query ended in/started from current block
     if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
-      if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
+      if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot)) {
         return false;
       }
 
@@ -744,7 +743,7 @@ static bool loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock
     }
   } else {  //desc order, query ended in current block
     if (pQueryHandle->window.ekey > pBlock->keyFirst || pCheckInfo->lastKey < pBlock->keyLast) {
-      if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo)) {
+      if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot)) {
         return false;
       }
 
@@ -1859,8 +1858,8 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
-  tsdbDebug("%p build data block from cache completed, elapsed time:%"PRId64" us, numOfRows:%d, numOfCols:%d", pQueryHandle,
-            elapsedTime, numOfRows, numOfCols);
+  tsdbDebug("%p build data block from cache completed, elapsed time:%"PRId64" us, numOfRows:%d, numOfCols:%d, %p", pQueryHandle,
+            elapsedTime, numOfRows, numOfCols, pQueryHandle->qinfo);
 
   return numOfRows;
 }
@@ -1975,7 +1974,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
         return pHandle->pColumns;
       } else {  // only load the file block
         SCompBlock* pBlock = pBlockInfo->compBlock;
-        doLoadFileDataBlock(pHandle, pBlock, pCheckInfo);
+        doLoadFileDataBlock(pHandle, pBlock, pCheckInfo, pHandle->cur.slot);
 
         // todo refactor
         int32_t numOfRows = copyDataFromFileBlock(pHandle, pHandle->outputCapacity, 0, 0, pBlock->numOfRows - 1);
