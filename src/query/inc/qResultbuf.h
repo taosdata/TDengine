@@ -49,20 +49,19 @@ typedef struct SDiskbasedResultBuf {
   int32_t   numOfRowsPerPage;
   int32_t   numOfPages;
   int64_t   totalBufSize;
-//  int32_t   fd;
+  int64_t   diskFileSize;        // disk file size
   FILE*     file;
   int32_t   allocateId;          // allocated page id
-//  int32_t   incStep;             // minimum allocated pages
-  void*     pBuf;                // mmap buffer pointer
   char*     path;                // file path
   int32_t   pageSize;            // current used page size
   int32_t   inMemPages;          // numOfPages that are allocated in memory
-  SHashObj* idsTable;            // id hash table
+  SHashObj* groupSet;            // id hash table
   SHashObj* all;
-  SList*    pPageList;
+  SList*    lruList;
   void*     handle;              // for debug purpose
   void*     emptyDummyIdList;    // dummy id list
-  bool      comp;
+  bool      comp;                // compressed before flushed to disk
+  void*     assistBuf;           // assistant buffer for compress data
   SArray*   pFree;               // free area in file
   int32_t   nextPos;             // next page flush position
 } SDiskbasedResultBuf;
@@ -95,7 +94,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
  * @param pResultBuf
  * @return
  */
-int32_t getNumOfRowsPerPage(SDiskbasedResultBuf* pResultBuf);
+size_t getNumOfRowsPerPage(const SDiskbasedResultBuf* pResultBuf);
 
 /**
  *
@@ -113,6 +112,11 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId);
  */
 tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
 
+/**
+ * release the referenced buf pages
+ * @param pResultBuf
+ * @param page
+ */
 void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page);
 
 /**
@@ -120,14 +124,14 @@ void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page);
  * @param pResultBuf
  * @return
  */
-int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf);
+size_t getResBufSize(const SDiskbasedResultBuf* pResultBuf);
 
 /**
  * get the number of groups in the result buffer
  * @param pResultBuf
  * @return
  */
-int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf);
+size_t getNumOfResultBufGroupId(const SDiskbasedResultBuf* pResultBuf);
 
 /**
  * destroy result buffer
