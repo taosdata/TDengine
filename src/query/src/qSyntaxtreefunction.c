@@ -15,7 +15,7 @@
 
 #include "os.h"
 
-#include "qsyntaxtreefunction.h"
+#include "qSyntaxtreefunction.h"
 #include "taosdef.h"
 #include "tutil.h"
 

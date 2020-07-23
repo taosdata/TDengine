@@ -31,7 +31,6 @@ static int         tsdbCommitMeta(STsdbRepo *pRepo);
 static void        tsdbEndCommit(STsdbRepo *pRepo);
 static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
-static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 
@@ -265,13 +264,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   }
 
   do {
-    if (numOfRows >= maxRowsToRead) break;
-
     SDataRow row = tsdbNextIterRow(pIter);
     if (row == NULL) break;
 
     keyNext = dataRowKey(row);
-    if (keyNext < 0 || keyNext > maxKey) break;
+    if (keyNext > maxKey) break;
 
     bool keyFiltered = false;
     if (nFilterKeys != 0) {
@@ -290,6 +287,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
     }
 
     if (!keyFiltered) {
+      if (numOfRows >= maxRowsToRead) break;
       if (pCols) {
         if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
           pSchema = tsdbGetTableSchemaImpl(pTable, false, false, dataRowVersion(row));
@@ -544,7 +542,7 @@ static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSK
   return 0;
 }
 
-static void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
+void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
   *minKey = fileId * daysPerFile * tsMsPerDay[precision];
   *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
 }
@@ -628,9 +626,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
-  pGroup->files[TSDB_FILE_TYPE_HEAD] = pHelper->files.headF;
-  pGroup->files[TSDB_FILE_TYPE_DATA] = pHelper->files.dataF;
-  pGroup->files[TSDB_FILE_TYPE_LAST] = pHelper->files.lastF;
+#ifdef TSDB_IDX
+  pGroup->files[TSDB_FILE_TYPE_IDX] = *(helperIdxF(pHelper));
+#endif
+  pGroup->files[TSDB_FILE_TYPE_HEAD] = *(helperHeadF(pHelper));
+  pGroup->files[TSDB_FILE_TYPE_DATA] = *(helperDataF(pHelper));
+  pGroup->files[TSDB_FILE_TYPE_LAST] = *(helperLastF(pHelper));
   pthread_rwlock_unlock(&(pFileH->fhlock));
 
   return 0;

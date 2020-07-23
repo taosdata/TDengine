@@ -31,8 +31,8 @@ extern "C" {
 #include "tutil.h"
 
 #include "qExecutor.h"
+#include "qTsbuf.h"
 #include "qsqlparser.h"
-#include "qtsbuf.h"
 #include "tcmdtype.h"
 
 // forward declaration

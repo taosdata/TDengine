@@ -236,7 +236,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   }
 
   SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
-  SRpcConnInfo connInfo;
+  SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
     
   int32_t connId = htonl(pHBMsg->connId);
@@ -284,7 +284,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   SCMConnectRsp *pConnectRsp = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SRpcConnInfo connInfo;
+  SRpcConnInfo connInfo = {0};
   if (rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo) != 0) {
     mError("thandle:%p is already released while process connect msg", pMsg->rpcMsg.handle);
     code = TSDB_CODE_MND_INVALID_CONNECTION;

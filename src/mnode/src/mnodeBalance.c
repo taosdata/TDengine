@@ -28,6 +28,7 @@ void    balanceCleanUp() {}
 void    balanceAsyncNotify() {}
 void    balanceSyncNotify() {}
 void    balanceReset() {}
+int32_t balanceCfgDnode(struct SDnodeObj *pDnode, const char *option) { return TSDB_CODE_SYN_NOT_ENABLED; }
 
 int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   void *     pIter = NULL;
