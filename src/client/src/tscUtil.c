@@ -351,14 +351,14 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   int32_t cmd = pCmd->command;
   if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscRemoveFromSqlList(pSql);
+    //tscRemoveFromSqlList(pSql);
   }
   
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
   if (pObj->signature == pObj) {
-    pthread_mutex_lock(&pObj->mutex);
+    //pthread_mutex_lock(&pObj->mutex);
     tfree(pSql->sqlstr);
-    pthread_mutex_unlock(&pObj->mutex);
+    //pthread_mutex_unlock(&pObj->mutex);
   }
   
   tscFreeSqlResult(pSql);
@@ -1885,7 +1885,7 @@ void tscDoQuery(SSqlObj* pSql) {
   }
   
   if (pCmd->command == TSDB_SQL_SELECT) {
-    tscAddIntoSqlList(pSql);
+    //tscAddIntoSqlList(pSql);
   }
 
   if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
