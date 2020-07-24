@@ -209,7 +209,11 @@ static void *dnodeProcessReadQueue(void *param) {
     if (type == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
       dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     } else {
-      dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
+      if (code == TSDB_CODE_QRY_HAS_RSP) {
+        dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
+      } else {
+        dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
+      }
     }
 
     taosFreeQitem(pReadMsg);

@@ -66,11 +66,12 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
 }
 
-static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void *qhandle) {
+static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void *qhandle, void* handle) {
   SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
   pRead->pCont = qhandle;
   pRead->contLen = 0;
+  pRead->rpcMsg.handle = handle;
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
   taosWriteQitem(pVnode->rqueue, TAOS_QTYPE_QUERY, pRead);
@@ -110,7 +111,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
   if (contLen != 0) {
     qinfo_t pQInfo = NULL;
-    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, pVnode, &pQInfo);
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo);
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code    = code;
@@ -148,7 +149,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (handle != NULL) {
       vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, register qhandle and return to app", vgId, *handle);
 
-      vnodePutItemIntoReadQueue(pVnode, *handle);
+      vnodePutItemIntoReadQueue(pVnode, *handle, pReadMsg->rpcMsg.handle);
 //      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
     }
 
@@ -163,7 +164,23 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     } else {
       vDebug("vgId:%d, QInfo:%p, dnode continue exec query", pVnode->vgId, (void*) pCont);
       code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
-      qTableQuery(*handle); // do execute query
+      bool buildRes = qTableQuery(*handle); // do execute query
+
+      if (buildRes) { // build result rsp
+        pRet = &pReadMsg->rspRet;
+
+        bool continueExec = false;
+        if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
+          if (continueExec) {
+            vnodePutItemIntoReadQueue(pVnode, *handle, pReadMsg->rpcMsg.handle);
+            pRet->qhandle = *handle;
+
+          }
+        } else { // todo handle error
+        }
+
+        code = TSDB_CODE_QRY_HAS_RSP;
+      }
     }
 //    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
   }
@@ -223,22 +240,29 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   }
 
   bool freeHandle = true;
-  code = qRetrieveQueryResultInfo(*handle);
+  bool buildRes   = false;
+
+  code = qRetrieveQueryResultInfo(*handle, &buildRes, pReadMsg);
   if (code != TSDB_CODE_SUCCESS) {
     //TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
-  } else { // if failed to dump result, free qhandle immediately
-    if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len)) == TSDB_CODE_SUCCESS) {
-      if (qHasMoreResultsToRetrieve(*handle)) {
-        vnodePutItemIntoReadQueue(pVnode, *handle);
+  } else {
+    // result is not ready, return immediately
+    if (!buildRes) {
+      return TSDB_CODE_QRY_NOT_READY;
+    }
+
+    bool continueExec = false;
+    if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
+      if (continueExec) {
+        vnodePutItemIntoReadQueue(pVnode, *handle, pReadMsg->rpcMsg.handle);
         pRet->qhandle = *handle;
         freeHandle = false;
-      } else {
-        qKillQuery(*handle);
-        qDestroyQueryInfo(*handle);
-        freeHandle = true;
       }
+    } else {
+      pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+      memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
     }
   }
 

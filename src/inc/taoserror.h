@@ -211,6 +211,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_APP_ERROR,                0, 0x0704, "query app 
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUP_JOIN_KEY,             0, 0x0705, "query duplicated join key")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT,        0, 0x0706, "query tag conditon too many")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_READY,                0, 0x0707, "query not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_HAS_RSP,                  0, 0x0708, "query should response")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "grant expired")
