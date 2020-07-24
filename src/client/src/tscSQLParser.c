@@ -358,7 +358,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_CFG_DNODE: {
-      const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:1-dnode:2' / monitor 1 ";
+      const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
       const char* msg3 = "invalid dnode ep";
 
       /* validate the ip address */
