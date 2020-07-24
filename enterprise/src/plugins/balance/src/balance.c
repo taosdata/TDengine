@@ -305,7 +305,6 @@ static int32_t balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj 
 
   mnodeUpdateVgroup(pVgroup);
 
-  mInfo("vgId:%d, will move from dnode:%d to dnode:%d", pVgroup->vgId, pSrcDnode->dnodeId, pDestDnode->dnodeId);
   return TSDB_CODE_SUCCESS;
 }
 
