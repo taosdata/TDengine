@@ -227,7 +227,7 @@ typedef struct {
 } MultiThreadQueryInfo;
 
 void* doQuery(void* param) {
-  TAOS* conn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* conn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   MultiThreadQueryInfo* range = (MultiThreadQueryInfo*)param;
 
   for (int32_t i = 0; i < 100000; ++i) {
