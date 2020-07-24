@@ -274,7 +274,7 @@ static bool balanceCheckDnodeInVgroup(SDnodeObj *pDnode, SVgObj *pVgroup) {
 /**
  * desc: add vnode to vgroup, find a new one if dest dnode is null
  **/
-static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
+static int32_t balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
   if (pDestDnode == NULL) {
     for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
       SDnodeObj *pDnode = tsBalanceDnodeList[i];
@@ -288,7 +288,9 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
     }
   }
 
-  if (pDestDnode == NULL) return false;
+  if (pDestDnode == NULL) {
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
 
   SVnodeGid *pVnodeGid = pVgroup->vnodeGid + pVgroup->numOfVnodes;
   pVnodeGid->dnodeId = pDestDnode->dnodeId;
@@ -302,15 +304,12 @@ static bool balanceAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pD
   atomic_add_fetch_32(&pDestDnode->openVnodes, 1);
 
   mnodeUpdateVgroup(pVgroup);
-  return true;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool balanceMonitorBalance() {
   if (tsBalanceDnodeListSize < 2) return false;
-  if (tsEnableBalance == 0) {
-    mDebug("balance not enabled");
-    return false;
-  }
 
   for (int32_t src = tsBalanceDnodeListSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = tsBalanceDnodeList[src];
@@ -328,6 +327,9 @@ static bool balanceMonitorBalance() {
   for (int32_t src = tsBalanceDnodeListSize - 1; src > 0; --src) {
     SDnodeObj *pSrcDnode = tsBalanceDnodeList[src];
     float srcScore = balanceTryCalcDnodeScore(pSrcDnode, -1);
+    if (tsEnableBalance == 0 && pSrcDnode->status != TAOS_DN_STATUS_DROPPING) {
+      continue;
+    }
 
     void *pIter = NULL;
     while (1) {
@@ -692,7 +694,7 @@ static float balanceCalcModuleScore(SDnodeObj *pDnode) {
 }
 
 static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
-  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 1000000;
+  if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) return 100000000;
   if (pDnode->numOfCores <= 0) return 0;
   return (float)(pDnode->openVnodes + extra) / pDnode->numOfCores;
 }
@@ -949,7 +951,56 @@ static void balanceMonitorDnodeModule() {
   }
 }
 
-int32_t balanceCfgDnode(struct SDnodeObj *pDnode, const char *option) { 
-  mInfo("dnode:%d, balance cfg option:%s is received", pDnode->dnodeId, option);
-  return TSDB_CODE_SUCCESS;
+int32_t balanceAlterDnode(struct SDnodeObj *pSrcDnode, int32_t vnodeId, int32_t dnodeId) {
+  if (!sdbIsMaster()) {
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, for self not master", pSrcDnode->dnodeId, vnodeId, dnodeId);
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+
+  if (tsEnableBalance != 0) {
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, for balance enabled", pSrcDnode->dnodeId, vnodeId, dnodeId);
+    return TSDB_CODE_MND_BALANCE_ENABLED;
+  }
+
+  SVgObj *pVgroup = mnodeGetVgroup(vnodeId);
+  if (pVgroup == NULL) {
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, for vgroup not exist", pSrcDnode->dnodeId, vnodeId, dnodeId);
+    return TSDB_CODE_MND_VGROUP_NOT_EXIST;
+  }
+
+  SDnodeObj *pDestDnode = mnodeGetDnode(dnodeId);
+  if (pDestDnode == NULL) {
+    mnodeDecVgroupRef(pVgroup);
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, for dnode not exist", pSrcDnode->dnodeId, vnodeId, dnodeId);
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+
+  balanceLock();
+  balanceAccquireDnodeList();
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!balanceCheckDnodeInVgroup(pSrcDnode, pVgroup)) {
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, vgroup not in dnode:%d", pSrcDnode->dnodeId, vnodeId,
+           dnodeId, pSrcDnode->dnodeId);
+    code = TSDB_CODE_MND_VGROUP_NOT_IN_DNODE;
+  } else if (balanceCheckDnodeInVgroup(pDestDnode, pVgroup)) {
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, vgroup already in dnode:%d", pSrcDnode->dnodeId, vnodeId,
+           dnodeId, dnodeId);
+    code = TSDB_CODE_MND_VGROUP_ALREADY_IN_DNODE;
+  } else if (!balanceCheckFree(pDestDnode)) {
+    mError("dnode:%d, failed to alter vgId:%d to dnode:%d, for dnode:%d not free", pSrcDnode->dnodeId, vnodeId, dnodeId,
+           dnodeId);
+    code = TSDB_CODE_MND_DNODE_NOT_FREE;
+  } else {
+    code = balanceAddVnode(pVgroup, pSrcDnode, pDestDnode);
+    mInfo("dnode:%d, alter vgId:%d to dnode:%d, result:%s", pSrcDnode->dnodeId, vnodeId, dnodeId, tstrerror(code));
+  }
+
+  balanceReleaseDnodeList();
+  balanceUnLock();
+
+  mnodeDecVgroupRef(pVgroup);
+  mnodeDecDnodeRef(pDestDnode);
+
+  return code;
 }
