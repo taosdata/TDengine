@@ -249,6 +249,7 @@ cd ../../../debug; make
 ./test.sh -f unique/big/maxvnodes.sim
 ./test.sh -f unique/big/tcp.sim
 
+./test.sh -f unique/cluster/alter.sim
 ./test.sh -f unique/cluster/balance1.sim
 ./test.sh -f unique/cluster/balance2.sim
 ./test.sh -f unique/cluster/balance3.sim
@@ -325,7 +326,7 @@ cd ../../../debug; make
 #./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
-./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
 #./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim

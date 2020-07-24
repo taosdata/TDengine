@@ -295,10 +295,19 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   }
 
   SRpcEpSet epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
-  mnodeDecDnodeRef(pDnode);
 
   if (strncasecmp(pCmCfgDnode->config, "balance", 7) == 0) {
-    return balanceCfgDnode(pDnode, pCmCfgDnode->config + 8);
+    int32_t vnodeId = 0;
+    int32_t dnodeId = 0;
+    bool parseOk = taosCheckBalanceCfgOptions(pCmCfgDnode->config + 8, &vnodeId, &dnodeId);
+    if (!parseOk) {
+      mnodeDecDnodeRef(pDnode);
+      return TSDB_CODE_MND_INVALID_DNODE_CFG_OPTION;
+    }
+
+    int32_t code = balanceAlterDnode(pDnode, vnodeId, dnodeId);
+    mnodeDecDnodeRef(pDnode);
+    return code;
   } else {
     SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
     strcpy(pMdCfgDnode->ep, pCmCfgDnode->ep);
@@ -314,6 +323,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
 
     mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
     dnodeSendMsgToDnode(&epSet, &rpcMdCfgDnodeMsg);
+    mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_SUCCESS;
   }
 }

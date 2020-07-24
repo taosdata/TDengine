@@ -147,6 +147,7 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
       if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) goto _err;
       pFile->info.size = TSDB_FILE_HEAD_SIZE;
       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+      pFile->info.len = 0;
       if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
     }
   } else {
@@ -554,10 +555,6 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
     }
   }
   helperSetState(pHelper, TSDB_HELPER_IDX_LOAD);
-
-  if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-    pFile->info.len = 0;
-  }
 
   // Copy the memory for outside usage
   if (target && pHelper->idxH.numOfIdx > 0)
@@ -1517,8 +1514,8 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
     if (rows2 == 0) {  // all data filtered out
       *(pCommitIter->pIter) = slIter;
     } else {
-      if (rows1 + rows2 < pCfg->minRowsPerFileBlock && pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS &&
-          !TSDB_NLAST_FILE_OPENED(pHelper)) {
+      if (pCompBlock->numOfRows + rows2 < pCfg->minRowsPerFileBlock &&
+          pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && !TSDB_NLAST_FILE_OPENED(pHelper)) {
         tdResetDataCols(pDataCols);
         int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, rows1, pDataCols,
                                              pDataCols0->cols[0].pData, pDataCols0->numOfRows);
