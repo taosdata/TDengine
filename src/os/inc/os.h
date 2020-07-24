@@ -20,7 +20,25 @@
 extern "C" {
 #endif
 
-#include "os_linux_x64.h"
+#ifdef _TD_DARWIN_64
+#include "os_darwin64.h"
+#endif
+
+#ifdef _TD_LINUX_64
+#include "os_linux64.h"
+#endif
+
+#ifdef _TD_LINUX_32
+#include "os_linux32.h"
+#endif
+
+#ifdef _TD_WINDOWS_64
+#include "os_windows64.h"
+#endif
+
+#ifdef _TD_WINDOWS_32
+#include "os_windows32.h"
+#endif
 
 #ifdef __cplusplus
 }
