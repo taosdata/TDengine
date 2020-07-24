@@ -1405,6 +1405,9 @@ static int32_t mnodeSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pT
 static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
   SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
   STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
+  if (pMeta == NULL) {
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->tversion     = htons(pTable->tversion);
