@@ -15,10 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobal.h"
+#include "os.h"
 #include "taosdef.h"
-#include "tutil.h"
+#include "tglobal.h"
+#include "tconfig.h"
+#include "ttimer.h"
 #include "tulog.h"
+#include "tutil.h"
 
 int64_t str2int64(char *str) {
   char *endptr = NULL;
@@ -159,12 +162,14 @@ int taosInitTimer(void (*callback)(int), int ms) {
   tv.it_interval.tv_usec = 1000 * ms;  // resolution is in msecond
   tv.it_value = tv.it_interval;
 
-  return setitimer(ITIMER_REAL, &tv, NULL);
+  setitimer(ITIMER_REAL, &tv, NULL);
+
+  return 0;
 }
 
 void taosUninitTimer() {
   struct itimerval tv = { 0 };
-  return setitimer(ITIMER_REAL, &tv, NULL);
+  setitimer(ITIMER_REAL, &tv, NULL);
 }
 
 void taosGetSystemTimezone() {
@@ -207,7 +212,7 @@ void taosGetSystemLocale() {
 void taosPrintOsInfo() {}
 
 void taosKillSystem() {
-  tError("function taosKillSystem, exit!");
+  uError("function taosKillSystem, exit!");
   exit(0);
 }
 
@@ -221,72 +226,72 @@ void taosGetSystemInfo() {
 }
 
 void *taosInitTcpClient(char *ip, uint16_t port, char *flabel, int num, void *fp, void *shandle) {
-  tError("function taosInitTcpClient is not implemented in darwin system, exit!");
+  uError("function taosInitTcpClient is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosCloseTcpClientConnection(void *chandle) {
-  tError("function taosCloseTcpClientConnection is not implemented in darwin system, exit!");
+  uError("function taosCloseTcpClientConnection is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
-  tError("function taosOpenTcpClientConnection is not implemented in darwin system, exit!");
+  uError("function taosOpenTcpClientConnection is not implemented in darwin system, exit!");
   exit(0);
 }
 
 int taosSendTcpClientData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
-  tError("function taosSendTcpClientData is not implemented in darwin system, exit!");
+  uError("function taosSendTcpClientData is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosCleanUpTcpClient(void *chandle) {
-  tError("function taosCleanUpTcpClient is not implemented in darwin system, exit!");
+  uError("function taosCleanUpTcpClient is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosCloseTcpServerConnection(void *chandle) {
-  tError("function taosCloseTcpServerConnection is not implemented in darwin system, exit!");
+  uError("function taosCloseTcpServerConnection is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosCleanUpTcpServer(void *handle) {
-  tError("function taosCleanUpTcpServer is not implemented in darwin system, exit!");
+  uError("function taosCleanUpTcpServer is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
-  tError("function taosInitTcpServer is not implemented in darwin system, exit!");
+  uError("function taosInitTcpServer is not implemented in darwin system, exit!");
   exit(0);
 }
 
 int taosSendTcpServerData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
-  tError("function taosSendTcpServerData is not implemented in darwin system, exit!");
+  uError("function taosSendTcpServerData is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosFreeMsgHdr(void *hdr) {
-  tError("function taosFreeMsgHdr is not implemented in darwin system, exit!");
+  uError("function taosFreeMsgHdr is not implemented in darwin system, exit!");
   exit(0);
 }
 
 int taosMsgHdrSize(void *hdr) {
-  tError("function taosMsgHdrSize is not implemented in darwin system, exit!");
+  uError("function taosMsgHdrSize is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosSendMsgHdr(void *hdr, int fd) {
-  tError("function taosSendMsgHdr is not implemented in darwin system, exit!");
+  uError("function taosSendMsgHdr is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosInitMsgHdr(void **hdr, void *dest, int maxPkts) {
-  tError("function taosInitMsgHdr is not implemented in darwin system, exit!");
+  uError("function taosInitMsgHdr is not implemented in darwin system, exit!");
   exit(0);
 }
 
 void taosSetMsgHdrData(void *hdr, char *data, int dataLen) {
-  tError("function taosSetMsgHdrData is not implemented in darwin system, exit!");
+  uError("function taosSetMsgHdrData is not implemented in darwin system, exit!");
   exit(0);
 }
 

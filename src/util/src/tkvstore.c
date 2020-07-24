@@ -287,7 +287,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   tdEncodeKVRecord(&pBuf, &rInfo);
 
   if (twrite(pStore->fd, buf, POINTER_DISTANCE(pBuf, buf)) < POINTER_DISTANCE(pBuf, buf)) {
-    uError("failed to write %" PRId64 " bytes to file %s since %s", POINTER_DISTANCE(pBuf, buf), pStore->fname, strerror(errno));
+    uError("failed to write %" PRId64 " bytes to file %s since %s", (int64_t)(POINTER_DISTANCE(pBuf, buf)), pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }

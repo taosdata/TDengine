@@ -23,12 +23,10 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
-#include <endian.h>
 #include <errno.h>
 #include <float.h>
 #include <ifaddrs.h>
@@ -52,12 +50,9 @@ extern "C" {
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -73,10 +68,11 @@ extern "C" {
 #include <wordexp.h>
 #include <wctype.h>
 #include <inttypes.h>
+#include <dispatch/dispatch.h>
 #include <fcntl.h>
 #include <sys/utsname.h>
-#include <sys/resource.h>
-#include <error.h>
+
+#define htobe64 htonll
 
 #define taosCloseSocket(x) \
   {                        \
@@ -86,27 +82,8 @@ extern "C" {
     }                      \
   }
   
-#ifdef TAOS_RANDOM_NETWORK_FAIL
-
-ssize_t taos_send_random_fail(int sockfd, const void *buf, size_t len, int flags);
-
-ssize_t taos_sendto_random_fail(int sockfd, const void *buf, size_t len, int flags,
-                      const struct sockaddr *dest_addr, socklen_t addrlen);
-ssize_t taos_read_random_fail(int fd, void *buf, size_t count);
-ssize_t taos_write_random_fail(int fd, const void *buf, size_t count);
-
-#define send(sockfd, buf, len, flags) taos_send_random_fail(sockfd, buf, len, flags)
-#define sendto(sockfd, buf, len, flags, dest_addr, addrlen) \
-          taos_sendto_random_fail(sockfd, buf, len, flags, dest_addr, addrlen)
-#define taosWriteSocket(fd, buf, len) taos_write_random_fail(fd, buf, len)
-#define taosReadSocket(fd, buf, len) taos_read_random_fail(fd, buf, len)
-
-#else
-
 #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
 #define taosReadSocket(fd, buf, len) read(fd, buf, len)
-
-#endif  /* TAOS_RANDOM_NETWORK_FAIL */
 
 #define atomic_load_8(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
 #define atomic_load_16(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
@@ -215,19 +192,22 @@ ssize_t taos_write_random_fail(int fd, const void *buf, size_t count);
 
 #define MILLISECOND_PER_SECOND ((int64_t)1000L)
 
-#define tsem_t sem_t
-#define tsem_init sem_init
-#define tsem_wait sem_wait
-#define tsem_post sem_post
-#define tsem_destroy sem_destroy
+#define tsem_t dispatch_semaphore_t
+
+int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value);
+int tsem_wait(dispatch_semaphore_t *sem);
+int tsem_post(dispatch_semaphore_t *sem);
+int tsem_destroy(dispatch_semaphore_t *sem);
 
 void osInit();
 
 ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size);
 
+ssize_t tread(int fd, void *buf, size_t count);
+
 ssize_t twrite(int fd, void *buf, size_t n);
 
-ssize_t tread(int fd, void *buf, size_t count);
+char *taosCharsetReplace(char *charsetstr);
 
 bool taosCheckPthreadValid(pthread_t thread);
 
@@ -243,27 +223,32 @@ void taosPrintOsInfo();
 
 char *taosCharsetReplace(char *charsetstr);
 
+void taosPrintOsInfo();
+
 void taosGetSystemInfo();
 
 void taosKillSystem();
 
 bool taosSkipSocketCheck();
 
-int64_t str2int64(char *str);
+bool taosGetDisk();
+
+int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
 
 void taosSetCoreDump();
 
-void taosBlockSIGPIPE();
+int tSystem(const char * cmd);
 
-int tSystem(const char * cmd) ;
+typedef int(*__compar_fn_t)(const void *, const void *);
 
+// for send function in tsocket.c
+#define MSG_NOSIGNAL             0
+#define SO_NO_CHECK              0x1234
+#define SOL_TCP                  0x1234
+#define TCP_KEEPIDLE             0x1234
 
-#ifdef _ALPINE
-  typedef int(*__compar_fn_t)(const void *, const void *);
-  void  error (int, int, const char *);
-  #ifndef PTHREAD_MUTEX_RECURSIVE_NP
-    #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
-  #endif
+#ifndef PTHREAD_MUTEX_RECURSIVE_NP
+  #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
 
 #ifndef _TD_ARM_32_
@@ -273,8 +258,8 @@ int tSystem(const char * cmd) ;
 #define BUILDIN_CLZL(val) __builtin_clzll(val)
 #define BUILDIN_CTZL(val) __builtin_ctzll(val)
 #endif
-#define BUILDIN_CLZ(val) __builtin_clz(val)
-#define BUILDIN_CTZ(val) __builtin_ctz(val)
+#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CTZ(val)  __builtin_ctz(val)
 
 #undef threadlocal
 #ifdef _ISOC11_SOURCE
