@@ -175,6 +175,9 @@ static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS
 
 TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, void* qinfo) {
   STsdbQueryHandle* pQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
+  if (pQueryHandle == NULL) {
+    goto out_of_memory;
+  }
   pQueryHandle->order       = pCond->order;
   pQueryHandle->window      = pCond->twindow;
   pQueryHandle->pTsdb       = tsdb;
@@ -260,8 +263,8 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   return (TsdbQueryHandleT) pQueryHandle;
 
 out_of_memory:
-  terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   tsdbCleanupQueryHandle(pQueryHandle);
+  terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   return NULL;
 }
 

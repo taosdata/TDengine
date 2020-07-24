@@ -1218,7 +1218,9 @@ static void *tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STable 
 static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
   int   tlen = tsdbGetTableEncodeSize(TSDB_DROP_META, pTable);
   void *buf = tsdbAllocBytes(pRepo, tlen);
-  ASSERT(buf != NULL);
+  if (buf == NULL) {
+    return -1;
+  }
 
   void *pBuf = buf;
   if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
