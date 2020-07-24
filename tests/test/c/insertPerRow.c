@@ -44,14 +44,16 @@ void  createDbAndTable();
 void  insertData();
 
 int32_t randomData[MAX_RANDOM_POINTS];
-int64_t rowsPerTable = 10000;
+int64_t rowsPerTable = 1000000000;
 int64_t pointsPerTable = 1;
-int64_t numOfThreads = 1;
-int64_t numOfTablesPerThread = 200;
+int64_t numOfThreads = 10;
+int64_t numOfTablesPerThread = 100;
 char    dbName[32] = "db";
 char    stableName[64] = "st";
-int32_t cache = 16;
-int32_t tables = 5000;
+int32_t cache = 1;
+int32_t replica = 3;
+int32_t days = 10;
+int32_t interval = 1000;
 
 int main(int argc, char *argv[]) {
   shellParseArgument(argc, argv);
@@ -77,7 +79,7 @@ void createDbAndTable() {
     exit(1);
   }
 
-  sprintf(qstr, "create database if not exists %s cache %d maxtables %d", dbName, cache, tables);
+  sprintf(qstr, "create database if not exists %s cache %d replica %d days %d", dbName, cache, replica, days);
   pSql = taos_query(con, qstr);
   int32_t code = taos_errno(pSql);
   if (code != 0) {
@@ -239,7 +241,7 @@ void *syncTest(void *param) {
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   int64_t start = 1430000000000;
-  int64_t interval = 1000;  // 1000 ms
+  interval = 1000;  // 1000 ms
 
   char *sql = qstr;
   char  inserStr[] = "insert into";
@@ -309,10 +311,14 @@ void printHelp() {
   printf("%s%s%s%" PRId64 "\n", indent, indent, "Number of threads to be used, default is ", numOfThreads);
   printf("%s%s\n", indent, "-n");
   printf("%s%s%s%" PRId64 "\n", indent, indent, "Number of tables per thread, default is ", numOfTablesPerThread);
-  printf("%s%s\n", indent, "-tables");
-  printf("%s%s%s%d\n", indent, indent, "Database parameters tables, default is ", tables);
+  printf("%s%s\n", indent, "-replica");
+  printf("%s%s%s%d\n", indent, indent, "Database parameters replica, default is ", replica);
   printf("%s%s\n", indent, "-cache");
-  printf("%s%s%s%d\n", indent, indent, "Database parameters cache, default is ", cache);
+  printf("%s%s%s%d\n", indent, indent, "Database parameters replica, default is ", cache);
+  printf("%s%s\n", indent, "-days");
+  printf("%s%s%s%d\n", indent, indent, "Database parameters days, default is ", days);
+  printf("%s%s\n", indent, "-interval");
+  printf("%s%s%s%d\n", indent, indent, "Interval of each rows in ms, default is ", interval);
 
   exit(EXIT_SUCCESS);
 }
@@ -336,10 +342,14 @@ void shellParseArgument(int argc, char *argv[]) {
       numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
       numOfTablesPerThread = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-tables") == 0) {
-      tables = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-replica") == 0) {
+      replica = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-cache") == 0) {
       cache = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-days") == 0) {
+      days = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-interval") == 0) {
+      interval = atoi(argv[++i]);
     } else {
     }
   }
@@ -349,7 +359,7 @@ void shellParseArgument(int argc, char *argv[]) {
   pPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
   pPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
   pPrint("%scache:%" PRId32 "%s", GREEN, cache, NC);
-  pPrint("%stables:%" PRId32 "%s", GREEN, tables, NC);
+  pPrint("%stables:%" PRId32 "%s", GREEN, replica, NC);
   pPrint("%sdbName:%s%s", GREEN, dbName, NC);
   pPrint("%stableName:%s%s", GREEN, stableName, NC);
   pPrint("%sstart to run%s", GREEN, NC);
