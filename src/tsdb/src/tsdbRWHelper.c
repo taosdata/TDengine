@@ -1231,8 +1231,8 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
   if (tsdbCheckAndDecodeColumnData(pDataCol, pHelper->pBuffer, pCompCol->len, pCompBlock->algorithm,
                                    pCompBlock->numOfRows, pHelper->pRepo->config.maxRowsPerFileBlock,
                                    pHelper->compBuffer, tsizeof(pHelper->compBuffer)) < 0) {
-    tsdbError("vgId:%d file %s is broken at column %d offset %" PRId64, REPO_ID(pHelper->pRepo), pFile->fname, pCompCol->colId,
-              (int64_t)pCompCol->offset);
+    tsdbError("vgId:%d file %s is broken at column %d offset %" PRId64, REPO_ID(pHelper->pRepo), pFile->fname,
+              pCompCol->colId, offset);
     return -1;
   }
 

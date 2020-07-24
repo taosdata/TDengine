@@ -318,14 +318,17 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
 
   assert(pCheckInfo->iter == NULL && pCheckInfo->iiter == NULL);
 
-  if (pHandle->mem && pHandle->mem->tData[pCheckInfo->tableId.tid] != NULL) {
+  // TODO: add uid check
+  if (pHandle->mem && pCheckInfo->tableId.tid < pHandle->mem->maxTables &&
+      pHandle->mem->tData[pCheckInfo->tableId.tid] != NULL) {
     pCheckInfo->iter = tSkipListCreateIterFromVal(pHandle->mem->tData[pCheckInfo->tableId.tid]->pData,
-        (const char*) &pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+                                                  (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
   }
 
-  if (pHandle->imem && pHandle->imem->tData[pCheckInfo->tableId.tid] != NULL) {
+  if (pHandle->imem && pCheckInfo->tableId.tid < pHandle->imem->maxTables &&
+      pHandle->imem->tData[pCheckInfo->tableId.tid] != NULL) {
     pCheckInfo->iiter = tSkipListCreateIterFromVal(pHandle->imem->tData[pCheckInfo->tableId.tid]->pData,
-        (const char*) &pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+                                                   (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
   }
 
   // both iterators are NULL, no data in buffer right now
@@ -1566,8 +1569,7 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
 
 static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  assert(numOfTables <= ((STsdbRepo*)pQueryHandle->pTsdb)->config.maxTables);
-
+  
   while (pQueryHandle->activeIndex < numOfTables) {
     if (hasMoreDataInCache(pQueryHandle)) {
       return true;
@@ -2454,8 +2456,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tfree(pQueryHandle->statis);
 
   // todo check error
-  tsdbUnRefMemTable(pQueryHandle->pTsdb, pQueryHandle->mem);
-  tsdbUnRefMemTable(pQueryHandle->pTsdb, pQueryHandle->imem);
+  tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
 
