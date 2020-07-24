@@ -163,18 +163,21 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       code = TSDB_CODE_QRY_INVALID_QHANDLE;
     } else {
       vDebug("vgId:%d, QInfo:%p, dnode continue exec query", pVnode->vgId, (void*) pCont);
-      code = TSDB_CODE_VND_ACTION_IN_PROGRESS;
       bool buildRes = qTableQuery(*handle); // do execute query
 
       if (buildRes) { // build result rsp
+        vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused", pVnode->vgId, *handle);
+
         pRet = &pReadMsg->rspRet;
 
         bool continueExec = false;
+        code = TSDB_CODE_QRY_HAS_RSP;
         if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
+
           if (continueExec) {
             vnodePutItemIntoReadQueue(pVnode, *handle, pReadMsg->rpcMsg.handle);
             pRet->qhandle = *handle;
-
+            code = TSDB_CODE_SUCCESS;
           }
         } else { // todo handle error
         }

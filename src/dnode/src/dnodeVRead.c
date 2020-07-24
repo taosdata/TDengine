@@ -49,7 +49,7 @@ static taos_qset       readQset;
 int32_t dnodeInitVnodeRead() {
   readQset = taosOpenQset();
 
-  readPool.min = 2;
+  readPool.min = 4;
   readPool.max = tsNumOfCores * tsNumOfThreadsPerCore;
   if (readPool.max <= readPool.min * 2) readPool.max = 2 * readPool.min;
   readPool.readWorker = (SReadWorker *)calloc(sizeof(SReadWorker), readPool.max);

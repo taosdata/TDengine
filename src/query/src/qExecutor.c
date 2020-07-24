@@ -6352,7 +6352,6 @@ bool qTableQuery(qinfo_t qinfo) {
            pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
   }
 
-//  pQInfo->dataReady = QUERY_RESULT_READY;
   bool buildRes = false;
   pthread_mutex_lock(&pQInfo->lock);
   pQInfo->dataReady = QUERY_RESULT_READY;
@@ -6360,8 +6359,9 @@ bool qTableQuery(qinfo_t qinfo) {
   if (pQInfo->rspContext != NULL) {
     buildRes = true;
   }
-  pthread_mutex_unlock(&pQInfo->lock);
 
+
+  pthread_mutex_unlock(&pQInfo->lock);
   return buildRes;
 //  sem_post(&pQInfo->dataReady);
 }
@@ -6387,12 +6387,11 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%"PRId64", code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
            pQInfo->code);
   } else {
+    qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
     pQInfo->rspContext = pRspContext;
   }
 
   pthread_mutex_unlock(&pQInfo->lock);
-
-//  sem_wait(&pQInfo->dataReady);
   return pQInfo->code;
 }
 
