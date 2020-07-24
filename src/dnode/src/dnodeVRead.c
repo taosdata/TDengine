@@ -206,7 +206,7 @@ static void *dnodeProcessReadQueue(void *param) {
            taosMsg[pReadMsg->rpcMsg.msgType], type);
     int32_t code = vnodeProcessRead(pVnode, pReadMsg);
 
-    if (type == TAOS_QTYPE_RPC) {
+    if (type == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
       dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     } else {
       dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
