@@ -358,10 +358,10 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4  $data5_4  $data6_4  $data7_4  $data8_4  $data9_4  $data10_4
 #print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
 #print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-$thirdDnode_2 = $data10_1 
-$thirdDnode_3 = $data10_2 
-$thirdDnode_4 = $data10_3 
-$thirdDnode_5 = $data10_4 
+$thirdDnode_2 = $data8_1 
+$thirdDnode_3 = $data8_2 
+$thirdDnode_4 = $data8_3 
+$thirdDnode_5 = $data8_4 
 
 if $thirdDnode_2 != null then
   sleep 2000
@@ -405,10 +405,10 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4  $data5_4  $data6_4  $data7_4  $data8_4
 #print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
 #print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-$sencodDnode_2 = $data7_1 
-$sencodDnode_3 = $data7_2 
-$sencodDnode_4 = $data7_3 
-$sencodDnode_5 = $data7_4 
+$sencodDnode_2 = $data6_1 
+$sencodDnode_3 = $data6_2 
+$sencodDnode_4 = $data6_3 
+$sencodDnode_5 = $data6_4 
 
 if $sencodDnode_2 != null then
   sleep 2000
