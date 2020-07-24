@@ -14,33 +14,6 @@ public class TDNodes {
         }               
     }
 
-    public void setPath(String path) {
-        try {
-            String killCmd = "pkill -kill -x taosd";
-            String[] killCmds = {"sh", "-c", killCmd};
-            Runtime.getRuntime().exec(killCmds).waitFor();        
-
-            String binPath = System.getProperty("user.dir");
-            binPath += "/../../../debug";
-            System.out.println("binPath: " + binPath);
-        
-            File file = new File(path);
-            binPath = file.getCanonicalPath();
-            System.out.println("binPath real path: " + binPath);
-                
-            if(path.isEmpty()){
-                file = new File(path + "/../../");                
-                path = file.getCanonicalPath();
-            }            
-
-            for(int i = 0; i < tdNodes.size(); i++) {
-                tdNodes.get(i).setPath(path);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-    
     public void setTestCluster(boolean testCluster) {
         this.testCluster = testCluster;
     }
@@ -69,6 +42,11 @@ public class TDNodes {
     public void cfg(int index, String option, String value) {
         check(index);
         tdNodes.get(index - 1).setCfgConfig(option, value);
+    }
+
+    public TDNode getTDNode(int index) {
+        check(index);
+        return tdNodes.get(index - 1);
     }
     
     public void start(int index) {
