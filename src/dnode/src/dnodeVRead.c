@@ -210,7 +210,7 @@ static void *dnodeProcessReadQueue(void *param) {
       dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     } else {
       if (code == TSDB_CODE_QRY_HAS_RSP) {
-        dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
+        dnodeSendRpcReadRsp(pVnode, pReadMsg, TSDB_CODE_SUCCESS);
       } else {
         dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
       }

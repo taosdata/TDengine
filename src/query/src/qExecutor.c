@@ -6352,8 +6352,6 @@ bool qTableQuery(qinfo_t qinfo) {
            pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
   }
 
-  taosMsleep(1000);
-
 //  pQInfo->dataReady = QUERY_RESULT_READY;
   bool buildRes = false;
   pthread_mutex_lock(&pQInfo->lock);
