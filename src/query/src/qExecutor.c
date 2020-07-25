@@ -6380,6 +6380,8 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   }
 
   *buildRes = false;
+  int32_t code = TSDB_CODE_SUCCESS;
+
   pthread_mutex_lock(&pQInfo->lock);
   if (pQInfo->dataReady == QUERY_RESULT_READY) {
     *buildRes = true;
@@ -6391,8 +6393,9 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     pQInfo->rspContext = pRspContext;
   }
 
+  code = pQInfo->code;
   pthread_mutex_unlock(&pQInfo->lock);
-  return pQInfo->code;
+  return code;
 }
 
 bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
