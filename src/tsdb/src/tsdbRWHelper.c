@@ -303,6 +303,10 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
     memset(&(pHelper->curCompIdx), 0, sizeof(SCompIdx));
   }
 
+  if (helperType(pHelper) == TSDB_WRITE_HELPER && pHelper->curCompIdx.hasLast) {
+    pHelper->hasOldLastBlock = true;
+  }
+
   helperSetState(pHelper, TSDB_HELPER_TABLE_SET);
   ASSERT(pHelper->state == ((TSDB_HELPER_TABLE_SET << 1) - 1));
 }
