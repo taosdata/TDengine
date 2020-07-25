@@ -162,6 +162,7 @@ python3 ./test.py -f client/client.py
 # Misc
 python3 testCompress.py
 python3 testNoCompress.py
+python3 testMinTablesPerVnode.py
 
 # functions
 python3 ./test.py -f functions/function_avg.py

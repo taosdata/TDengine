@@ -10,8 +10,8 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   #add_executable(insertPerTable insertPerTable.c)
   #target_link_libraries(insertPerTable taos_static pthread)
 
-  #add_executable(insertPerRow insertPerRow.c)
-  #target_link_libraries(insertPerRow taos_static pthread)
+  add_executable(insertPerRow insertPerRow.c)
+  target_link_libraries(insertPerRow taos_static pthread)
 
   #add_executable(importOneRow importOneRow.c)
   #target_link_libraries(importOneRow taos_static pthread)
