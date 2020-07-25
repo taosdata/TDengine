@@ -1260,13 +1260,18 @@ static int tsdbLoadBlockDataColsImpl(SRWHelper *pHelper, SCompBlock *pCompBlock,
     SCompCol *pCompCol = NULL;
 
     while (true) {
-      ASSERT(dcol < pDataCols->numOfCols);
+      // ASSERT(dcol < pDataCols->numOfCols);
+      if (dcol >= pDataCols->numOfCols) {
+        pDataCol = NULL;
+        break;
+      }
       pDataCol = &pDataCols->cols[dcol];
       ASSERT(pDataCol->colId <= colId);
       if (pDataCol->colId == colId) break;
       dcol++;
     }
 
+    if (pDataCol == NULL) continue;
     ASSERT(pDataCol->colId == colId);
 
     if (colId == 0) {  // load the key row
