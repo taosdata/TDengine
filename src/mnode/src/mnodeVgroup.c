@@ -592,7 +592,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -616,12 +616,6 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     strcpy(pSchema[cols].name, "dnode");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "end_point");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -716,27 +710,15 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
       *(int16_t *) pWrite = pVgroup->vnodeGid[i].dnodeId;
       cols++;
 
-      SDnodeObj *pDnode = pVgroup->vnodeGid[i].pDnode;
-
+      SDnodeObj * pDnode = pVgroup->vnodeGid[i].pDnode;
+      const char *role = "NULL";
       if (pDnode != NULL) {
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols]);
-        cols++;
-
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        char *role = mnodeGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
-        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
-        cols++;
-      } else {
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        const char *src = "NULL";
-        STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-        cols++;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-        cols++;
+        role = mnodeGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
       }
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
+      cols++;
     }
 
     mnodeDecVgroupRef(pVgroup);

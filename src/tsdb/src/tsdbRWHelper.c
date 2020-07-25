@@ -147,6 +147,7 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
       if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) goto _err;
       pFile->info.size = TSDB_FILE_HEAD_SIZE;
       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+      pFile->info.len = 0;
       if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
     }
   } else {
@@ -300,6 +301,10 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
     }
   } else {
     memset(&(pHelper->curCompIdx), 0, sizeof(SCompIdx));
+  }
+
+  if (helperType(pHelper) == TSDB_WRITE_HELPER && pHelper->curCompIdx.hasLast) {
+    pHelper->hasOldLastBlock = true;
   }
 
   helperSetState(pHelper, TSDB_HELPER_TABLE_SET);
@@ -554,10 +559,6 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
     }
   }
   helperSetState(pHelper, TSDB_HELPER_IDX_LOAD);
-
-  if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-    pFile->info.len = 0;
-  }
 
   // Copy the memory for outside usage
   if (target && pHelper->idxH.numOfIdx > 0)
@@ -1231,8 +1232,8 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
   if (tsdbCheckAndDecodeColumnData(pDataCol, pHelper->pBuffer, pCompCol->len, pCompBlock->algorithm,
                                    pCompBlock->numOfRows, pHelper->pRepo->config.maxRowsPerFileBlock,
                                    pHelper->compBuffer, tsizeof(pHelper->compBuffer)) < 0) {
-    tsdbError("vgId:%d file %s is broken at column %d offset %" PRId64, REPO_ID(pHelper->pRepo), pFile->fname, pCompCol->colId,
-              (int64_t)pCompCol->offset);
+    tsdbError("vgId:%d file %s is broken at column %d offset %" PRId64, REPO_ID(pHelper->pRepo), pFile->fname,
+              pCompCol->colId, offset);
     return -1;
   }
 
@@ -1517,8 +1518,8 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
     if (rows2 == 0) {  // all data filtered out
       *(pCommitIter->pIter) = slIter;
     } else {
-      if (rows1 + rows2 < pCfg->minRowsPerFileBlock && pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS &&
-          !TSDB_NLAST_FILE_OPENED(pHelper)) {
+      if (pCompBlock->numOfRows + rows2 < pCfg->minRowsPerFileBlock &&
+          pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && !TSDB_NLAST_FILE_OPENED(pHelper)) {
         tdResetDataCols(pDataCols);
         int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, rows1, pDataCols,
                                              pDataCols0->cols[0].pData, pDataCols0->numOfRows);

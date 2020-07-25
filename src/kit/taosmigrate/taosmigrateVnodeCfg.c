@@ -37,14 +37,12 @@ static int32_t saveVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
   len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pVnode->cfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pVnode->tsdbCfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pVnode->tsdbCfg.totalBlocks);
-  len += snprintf(content + len, maxLen - len, "  \"maxTables\": %d,\n", pVnode->tsdbCfg.maxTables);
   len += snprintf(content + len, maxLen - len, "  \"daysPerFile\": %d,\n", pVnode->tsdbCfg.daysPerFile);
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep\": %d,\n", pVnode->tsdbCfg.keep);
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep1\": %d,\n", pVnode->tsdbCfg.keep1);
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep2\": %d,\n", pVnode->tsdbCfg.keep2);
   len += snprintf(content + len, maxLen - len, "  \"minRowsPerFileBlock\": %d,\n", pVnode->tsdbCfg.minRowsPerFileBlock);
   len += snprintf(content + len, maxLen - len, "  \"maxRowsPerFileBlock\": %d,\n", pVnode->tsdbCfg.maxRowsPerFileBlock);
-  len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnode->tsdbCfg.commitTime);
   len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnode->tsdbCfg.precision);
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnode->tsdbCfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pVnode->walCfg.walLevel);
@@ -136,12 +134,12 @@ static int32_t readVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
   }
   pVnode->tsdbCfg.totalBlocks = totalBlocks->valueint;
 
-  cJSON *maxTables = cJSON_GetObjectItem(root, "maxTables");
-  if (!maxTables || maxTables->type != cJSON_Number) {
-    printf("vgId:%d, failed to read vnode cfg, maxTables not found\n", pVnode->vgId);
-    goto PARSE_OVER;
-  }
-  pVnode->tsdbCfg.maxTables = maxTables->valueint;
+  // cJSON *maxTables = cJSON_GetObjectItem(root, "maxTables");
+  // if (!maxTables || maxTables->type != cJSON_Number) {
+  //   printf("vgId:%d, failed to read vnode cfg, maxTables not found\n", pVnode->vgId);
+  //   goto PARSE_OVER;
+  // }
+  // pVnode->tsdbCfg.maxTables = maxTables->valueint;
 
   cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
   if (!daysPerFile || daysPerFile->type != cJSON_Number) {
@@ -185,12 +183,12 @@ static int32_t readVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
   }
   pVnode->tsdbCfg.maxRowsPerFileBlock = maxRowsPerFileBlock->valueint;
 
-  cJSON *commitTime = cJSON_GetObjectItem(root, "commitTime");
-  if (!commitTime || commitTime->type != cJSON_Number) {
-    printf("vgId:%d, failed to read vnode cfg, commitTime not found\n", pVnode->vgId);
-    goto PARSE_OVER;
-  }
-  pVnode->tsdbCfg.commitTime = (int8_t)commitTime->valueint;
+  // cJSON *commitTime = cJSON_GetObjectItem(root, "commitTime");
+  // if (!commitTime || commitTime->type != cJSON_Number) {
+  //   printf("vgId:%d, failed to read vnode cfg, commitTime not found\n", pVnode->vgId);
+  //   goto PARSE_OVER;
+  // }
+  // pVnode->tsdbCfg.commitTime = (int8_t)commitTime->valueint;
 
   cJSON *precision = cJSON_GetObjectItem(root, "precision");
   if (!precision || precision->type != cJSON_Number) {

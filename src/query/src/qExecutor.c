@@ -5913,8 +5913,10 @@ _cleanup_qinfo:
   tsdbDestroyTableGroup(pTableGroupInfo);
 
 _cleanup_query:
-  taosArrayDestroy(pGroupbyExpr->columnInfo);
-  tfree(pGroupbyExpr);
+  if (pGroupbyExpr != NULL) {
+    taosArrayDestroy(pGroupbyExpr->columnInfo);
+    free(pGroupbyExpr);
+  }
   tfree(pTagCols);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = &pExprs[i];

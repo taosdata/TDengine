@@ -53,14 +53,12 @@ typedef struct {
   int32_t tsdbId;
   int32_t cacheBlockSize;
   int32_t totalBlocks;
-  int32_t maxTables;    // maximum number of tables this repository can have
   int32_t daysPerFile;  // day per file sharding policy
   int32_t keep;         // day of data to keep
   int32_t keep1;
   int32_t keep2;
   int32_t minRowsPerFileBlock;  // minimum rows per file block
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
-  int32_t commitTime;
   int8_t  precision;
   int8_t  compression;
 } STsdbCfg;

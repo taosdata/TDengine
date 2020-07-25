@@ -149,7 +149,7 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
   }
 }
 
-SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid, int maxTables) {
+SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
 
   if (pFileH->nFGroups >= pFileH->maxFGroups) return NULL;
