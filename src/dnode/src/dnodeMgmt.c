@@ -492,6 +492,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   pCfg->numOfVnodes  = htonl(pCfg->numOfVnodes);
   pCfg->moduleStatus = htonl(pCfg->moduleStatus);
   pCfg->dnodeId      = htonl(pCfg->dnodeId);
+  pCfg->clusterId    = htonl(pCfg->clusterId);
 
   for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
     SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
@@ -697,6 +698,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   //strcpy(pStatus->dnodeName, tsDnodeName);
   pStatus->version          = htonl(tsVersion);
   pStatus->dnodeId          = htonl(tsDnodeCfg.dnodeId);
+  pStatus->clusterId        = htonl(tsDnodeCfg.clusterId);
   strcpy(pStatus->dnodeEp, tsLocalEp);
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
@@ -767,6 +769,13 @@ static bool dnodeReadDnodeCfg() {
   }
   tsDnodeCfg.dnodeId = dnodeId->valueint;
 
+  cJSON* clusterId = cJSON_GetObjectItem(root, "clusterId");
+  if (!clusterId || clusterId->type != cJSON_Number) {
+    dError("failed to read dnodeCfg.json, clusterId not found");
+    goto PARSE_CFG_OVER;
+  }
+  tsDnodeCfg.clusterId = clusterId->valueint;
+
   ret = true;
 
   dInfo("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
@@ -791,6 +800,7 @@ static void dnodeSaveDnodeCfg() {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d\n", tsDnodeCfg.dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": %d\n", tsDnodeCfg.clusterId);
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
   fwrite(content, 1, len, fp);
@@ -803,8 +813,9 @@ static void dnodeSaveDnodeCfg() {
 
 void dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg) {
   if (tsDnodeCfg.dnodeId == 0) {
-    dInfo("dnodeId is set to %d", pCfg->dnodeId);  
+    dInfo("dnodeId is set to %d, clusterId is set to %d", pCfg->dnodeId, pCfg->clusterId);  
     tsDnodeCfg.dnodeId = pCfg->dnodeId;
+    tsDnodeCfg.clusterId = pCfg->clusterId;
     dnodeSaveDnodeCfg();
   }
 }
