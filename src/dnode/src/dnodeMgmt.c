@@ -799,7 +799,7 @@ static void dnodeSaveDnodeCfg() {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d\n", tsDnodeCfg.dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", tsDnodeCfg.dnodeId);
   len += snprintf(content + len, maxLen - len, "  \"clusterId\": %d\n", tsDnodeCfg.clusterId);
   len += snprintf(content + len, maxLen - len, "}\n"); 
 
