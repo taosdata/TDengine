@@ -660,7 +660,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
     pConn->spi = pRpc->spi;
     pConn->encrypt = pRpc->encrypt;
     if (pConn->spi) memcpy(pConn->secret, pRpc->secret, TSDB_KEY_LEN);
-    tDebug("%s %p client connection is allocated", pRpc->label, pConn);
+    tDebug("%s %p client connection is allocated, uid:0x%x", pRpc->label, pConn, pConn->linkUid);
   }
 
   return pConn;
@@ -721,7 +721,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
   
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    tDebug("%s %p server connection is allocated", pRpc->label, pConn);
+    tDebug("%s %p server connection is allocated, uid:0x%x", pRpc->label, pConn, pConn->linkUid);
   }
 
   return pConn;
@@ -842,6 +842,16 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   if (pHead->code == TSDB_CODE_RPC_AUTH_REQUIRED && pRpc->spi) {
     tDebug("%s, authentication shall be restarted", pConn->info);
     pConn->secured = 0;
+    rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
+    if (pConn->connType != RPC_CONN_TCPC)
+      pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
+    return TSDB_CODE_RPC_ALREADY_PROCESSED;
+  }
+
+  if (pHead->code == TSDB_CODE_RPC_MISMATCHED_LINK_ID) {
+    tDebug("%s, mismatched linkUid, link shall be restarted", pConn->info);
+    pConn->secured = 0;
+    ((SRpcHead *)pConn->pReqMsg)->destId = 0;
     rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
     if (pConn->connType != RPC_CONN_TCPC)
       pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
