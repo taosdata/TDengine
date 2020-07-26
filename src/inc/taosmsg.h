@@ -139,6 +139,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_STREAMTABLES,
+  TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -546,6 +547,7 @@ typedef struct {
 
 typedef struct {
   int32_t  dnodeId;
+  int32_t  clusterId;
   uint32_t moduleStatus;
   uint32_t numOfVnodes;
   uint32_t reserved;
@@ -586,6 +588,7 @@ typedef struct {
   uint16_t    openVnodes;
   uint16_t    numOfCores;
   float       diskAvailable;  // GB
+  int32_t     clusterId;
   uint8_t     alternativeRole;
   uint8_t     reserve2[15];
   SClusterCfg clusterCfg;
