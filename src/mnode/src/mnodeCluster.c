@@ -142,7 +142,7 @@ static int32_t mnodeCreateCluster() {
   SClusterObj *pCluster = malloc(sizeof(SClusterObj));
   memset(pCluster, 0, sizeof(SClusterObj));
   pCluster->createdTime = taosGetTimestampMs();
-  pCluster->clusterId = abs(((pCluster->createdTime >> 32) & (pCluster->createdTime)) | (*(int32_t*)tsFirst));
+  pCluster->clusterId = labs((pCluster->createdTime >> 32) & (pCluster->createdTime)) | (*(int32_t*)tsFirst);
   
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
