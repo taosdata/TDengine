@@ -2455,11 +2455,16 @@ class TdeSubProcess:
         # Delete the log files
         logPath = self.getBuildPath() + "/test/log"
         # ref: https://stackoverflow.com/questions/1995373/deleting-all-files-in-a-directory-with-python/1995397
-        filelist = [ f for f in os.listdir(logPath) ] # if f.endswith(".bak") ]
-        for f in filelist:
-            filePath = os.path.join(logPath, f)
-            print("Removing log file: {}".format(filePath))
-            os.remove(filePath)
+        # filelist = [ f for f in os.listdir(logPath) ] # if f.endswith(".bak") ]
+        # for f in filelist:
+        #     filePath = os.path.join(logPath, f)
+        #     print("Removing log file: {}".format(filePath))
+        #     os.remove(filePath)
+        logPathSaved = logPath + "_" + time.strftime('%Y-%m-%d-%H-%M-%S')
+        logger.info("Saving old log files to: {}".format(logPathSaved))
+        os.rename(logPath, logPathSaved)
+        os.mkdir(logPath) # recreate
+            
 
         svcCmd = [taosdPath, '-c', cfgPath]
         # svcCmd = ['vmstat', '1']
