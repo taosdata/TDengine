@@ -23,15 +23,15 @@ extern "C" {
 struct SMnodeMsg;
 
 typedef enum {
-  SDB_TABLE_DNODE   = 0,
-  SDB_TABLE_MNODE   = 1,
-  SDB_TABLE_ACCOUNT = 2,
-  SDB_TABLE_USER    = 3,
-  SDB_TABLE_DB      = 4,
-  SDB_TABLE_VGROUP  = 5,
-  SDB_TABLE_STABLE  = 6,
-  SDB_TABLE_CTABLE  = 7,
-  SDB_TABLE_CLUSTER = 8,
+  SDB_TABLE_CLUSTER = 0,
+  SDB_TABLE_DNODE   = 1,
+  SDB_TABLE_MNODE   = 2,
+  SDB_TABLE_ACCOUNT = 3,
+  SDB_TABLE_USER    = 4,
+  SDB_TABLE_DB      = 5,
+  SDB_TABLE_VGROUP  = 6,
+  SDB_TABLE_STABLE  = 7,
+  SDB_TABLE_CTABLE  = 8,
   SDB_TABLE_MAX     = 9
 } ESdbTable;
 
