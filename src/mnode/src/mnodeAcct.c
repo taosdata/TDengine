@@ -64,7 +64,7 @@ static int32_t mnodeAcctActionUpdate(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeActionActionEncode(SSdbOper *pOper) {
+static int32_t mnodeAcctActionEncode(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
   pOper->rowSize = tsAcctUpdateSize;
@@ -109,7 +109,7 @@ int32_t mnodeInitAccts() {
     .insertFp     = mnodeAcctActionInsert,
     .deleteFp     = mnodeAcctActionDelete,
     .updateFp     = mnodeAcctActionUpdate,
-    .encodeFp     = mnodeActionActionEncode,
+    .encodeFp     = mnodeAcctActionEncode,
     .decodeFp     = mnodeAcctActionDecode,
     .destroyFp    = mnodeAcctActionDestroy,
     .restoredFp   = mnodeAcctActionRestored
