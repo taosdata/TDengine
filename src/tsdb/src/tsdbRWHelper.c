@@ -1260,15 +1260,18 @@ static int tsdbLoadBlockDataColsImpl(SRWHelper *pHelper, SCompBlock *pCompBlock,
     SCompCol *pCompCol = NULL;
 
     while (true) {
-      // ASSERT(dcol < pDataCols->numOfCols);
       if (dcol >= pDataCols->numOfCols) {
         pDataCol = NULL;
         break;
       }
       pDataCol = &pDataCols->cols[dcol];
-      ASSERT(pDataCol->colId <= colId);
-      if (pDataCol->colId == colId) break;
-      dcol++;
+      if (pDataCol->colId > colId) {
+        pDataCol = NULL;
+        break;
+      } else {
+        dcol++;
+        if (pDataCol->colId == colId) break;
+      }
     }
 
     if (pDataCol == NULL) continue;
@@ -1281,15 +1284,24 @@ static int tsdbLoadBlockDataColsImpl(SRWHelper *pHelper, SCompBlock *pCompBlock,
       compCol.offset = TSDB_KEY_COL_OFFSET;
       pCompCol = &compCol;
     } else {  // load non-key rows
-      while (ccol < pCompBlock->numOfCols) {
-        pCompCol = &pHelper->pCompData->cols[ccol];
-        if (pCompCol->colId >= colId) break;
-        ccol++;
+      while (true) {
+        if (ccol >= pCompBlock->numOfCols) {
+          pCompCol = NULL;
+          break;
+        }
+
+        pCompCol = &(pHelper->pCompData->cols[ccol]);
+        if (pCompCol->colId > colId) {
+          pCompCol = NULL;
+          break;
+        } else {
+          ccol++;
+          if (pCompCol->colId == colId) break;
+        }
       }
 
-      if (ccol >= pCompBlock->numOfCols || pCompCol->colId > colId) {
+      if (pCompCol == NULL) {
         dataColSetNEleNull(pDataCol, pCompBlock->numOfRows, pDataCols->maxPoints);
-        dcol++;
         continue;
       }
 
@@ -1297,8 +1309,6 @@ static int tsdbLoadBlockDataColsImpl(SRWHelper *pHelper, SCompBlock *pCompBlock,
     }
 
     if (tsdbLoadColData(pHelper, pFile, pCompBlock, pCompCol, pDataCol) < 0) goto _err;
-    dcol++;
-    if (colId != 0) ccol++;
   }
 
   return 0;
