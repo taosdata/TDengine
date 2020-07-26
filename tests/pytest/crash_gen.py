@@ -1192,7 +1192,8 @@ class StateMechine:
             # case of multiple creation and drops
 
         if self._curState.canDropDb():
-            self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
+            if gSvcMgr == None: # only if we are not restarting service
+                self._curState.assertIfExistThenSuccess(tasks, TaskDropDb)
             # self.assertAtMostOneSuccess(tasks, DropDbTask) # not really in
             # case of drop-create-drop
 
@@ -1366,33 +1367,35 @@ class TaskExecutor():
         def __init__(self, size=10):
             self._size = size
             self._list = []
+            self._lock = threading.Lock()
 
         def add(self, n: int):
-            if not self._list:  # empty
-                self._list.append(n)
-                return
-            # now we should insert
-            nItems = len(self._list)
-            insPos = 0
-            for i in range(nItems):
-                insPos = i
-                if n <= self._list[i]:  # smaller than this item, time to insert
-                    break  # found the insertion point
-                insPos += 1  # insert to the right
+            with self._lock:
+                if not self._list:  # empty
+                    self._list.append(n)
+                    return
+                # now we should insert
+                nItems = len(self._list)
+                insPos = 0
+                for i in range(nItems):
+                    insPos = i
+                    if n <= self._list[i]:  # smaller than this item, time to insert
+                        break  # found the insertion point
+                    insPos += 1  # insert to the right
 
-            if insPos == 0:  # except for the 1st item, # TODO: elimiate first item as gating item
-                return  # do nothing
+                if insPos == 0:  # except for the 1st item, # TODO: elimiate first item as gating item
+                    return  # do nothing
 
-            # print("Inserting at postion {}, value: {}".format(insPos, n))
-            self._list.insert(insPos, n)  # insert
+                # print("Inserting at postion {}, value: {}".format(insPos, n))
+                self._list.insert(insPos, n)  # insert
 
-            newLen = len(self._list)
-            if newLen <= self._size:
-                return  # do nothing
-            elif newLen == (self._size + 1):
-                del self._list[0]  # remove the first item
-            else:
-                raise RuntimeError("Corrupt Bounded List")
+                newLen = len(self._list)
+                if newLen <= self._size:
+                    return  # do nothing
+                elif newLen == (self._size + 1):
+                    del self._list[0]  # remove the first item
+                else:
+                    raise RuntimeError("Corrupt Bounded List")
 
         def __str__(self):
             return repr(self._list)
@@ -1497,6 +1500,9 @@ class Task():
                 return True
             elif msg.find("duplicated column names") != -1: # also alter table tag issues
                 return True
+        elif (gSvcMgr!=None) and gSvcMgr.isRestarting():
+            logger.info("Ignoring error when service is restarting: errno = {}, msg = {}".format(errno, msg))
+            return True
         
         return False # Not an acceptable error
 
@@ -2196,7 +2202,7 @@ class SvcManager:
             
             self.svcMgrThread = ServiceManagerThread()  # create the object
             self.svcMgrThread.start()
-            print("TAOS service started, printing out output...")
+            print("Attempting to start TAOS service started, printing out output...")
             self.svcMgrThread.procIpcBatch(
                 trimToTarget=10,
                 forceOutput=True)  # for printing 10 lines
@@ -2397,7 +2403,10 @@ class ServiceManagerThread:
 
             if self._status == MainExec.STATUS_STARTING:  # we are starting, let's see if we have started
                 if line.find(self.TD_READY_MSG) != -1:  # found
-                    self._status = MainExec.STATUS_RUNNING
+                    logger.info("Waiting for the service to become FULLY READY")
+                    time.sleep(1.0) # wait for the server to truly start. TODO: remove this
+                    logger.info("Service is now FULLY READY")   
+                    self._status = MainExec.STATUS_RUNNING                 
 
             # Trim the queue if necessary: TODO: try this 1 out of 10 times
             self._trimQueue(self.MAX_QUEUE_SIZE * 9 // 10)  # trim to 90% size
