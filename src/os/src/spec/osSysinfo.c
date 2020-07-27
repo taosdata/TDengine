@@ -201,7 +201,7 @@ static void taosGetSystemTimezone() {
    * Asia/Shanghai   (CST, +0800)
    * Europe/London   (BST, +0100)
    */
-  sprintf(tsTimezone, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
   // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
   uInfo("timezone not configured, set to system default:%s", tsTimezone);
@@ -235,7 +235,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       uError("can't get locale from system, set it to en_US.UTF-8");
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
-      tstrncpy(tsLocale, locale, sizeof(tsLocale));
+      tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
       uError("locale not configured, set to system default:%s", tsLocale);
     }
   }
@@ -248,7 +248,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       str++;
 
       char *revisedCharset = taosCharsetReplace(str);
-      tstrncpy(tsCharset, revisedCharset, sizeof(tsCharset));
+      tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
 
       free(revisedCharset);
       uWarn("charset not configured, set to system default:%s", tsCharset);
