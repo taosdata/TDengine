@@ -28,9 +28,9 @@ extern "C" {
 #include "tdataformat.h"
 #include "talgo.h"
 
-#define DEFAULT_PAGE_SIZE (1024L*64)  // 16k larger than the SHistoInfo
-#define MAX_TMPFILE_PATH_LENGTH PATH_MAX
+#define MAX_TMPFILE_PATH_LENGTH        PATH_MAX
 #define INITIAL_ALLOCATION_BUFFER_SIZE 64
+#define DEFAULT_PAGE_SIZE              (4096L)  // 16k larger than the SHistoInfo
 
 typedef enum EXT_BUFFER_FLUSH_MODEL {
   /*
@@ -126,7 +126,7 @@ typedef struct tExtMemBuffer {
  * @param pModel
  * @return
  */
-tExtMemBuffer *createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnModel *pModel);
+tExtMemBuffer *createExtMemBuffer(int32_t inMemSize, int32_t elemSize, int32_t pagesize, SColumnModel *pModel);
 
 /**
  *

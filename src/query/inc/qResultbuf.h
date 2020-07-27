@@ -52,7 +52,6 @@ typedef struct SResultBufStatis {
   int32_t getPages;
   int32_t releasePages;
   int32_t flushPages;
-  int32_t fileSize;
 } SResultBufStatis;
 
 typedef struct SDiskbasedResultBuf {
@@ -68,29 +67,31 @@ typedef struct SDiskbasedResultBuf {
   SHashObj* groupSet;            // id hash table
   SHashObj* all;
   SList*    lruList;
-  void*     handle;              // for debug purpose
   void*     emptyDummyIdList;    // dummy id list
-  bool      comp;                // compressed before flushed to disk
-  void*     assistBuf;           // assistant buffer for compress data
+  void*     assistBuf;           // assistant buffer for compress/decompress data
   SArray*   pFree;               // free area in file
+  bool      comp;                // compressed before flushed to disk
   int32_t   nextPos;             // next page flush position
 
+  const void*      handle;        // for debug purpose
   SResultBufStatis statis;
 } SDiskbasedResultBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)
+#define DEFAULT_INTERN_BUF_PAGE_SIZE  (4096L)
 #define DEFAULT_INMEM_BUF_PAGES       10
 #define PAGE_INFO_INITIALIZER         (SPageDiskInfo){-1, -1}
 
 /**
  * create disk-based result buffer
  * @param pResultBuf
- * @param size
  * @param rowSize
+ * @param pagesize
+ * @param inMemPages
+ * @param handle
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t numOfPages, int32_t rowSize, int32_t pagesize,
-                                    int32_t inMemPages, const void* handle);
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
+                                    int32_t inMemBufSize, const void* handle);
 
 /**
  *
@@ -131,15 +132,13 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
  */
 void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page);
 
-void releaseResBufPageInfo(SDiskbasedResultBuf* pResultBuf, SPageInfo* pi);
-
 /**
  *
  * @param pResultBuf
- * @param id
- * @return
+ * @param pi
  */
-//tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
+void releaseResBufPageInfo(SDiskbasedResultBuf* pResultBuf, SPageInfo* pi);
+
 
 /**
  * get the total buffer size in the format of disk file
@@ -159,7 +158,7 @@ size_t getNumOfResultBufGroupId(const SDiskbasedResultBuf* pResultBuf);
  * destroy result buffer
  * @param pResultBuf
  */
-void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle);
+void destroyResultBuf(SDiskbasedResultBuf* pResultBuf);
 
 /**
  *

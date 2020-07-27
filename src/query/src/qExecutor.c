@@ -1621,7 +1621,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   pRuntimeEnv->pFillInfo = taosDestoryFillInfo(pRuntimeEnv->pFillInfo);
 
-  destroyResultBuf(pRuntimeEnv->pResultBuf, pQInfo);
+  destroyResultBuf(pRuntimeEnv->pResultBuf);
   tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
   tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
 
@@ -4242,10 +4242,10 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   int32_t ps = DEFAULT_PAGE_SIZE;
   int32_t rowsize = 0;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
+  int32_t TWOMB = 1024*1024*2;
 
   if (isSTableQuery && !onlyQueryTags(pRuntimeEnv->pQuery)) {
-//    int32_t numOfPages = getInitialPageNum(pQInfo);
-    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, 2, rowsize, ps, 2, pQInfo);
+    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rowsize, ps, TWOMB, pQInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4273,8 +4273,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   } else if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
     int32_t numOfResultRows = getInitialPageNum(pQInfo);
     getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
-
-    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, numOfResultRows, rowsize, ps, numOfResultRows, pQInfo);
+    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rowsize, ps, TWOMB, pQInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

@@ -8,31 +8,33 @@
 
 #define GET_DATA_PAYLOAD(_p) ((_p)->pData + POINTER_BYTES)
 
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t numOfPages, int32_t rowSize,
-    int32_t pagesize, int32_t inMemPages, const void* handle) {
-
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
+                                    int32_t inMemBufSize, const void* handle) {
   *pResultBuf = calloc(1, sizeof(SDiskbasedResultBuf));
+
   SDiskbasedResultBuf* pResBuf = *pResultBuf;
   if (pResBuf == NULL) {
     return TSDB_CODE_COM_OUT_OF_MEMORY;  
   }
 
   pResBuf->pageSize     = pagesize;
-  pResBuf->numOfPages   = 0;               // all pages are in buffer in the first place
-  pResBuf->inMemPages   = inMemPages;
+  pResBuf->numOfPages   = 0;                        // all pages are in buffer in the first place
+  pResBuf->inMemPages   = inMemBufSize/pagesize;    // maximum allowed pages, it is a soft limit.
   pResBuf->totalBufSize = pResBuf->numOfPages * pagesize;
   pResBuf->allocateId   = -1;
   pResBuf->comp         = true;
+  pResBuf->handle       = handle;
 
-  assert(inMemPages <= numOfPages);
+  // at least more than 2 pages must be in memory
+  assert(inMemBufSize >= pagesize * 2);
 
   pResBuf->numOfRowsPerPage = (pagesize - sizeof(tFilePage)) / rowSize;
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 
   // init id hash table
-  pResBuf->groupSet = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
-  pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  pResBuf->groupSet  = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
   pResBuf->assistBuf = malloc(pResBuf->pageSize + 2); // EXTRA BYTES
+  pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
 
   char path[PATH_MAX] = {0};
   getTmpfilePath("qbuf", path);
@@ -46,9 +48,6 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t nu
   
   return TSDB_CODE_SUCCESS;
 }
-
-#define NUM_OF_PAGES_ON_DISK(_r) ((_r)->numOfPages - (_r)->inMemPages)
-#define FILE_SIZE_ON_DISK(_r) (NUM_OF_PAGES_ON_DISK(_r) * (_r)->pageSize)
 
 static int32_t createDiskFile(SDiskbasedResultBuf* pResultBuf) {
   pResultBuf->file = fopen(pResultBuf->path, "wb+");
@@ -384,18 +383,18 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId) 
   }
 }
 
-void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle) {
+void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   if (pResultBuf == NULL) {
     return;
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file created:%s, file size:%d", handle,
-        pResultBuf->totalBufSize, pResultBuf->path, FILE_SIZE_ON_DISK(pResultBuf));
+    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file created:%s, file size:%"PRId64, pResultBuf->handle,
+        pResultBuf->totalBufSize, pResultBuf->path, pResultBuf->diskFileSize);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, no file created", handle,
+    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
            pResultBuf->totalBufSize);
   }
 

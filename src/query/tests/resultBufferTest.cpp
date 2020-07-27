@@ -47,7 +47,7 @@ void simpleTest() {
   tFilePage* t4 = getResBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t4 == pBufPage5);
 
-  destroyResultBuf(pResultBuf, NULL);
+  destroyResultBuf(pResultBuf);
 }
 
 void writeDownTest() {
@@ -94,7 +94,7 @@ void writeDownTest() {
   SArray* pa = getDataBufPagesIdList(pResultBuf, groupId);
   ASSERT_EQ(taosArrayGetSize(pa), 5);
 
-  destroyResultBuf(pResultBuf, NULL);
+  destroyResultBuf(pResultBuf);
 }
 
 void recyclePageTest() {
@@ -148,7 +148,7 @@ void recyclePageTest() {
   SArray* pa = getDataBufPagesIdList(pResultBuf, groupId);
   ASSERT_EQ(taosArrayGetSize(pa), 6);
 
-  destroyResultBuf(pResultBuf, NULL);
+  destroyResultBuf(pResultBuf);
 }
 } // namespace
 
