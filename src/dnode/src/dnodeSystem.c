@@ -39,7 +39,7 @@ int32_t main(int32_t argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-V") == 0) {
-#ifdef _SYNC
+#ifdef _ACCT
       char *versionStr = "enterprise";
 #else
       char *versionStr = "community";

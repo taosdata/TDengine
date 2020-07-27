@@ -79,9 +79,6 @@ static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
  
-#ifndef _SYNC 
-  mnodeDropAllDnodeVgroups(pDnode);
-#endif  
   mnodeDropMnodeLocal(pDnode->dnodeId);
   balanceAsyncNotify();
 
@@ -552,12 +549,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
 
-#ifndef _SYNC
-  int32_t code = mnodeDropDnode(pDnode, pMsg);
-#else
   int32_t code = balanceDropDnode(pDnode);
-#endif
-
   mnodeDecDnodeRef(pDnode);
   return code;
 }
