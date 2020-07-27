@@ -22,6 +22,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -76,7 +77,6 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/resource.h>
 #include <error.h>
-#include <sys/sysctl.h>
 
 #ifdef __cplusplus
 }

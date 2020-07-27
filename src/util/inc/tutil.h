@@ -143,8 +143,6 @@ char *strbetween(char *string, char *begin, char *end);
 
 char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
-void taosMsleep(int32_t mseconds);
-
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
@@ -224,6 +222,9 @@ ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, 
 #endif  // TAOS_MEM_CHECK_IMPL
 
 #endif // TAOS_MEM_CHECK
+
+
+char *taosCharsetReplace(char *charsetstr);
 
 #ifdef __cplusplus
 }

@@ -13,18 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSYSCTL_H
-#define TDENGINE_TSYSCTL_H
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tglobal.h"
+#include "tulog.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifndef _ALPINE
-  #include <error.h>
-  #include <sys/sysctl.h>
-#else
-  #include <linux/sysctl.h>  
-#endif
-
-#endif
+void osInit() {
+  strcpy(configDir, "/etc/taos");
+  strcpy(tsVnodeDir, "");
+  strcpy(tsDnodeDir, "");
+  strcpy(tsMnodeDir, "");
+  strcpy(tsDataDir, "/var/lib/taos");
+  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsScriptDir, "/etc/taos");
+  strcpy(tsOsName, "Linux");
+}

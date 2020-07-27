@@ -21,10 +21,7 @@
 #include "tulog.h"
 #include "tutil.h"
 
-int64_t str2int64(char *str) {
-  char *endptr = NULL;
-  return strtoll(str, &endptr, 10);
-}
+#ifndef TAOS_OS_FUNC_TIMER
 
 /*
   to make taosMsleep work,
@@ -54,33 +51,7 @@ void taosMsleep(int mseconds) {
   /* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
 }
 
-bool taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
 
-int64_t taosGetPthreadId() { return (int64_t)pthread_self(); }
-
-int taosSetNonblocking(int sock, int on) {
-  int flags = 0;
-  if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
-    uError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
-    return 1;
-  }
-
-  if (on)
-    flags |= O_NONBLOCK;
-  else
-    flags &= ~O_NONBLOCK;
-
-  if ((flags = fcntl(sock, F_SETFL, flags)) < 0) {
-    uError("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
-    return 1;
-  }
-
-  return 0;
-}
-
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
-  return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
-}
 static void taosDeleteTimer(void *tharg) {
   timer_t *pTimer = tharg;
   timer_delete(*pTimer);
@@ -89,8 +60,7 @@ static void taosDeleteTimer(void *tharg) {
 static pthread_t timerThread;
 static timer_t         timerId;
 static volatile bool stopTimer = false;
-
-void *taosProcessAlarmSignal(void *tharg) {
+static void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
   sigemptyset(&sigset);
@@ -143,7 +113,6 @@ void *taosProcessAlarmSignal(void *tharg) {
   return NULL;
 }
 
-
 int taosInitTimer(void (*callback)(int), int ms) {
   pthread_attr_t tattr;
   pthread_attr_init(&tattr);
@@ -161,40 +130,4 @@ void taosUninitTimer() {
   pthread_join(timerThread, NULL);
 }
 
-void taosBlockSIGPIPE() {
-  sigset_t signal_mask;
-  sigemptyset(&signal_mask);
-  sigaddset(&signal_mask, SIGPIPE);
-  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
-  if (rc != 0) {
-    uError("failed to block SIGPIPE");
-  }
-}
-
-int tSystem(const char * cmd) 
-{ 
-  FILE * fp; 
-  int res; 
-  char buf[1024]; 
-  if (cmd == NULL) { 
-    uError("tSystem cmd is NULL!\n");
-    return -1;
-  } 
-  
-  if ((fp = popen(cmd, "r") ) == NULL) { 
-    uError("popen cmd:%s error: %s/n", cmd, strerror(errno)); 
-    return -1; 
-  } else {
-    while(fgets(buf, sizeof(buf), fp))  { 
-      uDebug("popen result:%s", buf); 
-    } 
-
-    if ((res = pclose(fp)) == -1) { 
-      uError("close popen file pointer fp error!\n");
-    } else { 
-      uDebug("popen res is :%d\n", res);
-    } 
-
-    return res;
-  }
-}
+#endif

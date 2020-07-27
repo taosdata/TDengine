@@ -78,10 +78,10 @@ extern "C" {
 #define wcsncasecmp _wcsnicmp
 #define strtok_r strtok_s
 #ifdef _TD_GO_DLL_
-  int64_t str2int64(char *str);
+  int64_t tsosStr2int64(char *str);
   uint64_t htonll(uint64_t val);
 #else
-  #define str2int64 _atoi64
+  #define tsosStr2int64 _atoi64
 #endif
 
 #define snprintf _snprintf

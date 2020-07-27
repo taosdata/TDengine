@@ -13,41 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#define _DEFAULT_SOURCE
+#include "os.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef TAOS_OS_FUNC_PTHREAD
 
-#ifdef _TD_DARWIN_64
-#include "osDarwin64.h"
-#endif
-
-#ifdef _TD_LINUX_64
-#include "osLinux64.h"
-#endif
-
-#ifdef _TD_LINUX_32
-#include "osLinux32.h"
-#endif
-
-#ifdef _TD_ALPINE
-#include "osAlpine.h"
-#endif
-
-#ifdef _TD_WINDOWS_64
-#include "osWindows64.h"
-#endif
-
-#ifdef _TD_WINDOWS_32
-#include "osWindows32.h"
-#endif
-
-#include "osSpec.h"
-
-#ifdef __cplusplus
-}
-#endif
+bool    taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
+int64_t taosGetPthreadId() { return (int64_t)pthread_self(); }
 
 #endif

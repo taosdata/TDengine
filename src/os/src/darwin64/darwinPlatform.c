@@ -23,7 +23,7 @@
 #include "tulog.h"
 #include "tutil.h"
 
-int64_t str2int64(char *str) {
+int64_t tsosStr2int64(char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);
 }

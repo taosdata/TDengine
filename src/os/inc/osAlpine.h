@@ -22,6 +22,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -75,8 +76,13 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
-#include <error.h>
 #include <sys/sysctl.h>
+
+typedef int(*__compar_fn_t)(const void *, const void *);
+void  error (int, int, const char *);
+#ifndef PTHREAD_MUTEX_RECURSIVE_NP
+  #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+#endif
 
 #ifdef __cplusplus
 }
