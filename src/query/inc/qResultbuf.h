@@ -58,7 +58,7 @@ typedef struct SDiskbasedResultBuf {
   int32_t   numOfRowsPerPage;
   int32_t   numOfPages;
   int64_t   totalBufSize;
-  int64_t   diskFileSize;        // disk file size
+  int64_t   fileSize;            // disk file size
   FILE*     file;
   int32_t   allocateId;          // allocated page id
   char*     path;                // file path

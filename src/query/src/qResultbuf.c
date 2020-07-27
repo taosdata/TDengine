@@ -19,11 +19,13 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
 
   pResBuf->pageSize     = pagesize;
   pResBuf->numOfPages   = 0;                        // all pages are in buffer in the first place
+  pResBuf->totalBufSize = 0;
   pResBuf->inMemPages   = inMemBufSize/pagesize;    // maximum allowed pages, it is a soft limit.
-  pResBuf->totalBufSize = pResBuf->numOfPages * pagesize;
   pResBuf->allocateId   = -1;
   pResBuf->comp         = true;
+  pResBuf->file         = NULL;
   pResBuf->handle       = handle;
+  pResBuf->fileSize = 0;
 
   // at least more than 2 pages must be in memory
   assert(inMemBufSize >= pagesize * 2);
@@ -40,12 +42,11 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   getTmpfilePath("qbuf", path);
   pResBuf->path = strdup(path);
 
-  pResBuf->file = NULL;
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
-  qDebug("QInfo:%p create resBuf for output, page size:%d, initial pages:%d, %" PRId64 "bytes", handle,
-      pResBuf->pageSize, pResBuf->numOfPages, pResBuf->totalBufSize);
-  
+  qDebug("QInfo:%p create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", handle, pResBuf->pageSize,
+         pResBuf->inMemPages, pResBuf->path);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -86,11 +87,10 @@ static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskba
 static int32_t allocatePositionInFile(SDiskbasedResultBuf* pResultBuf, size_t size) {
   if (pResultBuf->pFree == NULL) {
     return pResultBuf->nextPos;
-  } else { //todo speed up the search procedure
-    size_t num = taosArrayGetSize(pResultBuf->pFree);
-
+  } else {
     int32_t offset = -1;
 
+    size_t num = taosArrayGetSize(pResultBuf->pFree);
     for(int32_t i = 0; i < num; ++i) {
       SFreeListItem* pi = taosArrayGet(pResultBuf->pFree, i);
       if (pi->len >= size) {
@@ -120,6 +120,10 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 
     fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
     /*int32_t ret =*/ fwrite(t, 1, size, pResultBuf->file);
+
+    if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
+      pResultBuf->fileSize = pg->info.offset + pg->info.length;
+    }
   } else {
     // length becomes greater, current space is not enough, allocate new place, otherwise, do nothing
     if (pg->info.length < size) {
@@ -134,6 +138,10 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
     //3. write to disk.
     fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
     fwrite(t, size, 1, pResultBuf->file);
+
+    if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
+      pResultBuf->fileSize = pg->info.offset + pg->info.length;
+    }
   }
 
   char* ret = pg->pData;
@@ -283,10 +291,9 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   // register page id info
   SPageInfo* pi = registerPage(pResultBuf, groupId, *pageId);
 
-  assert(pResultBuf->inMemPages > 0);
-
   // add to LRU list
-  assert(listNEles(pResultBuf->lruList) < pResultBuf->inMemPages);
+  assert(listNEles(pResultBuf->lruList) < pResultBuf->inMemPages && pResultBuf->inMemPages > 0);
+
   lruListPushFront(pResultBuf->lruList, pi);
 
   // add to hash map
@@ -389,8 +396,8 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file created:%s, file size:%"PRId64, pResultBuf->handle,
-        pResultBuf->totalBufSize, pResultBuf->path, pResultBuf->diskFileSize);
+    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file size:%"PRId64" bytes",
+        pResultBuf->handle, pResultBuf->totalBufSize, pResultBuf->fileSize);
 
     fclose(pResultBuf->file);
   } else {

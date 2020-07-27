@@ -343,7 +343,7 @@ void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t ke
   SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
   if (ptNode != NULL) {
      T_REF_INC(*ptNode);
-    (*ptNode)->expireTime = taosGetTimestampMs() + (*ptNode)->lifespan;
+    (*ptNode)->expireTime = expireTime; // taosGetTimestampMs() + (*ptNode)->lifespan;
   }
 
   __cache_unlock(pCacheObj);

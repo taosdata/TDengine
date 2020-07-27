@@ -58,7 +58,7 @@ static void httpDestroyContext(void *data) {
 }
 
 bool httpInitContexts() {
-  tsHttpServer.contextCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 2, false, httpDestroyContext, "restc");
+  tsHttpServer.contextCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 2, true, httpDestroyContext, "restc");
   if (tsHttpServer.contextCache == NULL) {
     httpError("failed to init context cache");
     return false;
@@ -108,7 +108,7 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
 
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &pContext, sizeof(void *), &pContext, sizeof(void *), 3);
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &pContext, sizeof(int64_t), &pContext, sizeof(int64_t), 3);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 

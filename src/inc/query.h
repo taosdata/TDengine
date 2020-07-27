@@ -28,7 +28,7 @@ typedef void* qinfo_t;
  * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, void* param, qinfo_t* qinfo);
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo);
 
 
 /**
@@ -38,7 +38,10 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMs
  * @param qinfo
  * @return
  */
-void qTableQuery(qinfo_t qinfo);
+bool qTableQuery(qinfo_t qinfo);
+
+void* pGetRspMsg(qinfo_t qinfo);
+
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -48,7 +51,7 @@ void qTableQuery(qinfo_t qinfo);
  * @param qinfo
  * @return
  */
-int32_t qRetrieveQueryResultInfo(qinfo_t qinfo);
+int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContext);
 
 /**
  *
@@ -60,16 +63,9 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo);
  * @param contLen payload length
  * @return
  */
-int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
+int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
 
-/**
- * Decide if more results will be produced or not, NOTE: this function will increase the ref count of QInfo,
- * so it can be only called once for each retrieve
- *
- * @param qinfo
- * @return
- */
-bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
+void* qGetResultRetrieveMsg(qinfo_t qinfo);
 
 /**
  * kill current ongoing query and free query handle automatically

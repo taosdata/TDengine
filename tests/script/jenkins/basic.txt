@@ -3,6 +3,7 @@ cd ../../../debug; make
 
 ./test.sh -f general/alter/cached_schema_after_alter.sim
 ./test.sh -f general/alter/count.sim
+./test.sh -f general/alter/dnode.sim
 ./test.sh -f general/alter/import.sim
 ./test.sh -f general/alter/insert1.sim
 ./test.sh -f general/alter/insert2.sim
@@ -308,13 +309,10 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_repeat.sim
 ./test.sh -f unique/vnode/replica3_vgroup.sim
 
-# stream still has bugs
-#./test.sh -f general/parser/stream_on_sys.sim
-#./test.sh -f general/parser/repeatStream.sim
-
-#./test.sh -f general/stream/metrics_del.sim
+./test.sh -f general/parser/stream_on_sys.sim
+./test.sh -f general/stream/metrics_del.sim
 ./test.sh -f general/stream/metrics_n.sim
-#./test.sh -f general/stream/metrics_replica1_vnoden.sim
+./test.sh -f general/stream/metrics_replica1_vnoden.sim
 ./test.sh -f general/stream/restart_stream.sim
 ./test.sh -f general/stream/stream_3.sim
 ./test.sh -f general/stream/stream_restart.sim
@@ -326,13 +324,12 @@ cd ../../../debug; make
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
 #./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
-./test.sh -f unique/arbitrator/dn3_mn1_full_dropDnodeFail.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
-./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
-./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
 # lower the priority while file corruption
 #./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
 #./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
