@@ -19,7 +19,6 @@
 #include "tulog.h"
 #include "tutil.h"
 #include "tsystem.h"
-#include <sys/sysctl.h>
 
 #ifndef TAOS_OS_FUNC_CORE
 
