@@ -26,7 +26,6 @@ if __name__ == '__main__':
 
     # Generate a cursor object to run SQL commands
     c1 = conn.cursor()
-
     # Create a database named db
     try:
         c1.execute('create database if not exists db ')
@@ -50,9 +49,11 @@ if __name__ == '__main__':
         raise(err)
 
     # insert data 
-    for i in range(10000):
+    for i in range(10):
         try:
-           c1.execute("insert into t values ('%s', %d, %f, '%s')" % (start_time, random.randint(1,10), random.randint(1,10)/10.0, 'hello'))
+           value = c1.execute("insert into t values ('%s', %d, %f, '%s')" % (start_time, random.randint(1,10), random.randint(1,10)/10.0, 'hello'))
+           #if insert, value is the affected rows
+           print(value)
         except Exception as err:
             conn.close()
             raise(err)
@@ -69,6 +70,11 @@ if __name__ == '__main__':
     cols = c1.description
     # Use fetchall to fetch data in a list
     data = c1.fetchall()
+
+    for col in data:
+        print(col)
+
+    print('Another query method ')
 
     try:
         c1.execute('select * from db.t')
