@@ -626,6 +626,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
   pConn->pContext = NULL;
+  pConn->chandle = NULL;
 
   taosFreeId(pRpc->idPool, pConn->sid);
   tDebug("%s, rpc connection is released", pConn->info);
@@ -656,7 +657,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
     pConn->sid = sid;
     pConn->tranId = (uint16_t)(random() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
-    pConn->linkUid = (uint32_t)((int64_t)pConn + (int64_t)getpid());
+    pConn->linkUid = (uint32_t)((int64_t)pConn + (int64_t)getpid() + (int64_t)pConn->tranId);
     pConn->spi = pRpc->spi;
     pConn->encrypt = pRpc->encrypt;
     if (pConn->spi) memcpy(pConn->secret, pRpc->secret, TSDB_KEY_LEN);
@@ -913,7 +914,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   }
 
   sid = pConn->sid;
-  pConn->chandle = pRecv->chandle;
+  if (pConn->chandle == NULL) pConn->chandle = pRecv->chandle;
   pConn->peerIp = pRecv->ip; 
   pConn->peerPort = pRecv->port;
   if (pHead->port) pConn->peerPort = htons(pHead->port); 
@@ -1015,7 +1016,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     if (code != 0) { // parsing error
       if (rpcIsReq(pHead->msgType)) {
         rpcSendErrorMsgToPeer(pRecv, code);
-        tDebug("%s %p %p, %s is sent with error code:%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
+        tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
       rpcProcessIncomingMsg(pConn, pHead);
