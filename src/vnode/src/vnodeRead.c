@@ -166,12 +166,16 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       bool buildRes = qTableQuery(*handle); // do execute query
 
       if (buildRes) { // build result rsp
-        vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused", pVnode->vgId, *handle);
+
+        SReadMsg* pRetrieveMsg = qGetResultRetrieveMsg(*handle);
+        assert(pRetrieveMsg != NULL);
+        vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused, %p", pVnode->vgId, *handle, pRetrieveMsg->rpcMsg.handle);
+        pReadMsg->rpcMsg.handle = pRetrieveMsg->rpcMsg.handle;  // update the connection info according to the retrieve connection
 
         pRet = &pReadMsg->rspRet;
+        code = TSDB_CODE_QRY_HAS_RSP;
 
         bool continueExec = false;
-        code = TSDB_CODE_QRY_HAS_RSP;
         if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
 
           if (continueExec) {

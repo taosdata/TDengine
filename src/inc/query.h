@@ -65,14 +65,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
  */
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
 
-/**
- * Decide if more results will be produced or not, NOTE: this function will increase the ref count of QInfo,
- * so it can be only called once for each retrieve
- *
- * @param qinfo
- * @return
- */
-bool qHasMoreResultsToRetrieve(qinfo_t qinfo);
+void* qGetResultRetrieveMsg(qinfo_t qinfo);
 
 /**
  * kill current ongoing query and free query handle automatically

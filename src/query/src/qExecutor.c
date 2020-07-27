@@ -6640,6 +6640,13 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   setQueryStatus(pQuery, QUERY_COMPLETED);
 }
 
+void* qGetResultRetrieveMsg(qinfo_t qinfo) {
+  SQInfo* pQInfo = (SQInfo*) qinfo;
+  assert(pQInfo != NULL);
+
+  return pQInfo->rspContext;
+}
+
 void freeqinfoFn(void *qhandle) {
   void** handle = qhandle;
   if (handle == NULL || *handle == NULL) {
@@ -6761,4 +6768,5 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree) {
   taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, needFree);
   return 0;
 }
+
 
