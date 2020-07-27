@@ -21,24 +21,28 @@ extern "C" {
 #endif
 
 #ifdef _TD_DARWIN_64
-#include "os_darwin64.h"
+#include "osDarwin64.h"
 #endif
 
 #ifdef _TD_LINUX_64
-#include "os_linux64.h"
+#include "osLinux64.h"
 #endif
 
 #ifdef _TD_LINUX_32
-#include "os_linux32.h"
+#include "osLinux32.h"
 #endif
 
 #ifdef _TD_WINDOWS_64
-#include "os_windows64.h"
+#include "osWindows64.h"
 #endif
 
 #ifdef _TD_WINDOWS_32
-#include "os_windows32.h"
+#include "osWindows32.h"
 #endif
+
+#include "osSpec.h"
+
+
 
 #ifdef __cplusplus
 }

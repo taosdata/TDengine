@@ -301,11 +301,11 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   lseek(tsLogObj.logHandle->fd, 0, SEEK_END);
 
   sprintf(name, "==================================================\n");
-  twrite(tsLogObj.logHandle->fd, name, (uint32_t)strlen(name));
+  taosTWrite(tsLogObj.logHandle->fd, name, (uint32_t)strlen(name));
   sprintf(name, "                new log file                      \n");
-  twrite(tsLogObj.logHandle->fd, name, (uint32_t)strlen(name));
+  taosTWrite(tsLogObj.logHandle->fd, name, (uint32_t)strlen(name));
   sprintf(name, "==================================================\n");
-  twrite(tsLogObj.logHandle->fd, name, (uint32_t)strlen(name));
+  taosTWrite(tsLogObj.logHandle->fd, name, (uint32_t)strlen(name));
 
   return 0;
 }
@@ -355,7 +355,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
-      twrite(tsLogObj.logHandle->fd, buffer, len);
+      taosTWrite(tsLogObj.logHandle->fd, buffer, len);
     }
 
     if (tsLogObj.maxLines > 0) {
@@ -365,7 +365,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
     }
   }
 
-  if (dflag & DEBUG_SCREEN) twrite(1, buffer, (uint32_t)len);
+  if (dflag & DEBUG_SCREEN) taosTWrite(1, buffer, (uint32_t)len);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
@@ -384,7 +384,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
     pos += 3;
     if (c >= 16) {
       temp[pos++] = '\n';
-      twrite(tsLogObj.logHandle->fd, temp, (uint32_t)pos);
+      taosTWrite(tsLogObj.logHandle->fd, temp, (uint32_t)pos);
       c = 0;
       pos = 0;
     }
@@ -392,7 +392,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
 
   temp[pos++] = '\n';
 
-  twrite(tsLogObj.logHandle->fd, temp, (uint32_t)pos);
+  taosTWrite(tsLogObj.logHandle->fd, temp, (uint32_t)pos);
 
   return;
 }
@@ -432,7 +432,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
-      twrite(tsLogObj.logHandle->fd, buffer, len);
+      taosTWrite(tsLogObj.logHandle->fd, buffer, len);
     }
     
     if (tsLogObj.maxLines > 0) {
@@ -442,7 +442,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
     }
   }
 
-  if (dflag & DEBUG_SCREEN) twrite(1, buffer, (uint32_t)len);
+  if (dflag & DEBUG_SCREEN) taosTWrite(1, buffer, (uint32_t)len);
 }
 
 #if 0
@@ -571,7 +571,7 @@ static void *taosAsyncOutputLog(void *param) {
     while (1) {
       log_size = taosPollLogBuffer(tLogBuff, tempBuffer, TSDB_DEFAULT_LOG_BUF_UNIT);
       if (log_size) {
-        twrite(tLogBuff->fd, tempBuffer, log_size);
+        taosTWrite(tLogBuff->fd, tempBuffer, log_size);
         LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + log_size) % LOG_BUF_SIZE(tLogBuff);
       } else {
         break;

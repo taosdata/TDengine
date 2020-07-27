@@ -20,7 +20,6 @@
 #include "tglobal.h"
 #include "dnodeInt.h"
 #include "dnodeMain.h"
-#include "tfile.h"
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static sem_t exitSem;

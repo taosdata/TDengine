@@ -201,8 +201,6 @@ int tsem_destroy(dispatch_semaphore_t *sem);
 
 void osInit();
 
-ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size);
-
 ssize_t tread(int fd, void *buf, size_t count);
 
 ssize_t twrite(int fd, void *buf, size_t n);

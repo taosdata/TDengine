@@ -295,26 +295,6 @@ void taosSetMsgHdrData(void *hdr, char *data, int dataLen) {
   exit(0);
 }
 
-ssize_t twrite(int fd, void *buf, size_t n) {
-  size_t nleft = n; 
-  ssize_t nwritten = 0;
-  char *tbuf = (char *)buf;
-
-  while (nleft > 0) {
-    nwritten = write(fd, (void *)tbuf, nleft);
-    if (nwritten < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return -1;
-    }
-    nleft -= nwritten;
-    tbuf += nwritten;
-  }
-
-  return n;
-}
-
 bool taosSkipSocketCheck() {
   return true;
 }

@@ -12,22 +12,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <errno.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
-#include "hash.h"
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "hash.h"
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 #include "tkvstore.h"
 #include "tulog.h"
-#include "tfile.h"
 
 #define TD_KVSTORE_HEADER_SIZE 512
 #define TD_KVSTORE_MAJOR_VERSION 1
@@ -182,7 +175,7 @@ int tdKVStoreStartCommit(SKVStore *pStore) {
     goto _err;
   }
 
-  if (tsendfile(pStore->sfd, pStore->fd, NULL, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
+  if (taosTSendFile(pStore->sfd, pStore->fd, NULL, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
     uError("failed to send file %d bytes since %s", TD_KVSTORE_HEADER_SIZE, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -242,13 +235,13 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
   ASSERT(tlen == POINTER_DISTANCE(pBuf, buf));
   ASSERT(tlen == sizeof(SKVRecord));
 
-  if (twrite(pStore->fd, buf, tlen) < tlen) {
+  if (taosTWrite(pStore->fd, buf, tlen) < tlen) {
     uError("failed to write %d bytes to file %s since %s", tlen, pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (twrite(pStore->fd, cont, contLen) < contLen) {
+  if (taosTWrite(pStore->fd, cont, contLen) < contLen) {
     uError("failed to write %d bytes to file %s since %s", contLen, pStore->fname, strerror(errno));
     return -1;
   }
@@ -286,7 +279,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
   void *pBuf = buf;
   tdEncodeKVRecord(&pBuf, &rInfo);
 
-  if (twrite(pStore->fd, buf, POINTER_DISTANCE(pBuf, buf)) < POINTER_DISTANCE(pBuf, buf)) {
+  if (taosTWrite(pStore->fd, buf, POINTER_DISTANCE(pBuf, buf)) < POINTER_DISTANCE(pBuf, buf)) {
     uError("failed to write %" PRId64 " bytes to file %s since %s", (int64_t)(POINTER_DISTANCE(pBuf, buf)), pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -335,7 +328,7 @@ static int tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
     return -1;
   }
 
-  if (tread(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
+  if (taosTRead(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
     uError("failed to read %d bytes from file %s since %s", TD_KVSTORE_HEADER_SIZE, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -366,7 +359,7 @@ static int tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
   ASSERT(POINTER_DISTANCE(pBuf, buf) + sizeof(TSCKSUM) <= TD_KVSTORE_HEADER_SIZE);
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TD_KVSTORE_HEADER_SIZE);
-  if (twrite(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
+  if (taosTWrite(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
     uError("failed to write %d bytes to file %s since %s", TD_KVSTORE_HEADER_SIZE, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -499,7 +492,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
   ASSERT(pStore->info.size == TD_KVSTORE_HEADER_SIZE);
 
   while (true) {
-    ssize_t tsize = tread(pStore->fd, tbuf, sizeof(SKVRecord));
+    ssize_t tsize = taosTRead(pStore->fd, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
     if (tsize < sizeof(SKVRecord)) {
       uError("failed to read %zu bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
@@ -562,7 +555,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
       goto _err;
     }
 
-    if (tread(pStore->fd, buf, pRecord->size) < pRecord->size) {
+    if (taosTRead(pStore->fd, buf, pRecord->size) < pRecord->size) {
       uError("failed to read %" PRId64 " bytes from file %s since %s, offset %" PRId64, pRecord->size, pStore->fname,
              strerror(errno), pRecord->offset);
       terrno = TAOS_SYSTEM_ERROR(errno);
