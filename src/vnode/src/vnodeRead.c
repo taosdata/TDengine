@@ -168,7 +168,8 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       if (buildRes) { // build result rsp
 
         SReadMsg* pRetrieveMsg = qGetResultRetrieveMsg(*handle);
-        assert(pRetrieveMsg != NULL);
+        assert(pRetrieveMsg != NULL && pRetrieveMsg->rpcMsg.handle != NULL);
+
         vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused, %p", pVnode->vgId, *handle, pRetrieveMsg->rpcMsg.handle);
         pReadMsg->rpcMsg.handle = pRetrieveMsg->rpcMsg.handle;  // update the connection info according to the retrieve connection
 
@@ -203,7 +204,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
   pRetrieve->free = htons(pRetrieve->free);
 
-  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed", pVnode->vgId, (void*) pRetrieve->qhandle);
+  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, (void*) pRetrieve->qhandle, pRetrieve->free, pReadMsg->rpcMsg.handle);
 
   memset(pRet, 0, sizeof(SRspRet));
 
