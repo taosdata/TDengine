@@ -4,10 +4,6 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 
-system sh/cfg.sh -n dnode1 -c walLevel -v 2
-system sh/cfg.sh -n dnode2 -c walLevel -v 2
-system sh/cfg.sh -n dnode3 -c walLevel -v 2
-
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
@@ -16,64 +12,28 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c http -v 1
-system sh/cfg.sh -n dnode2 -c http -v 1
-system sh/cfg.sh -n dnode3 -c http -v 1
+system sh/cfg.sh -n dnode1 -c http -v 0
+system sh/cfg.sh -n dnode2 -c http -v 0
+system sh/cfg.sh -n dnode3 -c http -v 0
 
-system sh/cfg.sh -n dnode1 -c mDebugFlag -v 143
-system sh/cfg.sh -n dnode2 -c mDebugFlag -v 143
-system sh/cfg.sh -n dnode3 -c mDebugFlag -v 143
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20000
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 20000
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 20000
 
-system sh/cfg.sh -n dnode1 -c sdbDebugFlag -v 143
-system sh/cfg.sh -n dnode2 -c sdbDebugFlag -v 143
-system sh/cfg.sh -n dnode3 -c sdbDebugFlag -v 143
-
-system sh/cfg.sh -n dnode1 -c sdebugFlag -v 143
-system sh/cfg.sh -n dnode2 -c sdebugFlag -v 143
-system sh/cfg.sh -n dnode3 -c sdebugFlag -v 143
-
-system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
-system sh/cfg.sh -n dnode2 -c rpcDebugFlag -v 135
-system sh/cfg.sh -n dnode3 -c rpcDebugFlag -v 135
-
-system sh/cfg.sh -n dnode1 -c tsdbDebugFlag -v 131
-system sh/cfg.sh -n dnode2 -c tsdbDebugFlag -v 131
-system sh/cfg.sh -n dnode3 -c tsdbDebugFlag -v 131
-
-system sh/cfg.sh -n dnode1 -c mqttDebugFlag -v 131
-system sh/cfg.sh -n dnode2 -c mqttDebugFlag -v 131
-system sh/cfg.sh -n dnode3 -c mqttDebugFlag -v 131
-
-system sh/cfg.sh -n dnode1 -c qdebugFlag -v 131
-system sh/cfg.sh -n dnode2 -c qdebugFlag -v 131
-system sh/cfg.sh -n dnode3 -c qdebugFlag -v 131
-
-system sh/cfg.sh -n dnode1 -c cDebugFlag -v 135
-system sh/cfg.sh -n dnode2 -c cDebugFlag -v 135
-system sh/cfg.sh -n dnode3 -c cDebugFlag -v 135
-
-system sh/cfg.sh -n dnode1 -c udebugFlag -v 131
-system sh/cfg.sh -n dnode2 -c udebugFlag -v 131
-system sh/cfg.sh -n dnode3 -c udebugFlag -v 131
-
-system sh/cfg.sh -n dnode1 -c wdebugFlag -v 131
-system sh/cfg.sh -n dnode2 -c wdebugFlag -v 131
-system sh/cfg.sh -n dnode3 -c wdebugFlag -v 131
-
-system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000000
-system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 1000000
-system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 1000000
+system sh/cfg.sh -n dnode1 -c replica -v 3
+system sh/cfg.sh -n dnode2 -c replica -v 3
+system sh/cfg.sh -n dnode3 -c replica -v 3
 
 print ============== deploy
 
-system sh/exec.sh -n dnode1 -s start
-sleep 2001
+system sh/exec.sh -n dnode1 -s start 
+sleep 5001
 sql connect
 
 sql create dnode $hostname2
 sql create dnode $hostname3
-system sh/exec.sh -n dnode2 -s start
-system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode2 -s start 
+system sh/exec.sh -n dnode3 -s start 
 
 print  =============== step1
 $x = 0
@@ -112,8 +72,8 @@ print $data0_3 $data2_3
 
 
 $x = $x + 1
-sleep 2000
-if $x == 1000 then
+sleep 5000
+if $x == 100000 then
   return -1
 endi
 

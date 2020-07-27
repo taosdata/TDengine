@@ -42,7 +42,7 @@ typedef struct SSqlGroupbyExpr {
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
-  int16_t pageId;
+  int32_t pageId;
   int16_t rowId;
 } SPosInfo;
 

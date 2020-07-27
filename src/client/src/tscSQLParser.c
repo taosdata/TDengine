@@ -358,7 +358,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_CFG_DNODE: {
-      const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:1-dnode:2' / monitor 1 ";
+      const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
       const char* msg3 = "invalid dnode ep";
 
       /* validate the ip address */
@@ -4700,10 +4700,10 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   } else if ((strncasecmp(cfgOptions[tokenBalance].name, pOptionToken->z, pOptionToken->n) == 0) &&
              (cfgOptions[tokenBalance].len == pOptionToken->n)) {
     SSQLToken* pValToken = &pOptions->a[2];
-    int32_t vnodeIndex = 0;
-    int32_t dnodeIndex = 0;
+    int32_t vnodeId = 0;
+    int32_t dnodeId = 0;
     strdequote(pValToken->z);
-    bool parseOk = taosCheckBalanceCfgOptions(pValToken->z, &vnodeIndex, &dnodeIndex);
+    bool parseOk = taosCheckBalanceCfgOptions(pValToken->z, &vnodeId, &dnodeId);
     if (!parseOk) {
       return TSDB_CODE_TSC_INVALID_SQL;  // options value is invalid
     }

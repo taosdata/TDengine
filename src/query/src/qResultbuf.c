@@ -52,7 +52,7 @@ int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->tota
 #define FILE_SIZE_ON_DISK(_r) (NUM_OF_PAGES_ON_DISK(_r) * (_r)->pageSize)
 
 static int32_t createDiskResidesBuf(SDiskbasedResultBuf* pResultBuf) {
-  pResultBuf->fd = open(pResultBuf->path, O_CREAT | O_RDWR, 0666);
+  pResultBuf->fd = open(pResultBuf->path, O_CREAT | O_RDWR | O_TRUNC, 0666);
   if (!FD_VALID(pResultBuf->fd)) {
     qError("failed to create tmp file: %s on disk. %s", pResultBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
