@@ -198,6 +198,7 @@ int32_t tsdbDebugFlag = 131;
 
 int32_t (*monitorStartSystemFp)() = NULL;
 void (*monitorStopSystemFp)() = NULL;
+void (*monitorExecuteSQLFp)(char *sql) = NULL;
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
@@ -252,11 +253,15 @@ bool taosCfgDynamicOptions(char *msg) {
         if (monitorStartSystemFp) {
           (*monitorStartSystemFp)();
           uInfo("monitor is enabled");
+        } else {
+          uError("monitor can't be updated, for monitor not initialized");
         }
       } else {
         if (monitorStopSystemFp) {
           (*monitorStopSystemFp)();
           uInfo("monitor is disabled");
+        } else {
+          uError("monitor can't be updated, for monitor not initialized");
         }
       }
       return true;
@@ -276,7 +281,12 @@ bool taosCfgDynamicOptions(char *msg) {
   }
 
   if (strncasecmp(option, "resetQueryCache", 15) == 0) {
-    uError("reset query cache can't be executed, for monitor not initialized");
+    if (monitorExecuteSQLFp) {
+      (*monitorExecuteSQLFp)("resetQueryCache");
+      uInfo("resetquerycache is executed");
+    } else {
+      uError("resetquerycache can't be executed, for monitor not started");
+    }
   }
 
   return false;
@@ -1299,4 +1309,33 @@ int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
   if (*port == 0) *port = tsServerPort;
 
   return 0; 
+}
+
+/*
+ * alter dnode 1 balance "vnode:1-dnode:2"
+ */
+
+bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId) {
+  int len = strlen(option);
+  if (strncasecmp(option, "vnode:", 6) != 0) {
+    return false;
+  }
+
+  int pos = 0;
+  for (; pos < len; ++pos) {
+    if (option[pos] == '-') break;
+  }
+
+  if (++pos >= len) return false;
+  if (strncasecmp(option + pos, "dnode:", 6) != 0) {
+    return false;
+  }
+
+  *vnodeId = strtol(option + 6, NULL, 10);
+  *dnodeId = strtol(option + pos + 6, NULL, 10);
+  if (*vnodeId <= 1 || *dnodeId <= 0) {
+    return false;
+  }
+
+  return true;
 }

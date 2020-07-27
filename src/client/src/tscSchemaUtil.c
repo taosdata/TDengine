@@ -140,7 +140,15 @@ struct SSchema tscGetTbnameColumnSchema() {
   strcpy(s.name, TSQL_TBNAME_L);
   return s;
 }
-
+static void tscInitCorVgroupInfo(SCMCorVgroupInfo *corVgroupInfo, SCMVgroupInfo *vgroupInfo) {
+  corVgroupInfo->version = 0;
+  corVgroupInfo->inUse = 0;
+  corVgroupInfo->numOfEps = vgroupInfo->numOfEps;
+  for (int32_t i = 0; i < corVgroupInfo->numOfEps; i++) {
+    strncpy(corVgroupInfo->epAddr[i].fqdn, vgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    corVgroupInfo->epAddr[i].port = vgroupInfo->epAddr[i].port;
+  }
+}
 STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size) {
   assert(pTableMetaMsg != NULL);
   
@@ -157,6 +165,9 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;
   pTableMeta->vgroupInfo = pTableMetaMsg->vgroup;
+
+  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMeta->vgroupInfo);
+
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;
   

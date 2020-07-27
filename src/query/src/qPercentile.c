@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qPercentile.h"
 #include "os.h"
-#include "tulog.h"
-#include "qpercentile.h"
+#include "queryLog.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "queryLog.h"
+#include "tulog.h"
 
 tExtMemBuffer *releaseBucketsExceptFor(tMemBucket *pMemBucket, int16_t segIdx, int16_t slotIdx) {
   tExtMemBuffer *pBuffer = NULL;

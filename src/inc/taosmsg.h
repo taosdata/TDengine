@@ -139,6 +139,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_STREAMTABLES,
+  TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -149,6 +150,7 @@ enum _mgmt_table {
 
 #define TSDB_ALTER_TABLE_ADD_COLUMN        5
 #define TSDB_ALTER_TABLE_DROP_COLUMN       6
+#define TSDB_ALTER_TABLE_CHANGE_COLUMN     7
 
 #define TSDB_FILL_NONE      0
 #define TSDB_FILL_NULL      1
@@ -176,7 +178,7 @@ extern char *taosMsg[];
 typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SIpAddr;
+} SEpAddr;
 
 typedef struct {
   int32_t numOfVnodes;
@@ -306,7 +308,7 @@ typedef struct {
   int8_t    reserved1;
   int8_t    reserved2;
   int32_t   connId;
-  SRpcIpSet ipList;
+  SRpcEpSet epSet;
 } SCMConnectRsp;
 
 typedef struct {
@@ -545,6 +547,7 @@ typedef struct {
 
 typedef struct {
   int32_t  dnodeId;
+  int32_t  clusterId;
   uint32_t moduleStatus;
   uint32_t numOfVnodes;
   uint32_t reserved;
@@ -585,6 +588,7 @@ typedef struct {
   uint16_t    openVnodes;
   uint16_t    numOfCores;
   float       diskAvailable;  // GB
+  int32_t     clusterId;
   uint8_t     alternativeRole;
   uint8_t     reserve2[15];
   SClusterCfg clusterCfg;
@@ -648,8 +652,8 @@ typedef struct SCMSTableVgroupMsg {
 
 typedef struct {
   int32_t   vgId;
-  int8_t    numOfIps;
-  SIpAddr   ipAddr[TSDB_MAX_REPLICA];
+  int8_t    numOfEps;
+  SEpAddr   epAddr[TSDB_MAX_REPLICA];
 } SCMVgroupInfo;
 
 typedef struct {
@@ -753,7 +757,7 @@ typedef struct {
   uint32_t  onlineDnodes;
   uint32_t  connId;
   int8_t    killConnection;
-  SRpcIpSet ipList;
+  SRpcEpSet epSet;
 } SCMHeartBeatRsp;
 
 typedef struct {

@@ -23,11 +23,11 @@ extern "C" {
 /*
  * @date   2018/09/30
  */
-#include "os.h"
-#include "tbuffer.h"
 #include "exception.h"
-#include "qextbuffer.h"
+#include "os.h"
+#include "qExtbuffer.h"
 #include "taosdef.h"
+#include "tbuffer.h"
 #include "tscLocalMerge.h"
 #include "tsclient.h"
 
@@ -268,7 +268,7 @@ bool hasMoreClauseToTry(SSqlObj* pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
-int  tscSetMgmtIpListFromCfg(const char *first, const char *second);
+int  tscSetMgmtEpSetFromCfg(const char *first, const char *second);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

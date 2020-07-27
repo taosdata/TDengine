@@ -31,8 +31,8 @@ extern "C" {
 #include "tutil.h"
 
 #include "qExecutor.h"
+#include "qTsbuf.h"
 #include "qsqlparser.h"
-#include "qtsbuf.h"
 #include "tcmdtype.h"
 
 // forward declaration
@@ -52,12 +52,20 @@ typedef struct STableComInfo {
   int32_t rowSize;
 } STableComInfo;
 
+typedef struct SCMCorVgroupInfo {
+  int32_t version;
+  int8_t inUse;
+  int8_t  numOfEps;
+  SEpAddr epAddr[TSDB_MAX_REPLICA];
+} SCMCorVgroupInfo;
+
 typedef struct STableMeta {
   STableComInfo tableInfo;
   uint8_t       tableType;
   int16_t       sversion;
   int16_t       tversion;
-  SCMVgroupInfo vgroupInfo;
+  SCMVgroupInfo  vgroupInfo;
+  SCMCorVgroupInfo  corVgroupInfo;
   int32_t       sid;       // the index of one table in a virtual node
   uint64_t      uid;       // unique id of a table
   SSchema       schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
@@ -306,7 +314,7 @@ typedef struct SSqlObj {
   char *           sqlstr;
   char             retry;
   char             maxRetry;
-  SRpcIpSet        ipList;
+  SRpcEpSet        epSet;
   char             listed;
   tsem_t           rspSem;
   SSqlCmd          cmd;
@@ -350,7 +358,7 @@ void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool initial);
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcIpSet *pIpSet);
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
 int  tscRenewTableMeta(SSqlObj *pSql, char *tableId);
@@ -456,7 +464,8 @@ extern void *    tscQhandle;
 extern int       tscKeepConn[];
 extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
-extern SRpcIpSet tscMgmtIpSet;
+  
+extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

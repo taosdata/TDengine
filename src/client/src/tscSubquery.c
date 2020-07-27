@@ -14,8 +14,8 @@
  */
 #include "os.h"
 
-#include "qtsbuf.h"
-#include "qast.h"
+#include "qAst.h"
+#include "qTsbuf.h"
 #include "tcompare.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
@@ -458,7 +458,7 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
           break;
         }
       }
-      assert(info.vgInfo.numOfIps != 0);
+      assert(info.vgInfo.numOfEps != 0);
 
       vgTables = taosArrayInit(4, sizeof(STableIdInfo));
       info.itemList = vgTables;
@@ -1600,8 +1600,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num;
-    tscDebug("%p sub:%p all data retrieved from ip:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
-        pTableMetaInfo->vgroupList->vgroups[0].ipAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
+    tscDebug("%p sub:%p all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
+        pTableMetaInfo->vgroupList->vgroups[0].epAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
   
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
@@ -1719,8 +1719,8 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-    tscDebug("%p sub:%p retrieve numOfRows:%" PRId64 " totalNumOfRows:%" PRIu64 " from ip:%s, orderOfSub:%d", pParentSql, pSql,
-             pRes->numOfRows, pState->numOfRetrievedRows, pSql->ipList.fqdn[pSql->ipList.inUse], idx);
+    tscDebug("%p sub:%p retrieve numOfRows:%" PRId64 " totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d", pParentSql, pSql,
+             pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
@@ -1828,8 +1828,8 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
     return;
   }
 
-  tscTrace("%p sub:%p query complete, ip:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql, pSql,
-             pVgroup->ipAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
+  tscTrace("%p sub:%p query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql, pSql,
+             pVgroup->epAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
 
   if (pSql->res.qhandle == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
     tscRetrieveFromDnodeCallBack(param, pSql, 0);

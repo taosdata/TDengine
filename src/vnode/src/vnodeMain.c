@@ -123,7 +123,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
   tsdbCfg.cacheBlockSize      = pVnodeCfg->cfg.cacheBlockSize;
   tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
-  tsdbCfg.maxTables           = pVnodeCfg->cfg.maxTables;
+  // tsdbCfg.maxTables           = pVnodeCfg->cfg.maxTables;
   tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
   tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
   tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
@@ -340,6 +340,13 @@ void vnodeRelease(void *pVnodeRaw) {
     tsdbCloseRepo(pVnode->tsdb, 1);
   pVnode->tsdb = NULL;
 
+  // stop continuous query
+  if (pVnode->cq) {
+    void *cq = pVnode->cq;
+    pVnode->cq = NULL;
+    cqClose(cq);
+  }
+
   if (pVnode->wal) 
     walClose(pVnode->wal);
   pVnode->wal = NULL;
@@ -511,13 +518,6 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
     syncStop(sync);
   }
 
-  // stop continuous query
-  if (pVnode->cq) {
-    void *cq = pVnode->cq;
-    pVnode->cq = NULL;
-    cqClose(cq);
-  }
-
   vTrace("vgId:%d, vnode will cleanup, refCount:%d", pVnode->vgId, pVnode->refCount);
 
   // release local resources only after cutting off outside connections
@@ -630,14 +630,14 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pVnodeCfg->cfg.cfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pVnodeCfg->cfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pVnodeCfg->cfg.totalBlocks);
-  len += snprintf(content + len, maxLen - len, "  \"maxTables\": %d,\n", pVnodeCfg->cfg.maxTables);
+  // len += snprintf(content + len, maxLen - len, "  \"maxTables\": %d,\n", pVnodeCfg->cfg.maxTables);
   len += snprintf(content + len, maxLen - len, "  \"daysPerFile\": %d,\n", pVnodeCfg->cfg.daysPerFile);
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep\": %d,\n", pVnodeCfg->cfg.daysToKeep);
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep1\": %d,\n", pVnodeCfg->cfg.daysToKeep1);
   len += snprintf(content + len, maxLen - len, "  \"daysToKeep2\": %d,\n", pVnodeCfg->cfg.daysToKeep2);
   len += snprintf(content + len, maxLen - len, "  \"minRowsPerFileBlock\": %d,\n", pVnodeCfg->cfg.minRowsPerFileBlock);
   len += snprintf(content + len, maxLen - len, "  \"maxRowsPerFileBlock\": %d,\n", pVnodeCfg->cfg.maxRowsPerFileBlock);
-  len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnodeCfg->cfg.commitTime);
+  // len += snprintf(content + len, maxLen - len, "  \"commitTime\": %d,\n", pVnodeCfg->cfg.commitTime);
   len += snprintf(content + len, maxLen - len, "  \"precision\": %d,\n", pVnodeCfg->cfg.precision);
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pVnodeCfg->cfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pVnodeCfg->cfg.walLevel);
@@ -729,12 +729,12 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->tsdbCfg.totalBlocks = totalBlocks->valueint;
 
-  cJSON *maxTables = cJSON_GetObjectItem(root, "maxTables");
-  if (!maxTables || maxTables->type != cJSON_Number) {
-    vError("vgId:%d, failed to read vnode cfg, maxTables not found", pVnode->vgId);
-    goto PARSE_OVER;
-  }
-  pVnode->tsdbCfg.maxTables = maxTables->valueint;
+  // cJSON *maxTables = cJSON_GetObjectItem(root, "maxTables");
+  // if (!maxTables || maxTables->type != cJSON_Number) {
+  //   vError("vgId:%d, failed to read vnode cfg, maxTables not found", pVnode->vgId);
+  //   goto PARSE_OVER;
+  // }
+  // pVnode->tsdbCfg.maxTables = maxTables->valueint;
 
   cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
   if (!daysPerFile || daysPerFile->type != cJSON_Number) {
@@ -778,12 +778,12 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   pVnode->tsdbCfg.maxRowsPerFileBlock = maxRowsPerFileBlock->valueint;
 
-  cJSON *commitTime = cJSON_GetObjectItem(root, "commitTime");
-  if (!commitTime || commitTime->type != cJSON_Number) {
-    vError("vgId:%d, failed to read vnode cfg, commitTime not found", pVnode->vgId);
-    goto PARSE_OVER;
-  }
-  pVnode->tsdbCfg.commitTime = (int8_t)commitTime->valueint;
+  // cJSON *commitTime = cJSON_GetObjectItem(root, "commitTime");
+  // if (!commitTime || commitTime->type != cJSON_Number) {
+  //   vError("vgId:%d, failed to read vnode cfg, commitTime not found", pVnode->vgId);
+  //   goto PARSE_OVER;
+  // }
+  // pVnode->tsdbCfg.commitTime = (int8_t)commitTime->valueint;
 
   cJSON *precision = cJSON_GetObjectItem(root, "precision");
   if (!precision || precision->type != cJSON_Number) {

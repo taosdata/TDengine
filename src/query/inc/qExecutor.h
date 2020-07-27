@@ -18,16 +18,16 @@
 #include "os.h"
 
 #include "hash.h"
-#include "qfill.h"
-#include "qresultBuf.h"
+#include "qFill.h"
+#include "qResultbuf.h"
+#include "qTsbuf.h"
 #include "qsqlparser.h"
-#include "qtsbuf.h"
+#include "query.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tlockfree.h"
 #include "tsdb.h"
 #include "tsqlfunction.h"
-#include "query.h"
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
@@ -42,7 +42,7 @@ typedef struct SSqlGroupbyExpr {
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
-  int16_t pageId;
+  int32_t pageId;
   int16_t rowId;
 } SPosInfo;
 
@@ -158,7 +158,7 @@ typedef struct SQueryRuntimeEnv {
   SResultInfo*         resultInfo;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
-  int16_t              numOfRowsPerPage;
+  int32_t              numOfRowsPerPage;
   int16_t              offset[TSDB_MAX_COLUMNS];
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;

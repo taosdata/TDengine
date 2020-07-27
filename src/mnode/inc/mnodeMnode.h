@@ -42,12 +42,12 @@ void    mnodeIncMnodeRef(struct SMnodeObj *pMnode);
 void    mnodeDecMnodeRef(struct SMnodeObj *pMnode);
 
 char *  mnodeGetMnodeRoleStr();
-void    mnodeGetMnodeIpSetForPeer(SRpcIpSet *ipSet);
-void    mnodeGetMnodeIpSetForShell(SRpcIpSet *ipSet);
+void    mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet);
+void    mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet);
 char*   mnodeGetMnodeMasterEp();
 
 void    mnodeGetMnodeInfos(void *mnodes);
-void    mnodeUpdateMnodeIpSet();
+void    mnodeUpdateMnodeEpSet();
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@
 #ifndef TDENGINE_QPERCENTILE_H
 #define TDENGINE_QPERCENTILE_H
 
-#include "qextbuffer.h"
+#include "qExtbuffer.h"
 
 typedef struct MinMaxEntry {
   union {

@@ -26,12 +26,10 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   int32_t size = 0;
 
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    assert(pQuery->pSelectExpr[i].interBytes <= DEFAULT_INTERN_BUF_PAGE_SIZE);
     size += pQuery->pSelectExpr[i].interBytes;
   }
 
   assert(size > 0);
-
   return size;
 }
 
@@ -43,6 +41,9 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->type = type;
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
   pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
+  if (pWindowResInfo->hashList == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
   
   pWindowResInfo->curIndex = -1;
   pWindowResInfo->size     = 0;
@@ -243,7 +244,7 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
     size_t size = pRuntimeEnv->pQuery->pSelectExpr[i].bytes;
     memset(s, 0, size);
     
-    resetResultInfo(pResultInfo);
+    RESET_RESULT_INFO(pResultInfo);
   }
   
   pWindowRes->numOfRows = 0;

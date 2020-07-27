@@ -49,7 +49,7 @@ static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int3
   assert(pResult != NULL && pRuntimeEnv != NULL);
 
   SQuery    *pQuery = pRuntimeEnv->pQuery;
-  tFilePage *page = GET_RES_BUF_PAGE_BY_ID(pRuntimeEnv->pResultBuf, pResult->pos.pageId);
+  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pos.pageId);
   int32_t realRowId = pResult->pos.rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pRuntimeEnv->topBotQuery, pRuntimeEnv->stableQuery);
 
   return ((char *)page->data) + pRuntimeEnv->offset[columnIndex] * pRuntimeEnv->numOfRowsPerPage +
@@ -58,7 +58,5 @@ static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int3
 
 __filter_func_t *getRangeFilterFuncArray(int32_t type);
 __filter_func_t *getValueFilterFuncArray(int32_t type);
-
-bool supportPrefilter(int32_t type);
 
 #endif  // TDENGINE_QUERYUTIL_H

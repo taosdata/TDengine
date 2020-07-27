@@ -28,7 +28,7 @@ sql create table diskstrm as select count(*), avg(disk_used), last(disk_used), a
 sql create table bandstrm as select count(*), avg(band_speed), last(band_speed) from log.dn1 interval(4s) sliding(2s)
 sql create table reqstrm as select count(*), avg(req_http), last(req_http), avg(req_select), last(req_select), avg(req_insert), last(req_insert) from log.dn1 interval(4s) sliding(2s)
 sql create table iostrm as select count(*), avg(io_read), last(io_read), avg(io_write), last(io_write) from log.dn1 interval(4s) sliding(2s)
-sleep 20000
+sleep 120000
 sql select * from cpustrm
 if $rows <= 0 then
   return -1
