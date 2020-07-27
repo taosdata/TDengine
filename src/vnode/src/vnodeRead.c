@@ -167,11 +167,11 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
       if (buildRes) { // build result rsp
 
-        SReadMsg* pRetrieveMsg = qGetResultRetrieveMsg(*handle);
-        assert(pRetrieveMsg != NULL && pRetrieveMsg->rpcMsg.handle != NULL);
+        void* retrieveHandle = qGetResultRetrieveMsg(*handle);
+        assert(retrieveHandle != NULL);
 
-        vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused, %p", pVnode->vgId, *handle, pRetrieveMsg->rpcMsg.handle);
-        pReadMsg->rpcMsg.handle = pRetrieveMsg->rpcMsg.handle;  // update the connection info according to the retrieve connection
+        vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused, %p", pVnode->vgId, *handle, retrieveHandle);
+        pReadMsg->rpcMsg.handle = retrieveHandle;  // update the connection info according to the retrieve connection
 
         pRet = &pReadMsg->rspRet;
         code = TSDB_CODE_QRY_HAS_RSP;
@@ -250,7 +250,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   bool freeHandle = true;
   bool buildRes   = false;
 
-  code = qRetrieveQueryResultInfo(*handle, &buildRes, pReadMsg);
+  code = qRetrieveQueryResultInfo(*handle, &buildRes, pReadMsg->rpcMsg.handle);
   if (code != TSDB_CODE_SUCCESS) {
     //TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
