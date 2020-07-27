@@ -1223,6 +1223,55 @@ static int32_t mnodeDropSuperTableColumn(SMnodeMsg *pMsg, char *colName) {
   return code;
 }
 
+static int32_t mnodeChangeSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
+  SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
+  mLInfo("app:%p:%p, stable %s, change column result:%s", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId,
+         tstrerror(code));
+  return code;
+}
+
+static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg, char *oldName, char *newName) {
+  SSuperTableObj *pStable = (SSuperTableObj *)pMsg->pTable;
+  int32_t col = mnodeFindSuperTableColumnIndex(pStable, oldName);
+  if (col < 0) {
+    mError("app:%p:%p, stable:%s, change column, oldName: %s, newName: %s", pMsg->rpcMsg.ahandle, pMsg,
+           pStable->info.tableId, oldName, newName);
+    return TSDB_CODE_MND_FIELD_NOT_EXIST;
+  }
+
+  // int32_t  rowSize = 0;
+  uint32_t len = strlen(newName);
+  if (len >= TSDB_COL_NAME_LEN) {
+    return TSDB_CODE_MND_COL_NAME_TOO_LONG;
+  }
+
+  if (mnodeFindSuperTableColumnIndex(pStable, newName) >= 0) {
+    return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
+  }
+  
+  // update
+  SSchema *schema = (SSchema *) (pStable->schema + col);
+  tstrncpy(schema->name, newName, sizeof(schema->name));
+
+  mInfo("app:%p:%p, stable %s, start to modify column %s to %s", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId,
+         oldName, newName);
+
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsSuperTableSdb,
+    .pObj = pStable,
+    .pMsg = pMsg,
+    .cb = mnodeChangeSuperTableColumnCb
+  };
+
+  int32_t code = sdbUpdateRow(&oper);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  }
+
+  return code;
+}
+
 // show super tables
 static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
@@ -1405,6 +1454,9 @@ static int32_t mnodeSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pT
 static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
   SSuperTableObj *pTable = (SSuperTableObj *)pMsg->pTable;
   STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
+  if (pMeta == NULL) {
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->tversion     = htons(pTable->tversion);
@@ -1972,6 +2024,48 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
   int32_t code = sdbUpdateRow(&oper);
   if (code == TSDB_CODE_SUCCESS) {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  }
+
+  return code;
+}
+
+static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg, char *oldName, char *newName) {
+  SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
+  int32_t col = mnodeFindNormalTableColumnIndex(pTable, oldName);
+  if (col < 0) {
+    mError("app:%p:%p, ctable:%s, change column, oldName: %s, newName: %s", pMsg->rpcMsg.ahandle, pMsg,
+           pTable->info.tableId, oldName, newName);
+    return TSDB_CODE_MND_FIELD_NOT_EXIST;
+  }
+
+  // int32_t  rowSize = 0;
+  uint32_t len = strlen(newName);
+  if (len >= TSDB_COL_NAME_LEN) {
+    return TSDB_CODE_MND_COL_NAME_TOO_LONG;
+  }
+
+  if (mnodeFindNormalTableColumnIndex(pTable, newName) >= 0) {
+    return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
+  }
+  
+  // update
+  SSchema *schema = (SSchema *) (pTable->schema + col);
+  tstrncpy(schema->name, newName, sizeof(schema->name));
+
+  mInfo("app:%p:%p, ctable %s, start to modify column %s to %s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+         oldName, newName);
+
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsChildTableSdb,
+    .pObj = pTable,
+    .pMsg = pMsg,
+    .cb = mnodeAlterNormalTableColumnCb
+  };
+
+  int32_t code = sdbUpdateRow(&oper);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;
@@ -2596,6 +2690,8 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
       code = mnodeAddSuperTableColumn(pMsg, pAlter->schema, 1);
     } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
       code = mnodeDropSuperTableColumn(pMsg, pAlter->schema[0].name);
+    } else if (pAlter->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
+      code = mnodeChangeSuperTableColumn(pMsg, pAlter->schema[0].name, pAlter->schema[1].name);
     } else {
     }
   } else {
@@ -2606,6 +2702,8 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
       code = mnodeAddNormalTableColumn(pMsg, pAlter->schema, 1);
     } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
       code = mnodeDropNormalTableColumn(pMsg, pAlter->schema[0].name);
+    } else if (pAlter->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
+      code = mnodeChangeNormalTableColumn(pMsg, pAlter->schema[0].name, pAlter->schema[1].name);
     } else {
     }
   }

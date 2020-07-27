@@ -13,24 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_H
-#define TDENGINE_BALANCE_H
+#ifndef TDENGINE_MNODE_CLUSTER_H
+#define TDENGINE_MNODE_CLUSTER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SVgObj;
-struct SDnodeObj;
+struct SClusterObj;
 
-int32_t balanceInit();
-void    balanceCleanUp();
-void    balanceAsyncNotify();
-void    balanceSyncNotify();
-void    balanceReset();
-int32_t balanceAllocVnodes(struct SVgObj *pVgroup);
-int32_t balanceAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId);
-int32_t balanceDropDnode(struct SDnodeObj *pDnode);
+int32_t mnodeInitCluster();
+void    mnodeCleanupCluster();
+int32_t mnodeGetClusterId();
+void    mnodeUpdateClusterId();
+void *  mnodeGetCluster(int32_t clusterId);
+void *  mnodeGetNextCluster(void *pIter, struct SClusterObj **pCluster);
+void    mnodeIncClusterRef(struct SClusterObj *pCluster);
+void    mnodeDecClusterRef(struct SClusterObj *pCluster);
 
 #ifdef __cplusplus
 }
