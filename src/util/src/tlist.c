@@ -122,6 +122,22 @@ SListNode *tdListPopTail(SList *list) {
   return node;
 }
 
+SListNode *tdListGetHead(SList *list) {
+  if (list == NULL || list->numOfEles == 0) {
+    return NULL;
+  }
+
+  return list->head;
+}
+
+SListNode *tsListGetTail(SList *list) {
+  if (list == NULL || list->numOfEles == 0) {
+    return NULL;
+  }
+
+  return list->tail;
+}
+
 SListNode *tdListPopNode(SList *list, SListNode *node) {
   if (list->head == node) {
     list->head = node->next;

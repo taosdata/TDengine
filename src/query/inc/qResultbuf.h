@@ -34,16 +34,26 @@ typedef struct SPageDiskInfo {
 } SPageDiskInfo;
 
 typedef struct SPageInfo {
+  SListNode*    pn;       // point to list node
   int32_t       pageId;
   SPageDiskInfo info;
   void*         pData;
-  T_REF_DECLARE();
+  bool          used;     // set current page is in used
 } SPageInfo;
 
 typedef struct SFreeListItem {
   int32_t offset;
   int32_t len;
 } SFreeListItem;
+
+typedef struct SResultBufStatis {
+  int32_t flushBytes;
+  int32_t loadBytes;
+  int32_t getPages;
+  int32_t releasePages;
+  int32_t flushPages;
+  int32_t fileSize;
+} SResultBufStatis;
 
 typedef struct SDiskbasedResultBuf {
   int32_t   numOfRowsPerPage;
@@ -64,6 +74,8 @@ typedef struct SDiskbasedResultBuf {
   void*     assistBuf;           // assistant buffer for compress data
   SArray*   pFree;               // free area in file
   int32_t   nextPos;             // next page flush position
+
+  SResultBufStatis statis;
 } SDiskbasedResultBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)
@@ -119,6 +131,16 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
  */
 void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page);
 
+void releaseResBufPageInfo(SDiskbasedResultBuf* pResultBuf, SPageInfo* pi);
+
+/**
+ *
+ * @param pResultBuf
+ * @param id
+ * @return
+ */
+//tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id);
+
 /**
  * get the total buffer size in the format of disk file
  * @param pResultBuf
@@ -144,7 +166,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf, void* handle);
  * @param pList
  * @return
  */
-int32_t getLastPageId(SIDList pList);
+SPageInfo* getLastPageInfo(SIDList pList);
 
 #ifdef __cplusplus
 }

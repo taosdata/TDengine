@@ -93,6 +93,8 @@ run general/parser/groupby.sim
 sleep 2000
 run general/parser/tags_filter.sim
 sleep 2000
+run general/parser/topbot.sim
+sleep 2000
 run general/parser/union.sim
 sleep 2000
 run general/parser/sliding.sim

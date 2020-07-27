@@ -42,8 +42,8 @@ typedef struct SSqlGroupbyExpr {
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
-  int16_t pageId;
-  int16_t rowId;
+  int32_t pageId;
+  int32_t rowId;
 } SPosInfo;
 
 typedef struct SWindowStatus {
