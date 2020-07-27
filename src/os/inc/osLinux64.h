@@ -76,7 +76,6 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/resource.h>
 #include <error.h>
-#include <sys/sysctl.h>
 
 #ifdef __cplusplus
 }

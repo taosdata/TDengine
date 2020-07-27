@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "os.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
 #include "tutil.h"
 #include "tsystem.h"
+#include <sys/sysctl.h>
 
 #ifndef TAOS_OS_FUNC_CORE
 
