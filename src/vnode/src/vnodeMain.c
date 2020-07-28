@@ -419,10 +419,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
-  // still need report status when unsynced
-  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) {
-  } else if (pVnode->tsdb == NULL) {
-  } else {
+  if (pVnode->tsdb) {
     tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
   }
 
