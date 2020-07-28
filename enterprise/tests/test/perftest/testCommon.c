@@ -209,7 +209,7 @@ void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *tem
     numOfRows++;
 
     taos_print_row(temp, row, fields, num_fields);
-    //printf("%" PRId64 ": %s\n", numOfRows, temp);
+//    printf("%" PRId64 ": %s\n", numOfRows, temp);
   }
 
   //    printf("total elapsed time:%"PRId64" ms, %"PRId64" rows\n", taosGetTimestampMs() - start, numOfRows);

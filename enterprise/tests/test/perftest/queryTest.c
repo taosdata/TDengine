@@ -281,7 +281,7 @@ static UNUSED_FUNC void createEnv(void* conn) {
 }
 
 int main(int argc, char** argv) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
@@ -293,12 +293,11 @@ int main(int argc, char** argv) {
   }
 
   multiThreadQuery(atoi(argv[1]), argv[2]);
-//  executeSQL(conn, "select count(*) as c from union_tb0, union_tb1 where union_tb0.ts=union_tb1.ts", NULL);
+//  executeSQL(conn, "use test", NULL);
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
   //  createEnvironment(conn, 100, 100, 100000, 30);
 
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
-  return 0;
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
 //  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
@@ -364,6 +363,7 @@ int main(int argc, char** argv) {
   //    executeSQL(conn, "select m1.ts from m1 where m1.ts<now and (m1.a=9 and m1.a=20) and m1.ts>10000", NULL);
 
 //  for(int32_t i = 0; i < 2000000; ++i) {
+//    executeSQL(conn, "select count(*) from tm99", NULL);
 //    executeSQL(conn, "select * from m1", NULL);
 //    executeSQL(conn, "select count(*) from tm99 group by k", NULL);
 //    executeSQL(conn, "select count(*) from m1 where tbname in ('tm99')", NULL);
