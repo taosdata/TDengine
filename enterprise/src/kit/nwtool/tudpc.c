@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     gettimeofday(&systemTime, NULL);
     st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
-    int ret = sendto(fd, buffer, bytes, 0, (struct sockaddr *)&destAdd,
+    int ret = taosSendto(fd, buffer, bytes, 0, (struct sockaddr *)&destAdd,
                      sizeof(destAdd));
     if (ret < bytes) {
       printf("failed to send packet to:%s:%s, ret:%d reason:%s\n", argv[1],

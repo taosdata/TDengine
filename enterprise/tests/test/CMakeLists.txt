@@ -1,7 +1,7 @@
 PROJECT(TDengine)
 
 include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNITY_DIR}/src/client/inc/
-        ../../tests/test/perftest/inc ${TD_OS_DIR}/inc)
+        ../../tests/test/perftest/inc )
 
 add_executable(synctest ./cdriver/synctest.c )
 target_link_libraries(synctest taos pthread)

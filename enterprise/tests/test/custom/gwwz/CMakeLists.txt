@@ -3,8 +3,8 @@ PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
-INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
-
+IINCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/os/inc)
+  
 IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   add_executable(taossplit ./taossplit.c )
   target_link_libraries(taossplit taos_static pthread)

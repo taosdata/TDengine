@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     printf("%d bytes received from %s:%d\n", dataLen, sourceIp,
            ntohs(sourceAdd.sin_port));
 
-    int ret = sendto(fd, buffer, dataLen, 0, (struct sockaddr *)&sourceAdd,
+    int ret = taosSendto(fd, buffer, dataLen, 0, (struct sockaddr *)&sourceAdd,
                      sizeof(sourceAdd));
     if (ret < dataLen) {
       printf("ERROR, failed to send packet to:%s:%d, ret:%d reason:%s\n",
