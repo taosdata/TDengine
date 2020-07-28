@@ -83,6 +83,7 @@ static int syncAreFilesModified(SSyncPeer *pPeer)
   int code = 0; 
   if (len >0) { 
     sDebug("%s, processed file is changed", pPeer->id);    
+    pPeer->fileChanged = 1;
     code = 1;
   }
 
@@ -454,9 +455,11 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
 
 void *syncRetrieveData(void *param)
 {
-  SSyncPeer   *pPeer = (SSyncPeer *)param;
+  SSyncPeer  *pPeer = (SSyncPeer *)param;
+  SSyncNode  *pNode = pPeer->pSyncNode;
   taosBlockSIGPIPE();
 
+  pPeer->fileChanged = 0;
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
@@ -471,6 +474,18 @@ void *syncRetrieveData(void *param)
     }
   }
 
+  if (pPeer->fileChanged) {
+    // if file is changed 3 times continuously, start flow control
+    pPeer->numOfRetrieves++;
+    if (pPeer->numOfRetrieves >= 2 && pNode->notifyFlowCtrl)  
+      (*pNode->notifyFlowCtrl)(pNode->ahandle, 4 << (pPeer->numOfRetrieves - 2));
+  } else {
+    pPeer->numOfRetrieves = 0;
+    if (pNode->notifyFlowCtrl)
+      (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);
+  }
+
+  pPeer->fileChanged = 0;
   tclose(pPeer->notifyFd);
   tclose(pPeer->syncFd);
   syncDecPeerRef(pPeer);

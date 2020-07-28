@@ -137,6 +137,7 @@ void *syncStart(const SSyncInfo *pInfo)
   pNode->writeToCache = pInfo->writeToCache;
   pNode->notifyRole = pInfo->notifyRole;
   pNode->confirmForward = pInfo->confirmForward;
+  pNode->notifyFlowCtrl = pInfo->notifyFlowCtrl;
   pNode->notifyFileSynced = pInfo->notifyFileSynced;
  
   pNode->selfIndex = -1;
@@ -530,6 +531,16 @@ void syncBroadcastStatus(SSyncNode *pNode)
   }
 } 
 
+static void syncResetFlowCtrl(SSyncNode *pNode) {
+
+  for (int i = 0; i < pNode->replica; ++i) {
+    pNode->peerInfo[i]->numOfRetrieves = 0;
+  }
+
+  if (pNode->notifyFlowCtrl)
+    (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);   
+}
+
 static void syncChooseMaster(SSyncNode *pNode) {
   SSyncPeer *pPeer;
   int        onlineNum = 0;
@@ -575,6 +586,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
     if (index == pNode->selfIndex) {
       sInfo("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
+      syncResetFlowCtrl(pNode);
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
     } else {
       pPeer = pNode->peerInfo[index];
@@ -706,6 +718,9 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
 
   if (peerOldRole != newRole || nodeRole != selfOldRole)
     syncBroadcastStatus(pNode);
+
+  if (nodeRole != TAOS_SYNC_ROLE_MASTER) 
+    syncResetFlowCtrl(pNode);
 }
 
 static void syncRestartPeer(SSyncPeer *pPeer) {
