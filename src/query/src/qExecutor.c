@@ -6356,7 +6356,6 @@ bool qTableQuery(qinfo_t qinfo) {
 
   pthread_mutex_unlock(&pQInfo->lock);
   return buildRes;
-//  sem_post(&pQInfo->dataReady);
 }
 
 int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContext) {
