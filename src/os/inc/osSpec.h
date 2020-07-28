@@ -20,6 +20,89 @@
 extern "C" {
 #endif
 
+#define tclose(x) taosCloseSocket(x)
+#define tfree(x)         \
+  do {                   \
+    if (x) {             \
+      free((void *)(x)); \
+      x = 0;             \
+    }                    \
+  } while (0);
+
+#define tstrncpy(dst, src, size)   \
+  do {                             \
+    strncpy((dst), (src), (size)); \
+    (dst)[(size)-1] = 0;           \
+  } while (0);
+
+#ifndef STDERR_FILENO
+#define STDERR_FILENO (2)
+#endif
+
+#define FD_VALID(x) ((x) > STDERR_FILENO)
+#define FD_INITIALIZER  ((int32_t)-1)
+
+#define WCHAR wchar_t
+
+#define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
+#define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
+
+#ifndef NDEBUG
+#define ASSERT(x) assert(x)
+#else
+#define ASSERT(x)
+#endif
+
+#ifdef UNUSED
+#undefine UNUSED
+#endif
+#define UNUSED(x) ((void)(x))
+
+#ifdef UNUSED_FUNC
+#undefine UNUSED_FUNC
+#endif
+
+#ifdef UNUSED_PARAM
+#undef UNUSED_PARAM
+#endif
+
+#if defined(__GNUC__)
+#define UNUSED_PARAM(x) _UNUSED##x __attribute__((unused))
+#define UNUSED_FUNC __attribute__((unused))
+#else
+#define UNUSED_PARAM(x) x
+#define UNUSED_FUNC
+#endif
+
+#ifdef tListLen
+#undefine tListLen
+#endif
+#define tListLen(x) (sizeof(x) / sizeof((x)[0]))
+
+#if defined(__GNUC__)
+#define FORCE_INLINE inline __attribute__((always_inline))
+#else
+#define FORCE_INLINE
+#endif
+
+#define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
+  
+#define DEFAULT_COMP(x, y)       \
+  do {                           \
+    if ((x) == (y)) {            \
+      return 0;                  \
+    } else {                     \
+      return (x) < (y) ? -1 : 1; \
+    }                            \
+  } while (0)
+
+#define ALIGN_NUM(n, align) (((n) + ((align)-1)) & (~((align)-1)))
+
+// align to 8bytes
+#define ALIGN8(n) ALIGN_NUM(n, 8)
+
+#define POW2(x) ((x) * (x))
+
 #ifndef TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)        \
     do {                       \
@@ -46,6 +129,12 @@ extern "C" {
 #ifndef TAOS_OS_DEF_TIME
   #define MILLISECOND_PER_SECOND ((int64_t)1000L)
 #endif
+#define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
+#define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
+#define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
+#define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
+#define MILLISECOND_PER_MONTH  (MILLISECOND_PER_DAY * 30)
+#define MILLISECOND_PER_YEAR   (MILLISECOND_PER_DAY * 365)
 
 #ifndef TAOS_OS_FUNC_SEMPHONE
   #define tsem_t sem_t
@@ -144,22 +233,11 @@ extern "C" {
 ssize_t taosTReadImp(int fd, void *buf, size_t count);
 ssize_t taosTWriteImp(int fd, void *buf, size_t count);
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size);
-#ifndef TAOS_OS_FUNC_FILE
+#ifndef TAOS_OS_FUNC_FILE_OP
   #define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
   #define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
   #define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
   #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
-#endif
-
-#ifdef TAOS_RANDOM_FILE_FAIL
-  void taosSetRandomFileFailFactor(int factor);
-  void taosSetRandomFileFailOutput(const char *path);
-  ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
-  ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
-  off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
-  #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
-  #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
-  #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
 #endif
 
 #ifndef TAOS_OS_FUNC_NETWORK
@@ -176,23 +254,16 @@ ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size);
     }
 #endif
 
-#ifdef TAOS_RANDOM_NETWORK_FAIL
-  ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags);
-  ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-  ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count);
-  ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count);
-  #define taosSend(sockfd, buf, len, flags) taosSendRandomFail(sockfd, buf, len, flags)
-  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) taosSendToRandomFail(sockfd, buf, len, flags, dest_addr, addrlen)
-  #define taosReadSocket(fd, buf, len) taosReadSocketRandomFail(fd, buf, len)
-  #define taosWriteSocket(fd, buf, len) taosWriteSocketRandomFail(fd, buf, len)
-#endif
-
 #ifndef TAOS_OS_FUNC_LZ4
   #define BUILDIN_CLZL(val) __builtin_clzl(val)
   #define BUILDIN_CTZL(val) __builtin_ctzl(val)
   #define BUILDIN_CLZ(val) __builtin_clz(val)
   #define BUILDIN_CTZ(val) __builtin_ctz(val)
 #endif
+
+#ifndef TAOS_OS_FUNC_WCHAR
+  #define twcslen wcslen
+#endif  
 
 #undef threadlocal
 #ifdef _ISOC11_SOURCE
@@ -232,6 +303,81 @@ int64_t tsosStr2int64(char *str);
 void taosMsleep(int mseconds);
 int taosInitTimer(void (*callback)(int), int ms);
 void taosUninitTimer();
+
+// TAOS_OS_FUNC_RAND
+uint32_t taosRand(void);
+void taosRandStr(char* str, int32_t size);
+uint32_t trand(void);
+
+// TAOS_OS_FUNC_FILE
+void getTmpfilePath(const char *fileNamePrefix, char *dstPath);
+int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
+
+// USE_LIBICONV
+int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
+bool    taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, size_t *len);
+int     tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes);
+bool    taosValidateEncodec(const char *encodec);
+char *  taosCharsetReplace(char *charsetstr);
+
+// TAOS_OS_FUNC_MALLOC
+#define TAOS_ALLOC_MODE_DEFAULT 0
+#define TAOS_ALLOC_MODE_RANDOM_FAIL 1
+#define TAOS_ALLOC_MODE_DETECT_LEAK 2
+void   taosSetAllocMode(int mode, const char *path, bool autoDump);
+void   taosDumpMemoryLeak();
+void * tmalloc(size_t size);
+void * tcalloc(size_t nmemb, size_t size);
+size_t tsizeof(void *ptr);
+void   tmemset(void *ptr, int c);
+void * trealloc(void *ptr, size_t size);
+void   tzfree(void *ptr);
+
+// TAOS_OS_FUNC_DIR
+void taosRemoveDir(char *rootDir);
+int  taosMkDir(const char *pathname, mode_t mode); 
+void taosMvDir(char* destDir, char *srcDir);
+
+
+
+#ifdef TAOS_RANDOM_FILE_FAIL
+  void taosSetRandomFileFailFactor(int factor);
+  void taosSetRandomFileFailOutput(const char *path);
+  ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
+  ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
+  off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
+  #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+  #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+  #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
+#endif
+
+#ifdef TAOS_RANDOM_NETWORK_FAIL
+  ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags);
+  ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+  ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count);
+  ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count);
+  #define taosSend(sockfd, buf, len, flags) taosSendRandomFail(sockfd, buf, len, flags)
+  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) taosSendToRandomFail(sockfd, buf, len, flags, dest_addr, addrlen)
+  #define taosReadSocket(fd, buf, len) taosReadSocketRandomFail(fd, buf, len)
+  #define taosWriteSocket(fd, buf, len) taosWriteSocketRandomFail(fd, buf, len)
+#endif
+
+#ifdef TAOS_MEM_CHECK
+  void *  taos_malloc(size_t size, const char *file, uint32_t line);
+  void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
+  void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
+  void    taos_free(void *ptr, const char *file, uint32_t line);
+  char *  taos_strdup(const char *str, const char *file, uint32_t line);
+  char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
+  ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
+  #define malloc(size) taos_malloc(size, __FILE__, __LINE__)
+  #define calloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
+  #define realloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
+  #define free(ptr) taos_free(ptr, __FILE__, __LINE__)
+  #define strdup(str) taos_strdup(str, __FILE__, __LINE__)
+  #define strndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
+  #define getline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
+#endif  // TAOS_MEM_CHECK
 
 #ifdef __cplusplus
 }
