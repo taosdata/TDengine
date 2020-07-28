@@ -19,7 +19,7 @@ function randomBool() {
 }
 
 // Initialize
-
+//c1.execute('drop database td_connector_test;');
 c1.execute('create database if not exists td_connector_test;');
 c1.execute('use td_connector_test;')
 c1.execute('create table if not exists all_types (ts timestamp, _int int, _bigint bigint, _float float, _double double, _binary binary(40), _smallint smallint, _tinyint tinyint, _bool bool, _nchar nchar(40));');
@@ -28,7 +28,7 @@ c1.execute('create table if not exists stabletest (ts timestamp, v1 int, v2 int,
 // Shell Test : The following uses the cursor to imitate the taos shell
 
 // Insert
-for (let i = 0; i < 10000; i++) {
+for (let i = 0; i < 100; i++) {
   let insertData = ["now+" + i + "s", // Timestamp
                     parseInt( R(-Math.pow(2,31) + 1 , Math.pow(2,31) - 1) ), // Int
                     parseInt( R(-Math.pow(2,31) + 1 , Math.pow(2,31) - 1) ), // BigInt
@@ -40,18 +40,20 @@ for (let i = 0; i < 10000; i++) {
                     randomBool(),
                     "\"Nchars\""]; // Bool
   c1.execute('insert into td_connector_test.all_types values(' + insertData.join(',') + ' );', {quiet:true});
-  if (i % 1000 == 0) {
+  if (i % 10 == 0) {
     console.log("Insert # " , i);
   }
 }
 
 // Select
-c1.execute('select * from td_connector_test.all_types limit 10 offset 1000;');
+console.log('select * from td_connector_test.all_types limit 3 offset 100;');
+c1.execute('select * from td_connector_test.all_types limit 1 offset 100;');
 var d = c1.fetchall();
 console.log(c1.fields);
 console.log(d);
-
+/*
 // Functions
+console.log('select count(*), avg(_int), sum(_float), max(_bigint), min(_double) from td_connector_test.all_types;')
 c1.execute('select count(*), avg(_int), sum(_float), max(_bigint), min(_double) from td_connector_test.all_types;');
 var d = c1.fetchall();
 console.log(c1.fields);
@@ -134,3 +136,4 @@ setTimeout(function(){
   c1.query('drop database td_connector_test;');
 },2000);
 conn.close();
+*/
