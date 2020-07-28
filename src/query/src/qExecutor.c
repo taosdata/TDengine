@@ -6372,16 +6372,14 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     return pQInfo->code;
   }
 
-  *buildRes = false;
   int32_t code = TSDB_CODE_SUCCESS;
-
   pthread_mutex_lock(&pQInfo->lock);
   if (pQInfo->dataReady == QUERY_RESULT_READY) {
     *buildRes = true;
-
     qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%"PRId64", code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
            pQInfo->code);
   } else {
+    *buildRes = false;
     qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
     pQInfo->rspContext = pRspContext;
   }
@@ -6473,7 +6471,6 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   } else { // failed to dump result, free qhandle immediately
     *continueExec = false;
     qKillQuery(pQInfo);
-    qDestroyQueryInfo(pQInfo);
   }
 
   return code;

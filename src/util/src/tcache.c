@@ -419,7 +419,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   // note: extend lifespan before dec ref count
   bool inTrashCan = pNode->inTrashCan;
 
-  if (pCacheObj->extendLifespan && (!inTrashCan)) {
+  if (pCacheObj->extendLifespan && (!inTrashCan) && (!_remove)) {
     atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
     uDebug("cache:%s data:%p extend life time to %"PRId64 "  before release", pCacheObj->name, pNode->data, pNode->expireTime);
   }
@@ -643,6 +643,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
   __cache_wr_lock(pCacheObj);
   while (taosHashIterNext(pIter)) {
     SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
+
     if (pNode->expireTime < time && T_REF_VAL_GET(pNode) <= 0) {
       taosCacheReleaseNode(pCacheObj, pNode);
       continue;
