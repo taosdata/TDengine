@@ -125,6 +125,8 @@ typedef struct SsyncPeer {
   uint64_t    sversion;   // track the peer version in retrieve process 
   int         syncFd;
   int         peerFd;     // forward FD
+  int         numOfRetrieves; // number of retrieves tried 
+  int         fileChanged;    // a flag to indicate file is changed during retrieving process
   void       *timer;
   void       *pConn;
   int         notifyFd;
@@ -152,6 +154,7 @@ typedef struct SSyncNode {
   FWriteToCache   writeToCache;
   FConfirmForward confirmForward;
   FNotifyRole     notifyRole;
+  FNotifyFlowCtrl notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
   pthread_mutex_t mutex;
 } SSyncNode;

@@ -44,6 +44,7 @@ static int      vnodeProcessTsdbStatus(void *arg, int status);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
+static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 int32_t vnodeInitResources() {
@@ -277,6 +278,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.writeToCache = vnodeWriteToQueue;
   syncInfo.confirmForward = dnodeSendRpcVnodeWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
+  syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
@@ -547,6 +549,13 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStart(pVnode->cq);
   else
     cqStop(pVnode->cq);
+}
+
+static void vnodeCtrlFlow(void *ahandle, int32_t mseconds) {
+  SVnodeObj *pVnode = ahandle;
+  if (pVnode->delay != mseconds) 
+    vInfo("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
+  pVnode->delay = mseconds;
 }
 
 static int vnodeResetTsdb(SVnodeObj *pVnode)
