@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "os.h"
+
 #define TD_EQ 0x1
 #define TD_GT 0x2
 #define TD_LT 0x4

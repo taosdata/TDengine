@@ -12,23 +12,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <dirent.h>
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <libgen.h>
+#define _DEFAULT_SOURCE
+#include "os.h"
 
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
 #include "ttime.h"
-#include "tfile.h"
 
 #ifdef TSDB_IDX
 const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};
@@ -317,7 +308,7 @@ int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-  if (twrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosTWrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -383,7 +374,7 @@ static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   pFile->fd = -1;
   if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;
 
-  if (tread(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosTRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pRepo), TSDB_FILE_HEAD_SIZE,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
