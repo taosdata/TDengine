@@ -40,9 +40,6 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMs
  */
 bool qTableQuery(qinfo_t qinfo);
 
-void* pGetRspMsg(qinfo_t qinfo);
-
-
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
  * this function will be blocked to wait for the query execution completed or paused,
@@ -65,6 +62,11 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
  */
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
 
+/**
+ *
+ * @param qinfo
+ * @return
+ */
 void* qGetResultRetrieveMsg(qinfo_t qinfo);
 
 /**
@@ -85,7 +87,7 @@ void  qQueryMgmtNotifyClosed(void* pExecutor);
 void  qCleanupQueryMgmt(void* pExecutor);
 void** qRegisterQInfo(void* pMgmt, uint64_t qInfo);
 void** qAcquireQInfo(void* pMgmt, uint64_t key);
-void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree);
+void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle);
 
 #ifdef __cplusplus
 }

@@ -31,11 +31,6 @@
 #define QH_GET_NUM_OF_COLS(handle) ((size_t)(taosArrayGetSize((handle)->pColumns)))
 
 enum {
-  QUERY_RANGE_LESS_EQUAL = 0,
-  QUERY_RANGE_GREATER_EQUAL = 1,
-};
-
-enum {
   TSDB_QUERY_TYPE_ALL      = 1,
   TSDB_QUERY_TYPE_LAST     = 2,
   TSDB_QUERY_TYPE_EXTERNAL = 3,
