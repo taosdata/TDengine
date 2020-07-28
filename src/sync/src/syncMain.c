@@ -71,6 +71,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo);
 char* syncRole[] = {
   "offline",
   "unsynced",
+  "syncing",
   "slave",
   "master"
 };
