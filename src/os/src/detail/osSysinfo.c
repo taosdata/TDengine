@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tsysctl.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
 #include "tutil.h"
 #include "tsystem.h"
+
+#ifndef TAOS_OS_FUNC_SYSINFO
 
 #define PROCESS_ITEM 12
 
@@ -200,7 +201,7 @@ static void taosGetSystemTimezone() {
    * Asia/Shanghai   (CST, +0800)
    * Europe/London   (BST, +0100)
    */
-  sprintf(tsTimezone, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
   // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
   uInfo("timezone not configured, set to system default:%s", tsTimezone);
@@ -234,7 +235,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       uError("can't get locale from system, set it to en_US.UTF-8");
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
-      tstrncpy(tsLocale, locale, sizeof(tsLocale));
+      tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
       uError("locale not configured, set to system default:%s", tsLocale);
     }
   }
@@ -247,7 +248,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       str++;
 
       char *revisedCharset = taosCharsetReplace(str);
-      tstrncpy(tsCharset, revisedCharset, sizeof(tsCharset));
+      tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
 
       free(revisedCharset);
       uWarn("charset not configured, set to system default:%s", tsCharset);
@@ -542,126 +543,31 @@ void taosKillSystem() {
   kill(tsProcId, 2);
 }
 
-int _sysctl(struct __sysctl_args *args );
-void taosSetCoreDump() {
-  if (0 == tsEnableCoreFile) {
-    return;
+int tSystem(const char *cmd) {
+  FILE *fp;
+  int   res;
+  char  buf[1024];
+  if (cmd == NULL) {
+    uError("tSystem cmd is NULL!\n");
+    return -1;
   }
-  
-  // 1. set ulimit -c unlimited
-  struct rlimit rlim;
-  struct rlimit rlim_new;
-  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uInfo("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
-    rlim_new.rlim_cur = RLIM_INFINITY;
-    rlim_new.rlim_max = RLIM_INFINITY;
-    if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
-      uInfo("set unlimited fail, error: %s", strerror(errno));
-      rlim_new.rlim_cur = rlim.rlim_max;
-      rlim_new.rlim_max = rlim.rlim_max;
-      (void)setrlimit(RLIMIT_CORE, &rlim_new);
+
+  if ((fp = popen(cmd, "r")) == NULL) {
+    uError("popen cmd:%s error: %s/n", cmd, strerror(errno));
+    return -1;
+  } else {
+    while (fgets(buf, sizeof(buf), fp)) {
+      uDebug("popen result:%s", buf);
     }
-  }
 
-  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    uInfo("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
-  }
-
-#ifndef _TD_ARM_
-  // 2. set the path for saving core file
-  struct __sysctl_args args;
-  int     old_usespid = 0;
-  size_t  old_len     = 0;
-  int     new_usespid = 1;
-  size_t  new_len     = sizeof(new_usespid);
-  
-  int name[] = {CTL_KERN, KERN_CORE_USES_PID};
-  
-  memset(&args, 0, sizeof(struct __sysctl_args));
-  args.name    = name;
-  args.nlen    = sizeof(name)/sizeof(name[0]);
-  args.oldval  = &old_usespid;
-  args.oldlenp = &old_len;
-  args.newval  = &new_usespid;
-  args.newlen  = new_len;
-  
-  old_len = sizeof(old_usespid);
-  
-  if (syscall(SYS__sysctl, &args) == -1) {
-      uInfo("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
-  }
-  
-  uInfo("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
-
-
-  old_usespid = 0;
-  old_len     = 0;
-  memset(&args, 0, sizeof(struct __sysctl_args));
-  args.name    = name;
-  args.nlen    = sizeof(name)/sizeof(name[0]);
-  args.oldval  = &old_usespid;
-  args.oldlenp = &old_len;
-  
-  old_len = sizeof(old_usespid);
-  
-  if (syscall(SYS__sysctl, &args) == -1) {
-      uInfo("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
-  }
-  
-  uInfo("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
-#endif
-  
-#if 0
-  // 3. create the path for saving core file
-  int status; 
-  char coredump_dir[32] = "/var/log/taosdump";
-  if (opendir(coredump_dir) == NULL) {
-    status = mkdir(coredump_dir, S_IRWXU | S_IRWXG | S_IRWXO); 
-    if (status) {
-      uInfo("mkdir fail, error: %s\n", strerror(errno));
+    if ((res = pclose(fp)) == -1) {
+      uError("close popen file pointer fp error!\n");
+    } else {
+      uDebug("popen res is :%d\n", res);
     }
+
+    return res;
   }
-
-  // 4. set kernel.core_pattern
-   struct __sysctl_args args;
-   char    old_corefile[128];
-   size_t  old_len;
-   char    new_corefile[128] = "/var/log/taosdump/core-%e-%p";
-   size_t  new_len = sizeof(new_corefile);
-   
-   int name[] = {CTL_KERN, KERN_CORE_PATTERN};
-
-   memset(&args, 0, sizeof(struct __sysctl_args));
-   args.name    = name;
-   args.nlen    = sizeof(name)/sizeof(name[0]);
-   args.oldval  = old_corefile;
-   args.oldlenp = &old_len;
-   args.newval  = new_corefile;
-   args.newlen  = new_len;
-
-   old_len = sizeof(old_corefile);
-
-   if (syscall(SYS__sysctl, &args) == -1) {
-       uInfo("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
-   }
-   
-   uInfo("The old kern_core_pattern: %*s\n", old_len, old_corefile);
-
-
-   memset(&args, 0, sizeof(struct __sysctl_args));
-   args.name    = name;
-   args.nlen    = sizeof(name)/sizeof(name[0]);
-   args.oldval  = old_corefile;
-   args.oldlenp = &old_len;
-   
-   old_len = sizeof(old_corefile);
-
-   if (syscall(SYS__sysctl, &args) == -1) {
-       uInfo("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
-   }
-   
-   uInfo("The new kern_core_pattern: %*s\n", old_len, old_corefile);
-#endif
-  
 }
 
+#endif

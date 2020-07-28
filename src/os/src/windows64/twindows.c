@@ -398,7 +398,7 @@ char *strndup(const char *s, size_t n) {
 void taosSetCoreDump() {}
 
 #ifdef _TD_GO_DLL_
-int64_t str2int64(char *str) {
+int64_t tsosStr2int64(char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);
 }
