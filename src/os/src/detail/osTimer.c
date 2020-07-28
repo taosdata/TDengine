@@ -18,8 +18,6 @@
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tulog.h"
-#include "tutil.h"
-#include <signal.h>
 
 #ifndef TAOS_OS_FUNC_TIMER
 

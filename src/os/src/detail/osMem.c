@@ -16,10 +16,6 @@
 #include "os.h"
 #include "tulog.h"
 
-#define TAOS_MEM_CHECK_IMPL
-#include "tutil.h"
-
-
 #ifdef TAOS_MEM_CHECK
 
 static int allocMode = TAOS_ALLOC_MODE_DEFAULT;
