@@ -259,7 +259,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
 
-  pthread_attr_t thattr = {{0}};
+  pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
@@ -288,7 +288,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       uDebug("cache:%s, key:%p, %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", totalNum:%d totalSize:%" PRId64
              "bytes size:%" PRId64 "bytes",
              pCacheObj->name, key, pNode->data, pNode->addedTime, pNode->expireTime,
-             (int32_t)taosHashGetSize(pCacheObj->pHashTable), pCacheObj->totalSize, dataSize);
+             (int32_t)taosHashGetSize(pCacheObj->pHashTable), pCacheObj->totalSize, (int64_t)dataSize);
     } else {
       uError("cache:%s, key:%p, failed to added into cache, out of memory", pCacheObj->name, key);
     }

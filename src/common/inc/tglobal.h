@@ -43,9 +43,9 @@ extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
 extern float    tsRatioOfQueryThreads;
 extern int8_t   tsDaylight;
-extern char     tsTimezone[64];
-extern char     tsLocale[64];
-extern char     tsCharset[64];  // default encode string
+extern char     tsTimezone[];
+extern char     tsLocale[];
+extern char     tsCharset[];  // default encode string
 extern int32_t  tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 
@@ -174,7 +174,7 @@ bool taosCheckGlobalCfg();
 void taosSetAllDebugFlag();
 bool taosCfgDynamicOptions(char *msg);
 int  taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
-bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeIndex, int32_t *dnodeIndex);
+bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
  
 #ifdef __cplusplus
 }

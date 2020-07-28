@@ -50,7 +50,7 @@ int32_t tsShellActivityTimer = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0;
 float   tsRatioOfQueryThreads = 0.5;
 int8_t  tsDaylight = 0;
-char    tsTimezone[64] = {0};
+char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int32_t tsEnableCoreFile = 0;
@@ -1315,7 +1315,7 @@ int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
  * alter dnode 1 balance "vnode:1-dnode:2"
  */
 
-bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeIndex, int32_t *dnodeIndex) {
+bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId) {
   int len = strlen(option);
   if (strncasecmp(option, "vnode:", 6) != 0) {
     return false;
@@ -1331,9 +1331,9 @@ bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeIndex, int32_t
     return false;
   }
 
-  *vnodeIndex = strtol(option + 6, NULL, 10);
-  *dnodeIndex = strtol(option + pos + 6, NULL, 10);
-  if (*vnodeIndex <= 1 || *dnodeIndex <= 0) {
+  *vnodeId = strtol(option + 6, NULL, 10);
+  *dnodeId = strtol(option + pos + 6, NULL, 10);
+  if (*vnodeId <= 1 || *dnodeId <= 0) {
     return false;
   }
 

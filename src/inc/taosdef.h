@@ -250,7 +250,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_STATE_LEN            20
 #define TSDB_COUNTRY_LEN          20
 #define TSDB_LOCALE_LEN           64
-#define TSDB_TIMEZONE_LEN         64
+#define TSDB_TIMEZONE_LEN         96
 #define TSDB_LABEL_LEN            8 
 
 #define TSDB_FQDN_LEN             128
@@ -377,6 +377,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_ORDER_ASC   1
 #define TSDB_ORDER_DESC  2
 
+#define TSDB_DEFAULT_CLUSTER_HASH_SIZE  1
 #define TSDB_DEFAULT_MNODES_HASH_SIZE   5
 #define TSDB_DEFAULT_DNODES_HASH_SIZE   10
 #define TSDB_DEFAULT_ACCOUNTS_HASH_SIZE 10

@@ -41,6 +41,9 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->type = type;
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
   pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
+  if (pWindowResInfo->hashList == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
   
   pWindowResInfo->curIndex = -1;
   pWindowResInfo->size     = 0;

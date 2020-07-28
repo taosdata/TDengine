@@ -13,14 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <unistd.h>
-#include <fcntl.h> 
-
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "tlog.h"
 #include "tchecksum.h"
@@ -29,7 +22,6 @@
 #include "taoserror.h"
 #include "twal.h"
 #include "tqueue.h"
-#include "tfile.h"
 
 #define walPrefix "wal"
 
@@ -214,7 +206,7 @@ int walWrite(void *handle, SWalHead *pHead) {
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
   int contLen = pHead->len + sizeof(SWalHead);
 
-  if(twrite(pWal->fd, pHead, contLen) != contLen) {
+  if(taosTWrite(pWal->fd, pHead, contLen) != contLen) {
     wError("wal:%s, failed to write(%s)", pWal->name, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
   } else {
@@ -373,7 +365,7 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
   wDebug("wal:%s, start to restore", name);
 
   while (1) {
-    int ret = tread(fd, pHead, sizeof(SWalHead));
+    int ret = taosTRead(fd, pHead, sizeof(SWalHead));
     if ( ret == 0)  break;  
 
     if (ret != sizeof(SWalHead)) {
@@ -388,7 +380,7 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
       break;
     } 
 
-    ret = tread(fd, pHead->cont, pHead->len);
+    ret = taosTRead(fd, pHead->cont, pHead->len);
     if ( ret != pHead->len) {
       wWarn("wal:%s, failed to read body, skip, len:%d ret:%d", name, pHead->len, ret);
       terrno = TAOS_SYSTEM_ERROR(errno);

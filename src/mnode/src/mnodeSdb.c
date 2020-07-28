@@ -29,6 +29,7 @@
 #include "mnodeInt.h"
 #include "mnodeMnode.h"
 #include "mnodeDnode.h"
+#include "mnodeCluster.h"
 #include "mnodeSdb.h"
 
 #define SDB_TABLE_LEN 12
@@ -214,6 +215,7 @@ void sdbUpdateMnodeRoles() {
     }
   }
 
+  mnodeUpdateClusterId();
   mnodeUpdateMnodeEpSet();
 }
 

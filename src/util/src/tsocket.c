@@ -164,7 +164,7 @@ int taosNonblockwrite(int fd, char *ptr, int nbytes) {
       return -1;
     }
 
-    nwritten = (int)send(fd, ptr, (size_t)nleft, MSG_NOSIGNAL);
+    nwritten = (int)taosSend(fd, ptr, (size_t)nleft, MSG_NOSIGNAL);
     if (nwritten <= 0) {
       if (errno == EAGAIN || errno == EINTR) continue;
 
