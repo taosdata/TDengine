@@ -15,15 +15,15 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "ttime.h"
-
-#ifndef TAOS_OS_FUNC_FILE
 
 void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char* tdengineTmpFileNamePrefix = "tdengine-";
-  
-  char tmpPath[PATH_MAX];
-  char *tmpDir = "/tmp/";
+    char tmpPath[PATH_MAX];
+
+  char *tmpDir = getenv("tmp");
+  if (tmpDir == NULL) {
+    tmpDir = "";
+  }
   
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
@@ -36,33 +36,3 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   taosRandStr(rand, tListLen(rand) - 1);
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 }
-
-// rename file name
-int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath) {
-  int32_t ts = taosGetTimestampSec();
-
-  char fname[PATH_MAX] = {0};  // max file name length must be less than 255
-
-  char *delimiterPos = strrchr(fullPath, delimiter);
-  if (delimiterPos == NULL) return -1;
-
-  int32_t fileNameLen = 0;
-  if (suffix)
-    fileNameLen = snprintf(fname, PATH_MAX, "%s.%d.%s", delimiterPos + 1, ts, suffix);
-  else
-    fileNameLen = snprintf(fname, PATH_MAX, "%s.%d", delimiterPos + 1, ts);
-
-  size_t len = (size_t)((delimiterPos - fullPath) + fileNameLen + 1);
-  if (*dstPath == NULL) {
-    *dstPath = calloc(1, len + 1);
-    if (*dstPath == NULL) return -1;
-  }
-
-  strncpy(*dstPath, fullPath, (size_t)(delimiterPos - fullPath + 1));
-  strncat(*dstPath, fname, (size_t)fileNameLen);
-  (*dstPath)[len] = 0;
-
-  return rename(fullPath, *dstPath);
-}
-
-#endif

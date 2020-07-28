@@ -1505,12 +1505,11 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
 
   SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSql, trsupport, pSql);
 
-  // todo add to async res or not??
   if (pNew == NULL) {
-    tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vgId:%d, orderOfSub:%d",
-             trsupport->pParentSql, pSql, pVgroup->vgId, trsupport->subqueryIndex);
+    tscError("%p sub:%p failed to create new subquery due to error:%s, abort retry, vgId:%d, orderOfSub:%d",
+             trsupport->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, trsupport->subqueryIndex);
 
-    pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    pParentSql->res.code = terrno;
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
 
     return pParentSql->res.code;

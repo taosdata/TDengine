@@ -20,8 +20,8 @@
 #include "hash.h"
 #include "qFill.h"
 #include "qResultbuf.h"
+#include "qSqlparser.h"
 #include "qTsbuf.h"
-#include "qsqlparser.h"
 #include "query.h"
 #include "taosdef.h"
 #include "tarray.h"
@@ -43,7 +43,7 @@ typedef struct SSqlGroupbyExpr {
 
 typedef struct SPosInfo {
   int32_t pageId;
-  int16_t rowId;
+  int32_t rowId;
 } SPosInfo;
 
 typedef struct SWindowStatus {
@@ -177,13 +177,18 @@ typedef struct SQueryRuntimeEnv {
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
 } SQueryRuntimeEnv;
 
+enum {
+  QUERY_RESULT_NOT_READY = 1,
+  QUERY_RESULT_READY     = 2,
+};
+
 typedef struct SQInfo {
   void*            signature;
   int32_t          pointsInterpo;
   int32_t          code;  // error code to returned to client
-  sem_t            dataReady;
+//  sem_t            dataReady;
+
   void*            tsdb;
-  void*            param;
   int32_t          vgId;
   STableGroupInfo  tableGroupInfo;       // table id list < only includes the STable list>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
@@ -200,8 +205,11 @@ typedef struct SQInfo {
    */
   int32_t          tableIndex;
   int32_t          numOfGroupResultPages;
-  void*            pBuf; // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
+  void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
+  pthread_mutex_t  lock;        // used to synchronize the rsp/query threads
+  int32_t          dataReady;   // denote if query result is ready or not
+  void*            rspContext;  // response context
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

@@ -18,7 +18,6 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
-#include "tutil.h"
 #include "tsystem.h"
 
 #ifndef TAOS_OS_FUNC_CORE

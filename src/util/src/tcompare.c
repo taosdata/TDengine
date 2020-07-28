@@ -1,6 +1,6 @@
 #include "taosdef.h"
 #include "tcompare.h"
-#include <tarray.h>
+#include "tarray.h"
 #include "tutil.h"
 
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {

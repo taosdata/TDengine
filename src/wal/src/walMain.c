@@ -101,7 +101,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     }
   }
 
-  if (tmkdir(path, 0755) != 0) {
+  if (taosMkDir(path, 0755) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("wal:%s, failed to create directory(%s)", path, strerror(errno));
     walRelease(pWal);
@@ -420,7 +420,7 @@ int walHandleExistingFiles(const char *path) {
       if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
         snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
         snprintf(nname, sizeof(nname), "%s/old/%s", path, ent->d_name);
-        if (tmkdir(opath, 0755) != 0) {
+        if (taosMkDir(opath, 0755) != 0) {
           wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
           terrno = TAOS_SYSTEM_ERROR(errno);
           break; 

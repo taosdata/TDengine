@@ -343,7 +343,7 @@ void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t ke
   SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
   if (ptNode != NULL) {
      T_REF_INC(*ptNode);
-    (*ptNode)->expireTime = taosGetTimestampMs() + (*ptNode)->lifespan;
+    (*ptNode)->expireTime = expireTime; // taosGetTimestampMs() + (*ptNode)->lifespan;
   }
 
   __cache_unlock(pCacheObj);
@@ -381,7 +381,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
 }
 
 void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
-  if (pCacheObj == NULL || data == NULL) return NULL;
+  if (pCacheObj == NULL || data == NULL || (*data) == NULL) return NULL;
   
   size_t          offset = offsetof(SCacheDataNode, data);
   SCacheDataNode *ptNode = (SCacheDataNode *)((char *)(*data) - offset);
@@ -419,7 +419,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   // note: extend lifespan before dec ref count
   bool inTrashCan = pNode->inTrashCan;
 
-  if (pCacheObj->extendLifespan && (!inTrashCan)) {
+  if (pCacheObj->extendLifespan && (!inTrashCan) && (!_remove)) {
     atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
     uDebug("cache:%s data:%p extend life time to %"PRId64 "  before release", pCacheObj->name, pNode->data, pNode->expireTime);
   }
@@ -457,8 +457,9 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   } else {
     // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
     int32_t ref = T_REF_DEC(pNode);
-    uDebug("cache:%s, key:%p, %p is released, refcnt:%d, in trashcan:%d", pCacheObj->name, pNode->key, pNode->data, ref,
-        inTrashCan);
+
+    uDebug("cache:%s, key:%p, %p released, refcnt:%d, data in trancan:%d", pCacheObj->name, pNode->key, pNode->data,
+           ref, inTrashCan);
   }
 }
 
@@ -572,6 +573,7 @@ void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
   free(pElem);
 }
 
+// TODO add another lock when scanning trashcan
 void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
   __cache_wr_lock(pCacheObj);
 
@@ -643,6 +645,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
   __cache_wr_lock(pCacheObj);
   while (taosHashIterNext(pIter)) {
     SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
+
     if (pNode->expireTime < time && T_REF_VAL_GET(pNode) <= 0) {
       taosCacheReleaseNode(pCacheObj, pNode);
       continue;
@@ -674,6 +677,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {
+      uDebug("%s refresh threads quit", pCacheObj->name);
       break;
     }
 

@@ -221,7 +221,7 @@ void updateNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfRes) {
 }
 
 static int32_t getGroupResultId(int32_t groupIndex) {
-  int32_t base = 200000;
+  int32_t base = 20000000;
   return base + (groupIndex * 10000);
 }
 
@@ -478,10 +478,14 @@ static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SDiskbasedResult
   if (taosArrayGetSize(list) == 0) {
     pData = getNewDataBuf(pResultBuf, sid, &pageId);
   } else {
-    pageId = getLastPageId(list);
-    pData = getResBufPage(pResultBuf, pageId);
+    SPageInfo* pi = getLastPageInfo(list);
+    pData = getResBufPage(pResultBuf, pi->pageId);
+    pageId = pi->pageId;
 
     if (pData->num >= numOfRowsPerPage) {
+      // release current page first, and prepare the next one
+      releaseResBufPageInfo(pResultBuf, pi);
+
       pData = getNewDataBuf(pResultBuf, sid, &pageId);
       if (pData != NULL) {
         assert(pData->num == 0);  // number of elements must be 0 for new allocated buffer
@@ -497,6 +501,8 @@ static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SDiskbasedResult
   if (pWindowRes->pos.pageId == -1) {  // not allocated yet, allocate new buffer
     pWindowRes->pos.pageId = pageId;
     pWindowRes->pos.rowId = pData->num++;
+
+    assert(pWindowRes->pos.pageId >= 0);
   }
 
   return 0;
@@ -1490,8 +1496,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     goto _clean;
   }
 
-  qDebug("QInfo:%p setup runtime env1", GET_QINFO_ADDR(pRuntimeEnv));
-
   pRuntimeEnv->offset[0] = 0;
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     SSqlFuncMsg *pSqlFuncMsg = &pQuery->pSelectExpr[i].base;
@@ -1536,8 +1540,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
       }
     }
 
-    qDebug("QInfo:%p setup runtime env2", GET_QINFO_ADDR(pRuntimeEnv));
-
     // set the order information for top/bottom query
     int32_t functionId = pCtx->functionId;
 
@@ -1558,25 +1560,19 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     }
   }
 
-  qDebug("QInfo:%p setup runtime env3", GET_QINFO_ADDR(pRuntimeEnv));
-
   char* buf = (char*) pRuntimeEnv->resultInfo + sizeof(SResultInfo) * pQuery->numOfOutput;
 
   // set the intermediate result output buffer
   setWindowResultInfo(pRuntimeEnv->resultInfo, pQuery, pRuntimeEnv->stableQuery, buf);
-
-  qDebug("QInfo:%p setup runtime env4", GET_QINFO_ADDR(pRuntimeEnv));
 
   // if it is group by normal column, do not set output buffer, the output buffer is pResult
   if (!pRuntimeEnv->groupbyNormalCol && !pRuntimeEnv->stableQuery) {
     resetCtxOutputBuf(pRuntimeEnv);
   }
 
-  qDebug("QInfo:%p setup runtime env5", GET_QINFO_ADDR(pRuntimeEnv));
-
   setCtxTagColumnInfo(pRuntimeEnv, pRuntimeEnv->pCtx);
 
-  qDebug("QInfo:%p init completed", GET_QINFO_ADDR(pRuntimeEnv));
+  qDebug("QInfo:%p init runtime completed", GET_QINFO_ADDR(pRuntimeEnv));
   return TSDB_CODE_SUCCESS;
 
 _clean:
@@ -1615,7 +1611,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   pRuntimeEnv->pFillInfo = taosDestoryFillInfo(pRuntimeEnv->pFillInfo);
 
-  destroyResultBuf(pRuntimeEnv->pResultBuf, pQInfo);
+  destroyResultBuf(pRuntimeEnv->pResultBuf);
   tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
   tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
 
@@ -2111,9 +2107,6 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, void* pQueryHandle,
     }
     
     if (!needToLoadDataBlock(pRuntimeEnv, *pStatis, pRuntimeEnv->pCtx, pBlockInfo->rows)) {
-#if defined(_DEBUG_VIEW)
-      qDebug("QInfo:%p block discarded by per-filter", GET_QINFO_ADDR(pRuntimeEnv));
-#endif
       // current block has been discard due to filter applied
       pRuntimeEnv->summary.discardBlocks += 1;
       qDebug("QInfo:%p data block discard, brange:%"PRId64 "-%"PRId64", rows:%d", GET_QINFO_ADDR(pRuntimeEnv),
@@ -2446,6 +2439,8 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, SWindowRes
   SQuery *        pQuery = pRuntimeEnv->pQuery;
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
+  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pos.pageId);
+
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     int32_t functionId = pQuery->pSelectExpr[i].base.functionId;
     if (!mergeFlag) {
@@ -2458,7 +2453,7 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, SWindowRes
 
     pCtx[i].hasNull = true;
     pCtx[i].nStartQueryTimestamp = timestamp;
-    pCtx[i].aInputElemBuf = getPosInResultPage(pRuntimeEnv, i, pWindowRes);
+    pCtx[i].aInputElemBuf = getPosInResultPage(pRuntimeEnv, i, pWindowRes, page);
 
     // in case of tag column, the tag information should be extracted from input buffer
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TAG) {
@@ -2615,14 +2610,16 @@ int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *param) 
 
   SWindowResInfo *pWindowResInfo1 = &supporter->pTableQueryInfo[left]->windowResInfo;
   SWindowResult * pWindowRes1 = getWindowResult(pWindowResInfo1, leftPos);
+  tFilePage *page1 = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes1->pos.pageId);
 
-  char *b1 = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes1);
+  char *b1 = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes1, page1);
   TSKEY leftTimestamp = GET_INT64_VAL(b1);
 
   SWindowResInfo *pWindowResInfo2 = &supporter->pTableQueryInfo[right]->windowResInfo;
   SWindowResult * pWindowRes2 = getWindowResult(pWindowResInfo2, rightPos);
+  tFilePage *page2 = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes2->pos.pageId);
 
-  char *b2 = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes2);
+  char *b2 = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes2, page2);
   TSKEY rightTimestamp = GET_INT64_VAL(b2);
 
   if (leftTimestamp == rightTimestamp) {
@@ -2685,35 +2682,26 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   int32_t id = getGroupResultId(pQInfo->groupIndex - 1);
   SIDList list = getDataBufPagesIdList(pResultBuf, pQInfo->offset + id);
 
-  int32_t total = 0;
   int32_t size = taosArrayGetSize(list);
-  for (int32_t i = 0; i < size; ++i) {
-    int32_t* pgId = taosArrayGet(list, i);
-    tFilePage *pData = getResBufPage(pResultBuf, *pgId);
-    total += pData->num;
-  }
-
-  int32_t rows = total;
 
   int32_t offset = 0;
   for (int32_t j = 0; j < size; ++j) {
-    int32_t* pgId = taosArrayGet(list, j);
-    tFilePage *pData = getResBufPage(pResultBuf, *pgId);
+    SPageInfo* pi = *(SPageInfo**) taosArrayGet(list, j);
+    tFilePage *pData = getResBufPage(pResultBuf, pi->pageId);
 
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
       char *  pDest = pQuery->sdata[i]->data;
-
-      memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num,
-             bytes * pData->num);
+      memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num, bytes * pData->num);
     }
 
+//    rows += pData->num;
     offset += pData->num;
   }
 
   assert(pQuery->rec.rows == 0);
 
-  pQuery->rec.rows += rows;
+  pQuery->rec.rows += offset;
   pQInfo->offset += 1;
 }
 
@@ -2777,7 +2765,6 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
     assert(pQInfo->numOfGroupResultPages == 0);
     return 0;
   } else if (numOfTables == 1) { // no need to merge results since only one table in each group
-
   }
 
   SCompSupporter cs = {pTableList, posList, pQInfo};
@@ -2802,8 +2789,9 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
 
     SWindowResInfo *pWindowResInfo = &pTableList[pos]->windowResInfo;
     SWindowResult * pWindowRes = getWindowResult(pWindowResInfo, cs.position[pos]);
+    tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pos.pageId);
 
-    char *b = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes);
+    char *b = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes, page);
     TSKEY ts = GET_INT64_VAL(b);
 
     assert(ts == pWindowRes->window.skey);
@@ -3517,9 +3505,11 @@ void setWindowResOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pResult
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group
+  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pos.pageId);
+
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
-    pCtx->aOutputBuf = getPosInResultPage(pRuntimeEnv, i, pResult);
+    pCtx->aOutputBuf = getPosInResultPage(pRuntimeEnv, i, pResult, page);
 
     int32_t functionId = pQuery->pSelectExpr[i].base.functionId;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
@@ -3542,6 +3532,8 @@ void setWindowResOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group
+  tFilePage* bufPage = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pos.pageId);
+
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
 
@@ -3550,7 +3542,7 @@ void setWindowResOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *
       continue;
     }
 
-    pCtx->aOutputBuf = getPosInResultPage(pRuntimeEnv, i, pResult);
+    pCtx->aOutputBuf = getPosInResultPage(pRuntimeEnv, i, pResult, bufPage);
     pCtx->currentStage = 0;
 
     int32_t functionId = pCtx->functionId;
@@ -3713,11 +3705,13 @@ static int32_t doCopyToSData(SQInfo *pQInfo, SWindowResInfo *pResultInfo, int32_
       pQInfo->groupIndex += 1;
     }
 
+    tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, result[i].pos.pageId);
+
     for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
       int32_t size = pRuntimeEnv->pCtx[j].outputBytes;
 
       char *out = pQuery->sdata[j]->data + numOfResult * size;
-      char *in = getPosInResultPage(pRuntimeEnv, j, &result[i]);
+      char *in = getPosInResultPage(pRuntimeEnv, j, &result[i], page);
       memcpy(out, in + oldOffset * size, size * numOfRowsToCopy);
     }
 
@@ -4238,10 +4232,10 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   int32_t ps = DEFAULT_PAGE_SIZE;
   int32_t rowsize = 0;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
+  int32_t TWOMB = 1024*1024*2;
 
   if (isSTableQuery && !onlyQueryTags(pRuntimeEnv->pQuery)) {
-    int32_t numOfPages = getInitialPageNum(pQInfo);
-    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, numOfPages, rowsize, ps, numOfPages, pQInfo);
+    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rowsize, ps, TWOMB, pQInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4269,8 +4263,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   } else if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
     int32_t numOfResultRows = getInitialPageNum(pQInfo);
     getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
-
-    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, numOfResultRows, rowsize, ps, numOfResultRows, pQInfo);
+    code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rowsize, ps, TWOMB, pQInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -5894,16 +5887,11 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   }
 
   pQInfo->arrTableIdInfo = taosArrayInit(tableIndex, sizeof(STableIdInfo));
+  pQInfo->dataReady = QUERY_RESULT_NOT_READY;
+  pthread_mutex_init(&pQInfo->lock, NULL);
 
   pQuery->pos = -1;
   pQuery->window = pQueryMsg->window;
-
-  if (sem_init(&pQInfo->dataReady, 0, 0) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
-    qError("QInfo:%p init dataReady sem failed, reason:%s", pQInfo, tstrerror(code));
-    goto _cleanup;
-  }
-
   colIdCheck(pQuery);
 
   qDebug("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
@@ -5945,7 +5933,7 @@ static bool isValidQInfo(void *param) {
   return (sig == (uint64_t)pQInfo);
 }
 
-static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *pQInfo, bool isSTable, void* param) {
+static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *pQInfo, bool isSTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
@@ -5965,18 +5953,12 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
            pQuery->window.ekey, pQuery->order.order);
     setQueryStatus(pQuery, QUERY_COMPLETED);
     pQInfo->tableqinfoGroupInfo.numOfTables = 0;
-
-    sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
-
-  pQInfo->param = param;
 
   if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:%p no table qualified for tag filter, abort query", pQInfo);
     setQueryStatus(pQuery, QUERY_COMPLETED);
-  
-    sem_post(&pQInfo->dataReady);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6018,7 +6000,6 @@ static void freeQInfo(SQInfo *pQInfo) {
     tfree(pQuery->sdata[col]);
   }
 
-  sem_destroy(&(pQInfo->dataReady));
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
   for (int32_t i = 0; i < pQuery->numOfFilterCols; ++i) {
@@ -6170,7 +6151,7 @@ typedef struct SQueryMgmt {
   pthread_mutex_t lock;
 } SQueryMgmt;
 
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, void* param, qinfo_t* pQInfo) {
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo) {
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -6266,7 +6247,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, vo
     goto _over;
   }
 
-  code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, isSTableQuery, param);
+  code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, isSTableQuery);
 
 _over:
   free(tagCond);
@@ -6306,24 +6287,32 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
   freeQInfo(pQInfo);
 }
 
-void qTableQuery(qinfo_t qinfo) {
+static void setQueryResultReady(SQInfo* pQInfo) {
+  pthread_mutex_lock(&pQInfo->lock);
+  pQInfo->dataReady = QUERY_RESULT_READY;
+  pthread_mutex_unlock(&pQInfo->lock);
+}
+
+bool qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || pQInfo->signature != pQInfo) {
     qDebug("QInfo:%p has been freed, no need to execute", pQInfo);
-    return;
+    return false;
   }
 
   if (IS_QUERY_KILLED(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
-    sem_post(&pQInfo->dataReady);
-    return;
+    setQueryResultReady(pQInfo);
+    return false;
   }
 
   if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
+    setQueryStatus(pQInfo->runtimeEnv.pQuery, QUERY_COMPLETED);
+    setQueryResultReady(pQInfo);
+
     qDebug("QInfo:%p no table exists for query, abort", pQInfo);
-    sem_post(&pQInfo->dataReady);
-    return;
+    return false;
   }
 
   // error occurs, record the error code and return to client
@@ -6331,8 +6320,9 @@ void qTableQuery(qinfo_t qinfo) {
   if (ret != TSDB_CODE_SUCCESS) {
     pQInfo->code = ret;
     qDebug("QInfo:%p query abort due to error/cancel occurs, code:%s", pQInfo, tstrerror(pQInfo->code));
-    sem_post(&pQInfo->dataReady);
-    return;
+
+    setQueryResultReady(pQInfo);
+    return false;
   }
 
   qDebug("QInfo:%p query task is launched", pQInfo);
@@ -6357,10 +6347,20 @@ void qTableQuery(qinfo_t qinfo) {
            pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
   }
 
-  sem_post(&pQInfo->dataReady);
+  bool buildRes = false;
+  pthread_mutex_lock(&pQInfo->lock);
+  pQInfo->dataReady = QUERY_RESULT_READY;
+
+  if (pQInfo->rspContext != NULL) {
+    buildRes = true;
+  }
+
+
+  pthread_mutex_unlock(&pQInfo->lock);
+  return buildRes;
 }
 
-int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
+int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContext) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
@@ -6373,11 +6373,21 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo) {
     return pQInfo->code;
   }
 
-  sem_wait(&pQInfo->dataReady);
-  qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%"PRId64", code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
-         pQInfo->code);
+  int32_t code = TSDB_CODE_SUCCESS;
+  pthread_mutex_lock(&pQInfo->lock);
+  if (pQInfo->dataReady == QUERY_RESULT_READY) {
+    *buildRes = true;
+    qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%"PRId64", code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
+           pQInfo->code);
+  } else {
+    *buildRes = false;
+    qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
+    pQInfo->rspContext = pRspContext;
+  }
 
-  return pQInfo->code;
+  code = pQInfo->code;
+  pthread_mutex_unlock(&pQInfo->lock);
+  return code;
 }
 
 bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
@@ -6389,6 +6399,7 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
   }
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+
   bool ret = false;
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
     ret = false;
@@ -6407,7 +6418,7 @@ bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
   return ret;
 }
 
-int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen) {
+int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen, bool* continueExec) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
@@ -6417,8 +6428,10 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   size_t  size = getResultSize(pQInfo, &pQuery->rec.rows);
+
   size += sizeof(int32_t);
   size += sizeof(STableIdInfo) * taosArrayGetSize(pQInfo->arrTableIdInfo);
+
   *contLen = size + sizeof(SRetrieveTableRsp);
 
   // todo proper handle failed to allocate memory,
@@ -6427,6 +6440,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   if (*pRsp == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
   (*pRsp)->numOfRows = htonl(pQuery->rec.rows);
 
   int32_t code = pQInfo->code;
@@ -6434,8 +6448,8 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     (*pRsp)->offset = htobe64(pQuery->limit.offset);
     (*pRsp)->useconds = htobe64(pRuntimeEnv->summary.elapsedTime);
   } else {
-    (*pRsp)->offset = 0;
     (*pRsp)->useconds = 0;
+    (*pRsp)->offset = 0;
   }
   
   (*pRsp)->precision = htons(pQuery->precision);
@@ -6446,8 +6460,18 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     code = pQInfo->code;
   }
 
+  pQInfo->rspContext = NULL;
+  pQInfo->dataReady = QUERY_RESULT_NOT_READY;
+
   if (IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
     (*pRsp)->completed = 1;  // notify no more result to client
+  }
+
+  if (qHasMoreResultsToRetrieve(pQInfo)) {
+    *continueExec = true;
+  } else { // failed to dump result, free qhandle immediately
+    *continueExec = false;
+    qKillQuery(pQInfo);
   }
 
   return code;
@@ -6460,7 +6484,7 @@ int32_t qKillQuery(qinfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  sem_post(&pQInfo->dataReady);
+//  sem_post(&pQInfo->dataReady);
   setQueryKilled(pQInfo);
   return TSDB_CODE_SUCCESS;
 }
@@ -6607,6 +6631,13 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   setQueryStatus(pQuery, QUERY_COMPLETED);
 }
 
+void* qGetResultRetrieveMsg(qinfo_t qinfo) {
+  SQInfo* pQInfo = (SQInfo*) qinfo;
+  assert(pQInfo != NULL);
+
+  return pQInfo->rspContext;
+}
+
 void freeqinfoFn(void *qhandle) {
   void** handle = qhandle;
   if (handle == NULL || *handle == NULL) {
@@ -6618,19 +6649,21 @@ void freeqinfoFn(void *qhandle) {
 }
 
 void* qOpenQueryMgmt(int32_t vgId) {
-  const int32_t REFRESH_HANDLE_INTERVAL = 2; // every 2 seconds, refresh handle pool
+  const int32_t REFRESH_HANDLE_INTERVAL = 30; // every 30 seconds, refresh handle pool
 
   char cacheName[128] = {0};
   sprintf(cacheName, "qhandle_%d", vgId);
 
-  SQueryMgmt* pQueryHandle = calloc(1, sizeof(SQueryMgmt));
+  SQueryMgmt* pQueryMgmt = calloc(1, sizeof(SQueryMgmt));
 
-  pQueryHandle->qinfoPool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true, freeqinfoFn, cacheName);
-  pQueryHandle->closed    = false;
-  pthread_mutex_init(&pQueryHandle->lock, NULL);
+  pQueryMgmt->qinfoPool = taosCacheInit(TSDB_DATA_TYPE_BIGINT, REFRESH_HANDLE_INTERVAL, true, freeqinfoFn, cacheName);
+  pQueryMgmt->closed    = false;
+  pQueryMgmt->vgId      = vgId;
+
+  pthread_mutex_init(&pQueryMgmt->lock, NULL);
 
   qDebug("vgId:%d, open querymgmt success", vgId);
-  return pQueryHandle;
+  return pQueryMgmt;
 }
 
 static void queryMgmtKillQueryFn(void* handle) {
@@ -6670,7 +6703,7 @@ void qCleanupQueryMgmt(void* pQMgmt) {
   pthread_mutex_destroy(&pQueryMgmt->lock);
   tfree(pQueryMgmt);
 
-  qDebug("vgId:%d querymgmt cleanup completed", vgId);
+  qDebug("vgId:%d queryMgmt cleanup completed", vgId);
 }
 
 void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
@@ -6716,14 +6749,15 @@ void** qAcquireQInfo(void* pMgmt, uint64_t key) {
   }
 }
 
-void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree) {
+void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   SQueryMgmt *pQueryMgmt = pMgmt;
 
   if (pQueryMgmt->qinfoPool == NULL) {
     return NULL;
   }
 
-  taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, needFree);
+  taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, freeHandle);
   return 0;
 }
+
 
