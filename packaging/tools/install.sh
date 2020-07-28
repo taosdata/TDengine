@@ -99,6 +99,44 @@ else
   os_type=1
 fi
 
+
+# =============================  get input parameters =================================================
+
+# install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
+
+# set parameters by default value
+interactiveFqdn=yes   # [yes | no]
+verType=server        # [server | client]
+initType=systemd      # [systemd | service | ...]
+
+while getopts "hv:e:i:" arg
+do
+  case $arg in
+    e)
+      #echo "interactiveFqdn=$OPTARG"
+      interactiveFqdn=$( echo $OPTARG )
+      ;;
+    v)
+      #echo "verType=$OPTARG"
+      verType=$(echo $OPTARG)
+      ;;
+    i)
+      #echo "initType=$OPTARG"
+      initType=$(echo $OPTARG)
+      ;;
+    h)
+      echo "Usage: `basename $0` -v [server | client]  -e [yes | no]"
+      exit 0
+      ;;
+    ?) #unknow option 
+      echo "unkonw argument"
+      exit 1
+      ;;
+  esac
+done
+
+echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
+
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
@@ -189,6 +227,10 @@ function install_config() {
         [ ! -z $1 ] && return 0 || : # only install client
     
         if ((${update_flag}==1)); then
+            return 0
+        fi
+        
+        if [ "$interactiveFqdn" == "no" ]; then
             return 0
         fi
 
@@ -653,8 +695,8 @@ function install_TDengine() {
                 echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
            else
                 echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-            fi
-		else
+           fi
+		    else
             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
 		
@@ -673,7 +715,7 @@ function install_TDengine() {
 
 
 ## ==============================Main program starts from here============================
-if [ -z $1 ]; then
+if [ "$verType" == "server" ]; then
     # Install server and client
     if [ -x ${bin_dir}/taosd ]; then
         update_flag=1
@@ -681,7 +723,8 @@ if [ -z $1 ]; then
     else
         install_TDengine
     fi
-else
+elif [ "$verType" == "client" ]; then
+    interactiveFqdn=no
     # Only install client
     if [ -x ${bin_dir}/taos ]; then
         update_flag=1
@@ -689,4 +732,6 @@ else
     else
         install_TDengine client
     fi
+else 
+    echo  "please input correct verType"   
 fi
