@@ -45,7 +45,7 @@ int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz) {
 
   do {
     if (pContext->fd > 2){
-      len = (int)send(pContext->fd, buf + writeLen, (size_t)(sz - writeLen), MSG_NOSIGNAL);
+      len = (int)taosSend(pContext->fd, buf + writeLen, (size_t)(sz - writeLen), MSG_NOSIGNAL);
     }
     else {
       return sz;

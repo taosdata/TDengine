@@ -264,7 +264,7 @@ void taosNotePrint(taosNoteInfo * pNote, const char * const format, ...)
     buffer[len] = 0;
 
     if (pNote->taosNoteFd >= 0)  {
-        twrite(pNote->taosNoteFd, buffer, (unsigned int)len);
+        taosTWrite(pNote->taosNoteFd, buffer, (unsigned int)len);
 
         if (pNote->taosNoteMaxLines > 0) {
             pNote->taosNoteLines++;

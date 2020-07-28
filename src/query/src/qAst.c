@@ -18,8 +18,8 @@
 
 #include "exception.h"
 #include "qAst.h"
+#include "qSqlparser.h"
 #include "qSyntaxtreefunction.h"
-#include "qsqlparser.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"

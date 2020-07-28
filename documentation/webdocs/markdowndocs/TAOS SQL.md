@@ -289,10 +289,10 @@ TDengine supports aggregations over numerical values, they are listed below:
     Applied to: table/STable. 
 
 
-- **WAVG**
+- **TWA**
   
     ```mysql
-    SELECT WAVG(field_name) FROM tb_name WHERE clause
+    SELECT TWA(field_name) FROM tb_name WHERE clause
     ```
     Function: return the time-weighted average value of a specific column  
     Return Data Type: `double`  
@@ -324,7 +324,7 @@ TDengine supports aggregations over numerical values, they are listed below:
 
 - **LEASTSQUARES**
     ```mysql
-    SELECT LEASTSQUARES(field_name) FROM tb_name [WHERE clause]
+    SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
     ```
     Function: performs a linear fit to the primary timestamp and the specified column. 
     Return Data Type: return a string of the coefficient and the interception of the fitted line.  
@@ -417,6 +417,15 @@ TDengine supports aggregations over numerical values, they are listed below:
     Applied to: table/STable.  
     Note: The range of `P` is `[0, 100]`. When `P=0` , `PERCENTILE` returns the equal value as `MIN`; when `P=100`, `PERCENTILE` returns the equal value as `MAX`. 
 
+- **APERCENTILE**
+    ```mysql
+    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: the value of the specified column below which `P` percent of the data points fall, it returns approximate value of percentile.
+    Return Data Type: double.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`. 
+    Applied to: table/STable.  
+    Note: The range of `P` is `[0, 100]`. When `P=0` , `APERCENTILE` returns the equal value as `MIN`; when `P=100`, `APERCENTILE` returns the equal value as `MAX`. `APERCENTILE` has a much better performance than `PERCENTILE`.
 
 - **LAST_ROW**
     ```mysql
