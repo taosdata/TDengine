@@ -20,7 +20,6 @@
 #include "tglobal.h"
 #include "dnodeInt.h"
 #include "dnodeMain.h"
-#include "tfile.h"
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static sem_t exitSem;
@@ -40,7 +39,7 @@ int32_t main(int32_t argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-V") == 0) {
-#ifdef _SYNC
+#ifdef _ACCT
       char *versionStr = "enterprise";
 #else
       char *versionStr = "community";

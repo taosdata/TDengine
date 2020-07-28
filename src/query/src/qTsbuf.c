@@ -740,7 +740,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   int32_t size = pSrcBuf->fileSize - offset;
 
 #ifdef LINUX
-  ssize_t rc = tsendfile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
+  ssize_t rc = taosTSendFile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
 #else
   ssize_t rc = fsendfile(pDestBuf->f, pSrcBuf->f, &offset, size);
 #endif

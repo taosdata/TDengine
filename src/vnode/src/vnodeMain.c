@@ -46,15 +46,6 @@ static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
-#ifndef _SYNC
-tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
-void    syncStop(tsync_h shandle) {}
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
-int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
-#endif
-
 int32_t vnodeInitResources() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
@@ -289,14 +280,10 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
-#ifndef _SYNC
-  pVnode->role = TAOS_SYNC_ROLE_MASTER;
-#else
   if (pVnode->sync == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
   }
-#endif
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   pVnode->events = NULL;
