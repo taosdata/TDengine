@@ -477,11 +477,12 @@ void *syncRetrieveData(void *param)
   if (pPeer->fileChanged) {
     // if file is changed 3 times continuously, start flow control
     pPeer->numOfRetrieves++;
-    if (pPeer->numOfRetrieves >= 3) 
+    if (pPeer->numOfRetrieves >= 3 && pNode->notifyFlowCtrl)  
       (*pNode->notifyFlowCtrl)(pNode->ahandle, pPeer->numOfRetrieves - 2);
   } else {
     pPeer->numOfRetrieves = 0;
-    (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);
+    if (pNode->notifyFlowCtrl)
+      (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);
   }
 
   pPeer->fileChanged = 0;

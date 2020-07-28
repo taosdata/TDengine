@@ -537,7 +537,8 @@ static void syncResetFlowCtrl(SSyncNode *pNode) {
     pNode->peerInfo[i]->numOfRetrieves = 0;
   }
 
-  (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);   
+  if (pNode->notifyFlowCtrl)
+    (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);   
 }
 
 static void syncChooseMaster(SSyncNode *pNode) {
