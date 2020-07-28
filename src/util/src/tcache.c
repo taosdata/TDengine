@@ -457,8 +457,9 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   } else {
     // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
     int32_t ref = T_REF_DEC(pNode);
-    uDebug("cache:%s, key:%p, %p is released, refcnt:%d, in trashcan:%d", pCacheObj->name, pNode->key, pNode->data, ref,
-        inTrashCan);
+
+    uDebug("cache:%s, key:%p, %p released, refcnt:%d, data in trancan:%d", pCacheObj->name, pNode->key, pNode->data,
+           ref, inTrashCan);
   }
 }
 
