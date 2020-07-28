@@ -28,10 +28,10 @@
 /*
  * SColumnModel is deeply copy
  */
-tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnModel *pModel) {
+tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, int32_t pagesize, SColumnModel *pModel) {
   tExtMemBuffer* pMemBuffer = (tExtMemBuffer *)calloc(1, sizeof(tExtMemBuffer));
 
-  pMemBuffer->pageSize = DEFAULT_PAGE_SIZE;
+  pMemBuffer->pageSize = pagesize;
   pMemBuffer->inMemCapacity = ALIGN8(inMemSize) / pMemBuffer->pageSize;
   pMemBuffer->nElemSize = elemSize;
 
