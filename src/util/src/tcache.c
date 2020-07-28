@@ -573,6 +573,7 @@ void taosRemoveFromTrashCan(SCacheObj *pCacheObj, STrashElem *pElem) {
   free(pElem);
 }
 
+// TODO add another lock when scanning trashcan
 void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
   __cache_wr_lock(pCacheObj);
 
