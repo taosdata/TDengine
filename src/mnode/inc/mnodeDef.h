@@ -251,6 +251,7 @@ typedef struct {
   int32_t  rowSize;
   int32_t  numOfRows;
   void *   pIter;
+  void **  ppShow;
   int16_t  offset[TSDB_MAX_COLUMNS];
   int16_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
