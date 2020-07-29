@@ -5,8 +5,8 @@
 
 #include "taos.h"
 #include "testCommon.h"
-#include "ttime.h"
-#include "tutil.h"
+#include <sys/time.h>
+#include <pthread.h>
 
 static int32_t rid = 1;
 void           sqlfullTest(TAOS* conn);
@@ -162,8 +162,6 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
 
   loadData("~/0902_excavator_data_f.csv", buffer);
 
-  int64_t start = taosGetTimestampMs();
-
   uint64_t startTime = 1525104000000L;
 
   int64_t prevTimestamp = 0;
@@ -209,9 +207,6 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
       memset(sql, 0, sizeof(sql) / sizeof(sql[0]));
     }
   }
-
-  int64_t end = taosGetTimestampMs();
-  printf("total elapsed time:%" PRId64 "ms", end - start);
 
   for (int32_t i = 0; i < 10000; ++i) {
     free(buffer[i]);
@@ -260,24 +255,6 @@ int multiThreadQuery(int32_t numOfThreads, char* sql) {
 
   pthread_attr_destroy(&thattr);
   return 0;
-}
-
-static UNUSED_FUNC void createEnv(void* conn) {
-  executeSQL(conn, "create table sm1(ts timestamp, k int) tags(a int)", NULL);
-  char sql[1024] = {0};
-
-  int64_t s = start_ts;
-  for (int32_t i = 0; i < 10; ++i) {
-    sprintf(sql, "create table stm%d using sm1 tags(%d)", i, i);
-    executeSQL(conn, sql, NULL);
-
-    s = start_ts;
-    for (int32_t j = 0; j < 5000; ++j) {
-      memset(sql, 0, tListLen(sql));
-      sprintf(sql, "insert into stm%d values(%" PRId64 ", %d)", i, s++, j);
-      executeSQL(conn, sql, NULL);
-    }
-  }
 }
 
 int main(int argc, char** argv) {

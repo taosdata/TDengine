@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <assert.h>
 
 #include "testCommon.h"
-#include "ttime.h"
-#include "tutil.h"
 
 static int64_t start_ts = 1433955661000;
 
@@ -64,16 +64,16 @@ static void insertSampleData(TAOS *conn, int32_t count, int32_t tableIdx, int64_
 }
 
 void createEnvironment(TAOS *conn, int32_t count, int32_t totalCnt, int32_t pointsPerTable, int64_t timeDelta) {
-  taosMsleep(2000);
+  sleep(2);
   TAOS_RES *pSql = taos_query(conn, "drop table m1");
   taos_free_result(pSql);
 
-  taosMsleep(1000);
+  sleep(1);
   pSql = taos_query(conn,
                     "create table if not exists m1(ts timestamp, k int, h binary(400), t bigint,"
                     "s float, f double, x smallint, y tinyint, z bool) tags(b binary(20), a int, c bigint)");
 
-  if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
+  if (taos_errno(pSql) != 0) {
     printf("Failed to create metric, reason:%s\n", taos_errstr(conn));
     exit(-1);
   }
@@ -91,18 +91,14 @@ void createEnvironment(TAOS *conn, int32_t count, int32_t totalCnt, int32_t poin
     }
   }
 
-  int64_t stime = taosGetTimestampMs();
   for (int32_t i = 0; i < totalCnt; ++i) {
     insertSampleData(conn, pointsPerTable, i, timeDelta);
   }
-
-  int64_t etime = taosGetTimestampMs();
-  printf("insert data elapsed time:%ld ms\n", etime - stime);
 }
 
 int32_t executeSQL(TAOS *conn, char *sql, ResultInfo *pRes) {
   TAOS_RES* pSql = taos_query(conn, sql);
-  if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
+  if (taos_errno(pSql) != 0) {
     printf("failed to execute %s, reason:%s\n", sql, taos_errstr(pSql));
     taos_free_result(pSql);
     return -1;
@@ -151,46 +147,46 @@ void printRow(char *temp, int32_t num_fields, TAOS_FIELD *fields, TAOS_ROW row) 
   }
 }
 
-void validateData(TAOS_FIELD *fields, int32_t num_fields, TAOS_ROW row, ResultInfo *pRes) {
-  for (int32_t i = 0; i < num_fields; ++i) {
-    tVariant *pVal = &pRes->pVal[i];
-    switch (fields[i].type) {
-      case TSDB_DATA_TYPE_INT:
-        assert(pVal->i64Key == *(int *)row[i]);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        assert(pVal->i64Key == *(int64_t *)row[i]);
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        assert(fabs(pVal->dKey - (*(float *)row[i])) < 0.001);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        assert(fabs(pVal->dKey - (*(double *)row[i])) < 0.001);
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-        assert(pVal->i64Key == *(int8_t *)row[i]);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        assert(pVal->i64Key == *(int16_t *)row[i]);
-        break;
-      case TSDB_DATA_TYPE_BOOL:
-      case TSDB_DATA_TYPE_BINARY:
-        printf("ignore\n");
-        break;
-      default:
-        assert(0);
-    }
-  }
-}
+//void validateData(TAOS_FIELD *fields, int32_t num_fields, TAOS_ROW row, ResultInfo *pRes) {
+//  for (int32_t i = 0; i < num_fields; ++i) {
+//    tVariant *pVal = &pRes->pVal[i];
+//    switch (fields[i].type) {
+//      case TSDB_DATA_TYPE_INT:
+//        assert(pVal->i64Key == *(int *)row[i]);
+//        break;
+//      case TSDB_DATA_TYPE_BIGINT:
+//      case TSDB_DATA_TYPE_TIMESTAMP:
+//        assert(pVal->i64Key == *(int64_t *)row[i]);
+//        break;
+//      case TSDB_DATA_TYPE_FLOAT:
+//        assert(fabs(pVal->dKey - (*(float *)row[i])) < 0.001);
+//        break;
+//      case TSDB_DATA_TYPE_DOUBLE:
+//        assert(fabs(pVal->dKey - (*(double *)row[i])) < 0.001);
+//        break;
+//      case TSDB_DATA_TYPE_TINYINT:
+//        assert(pVal->i64Key == *(int8_t *)row[i]);
+//        break;
+//      case TSDB_DATA_TYPE_SMALLINT:
+//        assert(pVal->i64Key == *(int16_t *)row[i]);
+//        break;
+//      case TSDB_DATA_TYPE_BOOL:
+//      case TSDB_DATA_TYPE_BINARY:
+//        printf("ignore\n");
+//        break;
+//      default:
+//        assert(0);
+//    }
+//  }
+//}
 
-void setResultInfo(ResultInfo *pRes, int32_t col, int32_t row) {
-  if (pRes == NULL) return;
-
-  pRes->numOfRows = row;
-  pRes->numOfCols = col;
-  pRes->pVal = realloc(pRes->pVal, pRes->numOfCols * pRes->numOfRows * sizeof(tVariant));
-}
+//void setResultInfo(ResultInfo *pRes, int32_t col, int32_t row) {
+//  if (pRes == NULL) return;
+//
+//  pRes->numOfRows = row;
+//  pRes->numOfCols = col;
+//  pRes->pVal = realloc(pRes->pVal, pRes->numOfCols * pRes->numOfRows * sizeof(tVariant));
+//}
 
 void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *temp, ResultInfo *pRes) {
   TAOS_ROW row = NULL;
@@ -233,9 +229,9 @@ void sqlParseTestImpl(TAOS *conn, char *sql, bool boolFlag) {
   TAOS_RES* pSql = taos_query(conn, sql);
 
   if (boolFlag) {
-    assert(taos_errno(pSql) == TSDB_CODE_SUCCESS);
+    assert(taos_errno(pSql) == 0);
   } else {
-    assert(taos_errno(pSql) != TSDB_CODE_SUCCESS);
+    assert(taos_errno(pSql) != 0);
     printf("%s\n", taos_errstr(conn));
   }
 
