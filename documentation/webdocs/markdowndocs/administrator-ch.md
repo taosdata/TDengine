@@ -16,9 +16,9 @@
 
 TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下。其中包括：
 
-- _taosd_：TDengine服务端可执行文件
-- _taos_： TDengine Shell可执行文件
-- _taosdump_：数据导出工具
+- _taosd_：TDengine服务端可执行文件。
+- _taos_： TDengine Shell可执行文件。
+- _taosdump_：数据导出工具。
 - *rmtaos*： 卸载TDengine的脚本, 该脚本会删除全部的程序和数据文件。请务必谨慎执行，如非必须不建议使用。
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录
