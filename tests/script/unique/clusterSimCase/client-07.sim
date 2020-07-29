@@ -7,6 +7,10 @@ $tblEnd   = 10000
 $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
 $preBinary = ' . client-07-
 ###############################################################
+$alterCnt = 0
+
+$columnA = c . $alterCnt
+$columnB = d . $alterCnt
 
 $totalRows   = 0
 
@@ -17,22 +21,23 @@ $db = db
 sql create database if not exists $db replica 2 
 sql use $db
 
-init_lable:
-print ================ create table $tb (ts timestamp, c1 int, c2 binary(16))
+$rowsPerTbl  = 0
+$ts          = $tsStart
+
+print ================ create table $tb (ts timestamp, $columnA int, $columnB binary(16))
 
 $i = $tblStart
 while $i < $tblEnd
   $tb = tb . $i
 #  print create table if not exists $tb ( ts timestamp , c1 int , c2 binary(16) )
-  sql create table if not exists $tb ( ts timestamp , c1 int , c2 binary(16) )
+  sql create table if not exists $tb ( ts timestamp , $columnA int , $columnB binary(16) )
   $i = $i + 1
 endw 
 
-$rowsPerTbl  = 0
-$ts          = $tsStart
 $rowsPerLoop = 160
 
 $loopCnt = 0
+$alterStep = 0
  
 loop_run:
 print ================ client-07 start loop insert data ( loopCnt: $loopCnt )
@@ -70,19 +75,27 @@ endi
 
 $loopCnt = $loopCnt + 1
 
-if $loopCnt > 100 then
-
+if $alterStep > 2 then
+  $alterStep = 0
+  
+  $alterCnt = $alterCnt + 1
   $i = $tblStart
   while $i < $tblEnd
     $tb = tb . $i
-    sql alter table $tb add column c3 double
-    sql alter table $tb add column c4 binary( 16 )
-    sql alter table $tb drop column c1
-    sql alter table $tb drop column c2
+    $newColumnA = c . $alterCnt
+    $newcolumnB = d . $alterCnt
+
+    sql alter table $tb add column $newColumnA double
+    sql alter table $tb add column $newcolumnB binary( 16 )
+    sql alter table $tb drop column $columnA
+    sql alter table $tb drop column $columnB
     $i = $i + 1
-  endw  
-  sleep 20000
-  goto init_lable 
+  endw
+  $columnA = $newColumnA
+  $columnB = $newcolumnB
+    
+  sleep 10000
+  goto loop_run 
 endi
 
 goto loop_run
