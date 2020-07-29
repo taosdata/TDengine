@@ -145,6 +145,8 @@ void *syncStart(const SSyncInfo *pInfo)
   pNode->vgId = pInfo->vgId;
   pNode->replica = pCfg->replica;
   pNode->quorum = pCfg->quorum;
+  if (pNode->quorum > pNode->replica) pNode->quorum = pNode->replica;
+
   for (int i = 0; i < pCfg->replica; ++i) {
     const SNodeInfo *pNodeInfo = pCfg->nodeInfo + i;
     pNode->peerInfo[i] = syncAddPeer(pNode, pNodeInfo);
@@ -260,6 +262,7 @@ int32_t syncReconfig(void *param, const SSyncCfg *pNewCfg)
 
   pNode->replica = pNewCfg->replica;
   pNode->quorum = pNewCfg->quorum;
+  if (pNode->quorum > pNode->replica) pNode->quorum = pNode->replica;
   memcpy(pNode->peerInfo, newPeers, sizeof(SSyncPeer *) * pNewCfg->replica);
 
   for (i = pNewCfg->replica; i < TAOS_SYNC_MAX_REPLICA; ++i)
