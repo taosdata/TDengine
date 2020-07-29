@@ -42,7 +42,6 @@ typedef void (*__do_filter_suppl_fn_t)(void *, void *);
 
 /**
  * this structure is used to filter data in tags, so the offset of filtered tag column in tagdata string is required
- *
  */
 typedef struct tQueryInfo {
   uint8_t       optr;     // expression operator

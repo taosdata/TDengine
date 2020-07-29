@@ -16,8 +16,8 @@ MESSAGE(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
 
 INCLUDE(cmake/input.inc)
 INCLUDE(cmake/platform.inc)
-INCLUDE(cmake/env.inc)
 INCLUDE(cmake/define.inc)
+INCLUDE(cmake/env.inc)
 INCLUDE(cmake/install.inc)
 
 ADD_SUBDIRECTORY(deps)
