@@ -43,7 +43,7 @@ $rowsPerLoop = 160
 $loopCnt = 0
  
 loop_run:
-print ================ client-06 start loop insert data
+print ================ client-06 start loop insert data ( loopCnt: $loopCnt )
 $i  = $dropTblStart
 while $i < $tblEnd
   $tb = tb . $i
