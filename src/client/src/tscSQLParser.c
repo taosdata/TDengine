@@ -1191,7 +1191,15 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           tExprTreeDestroy(&pNode, NULL);
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid arithmetic expression in select clause");
         }
-        
+
+        size_t numOfNode = taosArrayGetSize(colList);
+        for(int32_t k = 0; k < numOfNode; ++k) {
+          SColIndex* pIndex = taosArrayGet(colList, k);
+          if (pIndex->flag == 1) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "tag columns can not be used in arithmetic expression");
+          }
+        }
+
         SBufferWriter bw = tbufInitWriter(NULL, false);
 
         TRY(0) {
@@ -6115,12 +6123,14 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       if (ret != TSDB_CODE_SUCCESS) {
         return ret;
       }
-  
+
+      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+      int32_t numOfColumns = tscGetNumOfColumns(pTableMeta);
+
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;
       (*pExpr)->pSchema = calloc(1, sizeof(SSchema));
-      
-      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+
       SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
       *(*pExpr)->pSchema = *pSchema;
   
@@ -6129,7 +6139,8 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
         tstrncpy(colIndex.name, pSchema->name, sizeof(colIndex.name));
         colIndex.colId = pSchema->colId;
         colIndex.colIndex = index.columnIndex;
-        
+        colIndex.flag = (index.columnIndex >= numOfColumns)? 1:0;
+
         taosArrayPush(pCols, &colIndex);
       }
       
