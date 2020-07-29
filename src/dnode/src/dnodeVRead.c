@@ -49,7 +49,7 @@ static taos_qset       readQset;
 int32_t dnodeInitVnodeRead() {
   readQset = taosOpenQset();
 
-  readPool.min = 2;
+  readPool.min = tsNumOfCores;
   readPool.max = tsNumOfCores * tsNumOfThreadsPerCore;
   if (readPool.max <= readPool.min * 2) readPool.max = 2 * readPool.min;
   readPool.readWorker = (SReadWorker *)calloc(sizeof(SReadWorker), readPool.max);
@@ -206,10 +206,14 @@ static void *dnodeProcessReadQueue(void *param) {
            taosMsg[pReadMsg->rpcMsg.msgType], type);
     int32_t code = vnodeProcessRead(pVnode, pReadMsg);
 
-    if (type == TAOS_QTYPE_RPC) {
+    if (type == TAOS_QTYPE_RPC && code != TSDB_CODE_QRY_NOT_READY) {
       dnodeSendRpcReadRsp(pVnode, pReadMsg, code);
     } else {
-      dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
+      if (code == TSDB_CODE_QRY_HAS_RSP) {
+        dnodeSendRpcReadRsp(pVnode, pReadMsg, TSDB_CODE_SUCCESS);
+      } else {
+        dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
+      }
     }
 
     taosFreeQitem(pReadMsg);

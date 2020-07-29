@@ -356,9 +356,9 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
   if (pObj->signature == pObj) {
-    pthread_mutex_lock(&pObj->mutex);
+    //pthread_mutex_lock(&pObj->mutex);
     tfree(pSql->sqlstr);
-    pthread_mutex_unlock(&pObj->mutex);
+    //pthread_mutex_unlock(&pObj->mutex);
   }
   
   tscFreeSqlResult(pSql);
@@ -1675,6 +1675,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
     tscError("%p new subquery failed, tableIndex:%d", pSql, tableIndex);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
   
@@ -1688,6 +1689,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscError("%p new subquery failed, tableIndex:%d, vgroupIndex:%d", pSql, tableIndex, pTableMetaInfo->vgroupIndex);
 
     free(pNew);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -1706,6 +1708,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -1743,6 +1746,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   if (tscAllocPayload(pnCmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
     tscError("%p new subquery failed, tableIndex:%d, vgroupIndex:%d", pSql, tableIndex, pTableMetaInfo->vgroupIndex);
     tscFreeSqlObj(pNew);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
   
@@ -1827,8 +1831,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   if (pFinalInfo->pTableMeta == NULL) {
-    tscError("%p new subquery failed for get tableMeta is NULL from cache", pSql);
+    tscError("%p new subquery failed since no tableMeta in cache, name:%s", pSql, name);
     tscFreeSqlObj(pNew);
+
+    if (pPrevSql != NULL) {
+      assert(pPrevSql->res.code != TSDB_CODE_SUCCESS);
+      terrno = pPrevSql->res.code;
+    } else {
+      terrno = TSDB_CODE_TSC_APP_ERROR;
+    }
+
     return NULL;
   }
   

@@ -2131,6 +2131,11 @@ static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
 }
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval) {
+  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (pResInfo == NULL) {
+    return true;
+  }
+
   STopBotInfo *pTopBotInfo = getTopBotOutputInfo(pCtx);
   
   // required number of results are not reached, continue load data block

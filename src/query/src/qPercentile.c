@@ -535,7 +535,7 @@ void tMemBucketPut(tMemBucket *pBucket, void *data, int32_t numOfRows) {
 
     if (pSeg->pBuffer[slotIdx] == NULL) {
       pSeg->pBuffer[slotIdx] = createExtMemBuffer(pBucket->numOfTotalPages * pBucket->pageSize, pBucket->nElemSize,
-                                                  pBucket->pOrderDesc->pColumnModel);
+                                                  pBucket->pageSize, pBucket->pOrderDesc->pColumnModel);
       pSeg->pBuffer[slotIdx]->flushModel = SINGLE_APPEND_MODEL;
       pBucket->pOrderDesc->pColumnModel->capacity = pSeg->pBuffer[slotIdx]->numOfElemsPerPage;
     }

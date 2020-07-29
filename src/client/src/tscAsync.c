@@ -430,7 +430,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   pRes->code = code;
 
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p ge tableMeta failed, code:%s", pSql, tstrerror(code));
+    tscError("%p get tableMeta failed, code:%s", pSql, tstrerror(code));
     goto _error;
   } else {
     tscDebug("%p get tableMeta successfully", pSql);
