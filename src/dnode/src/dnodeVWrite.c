@@ -38,6 +38,8 @@ typedef struct {
 
 typedef struct {
   SRspRet  rspRet;
+  int32_t  processedCount;
+  int32_t  code;
   void    *pCont;
   int32_t  contLen;
   SRpcMsg  rpcMsg;
@@ -187,13 +189,16 @@ void dnodeFreeVnodeWqueue(void *wqueue) {
 void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
   SWriteMsg *pWrite = (SWriteMsg *)param;
 
-  if (code > 0) return;
+  if (code < 0) pWrite->code = code;
+  int32_t count = atomic_add_fetch_32(&pWrite->processedCount, 1);
+
+  if (count <= 1) return;
 
   SRpcMsg rpcRsp = {
     .handle  = pWrite->rpcMsg.handle,
     .pCont   = pWrite->rspRet.rsp,
     .contLen = pWrite->rspRet.len,
-    .code    = code,
+    .code    = pWrite->code,
   };
 
   rpcSendResponse(&rpcRsp);
@@ -239,7 +244,10 @@ static void *dnodeProcessWriteQueue(void *param) {
       }
 
       int32_t code = vnodeProcessWrite(pVnode, type, pHead, pRspRet);
-      if (pWrite) pWrite->rpcMsg.code = code;
+      if (pWrite) { 
+        pWrite->rpcMsg.code = code;
+        if (code <= 0) pWrite->processedCount = 1; 
+      }
     }
 
     walFsync(vnodeGetWal(pVnode));
