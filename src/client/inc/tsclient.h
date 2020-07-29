@@ -106,7 +106,7 @@ typedef struct SColumnIndex {
 typedef struct SFieldSupInfo {
   bool            visible;
   SExprInfo      *pArithExprInfo;
-  SSqlExpr *      pSqlExpr;
+  SSqlExpr       *pSqlExpr;
 } SFieldSupInfo;
 
 typedef struct SFieldInfo {

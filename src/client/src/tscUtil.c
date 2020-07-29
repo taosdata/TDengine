@@ -1673,6 +1673,77 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   return pNew;
 }
 
+// current sql function is not direct output result, so create a dummy output field
+static void doSetNewFieldInfo(SQueryInfo* pNewQueryInfo, SSqlExpr* pExpr) {
+  TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
+  tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
+
+  SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
+
+  pInfo1->pSqlExpr = pExpr;
+  pInfo1->visible = false;
+}
+
+static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* pNewQueryInfo, int64_t uid) {
+  int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
+  if (numOfOutput == 0) {
+    return;
+  }
+
+  size_t      numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
+
+  // set the field info in pNewQueryInfo object
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+
+    if (pExpr->uid == uid) {
+      if (i < pFieldInfo->numOfOutput) {
+        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
+
+        if (pInfo->pSqlExpr != NULL) {
+          TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
+          assert(strcmp(p->name, pExpr->aliasName) == 0);
+
+          SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
+          *pInfo1 = *pInfo;
+        } else {
+          assert(pInfo->pArithExprInfo != NULL);
+          doSetNewFieldInfo(pNewQueryInfo, pExpr);
+        }
+      } else { // it is a arithmetic column, does not have actual field for sqlExpr, so build it
+        doSetNewFieldInfo(pNewQueryInfo, pExpr);
+      }
+    }
+  }
+
+  // make sure the the sqlExpr for each fields is correct
+  numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
+
+  // update the pSqlExpr pointer in SFieldSupInfo according the field name
+  // make sure the pSqlExpr point to the correct SqlExpr in pNewQueryInfo, not SqlExpr in pQueryInfo
+  for (int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
+    TAOS_FIELD* field = tscFieldInfoGetField(&pNewQueryInfo->fieldsInfo, f);
+
+    bool matched = false;
+    for (int32_t k1 = 0; k1 < numOfExprs; ++k1) {
+      SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
+
+      if (strcmp(field->name, pExpr1->aliasName) == 0) {  // establish link according to the result field name
+        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pNewQueryInfo->fieldsInfo, f);
+        pInfo->pSqlExpr = pExpr1;
+
+        matched = true;
+        break;
+      }
+    }
+
+    assert(matched);
+  }
+
+  tscFieldInfoUpdateOffset(pNewQueryInfo);
+}
+
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
@@ -1766,74 +1837,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true);
 
-  int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
-
-  if (numOfOutput > 0) {  // todo refactor to extract method
-    size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-    
-    for (int32_t i = 0; i < numOfExprs; ++i) {
-      SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-      
-      if (pExpr->uid == uid) {
-        if (i < pFieldInfo->numOfOutput) {
-          SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
-          if (pInfo->pSqlExpr != NULL) {
-            TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
-            assert(strcmp(p->name, pExpr->aliasName) == 0);
-
-            SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
-            *pInfo1 = *pInfo;
-          } else {
-            // current sql function is not direct output result, so create a dummy output field
-            assert(pInfo->pArithExprInfo != NULL);
-
-            TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
-            tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
-
-            SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
-
-            pInfo1->pSqlExpr = pExpr;
-            pInfo1->visible = false;
-          }
-        } else {
-          // current sql function is not direct output result, so create a dummy output field
-          TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
-          tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
-
-          SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
-
-          pInfo1->pSqlExpr = pExpr;
-          pInfo1->visible = false;
-        }
-      }
-    }
-
-    // make sure the the sqlExpr for each fields is correct
-    // todo handle the agg arithmetic expression
-    numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
-
-    for(int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
-      TAOS_FIELD* field = tscFieldInfoGetField(&pNewQueryInfo->fieldsInfo, f);
-      bool matched = false;
-
-      for(int32_t k1 = 0; k1 < numOfExprs; ++k1) {
-        SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
-
-        if (strcmp(field->name, pExpr1->aliasName) == 0) {  // establish link according to the result field name
-          SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pNewQueryInfo->fieldsInfo, f);
-          pInfo->pSqlExpr = pExpr1;
-
-          matched = true;
-          break;
-        }
-      }
-
-      assert(matched);
-    }
-  
-    tscFieldInfoUpdateOffset(pNewQueryInfo);
-  }
+  doSetSqlExprAndResultFieldInfo(pQueryInfo, pNewQueryInfo, uid);
 
   pNew->fp = fp;
   pNew->fetchFp = fp;
