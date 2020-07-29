@@ -419,7 +419,6 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-//void    tscGetResultColumnChr(SSqlRes *pRes, SFieldInfo* pFieldInfo, int32_t column);
 
 static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
   SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);

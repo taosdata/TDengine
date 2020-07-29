@@ -1054,6 +1054,10 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
       }
     }
   }
+
+  // restore the offset value for super table query in case of final result.
+  tscRestoreSQLFuncForSTableQuery(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
 }
 
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
@@ -2046,9 +2050,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
   }
 
   while (1) {
-    if (pRes->row < pRes->numOfRows) {
-      assert(0);
-    }
+    assert (pRes->row >= pRes->numOfRows);
 
     doBuildResFromSubqueries(pSql);
     sem_post(&pSql->rspSem);
