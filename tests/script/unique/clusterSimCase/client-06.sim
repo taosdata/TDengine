@@ -9,6 +9,7 @@ $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
 $preBinary = ' . client-06-
 $numPerUpdateTbl = 2000
 ###############################################################
+$testCnt = 0
 
 $totalRows    = 0  
 $dropTblStart = $tblStart
@@ -90,7 +91,11 @@ if $loopCnt > 2 then
     $totalRows = $totalRows - $rowsPerTbl
   endw  
   sleep 20000
+  $testCnt = $testCnt + 1
   goto init_lable 
 endi
 
+if $testCnt > 10 then
+  return 0
+endi
 goto loop_run
