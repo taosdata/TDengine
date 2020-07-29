@@ -40,7 +40,7 @@ $i  = $tblStart
 while $i < $tblEnd
   $tb = tb . $i
   
-  $c2Binary = $c2Binary . $i
+  $c2Binary = $preBinary . $i
   $c2Binary = $c2Binary . '
 
   $x = 0
