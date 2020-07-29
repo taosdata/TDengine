@@ -128,9 +128,11 @@ static int32_t mnodeChildTableActionInsert(SSdbOper *pOper) {
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     // add ref
     pTable->superTable = mnodeGetSuperTableByUid(pTable->suid);
-    mnodeAddTableIntoStable(pTable->superTable, pTable);
-    grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
-    if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
+    if (pTable->superTable != NULL) {
+      mnodeAddTableIntoStable(pTable->superTable, pTable);
+      grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
+      if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
+    }
   } else {
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
     if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);

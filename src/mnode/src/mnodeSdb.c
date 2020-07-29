@@ -414,8 +414,8 @@ void sdbIncRef(void *handle, void *pObj) {
 
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
-  atomic_add_fetch_32(pRefCount, 1);
-  sdbTrace("add ref to table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
+  int32_t    refCount = atomic_add_fetch_32(pRefCount, 1);
+  sdbTrace("add ref to table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), refCount);
 }
 
 void sdbDecRef(void *handle, void *pObj) {
@@ -424,11 +424,11 @@ void sdbDecRef(void *handle, void *pObj) {
   SSdbTable *pTable = handle;
   int32_t *  pRefCount = (int32_t *)(pObj + pTable->refCountPos);
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
-  sdbTrace("def ref of table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
+  sdbTrace("def ref of table:%s record:%p:%s:%d", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), refCount);
 
   int32_t *updateEnd = pObj + pTable->refCountPos - 4;
   if (refCount <= 0 && *updateEnd) {
-    sdbTrace("table:%s, record:%p:%s:%d is destroyed", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), *pRefCount);
+    sdbTrace("table:%s, record:%p:%s:%d is destroyed", pTable->tableName, pObj, sdbGetKeyStrFromObj(pTable, pObj), refCount);
     SSdbOper oper = {.pObj = pObj};
     (*pTable->destroyFp)(&oper);
   }

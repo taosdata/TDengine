@@ -535,6 +535,10 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
+  if (pMsg->pVgroup != NULL) {
+    mnodeDecVgroupRef(pMsg->pVgroup);
+  }
+
   pMsg->pVgroup = pVgroup;
   mnodeIncVgroupRef(pVgroup);
 
@@ -922,11 +926,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       .table = tsVgroupSdb,
       .pObj = pVgroup
     };
-    int32_t code = sdbDeleteRow(&oper);
-    if (code != 0) {
-      code = TSDB_CODE_MND_SDB_ERROR;
-    }
-
+    sdbDeleteRow(&oper);
     dnodeSendRpcMnodeWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }
