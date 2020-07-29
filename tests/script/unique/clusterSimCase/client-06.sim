@@ -60,7 +60,7 @@ while $i < $tblStart
     $x = $x + 40
     $ts = $ts + 40a
   endw 
-  if $i == $tblStart then
+  if $i == $dropTblStart then
     $rowsPerTbl = $rowsPerTbl + $x   
   endi
 
