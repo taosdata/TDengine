@@ -18,8 +18,8 @@ SET(TD_GODLL FALSE)
 
 INCLUDE(community/cmake/input.inc)
 INCLUDE(community/cmake/platform.inc)
-INCLUDE(community/cmake/env.inc)
 INCLUDE(community/cmake/define.inc)
+INCLUDE(community/cmake/env.inc)
 INCLUDE(community/cmake/install.inc)
 
 ADD_SUBDIRECTORY(enterprise)
