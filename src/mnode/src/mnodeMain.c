@@ -32,6 +32,7 @@
 #include "mnodeVgroup.h"
 #include "mnodeUser.h"
 #include "mnodeTable.h"
+#include "mnodeCluster.h"
 #include "mnodeShow.h"
 #include "mnodeProfile.h"
 
@@ -46,6 +47,7 @@ static bool tsMgmtIsRunning = false;
 
 static const SMnodeComponent tsMnodeComponents[] = {
   {"profile", mnodeInitProfile, mnodeCleanupProfile},
+  {"cluster", mnodeInitCluster, mnodeCleanupCluster},
   {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
   {"users",   mnodeInitUsers,   mnodeCleanupUsers},
   {"dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes},

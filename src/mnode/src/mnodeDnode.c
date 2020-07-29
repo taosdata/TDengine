@@ -37,6 +37,7 @@
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 #include "mnodePeer.h"
+#include "mnodeCluster.h"
 
 int32_t tsAccessSquence = 0;
 static void   *tsDnodeSdb = NULL;
@@ -277,45 +278,55 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->rpcMsg.pCont;
   if (pCmCfgDnode->ep[0] == 0) {
     tstrncpy(pCmCfgDnode->ep, tsLocalEp, TSDB_EP_LEN);
-  } 
-
-  int32_t dnodeId = 0;
-  char* pos = strchr(pCmCfgDnode->ep, ':');
-  if (NULL == pos) {
-    dnodeId = strtol(pCmCfgDnode->ep, NULL, 10);
-    if (dnodeId <= 0 || dnodeId > 65536) {
-      mError("failed to cfg dnode, invalid dnodeId:%s", pCmCfgDnode->ep);
-      return TSDB_CODE_MND_DNODE_NOT_EXIST;
-    }
   }
 
-  SRpcEpSet epSet = mnodeGetEpSetFromIp(pCmCfgDnode->ep);
-  if (dnodeId != 0) {
-    SDnodeObj *pDnode = mnodeGetDnode(dnodeId);
+  SDnodeObj *pDnode = mnodeGetDnodeByEp(pCmCfgDnode->ep);
+  if (pDnode == NULL) {
+    int32_t dnodeId = strtol(pCmCfgDnode->ep, NULL, 10);
+    if (dnodeId <= 0 || dnodeId > 65536) {
+      mError("failed to cfg dnode, invalid dnodeEp:%s", pCmCfgDnode->ep);
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
+
+    pDnode = mnodeGetDnode(dnodeId);
     if (pDnode == NULL) {
       mError("failed to cfg dnode, invalid dnodeId:%d", dnodeId);
       return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
-    epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
-    mnodeDecDnodeRef(pDnode);
   }
 
-  SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
-  strcpy(pMdCfgDnode->ep, pCmCfgDnode->ep);
-  strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
+  SRpcEpSet epSet = mnodeGetEpSetFromIp(pDnode->dnodeEp);
 
-  SRpcMsg rpcMdCfgDnodeMsg = {
-    .ahandle = 0,
-    .code = 0,
-    .msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE,
-    .pCont = pMdCfgDnode,
-    .contLen = sizeof(SMDCfgDnodeMsg)
-  };
+  if (strncasecmp(pCmCfgDnode->config, "balance", 7) == 0) {
+    int32_t vnodeId = 0;
+    int32_t dnodeId = 0;
+    bool parseOk = taosCheckBalanceCfgOptions(pCmCfgDnode->config + 8, &vnodeId, &dnodeId);
+    if (!parseOk) {
+      mnodeDecDnodeRef(pDnode);
+      return TSDB_CODE_MND_INVALID_DNODE_CFG_OPTION;
+    }
 
-  mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
-  dnodeSendMsgToDnode(&epSet, &rpcMdCfgDnodeMsg);
+    int32_t code = balanceAlterDnode(pDnode, vnodeId, dnodeId);
+    mnodeDecDnodeRef(pDnode);
+    return code;
+  } else {
+    SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
+    strcpy(pMdCfgDnode->ep, pCmCfgDnode->ep);
+    strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
 
-  return TSDB_CODE_SUCCESS;
+    SRpcMsg rpcMdCfgDnodeMsg = {
+      .ahandle = 0,
+      .code = 0,
+      .msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE,
+      .pCont = pMdCfgDnode,
+      .contLen = sizeof(SMDCfgDnodeMsg)
+    };
+
+    mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
+    dnodeSendMsgToDnode(&epSet, &rpcMdCfgDnodeMsg);
+    mnodeDecDnodeRef(pDnode);
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
@@ -345,6 +356,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
+  pStatus->clusterId    = htonl(pStatus->clusterId);
   
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
@@ -372,13 +384,19 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
   pDnode->moduleStatus     = pStatus->moduleStatus;
-  
+
   if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
+    mDebug("dnode:%d %s, first access, set clusterId %d", pDnode->dnodeId, pDnode->dnodeEp, mnodeGetClusterId());
   } else {
-    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    if (pStatus->clusterId != mnodeGetClusterId()) {
+      mError("dnode:%d, input clusterId %d not match with exist %d", pDnode->dnodeId, pStatus->clusterId,
+             mnodeGetClusterId());
+      return TSDB_CODE_MND_INVALID_CLUSTER_ID;
+    } else {
+      mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    }
   }
- 
+
   int32_t openVnodes = htons(pStatus->openVnodes);
   int32_t contLen = sizeof(SDMStatusRsp) + openVnodes * sizeof(SDMVgroupAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
@@ -390,6 +408,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
   pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
+  pRsp->dnodeCfg.clusterId = htonl(mnodeGetClusterId());
   SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
 
   for (int32_t j = 0; j < openVnodes; ++j) {

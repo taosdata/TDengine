@@ -308,37 +308,46 @@ bool taosReadGlobalCfg() {
 
   sprintf(fileName, "%s/taos.cfg", configDir);
   FILE* fp = fopen(fileName, "r");
+  if (fp == NULL) {
+    struct stat s;
+    if (stat(configDir, &s) != 0 || (!S_ISREG(s.st_mode) && !S_ISLNK(s.st_mode))) {
+      //return true to follow behavior before file support
+      return true;
+    }
+    fp = fopen(configDir, "r");
+    if (fp == NULL) {
+      return false;
+    }
+  }
   
   size_t len = 1024;
   line = calloc(1, len);
   
-  if (fp != NULL) {
-    while (!feof(fp)) {
-      memset(line, 0, len);
+  while (!feof(fp)) {
+    memset(line, 0, len);
 
-      option = value = NULL;
-      olen = vlen = 0;
+    option = value = NULL;
+    olen = vlen = 0;
 
-      getline(&line, &len, fp);
-      line[len - 1] = 0;
-      
-      paGetToken(line, &option, &olen);
-      if (olen == 0) continue;
-      option[olen] = 0;
+    getline(&line, &len, fp);
+    line[len - 1] = 0;
+    
+    paGetToken(line, &option, &olen);
+    if (olen == 0) continue;
+    option[olen] = 0;
 
-      paGetToken(option + olen + 1, &value, &vlen);
-      if (vlen == 0) continue;
-      value[vlen] = 0;
+    paGetToken(option + olen + 1, &value, &vlen);
+    if (vlen == 0) continue;
+    value[vlen] = 0;
 
-      // For dataDir, the format is:
-      // dataDir    /mnt/disk1    0
-      paGetToken(value + vlen + 1, &value1, &vlen1);
-      
-      taosReadConfigOption(option, value);
-    }
-
-    fclose(fp);
+    // For dataDir, the format is:
+    // dataDir    /mnt/disk1    0
+    paGetToken(value + vlen + 1, &value1, &vlen1);
+    
+    taosReadConfigOption(option, value);
   }
+
+  fclose(fp);
 
   tfree(line);
   

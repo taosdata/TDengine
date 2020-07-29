@@ -5913,8 +5913,10 @@ _cleanup_qinfo:
   tsdbDestroyTableGroup(pTableGroupInfo);
 
 _cleanup_query:
-  taosArrayDestroy(pGroupbyExpr->columnInfo);
-  tfree(pGroupbyExpr);
+  if (pGroupbyExpr != NULL) {
+    taosArrayDestroy(pGroupbyExpr->columnInfo);
+    free(pGroupbyExpr);
+  }
   tfree(pTagCols);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = &pExprs[i];
@@ -6419,8 +6421,12 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   size += sizeof(STableIdInfo) * taosArrayGetSize(pQInfo->arrTableIdInfo);
   *contLen = size + sizeof(SRetrieveTableRsp);
 
-  // todo handle failed to allocate memory
+  // todo proper handle failed to allocate memory,
+  // current solution only avoid crash, but cannot return error code to client
   *pRsp = (SRetrieveTableRsp *)rpcMallocCont(*contLen);
+  if (*pRsp == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
   (*pRsp)->numOfRows = htonl(pQuery->rec.rows);
 
   int32_t code = pQInfo->code;

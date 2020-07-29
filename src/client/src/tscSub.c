@@ -256,11 +256,12 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   size_t numOfTables = taosArrayGetSize(tables);
 
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
   for( size_t i = 0; i < numOfTables; i++ ) {
     STidTags* tt = taosArrayGet( tables, i );
     SSubscriptionProgress p = { .uid = tt->uid };
-    p.key = tscGetSubscriptionProgress(pSub, tt->uid, INT64_MIN);
+    p.key = tscGetSubscriptionProgress(pSub, tt->uid, pQueryInfo->window.skey);
     taosArrayPush(progress, &p);
   }
   taosArraySort(progress, tscCompareSubscriptionProgress);

@@ -358,7 +358,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_CFG_DNODE: {
-      const char* msg2 = "invalid configure options or values";
+      const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
       const char* msg3 = "invalid dnode ep";
 
       /* validate the ip address */
@@ -4674,26 +4674,42 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  const int DNODE_DYNAMIC_CFG_OPTIONS_SIZE = 19;
-  const SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[] = {
-      {"resetLog", 8},       {"resetQueryCache", 15},  {"debugFlag", 9},     {"mDebugFlag", 10},
-      {"dDebugFlag", 10},    {"sdbDebugFlag", 12},     {"vDebugFlag", 10},   {"cDebugFlag", 10},
-      {"httpDebugFlag", 13}, {"monitorDebugFlag", 16}, {"rpcDebugFlag", 12}, {"uDebugFlag", 10},
-      {"tmrDebugFlag", 12},  {"qDebugflag", 10},       {"sDebugflag", 10},   {"tsdbDebugFlag", 13},
-      {"mqttDebugFlag", 13}, {"wDebugFlag", 10},       {"monitor", 7}};
+  const int tokenLogEnd = 2;
+  const int tokenBalance = 2;
+  const int tokenMonitor = 3;
+  const int tokenDebugFlag = 4;
+  const int tokenDebugFlagEnd = 20;
+  const SDNodeDynConfOption cfgOptions[] = {
+      {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
+      {"debugFlag", 9},   {"monitorDebugFlag", 16}, {"vDebugFlag", 10}, {"mDebugFlag", 10},
+      {"cDebugFlag", 10}, {"httpDebugFlag", 13},    {"qDebugflag", 10}, {"sdbDebugFlag", 12},
+      {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
+      {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
+  };
 
   SSQLToken* pOptionToken = &pOptions->a[1];
 
   if (pOptions->nTokens == 2) {
     // reset log and reset query cache does not need value
-    for (int32_t i = 0; i < 2; ++i) {
-      const SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
+    for (int32_t i = 0; i < tokenLogEnd; ++i) {
+      const SDNodeDynConfOption* pOption = &cfgOptions[i];
       if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
         return TSDB_CODE_SUCCESS;
       }
     }
-  } else if ((strncasecmp(DNODE_DYNAMIC_CFG_OPTIONS[DNODE_DYNAMIC_CFG_OPTIONS_SIZE - 1].name, pOptionToken->z, pOptionToken->n) == 0) &&
-             (DNODE_DYNAMIC_CFG_OPTIONS[DNODE_DYNAMIC_CFG_OPTIONS_SIZE - 1].len == pOptionToken->n)) {
+  } else if ((strncasecmp(cfgOptions[tokenBalance].name, pOptionToken->z, pOptionToken->n) == 0) &&
+             (cfgOptions[tokenBalance].len == pOptionToken->n)) {
+    SSQLToken* pValToken = &pOptions->a[2];
+    int32_t vnodeId = 0;
+    int32_t dnodeId = 0;
+    strdequote(pValToken->z);
+    bool parseOk = taosCheckBalanceCfgOptions(pValToken->z, &vnodeId, &dnodeId);
+    if (!parseOk) {
+      return TSDB_CODE_TSC_INVALID_SQL;  // options value is invalid
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if ((strncasecmp(cfgOptions[tokenMonitor].name, pOptionToken->z, pOptionToken->n) == 0) &&
+             (cfgOptions[tokenMonitor].len == pOptionToken->n)) {
     SSQLToken* pValToken = &pOptions->a[2];
     int32_t    val = strtol(pValToken->z, NULL, 10);
     if (val != 0 && val != 1) {
@@ -4709,8 +4725,8 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
-    for (int32_t i = 2; i < DNODE_DYNAMIC_CFG_OPTIONS_SIZE - 1; ++i) {
-      const SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
+    for (int32_t i = tokenDebugFlag; i < tokenDebugFlagEnd; ++i) {
+      const SDNodeDynConfOption* pOption = &cfgOptions[i];
 
       if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
         /* options is valid */

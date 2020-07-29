@@ -434,15 +434,22 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   }
 
   if (pDb->numOfVgroups < maxVgroupsPerDb) {
-    mDebug("app:%p:%p, db:%s, try to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle, pMsg,
-           pDb->name, pDb->numOfVgroups, maxVgroupsPerDb);
+    mDebug("app:%p:%p, db:%s, try to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle,
+           pMsg, pDb->name, pDb->numOfVgroups, maxVgroupsPerDb);
     pthread_mutex_unlock(&pDb->mutex);
     int32_t code = mnodeCreateVgroup(pMsg);
-    if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return code;
+    if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      return code;
+    } else {
+      pthread_mutex_lock(&pDb->mutex);
+    }
   }
 
   SVgObj *pVgroup = pDb->vgList[0];
-  if (pVgroup == NULL) return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+  if (pVgroup == NULL) {
+    pthread_mutex_unlock(&pDb->mutex);
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+  }
 
   int32_t code = mnodeAllocVgroupIdPool(pVgroup);
   if (code != TSDB_CODE_SUCCESS) {
@@ -483,7 +490,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     pVgroup->status = TAOS_VG_STATUS_READY;
     SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
-    sdbUpdateRow(&desc);
+    (void)sdbUpdateRow(&desc);
   }
 
   mInfo("app:%p:%p, vgId:%d, is created in mnode, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
@@ -585,7 +592,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 8 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -609,12 +616,6 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     strcpy(pSchema[cols].name, "dnode");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "end_point");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -709,27 +710,15 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
       *(int16_t *) pWrite = pVgroup->vnodeGid[i].dnodeId;
       cols++;
 
-      SDnodeObj *pDnode = pVgroup->vnodeGid[i].pDnode;
-
+      SDnodeObj * pDnode = pVgroup->vnodeGid[i].pDnode;
+      const char *role = "NULL";
       if (pDnode != NULL) {
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols]);
-        cols++;
-
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        char *role = mnodeGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
-        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
-        cols++;
-      } else {
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        const char *src = "NULL";
-        STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-        cols++;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-        cols++;
+        role = mnodeGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
       }
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
+      cols++;
     }
 
     mnodeDecVgroupRef(pVgroup);

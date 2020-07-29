@@ -670,12 +670,12 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
     ret = taos_errno(pSql);
     
     if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST || ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
-      simDebug("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
+      simDebug("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret & 0XFFFF, tstrerror(ret));
       ret = 0;
       break;
     } else if (ret != 0) {
       simDebug("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s",
-               script->fileName, script->taos, rest, ret, tstrerror(ret), taos_errstr(pSql));
+               script->fileName, script->taos, rest, ret & 0XFFFF, tstrerror(ret), taos_errstr(pSql));
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -691,7 +691,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   }
 
   if (ret) {
-    sprintf(script->error, "lineNum:%d. sql:%s failed, ret:%d:%s", line->lineNum, rest, ret, tstrerror(ret));
+    sprintf(script->error, "lineNum:%d. sql:%s failed, ret:%d:%s", line->lineNum, rest, ret & 0XFFFF, tstrerror(ret));
     return false;
   }
 
@@ -821,7 +821,7 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
     ret = simExecuteRestFulCommand(script, command);
     if (ret == TSDB_CODE_MND_TABLE_ALREADY_EXIST ||
         ret == TSDB_CODE_MND_DB_ALREADY_EXIST) {
-      simDebug("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret, tstrerror(ret));
+      simDebug("script:%s, taos:%p, %s success, ret:%d:%s", script->fileName, script->taos, rest, ret & 0XFFFF, tstrerror(ret));
       ret = 0;
       break;
     } else if (ret != 0) {
@@ -957,12 +957,12 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
 
   if (ret != TSDB_CODE_SUCCESS) {
     simDebug("script:%s, taos:%p, %s execute, expect failed, so success, ret:%d:%s",
-        script->fileName, script->taos, rest, ret, tstrerror(ret));
+        script->fileName, script->taos, rest, ret & 0XFFFF, tstrerror(ret));
     script->linePos++;
     return true;
   }
   
-  sprintf(script->error, "lineNum:%d. sql:%s expect failed, but success, ret:%d:%s", line->lineNum, rest, ret, tstrerror(ret));
+  sprintf(script->error, "lineNum:%d. sql:%s expect failed, but success, ret:%d:%s", line->lineNum, rest, ret & 0XFFFF, tstrerror(ret));
 
   return false;
 }
