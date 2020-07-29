@@ -91,14 +91,14 @@ sql create dnode $hostname3
 sleep 3000
 sleep 3000
 print ============== step3: start back client-01.sim
-run_back unique/clusterSimCase/client-01.sim
 #run_back unique/clusterSimCase/client-01.sim
-#run_back unique/clusterSimCase/client-01.sim
-#run_back unique/clusterSimCase/client-01.sim
-#run_back unique/clusterSimCase/client-01.sim
-#run_back unique/clusterSimCase/client-01.sim
-#run_back unique/clusterSimCase/client-01.sim
-#run_back unique/clusterSimCase/client-01.sim
+#run_back unique/clusterSimCase/client-02.sim
+#run_back unique/clusterSimCase/client-03.sim
+run_back unique/clusterSimCase/client-04.sim
+#run_back unique/clusterSimCase/client-05.sim
+#run_back unique/clusterSimCase/client-06.sim
+#run_back unique/clusterSimCase/client-07.sim
+#run_back unique/clusterSimCase/client-08.sim
 #run_back unique/clusterSimCase/client-01.sim
 #run_back unique/clusterSimCase/client-01.sim
 sleep 20000
@@ -242,4 +242,7 @@ endi
 sleep 3000
 print **** **** **** (loop_cnt: $loop_cnt ) end, continue...... **** **** **** ****
 $loop_cnt = $loop_cnt + 1
+if $loop_cnt == 50 then
+  return 0
+endi
 goto loop_cluster_do

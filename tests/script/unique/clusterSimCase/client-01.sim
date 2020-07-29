@@ -57,10 +57,10 @@ while $i < $tblEnd
 endw 
 
 sql select count(*) from $tb
+print data00 $data00 rowsPerTbl $rowsPerTbl
 if $data00 != $rowsPerTbl then
-  print data00 $data00 rowsPerTbl $rowsPerTbl
   print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  print ************ client-01 insert data error ***** *****
+  print ************ client-01 insert data into  $tb  error ***** *****
   print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   return -1
 endi
