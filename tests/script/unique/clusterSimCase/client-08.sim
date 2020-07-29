@@ -4,10 +4,10 @@
 ###############################################################
 ################ set script parameters ################
 $tblStart = 0
-$tblEnd   = 100
+$tblEnd   = 10000
 $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
 $preBinary = ' . client-08-
-$numPerUpdateTbl = 20
+$numPerUpdateTbl = 2000
 ###############################################################
 $totalRows    = 0  
 $dropTblStart = $tblStart
