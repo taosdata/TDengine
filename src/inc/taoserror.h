@@ -132,6 +132,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_IN_DNODE,      0, 0x0338, "vgroup not
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_ALREADY_IN_DNODE,  0, 0x0339, "vgroup already in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_FREE,           0, 0x033A, "dnode not avaliable")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_ID,       0, 0x033B, "cluster id not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_READY,                0, 0x033C, "cluster not ready")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "mnode accounts already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "mnode invalid account")

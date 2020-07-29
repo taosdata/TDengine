@@ -270,7 +270,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  pHBRsp->onlineDnodes = htonl(mnodeGetOnlinDnodesNum());
+  pHBRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
   pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
   mnodeGetMnodeEpSetForShell(&pHBRsp->epSet);
 

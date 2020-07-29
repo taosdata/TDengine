@@ -434,11 +434,12 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     maxVgroupsPerDb = MAX(maxVgroupsPerDb, 2);
   }
 
+  int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
   if (pDb->numOfVgroups < maxVgroupsPerDb) {
     mDebug("app:%p:%p, db:%s, try to create a new vgroup, numOfVgroups:%d maxVgroupsPerDb:%d", pMsg->rpcMsg.ahandle,
            pMsg, pDb->name, pDb->numOfVgroups, maxVgroupsPerDb);
     pthread_mutex_unlock(&pDb->mutex);
-    int32_t code = mnodeCreateVgroup(pMsg);
+    code = mnodeCreateVgroup(pMsg);
     if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       return code;
     } else {
@@ -449,10 +450,10 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   SVgObj *pVgroup = pDb->vgList[0];
   if (pVgroup == NULL) {
     pthread_mutex_unlock(&pDb->mutex);
-    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return code;
   }
 
-  int32_t code = mnodeAllocVgroupIdPool(pVgroup);
+  code = mnodeAllocVgroupIdPool(pVgroup);
   if (code != TSDB_CODE_SUCCESS) {
     pthread_mutex_unlock(&pDb->mutex);
     return code;
@@ -529,10 +530,12 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
-  if (balanceAllocVnodes(pVgroup) != 0) {
-    mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
+  int32_t code = balanceAllocVnodes(pVgroup);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("db:%s, no enough dnode to alloc %d vnodes to vgroup, reason:%s", pDb->name, pVgroup->numOfVnodes,
+           tstrerror(code));
     free(pVgroup);
-    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return code;
   }
 
   if (pMsg->pVgroup != NULL) {
@@ -551,7 +554,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
     .reqFp   = mnodeCreateVgroupFp
   };
 
-  int32_t code = sdbInsertRow(&oper);
+  code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     pMsg->pVgroup = NULL;
     mnodeDestroyVgroup(pVgroup);

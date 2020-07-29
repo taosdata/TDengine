@@ -206,7 +206,7 @@ int32_t mnodeGetOnlinDnodesCpuCoreNum() {
   return cpuCores;
 }
 
-int32_t mnodeGetOnlinDnodesNum() {
+int32_t mnodeGetOnlineDnodesNum() {
   SDnodeObj *pDnode = NULL;
   void *     pIter = NULL;
   int32_t    onlineDnodes = 0;
