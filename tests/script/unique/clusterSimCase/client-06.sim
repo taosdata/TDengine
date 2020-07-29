@@ -10,7 +10,9 @@ $preBinary = ' . client-06-
 $numPerUpdateTbl = 2000
 ###############################################################
 
-$totalRows   = 0
+$totalRows    = 0  
+$dropTblStart = $tblStart
+$dropTblEnd   = $dropTblStart + $numPerUpdateTbl
 
 sql connect
 
@@ -20,7 +22,7 @@ sql create database if not exists $db replica 2
 sql use $db
 
 init_lable:
-print ================ create table $tb (ts timestamp, c1 int, c2 binary(16))
+print ================ create table $tb[from $tblStart to $tblEnd] (ts timestamp, c1 int, c2 binary(16))
 
 $i = $tblStart
 while $i < $tblEnd
@@ -30,8 +32,8 @@ while $i < $tblEnd
   $i = $i + 1
 endw 
 
-$dropTblStart = $tblStart
-$dropTblEnd  = $tblStart + $numPerUpdateTbl
+$dropTblStart = $dropTblEnd
+$dropTblEnd   = $dropTblStart + $numPerUpdateTbl
 
 $tblStart = $tblEnd
 $tblEnd   = $tblEnd + $numPerUpdateTbl
@@ -44,8 +46,8 @@ $loopCnt = 0
  
 loop_run:
 print ================ client-06 start loop insert data ( loopCnt: $loopCnt )
-$i  = $dropTblStart
-while $i < $tblEnd
+$i = $dropTblStart
+while $i < $tblStart
   $tb = tb . $i
   
   $c2Binary = $preBinary . $i
@@ -78,8 +80,8 @@ endi
 
 $loopCnt = $loopCnt + 1
 
-if $loopCnt > 100 then
-
+if $loopCnt > 5 then
+  print ================ client-06 drop table from $dropTblStart to $dropTblEnd
   $i = $dropTblStart
   while $i < $dropTblEnd
     $tb = tb . $i
