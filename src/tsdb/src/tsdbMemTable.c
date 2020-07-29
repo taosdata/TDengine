@@ -610,10 +610,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
     taosRLockLatch(&(pIter->pTable->latch));
 
-    tsdbSetHelperTable(pHelper, pIter->pTable, pRepo);
+    if (tsdbSetHelperTable(pHelper, pIter->pTable, pRepo) < 0) goto _err;
 
     if (pIter->pIter != NULL) {
-      tdInitDataCols(pDataCols, tsdbGetTableSchemaImpl(pIter->pTable, false, false, -1));
+      if (tdInitDataCols(pDataCols, tsdbGetTableSchemaImpl(pIter->pTable, false, false, -1)) < 0) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        goto _err;
+      }
 
       if (tsdbCommitTableData(pHelper, pIter, pDataCols, maxKey) < 0) {
         taosRUnLockLatch(&(pIter->pTable->latch));
