@@ -316,17 +316,20 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
 
   assert(pCheckInfo->iter == NULL && pCheckInfo->iiter == NULL);
 
-  // TODO: add uid check
-  if (pHandle->mem && pCheckInfo->tableId.tid < pHandle->mem->maxTables &&
-      pHandle->mem->tData[pCheckInfo->tableId.tid] != NULL) {
-    pCheckInfo->iter = tSkipListCreateIterFromVal(pHandle->mem->tData[pCheckInfo->tableId.tid]->pData,
-                                                  (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+  if (pHandle->mem && pCheckInfo->tableId.tid < pHandle->mem->maxTables) {
+    STableData* ptd = pHandle->mem->tData[pCheckInfo->tableId.tid];
+    if (ptd != NULL && ptd->uid == pCheckInfo->tableId.uid) { // check uid
+      pCheckInfo->iter =
+          tSkipListCreateIterFromVal(ptd->pData, (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+    }
   }
 
-  if (pHandle->imem && pCheckInfo->tableId.tid < pHandle->imem->maxTables &&
-      pHandle->imem->tData[pCheckInfo->tableId.tid] != NULL) {
-    pCheckInfo->iiter = tSkipListCreateIterFromVal(pHandle->imem->tData[pCheckInfo->tableId.tid]->pData,
-                                                   (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+  if (pHandle->imem && pCheckInfo->tableId.tid < pHandle->imem->maxTables) {
+    STableData* ptd = pHandle->imem->tData[pCheckInfo->tableId.tid];
+    if (ptd != NULL && ptd->uid == pCheckInfo->tableId.uid) { // check uid
+      pCheckInfo->iiter =
+          tSkipListCreateIterFromVal(ptd->pData, (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+    }
   }
 
   // both iterators are NULL, no data in buffer right now
