@@ -12,6 +12,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+// no test file errors here
+#undef TAOS_RANDOM_FILE_FAIL
+
 #include "tsdbMain.h"
 #include "os.h"
 #include "talgo.h"
@@ -22,8 +26,6 @@
 #include "ttime.h"
 #include "tulog.h"
 
-#include <pthread.h>
-#include <sys/stat.h>
 
 #define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"

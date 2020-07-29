@@ -338,14 +338,15 @@ void taosRemoveDir(char *rootDir);
 int  taosMkDir(const char *pathname, mode_t mode); 
 void taosMvDir(char* destDir, char *srcDir);
 
-
-
 #ifdef TAOS_RANDOM_FILE_FAIL
   void taosSetRandomFileFailFactor(int factor);
   void taosSetRandomFileFailOutput(const char *path);
   ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
   ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
   off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
+  #undef taosTRead
+  #undef taosTWrite
+  #undef taosLSeek
   #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
   #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
   #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
@@ -356,6 +357,10 @@ void taosMvDir(char* destDir, char *srcDir);
   ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
   ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count);
   ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count);
+  #undef taosSend
+  #undef taosSendto
+  #undef taosReadSocket
+  #undef taosWriteSocket
   #define taosSend(sockfd, buf, len, flags) taosSendRandomFail(sockfd, buf, len, flags)
   #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) taosSendToRandomFail(sockfd, buf, len, flags, dest_addr, addrlen)
   #define taosReadSocket(fd, buf, len) taosReadSocketRandomFail(fd, buf, len)
