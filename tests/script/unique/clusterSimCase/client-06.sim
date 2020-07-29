@@ -6,7 +6,7 @@
 $tblStart = 0
 $tblEnd   = 10000
 $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
-$c2Binary = ' . client-06-
+$preBinary = ' . client-06-
 $numPerUpdateTbl = 2000
 ###############################################################
 
@@ -48,7 +48,7 @@ $i  = $dropTblStart
 while $i < $tblEnd
   $tb = tb . $i
   
-  $c2Binary = $c2Binary . $i
+  $c2Binary = $preBinary . $i
   $c2Binary = $c2Binary . '
 
   $x = 0
@@ -57,22 +57,22 @@ while $i < $tblEnd
     sql insert into $tb values ( $ts + 1a , $x , $c2Binary ) ( $ts + 3a , $x , $c2Binary ) ( $ts + 5a , $x , $c2Binary ) ( $ts + 7a , $x , $c2Binary ) ( $ts + 9a , $x , $c2Binary ) ( $ts + 11a , $x , $c2Binary ) ( $ts + 13a , $x , $c2Binary ) ( $ts + 15a , $x , $c2Binary ) ( $ts + 17a , $x , $c2Binary ) ( $ts + 19a , $x , $c2Binary ) ( $ts + 21a , $x , $c2Binary ) ( $ts + 23a , $x , $c2Binary ) ( $ts + 25a , $x , $c2Binary ) ( $ts + 27a , $x , $c2Binary ) ( $ts + 29a , $x , $c2Binary ) ( $ts + 31a , $x , $c2Binary ) ( $ts + 33a , $x , $c2Binary ) ( $ts + 35a , $x , $c2Binary ) ( $ts + 37a , $x , $c2Binary ) ( $ts + 39a , $x , $c2Binary )
     $x = $x + 40
     $ts = $ts + 40a
-    if $i == $tblStart then
-      $rowsPerTbl = $rowsPerTbl + $x
-    endi
   endw 
+  if $i == $tblStart then
+    $rowsPerTbl = $rowsPerTbl + $x   
+  endi
 
   $totalRows = $totalRows + $x
   $i = $i + 1
   
 endw 
 
-sql select count(*) from $tblStart
+sql select count(*) from $tb
+print data00 $data00 rowsPerTbl $rowsPerTbl
 if $data00 != $rowsPerTbl then
-  print data00 $data00 rowsPerTbl $rowsPerTbl
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  print ************ client-06 insert data error ***** *****
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  print ************ client-06 insert data into $tb error ***** *****
+  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   return -1
 endi
 
