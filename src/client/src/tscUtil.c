@@ -955,7 +955,7 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   pExpr->interBytes    = interSize;
   
   if (pTableMetaInfo->pTableMeta) {
-    pExpr->uid = pTableMetaInfo->pTableMeta->uid;
+    pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
   }
   
   return pExpr;
@@ -1482,7 +1482,7 @@ STableMetaInfo* tscGetTableMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, i
   int32_t k = -1;
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    if (pQueryInfo->pTableMetaInfo[i]->pTableMeta->uid == uid) {
+    if (pQueryInfo->pTableMetaInfo[i]->pTableMeta->id.uid == uid) {
       k = i;
       break;
     }
@@ -1760,7 +1760,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY);// it must be the subquery
   }
 
-  uint64_t uid = pTableMetaInfo->pTableMeta->uid;
+  uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true);
 
   int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
