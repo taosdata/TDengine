@@ -1780,7 +1780,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
           SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
           if (pInfo->pSqlExpr != NULL) {
             TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
-            assert(strcmp(p->name, pExpr->aliasName) == 0 && pInfo->pSqlExpr == pExpr);
+            assert(strcmp(p->name, pExpr->aliasName) == 0);
 
             SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
             *pInfo1 = *pInfo;
