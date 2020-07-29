@@ -301,6 +301,12 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
+  if (pCfg->quorum < TSDB_MIN_DB_REPLICA_OPTION || pCfg->quorum > TSDB_MAX_DB_REPLICA_OPTION) {
+    mError("invalid db option quorum:%d valid range: [%d, %d]", pCfg->quorum, TSDB_MIN_DB_REPLICA_OPTION,
+           TSDB_MAX_DB_REPLICA_OPTION);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -320,6 +326,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->compression < 0) pCfg->compression = tsCompression;
   if (pCfg->walLevel < 0) pCfg->walLevel = tsWAL;
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
+  if (pCfg->quorum < 0) pCfg->quorum = tsQuorum;
 }
 
 static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
@@ -371,7 +378,8 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
     .precision           = pCreate->precision,
     .compression         = pCreate->compression,
     .walLevel            = pCreate->walLevel,
-    .replications        = pCreate->replications
+    .replications        = pCreate->replications,
+    .quorum              = pCreate->quorum
   };
 
   mnodeSetDefaultDbCfg(&pDb->cfg);
@@ -506,6 +514,12 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     strcpy(pSchema[cols].name, "replica");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+
+    pShow->bytes[cols] = 2;
+    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+    strcpy(pSchema[cols].name, "quorum");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -653,6 +667,10 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *)pWrite = pDb->cfg.replications;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int16_t *)pWrite = pDb->cfg.quorum;
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -804,6 +822,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   int8_t  compression    = pAlter->compression;
   int8_t  walLevel       = pAlter->walLevel;
   int8_t  replications   = pAlter->replications;
+  int8_t  quorum         = pAlter->quorum;
   int8_t  precision      = pAlter->precision;
   
   terrno = TSDB_CODE_SUCCESS;
@@ -900,6 +919,11 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
       mError("db:%s, replica number can't change from %d to %d", pDb->name, pDb->cfg.replications, replications);
       terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
+  }
+
+  if (quorum >= 0 && quorum != pDb->cfg.quorum) {
+    mDebug("db:%s, quorum:%d change to %d", pDb->name, pDb->cfg.quorum, quorum);
+    newCfg.compression = quorum;
   }
 
   return newCfg;
