@@ -306,7 +306,7 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
     sockFd = -1;
   }
 
-  // taosKeepTcpAlive(sockFd);
+  taosKeepTcpAlive(sockFd);
 
   return sockFd;
 }
@@ -349,7 +349,7 @@ int taosKeepTcpAlive(int sockFd) {
 
   struct linger linger = {0};
   linger.l_onoff = 1;
-  //linger.l_linger = 0;
+  linger.l_linger = 3;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(linger)) < 0) {
     uError("setsockopt SO_LINGER failed: %d (%s)", errno, strerror(errno));
     close(sockFd);
