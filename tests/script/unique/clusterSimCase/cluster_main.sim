@@ -94,11 +94,11 @@ print ============== step3: start back client-01.sim
 #run_back unique/clusterSimCase/client-01.sim
 #run_back unique/clusterSimCase/client-02.sim
 #run_back unique/clusterSimCase/client-03.sim
-run_back unique/clusterSimCase/client-04.sim
+#run_back unique/clusterSimCase/client-04.sim
 #run_back unique/clusterSimCase/client-05.sim
 #run_back unique/clusterSimCase/client-06.sim
 #run_back unique/clusterSimCase/client-07.sim
-#run_back unique/clusterSimCase/client-08.sim
+run_back unique/clusterSimCase/client-08.sim
 #run_back unique/clusterSimCase/client-01.sim
 #run_back unique/clusterSimCase/client-01.sim
 sleep 20000

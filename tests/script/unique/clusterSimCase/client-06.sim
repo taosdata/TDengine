@@ -9,8 +9,6 @@ $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
 $preBinary = ' . client-06-
 $numPerUpdateTbl = 2000
 ###############################################################
-$testCnt = 0
-
 $totalRows    = 0  
 $dropTblStart = $tblStart
 $dropTblEnd   = $dropTblStart
@@ -23,7 +21,7 @@ sql create database if not exists $db replica 2
 sql use $db
 
 init_lable:
-print ================ create table $tb [ from $tblStart to $tblEnd ] (ts timestamp, c1 int, c2 binary(16))
+print ================ create table [ from $tblStart to $tblEnd ] (ts timestamp, c1 int, c2 binary(16))
 
 $i = $tblStart
 while $i < $tblEnd
@@ -90,12 +88,8 @@ if $loopCnt > 2 then
     $i = $i + 1
     $totalRows = $totalRows - $rowsPerTbl
   endw  
-  sleep 20000
-  $testCnt = $testCnt + 1
+  sleep 10000
   goto init_lable 
 endi
 
-if $testCnt > 10 then
-  return 0
-endi
 goto loop_run

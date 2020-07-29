@@ -4,13 +4,14 @@
 ###############################################################
 ################ set script parameters ################
 $tblStart = 0
-$tblEnd   = 10000
+$tblEnd   = 100
 $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
 $preBinary = ' . client-08-
-$numPerUpdateTbl = 2000
+$numPerUpdateTbl = 20
 ###############################################################
-
-$totalRows   = 0
+$totalRows    = 0  
+$dropTblStart = $tblStart
+$dropTblEnd   = $dropTblStart
 
 sql connect
 
@@ -20,7 +21,7 @@ sql create database if not exists $db replica 2
 sql use $db
 
 init_lable:
-print ================ create table $tb (ts timestamp, c1 int, c2 binary(16))
+print ================ create table [ from $tblStart to $tblEnd ] (ts timestamp, c1 int, c2 binary(16))
 
 $i = $tblStart
 while $i < $tblEnd
@@ -30,8 +31,8 @@ while $i < $tblEnd
   $i = $i + 1
 endw 
 
-$dropTblStart = $tblStart
-$dropTblEnd  = $tblStart + $numPerUpdateTbl
+$dropTblStart = $dropTblEnd
+$dropTblEnd   = $dropTblStart + $numPerUpdateTbl
 
 $tblStart = $tblEnd
 $tblEnd   = $tblEnd + $numPerUpdateTbl
@@ -43,9 +44,9 @@ $rowsPerLoop = 40
 $loopCnt = 0
  
 loop_run:
-print ================ client-08 start loop insert data ( loopCnt: $loopCnt )
-$i  = $dropTblStart
-while $i < $tblEnd
+print ================ client-08 start loop insert data from $dropTblStart to $tblStart ( loopCnt: $loopCnt )
+$i = $dropTblStart
+while $i < $tblStart
   $tb = tb . $i
   
   $c2Binary = $preBinary . $i
@@ -58,7 +59,7 @@ while $i < $tblEnd
     $x = $x + 40
     $ts = $ts + 40a
   endw 
-  if $i == $tblStart then
+  if $i == $dropTblStart then
     $rowsPerTbl = $rowsPerTbl + $x   
   endi
 
@@ -68,7 +69,7 @@ while $i < $tblEnd
 endw 
 
 sql select count(*) from $tb
-print data00 $data00 rowsPerTbl $rowsPerTbl
+print data00 $data00 rowsPerTbl $rowsPerTbl tb: $tb
 if $data00 != $rowsPerTbl then
   print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   print ************ client-08 insert data into $tb error ***** *****
@@ -78,7 +79,8 @@ endi
 
 $loopCnt = $loopCnt + 1
 
-#if $loopCnt > 100 then
+#if $loopCnt > 3 then
+  print ================ client-08 drop table from $dropTblStart to $dropTblEnd
   $i = $dropTblStart
   while $i < $dropTblEnd
     $tb = tb . $i
@@ -86,7 +88,7 @@ $loopCnt = $loopCnt + 1
     $i = $i + 1
     $totalRows = $totalRows - $rowsPerTbl
   endw  
-  sleep 20000
+  sleep 10000
   goto init_lable 
 #endi
 
