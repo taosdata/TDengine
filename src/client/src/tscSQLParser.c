@@ -87,7 +87,7 @@ static int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQueryS
 static int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString);
+static int32_t arithmeticExprToString(tSQLExpr* pExpr, char** exprString);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type);
 static int32_t validateEp(char* ep);
@@ -1107,13 +1107,128 @@ static void extractColumnNameFromString(tSQLExprItem* pItem) {
   }
 }
 
+static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSQLExprItem* pItem) {
+  const char* msg1 = "invalid column name, or illegal column type";
+  const char* msg2 = "invalid arithmetic expression in select clause";
+  const char* msg3 = "tag columns can not be used in arithmetic expression";
+  const char* msg4 = "columns from different table mixed up in arithmetic expression";
+
+  // arithmetic function in select clause
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+
+  SColumnList columnList = {0};
+  int32_t     arithmeticType = NON_ARITHMEIC_EXPR;
+
+  if (validateArithmeticSQLExpr(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType) != TSDB_CODE_SUCCESS) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
+  int32_t tableIndex = columnList.ids[0].tableIndex;
+
+  // todo potential data overflow
+  char  arithmeticExprStr[1024*12];
+  char* p = arithmeticExprStr;
+
+  if (arithmeticType == NORMAL_ARITHMETIC) {
+    pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
+
+    // all columns in arithmetic expression must belong to the same table
+    for (int32_t f = 1; f < columnList.num; ++f) {
+      if (columnList.ids[f].tableIndex != tableIndex) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+      }
+    }
+
+    if (arithmeticExprToString(pItem->pNode, &p) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    // expr string is set as the parameter of function
+    SColumnIndex index = {.tableIndex = tableIndex};
+
+    SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE, sizeof(double),
+                                       sizeof(double), false);
+
+    char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
+    tstrncpy(pExpr->aliasName, name, sizeof(pExpr->aliasName));
+
+    tExprNode* pNode = NULL;
+    SArray* colList = taosArrayInit(10, sizeof(SColIndex));
+
+    int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
+    if (ret != TSDB_CODE_SUCCESS) {
+      tExprTreeDestroy(&pNode, NULL);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+
+    size_t numOfNode = taosArrayGetSize(colList);
+    for(int32_t k = 0; k < numOfNode; ++k) {
+      SColIndex* pIndex = taosArrayGet(colList, k);
+      if (pIndex->flag == 1) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+    }
+
+    SBufferWriter bw = tbufInitWriter(NULL, false);
+
+    TRY(0) {
+        exprTreeToBinary(&bw, pNode);
+      } CATCH(code) {
+        tbufCloseWriter(&bw);
+        UNUSED(code);
+        // TODO: other error handling
+      } END_TRY
+
+    size_t len = tbufTell(&bw);
+    char* c = tbufGetData(&bw, true);
+
+    // set the serialized binary string as the parameter of arithmetic expression
+    addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, len, index.tableIndex);
+
+    insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->aliasName, pExpr);
+
+    taosArrayDestroy(colList);
+    tExprTreeDestroy(&pNode, NULL);
+  } else {
+    if (arithmeticExprToString(pItem->pNode, &p) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    columnList.num = 0;
+    columnList.ids[0] = (SColumnIndex) {0, 0};
+
+    char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
+    insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, name, NULL);
+
+    int32_t slot = tscNumOfFields(pQueryInfo) - 1;
+    SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, slot);
+
+    if (pInfo->pSqlExpr == NULL) {
+      SExprInfo* pArithExprInfo = calloc(1, sizeof(SExprInfo));
+
+      // arithmetic expression always return result in the format of double float
+      pArithExprInfo->bytes = sizeof(double);
+      pArithExprInfo->interBytes = sizeof(double);
+      pArithExprInfo->type = TSDB_DATA_TYPE_DOUBLE;
+
+      int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
+      if (ret != TSDB_CODE_SUCCESS) {
+        tExprTreeDestroy(&pArithExprInfo->pExpr, NULL);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
+      }
+
+      pInfo->pArithExprInfo = pArithExprInfo;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable) {
   assert(pSelection != NULL && pCmd != NULL);
 
-  const char* msg1 = "invalid column name, or illegal column type";
   const char* msg2 = "functions can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "columns from different table mixed up in arithmetic expression";
   const char* msg5 = "invalid function name";
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
@@ -1148,104 +1263,11 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
       }
 
     } else if (pItem->pNode->nSQLOptr >= TK_PLUS && pItem->pNode->nSQLOptr <= TK_REM) {
-      // arithmetic function in select clause
-      SColumnList columnList = {0};
-      int32_t     arithmeticType = NON_ARITHMEIC_EXPR;
-
-      if (validateArithmeticSQLExpr(pCmd, pItem->pNode, pQueryInfo, &columnList, &arithmeticType) != TSDB_CODE_SUCCESS) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      int32_t code = handleArithmeticExpr(pCmd, clauseIndex, i, pItem);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-      
-      int32_t tableIndex = columnList.ids[0].tableIndex;
-      char  arithmeticExprStr[1024] = {0};
-      char* p = arithmeticExprStr;
-      
-      if (arithmeticType == NORMAL_ARITHMETIC) {
-        pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
-  
-        // all columns in arithmetic expression must belong to the same table
-        for (int32_t f = 1; f < columnList.num; ++f) {
-          if (columnList.ids[f].tableIndex != tableIndex) {
-            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
-          }
-        }
-  
-        if (buildArithmeticExprString(pItem->pNode, &p) != TSDB_CODE_SUCCESS) {
-          return TSDB_CODE_TSC_INVALID_SQL;
-        }
-  
-        // expr string is set as the parameter of function
-        SColumnIndex index = {.tableIndex = tableIndex};
-        SSqlExpr*    pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE,
-                                              sizeof(double), sizeof(double), false);
-        
-        /* todo alias name should use the original sql string */
-        char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
-        tstrncpy(pExpr->aliasName, name, sizeof(pExpr->aliasName));
-        
-        tExprNode* pNode = NULL;
-        SArray* colList = taosArrayInit(10, sizeof(SColIndex));
-        
-        int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
-        if (ret != TSDB_CODE_SUCCESS) {
-          tExprTreeDestroy(&pNode, NULL);
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid arithmetic expression in select clause");
-        }
 
-        size_t numOfNode = taosArrayGetSize(colList);
-        for(int32_t k = 0; k < numOfNode; ++k) {
-          SColIndex* pIndex = taosArrayGet(colList, k);
-          if (pIndex->flag == 1) {
-            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "tag columns can not be used in arithmetic expression");
-          }
-        }
-
-        SBufferWriter bw = tbufInitWriter(NULL, false);
-
-        TRY(0) {
-          exprTreeToBinary(&bw, pNode);
-        } CATCH(code) {
-          tbufCloseWriter(&bw);
-          UNUSED(code);
-          // TODO: other error handling
-        } END_TRY
-        
-        size_t len = tbufTell(&bw);
-        char* c = tbufGetData(&bw, true);
-        
-        // set the serialized binary string as the parameter of arithmetic expression
-        addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, len, index.tableIndex);
-        
-        insertResultField(pQueryInfo, i, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->aliasName, pExpr);
-        
-        taosArrayDestroy(colList);
-        tExprTreeDestroy(&pNode, NULL);
-      } else {
-        columnList.num = 0;
-        columnList.ids[0] = (SColumnIndex) {0, 0};
-        
-        insertResultField(pQueryInfo, i, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, "dummy_column", NULL);
-        
-        int32_t slot = tscNumOfFields(pQueryInfo) - 1;
-        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, slot);
-        
-        if (pInfo->pSqlExpr == NULL) {
-          SExprInfo* pArithExprInfo = calloc(1, sizeof(SExprInfo));
-          
-          // arithmetic expression always return result in the format of double float
-          pArithExprInfo->bytes = sizeof(double);
-          pArithExprInfo->interBytes = sizeof(double);
-          pArithExprInfo->type = TSDB_DATA_TYPE_DOUBLE;
-
-          int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
-          if (ret != TSDB_CODE_SUCCESS) {
-            tExprTreeDestroy(&pArithExprInfo->pExpr, NULL);
-            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
-          }
-  
-          pInfo->pArithExprInfo = pArithExprInfo;
-        }
-      }
     } else {
       /*
        * not support such expression
@@ -3090,14 +3112,14 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* 
 }
 
 // todo error handle / such as and /or mixed with +/-/*/
-int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString) {
+int32_t doArithmeticExprToString(tSQLExpr* pExpr, char** exprString) {
   tSQLExpr* pLeft = pExpr->pLeft;
   tSQLExpr* pRight = pExpr->pRight;
 
   *(*exprString)++ = '(';
 
   if (pLeft->nSQLOptr >= TK_PLUS && pLeft->nSQLOptr <= TK_REM) {
-    buildArithmeticExprString(pLeft, exprString);
+    doArithmeticExprToString(pLeft, exprString);
   } else {
     int32_t ret = tSQLExprNodeToString(pLeft, exprString);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -3108,7 +3130,7 @@ int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString) {
   optrToString(pExpr, exprString);
 
   if (pRight->nSQLOptr >= TK_PLUS && pRight->nSQLOptr <= TK_REM) {
-    buildArithmeticExprString(pRight, exprString);
+    doArithmeticExprToString(pRight, exprString);
   } else {
     int32_t ret = tSQLExprNodeToString(pRight, exprString);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -3119,6 +3141,19 @@ int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString) {
   *(*exprString)++ = ')';
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t arithmeticExprToString(tSQLExpr* pExpr, char** str) {
+  char* start = *str;
+
+  int32_t code = doArithmeticExprToString(pExpr, str);
+  if (code == TSDB_CODE_SUCCESS) { // remove out the parenthesis
+    int32_t len = strlen(start);
+    memmove(start, start + 1, len - 2);
+    start[len - 2] = 0;
+  }
+
+  return code;
 }
 
 static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type) {

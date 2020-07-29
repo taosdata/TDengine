@@ -249,23 +249,25 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
 }
 
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
-  if (pRes->tsrow == NULL) {
-    int32_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
-    pRes->numOfCols = numOfOutput;
-  
-    pRes->tsrow  = calloc(numOfOutput, POINTER_BYTES);
-    pRes->length = calloc(numOfOutput, sizeof(int32_t));  // todo refactor
-    pRes->buffer = calloc(numOfOutput, POINTER_BYTES);
-  
-    // not enough memory
-    if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
-      tfree(pRes->tsrow);
-      tfree(pRes->buffer);
-      tfree(pRes->length);
-    
-      pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      return pRes->code;
-    }
+  if (pRes->tsrow != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
+  pRes->numOfCols = numOfOutput;
+
+  pRes->tsrow  = calloc(numOfOutput, POINTER_BYTES);
+  pRes->length = calloc(numOfOutput, sizeof(int32_t));  // todo refactor
+  pRes->buffer = calloc(numOfOutput, POINTER_BYTES);
+
+  // not enough memory
+  if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
+    tfree(pRes->tsrow);
+    tfree(pRes->buffer);
+    tfree(pRes->length);
+
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pRes->code;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -858,12 +860,13 @@ void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src) {
 }
 
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
+  assert(index < pFieldInfo->numOfOutput);
   return TARRAY_GET_ELEM(pFieldInfo->pFields, index);
 }
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, index);
-  assert(pInfo != NULL);
+  assert(pInfo != NULL && pInfo->pSqlExpr != NULL);
 
   return pInfo->pSqlExpr->offset;
 }
@@ -1773,11 +1776,36 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
       SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
       
       if (pExpr->uid == uid) {
-        TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
-        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
-  
-        SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
-        *pInfo1 = *pInfo;
+        if (i < pFieldInfo->numOfOutput) {
+          SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
+          if (pInfo->pSqlExpr != NULL) {
+            TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
+            assert(strcmp(p->name, pExpr->aliasName) == 0 && pInfo->pSqlExpr == pExpr);
+
+            SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
+            *pInfo1 = *pInfo;
+          } else {
+            // current sql function is not direct output result, so create a dummy output field
+            assert(pInfo->pArithExprInfo != NULL);
+
+            TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
+            tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
+
+            SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
+
+            pInfo1->pSqlExpr = pExpr;
+            pInfo1->visible = false;
+          }
+        } else {
+          // current sql function is not direct output result, so create a dummy output field
+          TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
+          tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
+
+          SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
+
+          pInfo1->pSqlExpr = pExpr;
+          pInfo1->visible = false;
+        }
       }
     }
 

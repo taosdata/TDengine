@@ -1461,7 +1461,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
-    tscSetResultPointer(pQueryInfo, pRes);
+    tscCreateResPointerInfo(pRes, pQueryInfo);
   }
 
   pRes->row = 0;
@@ -2112,21 +2112,6 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   pRes->row = 0;
   tscDebug("%p numOfRows:%" PRId64 ", offset:%" PRId64 ", complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
 
-  return 0;
-}
-
-int tscProcessRetrieveRspFromLocal(SSqlObj *pSql) {
-  SSqlRes *   pRes = &pSql->res;
-  SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-
-  SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *)pRes->pRsp;
-
-  pRes->numOfRows = htonl(pRetrieve->numOfRows);
-  pRes->data = pRetrieve->data;
-
-  tscSetResultPointer(pQueryInfo, pRes);
-  pRes->row = 0;
   return 0;
 }
 
