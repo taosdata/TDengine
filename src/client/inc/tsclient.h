@@ -60,15 +60,14 @@ typedef struct SCMCorVgroupInfo {
 } SCMCorVgroupInfo;
 
 typedef struct STableMeta {
-  STableComInfo tableInfo;
-  uint8_t       tableType;
-  int16_t       sversion;
-  int16_t       tversion;
+  STableComInfo  tableInfo;
+  uint8_t        tableType;
+  int16_t        sversion;
+  int16_t        tversion;
   SCMVgroupInfo  vgroupInfo;
   SCMCorVgroupInfo  corVgroupInfo;
-  int32_t       sid;       // the index of one table in a virtual node
-  uint64_t      uid;       // unique id of a table
-  SSchema       schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
+  STableId       id;
+  SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
 typedef struct STableMetaInfo {

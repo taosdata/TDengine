@@ -6287,12 +6287,6 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
   freeQInfo(pQInfo);
 }
 
-static void setQueryResultReady(SQInfo* pQInfo) {
-  pthread_mutex_lock(&pQInfo->lock);
-  pQInfo->dataReady = QUERY_RESULT_READY;
-  pthread_mutex_unlock(&pQInfo->lock);
-}
-
 static bool doBuildResCheck(SQInfo* pQInfo) {
   bool buildRes = false;
 
