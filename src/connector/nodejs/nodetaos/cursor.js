@@ -196,15 +196,11 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
   */
   obs.observe({ entryTypes: ['measure'] });
   performance.mark('A');
-  console.log('fetchall ----------------');
-   
   while(true) {
 
     let blockAndRows = this._chandle.fetchBlock(this._result, this._fields);
-
     let block = blockAndRows.blocks;
     let num_of_rows = blockAndRows.num_of_rows;
-
     if (num_of_rows == 0) {
       break;
     }

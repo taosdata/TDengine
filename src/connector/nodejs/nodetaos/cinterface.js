@@ -26,7 +26,7 @@ function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false
   if (micro == true) {
     timestampConverter = convertMicrosecondsToDatetime;
   }
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -44,7 +44,7 @@ function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false
   return res;
 }
 function convertBool(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = new Array(data.length);
   for (let i = 0; i < data.length; i++) {
     if (data[i] == 0) {
@@ -60,7 +60,7 @@ function convertBool(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -71,7 +71,7 @@ function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) 
   return res;
 }
 function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -82,7 +82,7 @@ function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, micro=false)
   return res;
 }
 function convertInt(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -93,18 +93,18 @@ function convertInt(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
     let d = data.readInt64LE(currOffset);
-    res.push(d == FieldTypes.C_BIGINT_NULL ? null : d);
+    res.push(d == FieldTypes.C_BIGINT_NULL ? null : BigInt(d));
     currOffset += nbytes;
   }
   return res;
 }
 function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -115,7 +115,7 @@ function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertDouble(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -126,7 +126,7 @@ function convertDouble(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -142,7 +142,7 @@ function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data, nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   // every 4 bytes, a character is encoded;
@@ -211,7 +211,7 @@ function CTaosInterface (config = null, pass = false) {
     //int taos_affected_rows(TAOS *taos)
     'taos_affected_rows': [ ref.types.int, [ ref.types.void_ptr] ],
     //int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)
-    'taos_fetch_block': [ ref.types.int, [ ref.types.void_ptr, ref.types.void_ptr2] ],
+    'taos_fetch_block': [ ref.types.int, [ ref.types.void_ptr, ref.types.void_ptr] ],
     //int taos_num_fields(TAOS_RES *res);
     'taos_num_fields': [ ref.types.int, [ ref.types.void_ptr] ],
     //TAOS_ROW taos_fetch_row(TAOS_RES *res)
@@ -349,48 +349,42 @@ CTaosInterface.prototype.useResult = function useResult(result) {
   return {fields:fields}
 }
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
-  let pblock = ref.ref(ref.NULL); // equal to our raw data
-  pblock = this.libtaos.taos_fetch_row(result);
-
-  if (pblock == 0) {
+  let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
+  let num_of_rows = this.libtaos.taos_fetch_block(result, pblock)
+  if (num_of_rows == 0) {
     return {block:null, num_of_rows:0};
   }
-  let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO)
-  
-
-  //num_of_rows = Math.abs(num_of_rows);
-  let offset = 0;
-  //pblock = pblock.deref();
-  
   var fieldL = this.libtaos.taos_fetch_lengths(result);
   var numoffields = this.libtaos.taos_field_count(result);
 
-  let blocks = new Array(numoffields);
-  blocks.fill(null);
+  let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO);
+
   var fieldlens = [];
   
   if (ref.isNull(fieldL) == false) {
     
     for (let i = 0; i < numoffields; i ++) {
       let plen = ref.reinterpret(fieldL, 4, i*4);
-      //plen = ref.readPointer(plen,0,ref.types.int);
       let len = plen.readInt32LE(0);
        fieldlens.push(len);
-       //console.log(len);
     }
   }
+
+  let blocks = new Array(numoffields);
+  blocks.fill(null);
+  num_of_rows = Math.abs(num_of_rows);
+  let offset = 0;
+  pblock = pblock.deref();
   for (let i = 0; i < numoffields; i++) {
+
     if (!convertFunctions[fields['fields'][i]['type']] ) {
       throw new errors.DatabaseError("Invalid data type returned from database");
     }
-    prow = ref.reinterpret(pblock,8,i*8);
-    console.log(fieldlens[i]);
-    blocks[i] = convertFunctions[fields['fields'][i]['type']](prow, 1, fieldlens[i], 0, isMicro);
-    console.log('******************************');
+    blocks[i] = convertFunctions[fields['fields'][i]['type']](pblock, num_of_rows, fieldlens[i], offset, isMicro);
     console.log(blocks[i]);
-    //offset += fields[i]['bytes'] * num_of_rows;
+    offset += fields['fields'][i]['bytes'] * num_of_rows;
   }
-  return {blocks: blocks, num_of_rows:1}
+  return {blocks: blocks, num_of_rows:Math.abs(num_of_rows)}
 }
 CTaosInterface.prototype.fetchRow = function fetchRow(result, fields) {
   let row = this.libtaos.taos_fetch_row(result);
