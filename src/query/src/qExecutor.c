@@ -6287,10 +6287,17 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
   freeQInfo(pQInfo);
 }
 
-static void setQueryResultReady(SQInfo* pQInfo) {
+static bool doBuildResCheck(SQInfo* pQInfo) {
+  bool buildRes = false;
+
   pthread_mutex_lock(&pQInfo->lock);
+
   pQInfo->dataReady = QUERY_RESULT_READY;
+  buildRes = (pQInfo->rspContext != NULL);
+
   pthread_mutex_unlock(&pQInfo->lock);
+
+  return buildRes;
 }
 
 bool qTableQuery(qinfo_t qinfo) {
@@ -6303,16 +6310,13 @@ bool qTableQuery(qinfo_t qinfo) {
 
   if (IS_QUERY_KILLED(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
-    setQueryResultReady(pQInfo);
-    return false;
+    return doBuildResCheck(pQInfo);
   }
 
   if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
-    setQueryStatus(pQInfo->runtimeEnv.pQuery, QUERY_COMPLETED);
-    setQueryResultReady(pQInfo);
-
     qDebug("QInfo:%p no table exists for query, abort", pQInfo);
-    return false;
+    setQueryStatus(pQInfo->runtimeEnv.pQuery, QUERY_COMPLETED);
+    return doBuildResCheck(pQInfo);
   }
 
   // error occurs, record the error code and return to client
@@ -6320,9 +6324,7 @@ bool qTableQuery(qinfo_t qinfo) {
   if (ret != TSDB_CODE_SUCCESS) {
     pQInfo->code = ret;
     qDebug("QInfo:%p query abort due to error/cancel occurs, code:%s", pQInfo, tstrerror(pQInfo->code));
-
-    setQueryResultReady(pQInfo);
-    return false;
+    return doBuildResCheck(pQInfo);
   }
 
   qDebug("QInfo:%p query task is launched", pQInfo);
@@ -6347,17 +6349,7 @@ bool qTableQuery(qinfo_t qinfo) {
            pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
   }
 
-  bool buildRes = false;
-  pthread_mutex_lock(&pQInfo->lock);
-  pQInfo->dataReady = QUERY_RESULT_READY;
-
-  if (pQInfo->rspContext != NULL) {
-    buildRes = true;
-  }
-
-
-  pthread_mutex_unlock(&pQInfo->lock);
-  return buildRes;
+  return doBuildResCheck(pQInfo);
 }
 
 int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContext) {
@@ -6484,7 +6476,6 @@ int32_t qKillQuery(qinfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-//  sem_post(&pQInfo->dataReady);
   setQueryKilled(pQInfo);
   return TSDB_CODE_SUCCESS;
 }
@@ -6749,14 +6740,14 @@ void** qAcquireQInfo(void* pMgmt, uint64_t key) {
   }
 }
 
-void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool needFree) {
+void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   SQueryMgmt *pQueryMgmt = pMgmt;
 
   if (pQueryMgmt->qinfoPool == NULL) {
     return NULL;
   }
 
-  taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, needFree);
+  taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, freeHandle);
   return 0;
 }
 

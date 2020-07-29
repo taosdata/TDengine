@@ -14,10 +14,9 @@
  */
 
 #include "os.h"
-
 #include "hash.h"
 #include "tulog.h"
-#include "tutil.h"
+#include "taosdef.h"
 
 static FORCE_INLINE void __wr_lock(void *lock) {
   if (lock == NULL) {

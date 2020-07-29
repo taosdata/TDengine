@@ -205,7 +205,6 @@ ssize_t tread(int fd, void *buf, size_t count);
 
 ssize_t twrite(int fd, void *buf, size_t n);
 
-char *taosCharsetReplace(char *charsetstr);
 
 bool taosCheckPthreadValid(pthread_t thread);
 
@@ -218,8 +217,6 @@ int taosSetNonblocking(int sock, int on);
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
 void taosPrintOsInfo();
-
-char *taosCharsetReplace(char *charsetstr);
 
 void taosPrintOsInfo();
 

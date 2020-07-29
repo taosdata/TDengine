@@ -15,74 +15,54 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "ttime.h"
 
-ssize_t taosTReadImp(int fd, void *buf, size_t count) {
-  size_t  leftbytes = count;
-  ssize_t readbytes;
-  char *  tbuf = (char *)buf;
+#ifndef TAOS_OS_FUNC_FILE
 
-  while (leftbytes > 0) {
-    readbytes = read(fd, (void *)tbuf, leftbytes);
-    if (readbytes < 0) {
-      if (errno == EINTR) {
-        continue;
-      } else {
-        return -1;
-      }
-    } else if (readbytes == 0) {
-      return (ssize_t)(count - leftbytes);
-    }
-
-    leftbytes -= readbytes;
-    tbuf += readbytes;
+void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
+  const char* tdengineTmpFileNamePrefix = "tdengine-";
+  
+  char tmpPath[PATH_MAX];
+  char *tmpDir = "/tmp/";
+  
+  strcpy(tmpPath, tmpDir);
+  strcat(tmpPath, tdengineTmpFileNamePrefix);
+  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
+    strcat(tmpPath, fileNamePrefix);
+    strcat(tmpPath, "-%d-%s");
   }
-
-  return (ssize_t)count;
+  
+  char rand[8] = {0};
+  taosRandStr(rand, tListLen(rand) - 1);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 }
 
-ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
-  size_t  leftbytes = size;
-  ssize_t sentbytes;
+// rename file name
+int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath) {
+  int32_t ts = taosGetTimestampSec();
 
-  while (leftbytes > 0) {
-    /*
-     * TODO : Think to check if file is larger than 1GB
-     */
-    //if (leftbytes > 1000000000) leftbytes = 1000000000;
-    sentbytes = sendfile(dfd, sfd, offset, leftbytes);
-    if (sentbytes == -1) {
-      if (errno == EINTR) {
-        continue;
-      }
-      else {
-        return -1;
-      }
-    } else if (sentbytes == 0) {
-      return (ssize_t)(size - leftbytes);
-    }
+  char fname[PATH_MAX] = {0};  // max file name length must be less than 255
 
-    leftbytes -= sentbytes;
+  char *delimiterPos = strrchr(fullPath, delimiter);
+  if (delimiterPos == NULL) return -1;
+
+  int32_t fileNameLen = 0;
+  if (suffix)
+    fileNameLen = snprintf(fname, PATH_MAX, "%s.%d.%s", delimiterPos + 1, ts, suffix);
+  else
+    fileNameLen = snprintf(fname, PATH_MAX, "%s.%d", delimiterPos + 1, ts);
+
+  size_t len = (size_t)((delimiterPos - fullPath) + fileNameLen + 1);
+  if (*dstPath == NULL) {
+    *dstPath = calloc(1, len + 1);
+    if (*dstPath == NULL) return -1;
   }
 
-  return size;
+  strncpy(*dstPath, fullPath, (size_t)(delimiterPos - fullPath + 1));
+  strncat(*dstPath, fname, (size_t)fileNameLen);
+  (*dstPath)[len] = 0;
+
+  return rename(fullPath, *dstPath);
 }
 
-ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
-  size_t nleft = n; 
-  ssize_t nwritten = 0;
-  char *tbuf = (char *)buf;
-
-  while (nleft > 0) {
-    nwritten = write(fd, (void *)tbuf, nleft);
-    if (nwritten < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return -1;
-    }
-    nleft -= nwritten;
-    tbuf += nwritten;
-  }
-
-  return n;
-}
+#endif

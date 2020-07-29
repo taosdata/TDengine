@@ -48,6 +48,8 @@
 extern "C" {
 #endif
 
+#define TAOS_OS_FUNC_WCHAR
+
 // for function open in stat.h 
 #define S_IRWXU                  _S_IREAD
 #define S_IRWXG                  _S_IWRITE
@@ -359,7 +361,6 @@ int taosSetNonblocking(int sock, int on);
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
-char *taosCharsetReplace(char *charsetstr);
 
 void taosPrintOsInfo();
 

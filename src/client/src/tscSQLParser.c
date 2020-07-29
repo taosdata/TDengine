@@ -635,7 +635,7 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-    if (pTableMetaInfo->pTableMeta->uid == uid) {
+    if (pTableMetaInfo->pTableMeta->id.uid == uid) {
       tableIndex = i;
       break;
     }
@@ -3053,7 +3053,7 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   SSchema* pTagSchema1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-  pLeft->uid = pTableMetaInfo->pTableMeta->uid;
+  pLeft->uid = pTableMetaInfo->pTableMeta->id.uid;
   pLeft->tagColId = pTagSchema1->colId;
   strcpy(pLeft->tableId, pTableMetaInfo->name);
 
@@ -3065,7 +3065,7 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* 
   pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   SSchema* pTagSchema2 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-  pRight->uid = pTableMetaInfo->pTableMeta->uid;
+  pRight->uid = pTableMetaInfo->pTableMeta->id.uid;
   pRight->tagColId = pTagSchema2->colId;
   strcpy(pRight->tableId, pTableMetaInfo->name);
 
@@ -3603,7 +3603,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableCondIndex);
 
   STagCond* pTagCond = &pQueryInfo->tagCond;
-  pTagCond->tbnameCond.uid = pTableMetaInfo->pTableMeta->uid;
+  pTagCond->tbnameCond.uid = pTableMetaInfo->pTableMeta->id.uid;
 
   assert(pExpr->nSQLOptr == TK_LIKE || pExpr->nSQLOptr == TK_IN);
 
@@ -3840,7 +3840,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     
     // add to source column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-    int64_t uid = pTableMetaInfo->pTableMeta->uid;
+    int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
     int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     
     size_t num = taosArrayGetSize(colList);
@@ -4506,8 +4506,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
     pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    pUpdateMsg->tid       = htonl(pTableMeta->sid);
-    pUpdateMsg->uid       = htobe64(pTableMeta->uid);
+    pUpdateMsg->tid       = htonl(pTableMeta->id.tid);
+    pUpdateMsg->uid       = htobe64(pTableMeta->id.uid);
     pUpdateMsg->colId     = htons(pTagsSchema->colId);
     pUpdateMsg->type      = pTagsSchema->type;
     pUpdateMsg->bytes     = htons(pTagsSchema->bytes);
@@ -5045,7 +5045,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
 
     if (pExpr->functionId != TSDB_FUNC_TAG) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
-      int16_t         columnInfo = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid);
+      int16_t         columnInfo = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
       SColumnIndex    index = {.tableIndex = 0, .columnIndex = columnInfo};
       SSchema*        pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
 

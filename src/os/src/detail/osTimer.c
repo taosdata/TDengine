@@ -13,13 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tulog.h"
-#include "tutil.h"
-#include <signal.h>
 
 #ifndef TAOS_OS_FUNC_TIMER
 
