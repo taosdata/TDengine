@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "tsync.h"
 #include "tbalance.h"
@@ -30,8 +31,6 @@
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
 #include "mnodeUser.h"
-
-#include "tglobal.h"
 
 static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
@@ -279,9 +278,8 @@ int32_t mnodeAddMnode(int32_t dnodeId) {
   };
 
   int32_t code = sdbInsertRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     tfree(pMnode);
-    code = TSDB_CODE_MND_SDB_ERROR;
   }
 
   mnodeUpdateMnodeEpSet();
@@ -313,9 +311,6 @@ int32_t mnodeDropMnode(int32_t dnodeId) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_SDB_ERROR;
-  }
 
   sdbDecRef(tsMnodeSdb, pMnode);
 

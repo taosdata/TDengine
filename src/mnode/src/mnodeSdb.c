@@ -101,6 +101,11 @@ static int32_t sdbInitWriteWorker();
 static void    sdbCleanupWriteWorker();
 static int32_t sdbAllocWriteQueue();
 static void    sdbFreeWritequeue();
+static int32_t sdbUpdateRowImp(SSdbOper *pOper);
+static int32_t sdbDeleteRowImp(SSdbOper *pOper);
+static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper);
+static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbOper *pOper);
+static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper);
 
 int32_t sdbGetId(void *handle) {
   return ((SSdbTable *)handle)->autoIndex;
@@ -260,8 +265,20 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
              tstrerror(code));
   }
 
-  if (pOper->cb != NULL) {
-    pOper->retCode = (*pOper->cb)(pMsg, pOper->retCode);
+  // failed to forward, need revert insert
+  if (pOper->retCode != TSDB_CODE_SUCCESS) {
+    SWalHead *pHead = (void *)pOper + sizeof(SSdbOper) + SDB_SYNC_HACK;
+    int32_t   action = pHead->msgType % 10;
+    sdbError("table:%s record:%p:%s ver:%" PRIu64 ", action:%d failed to foward reason:%s",
+             ((SSdbTable *)pOper->table)->tableName, pOper->pObj, sdbGetKeyStr(pOper->table, pHead->cont),
+             pHead->version, action, tstrerror(pOper->retCode));
+    if (action == SDB_ACTION_INSERT) {
+      sdbDeleteHash(pOper->table, pOper);
+    }
+  }
+
+  if (pOper->writeCb != NULL) {
+    pOper->retCode = (*pOper->writeCb)(pMsg, pOper->retCode);
   }
   dnodeSendRpcMnodeWriteRsp(pMsg, pOper->retCode);
 
@@ -269,6 +286,7 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   if (ahandle == NULL) {
     sdbDecRef(pOper->table, pOper->pObj);
   }
+
   taosFreeQitem(pOper);
 }
 
@@ -609,7 +627,8 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
   if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
 
   if (sdbGetRowFromObj(pTable, pOper->pObj)) {
-    sdbError("table:%s, failed to insert record:%s, already exist", pTable->tableName, sdbGetKeyStrFromObj(pTable, pOper->pObj));
+    sdbError("table:%s, failed to insert record:%s, already exist", pTable->tableName,
+             sdbGetKeyStrFromObj(pTable, pOper->pObj));
     sdbDecRef(pTable, pOper->pObj);
     return TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE;
   }
@@ -634,9 +653,20 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pOper->reqFp) {
+    return (*pOper->reqFp)(pOper->pMsg);
+  } else {
+    return sdbInsertRowImp(pOper);
+  }
+}
+
+int32_t sdbInsertRowImp(SSdbOper *pOper) {
+  SSdbTable *pTable = (SSdbTable *)pOper->table;
+  if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+
   int32_t size = sizeof(SSdbOper) + sizeof(SWalHead) + pTable->maxRowSize + SDB_SYNC_HACK;
   SSdbOper *pNewOper = taosAllocateQitem(size);
-  
+
   SWalHead *pHead = (void *)pNewOper + sizeof(SSdbOper) + SDB_SYNC_HACK;
   pHead->version = 0;
   pHead->len = pOper->rowSize;
@@ -655,7 +685,8 @@ int32_t sdbInsertRow(SSdbOper *pOper) {
 
   sdbIncRef(pNewOper->table, pNewOper->pObj);
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
-  return TSDB_CODE_SUCCESS;
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 bool sdbCheckRowDeleted(void *pTableInput, void *pRow) {
@@ -664,7 +695,6 @@ bool sdbCheckRowDeleted(void *pTableInput, void *pRow) {
 
   int32_t *updateEnd = pRow + pTable->refCountPos - 4;
   return atomic_val_compare_exchange_32(updateEnd, 1, 1) == 1;
-  // return (*updateEnd == 1);
 }
 
 int32_t sdbDeleteRow(SSdbOper *pOper) {
@@ -692,13 +722,24 @@ int32_t sdbDeleteRow(SSdbOper *pOper) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pOper->reqFp) {
+    return (*pOper->reqFp)(pOper->pMsg);
+  } else {
+    return sdbDeleteRowImp(pOper);
+  }
+}
+
+int32_t sdbDeleteRowImp(SSdbOper *pOper) {
+  SSdbTable *pTable = (SSdbTable *)pOper->table;
+  if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+
   int32_t size = sizeof(SSdbOper) + sizeof(SWalHead) + pTable->maxRowSize + SDB_SYNC_HACK;
   SSdbOper *pNewOper = taosAllocateQitem(size);
 
   SWalHead *pHead = (void *)pNewOper + sizeof(SSdbOper) + SDB_SYNC_HACK;
   pHead->version = 0;
   pHead->msgType = pTable->tableId * 10 + SDB_ACTION_DELETE;
-  
+
   pOper->rowData = pHead->cont;
   (*pTable->encodeFp)(pOper);
   pHead->len = pOper->rowSize;
@@ -711,7 +752,8 @@ int32_t sdbDeleteRow(SSdbOper *pOper) {
   }
 
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
-  return TSDB_CODE_SUCCESS;
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 int32_t sdbUpdateRow(SSdbOper *pOper) {
@@ -735,6 +777,17 @@ int32_t sdbUpdateRow(SSdbOper *pOper) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pOper->reqFp) {
+    return (*pOper->reqFp)(pOper->pMsg);
+  } else {
+    return sdbUpdateRowImp(pOper);
+  }
+}
+
+int32_t sdbUpdateRowImp(SSdbOper *pOper) {
+  SSdbTable *pTable = (SSdbTable *)pOper->table;
+  if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+
   int32_t size = sizeof(SSdbOper) + sizeof(SWalHead) + pTable->maxRowSize + SDB_SYNC_HACK;
   SSdbOper *pNewOper = taosAllocateQitem(size);
 
@@ -755,7 +808,8 @@ int32_t sdbUpdateRow(SSdbOper *pOper) {
 
   sdbIncRef(pNewOper->table, pNewOper->pObj);
   taosWriteQitem(tsSdbWriteQueue, TAOS_QTYPE_RPC, pNewOper);
-  return TSDB_CODE_SUCCESS;
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {

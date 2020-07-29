@@ -261,7 +261,8 @@ void mnodeUpdateDnode(SDnodeObj *pDnode) {
     .pObj = pDnode
   };
 
-  if (sdbUpdateRow(&oper) != 0) {
+  int32_t code = sdbUpdateRow(&oper);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnodeId:%d, failed update", pDnode->dnodeId);
   }
 }
@@ -501,13 +502,12 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   };
 
   int32_t code = sdbInsertRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
-    mError("failed to create dnode:%d, result:%s", dnodeId, tstrerror(code));
+    mError("failed to create dnode:%d, reason:%s", dnodeId, tstrerror(code));
   } else {
-    mInfo("dnode:%d is created, result:%s", pDnode->dnodeId, tstrerror(code));
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    mLInfo("dnode:%d is created", pDnode->dnodeId);
   }
 
   return code;
@@ -522,9 +522,10 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code == TSDB_CODE_SUCCESS) {
-    mLInfo("dnode:%d, is dropped from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("dnode:%d, failed to drop from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
+  } else {
+    mLInfo("dnode:%d, is dropped from cluster", pDnode->dnodeId);
   }
 
   return code;
