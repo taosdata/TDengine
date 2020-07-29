@@ -109,6 +109,7 @@ int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
 int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
+int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = 100;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
@@ -734,6 +735,16 @@ static void doInitGlobalConfig() {
 
   cfg.option = "replica";
   cfg.ptr = &tsReplications;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "quorum";
+  cfg.ptr = &tsQuorum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;

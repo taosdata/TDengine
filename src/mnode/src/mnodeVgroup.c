@@ -784,7 +784,7 @@ static SMDCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->walLevel            = pDb->cfg.walLevel;
   pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
   pCfg->wals                = 3;
-  pCfg->quorum              = 1;
+  pCfg->quorum              = pDb->cfg.quorum;
   
   SMDVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {

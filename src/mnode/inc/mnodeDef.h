@@ -171,6 +171,7 @@ typedef struct {
   int8_t  compression;
   int8_t  walLevel;
   int8_t  replications;
+  int8_t  quorum;
   int8_t  reserved[12];
 } SDbCfg;
 

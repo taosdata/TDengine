@@ -119,6 +119,7 @@ typedef struct SCreateDBInfo {
   int32_t   fsyncPeriod;
   int64_t   commitTime;
   int32_t   walLevel;
+  int32_t   quorum;
   int32_t   compressionLevel;
   SSQLToken precision;
   bool      ignoreExists;
