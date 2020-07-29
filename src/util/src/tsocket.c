@@ -304,9 +304,9 @@ int taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientI
     //uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
     close(sockFd);
     sockFd = -1;
+  } else {
+    taosKeepTcpAlive(sockFd);
   }
-
-  taosKeepTcpAlive(sockFd);
 
   return sockFd;
 }
