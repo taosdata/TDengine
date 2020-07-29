@@ -24,16 +24,16 @@ endi
 if $data04 != 1 then 
   return -1
 endi
-if $data05 != 10 then 
+if $data06 != 10 then 
   return -1
 endi
-if $data06 != 20,20,20 then 
+if $data07 != 20,20,20 then 
   return -1
 endi
-if $data07 != 2 then 
+if $data08 != 2 then 
   return -1
 endi
-if $data08 != 4 then 
+if $data09 != 4 then 
   return -1
 endi
 

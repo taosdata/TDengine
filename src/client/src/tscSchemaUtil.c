@@ -162,8 +162,8 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
     .numOfColumns = pTableMetaMsg->numOfColumns,
   };
   
-  pTableMeta->sid = pTableMetaMsg->sid;
-  pTableMeta->uid = pTableMetaMsg->uid;
+  pTableMeta->id.tid = pTableMetaMsg->sid;
+  pTableMeta->id.uid = pTableMetaMsg->uid;
   pTableMeta->vgroupInfo = pTableMetaMsg->vgroup;
 
   tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMeta->vgroupInfo);

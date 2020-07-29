@@ -80,6 +80,7 @@ extern int16_t tsCompression;
 extern int16_t tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
+extern int32_t tsQuorum;
 
 // balance
 extern int32_t tsEnableBalance;

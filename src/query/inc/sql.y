@@ -215,6 +215,7 @@ keep(Y)    ::= KEEP tagitemlist(X).           { Y = X; }
 tables(Y)  ::= MAXTABLES INTEGER(X).          { Y = X; }
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
 replica(Y) ::= REPLICA INTEGER(X).            { Y = X; }
+quorum(Y)  ::= QUORUM INTEGER(X).             { Y = X; }
 days(Y)    ::= DAYS INTEGER(X).               { Y = X; }
 minrows(Y) ::= MINROWS INTEGER(X).            { Y = X; }
 maxrows(Y) ::= MAXROWS INTEGER(X).            { Y = X; }
@@ -231,6 +232,7 @@ db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
 db_optr(Y) ::= db_optr(Z) tables(X).         { Y = Z; Y.maxTablesPerVnode = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) quorum(X).         { Y = Z; Y.quorum = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) days(X).           { Y = Z; Y.daysPerFile = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) minrows(X).        { Y = Z; Y.minRowsPerBlock = strtod(X.z, NULL); }
 db_optr(Y) ::= db_optr(Z) maxrows(X).        { Y = Z; Y.maxRowsPerBlock = strtod(X.z, NULL); }
@@ -246,6 +248,7 @@ db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) quorum(X).      { Y = Z; Y.quorum = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) tables(X).      { Y = Z; Y.maxTablesPerVnode = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) keep(X).        { Y = Z; Y.keep = X; }
 alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = strtol(X.z, NULL, 10); }
