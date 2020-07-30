@@ -300,7 +300,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
 
   void *pData = NULL;
 
-  __cache_rd_lock(pCacheObj);
+//  __cache_rd_lock(pCacheObj);
   SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
 
   int32_t ref = 0;
@@ -309,7 +309,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     pData = (*ptNode)->data;
   }
 
-  __cache_unlock(pCacheObj);
+//  __cache_unlock(pCacheObj);
 
   if (pData != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
