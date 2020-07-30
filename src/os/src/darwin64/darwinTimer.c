@@ -15,16 +15,29 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "os.h"
+#include "taosdef.h"
 #include "tglobal.h"
+#include "tconfig.h"
+#include "ttimer.h"
 #include "tulog.h"
+#include "tutil.h"
 
-void osInit() {
-  strcpy(configDir, "~/TDengine/cfg");
-  strcpy(tsVnodeDir, "");
-  strcpy(tsDnodeDir, "");
-  strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "~/TDengine/data");
-  strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsScriptDir, "~/TDengine/cfg");
-  strcpy(tsOsName, "Darwin");
+int taosInitTimer(void (*callback)(int), int ms) {
+  signal(SIGALRM, callback);
+
+  struct itimerval tv;
+  tv.it_interval.tv_sec = 0;  /* my timer resolution */
+  tv.it_interval.tv_usec = 1000 * ms;  // resolution is in msecond
+  tv.it_value = tv.it_interval;
+
+  setitimer(ITIMER_REAL, &tv, NULL);
+
+  return 0;
 }
+
+void taosUninitTimer() {
+  struct itimerval tv = { 0 };
+  setitimer(ITIMER_REAL, &tv, NULL);
+}
+

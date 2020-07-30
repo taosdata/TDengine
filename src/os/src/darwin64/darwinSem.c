@@ -15,16 +15,33 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "os.h"
+#include "taosdef.h"
 #include "tglobal.h"
+#include "tconfig.h"
+#include "ttimer.h"
 #include "tulog.h"
+#include "tutil.h"
 
-void osInit() {
-  strcpy(configDir, "~/TDengine/cfg");
-  strcpy(tsVnodeDir, "");
-  strcpy(tsDnodeDir, "");
-  strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "~/TDengine/data");
-  strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsScriptDir, "~/TDengine/cfg");
-  strcpy(tsOsName, "Darwin");
+int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value) {
+  *sem = dispatch_semaphore_create(value);
+  if (*sem == NULL) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+int tsem_wait(dispatch_semaphore_t *sem) {
+  dispatch_semaphore_wait(*sem, DISPATCH_TIME_FOREVER);
+  return 0;
+}
+
+int tsem_post(dispatch_semaphore_t *sem) {
+  dispatch_semaphore_signal(*sem);
+  return 0;
+}
+
+int tsem_destroy(dispatch_semaphore_t *sem) {
+  return 0;
 }

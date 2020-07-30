@@ -15,16 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobal.h"
-#include "tulog.h"
 
-void osInit() {
-  strcpy(configDir, "~/TDengine/cfg");
-  strcpy(tsVnodeDir, "");
-  strcpy(tsDnodeDir, "");
-  strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "~/TDengine/data");
-  strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsScriptDir, "~/TDengine/cfg");
-  strcpy(tsOsName, "Darwin");
+int64_t tsosStr2int64(char *str) {
+  char *endptr = NULL;
+  return strtoll(str, &endptr, 10);
 }

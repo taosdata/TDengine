@@ -232,12 +232,12 @@ extern "C" {
 
 ssize_t taosTReadImp(int fd, void *buf, size_t count);
 ssize_t taosTWriteImp(int fd, void *buf, size_t count);
+// TAOS_OS_FUNC_FILEOP
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size);
-#ifndef TAOS_OS_FUNC_FILE_OP
-  #define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
-  #define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
-  #define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
+int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
+#ifndef TAOS_OS_FUNC_FILEOP
   #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
+  #define taosFSendFile(outfile, infile, offset, count) taosTSendFileImp(fileno(outfile), fileno(infile), offset, size)
 #endif
 
 #ifndef TAOS_OS_FUNC_NETWORK
@@ -284,14 +284,22 @@ int64_t taosGetPthreadId();
 
 // TAOS_OS_FUNC_SOCKET
 int taosSetNonblocking(int sock, int on);
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 void taosBlockSIGPIPE();
+
+// TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
+int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
 // TAOS_OS_FUNC_SYSINFO
 void taosGetSystemInfo();
+bool taosGetProcIO(float *readKB, float *writeKB);
+bool taosGetBandSpeed(float *bandSpeedKb);
+bool taosGetDisk();
+bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) ;
+bool taosGetProcMemory(float *memoryUsedMB) ;
+bool taosGetSysMemory(float *memoryUsedMB);
 void taosPrintOsInfo();
+int  taosSystem(const char * cmd) ;
 void taosKillSystem();
-int tSystem(const char * cmd) ;
 
 // TAOS_OS_FUNC_CORE
 void taosSetCoreDump();
@@ -344,12 +352,13 @@ void taosMvDir(char* destDir, char *srcDir);
   ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
   ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
   off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
-  #undef taosTRead
-  #undef taosTWrite
-  #undef taosLSeek
   #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
   #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
   #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
+#else 
+  #define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
+  #define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
+  #define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
 #endif
 
 #ifdef TAOS_RANDOM_NETWORK_FAIL

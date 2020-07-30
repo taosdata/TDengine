@@ -543,12 +543,12 @@ void taosKillSystem() {
   kill(tsProcId, 2);
 }
 
-int tSystem(const char *cmd) {
+int taosSystem(const char *cmd) {
   FILE *fp;
   int   res;
   char  buf[1024];
   if (cmd == NULL) {
-    uError("tSystem cmd is NULL!\n");
+    uError("taosSystem cmd is NULL!\n");
     return -1;
   }
 

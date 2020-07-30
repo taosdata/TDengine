@@ -40,6 +40,28 @@ ssize_t taosTReadImp(int fd, void *buf, size_t count) {
   return (ssize_t)count;
 }
 
+ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
+  size_t nleft = n; 
+  ssize_t nwritten = 0;
+  char *tbuf = (char *)buf;
+
+  while (nleft > 0) {
+    nwritten = write(fd, (void *)tbuf, nleft);
+    if (nwritten < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      return -1;
+    }
+    nleft -= nwritten;
+    tbuf += nwritten;
+  }
+
+  return n;
+}
+
+#ifndef TAOS_OS_FUNC_FILEOP
+
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   size_t  leftbytes = size;
   ssize_t sentbytes;
@@ -67,22 +89,4 @@ ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   return size;
 }
 
-ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
-  size_t nleft = n; 
-  ssize_t nwritten = 0;
-  char *tbuf = (char *)buf;
-
-  while (nleft > 0) {
-    nwritten = write(fd, (void *)tbuf, nleft);
-    if (nwritten < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return -1;
-    }
-    nleft -= nwritten;
-    tbuf += nwritten;
-  }
-
-  return n;
-}
+#endif

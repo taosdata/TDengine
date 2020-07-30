@@ -15,16 +15,22 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "os.h"
+#include "taosdef.h"
 #include "tglobal.h"
+#include "tconfig.h"
+#include "ttimer.h"
 #include "tulog.h"
+#include "tutil.h"
 
-void osInit() {
-  strcpy(configDir, "~/TDengine/cfg");
-  strcpy(tsVnodeDir, "");
-  strcpy(tsDnodeDir, "");
-  strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "~/TDengine/data");
-  strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsScriptDir, "~/TDengine/cfg");
-  strcpy(tsOsName, "Darwin");
+int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
+  if (level == SOL_SOCKET && optname == SO_SNDBUF) {
+    return 0;
+  }
+
+  if (level == SOL_SOCKET && optname == SO_RCVBUF) {
+    return 0;
+  }
+
+  return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }

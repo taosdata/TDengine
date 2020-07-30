@@ -739,11 +739,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   int64_t offset = getDataStartOffset();
   int32_t size = pSrcBuf->fileSize - offset;
 
-#ifdef LINUX
-  ssize_t rc = taosTSendFile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
-#else
-  ssize_t rc = fsendfile(pDestBuf->f, pSrcBuf->f, &offset, size);
-#endif
+  ssize_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
   if (rc == -1) {
 //    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));

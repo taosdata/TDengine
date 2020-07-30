@@ -60,7 +60,7 @@ void taosMvDir(char* destDir, char *srcDir) {
   
   //(void)snprintf(shellCmd, 1024, "cp -rf %s %s", srcDir, destDir);
   (void)snprintf(shellCmd, 1024, "mv %s %s", srcDir, destDir);
-  tSystem(shellCmd);
+  taosSystem(shellCmd);
   uInfo("shell cmd:%s is executed", shellCmd);
 }
 
