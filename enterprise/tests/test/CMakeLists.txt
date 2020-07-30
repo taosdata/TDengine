@@ -13,8 +13,8 @@ target_link_libraries(asynctest taos pthread)
 #add_executable(perftest ./perftest/taosperf.c ./perftest/perftestcommon.c)
 #target_link_libraries(perftest taos pthread tutil)
 
-add_executable(percentiletest ./perftest/percentileTest.c)
-target_link_libraries(percentiletest taos_static tutil)
+#add_executable(percentiletest ./perftest/percentileTest.c)
+#target_link_libraries(percentiletest taos_static tutil)
 
 #add_executable(sqltest ./perftest/sqlTest.c ./perftest/testCommon.c)
 #target_link_libraries(sqltest taos tutil)

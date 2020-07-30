@@ -5,10 +5,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#include "qExtbuffer.h"
-#include "qPercentile.h"
 #include "taos.h"
-#include "taosmsg.h"
+//#include "taosmsg.h"
 
 void intDataTest();
 void bigintDataTest();
