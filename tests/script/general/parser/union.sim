@@ -412,4 +412,8 @@ if $data10 != @union_db0@ then
   return -1
 endi
 
+sql_error show tables union all show tables
+sql_error show stables union all show stables
+sql_error show databases union all show databases
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
