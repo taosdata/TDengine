@@ -207,7 +207,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
   
-  pCacheObj->pHashTable = taosHashInit(128, taosGetDefaultHashFunction(keyType), false);
+  pCacheObj->pHashTable = taosHashInit(128, taosGetDefaultHashFunction(keyType), true);
   pCacheObj->name = strdup(cacheName);
   if (pCacheObj->pHashTable == NULL) {
     free(pCacheObj);
@@ -268,7 +268,9 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
     if (T_REF_VAL_GET(pOld) > 0) {
 
       // todo removed by node, instead of by key
-      taosHashRemove(pCacheObj->pHashTable, pOld->key, pOld->keySize);
+      int32_t succ = taosHashRemove(pCacheObj->pHashTable, pOld->key, pOld->keySize);
+      assert(succ == 0);
+
       addToTrashcan = true;
     }
 
@@ -413,7 +415,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   }
 
   if (_remove) {
-    __cache_wr_lock(pCacheObj);
+//    __cache_wr_lock(pCacheObj);
 
     // NOTE: once refcount is decrease, pNode may be freed by other thread immediately.
     int32_t ref = T_REF_DEC(pNode);
@@ -427,22 +429,26 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
      * that tries to do the same thing.
      */
     if (pNode->inTrashCan) {
-      __cache_unlock(pCacheObj);
+//      __cache_unlock(pCacheObj);
 
       if (ref == 0) {
         assert(pNode->pTNodeHeader->pData == pNode);
         taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
       }
     } else {
-      taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
-      __cache_unlock(pCacheObj);
+      int32_t success = taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
 
       if (ref > 0) {
         assert(pNode->pTNodeHeader == NULL);
 
         // todo trashcan lock
-        taosAddToTrash(pCacheObj, pNode);
+        if (success) {
+          taosAddToTrash(pCacheObj, pNode);
+        }
+//        __cache_unlock(pCacheObj);
       } else {
+//        __cache_unlock(pCacheObj);
+
 //        taosCacheReleaseNode(pCacheObj, pNode);
         atomic_fetch_sub_ptr(&pCacheObj->totalSize, pNode->size);
         uDebug("cache:%s, key:%p, %p is destroyed from cache, totalNum:%d totalSize:%" PRId64 "bytes size:%dbytes",

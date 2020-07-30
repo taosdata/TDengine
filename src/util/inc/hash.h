@@ -103,7 +103,7 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param key
  * @param keyLen
  */
-void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
+int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
 
 void taosHashRemoveNode();
 

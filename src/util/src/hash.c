@@ -258,14 +258,14 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
   }
 }
 
-void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
+int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
 
   __wr_lock(pHashObj->lock);
   SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, hashVal);
   if (pNode == NULL) {
     __unlock(pHashObj->lock);
-    return;
+    return -1;
   }
 
   SHashNode *pNext = pNode->next;
@@ -289,6 +289,7 @@ void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   pNode->prev = NULL;
 
   tfree(pNode);
+  return 0;
 }
 
 void taosHashCleanup(SHashObj *pHashObj) {
