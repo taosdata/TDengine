@@ -258,12 +258,12 @@ int multiThreadQuery(int32_t numOfThreads, char* sql) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
   taos_init();
-  TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
+  TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
   if (conn == NULL) {
     printf("Failed to connect to DB, reason:%s", taos_errstr(conn));
     exit(-1);
