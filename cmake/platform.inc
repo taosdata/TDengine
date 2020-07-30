@@ -61,6 +61,8 @@ execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_os.sh)
 execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
 MESSAGE(STATUS "The current os is " ${TD_OS_INFO})
 
+ADD_DEFINITIONS(-D_TD_LINUX_64)
+
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   IF (${CMAKE_SIZEOF_VOID_P} MATCHES 8)
     SET(TD_LINUX_64 TRUE)
