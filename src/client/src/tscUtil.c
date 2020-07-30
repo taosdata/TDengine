@@ -2034,6 +2034,10 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   }
   
   int32_t numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
+  if (pTableMetaInfo->pVgroupTables != NULL) {
+    numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+  }
+
   return tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
          (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vgroupIndex < numOfVgroups - 1);
 }

@@ -257,6 +257,21 @@ if $data01 != $val then
   return -1
 endi
 
+sql select count(join_tb1.*) + count(join_tb0.*) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts >= 100000 and join_tb0.c7 = false;;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 20.000000000 then
+  print expect 20.000000000 actual $data00
+  return -1
+endi
+
+sql select count(join_tb1.*)/10 from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts >= 100000 and join_tb0.c7 = false;;
+if $data00 != 1.000000000 then
+  return -1
+endi
+
 print 3
 #agg + where condition
 sql select count(join_tb1.c3), count(join_tb0.ts) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts <= 100002 and join_tb0.c7 = true;
@@ -378,6 +393,15 @@ sql select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1
 
 $val = 198
 if $data00 != $val then
+  return -1
+endi
+
+sql select sum(join_mt0.c1)+sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 396.000000000 then
   return -1
 endi
 

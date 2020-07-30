@@ -1085,7 +1085,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     assert(taos_errno(pSql) == code);
 
-    tscError("%p abort query, code:%d, global code:%d", pSql, code, pParentSql->res.code);
+    tscError("%p abort query, code:%s, global code:%s", pSql, tstrerror(code), tstrerror(pParentSql->res.code));
     pParentSql->res.code = code;
 
     quitAllSubquery(pParentSql, pSupporter);
