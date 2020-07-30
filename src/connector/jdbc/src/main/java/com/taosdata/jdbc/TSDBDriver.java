@@ -260,49 +260,65 @@ public class TSDBDriver implements java.sql.Driver {
 		if (url.indexOf("?") != -1) {
 			String dbName = url.substring(0, url.indexOf("?"));
 			urlProps.setProperty(PROPERTY_KEY_DBNAME, dbName);
-			url = url.trim().substring(1);
+			url = url.trim().substring(url.indexOf("?") + 1);
 		} else {
 			// without user & password so return
-			String dbName = url.trim();
-			urlProps.setProperty(PROPERTY_KEY_DBNAME, dbName);
+			if(!url.trim().isEmpty()) {
+				String dbName = url.trim();
+				urlProps.setProperty(PROPERTY_KEY_DBNAME, dbName);
+			}
 			this.dbMetaData = new TSDBDatabaseMetaData(dbProductName, urlForMeta, urlProps.getProperty("user"));
 			return urlProps;
 		}
 
-		String[] queryStrings = url.trim().split("&");
 		String user = "";
+
+		if (url.indexOf("&") == -1) {
+			String[] kvPair = url.trim().split("=");
+			if (kvPair.length == 2) {
+				setPropertyValue(urlProps, kvPair);	
+				return urlProps;
+			} 
+		}
+
+		String[] queryStrings = url.trim().split("&");		
 		for (String queryStr : queryStrings) {
 			String[] kvPair = queryStr.trim().split("=");
 			if (kvPair.length < 2){
 				continue;
 			}
-			switch (kvPair[0].toLowerCase()) {
-				case PROPERTY_KEY_USER:
-					urlProps.setProperty(PROPERTY_KEY_USER, kvPair[1]);
-					user = kvPair[1];
-					break;
-				case PROPERTY_KEY_PASSWORD:
-					urlProps.setProperty(PROPERTY_KEY_PASSWORD, kvPair[1]);
-					break;
-                case PROPERTY_KEY_TIME_ZONE:
-                    urlProps.setProperty(PROPERTY_KEY_TIME_ZONE, kvPair[1]);
-                    break;
-                case PROPERTY_KEY_LOCALE:
-                    urlProps.setProperty(PROPERTY_KEY_LOCALE, kvPair[1]);
-                    break;
-                case PROPERTY_KEY_CHARSET:
-                    urlProps.setProperty(PROPERTY_KEY_CHARSET, kvPair[1]);
-                    break;
-                case PROPERTY_KEY_CONFIG_DIR:
-                    urlProps.setProperty(PROPERTY_KEY_CONFIG_DIR, kvPair[1]);
-                    break;
-			}
+			setPropertyValue(urlProps, kvPair);			
 		}
 
+		user = urlProps.getProperty(PROPERTY_KEY_USER).toString();
 		this.dbMetaData = new TSDBDatabaseMetaData(dbProductName, urlForMeta, user);
 
 		return urlProps;
 	}
+
+	public void setPropertyValue(Properties property, String[] keyValuePair) {
+		switch (keyValuePair[0].toLowerCase()) {
+			case PROPERTY_KEY_USER:
+				property.setProperty(PROPERTY_KEY_USER, keyValuePair[1]);					
+				break;
+			case PROPERTY_KEY_PASSWORD:
+				property.setProperty(PROPERTY_KEY_PASSWORD, keyValuePair[1]);
+				break;
+			case PROPERTY_KEY_TIME_ZONE:
+				property.setProperty(PROPERTY_KEY_TIME_ZONE, keyValuePair[1]);
+				break;
+			case PROPERTY_KEY_LOCALE:
+				property.setProperty(PROPERTY_KEY_LOCALE, keyValuePair[1]);
+				break;
+			case PROPERTY_KEY_CHARSET:
+				property.setProperty(PROPERTY_KEY_CHARSET, keyValuePair[1]);
+				break;
+			case PROPERTY_KEY_CONFIG_DIR:
+				property.setProperty(PROPERTY_KEY_CONFIG_DIR, keyValuePair[1]);
+				break;
+		}
+	}
+
 
 	public int getMajorVersion() {
 		return 1;
