@@ -207,6 +207,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
         vDebug("vgId:%d, QInfo:%p, start to build result rsp after query paused, %p", pVnode->vgId, *handle, pReadMsg->rpcMsg.handle);
         code = vnodeDumpQueryResult(&pReadMsg->rspRet, pVnode, *handle, &freehandle);
 
+        freehandle = false;
         // todo test the error code case
         if (code == TSDB_CODE_SUCCESS) {
           code = TSDB_CODE_QRY_HAS_RSP;
@@ -266,6 +267,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     }
 
     code = vnodeDumpQueryResult(pRet, pVnode, *handle, &freeHandle);
+    freeHandle = false;
   }
 
   qReleaseQInfo(pVnode->qMgmt, (void**) &handle, freeHandle);
