@@ -299,12 +299,14 @@ static void *httpAcceptHttpConnection(void *arg) {
       totalFds += pServer->pThreads[i].numOfContexts;
     }
 
+#if 0
     if (totalFds > tsHttpCacheSessions * 100) {
       httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*100, refuse connection", connFd,
                 inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
       taosCloseSocket(connFd);
       continue;
     }
+#endif    
 
     taosKeepTcpAlive(connFd);
     taosSetNonblocking(connFd, 1);
