@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <dnode.h>
+//#include <dnode.h>
 #include "os.h"
 
 #include "tglobal.h"

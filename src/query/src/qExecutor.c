@@ -6670,9 +6670,9 @@ void qQueryMgmtNotifyClosed(void* pQMgmt) {
   SQueryMgmt* pQueryMgmt = pQMgmt;
   qDebug("vgId:%d, set querymgmt closed, wait for all queries cancelled", pQueryMgmt->vgId);
 
-  pthread_mutex_lock(&pQueryMgmt->lock);
+//  pthread_mutex_lock(&pQueryMgmt->lock);
   pQueryMgmt->closed = true;
-  pthread_mutex_unlock(&pQueryMgmt->lock);
+//  pthread_mutex_unlock(&pQueryMgmt->lock);
 
   taosCacheRefresh(pQueryMgmt->qinfoPool, queryMgmtKillQueryFn);
 }
@@ -6710,16 +6710,16 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     return NULL;
   }
 
-  pthread_mutex_lock(&pQueryMgmt->lock);
+//  pthread_mutex_lock(&pQueryMgmt->lock);
   if (pQueryMgmt->closed) {
-    pthread_mutex_unlock(&pQueryMgmt->lock);
+//    pthread_mutex_unlock(&pQueryMgmt->lock);
     qError("QInfo:%p failed to add qhandle into cache, since qMgmt is colsing", (void *)qInfo);
     return NULL;
   } else {
     uint64_t handleVal = (uint64_t) qInfo;
 
     void** handle = taosCachePut(pQueryMgmt->qinfoPool, &handleVal, sizeof(int64_t), &qInfo, POINTER_BYTES, DEFAULT_QHANDLE_LIFE_SPAN);
-    pthread_mutex_unlock(&pQueryMgmt->lock);
+//    pthread_mutex_unlock(&pQueryMgmt->lock);
 
     return handle;
   }
