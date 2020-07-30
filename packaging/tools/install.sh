@@ -682,7 +682,7 @@ function install_TDengine() {
         fi
 		
 		    echo		    
-		    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp ${GREEN_DARK} to login into cluster, then execute ${NC}: create dnode 'selfEp'; ${GREEN_DARK}in TAOS shell to add this new node into the clsuter${NC}"
+		    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp ${GREEN_DARK} to login into cluster, then execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}in TAOS shell to add this new node into the clsuter${NC}"
         echo
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo       
