@@ -1,0 +1,17 @@
+sql connect
+sleep 100
+
+sql drop database if exists test
+sql create database test
+sql use test
+
+print ====== create super table
+sql create table cars (ts timestamp, speed int) tags(id int)
+
+print ====== create tables
+$i = 0
+while $i < 5
+    $tb = car . $i
+    sql create table $tb using cars tags( $i )
+    $i = $i + 1
+endw
