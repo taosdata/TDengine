@@ -46,6 +46,8 @@ static void httpDestroyContext(void *data) {
   httpReleaseSession(pContext);
   atomic_sub_fetch_32(&pThread->numOfContexts, 1);
   
+  httpDebug("context:%p, is destroyed, refCount:%d data:%p thread:%s numOfContexts:%d", pContext, pContext->refCount,
+            data, pContext->pThread->label, pContext->pThread->numOfContexts);
   pContext->pThread = 0;
   pContext->state = HTTP_CONTEXT_STATE_CLOSED;
 
@@ -53,8 +55,6 @@ static void httpDestroyContext(void *data) {
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
 
-  httpDebug("context:%p, is destroyed, refCount:%d data:%p thread:%s numOfContexts:%d", pContext, pContext->refCount,
-            data, pContext->pThread->label, pContext->pThread->numOfContexts);
   tfree(pContext);
 }
 
@@ -134,22 +134,16 @@ HttpContext *httpGetContext(void *ptr) {
 }
 
 void httpReleaseContext(HttpContext *pContext) {
-  // Ensure that the context is valid before release
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &pContext, sizeof(HttpContext *));
-  if (ppContext == NULL) {
-    httpError("context:%p, is already released", pContext);
+  int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
+  if (refCount < 0) {
+    httpError("context:%p, is already released, refCount:%d", pContext, refCount);
     return;
   }
 
-  int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
-  assert(refCount >= 0);
-  assert(ppContext == pContext->ppContext);
-
+  HttpContext **ppContext = pContext->ppContext;
   httpDebug("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
 
   if (tsHttpServer.contextCache != NULL) {
-    // and release context twice
-    taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
     taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
   } else {
     httpDebug("context:%p, won't be destroyed for cache is already released", pContext);
