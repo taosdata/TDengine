@@ -311,16 +311,16 @@ int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype)
 
   pthread_mutex_lock(&(pNode->mutex));
 
-  if (pNode->quorum > 1) {
-    syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
-    code = 1;
-  }
-
   for (int i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
     if (pPeer == NULL || pPeer->peerFd <0) continue; 
     if (pPeer->role != TAOS_SYNC_ROLE_SLAVE && pPeer->sstatus != TAOS_SYNC_STATUS_CACHE) continue; 
   
+    if (pNode->quorum > 1 && code == 0) {
+      syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
+      code = 1;
+    }
+
     int retLen = write(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
       sDebug("%s, forward is sent, ver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
