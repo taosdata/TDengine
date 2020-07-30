@@ -14,6 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+// no test file errors here
+#undef TAOS_RANDOM_FILE_FAIL
+
 #include "os.h"
 #include "tulog.h"
 #include "tlog.h"

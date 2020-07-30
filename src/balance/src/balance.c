@@ -142,9 +142,14 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
   if (vnodes != pVgroup->numOfVnodes) {
     mDebug("vgId:%d, db:%s need vnodes:%d, but alloc:%d, free them", pVgroup->vgId, pVgroup->dbName,
            pVgroup->numOfVnodes, vnodes);
-    balanceReleaseDnodeList();       
+    balanceReleaseDnodeList();
     balanceUnLock();
-    return -1;
+
+    if (mnodeGetOnlineDnodesNum() == 0) {
+      return TSDB_CODE_MND_NOT_READY;
+    } else {
+      return TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    }
   }
 
   /*
@@ -179,7 +184,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
 
   balanceReleaseDnodeList();
   balanceUnLock();
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool balanceCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
