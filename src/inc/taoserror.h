@@ -131,6 +131,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_BALANCE_ENABLED,          0, 0x0337, "balance al
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_IN_DNODE,      0, 0x0338, "vgroup not in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_ALREADY_IN_DNODE,  0, 0x0339, "vgroup already in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_FREE,           0, 0x033A, "dnode not avaliable")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_ID,       0, 0x033B, "cluster id not match")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "mnode accounts already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "mnode invalid account")
@@ -215,6 +216,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_OUT_OF_MEMORY,            0, 0x0703, "query out 
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_APP_ERROR,                0, 0x0704, "query app error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_DUP_JOIN_KEY,             0, 0x0705, "query duplicated join key")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT,        0, 0x0706, "query tag conditon too many")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_READY,                0, 0x0707, "query not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_HAS_RSP,                  0, 0x0708, "query should response")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "grant expired")

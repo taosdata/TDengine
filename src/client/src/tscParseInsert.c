@@ -104,7 +104,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
   } else if (strncmp(pToken->z, "0", 1) == 0 && pToken->n == 1) {
     // do nothing
   } else if (pToken->type == TK_INTEGER) {
-    useconds = str2int64(pToken->z);
+    useconds = tsosStr2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
     if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
@@ -629,8 +629,8 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
 }
 
 static void tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
-  pBlocks->tid = pTableMeta->sid;
-  pBlocks->uid = pTableMeta->uid;
+  pBlocks->tid = pTableMeta->id.tid;
+  pBlocks->uid = pTableMeta->id.uid;
   pBlocks->sversion = pTableMeta->sversion;
   pBlocks->numOfRows += numOfRows;
 }
@@ -686,7 +686,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   STableDataBlocks *dataBuf = NULL;
-  int32_t ret = tscGetDataBlockFromList(pTableList, pCmd->pDataBlocks, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+  int32_t ret = tscGetDataBlockFromList(pTableList, pCmd->pDataBlocks, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                         sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name,
                                         pTableMeta, &dataBuf);
   if (ret != TSDB_CODE_SUCCESS) {

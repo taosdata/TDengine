@@ -76,6 +76,7 @@ int tdListPrepend(SList *list, void *data) {
   SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
+  node->next = node->prev = NULL;
   memcpy((void *)(node->data), data, list->eleSize);
   tdListPrependNode(list, node);
 
@@ -119,6 +120,22 @@ SListNode *tdListPopTail(SList *list) {
   list->numOfEles--;
   node->next = node->prev = NULL;
   return node;
+}
+
+SListNode *tdListGetHead(SList *list) {
+  if (list == NULL || list->numOfEles == 0) {
+    return NULL;
+  }
+
+  return list->head;
+}
+
+SListNode *tsListGetTail(SList *list) {
+  if (list == NULL || list->numOfEles == 0) {
+    return NULL;
+  }
+
+  return list->tail;
 }
 
 SListNode *tdListPopNode(SList *list, SListNode *node) {

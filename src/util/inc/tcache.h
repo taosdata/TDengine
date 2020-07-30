@@ -68,8 +68,6 @@ typedef struct {
   int64_t         refreshTime;
   STrashElem *    pTrash;
   char*           name;
-//  void *          tmrCtrl;
-//  void *          pTimer;
   SCacheStatis    statistics;
   SHashObj *      pHashTable;
   __cache_free_fn_t freeFp;

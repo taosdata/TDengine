@@ -241,7 +241,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
     STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-    SSubscriptionProgress target = {.uid = pTableMeta->uid, .key = 0};
+    SSubscriptionProgress target = {.uid = pTableMeta->id.uid, .key = 0};
     SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
     if (p == NULL) {
       taosArrayClear(pSub->progress);
@@ -334,7 +334,7 @@ void tscSaveSubscriptionProgress(void* sub) {
 
   char path[256];
   sprintf(path, "%s/subscribe", tsDataDir);
-  if (tmkdir(path, 0777) != 0) {
+  if (taosMkDir(path, 0777) != 0) {
     tscError("failed to create subscribe dir: %s", path);
   }
 

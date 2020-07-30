@@ -37,6 +37,7 @@
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 #include "mnodePeer.h"
+#include "mnodeCluster.h"
 
 int32_t tsAccessSquence = 0;
 static void   *tsDnodeSdb = NULL;
@@ -78,9 +79,6 @@ static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
 static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
   SDnodeObj *pDnode = pOper->pObj;
  
-#ifndef _SYNC 
-  mnodeDropAllDnodeVgroups(pDnode);
-#endif  
   mnodeDropMnodeLocal(pDnode->dnodeId);
   balanceAsyncNotify();
 
@@ -355,6 +353,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
+  pStatus->clusterId    = htonl(pStatus->clusterId);
   
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
@@ -382,13 +381,19 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
   pDnode->moduleStatus     = pStatus->moduleStatus;
-  
+
   if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access", pDnode->dnodeId, pDnode->dnodeEp);
+    mDebug("dnode:%d %s, first access, set clusterId %d", pDnode->dnodeId, pDnode->dnodeEp, mnodeGetClusterId());
   } else {
-    mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    if (pStatus->clusterId != mnodeGetClusterId()) {
+      mError("dnode:%d, input clusterId %d not match with exist %d", pDnode->dnodeId, pStatus->clusterId,
+             mnodeGetClusterId());
+      return TSDB_CODE_MND_INVALID_CLUSTER_ID;
+    } else {
+      mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+    }
   }
- 
+
   int32_t openVnodes = htons(pStatus->openVnodes);
   int32_t contLen = sizeof(SDMStatusRsp) + openVnodes * sizeof(SDMVgroupAccess);
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
@@ -400,6 +405,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
   pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
+  pRsp->dnodeCfg.clusterId = htonl(mnodeGetClusterId());
   SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
 
   for (int32_t j = 0; j < openVnodes; ++j) {
@@ -543,12 +549,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
 
-#ifndef _SYNC
-  int32_t code = mnodeDropDnode(pDnode, pMsg);
-#else
   int32_t code = balanceDropDnode(pDnode);
-#endif
-
   mnodeDecDnodeRef(pDnode);
   return code;
 }

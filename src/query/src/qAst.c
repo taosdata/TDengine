@@ -18,8 +18,8 @@
 
 #include "exception.h"
 #include "qAst.h"
+#include "qSqlparser.h"
 #include "qSyntaxtreefunction.h"
-#include "qsqlparser.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
@@ -877,28 +877,6 @@ void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, 
   free(pLeftOutput);
   free(pRightOutput);
 }
-
-//void tSQLBinaryExprTrv(tExprNode *pExprs, SArray* res) {
-//  if (pExprs == NULL) {
-//    return;
-//  }
-//
-//  tExprNode *pLeft = pExprs->_node.pLeft;
-//  tExprNode *pRight = pExprs->_node.pRight;
-//
-//  // recursive traverse left child branch
-//  if (pLeft->nodeType == TSQL_NODE_EXPR) {
-//    tSQLBinaryExprTrv(pLeft, res);
-//  } else if (pLeft->nodeType == TSQL_NODE_COL) {
-//    taosArrayPush(res, &pLeft->pSchema->colId);
-//  }
-//
-//  if (pRight->nodeType == TSQL_NODE_EXPR) {
-//    tSQLBinaryExprTrv(pRight, res);
-//  } else if (pRight->nodeType == TSQL_NODE_COL) {
-//    taosArrayPush(res, &pRight->pSchema->colId);
-//  }
-//}
 
 static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
   tbufWriteUint8(bw, expr->nodeType);

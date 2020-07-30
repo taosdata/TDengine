@@ -190,18 +190,7 @@ void *mnodeGetNextMnode(void *pIter, SMnodeObj **pMnode) {
 }
 
 char *mnodeGetMnodeRoleStr(int32_t role) {
-  switch (role) {
-    case TAOS_SYNC_ROLE_OFFLINE:
-      return "offline";
-    case TAOS_SYNC_ROLE_UNSYNCED:
-      return "unsynced";
-    case TAOS_SYNC_ROLE_SLAVE:
-      return "slave";
-    case TAOS_SYNC_ROLE_MASTER:
-      return "master";
-    default:
-      return "undefined";
-  }
+  return syncRole[role];
 }
 
 void mnodeUpdateMnodeEpSet() {

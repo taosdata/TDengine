@@ -20,9 +20,8 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <time.h>
-#include "tutil.h"
+#include "os.h"
+#include "taosdef.h"
 
 //@return timestamp in second
 int32_t taosGetTimestampSec();

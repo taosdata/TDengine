@@ -32,10 +32,10 @@ endi
 if $data04 != 1 then 
   return -1
 endi
-if $data05 != 20 then 
+if $data06 != 20 then 
   return -1
 endi
-if $data07 != 16 then 
+if $data08 != 16 then 
   return -1
 endi
  
@@ -72,7 +72,7 @@ endi
 if $data04 != 1 then 
   return -1
 endi
-if $data05 != 15 then 
+if $data06 != 15 then 
   return -1
 endi
 

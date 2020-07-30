@@ -36,6 +36,14 @@ struct define notes:
 3. The fields behind the updataEnd field can be changed;
 */
 
+typedef struct SClusterObj {
+  int32_t clusterId;
+  int64_t createdTime;
+  int8_t  reserved[36];
+  int8_t  updateEnd[4];
+  int32_t refCount;
+} SClusterObj;
+
 typedef struct SDnodeObj {
   int32_t    dnodeId;
   int32_t    openVnodes;
@@ -163,6 +171,7 @@ typedef struct {
   int8_t  compression;
   int8_t  walLevel;
   int8_t  replications;
+  int8_t  quorum;
   int8_t  reserved[12];
 } SDbCfg;
 
