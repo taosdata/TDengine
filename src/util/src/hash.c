@@ -19,6 +19,8 @@
 #include "tulog.h"
 #include "tutil.h"
 
+#define HASH_NEED_RESIZE(_h)  ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
+
 static FORCE_INLINE void __wr_lock(void *lock) {
   if (lock == NULL) {
     return;
@@ -95,27 +97,17 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
  * @param hashVal   hash value by hash function
  * @return
  */
-FORCE_INLINE SHashNode *doGetNodeFromHashTable(SHashObj *pHashObj, const void *key, uint32_t keyLen, uint32_t *hashVal) {
-  uint32_t hash = (*pHashObj->hashFp)(key, keyLen);
-  
-  int32_t    slot = HASH_INDEX(hash, pHashObj->capacity);
+FORCE_INLINE SHashNode *doGetNodeFromHashTable(SHashObj *pHashObj, const void *key, uint32_t keyLen, uint32_t hashVal) {
+  int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
+
   SHashNode *pNode = pHashObj->hashList[slot];
-  
   while (pNode) {
     if ((pNode->keyLen == keyLen) && (memcmp(pNode->key, key, keyLen) == 0)) {
+      assert(pNode->hashVal == hashVal);
       break;
     }
     
     pNode = pNode->next;
-  }
-  
-  if (pNode) {
-    assert(HASH_INDEX(pNode->hashVal, pHashObj->capacity) == slot);
-  }
-  
-  // return the calculated hash value, to avoid calculating it again in other functions
-  if (hashVal != NULL) {
-    *hashVal = hash;
   }
   
   return pNode;
@@ -148,7 +140,13 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
  * @param dsize   size of actual data
  * @return        hash node
  */
-static SHashNode *doUpdateHashNode(SHashNode *pNode, const void *key, size_t keyLen, const void *pData, size_t dsize);
+static FORCE_INLINE SHashNode *doUpdateHashNode(SHashNode *pNode, SHashNode *pNewNode) {
+  assert(pNode->keyLen == pNewNode->keyLen);
+  SWAP(pNode->key, pNewNode->key, void*);
+  SWAP(pNode->data, pNewNode->data, void*);
+
+  return pNewNode;
+}
 
 /**
  * insert the hash node at the front of the linked list
@@ -217,58 +215,43 @@ size_t taosHashGetSize(const SHashObj *pHashObj) {
 }
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
-  __wr_lock(pHashObj->lock);
+  uint32_t   hashVal = (*pHashObj->hashFp)(key, keyLen);
+  SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
+  if (pNewNode == NULL) {
+    return -1;
+  }
 
-  uint32_t   hashVal = 0;
-  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &hashVal);
+  __wr_lock(pHashObj->lock);
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, hashVal);
 
   if (pNode == NULL) {  // no data in hash table with the specified key, add it into hash table
-    taosHashTableResize(pHashObj);
 
-    SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
-    if (pNewNode == NULL) {
-      __unlock(pHashObj->lock);
-
-      return -1;
+    if (HASH_NEED_RESIZE(pHashObj)) {
+      taosHashTableResize(pHashObj);
     }
 
     doAddToHashTable(pHashObj, pNewNode);
+    __unlock(pHashObj->lock);
   } else {
-    SHashNode *pNewNode = doUpdateHashNode(pNode, key, keyLen, data, size);
-    if (pNewNode == NULL) {
-      __unlock(pHashObj->lock);
-      return -1;
-    }
+    doUpdateHashNode(pNode, pNewNode);
+    __unlock(pHashObj->lock);
 
-    if (pNewNode->prev) {
-      pNewNode->prev->next = pNewNode;
-    } else {
-      int32_t slot = HASH_INDEX(pNewNode->hashVal, pHashObj->capacity);
-      
-      assert(pHashObj->hashList[slot] == pNode);
-      pHashObj->hashList[slot] = pNewNode;
-    }
-  
-    if (pNewNode->next) {
-      (pNewNode->next)->prev = pNewNode;
-    }
+    tfree(pNewNode->data)
+    tfree(pNewNode);
   }
 
-  __unlock(pHashObj->lock);
   return 0;
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
+  uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
+
   __rd_lock(pHashObj->lock);
-
-  uint32_t   hashVal = 0;
-  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &hashVal);
-
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, hashVal);
   __unlock(pHashObj->lock);
 
-  if (pNode != NULL) {
+  if (pNode) {
     assert(pNode->hashVal == hashVal);
-
     return pNode->data;
   } else {
     return NULL;
@@ -276,10 +259,10 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  __wr_lock(pHashObj->lock);
+  uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
 
-  uint32_t   val = 0;
-  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &val);
+  __wr_lock(pHashObj->lock);
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, hashVal);
   if (pNode == NULL) {
     __unlock(pHashObj->lock);
     return;
@@ -287,7 +270,7 @@ void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
   SHashNode *pNext = pNode->next;
   if (pNode->prev == NULL) {
-    int32_t slot = HASH_INDEX(val, pHashObj->capacity);
+    int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
     assert(pHashObj->hashList[slot] == pNode);
     
     pHashObj->hashList[slot] = pNext;
@@ -299,13 +282,13 @@ void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
     pNext->prev = pNode->prev;
   }
 
-  pHashObj->size--;
+  pHashObj->size -= 1;
+  __unlock(pHashObj->lock);
 
   pNode->next = NULL;
   pNode->prev = NULL;
 
   tfree(pNode);
-  __unlock(pHashObj->lock);
 }
 
 void taosHashCleanup(SHashObj *pHashObj) {
@@ -339,14 +322,6 @@ void taosHashCleanup(SHashObj *pHashObj) {
   tfree(pHashObj->lock);
   memset(pHashObj, 0, sizeof(SHashObj));
   free(pHashObj);
-}
-
-void taosHashSetFreecb(SHashObj *pHashObj, _hash_free_fn_t freeFp) {
-  if (pHashObj == NULL || freeFp == NULL) {
-    return;
-  }
-
-  pHashObj->freeFp = freeFp;
 }
 
 SHashMutableIterator *taosHashCreateIter(SHashObj *pHashObj) {
@@ -528,38 +503,20 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  size_t totalSize = dsize + sizeof(SHashNode) + keyLen;
-  
-  SHashNode *pNewNode = calloc(1, totalSize);
+  SHashNode *pNewNode = calloc(1, sizeof(SHashNode));
   if (pNewNode == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
-  
-  memcpy(pNewNode->data, pData, dsize);
-  
-  pNewNode->key = pNewNode->data + dsize;
-  memcpy(pNewNode->key, key, keyLen);
-  pNewNode->keyLen = keyLen;
-  
-  pNewNode->hashVal = hashVal;
-  return pNewNode;
-}
 
-SHashNode *doUpdateHashNode(SHashNode *pNode, const void *key, size_t keyLen, const void *pData, size_t dsize) {
-  size_t size = dsize + sizeof(SHashNode) + keyLen;
-  
-  SHashNode *pNewNode = (SHashNode *)realloc(pNode, size);
-  if (pNewNode == NULL) {
-    return NULL;
-  }
-  
+  pNewNode->data = malloc(dsize + keyLen);
   memcpy(pNewNode->data, pData, dsize);
   
   pNewNode->key = pNewNode->data + dsize;
-  assert(memcmp(pNewNode->key, key, keyLen) == 0 && keyLen == pNewNode->keyLen);
-  
   memcpy(pNewNode->key, key, keyLen);
+
+  pNewNode->keyLen = keyLen;
+  pNewNode->hashVal = hashVal;
   return pNewNode;
 }
 

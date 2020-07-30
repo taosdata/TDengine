@@ -29,16 +29,12 @@ extern "C" {
 typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
-  char *key;
-//  union {
-    struct SHashNode * prev;
-//    struct SHashEntry *prev1;
-//  };
-//
+  char             *key;
+  struct SHashNode *prev;
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key, if hashVal == HASH_VALUE_IN_TRASH, this node is moved to trash
   uint32_t          keyLen;   // length of the key
-  char              data[];
+  char             *data;
 } SHashNode;
 
 typedef struct SHashObj {
@@ -108,6 +104,8 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param keyLen
  */
 void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
+
+void taosHashRemoveNode();
 
 /**
  * clean up hash table
