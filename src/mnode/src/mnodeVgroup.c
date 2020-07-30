@@ -818,7 +818,7 @@ static SMDCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup) {
   SRpcEpSet epSet = {
     .numOfEps = pVgroup->numOfVnodes,
-    .inUse = 0,
+    .inUse = pVgroup->inUse,
   };
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
     strcpy(epSet.fqdn[i], pVgroup->vnodeGid[i].pDnode->dnodeFqdn);
