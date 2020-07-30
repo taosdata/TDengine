@@ -133,8 +133,6 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
     else {
       this._fields = this._chandle.useResult(this._result);
       this.fields = this._fields;
-      console.log('++++++++++++++++++++++++++');
-      console.log(this._result);
       wrapCB(callback);
 
       return this._result; //return a pointer to the result
@@ -205,10 +203,12 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
       break;
     }
     this._rowcount += num_of_rows;
+    let numoffields = this._fields.length;
     for (let i = 0; i < num_of_rows; i++) {
       data.push([]);
-      let rowBlock = new Array(this._fields.length);
-      for (let j = 0; j < this._fields.length; j++) {
+      
+      let rowBlock = new Array(numoffields);
+      for (let j = 0; j < numoffields; j++) {
         rowBlock[j] = block[j][i];
       }
       data[data.length-1] = (rowBlock);
@@ -268,7 +268,7 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
       let fieldCount = cr._chandle.numFields(res2);
       if (fieldCount == 0) {
         cr._chandle.freeResult(res2);
-      }
+      } 
       else {
         return res2;
       }
