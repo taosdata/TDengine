@@ -241,36 +241,17 @@ function install_config() {
 
         # first full-qualified domain name (FQDN) for TDengine cluster system
         echo
-        echo -e -n "${GREEN}Enter the FQDN of an existing TDengine cluster node to join${NC} OR ${GREEN}leave it blank to build one${NC} :"
-        read firstFqdn
+        echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join OR leave it blank to build one${NC} :"
+        read firstEp
         while true; do
-            if [ ! -z "$firstFqdn" ]; then
-                # check the format of the firstFqdn
-                #if [[ $firstFqdn == $FQDN_PATTERN ]]; then
-                    # Write the first FQDN to configuration file
-                    ${csudo} sed -i -r "s/#*\s*(first\s*).*/\1$firstFqdn/" ${cfg_install_dir}/taos.cfg
-
-                    # Get the second FQDN
-                    echo
-                    echo -e -n "${GREEN}Enter the FQDN of another node in cluster${NC} OR ${GREEN}leave it blank to skip${NC}: "
-                    read secondFqdn
-                    while true; do
-                        if [ ! -z "$secondFqdn" ]; then
-                            #if [[ $secondFqdn == $FQDN_PATTERN ]]; then
-                                # Write the second FQDN to configuration file
-                                ${csudo} sed -i -r "s/#*\s*(second\s*).*/\1$secondFqdn/" ${cfg_install_dir}/taos.cfg
-                                break
-                            #else
-                            #    read -p "Please enter the correct FQDN: " secondFqdn
-                            #fi
-                        else
-                            break
-                        fi
-                    done
-    
+            if [ ! -z "$firstEp" ]; then
+                # check the format of the firstEp
+                #if [[ $firstEp == $FQDN_PATTERN ]]; then
+                    # Write the first FQDN to configuration file                    
+                    ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg    
                     break
                 #else
-                #    read -p "Please enter the correct FQDN: " firstFqdn
+                #    read -p "Please enter the correct FQDN:port: " firstEp
                 #fi
             else
                 break
@@ -584,7 +565,7 @@ function update_TDengine() {
         install_service
         install_config
 		
-		if [ "$verMode" == "cluster" ]; then    
+		    if [ "$verMode" == "cluster" ]; then    
             # Check if openresty is installed
             openresty_work=false
 
@@ -597,7 +578,7 @@ function update_TDengine() {
                     echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
                 fi
             fi
-		fi 
+		    fi 
 
         echo
         echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
@@ -678,8 +659,8 @@ function install_TDengine() {
         install_config	
 
         # Ask if to start the service
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        #echo
+        #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
         if ((${service_mod}==0)); then
@@ -700,8 +681,11 @@ function install_TDengine() {
             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
 		
+		    echo		    
+		    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp ${GREEN_DARK} to login into cluster, then execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}in TAOS shell to add this new node into the clsuter${NC}"
         echo
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo       
     else # Only install client
         install_bin
         install_config

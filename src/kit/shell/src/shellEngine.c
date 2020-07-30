@@ -73,6 +73,8 @@ TAOS *shellInit(SShellArguments *args) {
   // Connect to the database.
   TAOS *con = taos_connect(args->host, args->user, args->password, args->database, args->port);
   if (con == NULL) {
+    printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+    fflush(stdout);
     return con;
   }
 
