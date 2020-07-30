@@ -122,18 +122,18 @@ endi
 if $data04 != $replica then 
  return -1
 endi
-if $data05 != $days then 
+if $data06 != $days then 
  return -1
 endi
-if $data06 != 365,365,365 then 
+if $data07 != 365,365,365 then 
  return -1
 endi
-print data07 = $data07
-if $data07 != $cache then
- print expect $cache, actual:$data07
+print data08 = $data07
+if $data08 != $cache then
+ print expect $cache, actual:$data08
  return -1
 endi
-if $data08 != 4 then
+if $data09 != 4 then
  return -1
 endi
 

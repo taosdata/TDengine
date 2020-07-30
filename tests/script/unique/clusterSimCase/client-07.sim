@@ -5,8 +5,12 @@
 $tblStart = 0
 $tblEnd   = 10000
 $tsStart  = 1325347200000  # 2012-01-01 00:00:00.000
-$c2Binary = ' . client-07-
+$preBinary = ' . client-07-
 ###############################################################
+$alterCnt = 0
+
+$columnA = c . $alterCnt
+$columnB = d . $alterCnt
 
 $totalRows   = 0
 
@@ -17,30 +21,31 @@ $db = db
 sql create database if not exists $db replica 2 
 sql use $db
 
-init_lable:
-print ================ create table $tb (ts timestamp, c1 int, c2 binary(16))
+$rowsPerTbl  = 0
+$ts          = $tsStart
+
+print ================ create table $tb (ts timestamp, $columnA int, $columnB binary(16))
 
 $i = $tblStart
 while $i < $tblEnd
   $tb = tb . $i
 #  print create table if not exists $tb ( ts timestamp , c1 int , c2 binary(16) )
-  sql create table if not exists $tb ( ts timestamp , c1 int , c2 binary(16) )
+  sql create table if not exists $tb ( ts timestamp , $columnA int , $columnB binary(16) )
   $i = $i + 1
 endw 
 
-$rowsPerTbl  = 0
-$ts          = $tsStart
 $rowsPerLoop = 160
 
 $loopCnt = 0
+$alterStep = 0
  
 loop_run:
-print ================ client-07 start loop insert data
+print ================ client-07 start loop insert data ( loopCnt: $loopCnt )
 $i  = $tblStart
 while $i < $tblEnd
   $tb = tb . $i
   
-  $c2Binary = $c2Binary . $i
+  $c2Binary = $preBinary . $i
   $c2Binary = $c2Binary . '
 
   $x = 0
@@ -49,40 +54,48 @@ while $i < $tblEnd
     sql insert into $tb values ( $ts + 1a , $x , $c2Binary ) ( $ts + 3a , $x , $c2Binary ) ( $ts + 5a , $x , $c2Binary ) ( $ts + 7a , $x , $c2Binary ) ( $ts + 9a , $x , $c2Binary ) ( $ts + 11a , $x , $c2Binary ) ( $ts + 13a , $x , $c2Binary ) ( $ts + 15a , $x , $c2Binary ) ( $ts + 17a , $x , $c2Binary ) ( $ts + 19a , $x , $c2Binary ) ( $ts + 21a , $x , $c2Binary ) ( $ts + 23a , $x , $c2Binary ) ( $ts + 25a , $x , $c2Binary ) ( $ts + 27a , $x , $c2Binary ) ( $ts + 29a , $x , $c2Binary ) ( $ts + 31a , $x , $c2Binary ) ( $ts + 33a , $x , $c2Binary ) ( $ts + 35a , $x , $c2Binary ) ( $ts + 37a , $x , $c2Binary ) ( $ts + 39a , $x , $c2Binary )
     $x = $x + 40
     $ts = $ts + 40a
-    if $i == $tblStart then
-      $rowsPerTbl = $rowsPerTbl + $x
-    endi
   endw 
+  if $i == $tblStart then
+    $rowsPerTbl = $rowsPerTbl + $x   
+  endi
 
   $totalRows = $totalRows + $x
   $i = $i + 1
   
 endw 
 
-sql select count(*) from $tblStart
+sql select count(*) from $tb
+print data00 $data00 rowsPerTbl $rowsPerTbl
 if $data00 != $rowsPerTbl then
-  print data00 $data00 rowsPerTbl $rowsPerTbl
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  print ************ client-07 insert data error ***** *****
-  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  print ************ client-07 insert data into $tb error ***** *****
+  print ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   return -1
 endi
 
 $loopCnt = $loopCnt + 1
 
-if $loopCnt > 100 then
-
+if $alterStep > 2 then
+  $alterStep = 0
+  
+  $alterCnt = $alterCnt + 1
   $i = $tblStart
   while $i < $tblEnd
     $tb = tb . $i
-    sql alter table $tb add column c3 double
-    sql alter table $tb add column c4 binary( 16 )
-    sql alter table $tb drop column c1
-    sql alter table $tb drop column c2
+    $newColumnA = c . $alterCnt
+    $newcolumnB = d . $alterCnt
+
+    sql alter table $tb add column $newColumnA double
+    sql alter table $tb add column $newcolumnB binary( 16 )
+    sql alter table $tb drop column $columnA
+    sql alter table $tb drop column $columnB
     $i = $i + 1
-  endw  
-  sleep 20000
-  goto init_lable 
+  endw
+  $columnA = $newColumnA
+  $columnB = $newcolumnB
+    
+  sleep 10000
+  goto loop_run 
 endi
 
 goto loop_run
