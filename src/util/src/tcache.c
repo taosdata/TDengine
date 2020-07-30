@@ -207,7 +207,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
   
-  pCacheObj->pHashTable = taosHashInit(128, taosGetDefaultHashFunction(keyType), true);
+  pCacheObj->pHashTable = taosHashInit(128, taosGetDefaultHashFunction(keyType), false);
   pCacheObj->name = strdup(cacheName);
   if (pCacheObj->pHashTable == NULL) {
     free(pCacheObj);
@@ -239,8 +239,6 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
 }
 
 void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int duration) {
-//  SCacheDataNode *pNode = NULL;
-  
   if (pCacheObj == NULL || pCacheObj->pHashTable == NULL) {
     return NULL;
   }
@@ -266,12 +264,11 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
            pCacheObj->name, key, pNode1->data, pNode1->addedTime, pNode1->expireTime,
            (int32_t)taosHashGetSize(pCacheObj->pHashTable), pCacheObj->totalSize, (int64_t)dataSize);
   } else {  // old data exists, update the node
-
     bool addToTrashcan = false;
     if (T_REF_VAL_GET(pOld) > 0) {
+
       // todo removed by node, instead of by key
       taosHashRemove(pCacheObj->pHashTable, pOld->key, pOld->keySize);
-    } else {
       addToTrashcan = true;
     }
 
@@ -285,7 +282,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
     if (addToTrashcan) {
       taosAddToTrash(pCacheObj, pOld);
     } else {
-      tfree(pOld);
+      free(pOld);
     }
 
     uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, pOld);
