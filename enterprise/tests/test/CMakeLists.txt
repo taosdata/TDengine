@@ -7,8 +7,8 @@ include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNI
 #add_executable(loadnsort ./perftest/loadnsort.c )
 #target_link_libraries(loadnsort taos pthread)
 
-add_executable(asynctest ./cdriver/asynctest.c )
-target_link_libraries(asynctest taos pthread)
+#add_executable(asynctest ./cdriver/asynctest.c )
+#target_link_libraries(asynctest taos pthread)
 
 #add_executable(perftest ./perftest/taosperf.c ./perftest/perftestcommon.c)
 #target_link_libraries(perftest taos pthread tutil)
