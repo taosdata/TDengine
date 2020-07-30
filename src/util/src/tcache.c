@@ -276,7 +276,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
     return NULL;
   }
 
-  __cache_wr_lock(pCacheObj);
+  __cache_rd_lock(pCacheObj);
   SCacheDataNode **pt = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
   SCacheDataNode * pOld = (pt != NULL) ? (*pt) : NULL;
   
