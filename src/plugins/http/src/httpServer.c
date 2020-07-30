@@ -338,7 +338,7 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     // notify the data process, add into the FdObj list
     atomic_add_fetch_32(&pThread->numOfContexts, 1);
-    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfContexts:%d totalFds:%d, accept a new connection", pContext,
+    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfContexts:%d totalContext:%d, accept a new connection", pContext,
               connFd, pContext->ipstr, pThread->label, pThread->numOfContexts, totalFds);
 
     // pick up next thread for next connection
