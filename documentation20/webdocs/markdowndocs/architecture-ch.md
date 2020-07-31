@@ -14,7 +14,9 @@
 |   D1004   | 1538548696600 |  11.8   |   221   | 0.28  |      | Beijing.Haidian  |    2    |
 |   D1002   | 1538548696650 |  10.3   |   218   | 0.25  |      | Beijing.Chaoyang |    3    |
 |   D1001   | 1538548696800 |  12.3   |   221   | 0.31  |      | Beijing.Chaoyang |    2    |
+  
 <center> 表1：智能电表数据示例</center>
+  
 每一条记录都有设备ID，时间戳，采集的物理量(如上图中的电流、电压、相位），还有与每个设备相关的静态标签（如上述表一中的位置Location和分组groupId）。每个设备是受外界的触发，或按照设定的周期采集数据。采集的数据点是时序的，是一个数据流。
 
 ### 数据特征 
@@ -62,7 +64,6 @@ TDengine 的设计是基于单个硬件、软件系统不可靠，基于任何�
 ###主要逻辑单元
 TDengine 分布式架构的逻辑结构图如下：
 <center> <img src="../assets/structure.png"> </center>
-
 <center> 图 1 TDengine架构示意图  </center>
 一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点(dnode)、TDengine客户端(taosc)以及应用(app)。系统中存在一到多个数据节点，这些数据节点组成一个集群(cluster)。应用通过taosc的API与TDengine集群进行互动。下面对每个逻辑单元进行简要介绍。
 
@@ -98,9 +99,7 @@ TDengine 分布式架构的逻辑结构图如下：
 ###一典型的操作流程
 为解释vnode, mnode, taosc和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
 <center> <img src="../assets/message.png"> </center>
-
 <center> 图 2 TDengine典型的操作流程 </center>
-
 1. 应用通过JDBC、ODBC或其他API接口发起插入数据的请求。
 2. taosc会检查缓存，看是有保存有该表的meta data。如果有，直接到第4步。如果没有，taosc将向mnode发出get meta-data请求。
 3. mnode将该表的meta-data返回给taosc。Meta-data包含有该表的schema, 而且还有该表所属的vgroup信息（vnode ID以及所在的dnode的End Point，如果副本数为N，就有N组End Point)。如果taosc迟迟得不到mnode回应，而且存在多个mnode, taosc将向下一个mnode发出请求。
@@ -160,9 +159,7 @@ TDengine除vnode分片之外，还按照时间段进行分区。每个数据文�
 ###Master vnode写入流程
 Master Vnode遵循下面的写入流程：
 <center> <img src="../assets/write_master.png">  </center>
-
 <center> 图 3 TDengine Master写入流程  </center>
-
 1. Master vnode收到应用的数据插入请求，验证OK，进入下一步；
 2. 如果系统配置参数walLevel打开（设置为2），vnode将把该请求的原始数据包写入数据库日志文件WAL，以保证TDengine能够在断电等因素导致的服务重启时从数据库日志文件中恢复数据，避免数据的丢失；
 3. 如果有多个副本，vnode将把数据包转发给同一虚拟节点组内slave vnodes, 该转发包带有数据的版本号(version)
@@ -173,9 +170,7 @@ Master Vnode遵循下面的写入流程：
 ### Slave vnode写入流程
 对于slave vnode, 写入流程是：
 <center> <img src="../assets/write_slave.png">  </center>
-
 <center> 图 4 TDengine Slave写入流程  </center>
-
 1. Slave vnode收到Master vnode转发了的数据插入请求。
 2. 如果系统配置参数walLevl设置为2，vnode将把该请求的原始数据包写入日志(WAL)；
 3. 写入内存，更新内存中的skip list。
