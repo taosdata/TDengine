@@ -28,7 +28,7 @@ c1.execute('create table if not exists stabletest (ts timestamp, v1 int, v2 int,
 // Shell Test : The following uses the cursor to imitate the taos shell
 
 // Insert
-for (let i = 0; i < 1000; i++) {
+for (let i = 0; i < 10000; i++) {
   let insertData = ["now+" + i + "s", // Timestamp
                     parseInt( R(-Math.pow(2,31) + 1 , Math.pow(2,31) - 1) ), // Int
                     parseInt( R(-Math.pow(2,31) + 1 , Math.pow(2,31) - 1) ), // BigInt
@@ -40,7 +40,7 @@ for (let i = 0; i < 1000; i++) {
                     randomBool(),
                     "\"Nchars\""]; // Bool
   c1.execute('insert into td_connector_test.all_types values(' + insertData.join(',') + ' );', {quiet:true});
-  if (i % 100 == 0) {
+  if (i % 1000 == 0) {
     console.log("Insert # " , i);
   }
 }
@@ -61,9 +61,9 @@ console.log(d);
 
 // Immediate Execution like the Shell
 
-//c1.query('select count(*), stddev(_double), min(_tinyint) from all_types where _tinyint > 50 and _int < 0;', true).then(function(result){
-//  result.pretty();
-//})
+c1.query('select count(*), stddev(_double), min(_tinyint) from all_types where _tinyint > 50 and _int < 0;', true).then(function(result){
+  result.pretty();
+})
 
 c1.query('select _tinyint, _bool from all_types where _tinyint > 50 and _int < 0 limit 50;', true).then(function(result){
   result.pretty();
@@ -87,54 +87,58 @@ q.execute().then(function(r) {
 
 // Raw Async Testing (Callbacks, not promises)
 function cb2(param, result, rowCount, rd) {
+  console.log('CB2 Callbacked!');  
   console.log("RES *", result);
-  console.log("Async fetched", rowCount, "rows");
+  console.log("Async fetched", rowCount, " rows");
   console.log("Passed Param: ", param);
-  console.log("Fields", rd.fields);
-  console.log("Data", rd.data);
-
+  console.log("Fields ", rd.fields);
+  console.log("Data ", rd.data);
 }
 function cb1(param,result,code) {
-  console.log('Callbacked!');
-  console.log("RES *", result);
+  console.log('CB1 Callbacked!');
+  console.log("RES * ", result);
   console.log("Status: ", code);
-  console.log("Passed Param", param);
-  c1.fetchall_a(result, cb2, param)
+  console.log("Passed Param ", param);
+  c1.fetchall_a(result, cb2, param);
 }
 
 c1.execute_a("describe td_connector_test.all_types;", cb1, {myparam:3.141});
 
 function cb4(param, result, rowCount, rd) {
+  console.log('CB4 Callbacked!');  
   console.log("RES *", result);
   console.log("Async fetched", rowCount, "rows");
   console.log("Passed Param: ", param);
   console.log("Fields", rd.fields);
   console.log("Data", rd.data);
-
 }
 // Without directly calling fetchall_a
 var thisRes;
 function cb3(param,result,code) {
-  console.log('Callbacked!');
+  console.log('CB3 Callbacked!');
   console.log("RES *", result);
-  console.log("Status: ", code);
+  console.log("Status:", code);
   console.log("Passed Param", param);
   thisRes = result;
 }
 //Test calling execute and fetchall seperately and not through callbacks
 var param = c1.execute_a("describe td_connector_test.all_types;", cb3, {e:2.718});
 console.log("Passed Param outside of callback: ", param);
+console.log(param);
 setTimeout(function(){
   c1.fetchall_a(thisRes, cb4, param);
 },100);
 
 // Async through promises
-var aq = c1.query('select count(*) from td_connector_test.all_types;')
+var aq = c1.query('select count(*) from td_connector_test.all_types;',false);
 aq.execute_a().then(function(data) {
   data.pretty();
-})
+});
 c1.query('describe td_connector_test.stabletest;').execute_a().then(r=> r.pretty());
 setTimeout(function(){
   c1.query('drop database td_connector_test;');
+},200);
+setTimeout(function(){
+  conn.close();
 },2000);
-conn.close();
+

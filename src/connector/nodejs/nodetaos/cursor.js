@@ -265,13 +265,15 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     }
 
     if (resCode >= 0) {
-      let fieldCount = cr._chandle.numFields(res2);
-      if (fieldCount == 0) {
-        cr._chandle.freeResult(res2);
-      } 
-      else {
-        return res2;
-      }
+//      let fieldCount = cr._chandle.numFields(res2);
+//      if (fieldCount == 0) {
+//        //cr._chandle.freeResult(res2);
+//        return res2;
+//      } 
+//      else {
+//        return res2;
+//      }
+      return res2;
 
     }
     else {
