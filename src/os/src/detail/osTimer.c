@@ -15,8 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "tglobal.h"
 #include "ttimer.h"
 #include "tulog.h"
 

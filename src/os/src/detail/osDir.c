@@ -17,7 +17,6 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tulog.h"
-#include "osSysinfo.h"
 
 #ifndef TAOS_OS_FUNC_DIR
 
@@ -64,6 +63,5 @@ void taosMvDir(char* destDir, char *srcDir) {
   taosSystem(shellCmd);
   uInfo("shell cmd:%s is executed", shellCmd);
 }
-
 
 #endif

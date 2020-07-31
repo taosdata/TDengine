@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "taosdef.h"
 
 #ifndef TAOS_OS_FUNC_STRING_STR2INT64
 int64_t tsosStr2int64(char *str) {

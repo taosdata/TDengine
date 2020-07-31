@@ -17,12 +17,10 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-
+#include "os.h"
 #include "taosdef.h"
 #include "tutil.h"
+
 /*
  * mktime64 - Converts date to seconds.
  * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
