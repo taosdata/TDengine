@@ -262,7 +262,7 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   return 0;
 }
 
-void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
+int tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
   ASSERT(helperHasState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
 
   // Clear members and state used by previous table
@@ -273,8 +273,15 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
   pHelper->tableInfo.uid = pTable->tableId.uid;
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
 
-  tdInitDataCols(pHelper->pDataCols[0], pSchema);
-  tdInitDataCols(pHelper->pDataCols[1], pSchema);
+  if (tdInitDataCols(pHelper->pDataCols[0], pSchema) < 0) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (tdInitDataCols(pHelper->pDataCols[1], pSchema) < 0) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
 
   if (pHelper->idxH.numOfIdx > 0) {
     while (true) {
@@ -309,6 +316,8 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
 
   helperSetState(pHelper, TSDB_HELPER_TABLE_SET);
   ASSERT(pHelper->state == ((TSDB_HELPER_TABLE_SET << 1) - 1));
+
+  return 0;
 }
 
 int tsdbCommitTableData(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols *pDataCols, TSKEY maxKey) {

@@ -297,7 +297,7 @@ static void doInitGlobalConfig() {
   SGlobalCfg cfg = {0};
   
   // ip address
-  cfg.option = "first";
+  cfg.option = "firstEp";
   cfg.ptr = tsFirst;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
@@ -307,7 +307,7 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "second";
+  cfg.option = "secondEp";
   cfg.ptr = tsSecond;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;

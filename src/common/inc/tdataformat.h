@@ -235,11 +235,11 @@ typedef struct {
   int maxPoints;  // max number of points
   int bufSize;
 
-  int      numOfRows;
-  int      numOfCols;  // Total number of cols
-  int      sversion;   // TODO: set sversion
-  void *   buf;
-  SDataCol cols[];
+  int       numOfRows;
+  int       numOfCols;  // Total number of cols
+  int       sversion;   // TODO: set sversion
+  void *    buf;
+  SDataCol *cols;
 } SDataCols;
 
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
@@ -249,13 +249,14 @@ typedef struct {
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
-void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
+int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
-void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2, int limit2, int tRows);
+void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
+                              int limit2, int tRows);
 
 // ----------------- K-V data row structure
 /*
