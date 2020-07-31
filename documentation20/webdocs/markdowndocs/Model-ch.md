@@ -11,7 +11,7 @@ TDengine采用关系型数据模型，需要建库、建表。因此对于一个
 ```cmd
 CREATE DATABASE power KEEP 365 DAYS 10 REPLICA 3 BLOCKS 4;
 ```
-上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见TAOS SQL。
+上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>
 
 注意：任何一张表或超级表是属于一个库的，在创建表之前，必须先创建库。
 
@@ -20,7 +20,7 @@ CREATE DATABASE power KEEP 365 DAYS 10 REPLICA 3 BLOCKS 4;
 ```cmd
 CREATE TABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);
 ```
-与创建普通表一样，创建表时，需要提供表名（示例中为meters），表结构Schema，即数据列的定义，为采集的物理量（示例中为ts, current, voltage, phase)，数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的schema (示例中为location, groupId)，标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组ID、管理员ID等等。标签的schema可以事后增加、删除、修改。具体定义以及细节请见 TAOS SQL一节。
+与创建普通表一样，创建表时，需要提供表名（示例中为meters），表结构Schema，即数据列的定义，为采集的物理量（示例中为ts, current, voltage, phase)，数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的schema (示例中为location, groupId)，标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组ID、管理员ID等等。标签的schema可以事后增加、删除、修改。具体定义以及细节请见 <a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>一节。
 
 每一种类型的数据采集点需要建立一个超级表，因此一个物联网系统，往往会有多个超级表。一个系统可以有多个DB，一个DB里可以有一到多个超级表。
 
