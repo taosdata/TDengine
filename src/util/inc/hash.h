@@ -41,17 +41,17 @@ typedef struct SHashNode {
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
-  HASH_GLOBAL_LOCK = 1,
-  HASH_ENTRY_LOCK  = 2,
+//  HASH_GLOBAL_LOCK = 1,
+  HASH_ENTRY_LOCK  = 1,
 } SHashLockTypeE;
 
-typedef struct SHashLock {
-#if defined(LINUX)
-  pthread_rwlock_t *lock;
-#else
-  pthread_mutex_t  *lock;
-#endif
-} SHashLock;
+//typedef struct SHashLock {
+//#if defined(LINUX)
+//  pthread_rwlock_t *lock;
+//#else
+//  pthread_mutex_t  *lock;
+//#endif
+//} SHashLock;
 
 typedef struct SHashEntry {
   int32_t    num;      // number of elements in current entry
@@ -66,8 +66,8 @@ typedef struct SHashObj {
   _hash_fn_t      hashFp;       // hash function
   _hash_free_fn_t freeFp;       // hash node free callback function
 
-  SHashLock       lock;
-  SHashLockTypeE  lockType;     // lock type
+  SRWLatch        lock;         // read-write spin lock
+  SHashLockTypeE  type;         // lock type
   bool            enableUpdate; // enable update
   SArray         *pMemBlock;    // memory block allocated for SHashEntry
 } SHashObj;

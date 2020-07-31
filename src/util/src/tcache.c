@@ -289,7 +289,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
                pCacheObj->name, key, pNode1->data, pNode1->addedTime, pNode1->expireTime,
                (int32_t)taosHashGetSize(pCacheObj->pHashTable), pCacheObj->totalSize, (int64_t)dataSize);
 
-        return pNode1;
+        return pNode1->data;
 
       } else {
         // failed, try again
