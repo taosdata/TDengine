@@ -10,7 +10,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
 
   LIST(APPEND WALTEST_SRC ./waltest.c)
   ADD_EXECUTABLE(waltest ${WALTEST_SRC})
-  TARGET_LINK_LIBRARIES(waltest twal)
+  TARGET_LINK_LIBRARIES(waltest twal osdetail tutil)
 
 ENDIF ()
 
