@@ -12,6 +12,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+// no test file errors here
+#undef TAOS_RANDOM_FILE_FAIL
+
 #include "tsdbMain.h"
 #include "os.h"
 #include "talgo.h"
@@ -22,8 +26,6 @@
 #include "ttime.h"
 #include "tulog.h"
 
-#include <pthread.h>
-#include <sys/stat.h>
 
 #define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"
@@ -545,7 +547,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
 
-  if (twrite(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosTWrite(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", pCfg->tsdbId, TSDB_FILE_HEAD_SIZE, fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -586,7 +588,7 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  if (tread(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosTRead(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to read %d bytes from file %s since %s", TSDB_FILE_HEAD_SIZE, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -788,7 +790,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
     for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      tsdbSetHelperTable(&rhelper, pTable, pRepo);
+      if (tsdbSetHelperTable(&rhelper, pTable, pRepo) < 0) goto _err;
       SCompIdx *pIdx = &(rhelper.curCompIdx);
 
       if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;

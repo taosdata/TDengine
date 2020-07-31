@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "qsqlparser.h"
+#include "qSqlparser.h"
 #include "queryLog.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -907,6 +907,7 @@ void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
   pDBInfo->daysPerFile = -1;
 
   pDBInfo->replica = -1;
+  pDBInfo->quorum = -1;
   pDBInfo->keep = NULL;
 
   memset(&pDBInfo->precision, 0, sizeof(SSQLToken));

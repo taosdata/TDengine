@@ -43,9 +43,9 @@ extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
 extern float    tsRatioOfQueryThreads;
 extern int8_t   tsDaylight;
-extern char     tsTimezone[64];
-extern char     tsLocale[64];
-extern char     tsCharset[64];  // default encode string
+extern char     tsTimezone[];
+extern char     tsLocale[];
+extern char     tsCharset[];  // default encode string
 extern int32_t  tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 
@@ -80,6 +80,7 @@ extern int16_t tsCompression;
 extern int16_t tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
+extern int32_t tsQuorum;
 
 // balance
 extern int32_t tsEnableBalance;

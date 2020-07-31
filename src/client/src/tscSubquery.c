@@ -180,7 +180,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, in
   pSupporter->limit = pQueryInfo->limit;
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, index);
-  pSupporter->uid = pTableMetaInfo->pTableMeta->uid;
+  pSupporter->uid = pTableMetaInfo->pTableMeta->id.uid;
   assert (pSupporter->uid != 0);
 
   getTmpfilePath("join-", pSupporter->path);
@@ -355,7 +355,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     // set the join condition tag column info, to do extract method
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       assert(pQueryInfo->tagCond.joinInfo.hasJoin);
-      int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid);
+      int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       pExpr->param[0].i64Key = colId;
       pExpr->numOfParams = 1;
@@ -499,7 +499,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   // set the tags value for ts_comp function
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, 0);
-    int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->uid);
+    int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
     pExpr->param->i64Key = tagColId;
     pExpr->numOfParams = 1;
   }
@@ -560,7 +560,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   qsort(p2->pIdTagList, p2->num, p2->tagSize, tscCompareTidTags);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid);
+  int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
   SSchema* pColSchema = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
@@ -1034,7 +1034,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     int32_t tableIndexOfSub = -1;
     for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, j);
-      if (pTableMetaInfo->pTableMeta->uid == pExpr->uid) {
+      if (pTableMetaInfo->pTableMeta->id.uid == pExpr->uid) {
         tableIndexOfSub = j;
         break;
       }
@@ -1205,7 +1205,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       STagCond* pTagCond = &pSupporter->tagCond;
       assert(pTagCond->joinInfo.hasJoin);
 
-      int32_t tagColId = tscGetJoinTagColIdByUid(pTagCond, pTableMetaInfo->pTableMeta->uid);
+      int32_t tagColId = tscGetJoinTagColIdByUid(pTagCond, pTableMetaInfo->pTableMeta->id.uid);
       SSchema* s = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
       int16_t bytes = 0;
@@ -1237,7 +1237,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       SSqlExpr *pExpr = tscSqlExprGet(pNewQueryInfo, 0);
 
       if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-        int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->uid);
+        int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
         pExpr->param->i64Key = tagColId;
         pExpr->numOfParams = 1;
       }
@@ -1505,12 +1505,11 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
 
   SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSql, trsupport, pSql);
 
-  // todo add to async res or not??
   if (pNew == NULL) {
-    tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vgId:%d, orderOfSub:%d",
-             trsupport->pParentSql, pSql, pVgroup->vgId, trsupport->subqueryIndex);
+    tscError("%p sub:%p failed to create new subquery due to error:%s, abort retry, vgId:%d, orderOfSub:%d",
+             trsupport->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, trsupport->subqueryIndex);
 
-    pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    pParentSql->res.code = terrno;
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
 
     return pParentSql->res.code;

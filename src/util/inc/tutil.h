@@ -25,150 +25,24 @@ extern "C" {
 #include "tcrc32c.h"
 #include "taosdef.h"
 
-#ifndef STDERR_FILENO
-#define STDERR_FILENO (2)
-#endif
-
-#define FD_VALID(x) ((x) > STDERR_FILENO)
-#define FD_INITIALIZER  ((int32_t)-1)
-
-#define WCHAR wchar_t
-
-#define tfree(x)         \
-  do {                   \
-    if (x) {             \
-      free((void *)(x)); \
-      x = 0;             \
-    }                    \
-  } while(0);
-
-#define tstrncpy(dst, src, size)   \
-  do {                             \
-    strncpy((dst), (src), (size)); \
-    (dst)[(size)-1] = 0;           \
-  } while (0);
-
-#define tclose(x) taosCloseSocket(x)
-
-// Pointer p drift right by b bytes
-#define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
-#define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
-
-#ifndef NDEBUG
-#define ASSERT(x) assert(x)
-#else
-#define ASSERT(x)
-#endif
-
-#ifdef UNUSED
-#undefine UNUSED
-#endif
-#define UNUSED(x) ((void)(x))
-
-#ifdef UNUSED_FUNC
-#undefine UNUSED_FUNC
-#endif
-
-#ifdef UNUSED_PARAM
-#undef UNUSED_PARAM
-#endif
-
-#if defined(__GNUC__)
-#define UNUSED_PARAM(x) _UNUSED##x __attribute__((unused))
-#define UNUSED_FUNC __attribute__((unused))
-#else
-#define UNUSED_PARAM(x) x
-#define UNUSED_FUNC
-#endif
-
-#ifdef tListLen
-#undefine tListLen
-#endif
-#define tListLen(x) (sizeof(x) / sizeof((x)[0]))
-
-#if defined(__GNUC__)
-#define FORCE_INLINE inline __attribute__((always_inline))
-#else
-#define FORCE_INLINE
-#endif
-
-#define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
-  
-#define DEFAULT_COMP(x, y)       \
-  do {                           \
-    if ((x) == (y)) {            \
-      return 0;                  \
-    } else {                     \
-      return (x) < (y) ? -1 : 1; \
-    }                            \
-  } while (0)
-
-#define ALIGN_NUM(n, align) (((n) + ((align)-1)) & (~((align)-1)))
-
-// align to 8bytes
-#define ALIGN8(n) ALIGN_NUM(n, 8)
-
-#define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
-#define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
-#define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
-#define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
-#define MILLISECOND_PER_MONTH  (MILLISECOND_PER_DAY * 30)
-#define MILLISECOND_PER_YEAR   (MILLISECOND_PER_DAY * 365)
-
-#define POW2(x) ((x) * (x))
-
-uint32_t taosRand(void);
-
-uint32_t trand(void);
-
-size_t twcslen(const wchar_t *wcs);
-
 int32_t strdequote(char *src);
-
-size_t strtrim(char *src);
-
-char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
-
-char **strsplit(char *src, const char *delim, int32_t *num);
-
-char* strtolower(char *dst, const char *src);
-
-char* strntolower(char *dst, const char *src, int32_t n);
-
+size_t  strtrim(char *src);
+char *  strnchr(char *haystack, char needle, int32_t len, bool skipquote);
+char ** strsplit(char *src, const char *delim, int32_t *num);
+char *  strtolower(char *dst, const char *src);
+char *  strntolower(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
-
-//char* strreplace(const char* str, const char* pattern, const char* rep);
-
-char *strbetween(char *string, char *begin, char *end);
-
-char *paGetToken(char *src, char **token, int32_t *tokenLen);
-
-void taosMsleep(int32_t mseconds);
+char *  strbetween(char *string, char *begin, char *end);
+char *  paGetToken(char *src, char **token, int32_t *tokenLen);
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
-
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 
-int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
-
-/**
- *
- * @param fileNamePattern
- * @param dstPath
- */
-void getTmpfilePath(const char *fileNamePattern, char *dstPath);
-
-bool taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, size_t* len);
-
-int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
-
-void taosRandStr(char* str, int32_t size);
-
-int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
-
-bool taosValidateEncodec(const char *encodec);
-
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
+int  taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
+
+char *   taosIpStr(uint32_t ipInt);
+uint32_t ip2uint(const char *const ip_addr);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, char *target) {
   MD5_CTX context;
@@ -177,53 +51,6 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   MD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
-
-int taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
-
-char *taosIpStr(uint32_t ipInt);
-
-uint32_t ip2uint(const char *const ip_addr);
-
-void taosRemoveDir(char *rootDir);
-int  tmkdir(const char *pathname, mode_t mode); 
-void taosMvDir(char* destDir, char *srcDir);
-
-#define TAOS_ALLOC_MODE_DEFAULT 0
-#define TAOS_ALLOC_MODE_RANDOM_FAIL 1
-#define TAOS_ALLOC_MODE_DETECT_LEAK 2
-void taosSetAllocMode(int mode, const char* path, bool autoDump);
-void taosDumpMemoryLeak();
-
-void * tmalloc(size_t size);
-void * tcalloc(size_t nmemb, size_t size);
-size_t tsizeof(void *ptr);
-void   tmemset(void *ptr, int c);
-void * trealloc(void *ptr, size_t size);
-void   tzfree(void *ptr);
-
-#ifdef TAOS_MEM_CHECK
-
-void *  taos_malloc(size_t size, const char *file, uint32_t line);
-void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
-void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
-void    taos_free(void *ptr, const char *file, uint32_t line);
-char *  taos_strdup(const char *str, const char *file, uint32_t line);
-char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
-ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
-
-#ifndef TAOS_MEM_CHECK_IMPL
-
-#define malloc(size) taos_malloc(size, __FILE__, __LINE__)
-#define calloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
-#define realloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
-#define free(ptr) taos_free(ptr, __FILE__, __LINE__)
-#define strdup(str) taos_strdup(str, __FILE__, __LINE__)
-#define strndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
-#define getline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
-
-#endif  // TAOS_MEM_CHECK_IMPL
-
-#endif // TAOS_MEM_CHECK
 
 #ifdef __cplusplus
 }

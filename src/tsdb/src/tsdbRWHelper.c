@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 #include "tscompression.h"
 #include "tsdbMain.h"
-#include "tfile.h"
 
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 #define TSDB_KEY_COL_OFFSET 0
@@ -262,7 +262,7 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   return 0;
 }
 
-void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
+int tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
   ASSERT(helperHasState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN | TSDB_HELPER_IDX_LOAD));
 
   // Clear members and state used by previous table
@@ -273,8 +273,15 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
   pHelper->tableInfo.uid = pTable->tableId.uid;
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
 
-  tdInitDataCols(pHelper->pDataCols[0], pSchema);
-  tdInitDataCols(pHelper->pDataCols[1], pSchema);
+  if (tdInitDataCols(pHelper->pDataCols[0], pSchema) < 0) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (tdInitDataCols(pHelper->pDataCols[1], pSchema) < 0) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
 
   if (pHelper->idxH.numOfIdx > 0) {
     while (true) {
@@ -309,6 +316,8 @@ void tsdbSetHelperTable(SRWHelper *pHelper, STable *pTable, STsdbRepo *pRepo) {
 
   helperSetState(pHelper, TSDB_HELPER_TABLE_SET);
   ASSERT(pHelper->state == ((TSDB_HELPER_TABLE_SET << 1) - 1));
+
+  return 0;
 }
 
 int tsdbCommitTableData(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols *pDataCols, TSKEY maxKey) {
@@ -379,7 +388,7 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
         return -1;
       }
 
-      if (tsendfile(helperNewLastF(pHelper)->fd, helperLastF(pHelper)->fd, NULL, pCompBlock->len) < pCompBlock->len) {
+      if (taosTSendFile(helperNewLastF(pHelper)->fd, helperLastF(pHelper)->fd, NULL, pCompBlock->len) < pCompBlock->len) {
         tsdbError("vgId:%d failed to sendfile from file %s to file %s since %s", REPO_ID(pHelper->pRepo),
                   helperLastF(pHelper)->fname, helperNewLastF(pHelper)->fname, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -424,7 +433,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     pIdx->tid = pHelper->tableInfo.tid;
     ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
 
-    if (twrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
+    if (taosTWrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
       tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
                 pFile->fname, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -481,7 +490,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
 
   pFile->info.offset = offset;
 
-  if (twrite(pFile->fd, (void *)pHelper->pWIdx, pFile->info.len) < pFile->info.len) {
+  if (taosTWrite(pFile->fd, (void *)pHelper->pWIdx, pFile->info.len) < pFile->info.len) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pFile->info.len,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -514,7 +523,7 @@ int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
         return -1;
       }
 
-      if (tread(fd, (void *)(pHelper->pBuffer), pFile->info.len) < pFile->info.len) {
+      if (taosTRead(fd, (void *)(pHelper->pBuffer), pFile->info.len) < pFile->info.len) {
         tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pFile->info.len,
                   pFile->fname, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -585,7 +594,7 @@ int tsdbLoadCompInfo(SRWHelper *pHelper, void *target) {
       }
 
       pHelper->pCompInfo = trealloc((void *)pHelper->pCompInfo, pIdx->len);
-      if (tread(fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
+      if (taosTRead(fd, (void *)(pHelper->pCompInfo), pIdx->len) < pIdx->len) {
         tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
                   helperHeadF(pHelper)->fname, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -626,7 +635,7 @@ int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target) {
     return -1;
   }
 
-  if (tread(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
+  if (taosTRead(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
     tsdbError("vgId:%d failed to read %zu bytes from file %s since %s", REPO_ID(pHelper->pRepo), tsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -841,7 +850,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
                                        sizeof(TSCKSUM));
 
   // Write the whole block to file
-  if (twrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
+  if (taosTWrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(helperRepo(pHelper)), lsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1222,7 +1231,7 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
     return -1;
   }
 
-  if (tread(pFile->fd, pHelper->pBuffer, pCompCol->len) < pCompCol->len) {
+  if (taosTRead(pFile->fd, pHelper->pBuffer, pCompCol->len) < pCompCol->len) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pCompCol->len, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1337,7 +1346,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  if (tread(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) {
+  if (taosTRead(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pCompBlock->len,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);

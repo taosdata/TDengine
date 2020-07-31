@@ -71,7 +71,7 @@ static int32_t mnodeClusterActionRestored() {
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create cluster");
     int32_t code = mnodeCreateCluster();
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("failed to create cluster, reason:%s", tstrerror(code));
       return code;
     }
@@ -159,16 +159,15 @@ int32_t mnodeGetClusterId() {
 
 void mnodeUpdateClusterId() {
   SClusterObj *pCluster = NULL;
-  mnodeGetNextCluster(NULL, &pCluster);
+  void *pIter = mnodeGetNextCluster(NULL, &pCluster);
   if (pCluster != NULL) {
     tsClusterId = pCluster->clusterId;
-    mnodeDecClusterRef(pCluster);
     mInfo("cluster id is %d", tsClusterId);
-  } else {
-    //assert(false);
   }
-}
 
+  mnodeDecClusterRef(pCluster);
+  sdbFreeIter(pIter);
+}
 
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;

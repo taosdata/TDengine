@@ -44,16 +44,8 @@ static int      vnodeProcessTsdbStatus(void *arg, int status);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
+static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
-
-#ifndef _SYNC
-tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
-void    syncStop(tsync_h shandle) {}
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
-int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
-#endif
 
 int32_t vnodeInitResources() {
   vnodeInitWriteFp();
@@ -286,17 +278,14 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.writeToCache = vnodeWriteToQueue;
   syncInfo.confirmForward = dnodeSendRpcVnodeWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
+  syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
-#ifndef _SYNC
-  pVnode->role = TAOS_SYNC_ROLE_MASTER;
-#else
   if (pVnode->sync == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
   }
-#endif
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   pVnode->events = NULL;
@@ -430,10 +419,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
-  // still need report status when unsynced
-  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) {
-  } else if (pVnode->tsdb == NULL) {
-  } else {
+  if (pVnode->tsdb) {
     tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
   }
 
@@ -560,6 +546,13 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStart(pVnode->cq);
   else
     cqStop(pVnode->cq);
+}
+
+static void vnodeCtrlFlow(void *ahandle, int32_t mseconds) {
+  SVnodeObj *pVnode = ahandle;
+  if (pVnode->delay != mseconds) 
+    vInfo("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
+  pVnode->delay = mseconds;
 }
 
 static int vnodeResetTsdb(SVnodeObj *pVnode)

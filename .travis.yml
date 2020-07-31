@@ -52,7 +52,8 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/debug
           make install > /dev/null || travis_terminate $?
 
-          pip3 install numpy
+          py3ver=`python3 --version|awk '{print $2}'|cut -d "." -f 1,2` && apt install python$py3ver-dev
+          pip3 install psutil
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests

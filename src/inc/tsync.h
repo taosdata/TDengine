@@ -26,6 +26,7 @@ extern "C" {
 typedef enum _TAOS_SYNC_ROLE {
   TAOS_SYNC_ROLE_OFFLINE,
   TAOS_SYNC_ROLE_UNSYNCED,
+  TAOS_SYNC_ROLE_SYNCING,
   TAOS_SYNC_ROLE_SLAVE,
   TAOS_SYNC_ROLE_MASTER,
 } ESyncRole;
@@ -78,6 +79,9 @@ typedef void     (*FConfirmForward)(void *ahandle, void *mhandle, int32_t code);
 // when role is changed, call this to notify app
 typedef void     (*FNotifyRole)(void *ahandle, int8_t role);
 
+// if a number of retrieving data failed, call this to start flow control 
+typedef void     (*FNotifyFlowCtrl)(void *ahandle, int32_t mseconds);
+
 // when data file is synced successfully, notity app
 typedef int      (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
 
@@ -93,6 +97,7 @@ typedef struct {
   FWriteToCache   writeToCache;
   FConfirmForward confirmForward;
   FNotifyRole     notifyRole;
+  FNotifyFlowCtrl notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
 } SSyncInfo;
 

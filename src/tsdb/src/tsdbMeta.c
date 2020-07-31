@@ -69,9 +69,9 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
 
   if (tid < pMeta->maxTables && pMeta->tables[tid] != NULL) {
     if (TABLE_UID(pMeta->tables[tid]) == pCfg->tableId.uid) {
-      tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                TABLE_TID(pTable), TABLE_UID(pTable));
-      return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+      tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo),
+                TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]), TABLE_UID(pMeta->tables[tid]));
+      return 0;
     } else {
       tsdbError("vgId:%d table %s at tid %d uid %" PRIu64
                 " exists, replace it with new table, this can be not reasonable",

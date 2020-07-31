@@ -39,19 +39,19 @@ endi
 
 system_content curl 127.0.0.1:6020/rest/login/root/123
 print 5-> $system_content
-if $system_content != @{"status":"error","code":3,"desc":"auth failure"}@ then
+if $system_content != @{"status":"error","code":3,"desc":"Authentication failure"}@ then
   return -1
 endi
 
 system_content curl 127.0.0.1:6020/rest/login/root/123/1/1/3
 print 6-> $system_content
-if $system_content != @{"status":"error","code":3,"desc":"auth failure"}@ then
+if $system_content != @{"status":"error","code":3,"desc":"Authentication failure"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:6020/rest/login/root/1
 print 7-> $system_content
-if $system_content != @{"status":"error","code":3,"desc":"auth failure"}@ then
+if $system_content != @{"status":"error","code":3,"desc":"Authentication failure"}@ then
   return -1
 endi
 
@@ -81,7 +81,7 @@ print ===============  step2 - no db
 #11
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:6020/rest/sql
 print 11-> $system_content
-if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","days","keep1,keep2,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","precision","status"],"data":[],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep1,keep2,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","precision","status"],"data":[],"rows":0}@ then
   return -1
 endi
 
@@ -93,7 +93,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:6020/rest/sql
 print 13-> $system_content
-if $system_content != @{"status":"error","code":897,"desc":"mnode database aleady exist"}@ then
+if $system_content != @{"status":"error","code":897,"desc":"Database already exists"}@ then
   return -1
 endi
 
@@ -126,7 +126,7 @@ endi
 #18
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' show tables;' 127.0.0.1:6020/rest/sql
 print 18-> $system_content
-if $system_content != @{"status":"error","code":896,"desc":"mnode db not selected"}@ then
+if $system_content != @{"status":"error","code":896,"desc":"Database not specified or available"}@ then
   return -1
 endi
 
@@ -147,7 +147,7 @@ print ===============  step3 - db
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1;' 127.0.0.1:6020/rest/sql
 print 21-> $system_content
-if $system_content != @{"status":"error","code":866,"desc":"mnode invalid table name"}@ then
+if $system_content != @{"status":"error","code":866,"desc":"Table does not exist"}@ then
   return -1
 endi
 
