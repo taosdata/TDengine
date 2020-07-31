@@ -19,7 +19,7 @@
 
 #ifndef TAOS_OS_FUNC_FILE
 
-void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
+void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char* tdengineTmpFileNamePrefix = "tdengine-";
   
   char tmpPath[PATH_MAX];
@@ -36,6 +36,8 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   taosRandStr(rand, tListLen(rand) - 1);
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 }
+
+#endif
 
 // rename file name
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath) {
@@ -64,5 +66,3 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
 
   return rename(fullPath, *dstPath);
 }
-
-#endif

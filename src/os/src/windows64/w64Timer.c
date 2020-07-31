@@ -22,8 +22,7 @@
 
 typedef void (*win_timer_f)(int signo);
 
-void WINAPI taosWinOnTimer(UINT wTimerID, UINT msg, DWORD_PTR dwUser, DWORD_PTR dwl, DWORD_PTR dw2)
-{
+void WINAPI taosWinOnTimer(UINT wTimerID, UINT msg, DWORD_PTR dwUser, DWORD_PTR dwl, DWORD_PTR dw2) {
   win_timer_f callback = *((win_timer_f *)&dwUser);
   if (callback != NULL) {
     callback(0);
@@ -47,8 +46,4 @@ void taosUninitTimer() {
 
 void taosMsleep(int mseconds) {
   Sleep(mseconds);
-}
-
-void sleep(int mseconds) {
-  taosMsleep(mseconds);
 }

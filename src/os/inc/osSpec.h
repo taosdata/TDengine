@@ -318,7 +318,7 @@ void taosRandStr(char* str, int32_t size);
 uint32_t trand(void);
 
 // TAOS_OS_FUNC_FILE
-void getTmpfilePath(const char *fileNamePrefix, char *dstPath);
+void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath);
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
 // USE_LIBICONV

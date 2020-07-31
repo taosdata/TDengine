@@ -13,22 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "taosdef.h"
+#include "tglobal.h"
+#include "ttimer.h"
 #include "tulog.h"
+#include "tutil.h"
 
-void taosCloseTcpServerConnection(void *chandle) {
-  tError("CloseTcpServerConnection not support in windows");
-}
+bool taosCheckPthreadValid(pthread_t thread) { return thread.p != NULL; }
 
-void taosCleanUpTcpServer(void *handle) {
-  tError("CleanUpTcpServer not support in windows");
-}
+void taosResetPthread(pthread_t *thread) { thread->p = 0; }
 
-void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
-  tError("InitTcpServer not support in windows");
-  return 0;
-}
-
-int taosSendTcpServerData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
-  tError("SendTcpServerData not support in windows");
-  return 0;
+int64_t taosGetPthreadId() {
+#ifdef PTW32_VERSION
+  return pthread_getw32threadid_np(pthread_self());
+#else
+  return (int64_t)pthread_self();
+#endif
 }

@@ -15,24 +15,32 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosdef.h"
+#include "tglobal.h"
+#include "ttimer.h"
+#include "tulog.h"
+#include "tutil.h"
 
-void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
-  const char* tdengineTmpFileNamePrefix = "tdengine-";
-    char tmpPath[PATH_MAX];
+int32_t BUILDIN_CLZL(uint64_t val) {
+  unsigned long r = 0;
+  _BitScanReverse64(&r, val);
+  return (int)(r >> 3);
+}
 
-  char *tmpDir = getenv("tmp");
-  if (tmpDir == NULL) {
-    tmpDir = "";
-  }
-  
-  strcpy(tmpPath, tmpDir);
-  strcat(tmpPath, tdengineTmpFileNamePrefix);
-  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
-    strcat(tmpPath, fileNamePrefix);
-    strcat(tmpPath, "-%d-%s");
-  }
-  
-  char rand[8] = {0};
-  taosRandStr(rand, tListLen(rand) - 1);
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+int32_t BUILDIN_CLZ(uint32_t val) {
+  unsigned long r = 0;
+  _BitScanReverse(&r, val);
+  return (int)(r >> 3);
+}
+
+int32_t BUILDIN_CTZL(uint64_t val) {
+  unsigned long r = 0;
+  _BitScanForward64(&r, val);
+  return (int)(r >> 3);
+}
+
+int32_t BUILDIN_CTZ(uint32_t val) {
+  unsigned long r = 0;
+  _BitScanForward(&r, val);
+  return (int)(r >> 3);
 }

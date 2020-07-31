@@ -39,7 +39,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
 
   char path[PATH_MAX] = {0};
-  getTmpfilePath("qbuf", path);
+  taosGetTmpfilePath("qbuf", path);
   pResBuf->path = strdup(path);
 
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));

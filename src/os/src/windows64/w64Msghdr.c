@@ -16,42 +16,41 @@
 #include <winsock2.h>
 
 void taosFreeMsgHdr(void *hdr) {
-    WSAMSG *msgHdr = (WSAMSG *)hdr;
-    free(msgHdr->lpBuffers);
+  WSAMSG *msgHdr = (WSAMSG *)hdr;
+  free(msgHdr->lpBuffers);
 }
 
 int taosMsgHdrSize(void *hdr) {
-    WSAMSG *msgHdr = (WSAMSG *)hdr;
-    return msgHdr->dwBufferCount;
+  WSAMSG *msgHdr = (WSAMSG *)hdr;
+  return msgHdr->dwBufferCount;
 }
 
 void taosSendMsgHdr(void *hdr, int fd) {
-    WSAMSG *msgHdr = (WSAMSG *)hdr;
-    DWORD len;
+  WSAMSG *msgHdr = (WSAMSG *)hdr;
+  DWORD   len;
 
-    WSASendMsg(fd, msgHdr, 0, &len, 0, 0);
-    msgHdr->dwBufferCount = 0;
+  WSASendMsg(fd, msgHdr, 0, &len, 0, 0);
+  msgHdr->dwBufferCount = 0;
 }
 
 void taosInitMsgHdr(void **hdr, void *dest, int maxPkts) {
-    WSAMSG *msgHdr = (WSAMSG *)malloc(sizeof(WSAMSG));
-    memset(msgHdr, 0, sizeof(WSAMSG));
-    *hdr = msgHdr;
+  WSAMSG *msgHdr = (WSAMSG *)malloc(sizeof(WSAMSG));
+  memset(msgHdr, 0, sizeof(WSAMSG));
+  *hdr = msgHdr;
 
-    // see ws2def.h
-    // the size of LPSOCKADDR and sockaddr_in * is same, so it's safe
-    msgHdr->name = (LPSOCKADDR)dest;
-    msgHdr->namelen = sizeof(struct sockaddr_in);
-    int size = sizeof(WSABUF) * maxPkts;
-    msgHdr->lpBuffers = (LPWSABUF)malloc(size);
-    memset(msgHdr->lpBuffers, 0, size);
-    msgHdr->dwBufferCount = 0;
+  // see ws2def.h
+  // the size of LPSOCKADDR and sockaddr_in * is same, so it's safe
+  msgHdr->name = (LPSOCKADDR)dest;
+  msgHdr->namelen = sizeof(struct sockaddr_in);
+  int size = sizeof(WSABUF) * maxPkts;
+  msgHdr->lpBuffers = (LPWSABUF)malloc(size);
+  memset(msgHdr->lpBuffers, 0, size);
+  msgHdr->dwBufferCount = 0;
 }
 
 void taosSetMsgHdrData(void *hdr, char *data, int dataLen) {
-    WSAMSG *msgHdr = (WSAMSG *)hdr;
-    msgHdr->lpBuffers[msgHdr->dwBufferCount].buf = data;
-    msgHdr->lpBuffers[msgHdr->dwBufferCount].len = dataLen;
-    msgHdr->dwBufferCount++;
+  WSAMSG *msgHdr = (WSAMSG *)hdr;
+  msgHdr->lpBuffers[msgHdr->dwBufferCount].buf = data;
+  msgHdr->lpBuffers[msgHdr->dwBufferCount].len = dataLen;
+  msgHdr->dwBufferCount++;
 }
-

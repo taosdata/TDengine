@@ -38,7 +38,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, int32_t p
   pMemBuffer->numOfElemsPerPage = (pMemBuffer->pageSize - sizeof(tFilePage)) / pMemBuffer->nElemSize;
   
   char name[MAX_TMPFILE_PATH_LENGTH] = {0};
-  getTmpfilePath("extbuf", name);
+  taosGetTmpfilePath("extbuf", name);
   
   pMemBuffer->path = strdup(name);
   uDebug("create tmp file:%s", pMemBuffer->path);

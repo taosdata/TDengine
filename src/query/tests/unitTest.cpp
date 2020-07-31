@@ -766,7 +766,7 @@ TEST(testCase, getTempFilePath_test) {
   char path[4096] = {0};
   memset(path, 1, 4096);
 
-  getTmpfilePath("new_tmp", path);
+  taosGetTmpfilePath("new_tmp", path);
   printf("%s\n", path);
 }
 

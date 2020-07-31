@@ -183,7 +183,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, in
   pSupporter->uid = pTableMetaInfo->pTableMeta->id.uid;
   assert (pSupporter->uid != 0);
 
-  getTmpfilePath("join-", pSupporter->path);
+  taosGetTmpfilePath("join-", pSupporter->path);
   pSupporter->f = fopen(pSupporter->path, "w");
 
   // todo handle error
@@ -773,7 +773,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     // continue to retrieve ts-comp data from vnode
     if (!pRes->completed) {
-      getTmpfilePath("ts-join", pSupporter->path);
+      taosGetTmpfilePath("ts-join", pSupporter->path);
       pSupporter->f = fopen(pSupporter->path, "w");
       pRes->row = pRes->numOfRows;
 
@@ -797,7 +797,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscResetForNextRetrieve(&pSql->res);
 
     assert(pSupporter->f == NULL);
-    getTmpfilePath("ts-join", pSupporter->path);
+    taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure
     pSupporter->f = fopen(pSupporter->path, "w");

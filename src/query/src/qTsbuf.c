@@ -21,7 +21,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
     return NULL;
   }
   
-  getTmpfilePath("join", pTSBuf->path);
+  taosGetTmpfilePath("join", pTSBuf->path);
   pTSBuf->f = fopen(pTSBuf->path, "w+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
