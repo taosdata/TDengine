@@ -653,7 +653,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
     SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
 
     if (pNode->expireTime < time && T_REF_VAL_GET(pNode) <= 0) {
-//      taosCacheReleaseNode(pCacheObj, pNode);
+      taosCacheReleaseNode(pCacheObj, pNode);
       continue;
     }
 

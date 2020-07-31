@@ -213,7 +213,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
         }
       }
 
-      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, freehandle);
+      qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
     }
   }
 
@@ -268,7 +268,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     code = vnodeDumpQueryResult(pRet, pVnode, *handle, &freeHandle);
   }
 
-  qReleaseQInfo(pVnode->qMgmt, (void**) &handle, freeHandle);
+  qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
   return code;
 }
 

@@ -21,6 +21,12 @@
 
 #define HASH_NEED_RESIZE(_h)  ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 
+#define FREE_HASH_NODE(_n) \
+  do {                     \
+    tfree((_n)->data);     \
+    tfree(_n);             \
+  } while (0)
+
 static FORCE_INLINE void __wr_lock(void *lock, int32_t type) {
   if (type == HASH_NO_LOCK) {
     return;
@@ -258,9 +264,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // enable resize
     __rd_unlock(&pHashObj->lock, pHashObj->type);
 
-    tfree(pNewNode->data)
-    tfree(pNewNode);
-
+    FREE_HASH_NODE(pNewNode);
     return pHashObj->enableUpdate? 0:-1;
   }
 }
@@ -273,7 +277,7 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
   uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
 
   // only add the read lock to disable the resize process
-    __rd_lock(&pHashObj->lock, pHashObj->type);
+  __rd_lock(&pHashObj->lock, pHashObj->type);
 
   SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, hashVal);
 
@@ -289,6 +293,18 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
 int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   return taosHashRemoveNode(pHashObj, key, keyLen, NULL, 0);
+}
+
+static FORCE_INLINE void popNodeFromEntryList(SHashEntry* pe, SHashNode* pNode) {
+  SHashNode* pNext = pNode->next;
+
+  assert(pNode->prev != NULL);
+  pNode->prev->next = pNext;
+  if (pNext != NULL) {
+    pNext->prev = pNode->prev;
+  }
+
+  pe->num -= 1;
 }
 
 int32_t taosHashRemoveNode(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize) {
@@ -316,16 +332,7 @@ int32_t taosHashRemoveNode(SHashObj *pHashObj, const void *key, size_t keyLen, v
 
   SHashNode* pNode = doSearchEntryList(pe, key, keyLen, hashVal);
   if (pNode != NULL) {
-    assert(pNode->prev != NULL);
-
-    SHashNode *pNext = pNode->next;
-    pNode->prev->next = pNext;
-
-    if (pNext != NULL) {
-      pNext->prev = pNode->prev;
-    }
-
-    pe->num -= 1;
+    popNodeFromEntryList(pe, pNode);
   }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
@@ -344,8 +351,7 @@ int32_t taosHashRemoveNode(SHashObj *pHashObj, const void *key, size_t keyLen, v
     pNode->next = NULL;
     pNode->prev = NULL;
 
-    tfree(pNode->data);
-    tfree(pNode);
+    FREE_HASH_NODE(pNode);
 
     return 0;
   } else {
@@ -540,22 +546,16 @@ void taosHashTableResize(SHashObj *pHashObj) {
       int32_t j = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
       if (j == i) {  // this key locates in the same slot, no need to relocate it
         pNode = pNode->next;
-        assert(pNode == NULL || pNode->next != pNode);
       } else {
         pNext = pNode->next;
         assert(pNode != pNext && (pNext == NULL || pNext->prev == pNode) && pNode->prev->next == pNode);
 
-        assert(pNode->prev != NULL);
-        pNode->prev->next = pNext;
-        if (pNext != NULL) {
-          pNext->prev = pNode->prev;
-        }
-        
+        popNodeFromEntryList(pe, pNode);
+
         // clear pointer
         pNode->next = NULL;
         pNode->prev = NULL;
-        pe->num -= 1;
-        
+
         // added into new slot
         SHashEntry *pNewEntry = pHashObj->hashList[j];
         pushfrontNode(pNewEntry, pNode);
