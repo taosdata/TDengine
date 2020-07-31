@@ -378,7 +378,7 @@ static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCt
   atomic_add_fetch_32(&pStable->numOfTables, 1);
 
   if (pStable->vgHash == NULL) {
-    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   }
 
   if (pStable->vgHash != NULL) {

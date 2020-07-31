@@ -34,9 +34,9 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 
   // init id hash table
-  pResBuf->groupSet  = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  pResBuf->groupSet  = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   pResBuf->assistBuf = malloc(pResBuf->pageSize + 2); // EXTRA BYTES
-  pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
 
   char path[PATH_MAX] = {0};
   getTmpfilePath("qbuf", path);

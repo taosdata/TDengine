@@ -256,7 +256,7 @@ static void* KeywordHashTable = NULL;
 static void doInitKeywordsTable() {
   int numOfEntries = tListLen(keywordTable);
   
-  KeywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, false);
+  KeywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = strlen(keywordTable[i].name);
     void* ptr = &keywordTable[i];

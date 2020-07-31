@@ -163,7 +163,7 @@ static void doAddToHashTable(SHashObj *pHashObj, SHashNode *pNode);
  */
 static SHashNode *getNextHashNode(SHashMutableIterator *pIter);
 
-SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
+SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, bool threadsafe) {
   if (capacity == 0 || fn == NULL) {
     return NULL;
   }
@@ -179,6 +179,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
   assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashFp = fn;
+  pHashObj->enableUpdate = update;
 
   pHashObj->hashList = (SHashNode **)calloc(pHashObj->capacity, POINTER_BYTES);
   if (pHashObj->hashList == NULL) {
@@ -232,15 +233,21 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
     doAddToHashTable(pHashObj, pNewNode);
     __unlock(pHashObj->lock);
+
+    return 0;
   } else {
-    doUpdateHashNode(pNode, pNewNode);
+    // not support the update operation, return error
+    if (pHashObj->enableUpdate) {
+      doUpdateHashNode(pNode, pNewNode);
+    }
+
     __unlock(pHashObj->lock);
 
     tfree(pNewNode->data)
     tfree(pNewNode);
-  }
 
-  return 0;
+    return pHashObj->enableUpdate? 0:-1;
+  }
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
@@ -288,8 +295,43 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   pNode->next = NULL;
   pNode->prev = NULL;
 
+  tfree(pNode->data);
   tfree(pNode);
+
   return 0;
+}
+
+void* taosHashRemoveNode(SHashObj *pHashObj, const void *key, size_t keyLen) {
+  uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
+
+  __wr_lock(pHashObj->lock);
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, hashVal);
+  if (pNode == NULL) {
+    __unlock(pHashObj->lock);
+    return NULL;
+  }
+
+  SHashNode *pNext = pNode->next;
+  if (pNode->prev == NULL) {
+    int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
+    assert(pHashObj->hashList[slot] == pNode);
+
+    pHashObj->hashList[slot] = pNext;
+  } else {
+    pNode->prev->next = pNext;
+  }
+
+  if (pNext != NULL) {
+    pNext->prev = pNode->prev;
+  }
+
+  pHashObj->size -= 1;
+  __unlock(pHashObj->lock);
+
+  pNode->next = NULL;
+  pNode->prev = NULL;
+
+  return pNode;
 }
 
 void taosHashCleanup(SHashObj *pHashObj) {

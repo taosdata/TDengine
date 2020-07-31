@@ -646,7 +646,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
   STableDataBlocks* pOneTableBlock = taosArrayGetP(pTableDataBlockList, 0);
   int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
 
-  void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
   size_t total = taosArrayGetSize(pTableDataBlockList);

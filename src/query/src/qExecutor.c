@@ -5841,7 +5841,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     pQInfo->tableqinfoGroupInfo.pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
     pQInfo->tableqinfoGroupInfo.numOfTables = pTableGroupInfo->numOfTables;
     pQInfo->tableqinfoGroupInfo.map = taosHashInit(pTableGroupInfo->numOfTables,
-                                                   taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+                                                   taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   }
 
   int tableIndex = 0;

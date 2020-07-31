@@ -96,7 +96,7 @@ static void syncModuleInitFunc() {
     return;
   }
     
-  vgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true); 
+  vgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
   if (vgIdHash == NULL) {
     taosTmrCleanUp(syncTmrCtrl);
     taosCloseTcpThreadPool(tsTcpPool);

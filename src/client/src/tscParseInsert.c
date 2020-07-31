@@ -1039,7 +1039,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   }
 
   if (NULL == pCmd->pTableList) {
-    pCmd->pTableList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+    pCmd->pTableList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
     pCmd->pDataBlocks = taosArrayInit(4, POINTER_BYTES);
     if (NULL == pCmd->pTableList || NULL == pSql->cmd.pDataBlocks) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;

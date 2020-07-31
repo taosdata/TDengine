@@ -44,6 +44,7 @@ typedef struct SHashObj {
   _hash_fn_t      hashFp;    // hash function
   _hash_free_fn_t freeFp;    // hash node free callback function
 
+  bool            enableUpdate; // enable update
 #if defined(LINUX)
   pthread_rwlock_t *lock;
 #else
@@ -67,7 +68,7 @@ typedef struct SHashMutableIterator {
  * @param threadsafe  thread safe or not
  * @return
  */
-SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe);
+SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, bool threadsafe);
 
 /**
  * return the size of hash table
@@ -105,7 +106,8 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  */
 int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
 
-void taosHashRemoveNode();
+
+void* taosHashRemoveNode(SHashObj *pHashObj, const void *key, size_t keyLen);
 
 /**
  * clean up hash table
