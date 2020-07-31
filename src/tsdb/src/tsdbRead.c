@@ -1539,8 +1539,10 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
     STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
     int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
 
+    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
+    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
 
     return getDataBlocksInFilesImpl(pQueryHandle, exists);
   } else {
