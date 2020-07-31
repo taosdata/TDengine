@@ -574,6 +574,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
   SMemTable * pMem = pRepo->imem;
+  bool        newLast = false;
 
   TSKEY minKey = 0, maxKey = 0;
   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
@@ -600,6 +601,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   // Open files for write/read
   if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) {
     tsdbError("vgId:%d failed to set helper file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
+
+  newLast = TSDB_NLAST_FILE_OPENED(pHelper);
+
+  if (tsdbLoadCompIdx(pHelper, NULL) < 0) {
+    tsdbError("vgId:%d failed to load SCompIdx part since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
@@ -651,12 +659,24 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
+
 #ifdef TSDB_IDX
-  pGroup->files[TSDB_FILE_TYPE_IDX] = *(helperIdxF(pHelper));
+  rename(helperNewIdxF(pHelper)->fname, helperIdxF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_IDX].info = helperNewIdxF(pHelper)->info;
 #endif
-  pGroup->files[TSDB_FILE_TYPE_HEAD] = *(helperHeadF(pHelper));
-  pGroup->files[TSDB_FILE_TYPE_DATA] = *(helperDataF(pHelper));
-  pGroup->files[TSDB_FILE_TYPE_LAST] = *(helperLastF(pHelper));
+
+  rename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
+
+  if (newLast) {
+    rename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
+  } else {
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = helperLastF(pHelper)->info;
+  }
+
+  pGroup->files[TSDB_FILE_TYPE_DATA].info = helperDataF(pHelper)->info;
+
   pthread_rwlock_unlock(&(pFileH->fhlock));
 
   return 0;

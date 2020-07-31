@@ -13,11 +13,11 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(taosdump ${SRC})
   
-  IF (TD_PAGMODE_LITE)
+#  IF (TD_PAGMODE_LITE)
     TARGET_LINK_LIBRARIES(taosdump taos)
-  ELSE ()
-    TARGET_LINK_LIBRARIES(taosdump taos_static)
-  ENDIF ()  
+#  ELSE ()
+#    TARGET_LINK_LIBRARIES(taosdump taos_static)
+#  ENDIF ()  
   
   
 ENDIF ()

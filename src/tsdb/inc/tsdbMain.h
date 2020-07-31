@@ -183,10 +183,10 @@ typedef struct {
 } STsdbFileH;
 
 typedef struct {
-  int         numOfFGroups;
-  SFileGroup *base;
-  SFileGroup *pFileGroup;
   int         direction;
+  STsdbFileH* pFileH;
+  int         fileId;
+  int         index;
 } SFileGroupIter;
 
 // ------------------ tsdbMain.c

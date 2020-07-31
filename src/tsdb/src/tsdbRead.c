@@ -554,16 +554,6 @@ static int32_t binarySearchForBlock(SCompBlock* pBlock, int32_t numOfBlocks, TSK
 }
 
 static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlocks) {
-  SFileGroup* fileGroup = pQueryHandle->pFileGroup;
-  assert(fileGroup->files[TSDB_FILE_TYPE_HEAD].fname > 0);
-
-  int32_t code = tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, fileGroup);
-
-  //open file failed, return error code to client
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   // load all the comp offset value for all tables in this file
   *numOfBlocks = 0;
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -1460,16 +1450,37 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
   STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
   STimeWindow win = TSWINDOW_INITIALIZER;
 
-  while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
+  while (true) {
+    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+
+    if ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) == NULL) {
+      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+      break;
+    }
+
     tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, pQueryHandle->pFileGroup->fileId, &win.skey, &win.ekey);
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pQueryHandle->order) && win.skey > pQueryHandle->window.ekey) ||
         (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
+      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, %p", pQueryHandle,
                 pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qinfo);
       pQueryHandle->pFileGroup = NULL;
       assert(pQueryHandle->numOfBlocks == 0);
+      break;
+    }
+
+    if (tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, pQueryHandle->pFileGroup) < 0) {
+      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+      code = terrno;
+      break;
+    }
+
+    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+
+    if (tsdbLoadCompIdx(&pQueryHandle->rhelper, NULL) < 0) {
+      code = terrno;
       break;
     }
 
@@ -1527,8 +1538,10 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
     STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
     int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
 
+    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
+    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
 
     return getDataBlocksInFilesImpl(pQueryHandle, exists);
   } else {
