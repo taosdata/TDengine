@@ -23,12 +23,13 @@ extern "C" {
 ssize_t taosTReadImp(int fd, void *buf, size_t count);
 ssize_t taosTWriteImp(int fd, void *buf, size_t count);
 
-// TAOS_OS_FUNC_FILE_TSENDIFLE
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size);
 int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
 
-#define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
-#define taosFSendFile(outfile, infile, offset, count) taosTSendFileImp(fileno(outfile), fileno(infile), offset, size)
+#ifndef TAOS_OS_FUNC_FILE_TSENDIFLE
+  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
+  #define taosFSendFile(outfile, infile, offset, count) taosTSendFileImp(fileno(outfile), fileno(infile), offset, size)
+#endif
 
 #define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
 #define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
