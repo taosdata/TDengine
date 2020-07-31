@@ -6742,7 +6742,6 @@ void** qAcquireQInfo(void* pMgmt, uint64_t key) {
 
 void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   SQueryMgmt *pQueryMgmt = pMgmt;
-
   if (pQueryMgmt->qinfoPool == NULL) {
     return NULL;
   }
