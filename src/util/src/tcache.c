@@ -436,8 +436,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
         taosRemoveFromTrashCan(pCacheObj, pNode->pTNodeHeader);
       }
     } else {
-      int32_t success = taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
-      if (success) {
+      int32_t ret = taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
+      if (ret == 0) {
         if (ref > 0) {
           assert(pNode->pTNodeHeader == NULL);
 
