@@ -19,7 +19,6 @@
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
-#include "ttime.h"
 
 #ifdef TSDB_IDX
 const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};
@@ -65,7 +64,7 @@ _err:
 void tsdbFreeFileH(STsdbFileH *pFileH) {
   if (pFileH) {
     pthread_rwlock_destroy(&pFileH->fhlock);
-    tfree(pFileH->pFGroup);
+    taosTFree(pFileH->pFGroup);
     free(pFileH);
   }
 }
@@ -116,14 +115,14 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
   }
 
-  tfree(tDataDir);
+  taosTFree(tDataDir);
   closedir(dir);
   return 0;
 
 _err:
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&fileGroup.files[type]);
 
-  tfree(tDataDir);
+  taosTFree(tDataDir);
   if (dir != NULL) closedir(dir);
   tsdbCloseFileH(pRepo);
   return -1;

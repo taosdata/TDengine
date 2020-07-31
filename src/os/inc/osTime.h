@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTIME_H
-#define TDENGINE_TTIME_H
+#ifndef TDENGINE_OS_TIME_H
+#define TDENGINE_OS_TIME_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +22,16 @@ extern "C" {
 
 #include "os.h"
 #include "taosdef.h"
+
+#ifndef TAOS_OS_DEF_TIME
+  #define MILLISECOND_PER_SECOND ((int64_t)1000L)
+#endif
+#define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
+#define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
+#define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
+#define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
+#define MILLISECOND_PER_MONTH  (MILLISECOND_PER_DAY * 30)
+#define MILLISECOND_PER_YEAR   (MILLISECOND_PER_DAY * 365)
 
 //@return timestamp in second
 int32_t taosGetTimestampSec();

@@ -434,9 +434,9 @@ _err:
 
 static void tdFreeKVStore(SKVStore *pStore) {
   if (pStore) {
-    tfree(pStore->fname);
-    tfree(pStore->fsnap);
-    tfree(pStore->fnew);
+    taosTFree(pStore->fname);
+    taosTFree(pStore->fsnap);
+    taosTFree(pStore->fnew);
     taosHashCleanup(pStore->map);
     free(pStore);
   }
@@ -575,11 +575,11 @@ static int tdRestoreKVStore(SKVStore *pStore) {
   if (pStore->aFunc) (*pStore->aFunc)(pStore->appH);
 
   taosHashDestroyIter(pIter);
-  tfree(buf);
+  taosTFree(buf);
   return 0;
 
 _err:
   taosHashDestroyIter(pIter);
-  tfree(buf);
+  taosTFree(buf);
   return -1;
 }

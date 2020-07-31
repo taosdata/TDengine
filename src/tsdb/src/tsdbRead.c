@@ -17,7 +17,6 @@
 #include "tulog.h"
 #include "talgo.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "tcompare.h"
 #include "exception.h"
 
@@ -1291,15 +1290,15 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
 }
 
 static void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTables) {
-  tfree(pSupporter->numOfBlocksPerTable);
-  tfree(pSupporter->blockIndexArray);
+  taosTFree(pSupporter->numOfBlocksPerTable);
+  taosTFree(pSupporter->blockIndexArray);
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockInfo* pBlockInfo = pSupporter->pDataBlockInfo[i];
-    tfree(pBlockInfo);
+    taosTFree(pBlockInfo);
   }
 
-  tfree(pSupporter->pDataBlockInfo);
+  taosTFree(pSupporter->pDataBlockInfo);
 }
 
 static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void* param) {
@@ -1770,11 +1769,11 @@ void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {
     tSkipListDestroyIter(pTableCheckInfo->iter);
 
     if (pTableCheckInfo->pDataCols != NULL) {
-      tfree(pTableCheckInfo->pDataCols->buf);
+      taosTFree(pTableCheckInfo->pDataCols->buf);
     }
 
-    tfree(pTableCheckInfo->pDataCols);
-    tfree(pTableCheckInfo->pCompInfo);
+    taosTFree(pTableCheckInfo->pDataCols);
+    taosTFree(pTableCheckInfo->pCompInfo);
   }
 
   STableCheckInfo info = *(STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, index);
@@ -2033,7 +2032,7 @@ static void destroyHelper(void* param) {
 
   tQueryInfo* pInfo = (tQueryInfo*)param;
   if (pInfo->optr != TSDB_RELATION_IN) {
-    tfree(pInfo->q);
+    taosTFree(pInfo->q);
   }
 
 //  tVariantDestroy(&(pInfo->q));
@@ -2185,7 +2184,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
     taosqsort(pTableList->pData, size, POINTER_BYTES, pSupp, tableGroupComparFn);
     createTableGroupImpl(pTableGroup, pTableList, size, pSupp, tableGroupComparFn);
-    tfree(pSupp);
+    taosTFree(pSupp);
   }
 
   return pTableGroup;
@@ -2431,11 +2430,11 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
       destroyTableMemIterator(pTableCheckInfo);
 
       if (pTableCheckInfo->pDataCols != NULL) {
-        tfree(pTableCheckInfo->pDataCols->buf);
+        taosTFree(pTableCheckInfo->pDataCols->buf);
       }
 
-      tfree(pTableCheckInfo->pDataCols);
-      tfree(pTableCheckInfo->pCompInfo);
+      taosTFree(pTableCheckInfo->pDataCols);
+      taosTFree(pTableCheckInfo->pCompInfo);
     }
     taosArrayDestroy(pQueryHandle->pTableCheckInfo);
   }
@@ -2444,14 +2443,14 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
     size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
     for (int32_t i = 0; i < cols; ++i) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-      tfree(pColInfo->pData);
+      taosTFree(pColInfo->pData);
     }
     taosArrayDestroy(pQueryHandle->pColumns);
   }
 
   taosArrayDestroy(pQueryHandle->defaultLoadColumn);
-  tfree(pQueryHandle->pDataBlockInfo);
-  tfree(pQueryHandle->statis);
+  taosTFree(pQueryHandle->pDataBlockInfo);
+  taosTFree(pQueryHandle->statis);
 
   // todo check error
   tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
@@ -2462,7 +2461,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tsdbDebug("%p :io-cost summary: statis-info:%"PRId64"us, datablock:%" PRId64"us, check data:%"PRId64"us, %p",
       pQueryHandle, pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qinfo);
 
-  tfree(pQueryHandle);
+  taosTFree(pQueryHandle);
 }
 
 void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {

@@ -65,7 +65,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   // release flush out info link
   SExtFileInfo *pFileMeta = &pMemBuffer->fileMeta;
   if (pFileMeta->flushoutData.nAllocSize != 0 && pFileMeta->flushoutData.pFlushoutInfo != NULL) {
-    tfree(pFileMeta->flushoutData.pFlushoutInfo);
+    taosTFree(pFileMeta->flushoutData.pFlushoutInfo);
   }
 
   // release all in-memory buffer pages
@@ -73,7 +73,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   while (pFilePages != NULL) {
     tFilePagesItem *pTmp = pFilePages;
     pFilePages = pFilePages->pNext;
-    tfree(pTmp);
+    taosTFree(pTmp);
   }
 
   // close temp file
@@ -88,8 +88,8 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
 
   destroyColumnModel(pMemBuffer->pColumnModel);
 
-  tfree(pMemBuffer->path);
-  tfree(pMemBuffer);
+  taosTFree(pMemBuffer->path);
+  taosTFree(pMemBuffer);
   
   return NULL;
 }
@@ -276,7 +276,7 @@ int32_t tExtMemBufferFlush(tExtMemBuffer *pMemBuffer) {
     tFilePagesItem *ptmp = first;
     first = first->pNext;
 
-    tfree(ptmp);  // release all data in memory buffer
+    taosTFree(ptmp);  // release all data in memory buffer
   }
 
   fflush(pMemBuffer->file);  // flush to disk
@@ -301,7 +301,7 @@ void tExtMemBufferClear(tExtMemBuffer *pMemBuffer) {
   while (first != NULL) {
     tFilePagesItem *ptmp = first;
     first = first->pNext;
-    tfree(ptmp);
+    taosTFree(ptmp);
   }
 
   pMemBuffer->fileMeta.numOfElemsInFile = 0;
@@ -788,7 +788,7 @@ void destroyColumnModel(SColumnModel *pModel) {
     return;
   }
 
-  tfree(pModel);
+  taosTFree(pModel);
 }
 
 static void printBinaryData(char *data, int32_t len) {
@@ -1073,5 +1073,5 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
   }
 
   destroyColumnModel(pDesc->pColumnModel);
-  tfree(pDesc);
+  taosTFree(pDesc);
 }

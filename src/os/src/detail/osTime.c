@@ -22,7 +22,6 @@
 #include <stdlib.h>
 
 #include "taosdef.h"
-#include "ttime.h"
 #include "tutil.h"
 /*
  * mktime64 - Converts date to seconds.

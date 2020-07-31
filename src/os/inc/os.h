@@ -44,7 +44,23 @@ extern "C" {
 #include "osWindows32.h"
 #endif
 
-#include "osSpec.h"
+#include "osAtomic.h"
+#include "osDef.h"
+#include "osDir.h"
+#include "osFile.h"
+#include "osLz4.h"
+#include "osMath.h"
+#include "osMemory.h"
+#include "osPthread.h"
+#include "osRand.h"
+#include "osSemphone.h"
+#include "osSocket.h"
+#include "osString.h"
+#include "osSysinfo.h"
+#include "osTime.h"
+#include "osTimer.h"
+
+void osInit();
 
 #ifdef __cplusplus
 }

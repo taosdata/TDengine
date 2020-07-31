@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tulog.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tcache.h"
@@ -634,7 +633,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
   taosTrashCanEmpty(pCacheObj, true);
   __cache_lock_destroy(pCacheObj);
   
-  tfree(pCacheObj->name);
+  taosTFree(pCacheObj->name);
   memset(pCacheObj, 0, sizeof(SCacheObj));
   free(pCacheObj);
 }

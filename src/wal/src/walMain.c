@@ -128,7 +128,7 @@ void walClose(void *handle) {
   if (handle == NULL) return;
   
   SWal *pWal = handle;  
-  tclose(pWal->fd);
+  taosClose(pWal->fd);
   if (pWal->timer) taosTmrStopA(&pWal->timer);
 
   if (pWal->keep == 0) {

@@ -1,3 +1,4 @@
+#include "os.h"
 #include <gtest/gtest.h>
 #include <cassert>
 #include <iostream>
@@ -6,7 +7,6 @@
 #include "tsdb.h"
 
 #include "../../client/inc/tscUtil.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "tvariant.h"
 #include "ttokendef.h"

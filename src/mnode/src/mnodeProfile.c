@@ -18,7 +18,6 @@
 #include "taosmsg.h"
 #include "taoserror.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "tcache.h"
 #include "tglobal.h"
 #include "tdataformat.h"
@@ -133,8 +132,8 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
 
 static void mnodeFreeConn(void *data) {
   SConnObj *pConn = data;
-  tfree(pConn->pQueries);
-  tfree(pConn->pStreams);
+  taosTFree(pConn->pQueries);
+  taosTFree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
 }

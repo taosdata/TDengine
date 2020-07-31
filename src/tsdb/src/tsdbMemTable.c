@@ -398,7 +398,7 @@ static void tsdbFreeMemTable(SMemTable* pMemTable) {
 
     tdListFree(pMemTable->bufBlockList);
     tdListFree(pMemTable->actList);
-    tfree(pMemTable->tData);
+    taosTFree(pMemTable->tData);
     free(pMemTable);
   }
 }
@@ -647,7 +647,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
-  tfree(dataDir);
+  taosTFree(dataDir);
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
@@ -662,7 +662,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   return 0;
 
 _err:
-  tfree(dataDir);
+  taosTFree(dataDir);
   tsdbCloseHelperFile(pHelper, 1);
   return -1;
 }
@@ -737,7 +737,7 @@ static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   pMemTable->tData = pTableData;
   taosWUnLockLatch(&(pMemTable->latch));
 
-  tfree(tData);
+  taosTFree(tData);
 
   return 0;
 }

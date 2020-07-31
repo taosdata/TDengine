@@ -16,7 +16,6 @@
 #include "os.h"
 #include "tscLog.h"
 #include "tsclient.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosmsg.h"

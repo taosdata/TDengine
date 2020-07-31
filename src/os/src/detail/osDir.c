@@ -17,6 +17,7 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "osSysinfo.h"
 
 #ifndef TAOS_OS_FUNC_DIR
 
