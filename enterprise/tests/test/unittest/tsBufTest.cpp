@@ -2,15 +2,14 @@
 #include <cassert>
 #include <iostream>
 
+#include "os.h"
 #include "taos.h"
 #include "taosdef.h"
-
 #include "testCommon.h"
 #include "tscJoinProcess.h"
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "tstoken.h"
-#include "ttime.h"
 #include "tutil.h"
 
 namespace {

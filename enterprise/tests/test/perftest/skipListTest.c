@@ -8,7 +8,6 @@
 #include "taosmsg.h"
 #include "taosdef.h"
 #include "tskiplist.h"
-#include "ttime.h"
 #include "tutil.h"
 
 void doubleSkipListTest();
@@ -41,7 +40,7 @@ int32_t main(int argc, char **argv) {
           printf("-----%lf\n", pNodes[i]->key.dKey);
       }
       printf("the range query result size is: %d\n", size);
-      tfree(pNodes);
+      taosTFree(pNodes);
 
       tSkipListKey *pKeys = malloc(sizeof(tSkipListKey) * 20);
       for (int32_t i = 0; i < 8; i += 2) {
@@ -55,7 +54,7 @@ int32_t main(int argc, char **argv) {
       for (int32_t i = 0; i < r; ++i) {
   //        printf("%lf ", pNodes[i]->key.dKey);
       }
-      tfree(pNodes);
+      taosTFree(pNodes);
 
       free(pKeys);*/
   getchar();
@@ -99,7 +98,7 @@ void doubleSkipListTest() {
     }
 
     if (size > 0) {
-      tfree(pNodes);
+      taosTFree(pNodes);
     }
   }
 
@@ -165,7 +164,7 @@ void stringKeySkiplistTest() {
     tSkipListRemoveNode(pSkipList, pres[0]);
 
     if (num > 0) {
-      tfree(pres);
+      taosTFree(pres);
     }
   }
 
@@ -251,7 +250,7 @@ void duplicatedKeyTest() {
 
     assert(size == 5);
 
-    tfree(pNodes);
+    taosTFree(pNodes);
   }
 
   tSkipListDestroy(pSkipList);

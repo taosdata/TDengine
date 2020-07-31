@@ -4,11 +4,9 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-
+#include "os.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "testCommon.h"
-#include "ttime.h"
 
 static int64_t start_ts = 1433955661000;
 
