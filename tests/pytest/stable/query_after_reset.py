@@ -76,7 +76,7 @@ class Test:
             tdSql.query("select * from st")
         except Exception as e:
             tdLog.info("Exception catched: %s" % repr(e))
-            if ('mnode invalid table name' not in repr(e)):
+            if ('Table does not exist' not in repr(e)):
                 raise Exception(repr(e))
 
     def create_stable(self):
