@@ -558,11 +558,12 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   SFileGroup* fileGroup = pQueryHandle->pFileGroup;
   assert(fileGroup->files[TSDB_FILE_TYPE_HEAD].fname > 0);
 
-  int32_t code = tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, fileGroup);
+  if (tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, fileGroup) < 0) {
+    return terrno;
+  }
 
-  //open file failed, return error code to client
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  if (tsdbLoadCompIdx(&pQueryHandle->rhelper, NULL) < 0) {
+    return terrno;
   }
 
   // load all the comp offset value for all tables in this file

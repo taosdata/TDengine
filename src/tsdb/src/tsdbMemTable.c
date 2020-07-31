@@ -603,6 +603,11 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
+  if (tsdbLoadCompIdx(pHelper, NULL) < 0) {
+    tsdbError("vgId:%d failed to load SCompIdx part since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
+
   // Loop to commit data in each table
   for (int tid = 1; tid < pMem->maxTables; tid++) {
     SCommitIter *pIter = iters + tid;

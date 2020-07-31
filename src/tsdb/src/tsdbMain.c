@@ -787,6 +787,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_DESC);
   while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
     if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
+    if (tsdbLoadCompIdx(&rhelper, NULL) < 0) goto _err;
     for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;

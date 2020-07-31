@@ -118,12 +118,12 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
   // Open the files
 #ifdef TSDB_IDX
-  if (tsdbOpenFile(helperIdxF(pHelper), O_RDONLY) < 0) goto _err;
+  if (tsdbOpenFile(helperIdxF(pHelper), O_RDONLY) < 0) return -1;
 #endif
-  if (tsdbOpenFile(helperHeadF(pHelper), O_RDONLY) < 0) goto _err;
+  if (tsdbOpenFile(helperHeadF(pHelper), O_RDONLY) < 0) return -1;
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-    if (tsdbOpenFile(helperDataF(pHelper), O_RDWR) < 0) goto _err;
-    if (tsdbOpenFile(helperLastF(pHelper), O_RDWR) < 0) goto _err;
+    if (tsdbOpenFile(helperDataF(pHelper), O_RDWR) < 0) return -1;
+    if (tsdbOpenFile(helperLastF(pHelper), O_RDWR) < 0) return -1;
 
 #ifdef TSDB_IDX
     // Create and open .i file
@@ -144,23 +144,20 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
     // Create and open .l file if should
     if (tsdbShouldCreateNewLast(pHelper)) {
       pFile = helperNewLastF(pHelper);
-      if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) goto _err;
+      if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
       pFile->info.size = TSDB_FILE_HEAD_SIZE;
       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
       pFile->info.len = 0;
       if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
     }
   } else {
-    if (tsdbOpenFile(helperDataF(pHelper), O_RDONLY) < 0) goto _err;
-    if (tsdbOpenFile(helperLastF(pHelper), O_RDONLY) < 0) goto _err;
+    if (tsdbOpenFile(helperDataF(pHelper), O_RDONLY) < 0) return -1;
+    if (tsdbOpenFile(helperLastF(pHelper), O_RDONLY) < 0) return -1;
   }
 
   helperSetState(pHelper, TSDB_HELPER_FILE_SET_AND_OPEN);
 
-  return tsdbLoadCompIdx(pHelper, NULL);
-
-_err:
-  return -1;
+  return 0;
 }
 
 int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
