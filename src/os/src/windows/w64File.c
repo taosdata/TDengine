@@ -37,10 +37,9 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
 }
 
-
 #define _SEND_FILE_STEP_ 1000
 
-int taosTSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
+int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
   fseek(in_file, (int32_t)(*offset), 0);
   int writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
@@ -73,4 +72,9 @@ int taosTSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
   }
 
   return writeLen;
+}
+
+ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
+  uError("taosTSendFileImp no implemented yet");
+  return 0;
 }

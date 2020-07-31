@@ -23,7 +23,7 @@ extern "C" {
 #include "os.h"
 #include "taosdef.h"
 
-#ifndef TAOS_OS_DEF_TIME
+#ifndef TAOS_OS_FUNC_TIME_DEF
   #define MILLISECOND_PER_SECOND ((int64_t)1000L)
 #endif
 #define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)

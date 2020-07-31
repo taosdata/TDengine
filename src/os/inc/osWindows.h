@@ -43,6 +43,7 @@
 #include <WS2tcpip.h>
 #include <winbase.h>
 #include <Winsock2.h>
+#include <process.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,6 +125,7 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define socklen_t int
 #define htobe64 htonll
 #define twrite write
+#define getpid _getpid
 
 int        gettimeofday(struct timeval *tv, struct timezone *tz);
 struct tm *localtime_r(const time_t *timep, struct tm *result);

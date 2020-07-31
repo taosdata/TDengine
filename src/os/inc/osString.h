@@ -41,8 +41,9 @@ extern "C" {
     (dst)[(size)-1] = 0;           \
   } while (0);
 
-// TAOS_OS_FUNC_STRING_STR2INT64
-int64_t tsosStr2int64(char *str);
+#ifndef TAOS_OS_FUNC_STRING_STR2INT64
+  int64_t tsosStr2int64(char *str);
+#endif  
 
 // USE_LIBICONV
 int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
