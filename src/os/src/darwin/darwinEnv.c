@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "tulog.h"
 
 void osInit() {
   strcpy(configDir, "~/TDengine/cfg");

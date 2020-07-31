@@ -15,13 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "os.h"
-#include "taosdef.h"
-#include "tglobal.h"
-#include "tconfig.h"
-#include "ttimer.h"
 #include "tulog.h"
-#include "tutil.h"
 
 #define _SEND_FILE_STEP_ 1000
 

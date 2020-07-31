@@ -15,13 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "os.h"
-#include "taosdef.h"
-#include "tglobal.h"
-#include "tconfig.h"
-#include "ttimer.h"
-#include "tulog.h"
-#include "tutil.h"
 
 int taosInitTimer(void (*callback)(int), int ms) {
   signal(SIGALRM, callback);

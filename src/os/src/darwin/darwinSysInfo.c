@@ -15,13 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "os.h"
-#include "taosdef.h"
-#include "tglobal.h"
 #include "tconfig.h"
-#include "ttimer.h"
+#include "tglobal.h"
 #include "tulog.h"
-#include "tutil.h"
 
 static void taosGetSystemTimezone() {
   // get and set default timezone
