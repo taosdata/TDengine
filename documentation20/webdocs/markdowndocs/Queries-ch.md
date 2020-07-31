@@ -27,7 +27,7 @@ Query OK, 2 row(s) in set (0.001100s)
 ```
 为满足物联网场景的需求，TDengine支持几个特殊的函数，比如twa(时间加权平均)，spread (最大值与最小值的差)，last_row(最后一条记录)等，更多与物联网场景相关的函数将添加进来。TDengine还支持连续查询。
 
-具体的查询语法请看TAOS SQL。
+具体的查询语法请看<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>。
 
 ## 多表聚合查询
 
@@ -82,5 +82,5 @@ Query OK, 5 row(s) in set (0.001538s)
 
 物联网场景里，每个数据采集点采集数据的时间是难同步的，但很多分析算法(比如FFT)需要把采集的数据严格按照时间等间隔的对齐，在很多系统里，需要应用自己写程序来处理，但使用TDengine的降采样操作就轻松解决。如果一个时间间隔里，没有采集的数据，TDengine还提供插值计算的功能。
 
-语法规则细节请见TAOS SQL。
+语法规则细节请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>。
 
