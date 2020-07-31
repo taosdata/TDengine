@@ -6640,7 +6640,7 @@ void freeqinfoFn(void *qhandle) {
 }
 
 void* qOpenQueryMgmt(int32_t vgId) {
-  const int32_t REFRESH_HANDLE_INTERVAL = 30; // every 30 seconds, refresh handle pool
+  const int32_t REFRESH_HANDLE_INTERVAL = 60; // every 30 seconds, refresh handle pool
 
   char cacheName[128] = {0};
   sprintf(cacheName, "qhandle_%d", vgId);

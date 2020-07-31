@@ -108,7 +108,7 @@ static void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force);
 /**
  * release node
  * @param pCacheObj      cache object
- * @param pNode     data node
+ * @param pNode          data node
  */
 static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   if (pNode->signature != (uint64_t)pNode) {
@@ -207,7 +207,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
   
-  pCacheObj->pHashTable = taosHashInit(128, taosGetDefaultHashFunction(keyType), false, HASH_ENTRY_LOCK);
+  pCacheObj->pHashTable = taosHashInit(4096, taosGetDefaultHashFunction(keyType), false, HASH_ENTRY_LOCK);
   pCacheObj->name = strdup(cacheName);
   if (pCacheObj->pHashTable == NULL) {
     free(pCacheObj);
@@ -648,12 +648,12 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
   SHashMutableIterator *pIter = taosHashCreateIter(pCacheObj->pHashTable);
 
-  __cache_wr_lock(pCacheObj);
+//  __cache_wr_lock(pCacheObj);
   while (taosHashIterNext(pIter)) {
     SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
 
     if (pNode->expireTime < time && T_REF_VAL_GET(pNode) <= 0) {
-      taosCacheReleaseNode(pCacheObj, pNode);
+//      taosCacheReleaseNode(pCacheObj, pNode);
       continue;
     }
 
@@ -662,7 +662,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
     }
   }
 
-  __cache_unlock(pCacheObj);
+//  __cache_unlock(pCacheObj);
 
   taosHashDestroyIter(pIter);
 }
