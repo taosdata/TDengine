@@ -41,6 +41,7 @@ RPC模块还提供数据压缩功能，如果数据包的字节数超过系统�
 taosd的消息消费由dnode通过读写线程池进行控制，是系统的中枢。该模块内的结构体图如下：
 
 <center> <img src="../assets/dnode.png"> </center>
+ 
 ## VNODE模块
 
 vnode是一独立的数据存储查询逻辑单元，但因为一个vnode只能容许一个DB，因此vnode内部没有account, DB, user等概念。为实现更好的模块化、封装以及未来的扩展，它有很多子模块，包括负责存储的TSDB，负责查询的Query, 负责数据复制的sync，负责数据库日志的的wal, 负责连续查询的cq(continuous query), 负责事件触发的流计算的event等模块，这些子模块只与vnode模块发生关系，与其他模块没有任何调用关系。模块图如下：
