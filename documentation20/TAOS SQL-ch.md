@@ -947,7 +947,7 @@ SELECT function_list FROM stb_name
   2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
   3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用group by语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了group by语句分组，则返回结果中每个group内不按照时间序列严格单调递增。
 
-**示例：**智能电表的建表语句如下：
+**示例:** 智能电表的建表语句如下：
 
 ```mysql
 CREATE TABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
@@ -963,7 +963,7 @@ SELECT AVG(current),MAX(current),LEASTSQUARES(current, start_val, step_val), PER
   FILL(PREV);
 ```
 
-##TAOS SQL 边界限制
+## TAOS SQL 边界限制
 - 数据库名最大长度为33
 - 表名最大长度为193，每行数据最大长度16k个字符
 - 列名最大长度为65，最多允许1024列，最少需要2列，第一列必须是时间戳
