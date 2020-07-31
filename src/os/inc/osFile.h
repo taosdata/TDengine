@@ -30,19 +30,24 @@ int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t
 #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
 #define taosFSendFile(outfile, infile, offset, count) taosTSendFileImp(fileno(outfile), fileno(infile), offset, size)
 
-#ifndef TAOS_RANDOM_FILE_FAIL
-  #define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
-  #define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
-  #define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
-#else
+#define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
+#define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
+#define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
+
+#ifdef TAOS_RANDOM_FILE_FAIL
   void taosSetRandomFileFailFactor(int factor);
   void taosSetRandomFileFailOutput(const char *path);
-  ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
-  ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
-  off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
-  #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
-  #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
-  #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
+  #ifdef TAOS_RANDOM_FILE_FAIL_TEST
+    ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
+    ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
+    off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
+    #undef taosTRead
+    #undef taosTWrite
+    #undef taosLSeek
+    #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+    #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+    #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
+  #endif  
 #endif 
 
 // TAOS_OS_FUNC_FILE_GETTMPFILEPATH

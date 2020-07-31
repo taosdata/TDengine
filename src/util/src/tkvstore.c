@@ -21,6 +21,7 @@
 #include "tcoding.h"
 #include "tkvstore.h"
 #include "tulog.h"
+#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #define TD_KVSTORE_HEADER_SIZE 512
 #define TD_KVSTORE_MAJOR_VERSION 1

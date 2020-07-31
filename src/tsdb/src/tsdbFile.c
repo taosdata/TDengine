@@ -14,11 +14,11 @@
  */
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
+#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #ifdef TSDB_IDX
 const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};

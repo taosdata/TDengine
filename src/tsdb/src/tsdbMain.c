@@ -14,8 +14,6 @@
  */
 
 // no test file errors here
-#undef TAOS_RANDOM_FILE_FAIL
-
 #include "tsdbMain.h"
 #include "os.h"
 #include "talgo.h"
@@ -24,7 +22,6 @@
 #include "tscompression.h"
 #include "tsdb.h"
 #include "tulog.h"
-
 
 #define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"

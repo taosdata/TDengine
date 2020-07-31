@@ -35,18 +35,20 @@ extern "C" {
 #define taosClose(x) taosCloseSocket(x)
 
 #ifdef TAOS_RANDOM_NETWORK_FAIL
-  ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags);
-  ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-  ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count);
-  ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count);
-  #undef taosSend
-  #undef taosSendto
-  #undef taosReadSocket
-  #undef taosWriteSocket
-  #define taosSend(sockfd, buf, len, flags) taosSendRandomFail(sockfd, buf, len, flags)
-  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) taosSendToRandomFail(sockfd, buf, len, flags, dest_addr, addrlen)
-  #define taosReadSocket(fd, buf, len) taosReadSocketRandomFail(fd, buf, len)
-  #define taosWriteSocket(fd, buf, len) taosWriteSocketRandomFail(fd, buf, len)
+  #ifdef TAOS_RANDOM_NETWORK_FAIL_TEST
+    ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags);
+    ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+    ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count);
+    ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count);
+    #undef taosSend
+    #undef taosSendto
+    #undef taosReadSocket
+    #undef taosWriteSocket
+    #define taosSend(sockfd, buf, len, flags) taosSendRandomFail(sockfd, buf, len, flags)
+    #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) taosSendToRandomFail(sockfd, buf, len, flags, dest_addr, addrlen)
+    #define taosReadSocket(fd, buf, len) taosReadSocketRandomFail(fd, buf, len)
+    #define taosWriteSocket(fd, buf, len) taosWriteSocketRandomFail(fd, buf, len)
+  #endif  
 #endif
 
 // TAOS_OS_FUNC_SOCKET
