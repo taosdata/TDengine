@@ -33,11 +33,11 @@ taos>
 
 2. 如果是使用涛思数据的官方安装包进行安装，在安装结束时，会询问集群的End Port, 输入第一个节点的End Point即可。如果是源码安装，请编辑配置文件taos.cfg(缺省是在/etc/taos/目录)，增加一行：
 
-   ```
-   firstEp  h1.taos.com:6030
-   ```
+    ```
+    firstEp  h1.taos.com:6030
+    ```
 
-   请注意将示例的“h1.taos.com:6030" 替换为你自己第一个节点的End Point
+    请注意将示例的“h1.taos.com:6030" 替换为你自己第一个节点的End Point
    
 3. 按照["立即开始“](https://www.taosdata.com/cn/getting-started/)一章的方法启动taosd
 
@@ -45,19 +45,19 @@ taos>
 
 5. 在第一个节点，使用CLI程序taos, 登录进TDengine系统, 使用命令:
 
-   ```
-   CREATE DNODE "h2.taos.com:6030"； 
-   ```
+    ```
+    CREATE DNODE "h2.taos.com:6030"； 
+    ```
 
-   将新节点的End Point添加进集群的EP列表。**"fqdn:port"需要用双引号引起来**，否则出错。请注意将示例的“h2.taos.com:6030" 替换为你自己第一个节点的End Point
+    将新节点的End Point添加进集群的EP列表。**"fqdn:port"需要用双引号引起来**，否则出错。请注意将示例的“h2.taos.com:6030" 替换为你自己第一个节点的End Point
 
 6. 使用命令
 
-   ```
-   SHOW DNODES；
-   ```
+    ```
+    SHOW DNODES；
+    ```
 
-   查看新节点是否被成功加入。
+    查看新节点是否被成功加入。
 
 按照上述步骤可以源源不断的将新的节点加入到集群。
 
