@@ -1,7 +1,7 @@
 /* This example is to show the preferred way to use the td-connector */
 /* To run, enter node path/to/node-example.js */
 // Get the td-connector package
-const taos = require('td-connector');
+const taos = require('td2.0-connector');
 
 /* We will connect to TDengine by passing an object comprised of connection options to taos.connect and store the
  * connection to the variable conn
