@@ -109,7 +109,7 @@ ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
   return n;
 }
 
-#ifndef TAOS_OS_FUNC_FILE_TSENDIFLE
+#ifndef TAOS_OS_FUNC_FILE_SENDIFLE
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   size_t  leftbytes = size;
   ssize_t sentbytes;

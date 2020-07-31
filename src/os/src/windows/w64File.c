@@ -15,11 +15,28 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "tglobal.h"
-#include "ttimer.h"
-#include "tulog.h"
-#include "tutil.h"
+
+void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
+  const char* tdengineTmpFileNamePrefix = "tdengine-";
+    char tmpPath[PATH_MAX];
+
+  char *tmpDir = getenv("tmp");
+  if (tmpDir == NULL) {
+    tmpDir = "";
+  }
+  
+  strcpy(tmpPath, tmpDir);
+  strcat(tmpPath, tdengineTmpFileNamePrefix);
+  if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
+    strcat(tmpPath, fileNamePrefix);
+    strcat(tmpPath, "-%d-%s");
+  }
+  
+  char rand[8] = {0};
+  taosRandStr(rand, tListLen(rand) - 1);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+}
+
 
 #define _SEND_FILE_STEP_ 1000
 

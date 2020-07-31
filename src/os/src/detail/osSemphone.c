@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#ifndef TAOS_OS_FUNC_PTHREAD
+#ifndef TAOS_OS_FUNC_SEMPHONE_PTHREAD
 
 bool    taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
 int64_t taosGetPthreadId() { return (int64_t)pthread_self(); }

@@ -102,7 +102,7 @@ void taosUninitTimer() {
 
 #endif
 
-#ifndef TAOS_OS_FUNC_SLEEP
+#ifndef TAOS_OS_FUNC_TIMER_SLEEP
 /*
   to make taosMsleep work,
    signal SIGALRM shall be blocked in the calling thread,

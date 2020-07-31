@@ -20,17 +20,19 @@
 extern "C" {
 #endif
 
-#define taosSend(sockfd, buf, len, flags) send(sockfd, buf, len, flags)
-#define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, buf, len, flags, dest_addr, addrlen)
-#define taosReadSocket(fd, buf, len) read(fd, buf, len)
-#define taosWriteSocket(fd, buf, len) write(fd, buf, len)
-#define taosCloseSocket(x) \
-  {                        \
-    if (FD_VALID(x)) {     \
-      close(x);            \
-      x = FD_INITIALIZER;  \
-    }                      \
-  }
+#ifndef TAOS_OS_FUNC_SOCKET_OP
+  #define taosSend(sockfd, buf, len, flags) send(sockfd, buf, len, flags)
+  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, buf, len, flags, dest_addr, addrlen)
+  #define taosReadSocket(fd, buf, len) read(fd, buf, len)
+  #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
+  #define taosCloseSocket(x) \
+    {                        \
+      if (FD_VALID(x)) {     \
+        close(x);            \
+        x = FD_INITIALIZER;  \
+      }                      \
+    }
+#endif    
 
 #define taosClose(x) taosCloseSocket(x)
 

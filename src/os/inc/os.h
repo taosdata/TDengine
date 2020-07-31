@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #ifdef _TD_DARWIN_64
-#include "osDarwin64.h"
+#include "osDarwin.h"
 #endif
 
 #ifdef _TD_LINUX_64
@@ -36,12 +36,8 @@ extern "C" {
 #include "osAlpine.h"
 #endif
 
-#ifdef _TD_WINDOWS_64
-#include "osWindows64.h"
-#endif
-
-#ifdef _TD_WINDOWS_32
-#include "osWindows32.h"
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#include "osWindows.h"
 #endif
 
 #include "osAtomic.h"

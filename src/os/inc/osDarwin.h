@@ -71,21 +71,21 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 
-#define TAOS_OS_FUNC_FILE_TSENDIFLE
-#define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
-#define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
+#define TAOS_OS_FUNC_FILE_SENDIFLE
+  #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
+  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
 
 #define TAOS_OS_FUNC_SEMPHONE
-#define tsem_t dispatch_semaphore_t
-int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value);
-int tsem_wait(dispatch_semaphore_t *sem);
-int tsem_post(dispatch_semaphore_t *sem);
-int tsem_destroy(dispatch_semaphore_t *sem);
+  #define tsem_t dispatch_semaphore_t
+  int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value);
+  int tsem_wait(dispatch_semaphore_t *sem);
+  int tsem_post(dispatch_semaphore_t *sem);
+  int tsem_destroy(dispatch_semaphore_t *sem);
 
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
+#define TAOS_OS_FUNC_STRING_STR2INT64
 #define TAOS_OS_FUNC_SYSINFO
 #define TAOS_OS_FUNC_TIMER
-#define TAOS_OS_FUNC_STRING_STR2INT64
 
 // specific
 #define htobe64 htonll

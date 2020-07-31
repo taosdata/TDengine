@@ -26,7 +26,7 @@ ssize_t taosTWriteImp(int fd, void *buf, size_t count);
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size);
 int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
 
-#ifndef TAOS_OS_FUNC_FILE_TSENDIFLE
+#ifndef TAOS_OS_FUNC_FILE_SENDIFLE
   #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
   #define taosFSendFile(outfile, infile, offset, count) taosTSendFileImp(fileno(outfile), fileno(infile), offset, size)
 #endif

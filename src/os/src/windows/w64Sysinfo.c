@@ -114,3 +114,5 @@ int fsync(int filedes) {
 int sigaction(int sig, struct sigaction *d, void *p) {
   return 0;
 }
+
+void taosSetCoreDump() {}

@@ -48,16 +48,7 @@
 extern "C" {
 #endif
 
-#define TAOS_OS_FUNC_STRING_WCHAR
-#define TAOS_OS_FUNC_FILE
-#define TAOS_OS_FUNC_SLEEP
-#define TAOS_OS_FUNC_TIMER
-#define TAOS_OS_FUNC_SOCKET
-#define TAOS_OS_FUNC_PTHREAD
-
-#define TAOS_OS_FUNC_FILEOP
-  #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
-  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
+#define TAOS_OS_FUNC_ATOMIC
 
 #define TAOS_OS_FUNC_LZ4
   int32_t BUILDIN_CLZL(uint64_t val);
@@ -65,13 +56,13 @@ extern "C" {
   int32_t BUILDIN_CTZL(uint64_t val);
   int32_t BUILDIN_CTZ(uint32_t val);
 
-#define TAOS_OS_FUNC_STRING_STR2INT64
-  #ifdef _TD_GO_DLL_
-    int64_t tsosStr2int64(char *str);
-    uint64_t htonll(uint64_t val);
-  #else
-    #define tsosStr2int64 _atoi64
-  #endif
+#define TAOS_OS_FUNC_DIR
+
+#define TAOS_OS_FUNC_FILE
+#define TAOS_OS_FUNC_FILE_SENDIFLE
+  #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
+  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
+#define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
@@ -80,26 +71,60 @@ extern "C" {
       (a) = (c)(b);          \
       (b) = __tmp;           \
     } while (0)
-
   #define MAX(a,b)  (((a)>(b))?(a):(b))
   #define MIN(a,b)  (((a)<(b))?(a):(b))
 
-#define TAOS_OS_FUNC_NETWORK
+#define TAOS_OS_FUNC_SEMPHONE_PTHREAD
+
+#define TAOS_OS_FUNC_SOCKET
+#define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
+#define TAOS_OS_FUNC_SOCKET_OP
   #define taosSend(sockfd, buf, len, flags) send(sockfd, buf, len, flags)
   #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, buf, len, flags, dest_addr, addrlen)
   #define taosWriteSocket(fd, buf, len) send(fd, buf, len, 0)
   #define taosReadSocket(fd, buf, len) recv(fd, buf, len, 0)
   #define taosCloseSocket(fd) closesocket(fd)
 
-#define TAOS_OS_DEF_TIME
+#define TAOS_OS_FUNC_STRING_WCHAR
+#define TAOS_OS_FUNC_STRING_GETLINE
+#define TAOS_OS_FUNC_STRING_STR2INT64
+  #ifdef _TD_GO_DLL_
+    int64_t tsosStr2int64(char *str);
+    uint64_t htonll(uint64_t val);
+  #else
+    #define tsosStr2int64 _atoi64
+  #endif
+#define TAOS_OS_FUNC_STRING_STRDUP
+  #define taosStrdupImp(str) _strdup(str)
+  #define taosStrndupImp(str, size) _strndup(str, size)
+
+#define TAOS_OS_FUNC_SYSINFO
+
+#define TAOS_OS_FUNC_TIME_DEF
   #ifdef _TD_GO_DLL_
     #define MILLISECOND_PER_SECOND (1000LL)
   #else
     #define MILLISECOND_PER_SECOND (1000i64)
   #endif
 
+#define TAOS_OS_FUNC_TIMER_SLEEP
+#define TAOS_OS_FUNC_TIMER
+
+// specific
 typedef int (*__compar_fn_t)(const void *, const void *);
-int        getline(char **lineptr, size_t *n, FILE *stream);
+#define ssize_t int
+#define bzero(ptr, size) memset((ptr), 0, (size))
+#define mkdir(pathname, mode) _mkdir(pathname)
+#define strcasecmp  _stricmp
+#define strncasecmp _strnicmp
+#define wcsncasecmp _wcsnicmp
+#define strtok_r strtok_s
+#define snprintf _snprintf
+#define in_addr_t unsigned long
+#define socklen_t int
+#define htobe64 htonll
+#define twrite write
+
 int        gettimeofday(struct timeval *tv, struct timezone *tz);
 struct tm *localtime_r(const time_t *timep, struct tm *result);
 char *     strptime(const char *buf, const char *fmt, struct tm *tm);
@@ -108,9 +133,6 @@ char *     getpass(const char *prefix);
 int        flock(int fd, int option);
 int        fsync(int filedes);
 char *     strndup(const char *s, size_t n);
-
-#define strdup _strdup
-#define ssize_t int
 
 // for function open in stat.h 
 #define S_IRWXU                  _S_IREAD
@@ -134,19 +156,6 @@ char *     strndup(const char *s, size_t n);
 #define LOCK_EX 1
 #define LOCK_NB 2
 #define LOCK_UN 3
-
-#define bzero(ptr, size) memset((ptr), 0, (size))
-#define mkdir(pathname, mode) _mkdir(pathname)
-#define strcasecmp  _stricmp
-#define strncasecmp _strnicmp
-#define wcsncasecmp _wcsnicmp
-#define strtok_r strtok_s
-
-#define snprintf _snprintf
-#define in_addr_t unsigned long
-#define socklen_t int
-#define htobe64 htonll
-#define twrite write
 
 #ifndef PATH_MAX
   #define PATH_MAX 256

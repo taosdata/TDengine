@@ -27,6 +27,8 @@ extern "C" {
 
 #ifndef TAOS_OS_FUNC_STRING_GETLINE
   #define taosGetlineImp(lineptr, n, stream) getline(lineptr, n , stream)
+#else 
+  int taosGetlineImp(char **lineptr, size_t *n, FILE *stream);
 #endif
 
 #ifndef TAOS_OS_FUNC_STRING_WCHAR
