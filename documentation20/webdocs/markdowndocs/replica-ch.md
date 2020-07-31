@@ -24,7 +24,7 @@ TDengine里存在vnode, mnode, vnode用来存储时序数据，mnode用来存储
 
 不同虚拟节点组的数据版本号是完全独立的，互不相干的。版本号本质上是数据更新记录的transaction ID，但用来标识数据集的版本。
 
-**角色(role)**：
+**角色(role)：**
 
 一个虚拟节点可以是master, slave, unsynced或offline状态。
 
@@ -37,9 +37,9 @@ TDengine里存在vnode, mnode, vnode用来存储时序数据，mnode用来存储
 
 指数据写入成功所需要的确认数。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum <= replication(副本数）。这个参数在启动一个同步模块实例时需要提供。
 
-**WAL：** Write Ahead Log
+**WAL：**
 
-TDengine的WAL与cassandra的commit log, mySQL的bin log, Postgres的WAL没本质区别。没有写入数据库文件，还保存在内存的数据都会先存在WAL。当数据已经成功写入数据库数据文件，相应的WAL会被删除。但需要特别指明的是，在TDengine系统里，有几点：
+TDengine的WAL(Write Ahead Log)与cassandra的commit log, mySQL的bin log, Postgres的WAL没本质区别。没有写入数据库文件，还保存在内存的数据都会先存在WAL。当数据已经成功写入数据库数据文件，相应的WAL会被删除。但需要特别指明的是，在TDengine系统里，有几点：
 
 - 每个虚拟节点有自己独立的wal
 - WAL里包含而且仅仅包含来自客户端的数据更新操作，每个更新操作都会被打上一个版本号
