@@ -180,8 +180,12 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   pFile = helperDataF(pHelper);
   if (pFile->fd > 0) {
     if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-      tsdbUpdateFileHeader(pFile, 0);
-      fsync(pFile->fd);
+      if (!hasError) {
+        tsdbUpdateFileHeader(pFile, 0);
+        fsync(pFile->fd);
+      } else {
+        // TODO: shrink back to origin
+      }
     }
     close(pFile->fd);
     pFile->fd = -1;
@@ -190,7 +194,12 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   pFile = helperLastF(pHelper);
   if (pFile->fd > 0) {
     if (helperType(pHelper) == TSDB_WRITE_HELPER && !TSDB_NLAST_FILE_OPENED(pHelper)) {
-      fsync(pFile->fd);
+      if (!hasError) {
+        tsdbUpdateFileHeader(pFile, 0);
+        fsync(pFile->fd);
+      } else {
+        // TODO: shrink back to origin
+      }
     }
     close(pFile->fd);
     pFile->fd = -1;
@@ -200,60 +209,36 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
 #ifdef TSDB_IDX
     pFile = helperNewIdxF(pHelper);
     if (pFile->fd > 0) {
-      if (!hasError) tsdbUpdateFileHeader(pFile, 0);
-      fsync(pFile->fd);
+      if (!hasError) {
+        tsdbUpdateFileHeader(pFile, 0);
+        fsync(pFile->fd);
+      }
       close(pFile->fd);
       pFile->fd = -1;
-      if (hasError) {
-        (void)remove(pFile->fname);
-      } else {
-        if (rename(pFile->fname, helperIdxF(pHelper)->fname) < 0) {
-          tsdbError("failed to rename file from %s to %s since %s", pFile->fname, helperIdxF(pHelper)->fname,
-                    strerror(errno));
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          return -1;
-        }
-        helperIdxF(pHelper)->info = pFile->info;
-      }
+      if (hasError) (void)remove(pFile->fname);
     }
 #endif
 
     pFile = helperNewHeadF(pHelper);
     if (pFile->fd > 0) {
-      if (!hasError) tsdbUpdateFileHeader(pFile, 0);
-      fsync(pFile->fd);
+      if (!hasError) {
+        tsdbUpdateFileHeader(pFile, 0);
+        fsync(pFile->fd);
+      }
       close(pFile->fd);
       pFile->fd = -1;
-      if (hasError) {
-        (void)remove(pFile->fname);
-      } else {
-        if (rename(pFile->fname, helperHeadF(pHelper)->fname) < 0) {
-          tsdbError("failed to rename file from %s to %s since %s", pFile->fname, helperHeadF(pHelper)->fname,
-                    strerror(errno));
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          return -1;
-        }
-        helperHeadF(pHelper)->info = pFile->info;
-      }
+      if (hasError) (void)remove(pFile->fname);
     }
 
     pFile = helperNewLastF(pHelper);
     if (pFile->fd > 0) {
-      if (!hasError) tsdbUpdateFileHeader(pFile, 0);
-      fsync(pFile->fd);
+      if (!hasError) {
+        tsdbUpdateFileHeader(pFile, 0);
+        fsync(pFile->fd);
+      }
       close(pFile->fd);
       pFile->fd = -1;
-      if (hasError) {
-        (void)remove(pFile->fname);
-      } else {
-        if (rename(pFile->fname, helperLastF(pHelper)->fname) < 0) {
-          tsdbError("failed to rename file from %s to %s since %s", pFile->fname, helperLastF(pHelper)->fname,
-                    strerror(errno));
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          return -1;
-        }
-        helperLastF(pHelper)->info = helperNewLastF(pHelper)->info;
-      }
+      if (hasError) (void)remove(pFile->fname);
     }
   }
   return 0;

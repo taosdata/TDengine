@@ -656,12 +656,20 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
+
 #ifdef TSDB_IDX
-  pGroup->files[TSDB_FILE_TYPE_IDX] = *(helperIdxF(pHelper));
+  rename(helperNewIdxF(pHelper)->fname, helperIdxF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_IDX].info = helperNewIdxF(pHelper)->info;
 #endif
-  pGroup->files[TSDB_FILE_TYPE_HEAD] = *(helperHeadF(pHelper));
-  pGroup->files[TSDB_FILE_TYPE_DATA] = *(helperDataF(pHelper));
-  pGroup->files[TSDB_FILE_TYPE_LAST] = *(helperLastF(pHelper));
+
+  rename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
+
+  rename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
+
+  pGroup->files[TSDB_FILE_TYPE_DATA].info = helperDataF(pHelper)->info;
+
   pthread_rwlock_unlock(&(pFileH->fhlock));
 
   return 0;
