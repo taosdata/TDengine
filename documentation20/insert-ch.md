@@ -22,10 +22,10 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 详细的SQL INSERT语法规则请见TAOS SQL
 
-##Prometheus直接写入
+## Prometheus直接写入
 [Prometheus](https://www.prometheus.io/)作为Cloud Native Computing Fundation毕业的项目，在性能监控以及K8S性能监控领域有着非常广泛的应用。TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Prometheus做简单配置，无需任何代码，就可将Prometheus采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
-###从源代码编译blm_prometheus
+### 从源代码编译blm_prometheus
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 - Linux操作系统的服务器
 - 安装好Golang, 1.10版本以上
@@ -39,7 +39,7 @@ go build
 
 一切正常的情况下，就会在对应的目录下生成一个blm_prometheus的可执行程序。
 
-###安装Prometheus
+### 安装Prometheus
 通过Prometheus的官网下载安装。[下载地址](https://prometheus.io/download/)
 
 ### 配置Prometheus
@@ -70,7 +70,7 @@ blm_prometheus会将收到的prometheus的数据拼装成TDengine的写入请求
 blm_prometheus对prometheus提供服务的端口号。
 ```
 
-###启动示例
+### 启动示例
 
 通过以下命令启动一个blm_prometheus的API服务
 ```
@@ -82,7 +82,7 @@ remote_write:
   - url: "http://10.1.2.3:8088/receive"
 ```
 
-###查询prometheus写入数据
+### 查询prometheus写入数据
 prometheus产生的数据格式如下：
 ```
 Timestamp: 1576466279341,
@@ -104,10 +104,10 @@ use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
 
-##Telegraf直接写入
+## Telegraf直接写入
 [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)是一流行的IT运维数据采集开源工具，TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Telegraf做简单配置，无需任何代码，就可将Telegraf采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
-###从源代码编译blm_telegraf
+### 从源代码编译blm_telegraf
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 
 - Linux操作系统的服务器
@@ -123,7 +123,7 @@ go build
 
 一切正常的情况下，就会在对应的目录下生成一个blm_telegraf的可执行程序。
 
-###安装Telegraf
+### 安装Telegraf
 目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads
 
 ### 配置Telegraf
@@ -142,7 +142,7 @@ go build
 
 关于如何使用Telegraf采集数据以及更多有关使用Telegraf的信息，请参考Telegraf官方的[文档](https://docs.influxdata.com/telegraf/v1.11/)。
 
-###启动blm_telegraf程序
+### 启动blm_telegraf程序
 blm_telegraf程序有以下选项，在启动blm_telegraf程序时可以通过设定这些选项来设定blm_telegraf的配置。
 
 ```sh
@@ -165,7 +165,7 @@ blm_telegraf会将收到的telegraf的数据拼装成TDengine的写入请求，�
 blm_telegraf对telegraf提供服务的端口号。
 ```
 
-###启动示例
+### 启动示例
 通过以下命令启动一个blm_telegraf的API服务
 ```
 ./blm_telegraf -host 127.0.0.1 -port 8089
@@ -177,7 +177,7 @@ blm_telegraf对telegraf提供服务的端口号。
 url = "http://10.1.2.3:8089/telegraf"
 ```
 
-###查询telegraf写入数据
+### 查询telegraf写入数据
 telegraf产生的数据格式如下：
 ```
 {
@@ -210,7 +210,7 @@ use telegraf;
 select * from cpu;
 ```
 
-## EMQ X MQTT Broker直接写入
+## EMQ X Broker直接写入
 
 MQTT是一流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ里做简单配置，即可将MQTT的数据直接写入TDengine。
 
