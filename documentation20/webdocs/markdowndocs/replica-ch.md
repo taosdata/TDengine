@@ -105,7 +105,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 如果vnode A是master, vnode B是slave, vnode A能接受客户端的写请求，而vnode B不能。当vnode A收到写的请求后，遵循下面的流程：
 
-<center> <img src="../assets/replica-forward.jpg"> </center>
+<center> <img src="../assets/replica-forward.png"> </center>
 
 1. 应用对写请求做基本的合法性检查，通过，则给改请求包打上一个版本号(version, 单调递增）
 2. 应用将打上版本号的写请求封装一个WAL Head, 写入WAL(Write Ahead Log)
@@ -140,7 +140,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 整个数据恢复流程分为两大步骤，第一步，先恢复archived data(file), 然后恢复wal。具体流程如下：
 
-<center> <img src="../assets/replica-restore.jpg"> </center>
+<center> <img src="../assets/replica-restore.png"> </center>
 
 1. 通过已经建立的TCP链接，发送sync req给master节点
 2. master收到sync req后，以client的身份，向vnode B主动建立一新的专用于同步的TCP链接（syncFd)
