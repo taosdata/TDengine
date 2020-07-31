@@ -51,7 +51,6 @@ extern "C" {
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
-#include "osPthread.h"
 #include "osRand.h"
 #include "osSemphone.h"
 #include "osSocket.h"

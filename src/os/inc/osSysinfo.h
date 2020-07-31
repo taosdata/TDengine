@@ -32,7 +32,7 @@ void taosPrintOsInfo();
 int  taosSystem(const char * cmd) ;
 void taosKillSystem();
 
-// TAOS_OS_FUNC_CORE
+// TAOS_OS_FUNC_SYSINFO_CORE
 void taosSetCoreDump();
 
 #ifdef __cplusplus

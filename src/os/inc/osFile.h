@@ -51,10 +51,10 @@ int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t
   #endif  
 #endif 
 
+int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
+
 // TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath);
-
-int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
 #ifdef __cplusplus
 }

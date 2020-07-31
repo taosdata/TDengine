@@ -48,7 +48,7 @@
 extern "C" {
 #endif
 
-#define TAOS_OS_FUNC_WCHAR
+#define TAOS_OS_FUNC_STRING_WCHAR
 #define TAOS_OS_FUNC_FILE
 #define TAOS_OS_FUNC_SLEEP
 #define TAOS_OS_FUNC_TIMER
@@ -65,7 +65,7 @@ extern "C" {
   int32_t BUILDIN_CTZL(uint64_t val);
   int32_t BUILDIN_CTZ(uint32_t val);
 
-#define TAOS_OS_FUNC_UTIL
+#define TAOS_OS_FUNC_STRING_STR2INT64
   #ifdef _TD_GO_DLL_
     int64_t tsosStr2int64(char *str);
     uint64_t htonll(uint64_t val);

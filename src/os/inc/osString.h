@@ -29,7 +29,7 @@ extern "C" {
   #define taosGetlineImp(lineptr, n, stream) getline(lineptr, n , stream)
 #endif
 
-#ifndef TAOS_OS_FUNC_WCHAR
+#ifndef TAOS_OS_FUNC_STRING_WCHAR
   #define twcslen wcslen
 #endif  
 
@@ -39,7 +39,7 @@ extern "C" {
     (dst)[(size)-1] = 0;           \
   } while (0);
 
-// TAOS_OS_FUNC_UTIL
+// TAOS_OS_FUNC_STRING_STR2INT64
 int64_t tsosStr2int64(char *str);
 
 // USE_LIBICONV

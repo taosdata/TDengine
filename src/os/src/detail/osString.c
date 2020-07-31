@@ -18,7 +18,16 @@
 #include "tglobal.h"
 #include "taosdef.h"
 
-#ifndef TAOS_OS_FUNC_WCHAR
+#ifndef TAOS_OS_FUNC_STRING_STR2INT64
+
+int64_t tsosStr2int64(char *str) {
+  char *endptr = NULL;
+  return strtoll(str, &endptr, 10);
+}
+
+#endif
+
+#ifndef TAOS_OS_FUNC_STRING_WCHAR
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
   return wcsncmp((wchar_t *)f1_ucs4, (wchar_t *)f2_ucs4, bytes / TSDB_NCHAR_SIZE);

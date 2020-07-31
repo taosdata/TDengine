@@ -28,6 +28,10 @@ extern "C" {
   #define tsem_destroy sem_destroy
 #endif
 
+// TAOS_OS_FUNC_PTHREAD
+bool taosCheckPthreadValid(pthread_t thread);
+int64_t taosGetPthreadId();
+
 #ifdef __cplusplus
 }
 #endif

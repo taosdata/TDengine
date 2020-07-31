@@ -85,7 +85,7 @@ int tsem_destroy(dispatch_semaphore_t *sem);
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 #define TAOS_OS_FUNC_SYSINFO
 #define TAOS_OS_FUNC_TIMER
-#define TAOS_OS_FUNC_UTIL
+#define TAOS_OS_FUNC_STRING_STR2INT64
 
 // specific
 #define htobe64 htonll
