@@ -38,7 +38,7 @@ which systemd
 
 如果系统中不存在`systemd`命令，请考虑[通过源码安装](#通过源码安装)TDengine。
 
-具体的安装过程，请参见[`TDengine多种安装包的安装和卸载`](https://www.taosdata.com/blog/2019/08/09/566.html)
+具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>。
 
 ## 轻松启动
 
