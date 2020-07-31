@@ -101,28 +101,29 @@ TAOS_FLAG=$PRG_DIR/flag
 
 HOSTNAME=`hostname -f`
 
-echo " "                                     >> $TAOS_CFG
-echo "first            ${HOSTNAME}:7100"     >> $TAOS_CFG
-echo "second           ${HOSTNAME}:7200"     >> $TAOS_CFG
-echo "serverPort       7100"                 >> $TAOS_CFG
-echo "dataDir          $DATA_DIR"            >> $TAOS_CFG
-echo "logDir           $LOG_DIR"             >> $TAOS_CFG
-echo "scriptDir        ${CODE_DIR}/../script">> $TAOS_CFG
-echo "numOfLogLines    100000000"            >> $TAOS_CFG
-echo "dDebugFlag       135"                  >> $TAOS_CFG
-echo "mDebugFlag       135"                  >> $TAOS_CFG
-echo "sdbDebugFlag     135"                  >> $TAOS_CFG
-echo "rpcDebugFlag     135"                  >> $TAOS_CFG
-echo "tmrDebugFlag     131"                  >> $TAOS_CFG
-echo "cDebugFlag       135"                  >> $TAOS_CFG
-echo "httpDebugFlag    135"                  >> $TAOS_CFG
-echo "monitorDebugFlag 135"                  >> $TAOS_CFG
-echo "udebugFlag       135"                  >> $TAOS_CFG
-echo "tablemetakeeptimer 5"                  >> $TAOS_CFG
-echo "wal              0"                    >> $TAOS_CFG
-echo "asyncLog         0"                    >> $TAOS_CFG
-echo "locale           en_US.UTF-8"          >> $TAOS_CFG
-echo " "                                     >> $TAOS_CFG
+echo " "                                          >> $TAOS_CFG
+echo "firstEp            ${HOSTNAME}:7100"        >> $TAOS_CFG
+echo "secondEp           ${HOSTNAME}:7200"        >> $TAOS_CFG
+echo "serverPort         7100"                    >> $TAOS_CFG
+echo "dataDir            $DATA_DIR"               >> $TAOS_CFG
+echo "logDir             $LOG_DIR"                >> $TAOS_CFG
+echo "scriptDir          ${CODE_DIR}/../script"   >> $TAOS_CFG
+echo "numOfLogLines      100000000"               >> $TAOS_CFG
+echo "dDebugFlag         135"                     >> $TAOS_CFG
+echo "mDebugFlag         135"                     >> $TAOS_CFG
+echo "sdbDebugFlag       135"                     >> $TAOS_CFG
+echo "rpcDebugFlag       135"                     >> $TAOS_CFG
+echo "tmrDebugFlag       131"                     >> $TAOS_CFG
+echo "cDebugFlag         135"                     >> $TAOS_CFG
+echo "httpDebugFlag      135"                     >> $TAOS_CFG
+echo "monitorDebugFlag   135"                     >> $TAOS_CFG
+echo "udebugFlag         135"                     >> $TAOS_CFG
+echo "tablemetakeeptimer 5"                       >> $TAOS_CFG
+echo "wal                0"                       >> $TAOS_CFG
+echo "asyncLog           0"                       >> $TAOS_CFG
+echo "locale             en_US.UTF-8"             >> $TAOS_CFG
+echo "enableCoreFile     1"                       >> $TAOS_CFG
+echo " "                                          >> $TAOS_CFG  
 
 ulimit -n 600000
 ulimit -c unlimited

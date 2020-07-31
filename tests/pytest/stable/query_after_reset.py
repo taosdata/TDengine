@@ -72,8 +72,12 @@ class Test:
 
     def query_stable(self):
         tdLog.info("query super table")
-        tdSql.query("select * from st")
-        tdSql.checkRows(1)
+        try:
+            tdSql.query("select * from st")
+        except Exception as e:
+            tdLog.info("Exception catched: %s" % repr(e))
+            if ('Table does not exist' not in repr(e)):
+                raise Exception(repr(e))
 
     def create_stable(self):
         tdLog.info("create a super table and sub-table and insert data")
@@ -162,10 +166,15 @@ class TDTestCase:
             12: test.stop_database,
         }
 
+        tdLog.info("create stable")
         switch.get(4, lambda: "ERROR")()
+        tdLog.info("stop database")
         switch.get(12, lambda: "ERROR")()
+        tdLog.info("delete datafiles")
         switch.get(10, lambda: "ERROR")()
+        tdLog.info("restart database")
         switch.get(5, lambda: "ERROR")()
+        tdLog.info("query stable")
         switch.get(11, lambda: "ERROR")()
 
     def stop(self):

@@ -120,7 +120,7 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
   }
 
   if (/* pConn->ip != ip || */ pConn->port != port /* || strcmp(pConn->user, user) != 0 */) {
-    mError("connId:%d, incoming conn user:%s ip:%s:%u, not match exist conn user:%s ip:%s:%u", connId, user,
+    mDebug("connId:%d, incoming conn user:%s ip:%s:%u, not match exist conn user:%s ip:%s:%u", connId, user,
            taosIpStr(ip), port, pConn->user, taosIpStr(pConn->ip), pConn->port);
     taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
     return NULL;

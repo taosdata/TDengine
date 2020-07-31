@@ -42,8 +42,8 @@ class TDTestCase:
 
         ret = tdSql.query('show dnodes')
 
-        ret = tdSql.execute('alter dnode "%s" debugFlag 135' % tdSql.getData(0,1))
-        tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (tdSql.getData(0, 1), ret))
+        ret = tdSql.execute('alter dnode "%s" debugFlag 135' % tdSql.getData(0,0))
+        tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (tdSql.getData(0, 0), ret))
 
     def stop(self):
         tdSql.close()

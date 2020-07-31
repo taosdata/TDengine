@@ -574,6 +574,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
   SMemTable * pMem = pRepo->imem;
+  bool        newLast = false;
 
   TSKEY minKey = 0, maxKey = 0;
   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
@@ -603,6 +604,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
+  newLast = TSDB_NLAST_FILE_OPENED(pHelper);
+
+  if (tsdbLoadCompIdx(pHelper, NULL) < 0) {
+    tsdbError("vgId:%d failed to load SCompIdx part since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
+
   // Loop to commit data in each table
   for (int tid = 1; tid < pMem->maxTables; tid++) {
     SCommitIter *pIter = iters + tid;
@@ -610,10 +618,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
     taosRLockLatch(&(pIter->pTable->latch));
 
-    tsdbSetHelperTable(pHelper, pIter->pTable, pRepo);
+    if (tsdbSetHelperTable(pHelper, pIter->pTable, pRepo) < 0) goto _err;
 
     if (pIter->pIter != NULL) {
-      tdInitDataCols(pDataCols, tsdbGetTableSchemaImpl(pIter->pTable, false, false, -1));
+      if (tdInitDataCols(pDataCols, tsdbGetTableSchemaImpl(pIter->pTable, false, false, -1)) < 0) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        goto _err;
+      }
 
       if (tsdbCommitTableData(pHelper, pIter, pDataCols, maxKey) < 0) {
         taosRUnLockLatch(&(pIter->pTable->latch));
@@ -648,12 +659,24 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   tsdbCloseHelperFile(pHelper, 0);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
+
 #ifdef TSDB_IDX
-  pGroup->files[TSDB_FILE_TYPE_IDX] = *(helperIdxF(pHelper));
+  rename(helperNewIdxF(pHelper)->fname, helperIdxF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_IDX].info = helperNewIdxF(pHelper)->info;
 #endif
-  pGroup->files[TSDB_FILE_TYPE_HEAD] = *(helperHeadF(pHelper));
-  pGroup->files[TSDB_FILE_TYPE_DATA] = *(helperDataF(pHelper));
-  pGroup->files[TSDB_FILE_TYPE_LAST] = *(helperLastF(pHelper));
+
+  rename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
+  pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
+
+  if (newLast) {
+    rename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
+  } else {
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = helperLastF(pHelper)->info;
+  }
+
+  pGroup->files[TSDB_FILE_TYPE_DATA].info = helperDataF(pHelper)->info;
+
   pthread_rwlock_unlock(&(pFileH->fhlock));
 
   return 0;

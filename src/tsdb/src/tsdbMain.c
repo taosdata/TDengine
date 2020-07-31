@@ -12,6 +12,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+// no test file errors here
+#undef TAOS_RANDOM_FILE_FAIL
+
 #include "tsdbMain.h"
 #include "os.h"
 #include "talgo.h"
@@ -22,8 +26,6 @@
 #include "ttime.h"
 #include "tulog.h"
 
-#include <pthread.h>
-#include <sys/stat.h>
 
 #define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"
@@ -785,10 +787,11 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_DESC);
   while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
     if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
+    if (tsdbLoadCompIdx(&rhelper, NULL) < 0) goto _err;
     for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      tsdbSetHelperTable(&rhelper, pTable, pRepo);
+      if (tsdbSetHelperTable(&rhelper, pTable, pRepo) < 0) goto _err;
       SCompIdx *pIdx = &(rhelper.curCompIdx);
 
       if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;

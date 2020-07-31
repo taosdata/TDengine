@@ -46,14 +46,15 @@ static void httpDestroyContext(void *data) {
   httpReleaseSession(pContext);
   atomic_sub_fetch_32(&pThread->numOfContexts, 1);
   
+  httpDebug("context:%p, is destroyed, refCount:%d data:%p thread:%s numOfContexts:%d", pContext, pContext->refCount,
+            data, pContext->pThread->label, pContext->pThread->numOfContexts);
   pContext->pThread = 0;
   pContext->state = HTTP_CONTEXT_STATE_CLOSED;
 
   // avoid double free
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
-  
-  httpDebug("context:%p, is destroyed, refCount:%d data:%p", pContext, pContext->refCount, data);
+
   tfree(pContext);
 }
 
@@ -134,7 +135,10 @@ HttpContext *httpGetContext(void *ptr) {
 
 void httpReleaseContext(HttpContext *pContext) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
-  assert(refCount >= 0);
+  if (refCount < 0) {
+    httpError("context:%p, is already released, refCount:%d", pContext, refCount);
+    return;
+  }
 
   HttpContext **ppContext = pContext->ppContext;
   httpDebug("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);

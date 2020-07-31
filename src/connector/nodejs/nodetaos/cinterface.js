@@ -10,6 +10,7 @@ const Struct = require('ref-struct');
 const FieldTypes = require('./constants');
 const errors = require ('./error');
 const TaosObjects = require('./taosobjects');
+const { NULL_POINTER } = require('ref');
 
 module.exports = CTaosInterface;
 
@@ -177,9 +178,10 @@ var char_arr = ArrayType(ref.types.char);
 var TaosField = Struct({
                       'name': char_arr,
                       });
-TaosField.fields.name.type.size = 64;
-TaosField.defineProperty('bytes', ref.types.short);
+TaosField.fields.name.type.size = 65;
 TaosField.defineProperty('type', ref.types.char);
+TaosField.defineProperty('bytes', ref.types.short);
+
 
 /**
  *
@@ -202,10 +204,10 @@ function CTaosInterface (config = null, pass = false) {
     'taos_connect': [ ref.types.void_ptr, [ ref.types.char_ptr, ref.types.char_ptr, ref.types.char_ptr, ref.types.char_ptr, ref.types.int ] ],
     //void taos_close(TAOS *taos)
     'taos_close': [ ref.types.void, [ ref.types.void_ptr ] ],
-    //TAOS_RES *taos_use_result(TAOS *taos);
-    'taos_use_result': [ ref.types.void_ptr, [ ref.types.void_ptr ] ],
+    //int *taos_fetch_lengths(TAOS_RES *taos);
+    'taos_fetch_lengths': [ ref.types.void_ptr, [ ref.types.void_ptr ] ],
     //int taos_query(TAOS *taos, char *sqlstr)
-    'taos_query': [ ref.types.int, [ ref.types.void_ptr, ref.types.char_ptr ] ],
+    'taos_query': [ ref.types.void_ptr, [ ref.types.void_ptr, ref.types.char_ptr ] ],
     //int taos_affected_rows(TAOS *taos)
     'taos_affected_rows': [ ref.types.int, [ ref.types.void_ptr] ],
     //int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)
@@ -329,22 +331,22 @@ CTaosInterface.prototype.query = function query(connection, sql) {
 CTaosInterface.prototype.affectedRows = function affectedRows(connection) {
   return this.libtaos.taos_affected_rows(connection);
 }
-CTaosInterface.prototype.useResult = function useResult(connection) {
-  let result = this.libtaos.taos_use_result(connection);
+CTaosInterface.prototype.useResult = function useResult(result) {
+
   let fields = [];
   let pfields = this.fetchFields(result);
   if (ref.isNull(pfields) == false) {
-    pfields = ref.reinterpret(pfields, this.fieldsCount(connection) * 68, 0);
+    pfields = ref.reinterpret(pfields, this.fieldsCount(result) * 68, 0);
     for (let i = 0; i < pfields.length; i += 68) {
       //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
       fields.push( {
-        name: ref.readCString(ref.reinterpret(pfields,64,i)),
-        bytes: pfields[i + 64],
-        type: pfields[i + 66]
+        name: ref.readCString(ref.reinterpret(pfields,65,i)),
+        type: pfields[i + 65],
+        bytes: pfields[i + 66]
       })
     }
   }
-  return {result:result, fields:fields}
+  return fields;
 }
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
@@ -352,19 +354,33 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   if (num_of_rows == 0) {
     return {block:null, num_of_rows:0};
   }
-  let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO)
+  var fieldL = this.libtaos.taos_fetch_lengths(result);
+
+  let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO);
+
+  var fieldlens = [];
+  
+  if (ref.isNull(fieldL) == false) {
+    
+    for (let i = 0; i < fields.length; i ++) {
+      let plen = ref.reinterpret(fieldL, 4, i*4);
+      let len = plen.readInt32LE(0);
+       fieldlens.push(len);
+    }
+  }
+
   let blocks = new Array(fields.length);
   blocks.fill(null);
   num_of_rows = Math.abs(num_of_rows);
   let offset = 0;
   pblock = pblock.deref();
   for (let i = 0; i < fields.length; i++) {
-
+    pdata = ref.reinterpret(pblock,8,i*8);
+    pdata = ref.ref(pdata.readPointer());
     if (!convertFunctions[fields[i]['type']] ) {
       throw new errors.DatabaseError("Invalid data type returned from database");
     }
-    blocks[i] = convertFunctions[fields[i]['type']](pblock, num_of_rows, fields[i]['bytes'], offset, isMicro);
-    offset += fields[i]['bytes'] * num_of_rows;
+    blocks[i] = convertFunctions[fields[i]['type']](pdata, 1, fieldlens[i], offset, isMicro);
   }
   return {blocks: blocks, num_of_rows:Math.abs(num_of_rows)}
 }
@@ -381,17 +397,17 @@ CTaosInterface.prototype.numFields = function numFields(result) {
   return this.libtaos.taos_num_fields(result);
 }
 // Fetch fields count by connection, the latest query
-CTaosInterface.prototype.fieldsCount = function fieldsCount(connection) {
-  return this.libtaos.taos_field_count(connection);
+CTaosInterface.prototype.fieldsCount = function fieldsCount(result) {
+  return this.libtaos.taos_field_count(result);
 }
 CTaosInterface.prototype.fetchFields = function fetchFields(result) {
   return this.libtaos.taos_fetch_fields(result);
 }
-CTaosInterface.prototype.errno = function errno(connection) {
-  return this.libtaos.taos_errno(connection);
+CTaosInterface.prototype.errno = function errno(result) {
+  return this.libtaos.taos_errno(result);
 }
-CTaosInterface.prototype.errStr = function errStr(connection) {
-  return ref.readCString(this.libtaos.taos_errstr(connection));
+CTaosInterface.prototype.errStr = function errStr(result) {
+  return ref.readCString(this.libtaos.taos_errstr(result));
 }
 // Async
 CTaosInterface.prototype.query_a = function query_a(connection, sql, callback, param = ref.ref(ref.NULL)) {
@@ -412,18 +428,32 @@ CTaosInterface.prototype.fetch_rows_a = function fetch_rows_a(result, callback, 
     // Data preparation to pass to cursor. Could be bottleneck in query execution callback times.
     let row = cti.libtaos.taos_fetch_row(result2);
     let fields = cti.fetchFields_a(result2);
+
     let isMicro = (cti.libtaos.taos_result_precision(result2) == FieldTypes.C_TIMESTAMP_MICRO);
     let blocks = new Array(fields.length);
     blocks.fill(null);
     numOfRows2 = Math.abs(numOfRows2);
     let offset = 0;
+    var fieldL = cti.libtaos.taos_fetch_lengths(result);
+    var fieldlens = [];
+    if (ref.isNull(fieldL) == false) {
+      
+      for (let i = 0; i < fields.length; i ++) {
+        let plen = ref.reinterpret(fieldL, 8, i*8);
+        let len = ref.get(plen,0,ref.types.int32);
+        fieldlens.push(len);
+      }
+    }
     if (numOfRows2 > 0){
       for (let i = 0; i < fields.length; i++) {
         if (!convertFunctions[fields[i]['type']] ) {
           throw new errors.DatabaseError("Invalid data type returned from database");
         }
-        blocks[i] = convertFunctions[fields[i]['type']](row, numOfRows2, fields[i]['bytes'], offset, isMicro);
-        offset += fields[i]['bytes'] * numOfRows2;
+        let prow = ref.reinterpret(row,8,i*8);
+        prow = prow.readPointer();
+        prow = ref.ref(prow);
+        blocks[i] = convertFunctions[fields[i]['type']](prow, 1, fieldlens[i], offset, isMicro);
+        //offset += fields[i]['bytes'] * numOfRows2;
       }
     }
     callback(param2, result2, numOfRows2, blocks);
@@ -440,11 +470,11 @@ CTaosInterface.prototype.fetchFields_a = function fetchFields_a (result) {
   if (ref.isNull(pfields) == false) {
     pfields = ref.reinterpret(pfields, 68 * pfieldscount , 0);
     for (let i = 0; i < pfields.length; i += 68) {
-      //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
+      //0 - 64 = name //65 = type, 66 - 67 = bytes
       fields.push( {
-        name: ref.readCString(ref.reinterpret(pfields,64,i)),
-        bytes: pfields[i + 64],
-        type: pfields[i + 66]
+        name: ref.readCString(ref.reinterpret(pfields,65,i)),
+        type: pfields[i + 65],
+        bytes: pfields[i + 66]
       })
     }
   }
