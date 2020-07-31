@@ -60,7 +60,6 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
   return writeLen;
 }
 
-
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   uError("not implemented yet");
   return -1;

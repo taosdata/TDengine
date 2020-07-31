@@ -104,3 +104,5 @@ int taosSystem(const char *cmd) {
   uError("un support funtion");
   return -1;
 }
+
+void taosSetCoreDump() {}
