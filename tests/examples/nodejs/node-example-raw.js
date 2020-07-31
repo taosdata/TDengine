@@ -5,7 +5,7 @@
 */
 
 // Get the td-connector package
-const taos = require('td-connector');
+const taos = require('td2.0-connector');
 
 /* We will connect to TDengine by passing an object comprised of connection options to taos.connect and store the
  * connection to the variable conn
