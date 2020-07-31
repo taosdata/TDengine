@@ -574,6 +574,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
   SMemTable * pMem = pRepo->imem;
+  bool        newLast = false;
 
   TSKEY minKey = 0, maxKey = 0;
   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
@@ -602,6 +603,8 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     tsdbError("vgId:%d failed to set helper file since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
+
+  newLast = TSDB_NLAST_FILE_OPENED(pHelper);
 
   if (tsdbLoadCompIdx(pHelper, NULL) < 0) {
     tsdbError("vgId:%d failed to load SCompIdx part since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -665,8 +668,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   rename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
   pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
 
-  rename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
-  pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
+  if (newLast) {
+    rename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
+  } else {
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = helperLastF(pHelper)->info;
+  }
 
   pGroup->files[TSDB_FILE_TYPE_DATA].info = helperDataF(pHelper)->info;
 
