@@ -23,7 +23,7 @@ extern "C" {
 // TAOS_OS_FUNC_RAND
 uint32_t taosRand(void);
 void taosRandStr(char* str, int32_t size);
-uint32_t trand(void);
+uint32_t taosSafeRand(void);
 
 #ifdef __cplusplus
 }
