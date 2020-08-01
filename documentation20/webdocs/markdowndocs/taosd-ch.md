@@ -41,7 +41,7 @@ RPC模块还提供数据压缩功能，如果数据包的字节数超过系统�
 taosd的消息消费由dnode通过读写线程池进行控制，是系统的中枢。该模块内的结构体图如下：
 
 <center> <img src="../assets/dnode.png"> </center>
- 
+
 ## VNODE模块
 
 vnode是一独立的数据存储查询逻辑单元，但因为一个vnode只能容许一个DB，因此vnode内部没有account, DB, user等概念。为实现更好的模块化、封装以及未来的扩展，它有很多子模块，包括负责存储的TSDB，负责查询的Query, 负责数据复制的sync，负责数据库日志的的wal, 负责连续查询的cq(continuous query), 负责事件触发的流计算的event等模块，这些子模块只与vnode模块发生关系，与其他模块没有任何调用关系。模块图如下：
@@ -82,9 +82,9 @@ TSDB中存储的元数据包含属于其所在的VNODE中表的类型，schema�
 该模块负责整体系统的查询处理。客户端调用该该模块进行SQL语法解析，并将查询或写入请求发送到vnode，同时负责针对超级表的查询进行二阶段的聚合操作。在Vnode端，该模块调用TSDB模块读取系统中存储的数据进行查询处理。Query模块还定义了系统能够支持的全部查询函数，查询函数的实现机制与查询框架无耦合，可以在不修改查询流程的情况下动态增加查询函数。详细的设计请参见《TDengine 2.0查询模块设计》。
 
 ## SYNC模块
-该模块实现数据的多副本复制，包括vnode与mnode的数据复制，支持异步和同步两种复制方式，以满足meta data与时序数据不同复制的需求。因为它为mnode与vnode共享，系统为mnode副本预留了一个特殊的vgroup ID:1。因此vnode的ID是从2开始的。
+该模块实现数据的多副本复制，包括vnode与mnode的数据复制，支持异步和同步两种复制方式，以满足meta data与时序数据不同复制的需求。因为它为mnode与vnode共享，系统为mnode副本预留了一个特殊的vgroup ID:1。因此vnode group的ID是从2开始的。
 
-每个vnode/mnode模块实例会有一对应的sync模块实例，他们是一一对应的。详细设计请见《TDengine 2.0 数据复制模块设计》
+每个vnode/mnode模块实例会有一对应的sync模块实例，他们是一一对应的。详细设计请见<a href="https://www.taosdata.com/cn/documentation20/replica/">TDengine 2.0 数据复制模块设计</a>
 
 ## WAL模块
 该模块负责将新插入的数据写入write ahead log(WAL), 为vnode, mnode共享。以保证服务器crash或其他故障，能从WAL中恢复数据。

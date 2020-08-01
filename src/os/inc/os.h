@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #ifdef _TD_DARWIN_64
-#include "osDarwin64.h"
+#include "osDarwin.h"
 #endif
 
 #ifdef _TD_LINUX_64
@@ -36,15 +36,26 @@ extern "C" {
 #include "osAlpine.h"
 #endif
 
-#ifdef _TD_WINDOWS_64
-#include "osWindows64.h"
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#include "osWindows.h"
 #endif
 
-#ifdef _TD_WINDOWS_32
-#include "osWindows32.h"
-#endif
+#include "osAtomic.h"
+#include "osDef.h"
+#include "osDir.h"
+#include "osFile.h"
+#include "osLz4.h"
+#include "osMath.h"
+#include "osMemory.h"
+#include "osRand.h"
+#include "osSemphone.h"
+#include "osSocket.h"
+#include "osString.h"
+#include "osSysinfo.h"
+#include "osTime.h"
+#include "osTimer.h"
 
-#include "osSpec.h"
+void osInit();
 
 #ifdef __cplusplus
 }

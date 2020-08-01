@@ -213,8 +213,8 @@ void taosCleanUpTcpServer(void *handle) {
 
   tDebug("%s TCP server is cleaned up", pServerObj->label);
 
-  tfree(pServerObj->pThreadObj);
-  tfree(pServerObj);
+  taosTFree(pServerObj->pThreadObj);
+  taosTFree(pServerObj);
 }
 
 static void *taosAcceptTcpConnection(void *arg) {
@@ -324,7 +324,7 @@ void taosCleanUpTcpClient(void *chandle) {
   taosStopTcpThread(pThreadObj);
   tDebug ("%s TCP client is cleaned up", pThreadObj->label);
 
-  tfree(pThreadObj);
+  taosTFree(pThreadObj);
 }
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
@@ -518,7 +518,7 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, int fd) {
   event.events = EPOLLIN | EPOLLRDHUP;
   event.data.ptr = pFdObj;
   if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-    tfree(pFdObj);
+    taosTFree(pFdObj);
     terrno = TAOS_SYSTEM_ERROR(errno); 
     return NULL;
   }
@@ -571,5 +571,5 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
   tDebug("%s %p TCP connection is closed, FD:%p numOfFds:%d", 
           pThreadObj->label, pFdObj->thandle, pFdObj, pThreadObj->numOfFds);
 
-  tfree(pFdObj);
+  taosTFree(pFdObj);
 }

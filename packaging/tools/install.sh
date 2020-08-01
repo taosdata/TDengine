@@ -79,19 +79,19 @@ osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 os_type=0
 if echo $osinfo | grep -qwi "ubuntu" ; then
-  echo "This is ubuntu system"
+#  echo "This is ubuntu system"
   os_type=1
 elif echo $osinfo | grep -qwi "debian" ; then
-  echo "This is debian system"
+#  echo "This is debian system"
   os_type=1
 elif echo $osinfo | grep -qwi "Kylin" ; then
-  echo "This is Kylin system"
+#  echo "This is Kylin system"
   os_type=1
 elif  echo $osinfo | grep -qwi "centos" ; then
-  echo "This is centos system"
+#  echo "This is centos system"
   os_type=2
 elif echo $osinfo | grep -qwi "fedora" ; then
-  echo "This is fedora system"
+#  echo "This is fedora system"
   os_type=2
 else
   echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
@@ -135,7 +135,7 @@ do
   esac
 done
 
-echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
+#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
@@ -240,7 +240,9 @@ function install_config() {
 
     # first full-qualified domain name (FQDN) for TDengine cluster system
     echo
-    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join OR leave it blank to build one${NC} :"
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo
+    echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
     read firstEp
     while true; do
         if [ ! -z "$firstEp" ]; then
@@ -670,10 +672,11 @@ function install_TDengine() {
              echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
 		
-		    if [ ! -z "$firstEp" ]; then
-		      echo		    
-		      echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp ${GREEN_DARK} to login into cluster, then execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}in TAOS shell to add this new node into the clsuter${NC}"
-          echo
+        if [ ! -z "$firstEp" ]; then
+	    echo		    
+	    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+	    echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+            echo
         fi
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo       

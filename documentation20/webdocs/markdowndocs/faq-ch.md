@@ -68,7 +68,8 @@ windows下插入nchar类的数据中如果有中文，请先确认系统的地�
 
 ​      Connection = DriverManager.getConnection(url, properties);
 
-#### 12. <a href='blog/2020/01/06/tdengine-go-windows驱动的编译/'>TDengine GO windows驱动的编译</a>
+#### 12.TDengine GO windows驱动的如何编译？
+请看为此问题撰写的<a href='blog/2020/01/06/tdengine-go-windows驱动的编译/'>技术博客 
 
 
 

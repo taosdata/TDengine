@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -77,6 +76,12 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/resource.h>
 #include <error.h>
+
+#define TAOS_OS_FUNC_LZ4
+#define BUILDIN_CLZL(val) __builtin_clzll(val)
+#define BUILDIN_CTZL(val) __builtin_ctzll(val)
+#define BUILDIN_CLZ(val) __builtin_clz(val)
+#define BUILDIN_CTZ(val) __builtin_ctz(val)
 
 #ifdef __cplusplus
 }

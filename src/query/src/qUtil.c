@@ -14,11 +14,8 @@
  */
 
 #include "os.h"
-
 #include "hash.h"
 #include "taosmsg.h"
-#include "ttime.h"
-
 #include "qExecutor.h"
 #include "qUtil.h"
 
@@ -89,7 +86,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
   }
   
   taosHashCleanup(pWindowResInfo->hashList);
-  tfree(pWindowResInfo->pResult);
+  taosTFree(pWindowResInfo->pResult);
 }
 
 void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo) {

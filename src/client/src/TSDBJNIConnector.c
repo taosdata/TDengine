@@ -18,7 +18,6 @@
 #include "tlog.h"
 #include "tscUtil.h"
 #include "tsclient.h"
-#include "ttime.h"
 
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 

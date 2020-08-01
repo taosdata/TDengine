@@ -27,7 +27,6 @@
 #include "tscSubquery.h"
 #include "tscompression.h"
 #include "tsqlfunction.h"
-#include "ttime.h"
 #include "tutil.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
@@ -2108,7 +2107,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
     }
   }
   
-  tfree(pData);
+  taosTFree(pData);
 }
 
 /*

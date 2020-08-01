@@ -14,10 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include "tutil.h"
 #include "tbalance.h"
 #include "tsync.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
 #include "tdataformat.h"

@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taos.h"
-#include "ttime.h"
 #include "tglobal.h"
 #include "tcache.h"
 #include "httpInt.h"

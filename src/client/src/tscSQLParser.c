@@ -29,7 +29,6 @@
 #include "tsclient.h"
 #include "tstoken.h"
 #include "tstrbuild.h"
-#include "ttime.h"
 #include "ttokendef.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
@@ -737,7 +736,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableNa
     assert(pTableMetaInfo->pTableMeta == NULL);
   }
 
-  tfree(oldName);
+  taosTFree(oldName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3648,7 +3647,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
     int32_t ret = setObjFullName(idBuf, account, &dbToken, &t, &xlen);
     if (ret != TSDB_CODE_SUCCESS) {
       taosStringBuilderDestroy(&sb1);
-      tfree(segments);
+      taosTFree(segments);
 
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       return ret;
@@ -3661,7 +3660,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
 
   taosStringBuilderDestroy(&sb1);
-  tfree(segments);
+  taosTFree(segments);
   return TSDB_CODE_SUCCESS;
 }
 

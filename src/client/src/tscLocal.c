@@ -326,7 +326,7 @@ static void tscProcessServerVer(SSqlObj *pSql) {
   STR_WITH_SIZE_TO_VARSTR(vx, v, t);
   tscSetLocalQueryResult(pSql, vx, pExpr->aliasName, pExpr->resType, pExpr->resBytes);
   
-  tfree(vx);
+  taosTFree(vx);
 }
 
 static void tscProcessClientVer(SSqlObj *pSql) {
@@ -342,7 +342,7 @@ static void tscProcessClientVer(SSqlObj *pSql) {
   STR_WITH_SIZE_TO_VARSTR(v, version, t);
   tscSetLocalQueryResult(pSql, v, pExpr->aliasName, pExpr->resType, pExpr->resBytes);
   
-  tfree(v);
+  taosTFree(v);
 }
 
 static void tscProcessServStatus(SSqlObj *pSql) {
