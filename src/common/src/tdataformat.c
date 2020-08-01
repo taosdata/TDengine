@@ -93,7 +93,7 @@ int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
 
 void tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder) {
   if (pBuilder) {
-    tfree(pBuilder->columns);
+    taosTFree(pBuilder->columns);
   }
 }
 
@@ -361,8 +361,8 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 
 void tdFreeDataCols(SDataCols *pCols) {
   if (pCols) {
-    tfree(pCols->buf);
-    tfree(pCols->cols);
+    taosTFree(pCols->buf);
+    taosTFree(pCols->cols);
     free(pCols);
   }
 }
@@ -685,8 +685,8 @@ int tdInitKVRowBuilder(SKVRowBuilder *pBuilder) {
 }
 
 void tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder) {
-  tfree(pBuilder->pColIdx);
-  tfree(pBuilder->buf);
+  taosTFree(pBuilder->pColIdx);
+  taosTFree(pBuilder->buf);
 }
 
 void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {

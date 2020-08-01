@@ -613,7 +613,7 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     if (sql == NULL) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
-      tfree(pStmt->pSql->sqlstr);
+      taosTFree(pStmt->pSql->sqlstr);
       pStmt->pSql->sqlstr = sql;
       SSqlObj* pSql = taos_query((TAOS*)pStmt->taos, pStmt->pSql->sqlstr);
       ret = taos_errno(pSql);

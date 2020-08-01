@@ -14,9 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-// no test file errors here
-#undef TAOS_RANDOM_FILE_FAIL
-
 #include "os.h"
 #include "tulog.h"
 #include "tlog.h"
@@ -210,10 +207,10 @@ static bool taosCheckFileIsOpen(char *logFileName) {
 
   if (taosLockFile(fd)) {
     taosUnLockFile(fd);
-    tclose(fd);
+    taosClose(fd);
     return false;
   } else {
-    tclose(fd);
+    taosClose(fd);
     return true;
   }
 }
@@ -457,7 +454,7 @@ void taosCloseLog() {
 static void taosCloseLogByFd(int32_t fd) {
   if (fd >= 0) {
     taosUnLockFile(fd);
-    tclose(fd);
+    taosClose(fd);
   }
 }
 
@@ -482,8 +479,8 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   return tLogBuff;
 
 _err:
-  tfree(LOG_BUF_BUFFER(tLogBuff));
-  tfree(tLogBuff);
+  taosTFree(LOG_BUF_BUFFER(tLogBuff));
+  taosTFree(tLogBuff);
   return NULL;
 }
 
@@ -492,7 +489,7 @@ static void taosLogBuffDestroy(SLogBuff *tLogBuff) {
   tsem_destroy(&(tLogBuff->buffNotEmpty));
   pthread_mutex_destroy(&(tLogBuff->buffMutex));
   free(tLogBuff->buffer);
-  tfree(tLogBuff);
+  taosTFree(tLogBuff);
 }
 #endif
 

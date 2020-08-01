@@ -18,7 +18,6 @@
 #include "taosmsg.h"
 #include "tsocket.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
 #include "tcache.h"
@@ -39,7 +38,7 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
-  if (pContext->fd > 0) tclose(pContext->fd);
+  if (pContext->fd > 0) taosClose(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
   httpRemoveContextFromEpoll(pContext);
@@ -55,7 +54,7 @@ static void httpDestroyContext(void *data) {
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
 
-  tfree(pContext);
+  taosTFree(pContext);
 }
 
 bool httpInitContexts() {

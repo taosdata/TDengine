@@ -22,6 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "osDef.h"
 #include "taos.h"
 
 #define TSDB__packed
@@ -161,7 +162,7 @@ extern tDataTypeDescriptor tDataTypeDesc[11];
 
 bool isValidDataType(int32_t type);
 //bool isNull(const char *val, int32_t type);
-static inline __attribute__((always_inline)) bool isNull(const char *val, int32_t type) {
+static FORCE_INLINE bool isNull(const char *val, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       return *(uint8_t *)val == TSDB_DATA_BOOL_NULL;

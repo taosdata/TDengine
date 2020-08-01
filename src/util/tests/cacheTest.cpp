@@ -1,3 +1,4 @@
+#include "os.h"
 #include <iostream>
 #include <gtest/gtest.h>
 #include <sys/time.h>
@@ -10,7 +11,6 @@
 #include "tutil.h"
 #include "tcache.h"
 #include "ttimer.h"
-#include "ttime.h"
 
 namespace {
 int32_t tsMaxMgmtConnections = 10000;

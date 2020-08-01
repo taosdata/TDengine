@@ -18,7 +18,6 @@
 #include "taosmsg.h"
 #include "tsocket.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
 #include "httpInt.h"
@@ -203,7 +202,7 @@ static void httpProcessHttpData(void *param) {
       if (pContext == NULL) {
         httpError("context:%p, is already released, close connect", events[i].data.ptr);
         //epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-        //tclose(events[i].data.fd);
+        //taosClose(events[i].data.fd);
         continue;
       }
 
@@ -331,7 +330,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
                 pContext->ipstr, pThread->label, strerror(errno));
-      tclose(pContext->fd);
+      taosClose(pContext->fd);
       httpReleaseContext(pContext);
       continue;
     }

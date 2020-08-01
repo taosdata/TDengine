@@ -16,6 +16,7 @@
 #include "os.h"
 #include "tglobal.h"
 #include "sim.h"
+#undef TAOS_MEM_CHECK
 
 bool simAsyncQuery = false;
 

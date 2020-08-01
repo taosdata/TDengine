@@ -20,7 +20,6 @@
 #include "tsocket.h"
 #include "tidpool.h"
 #include "tsync.h"
-#include "ttime.h"
 #include "tbalance.h"
 #include "tglobal.h"
 #include "tdataformat.h"
@@ -70,7 +69,7 @@ static void mnodeDestroyVgroup(SVgObj *pVgroup) {
     pVgroup->idPool = NULL;
   }
 
-  tfree(pVgroup);
+  taosTFree(pVgroup);
 }
 
 static int32_t mnodeVgroupActionDestroy(SSdbOper *pOper) {

@@ -102,7 +102,7 @@ void taosCloseTcpThreadPool(void *param)
     if (pThread) taosStopPoolThread(pThread); 
   }
 
-  tfree(pPool->pThread);
+  taosTFree(pPool->pThread);
   free(pPool);
   uDebug("%p TCP pool is closed", pPool);
 }
@@ -166,7 +166,7 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
   pThread->numOfFds--;
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);
   uDebug("%p fd:%d is removed from epoll thread, num:%d", pThread, pConn->fd, pThread->numOfFds);
-  tclose(pConn->fd);
+  taosClose(pConn->fd);
   free(pConn);
 }
 
@@ -255,7 +255,7 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
     (*pInfo->processIncomingConn)(connFd, clientAddr.sin_addr.s_addr);
   }
 
-  tclose(pPool->acceptFd);
+  taosClose(pPool->acceptFd);
   return NULL;
 }
 
@@ -320,6 +320,6 @@ static void taosStopPoolThread(SThreadObj* pThread) {
   }
 
   pthread_join(thread, NULL);
-  tclose(fd);
+  taosClose(fd);
 }
 

@@ -39,7 +39,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
 
   char path[PATH_MAX] = {0};
-  getTmpfilePath("qbuf", path);
+  taosGetTmpfilePath("qbuf", path);
   pResBuf->path = strdup(path);
 
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
@@ -258,7 +258,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
     assert(d->pn == pn);
 
     d->pn = NULL;
-    tfree(pn);
+    taosTFree(pn);
 
     bufPage = flushPageToDisk(pResultBuf, d);
   }
@@ -406,7 +406,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   unlink(pResultBuf->path);
-  tfree(pResultBuf->path);
+  taosTFree(pResultBuf->path);
 
   SHashMutableIterator* iter = taosHashCreateIter(pResultBuf->groupSet);
   while(taosHashIterNext(iter)) {
@@ -414,8 +414,8 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
     size_t n = taosArrayGetSize(*p);
     for(int32_t i = 0; i < n; ++i) {
       SPageInfo* pi = taosArrayGetP(*p, i);
-      tfree(pi->pData);
-      tfree(pi);
+      taosTFree(pi->pData);
+      taosTFree(pi);
     }
 
     taosArrayDestroy(*p);
@@ -428,8 +428,8 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   taosHashCleanup(pResultBuf->groupSet);
   taosHashCleanup(pResultBuf->all);
 
-  tfree(pResultBuf->assistBuf);
-  tfree(pResultBuf);
+  taosTFree(pResultBuf->assistBuf);
+  taosTFree(pResultBuf);
 }
 
 SPageInfo* getLastPageInfo(SIDList pList) {

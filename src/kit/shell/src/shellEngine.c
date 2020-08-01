@@ -21,7 +21,6 @@
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "taosdef.h"
 #include "taoserror.h"
@@ -176,7 +175,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
       history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE] == NULL ||
       strcmp(command, history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE]) != 0) {
     if (history.hist[history.hend] != NULL) {
-      tfree(history.hist[history.hend]);
+      taosTFree(history.hist[history.hend]);
     }
     history.hist[history.hend] = strdup(command);
 
@@ -770,7 +769,7 @@ void write_history() {
   for (int i = history.hstart; i != history.hend;) {
     if (history.hist[i] != NULL) {
       fprintf(f, "%s\n", history.hist[i]);
-      tfree(history.hist[i]);
+      taosTFree(history.hist[i]);
     }
     i = (i + 1) % MAX_HISTORY_SIZE;
   }

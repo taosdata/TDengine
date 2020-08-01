@@ -20,6 +20,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsocket.h"
+#undef TAOS_MEM_CHECK
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
@@ -94,9 +95,9 @@ void simFreeScript(SScript *script) {
   }
 
   taos_close(script->taos);
-  tfree(script->lines);
-  tfree(script->optionBuffer);
-  tfree(script);
+  taosTFree(script->lines);
+  taosTFree(script->optionBuffer);
+  taosTFree(script);
 }
 
 SScript *simProcessCallOver(SScript *script) {

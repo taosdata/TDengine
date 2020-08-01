@@ -1,11 +1,11 @@
+#include "os.h"
 #include <gtest/gtest.h>
 #include <limits.h>
 #include <taosdef.h>
 #include <iostream>
 
 #include "hash.h"
-#include "taos.h"
-#include "ttime.h"
+#include "taos.h""
 
 namespace {
 // the simple test code for basic operations

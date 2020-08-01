@@ -190,7 +190,7 @@ matrix:
 
     script:
       - cmake .. > /dev/null
-      - make > /dev/null
+      - make  > /dev/null
 
   - os: linux
     arch: arm64
