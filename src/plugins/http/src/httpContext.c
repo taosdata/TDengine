@@ -438,9 +438,6 @@ static void httpMightDestroyContext(void *data) {
     ehttpDecContextRef(&pContext);
     return;
   }
-  int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
-  if (refCount>0) return;
-  EQ_ASSERT(refCount==0);
   httpDestroyContext(data);
 }
 
