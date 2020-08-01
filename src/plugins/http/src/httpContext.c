@@ -28,6 +28,22 @@
 #include "httpSql.h"
 #include "httpSession.h"
 
+#include "elog.h"
+
+// dirty tweak
+extern bool httpGetHttpMethod(HttpContext* pContext);
+extern bool httpParseURL(HttpContext* pContext);
+extern bool httpParseHttpVersion(HttpContext* pContext);
+extern bool httpGetDecodeMethod(HttpContext* pContext);
+extern bool httpParseHead(HttpContext* pContext);
+
+static void on_request_line(void *arg, const char *method, const char *target, const char *version, const char *target_raw);
+static void on_status_line(void *arg, const char *version, int status_code, const char *reason_phrase);
+static void on_header_field(void *arg, const char *key, const char *val);
+static void on_body(void *arg, const char *chunk, size_t len);
+static void on_end(void *arg);
+static void on_error(void *arg, int status_code);
+
 static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
   if (pContext->fd >= 0) {
@@ -149,6 +165,11 @@ void httpReleaseContext(HttpContext *pContext) {
     httpDebug("context:%p, won't be destroyed for cache is already released", pContext);
     // httpDestroyContext((void **)(&ppContext));
   }
+
+  if (pContext->parser.parser) {
+    ehttp_parser_destroy(pContext->parser.parser);
+    pContext->parser.parser = NULL;
+  }
 }
 
 bool httpInitContext(HttpContext *pContext) {
@@ -167,6 +188,20 @@ bool httpInitContext(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
+
+  ehttp_parser_callbacks_t callbacks = {
+    on_request_line,
+    on_status_line,
+    on_header_field,
+    on_body,
+    on_end,
+    on_error
+  };
+  ehttp_parser_conf_t conf = {
+    .flush_block_size = 0
+  };
+  pParser->parser = ehttp_parser_create(callbacks, conf, pContext);
+  pParser->inited = 1;
 
   httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, parsed:%d",
           pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, pContext->parsed);
@@ -230,3 +265,129 @@ void httpCloseContextByServer(HttpContext *pContext) {
   httpRemoveContextFromEpoll(pContext);
   httpReleaseContext(pContext);
 }
+
+
+
+
+
+static void on_request_line(void *arg, const char *method, const char *target, const char *version, const char *target_raw) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
+  int n = snprintf(pParser->pLast, avail,
+                   "%s %s %s\r\n", method, target_raw, version);
+
+  char *last = pParser->pLast;
+
+  do {
+    if (n>=avail) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), exceeding buffer size",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    pParser->bufsize += n;
+
+    if (!httpGetHttpMethod(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), parse http method failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    if (!httpParseURL(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), parse http url failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    if (!httpParseHttpVersion(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), parse http version failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    if (!httpGetDecodeMethod(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), get decode method failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+
+    last              += n;
+    pParser->pLast     = last;
+    return;
+  } while (0);
+
+  pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+}
+
+static void on_status_line(void *arg, const char *version, int status_code, const char *reason_phrase) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+}
+
+static void on_header_field(void *arg, const char *key, const char *val) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  if (pParser->failed) return;
+
+  int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
+  int n = snprintf(pParser->pLast, avail,
+                   "%s: %s\r\n", key, val);
+
+  char *last = pParser->pLast;
+
+  do {
+    if (n>=avail) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_header_field(%s,%s), exceeding buffer size",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, key, val);
+      break;
+    }
+    pParser->bufsize += n;
+    pParser->pCur     = pParser->pLast;
+
+    if (!httpParseHead(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_header_field(%s,%s), parse head failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, key, val);
+      break;
+    }
+
+    last              += n;
+    pParser->pLast     = last;
+    return;
+  } while (0);
+
+  pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+}
+
+static void on_body(void *arg, const char *chunk, size_t len) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  if (pParser->failed) return;
+
+  if (!pContext->parsed) {
+    pContext->parsed = true;
+  }
+
+  A("not implemented yet");
+}
+
+static void on_end(void *arg) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  if (pParser->failed) return;
+
+  if (!pContext->parsed) {
+    pContext->parsed = true;
+  }
+}
+
+static void on_error(void *arg, int status_code) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  D("==");
+  pParser->failed |= EHTTP_CONTEXT_PARSER_FAILED;
+}
+

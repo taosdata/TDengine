@@ -26,9 +26,13 @@
 #include "httpResp.h"
 #include "httpUtil.h"
 
+#include "elog.h"
+
 #ifndef EPOLLWAKEUP
  #define EPOLLWAKEUP (1u << 29)
 #endif
+
+static bool ehttpReadData(HttpContext *pContext);
 
 static void httpStopThread(HttpThread* pThread) {
   pThread->stop = true;
@@ -134,6 +138,8 @@ static bool httpDecompressData(HttpContext *pContext) {
 }
 
 static bool httpReadData(HttpContext *pContext) {
+  if (1) return ehttpReadData(pContext);
+
   if (!pContext->parsed) {
     httpInitContext(pContext);
   }
@@ -405,3 +411,60 @@ bool httpInitConnect() {
             pServer->serverPort, pServer->numOfThreads);
   return true;
 }
+
+
+
+
+static bool ehttpReadData(HttpContext *pContext) {
+  HttpParser *pParser = &pContext->parser;
+  EQ_ASSERT(!pContext->parsed);
+  if (!pParser->parser) {
+    if (!pParser->inited) {
+      httpInitContext(pContext);
+    }
+    if (!pParser->parser) {
+      return false;
+    }
+  }
+
+  pContext->accessTimes++;
+  pContext->lastAccessTime = taosGetTimestampSec();
+
+  char buf[HTTP_STEP_SIZE+1] = {0};
+  int nread = (int)taosReadSocket(pContext->fd, buf, sizeof(buf));
+  if (nread > 0) {
+    buf[nread] = '\0';
+    if (strstr(buf, "GET ")==buf && !strchr(buf, '\r') && !strchr(buf, '\n')) {
+      D("==half of request line received:\n%s\n==", buf);
+    }
+    if (ehttp_parser_parse(pParser->parser, buf, nread)) {
+      D("==parsing failed==");
+      httpCloseContextByServer(pContext);
+      return false;
+    }
+    if (pContext->parser.failed) {
+      D("==parsing failed: [0x%x]==", pContext->parser.failed);
+      httpNotifyContextClose(pContext);
+      return false;
+    }
+    return pContext->parsed;
+  } else if (nread < 0) {
+    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+      httpDebug("context:%p, fd:%d, ip:%s, read from socket error:%d, wait another event",
+                pContext, pContext->fd, pContext->ipstr, errno);
+      return false; // later again
+    } else {
+      httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, close connect",
+                pContext, pContext->fd, pContext->ipstr, errno);
+      D("==releasing because of reading failed==");
+      httpReleaseContext(pContext);
+      return false;
+    }
+  } else {
+    // eof
+    D("==releasing because of remote close/reset==");
+    httpReleaseContext(pContext);
+    return false;
+  }
+}
+

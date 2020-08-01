@@ -28,6 +28,8 @@
 #include "httpLog.h"
 #include "httpJson.h"
 
+#include "ehttp_parser.h"
+
 #define HTTP_MAX_CMD_SIZE           1024
 #define HTTP_MAX_BUFFER_SIZE        1024*1024
 
@@ -162,6 +164,11 @@ typedef struct {
   int32_t len;
 } HttpBuf;
 
+typedef enum {
+  EHTTP_CONTEXT_PROCESS_FAILED = 0x01,
+  EHTTP_CONTEXT_PARSER_FAILED  = 0x02
+} EHTTP_CONTEXT_FAILED_CAUSE;
+
 typedef struct {
   char              buffer[HTTP_BUFFER_SIZE];
   int               bufsize;
@@ -172,6 +179,10 @@ typedef struct {
   HttpBuf           data;                // body content
   HttpBuf           token;               // auth token
   HttpDecodeMethod *pMethod;
+
+  ehttp_parser_t        *parser;
+  int                    inited:2;
+  int                    failed:4;
 } HttpParser;
 
 typedef struct HttpContext {
