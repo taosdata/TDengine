@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "taoserror.h"
 #include "taosmsg.h"
@@ -90,10 +89,10 @@ static void    mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colName);
 
 static void mnodeDestroyChildTable(SChildTableObj *pTable) {
-  tfree(pTable->info.tableId);
-  tfree(pTable->schema);
-  tfree(pTable->sql);
-  tfree(pTable);
+  taosTFree(pTable->info.tableId);
+  taosTFree(pTable->schema);
+  taosTFree(pTable->sql);
+  taosTFree(pTable);
 }
 
 static int32_t mnodeChildTableActionDestroy(SSdbOper *pOper) {
@@ -411,9 +410,9 @@ static void mnodeDestroySuperTable(SSuperTableObj *pStable) {
     taosHashCleanup(pStable->vgHash);
     pStable->vgHash = NULL;
   }
-  tfree(pStable->info.tableId);
-  tfree(pStable->schema);
-  tfree(pStable);
+  taosTFree(pStable->info.tableId);
+  taosTFree(pStable->schema);
+  taosTFree(pStable);
 }
 
 static int32_t mnodeSuperTableActionDestroy(SSdbOper *pOper) {

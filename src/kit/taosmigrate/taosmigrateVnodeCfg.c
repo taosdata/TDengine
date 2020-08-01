@@ -289,7 +289,7 @@ static int32_t readVnodeCfg(SVnodeObj *pVnode, char* cfgFile)
   //}
 
 PARSE_OVER:
-  tfree(content);
+  taosTFree(content);
   cJSON_Delete(root);
   if (fp) fclose(fp);
   return ret;

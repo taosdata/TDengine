@@ -19,7 +19,6 @@
 #include "tbalance.h"
 #include "tglobal.h"
 #include "tconfig.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "tsocket.h"
 #include "tbalance.h"
@@ -62,7 +61,7 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
 static char*   mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole);
 
 static int32_t mnodeDnodeActionDestroy(SSdbOper *pOper) {
-  tfree(pOper->pObj);
+  taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -504,7 +503,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     int dnodeId = pDnode->dnodeId;
-    tfree(pDnode);
+    taosTFree(pDnode);
     mError("failed to create dnode:%d, reason:%s", dnodeId, tstrerror(code));
   } else {
     mLInfo("dnode:%d is created", pDnode->dnodeId);

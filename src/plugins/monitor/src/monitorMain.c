@@ -18,7 +18,6 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsystem.h"

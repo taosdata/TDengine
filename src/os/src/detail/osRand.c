@@ -20,7 +20,7 @@
 
 uint32_t taosRand(void) { return rand(); }
 
-uint32_t trand(void) {
+uint32_t taosSafeRand(void) {
   int fd;
   int seed;
 

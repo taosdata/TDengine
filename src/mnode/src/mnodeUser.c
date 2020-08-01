@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "trpc.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "tglobal.h"
 #include "tgrant.h"
@@ -43,7 +42,7 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg);
 
 static int32_t mnodeUserActionDestroy(SSdbOper *pOper) {
-  tfree(pOper->pObj);
+  taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -239,7 +238,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    tfree(pUser);
+    taosTFree(pUser);
   } else {
     mLInfo("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
   }

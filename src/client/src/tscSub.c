@@ -18,7 +18,6 @@
 #include "trpc.h"
 #include "tsclient.h"
 #include "tsocket.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tscLog.h"

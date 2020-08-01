@@ -18,7 +18,6 @@
 #include "tcache.h"
 #include "trpc.h"
 #include "tsystem.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsched.h"
