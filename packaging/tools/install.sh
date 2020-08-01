@@ -19,6 +19,8 @@ data_link_dir="/usr/local/taos/data"
 log_link_dir="/usr/local/taos/log"
 
 cfg_install_dir="/etc/taos"
+local_fqdn=""
+server_port=6030
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -211,6 +213,48 @@ function install_header() {
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+function getLocalFqdn() {
+  fqdnLine=$(grep fqdn $1 > tmpFqdn.txt)
+  while read line
+  do
+    echo $line
+    firstChar=${line:0:1}
+    if [[ "$firstChar" != "#" ]]; then
+      fqdn=$(echo ${line#*fqdn})
+      fqdn=$(echo ${fqdn%%#*})
+#     echo "get fqdn from cfg: $fqdn"
+      break
+   fi
+   done <tmpFqdn.txt
+   rm tmpFqdn.txt
+
+   if [ -z "$fqdn" ]; then
+     fqdn=$(hostname -f)
+#     echo "get hostname: $fqdn"
+  fi
+  local_fqdn=$fqdn
+}
+
+function getServerPort() {
+  portLine=$(grep serverPort $1 > tmpServerPort.txt)
+  while read line
+  do
+    echo $line
+    firstChar=${line:0:1}
+    if [[ "$firstChar" != "#" ]]; then
+      port=$(echo ${line#*serverPort})
+      port=$(echo ${port%%#*})
+#     echo "get serverPort from cfg: $port"
+      break
+    fi
+    done <tmpServerPort.txt
+    rm tmpServerPort.txt
+
+    if [ ! -z "$port" ]; then
+      server_port=$port
+		fi
+}
+
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
     
@@ -257,7 +301,9 @@ function install_config() {
         else
             break
         fi
-    done	
+    done
+    getLocalFqdn  ${cfg_install_dir}/taos.cfg
+#    getServerPort ${cfg_install_dir}/taos.cfg
 }
 
 
@@ -675,7 +721,11 @@ function install_TDengine() {
         if [ ! -z "$firstEp" ]; then
 	    echo		    
 	    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
-	    echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+	    if [ ! -z "$local_fqdn" ]; then
+	        echo -e "${GREEN_DARK}execute ${NC}: create dnode '$local_fqdn:serverPort'; ${GREEN_DARK}to add this new node${NC}"
+            else
+	        echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:serverPort'; ${GREEN_DARK}to add this new node${NC}"
+            fi
             echo
         fi
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
