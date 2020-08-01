@@ -26,7 +26,7 @@ class TDTestCase:
         tdSql.prepare()
 
         ret = tdSql.query('select database()')
-        tdSql.checkData(0, 0, "db")
+        tdSql.checkData(0, 0, "db")        
 
         ret = tdSql.query('select server_version()')
         tdSql.checkData(0, 0, "2.0.0.0")
@@ -44,6 +44,20 @@ class TDTestCase:
 
         ret = tdSql.execute('alter dnode "%s" debugFlag 135' % tdSql.getData(0,0))
         tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (tdSql.getData(0, 0), ret))
+
+        ret = tdSql.query('show mnodes')
+        tdSql.checkRows(1)
+
+        ret = tdSql.query('show vgroups')
+        tdSql.checkRows(0)
+
+        tdSql.execute('set max_binary_display_width 40')
+
+        tdSql.execute('drop database db')
+        ret = tdSql.query('select database()')
+        tdSql.checkData(0, 0, None)
+
+
 
     def stop(self):
         tdSql.close()
