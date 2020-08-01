@@ -59,7 +59,7 @@ systemctl status taosd
 
 ## TDengine命令行程序
 
-执行TDengine命令行程序，您只要在Linux终端执行`taos`即可
+执行TDengine命令行程序，您只要在Linux终端执行`taos`即可。
 
 ```cmd
 taos
@@ -74,9 +74,9 @@ taos>
 在TDengine终端中，用户可以通过SQL命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的SQL语句需要以分号结束来运行。示例：
 
 ```mysql
-create database db;
-use db;
-create table t (ts timestamp, cdata int);
+create database demo;
+use demo;
+create table t (ts timestamp, speed int);
 insert into t values ('2019-07-15 00:00:00', 10);
 insert into t values ('2019-07-15 01:00:00', 20);
 select * from t;
