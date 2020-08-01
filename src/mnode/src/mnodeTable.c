@@ -2351,11 +2351,11 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
     // if the vgroup is already dropped from hash, it can't be accquired by pTable->vgId
     // so the refCount of vgroup can not be decreased
-    SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
-    if (pVgroup == NULL) {
-      mnodeRemoveTableFromVgroup(pVgroup, pTable);
-    }
-    mnodeDecVgroupRef(pVgroup);
+    // SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
+    // if (pVgroup == NULL) {
+    //   mnodeRemoveTableFromVgroup(mnodeMsg->pVgroup, pTable);
+    // }
+    // mnodeDecVgroupRef(pVgroup);
 
     mnodeSendDropChildTableMsg(mnodeMsg, false);
     rpcMsg->code = TSDB_CODE_SUCCESS;

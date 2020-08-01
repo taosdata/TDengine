@@ -487,8 +487,14 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
   sdbDebug("table:%s, insert record:%s to hash, rowSize:%d numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
            sdbGetKeyStrFromObj(pTable, pOper->pObj), pOper->rowSize, pTable->numOfRows, pOper->pMsg);
 
-  (*pTable->insertFp)(pOper);
-  return TSDB_CODE_SUCCESS;
+  int32_t code = (*pTable->insertFp)(pOper);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbError("table:%s, failed to insert record:%s to hash, remove it", pTable->tableName,
+             sdbGetKeyStrFromObj(pTable, pOper->pObj));
+    sdbDeleteHash(pTable, pOper);
+  }
+
+  return code;
 }
 
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
