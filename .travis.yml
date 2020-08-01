@@ -189,8 +189,8 @@ matrix:
       - cd debug
 
     script:
-      - cmake ..
-      - make 
+      - cmake .. > /dev/null
+      - make  > /dev/null
 
   - os: linux
     arch: arm64
