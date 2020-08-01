@@ -337,6 +337,7 @@ static void on_header_field(void *arg, const char *key, const char *val) {
 
   if (pParser->failed) return;
 
+  D("==key:[%s], val:[%s]==", key, val);
   int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
   int n = snprintf(pParser->pLast, avail,
                    "%s: %s\r\n", key, val);
@@ -350,7 +351,7 @@ static void on_header_field(void *arg, const char *key, const char *val) {
       break;
     }
     pParser->bufsize += n;
-    pParser->pCur     = pParser->pLast;
+    pParser->pCur     = pParser->pLast + n;
 
     if (!httpParseHead(pContext)) {
       httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_header_field(%s,%s), parse head failed",
@@ -372,9 +373,19 @@ static void on_body(void *arg, const char *chunk, size_t len) {
 
   if (pParser->failed) return;
 
-  if (pParser->data.pos == 0) pParser->data.pos = pParser->pLast;
+  if (pParser->data.pos == 0) {
+    pParser->data.pos = pParser->pLast;
+    pParser->data.len = 0;
+  }
 
-  A("not implemented yet");
+  int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
+  if (len+1>=avail) {
+    pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+    return;
+  }
+  memcpy(pParser->pLast, chunk, len);
+  pParser->pLast    += len;
+  pParser->data.len += len;
 }
 
 static void on_end(void *arg) {

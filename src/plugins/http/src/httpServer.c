@@ -138,7 +138,7 @@ static bool httpDecompressData(HttpContext *pContext) {
 }
 
 static bool httpReadData(HttpContext *pContext) {
-  if (0) return ehttpReadData(pContext);
+  if (1) return ehttpReadData(pContext);
 
   if (!pContext->parsed) {
     httpInitContext(pContext);
@@ -448,7 +448,9 @@ static bool ehttpReadData(HttpContext *pContext) {
       return false;
     }
     if (pContext->parsed) {
-      int ret = httpCheckReadCompleted(pContext);
+      // int ret = httpCheckReadCompleted(pContext);
+      // already done in ehttp_parser
+      int ret = HTTP_CHECK_BODY_SUCCESS; 
       if (ret == HTTP_CHECK_BODY_CONTINUE) {
         //httpDebug("context:%p, fd:%d, ip:%s, not finished yet, wait another event", pContext, pContext->fd, pContext->ipstr);
         httpReleaseContext(pContext);
