@@ -241,9 +241,9 @@ function install_config() {
     # first full-qualified domain name (FQDN) for TDengine cluster system
     echo
     echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
-		echo
+    echo
     echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
- 	  read firstEp
+    read firstEp
     while true; do
         if [ ! -z "$firstEp" ]; then
             # check the format of the firstEp
@@ -672,11 +672,11 @@ function install_TDengine() {
              echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
 		
-		    if [ ! -z "$firstEp" ]; then
-		      echo		    
-		      echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
-		      echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
-          echo
+        if [ ! -z "$firstEp" ]; then
+	    echo		    
+	    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+	    echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+            echo
         fi
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo       
