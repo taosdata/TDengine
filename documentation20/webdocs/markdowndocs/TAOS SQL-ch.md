@@ -59,7 +59,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **创建数据库**  
     ```mysql
-    CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep]
+    CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep];
     ```
     说明：
     
@@ -71,21 +71,21 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **使用数据库**
     ```mysql
-    USE db_name
+    USE db_name;
     ```
     使用/切换数据库
 
 
 - **删除数据库**
     ```mysql
-    DROP DATABASE [IF EXISTS] db_name
+    DROP DATABASE [IF EXISTS] db_name;
     ```
     删除数据库。所包含的全部数据表将被删除，谨慎使用
 
 
 - **显示系统所有数据库**
     ```mysql
-    SHOW DATABASES
+    SHOW DATABASES;
     ```
 
 
@@ -93,7 +93,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **创建数据表**
   
     ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...])
+    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
     ```
     说明：
     1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
@@ -104,13 +104,13 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **删除数据表**
 
     ```mysql
-    DROP TABLE [IF EXISTS] tb_name
+    DROP TABLE [IF EXISTS] tb_name;
     ```
 
 - **显示当前数据库下的所有数据表信息**
 
     ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar]
+    SHOW TABLES [LIKE tb_name_wildcar];
     ```
 
     显示当前数据库下的所有数据表信息。说明：可在like中使用通配符进行名称的匹配。 通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’_’下划线匹配一个字符。
@@ -119,13 +119,13 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **获取表的结构信息**
 
     ```mysql
-    DESCRIBE tb_name
+    DESCRIBE tb_name;
     ```
 
 - **表增加列**
 
     ```mysql
-    ALTER TABLE tb_name ADD COLUMN field_name data_type
+    ALTER TABLE tb_name ADD COLUMN field_name data_type;
     ```
     说明：
     1) 列的最大个数为1024，最小个数为2；
@@ -134,7 +134,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **表删除列**
 
     ```mysql
-    ALTER TABLE tb_name DROP COLUMN field_name 
+    ALTER TABLE tb_name DROP COLUMN field_name; 
     ```
     如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
 
@@ -142,7 +142,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **创建超级表**
   
     ```mysql
-    CREATE TABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3])
+    CREATE TABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
     创建STable, 与创建表的SQL语法相似，但需指定TAGS字段的名称和类型
     
@@ -155,61 +155,61 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **删除超级表**
 
     ```mysql
-    DROP TABLE [IF EXISTS] stb_name
+    DROP TABLE [IF EXISTS] stb_name;
     ```
     删除STable会自动删除通过STable创建的字表。
 
 - **显示当前数据库下的所有超级表信息**
 
     ```mysql
-    SHOW STABLES [LIKE tb_name_wildcar]
+    SHOW STABLES [LIKE tb_name_wildcar];
     ```
     查看数据库内全部STable，及其相关信息，包括STable的名称、创建时间、列数量、标签（TAG）数量、通过该STable建表的数量。
 
 - **获取超级表的结构信息**
 
     ```mysql
-    DESCRIBE stb_name
+    DESCRIBE stb_name;
     ```
     
 - **超级表增加列**
 
     ```mysql
-    ALTER TABLE stb_name ADD COLUMN field_name data_type
+    ALTER TABLE stb_name ADD COLUMN field_name data_type;
     ```
 
 - **超级表删除列**
 
     ```mysql
-    ALTER TABLE stb_name DROP COLUMN field_name 
+    ALTER TABLE stb_name DROP COLUMN field_name; 
     ```
 
 ## 超级表 STable 中 TAG 管理
 - **添加标签**
   
     ```mysql
-    ALTER TABLE stb_name ADD TAG new_tag_name tag_type
+    ALTER TABLE stb_name ADD TAG new_tag_name tag_type;
     ```
     为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过128个，总长度不超过16k个字符.
 
 - **删除标签**
 
     ```mysql
-    ALTER TABLE stb_name DROP TAG tag_name
+    ALTER TABLE stb_name DROP TAG tag_name;
     ```
     删除超级表的一个标签，从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
 
 - **修改标签名**
 
     ```mysql
-    ALTER TABLE stb_name CHANGE TAG old_tag_name new_tag_name
+    ALTER TABLE stb_name CHANGE TAG old_tag_name new_tag_name;
     ```
     修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
 
 - **修改字表标签值**
 
     ```mysql
-    ALTER TABLE tb_name SET TAG tag_name=new_tag_value
+    ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
     ```
     说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于STable，不能对单个子表操作。对STable添加标签以后，依托于该STable建立的所有表将自动增加了一个标签，所有新增标签的默认值都是NULL。
 
@@ -253,8 +253,8 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **同时向多个表按列插入多条记录**
     ```mysql
-    INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value1, ...)
-                tb2_name (tb2_field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)
+    INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...)
+                tb2_name (tb2_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...);
     ```
     同时向表tb1_name和tb2_name中按列分别插入多条记录 
 
@@ -435,11 +435,11 @@ Query OK, 1 row(s) in set (0.000081s)
 #### 小技巧
 获取一个超级表所有的子表名及相关的标签信息：
 ```
-SELECT TBNAME, location FROM meters
+SELECT TBNAME, location FROM meters;
 ```
 统计超级表下辖子表数量：
 ```
-SELECT COUNT(TBNAME) FROM meters
+SELECT COUNT(TBNAME) FROM meters;
 ```
 以上两个查询均只支持在Where条件子句中添加针对标签（TAGS）的过滤条件。例如：
 ```
@@ -486,31 +486,31 @@ Query OK, 1 row(s) in set (0.001091s)
 - 对于下面的例子，表tb1用以下语句创建
 
     ```mysql
-    CREATE TABLE tb1 (ts timestamp, col1 int, col2 float, col3 binary(50))
+    CREATE TABLE tb1 (ts timestamp, col1 int, col2 float, col3 binary(50));
     ```
 
 - 查询tb1刚过去的一个小时的所有记录
 
     ```mysql
-    SELECT * FROM tb1 WHERE ts >= NOW - 1h
+    SELECT * FROM tb1 WHERE ts >= NOW - 1h;
     ```
 
 - 查询表tb1从2018-06-01 08:00:00.000 到2018-06-02 08:00:00.000时间范围，并且col3的字符串是'nny'结尾的记录，结果按照时间戳降序
 
     ```mysql
-    SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC
+    SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
     ```
 
 - 查询col1与col2的和，并取名complex, 时间大于2018-06-01 08:00:00.000, col2大于1.2，结果输出仅仅10条记录，从第5条开始
 
     ```mysql
-    SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' and col2 > 1.2 LIMIT 10 OFFSET 5
+    SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' and col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
 - 查询过去10分钟的记录，col2的值大于3.14，并且将结果输出到文件 `/home/testoutpu.csv`.
 
     ```mysql
-    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv
+    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
     ```
 
 ## SQL函数
@@ -521,7 +521,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **COUNT**
     ```mysql
-    SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause]
+    SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表/超级表中记录行数或某列的非空值个数。  
     返回结果数据类型：长整型INT64。  
@@ -547,7 +547,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **AVG**
     ```mysql
-    SELECT AVG(field_name) FROM tb_name [WHERE clause]
+    SELECT AVG(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的平均值。  
     返回结果数据类型：双精度浮点数Double。  
@@ -571,7 +571,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **TWA**
     ```mysql
-    SELECT TWA(field_name) FROM tb_name WHERE clause
+    SELECT TWA(field_name) FROM tb_name WHERE clause;
     ```
     功能说明：时间加权平均函数。统计表/超级表中某列在一段时间内的时间加权平均。  
     返回结果数据类型：双精度浮点数Double。  
@@ -581,7 +581,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **SUM**
     ```mysql
-    SELECT SUM(field_name) FROM tb_name [WHERE clause]
+    SELECT SUM(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的和。  
     返回结果数据类型：双精度浮点数Double和长整型INT64。  
@@ -605,7 +605,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **STDDEV**
     ```mysql
-    SELECT STDDEV(field_name) FROM tb_name [WHERE clause]
+    SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表中某列的均方差。  
     返回结果数据类型：双精度浮点数Double。  
@@ -623,7 +623,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **LEASTSQUARES**
     ```mysql
-    SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
+    SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val是自变量初始值，step_val是自变量的步长值。  
     返回结果数据类型：字符串表达式（斜率, 截距）。  
@@ -644,7 +644,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **MIN**
     ```mysql
-    SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause]
+    SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最小值。  
     返回结果数据类型：同应用的字段。  
@@ -667,7 +667,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **MAX**
     ```mysql
-    SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最大值。  
     返回结果数据类型：同应用的字段。  
@@ -691,7 +691,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **FIRST**
     ```mysql
-    SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最先写入的非NULL值。  
     返回结果数据类型：同应用的字段。  
@@ -715,7 +715,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **LAST**
     ```mysql
-    SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最后写入的非NULL值。  
     返回结果数据类型：同应用的字段。  
@@ -739,7 +739,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **TOP**
     ```mysql
-    SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明： 统计表/超级表中某列的值最大*k*个非NULL值。若多于k个列值并列最大，则返回时间戳小的。     
     返回结果数据类型：同应用的字段。  
@@ -766,7 +766,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **BOTTOM**
     ```mysql
-    SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最小*k*个非NULL值。若多于k个列值并列最小，则返回时间戳小的。  
     返回结果数据类型：同应用的字段。  
@@ -792,7 +792,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **PERCENTILE**
     ```mysql
-    SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表中某列的值百分比分位数。  
     返回结果数据类型： 双精度浮点数Double。  
@@ -810,7 +810,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **APERCENTILE**
     ```mysql
-    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表中某列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。  
     返回结果数据类型： 双精度浮点数Double。  
@@ -826,7 +826,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     
 - **LAST_ROW**
     ```mysql
-    SELECT LAST_ROW(field_name) FROM { tb_name | stb_name }
+    SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
     ```
     功能说明：返回表（超级表）的最后一条记录。  
     返回结果数据类型：同应用的字段。  
@@ -851,7 +851,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 ### 计算函数
 - **DIFF**
     ```mysql
-    SELECT DIFF(field_name) FROM tb_name [WHERE clause]
+    SELECT DIFF(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表中某列的值与前一行对应值的差。  
     返回结果数据类型： 同应用字段。  
@@ -871,7 +871,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **SPREAD**
     ```mysql
-    SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的最大值和最小值之差。  
     返回结果数据类型： 双精度浮点数。  
@@ -897,7 +897,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 - **四则运算**
 
     ```mysql
-    SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause]
+    SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
     ```
     功能说明：统计表/超级表中某列或多列间的值加、减、乘、除、取余计算结果。  
     返回结果数据类型：双精度浮点数。  
@@ -968,5 +968,5 @@ SELECT AVG(current),MAX(current),LEASTSQUARES(current, start_val, step_val), PER
 - 表名最大长度为193，每行数据最大长度16k个字符
 - 列名最大长度为65，最多允许1024列，最少需要2列，第一列必须是时间戳
 - 标签最多允许128个，可以0个，标签总长度不超过16k个字符
-- SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改
+- SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改，最长可配置为8M
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制

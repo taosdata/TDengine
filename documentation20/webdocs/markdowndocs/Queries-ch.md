@@ -59,7 +59,7 @@ Query OK, 2 row(s) in set (0.002136s)
 
 物联网场景里，经常需要通过降采样（down sampling）将采集的数据按时间段进行聚合。TDengine 提供了一个简便的关键词 interval 让按照时间窗口的查询操作变得极为简单。比如，将智能电表 d1001 采集的电流值每10秒钟求和
 ```mysql
-taos> SELECT sum(current) FROM d1001 INTERVAL(10s) ;
+taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:00.000 |              10.300000191 |
@@ -68,7 +68,7 @@ Query OK, 2 row(s) in set (0.000883s)
 ```
 降采样操作也适用于超级表，比如：将所有智能电表采集的电流值每秒钟求和
 ```mysql
-taos> SELECT SUM(current) FROM meters INTERVAL(1s) ;
+taos> SELECT SUM(current) FROM meters INTERVAL(1s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |
