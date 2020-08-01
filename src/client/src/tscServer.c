@@ -23,7 +23,6 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tlockfree.h"
@@ -189,7 +188,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     
     pSql->cmd.command = TSDB_SQL_HB;
     if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
-      tfree(pSql);
+      taosTFree(pSql);
       return;
     }
 
@@ -1527,7 +1526,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = pMsg - (char*)pInfoMsg;
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLE_META;
 
-  tfree(tmpData);
+  taosTFree(tmpData);
 
   assert(msgLen + minMsgSize() <= pCmd->allocSize);
   return TSDB_CODE_SUCCESS;
@@ -1561,7 +1560,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     memcpy(pInfoMsg->tableIds, tmpData, pCmd->payloadLen);
   }
 
-  tfree(tmpData);
+  taosTFree(tmpData);
 
   pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SCMMultiTableInfoMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
@@ -1950,7 +1949,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   tscFieldInfoUpdateOffset(pQueryInfo);
   
-  tfree(pTableMeta);
+  taosTFree(pTableMeta);
   return 0;
 }
 

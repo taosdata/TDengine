@@ -118,7 +118,7 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
       
       wordfree(&full_path);
 
-      int code = tmkdir(option, 0755);
+      int code = taosMkDir(option, 0755);
       if (code != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         uError("config option:%s, input value:%s, directory not exist, create fail:%s",
@@ -297,7 +297,7 @@ void taosReadGlobalLogCfg() {
     taosReadLogOption(option, value);
   }
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
 }
 
@@ -349,7 +349,7 @@ bool taosReadGlobalCfg() {
 
   fclose(fp);
 
-  tfree(line);
+  taosTFree(line);
   
   return true;
 }

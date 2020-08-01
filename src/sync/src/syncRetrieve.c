@@ -83,6 +83,7 @@ static int syncAreFilesModified(SSyncPeer *pPeer)
   int code = 0; 
   if (len >0) { 
     sDebug("%s, processed file is changed", pPeer->id);    
+    pPeer->fileChanged = 1;
     code = 1;
   }
 
@@ -189,7 +190,7 @@ static int syncReadOneWalRecord(int sfd, SWalHead *pHead, uint32_t *pEvent)
 static int syncMonitorLastWal(SSyncPeer *pPeer, char *name) 
 { 
   pPeer->watchNum = 0;
-  tclose(pPeer->notifyFd);
+  taosClose(pPeer->notifyFd);
   pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
   if (pPeer->notifyFd < 0) {
     sError("%s, failed to init inotify(%s)", pPeer->id, strerror(errno));
@@ -270,7 +271,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   }
 
   free(pHead);
-  tclose(sfd); 
+  taosClose(sfd); 
 
   if (code == 0) return bytes;
   return -1;
@@ -351,7 +352,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     sDebug("%s, last wal is closed, try new one", pPeer->id);
   }
 
-  tclose(pPeer->notifyFd);
+  taosClose(pPeer->notifyFd);
 
   return code;
 }
@@ -454,9 +455,11 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
 
 void *syncRetrieveData(void *param)
 {
-  SSyncPeer   *pPeer = (SSyncPeer *)param;
+  SSyncPeer  *pPeer = (SSyncPeer *)param;
+  SSyncNode  *pNode = pPeer->pSyncNode;
   taosBlockSIGPIPE();
 
+  pPeer->fileChanged = 0;
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
@@ -471,8 +474,20 @@ void *syncRetrieveData(void *param)
     }
   }
 
-  tclose(pPeer->notifyFd);
-  tclose(pPeer->syncFd);
+  if (pPeer->fileChanged) {
+    // if file is changed 3 times continuously, start flow control
+    pPeer->numOfRetrieves++;
+    if (pPeer->numOfRetrieves >= 2 && pNode->notifyFlowCtrl)  
+      (*pNode->notifyFlowCtrl)(pNode->ahandle, 4 << (pPeer->numOfRetrieves - 2));
+  } else {
+    pPeer->numOfRetrieves = 0;
+    if (pNode->notifyFlowCtrl)
+      (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);
+  }
+
+  pPeer->fileChanged = 0;
+  taosClose(pPeer->notifyFd);
+  taosClose(pPeer->syncFd);
   syncDecPeerRef(pPeer);
 
   return NULL;

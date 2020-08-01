@@ -201,8 +201,8 @@ void shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           if (isReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
-            tfree(cmd.buffer);
-            tfree(cmd.command);
+            taosTFree(cmd.buffer);
+            taosTFree(cmd.command);
             return;
           } else {
             updateBuffer(&cmd);
@@ -320,7 +320,7 @@ void *shellLoopQuery(void *arg) {
     reset_terminal_mode();
   } while (shellRunCommand(con, command) == 0);
   
-  tfree(command);
+  taosTFree(command);
   exitShell();
 
   pthread_cleanup_pop(1);

@@ -77,7 +77,7 @@ void dnodeCleanupMnodeWrite() {
   }
 
   taosCloseQset(tsMWriteQset);
-  tfree(tsMWritePool.writeWorker);
+  taosTFree(tsMWritePool.writeWorker);
   dInfo("dnode mwrite is closed");
 }
 

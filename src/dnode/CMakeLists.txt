@@ -16,7 +16,8 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   AUX_SOURCE_DIRECTORY(src SRC)
 
   ADD_EXECUTABLE(taosd ${SRC})
-  TARGET_LINK_LIBRARIES(taosd mnode taos_static monitor http mqtt tsdb twal vnode cJson lz4 balance sync)
+#  TARGET_LINK_LIBRARIES(taosd mnode taos_static monitor http mqtt tsdb twal vnode cJson lz4 balance sync)
+  TARGET_LINK_LIBRARIES(taosd mnode taos monitor http mqtt tsdb twal vnode cJson lz4 balance sync)
 
   IF (TD_ACCOUNT)
     TARGET_LINK_LIBRARIES(taosd account)

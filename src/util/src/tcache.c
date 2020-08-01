@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tulog.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tcache.h"
@@ -284,7 +283,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
             pCacheObj->freeFp(p->data);
           }
 
-          tfree(p);
+          taosTFree(p);
         } else {
           taosAddToTrash(pCacheObj, p);
           uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, p);
@@ -648,7 +647,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
   taosTrashCanEmpty(pCacheObj, true);
   __cache_lock_destroy(pCacheObj);
   
-  tfree(pCacheObj->name);
+  taosTFree(pCacheObj->name);
   memset(pCacheObj, 0, sizeof(SCacheObj));
   free(pCacheObj);
 }

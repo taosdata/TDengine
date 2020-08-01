@@ -17,7 +17,6 @@
 #include "tulog.h"
 #include "talgo.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "tcompare.h"
 #include "exception.h"
 
@@ -558,16 +557,6 @@ static int32_t binarySearchForBlock(SCompBlock* pBlock, int32_t numOfBlocks, TSK
 }
 
 static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlocks) {
-  SFileGroup* fileGroup = pQueryHandle->pFileGroup;
-  assert(fileGroup->files[TSDB_FILE_TYPE_HEAD].fname > 0);
-
-  int32_t code = tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, fileGroup);
-
-  //open file failed, return error code to client
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   // load all the comp offset value for all tables in this file
   *numOfBlocks = 0;
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -1294,15 +1283,15 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
 }
 
 static void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTables) {
-  tfree(pSupporter->numOfBlocksPerTable);
-  tfree(pSupporter->blockIndexArray);
+  taosTFree(pSupporter->numOfBlocksPerTable);
+  taosTFree(pSupporter->blockIndexArray);
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockInfo* pBlockInfo = pSupporter->pDataBlockInfo[i];
-    tfree(pBlockInfo);
+    taosTFree(pBlockInfo);
   }
 
-  tfree(pSupporter->pDataBlockInfo);
+  taosTFree(pSupporter->pDataBlockInfo);
 }
 
 static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void* param) {
@@ -1464,16 +1453,37 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
   STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
   STimeWindow win = TSWINDOW_INITIALIZER;
 
-  while ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) != NULL) {
+  while (true) {
+    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+
+    if ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) == NULL) {
+      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+      break;
+    }
+
     tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, pQueryHandle->pFileGroup->fileId, &win.skey, &win.ekey);
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pQueryHandle->order) && win.skey > pQueryHandle->window.ekey) ||
         (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
+      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, %p", pQueryHandle,
                 pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qinfo);
       pQueryHandle->pFileGroup = NULL;
       assert(pQueryHandle->numOfBlocks == 0);
+      break;
+    }
+
+    if (tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, pQueryHandle->pFileGroup) < 0) {
+      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+      code = terrno;
+      break;
+    }
+
+    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+
+    if (tsdbLoadCompIdx(&pQueryHandle->rhelper, NULL) < 0) {
+      code = terrno;
       break;
     }
 
@@ -1531,8 +1541,10 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
     STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
     int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
 
+    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
+    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
 
     return getDataBlocksInFilesImpl(pQueryHandle, exists);
   } else {
@@ -1773,11 +1785,11 @@ void changeQueryHandleForLastrowQuery(TsdbQueryHandleT pqHandle) {
     tSkipListDestroyIter(pTableCheckInfo->iter);
 
     if (pTableCheckInfo->pDataCols != NULL) {
-      tfree(pTableCheckInfo->pDataCols->buf);
+      taosTFree(pTableCheckInfo->pDataCols->buf);
     }
 
-    tfree(pTableCheckInfo->pDataCols);
-    tfree(pTableCheckInfo->pCompInfo);
+    taosTFree(pTableCheckInfo->pDataCols);
+    taosTFree(pTableCheckInfo->pCompInfo);
   }
 
   STableCheckInfo info = *(STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, index);
@@ -2036,7 +2048,7 @@ static void destroyHelper(void* param) {
 
   tQueryInfo* pInfo = (tQueryInfo*)param;
   if (pInfo->optr != TSDB_RELATION_IN) {
-    tfree(pInfo->q);
+    taosTFree(pInfo->q);
   }
 
 //  tVariantDestroy(&(pInfo->q));
@@ -2188,7 +2200,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
     taosqsort(pTableList->pData, size, POINTER_BYTES, pSupp, tableGroupComparFn);
     createTableGroupImpl(pTableGroup, pTableList, size, pSupp, tableGroupComparFn);
-    tfree(pSupp);
+    taosTFree(pSupp);
   }
 
   return pTableGroup;
@@ -2434,11 +2446,11 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
       destroyTableMemIterator(pTableCheckInfo);
 
       if (pTableCheckInfo->pDataCols != NULL) {
-        tfree(pTableCheckInfo->pDataCols->buf);
+        taosTFree(pTableCheckInfo->pDataCols->buf);
       }
 
-      tfree(pTableCheckInfo->pDataCols);
-      tfree(pTableCheckInfo->pCompInfo);
+      taosTFree(pTableCheckInfo->pDataCols);
+      taosTFree(pTableCheckInfo->pCompInfo);
     }
     taosArrayDestroy(pQueryHandle->pTableCheckInfo);
   }
@@ -2447,14 +2459,14 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
     size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
     for (int32_t i = 0; i < cols; ++i) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-      tfree(pColInfo->pData);
+      taosTFree(pColInfo->pData);
     }
     taosArrayDestroy(pQueryHandle->pColumns);
   }
 
   taosArrayDestroy(pQueryHandle->defaultLoadColumn);
-  tfree(pQueryHandle->pDataBlockInfo);
-  tfree(pQueryHandle->statis);
+  taosTFree(pQueryHandle->pDataBlockInfo);
+  taosTFree(pQueryHandle->statis);
 
   // todo check error
   tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
@@ -2465,7 +2477,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tsdbDebug("%p :io-cost summary: statis-info:%"PRId64"us, datablock:%" PRId64"us, check data:%"PRId64"us, %p",
       pQueryHandle, pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qinfo);
 
-  tfree(pQueryHandle);
+  taosTFree(pQueryHandle);
 }
 
 void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {

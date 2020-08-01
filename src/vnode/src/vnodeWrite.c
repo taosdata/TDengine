@@ -78,6 +78,8 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     // assign version
     pVnode->version++;
     pHead->version = pVnode->version;
+    if (pVnode->delay) usleep(pVnode->delay*1000);
+
   } else { // from wal or forward 
     // for data from WAL or forward, version may be smaller
     if (pHead->version <= pVnode->version) return 0;

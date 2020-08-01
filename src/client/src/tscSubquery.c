@@ -183,7 +183,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, in
   pSupporter->uid = pTableMetaInfo->pTableMeta->id.uid;
   assert (pSupporter->uid != 0);
 
-  getTmpfilePath("join-", pSupporter->path);
+  taosGetTmpfilePath("join-", pSupporter->path);
   pSupporter->f = fopen(pSupporter->path, "w");
 
   // todo handle error
@@ -215,7 +215,7 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
     pSupporter->f = NULL;
   }
 
-  tfree(pSupporter->pIdTagList);
+  taosTFree(pSupporter->pIdTagList);
   tscTagCondRelease(&pSupporter->tagCond);
   free(pSupporter);
 }
@@ -407,7 +407,7 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
     }
   }
 
-  tfree(pState);
+  taosTFree(pState);
   pSql->numOfSubs = 0;
 }
 
@@ -773,7 +773,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     // continue to retrieve ts-comp data from vnode
     if (!pRes->completed) {
-      getTmpfilePath("ts-join", pSupporter->path);
+      taosGetTmpfilePath("ts-join", pSupporter->path);
       pSupporter->f = fopen(pSupporter->path, "w");
       pRes->row = pRes->numOfRows;
 
@@ -797,7 +797,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscResetForNextRetrieve(&pSql->res);
 
     assert(pSupporter->f == NULL);
-    getTmpfilePath("ts-join", pSupporter->path);
+    taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure
     pSupporter->f = fopen(pSupporter->path, "w");
@@ -1323,12 +1323,12 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs, SSubqueryState
     
     SRetrieveSupport* pSupport = pSub->param;
     
-    tfree(pSupport->localBuffer);
+    taosTFree(pSupport->localBuffer);
     
     pthread_mutex_unlock(&pSupport->queryMutex);
     pthread_mutex_destroy(&pSupport->queryMutex);
     
-    tfree(pSupport);
+    taosTFree(pSupport);
     
     tscFreeSqlObj(pSub);
   }
@@ -1364,7 +1364,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   if (ret != 0) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscQueueAsyncRes(pSql);
-    tfree(pMemoryBuf);
+    taosTFree(pMemoryBuf);
     return ret;
   }
   
@@ -1392,7 +1392,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
     if (trs->localBuffer == NULL) {
       tscError("%p failed to malloc buffer for local buffer, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
-      tfree(trs);
+      taosTFree(trs);
       break;
     }
     
@@ -1410,8 +1410,8 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     SSqlObj *pNew = tscCreateSqlObjForSubquery(pSql, trs, NULL);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
-      tfree(trs->localBuffer);
-      tfree(trs);
+      taosTFree(trs->localBuffer);
+      taosTFree(trs);
       break;
     }
     
@@ -1456,12 +1456,12 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   
   taos_free_result(pSql);
   
-  tfree(trsupport->localBuffer);
+  taosTFree(trsupport->localBuffer);
   
   pthread_mutex_unlock(&trsupport->queryMutex);
   pthread_mutex_destroy(&trsupport->queryMutex);
   
-  tfree(trsupport);
+  taosTFree(trsupport);
 }
 
 static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows);
@@ -1578,7 +1578,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   tscLocalReducerEnvDestroy(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor, trsupport->pFinalColModel,
                             pState->numOfTotal);
   
-  tfree(trsupport->pState);
+  taosTFree(trsupport->pState);
   tscFreeSubSqlObj(trsupport, pSql);
   
   // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
@@ -1657,7 +1657,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   pParentSql->res.row = 0;
   
   // only free once
-  tfree(trsupport->pState);
+  taosTFree(trsupport->pState);
   tscFreeSubSqlObj(trsupport, pSql);
   
   // set the command flag must be after the semaphore been correctly set.
@@ -1861,7 +1861,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
   }
 
   taos_free_result(tres);
-  tfree(pSupporter);
+  taosTFree(pSupporter);
 
   if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
     return;
@@ -1870,7 +1870,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
   tscDebug("%p Async insertion completed, total inserted:%" PRId64, pParentObj, pParentObj->res.numOfRows);
 
   // release data block data
-  tfree(pState);
+  taosTFree(pState);
 
   // restore user defined fp
   pParentObj->fp = pParentObj->fetchFp;
@@ -1974,11 +1974,11 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   _error:
   for(int32_t j = 0; j < numOfSub; ++j) {
-    tfree(pSql->pSubs[j]->param);
+    taosTFree(pSql->pSubs[j]->param);
     taos_free_result(pSql->pSubs[j]);
   }
 
-  tfree(pState);
+  taosTFree(pState);
   return TSDB_CODE_TSC_OUT_OF_MEMORY;
 }
 
@@ -2147,7 +2147,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   assert(pRes->row >= 0 && pRes->row <= pRes->numOfRows);
 
   if (pRes->row >= pRes->numOfRows) {  // all the results has returned to invoker
-    tfree(pRes->tsrow);
+    taosTFree(pRes->tsrow);
     return pRes->tsrow;
   }
 

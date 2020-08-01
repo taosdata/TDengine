@@ -18,7 +18,6 @@
 #include "trpc.h"
 #include "tsclient.h"
 #include "tsocket.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tscLog.h"
@@ -334,7 +333,7 @@ void tscSaveSubscriptionProgress(void* sub) {
 
   char path[256];
   sprintf(path, "%s/subscribe", tsDataDir);
-  if (tmkdir(path, 0777) != 0) {
+  if (taosMkDir(path, 0777) != 0) {
     tscError("failed to create subscribe dir: %s", path);
   }
 

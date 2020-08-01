@@ -80,7 +80,7 @@ typedef struct {
 #define schemaFLen(s) ((s)->flen)
 #define schemaVLen(s) ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
-#define tdFreeSchema(s) tfree((s))
+#define tdFreeSchema(s) taosTFree((s))
 
 STSchema *tdDupSchema(STSchema *pSchema);
 int       tdEncodeSchema(void **buf, STSchema *pSchema);
@@ -235,11 +235,11 @@ typedef struct {
   int maxPoints;  // max number of points
   int bufSize;
 
-  int      numOfRows;
-  int      numOfCols;  // Total number of cols
-  int      sversion;   // TODO: set sversion
-  void *   buf;
-  SDataCol cols[];
+  int       numOfRows;
+  int       numOfCols;  // Total number of cols
+  int       sversion;   // TODO: set sversion
+  void *    buf;
+  SDataCol *cols;
 } SDataCols;
 
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
@@ -249,13 +249,14 @@ typedef struct {
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
-void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
+int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
-void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2, int limit2, int tRows);
+void       tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
+                              int limit2, int tRows);
 
 // ----------------- K-V data row structure
 /*
@@ -283,7 +284,7 @@ typedef struct {
 #define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
-#define kvRowFree(r) tfree(r)
+#define kvRowFree(r) taosTFree(r)
 #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 
 SKVRow tdKVRowDup(SKVRow row);

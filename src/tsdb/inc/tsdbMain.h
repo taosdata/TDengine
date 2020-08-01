@@ -183,10 +183,10 @@ typedef struct {
 } STsdbFileH;
 
 typedef struct {
-  int         numOfFGroups;
-  SFileGroup *base;
-  SFileGroup *pFileGroup;
   int         direction;
+  STsdbFileH* pFileH;
+  int         fileId;
+  int         index;
 } SFileGroupIter;
 
 // ------------------ tsdbMain.c
@@ -483,7 +483,7 @@ void tsdbDestroyHelper(SRWHelper* pHelper);
 void tsdbResetHelper(SRWHelper* pHelper);
 int  tsdbSetAndOpenHelperFile(SRWHelper* pHelper, SFileGroup* pGroup);
 int  tsdbCloseHelperFile(SRWHelper* pHelper, bool hasError);
-void tsdbSetHelperTable(SRWHelper* pHelper, STable* pTable, STsdbRepo* pRepo);
+int  tsdbSetHelperTable(SRWHelper* pHelper, STable* pTable, STsdbRepo* pRepo);
 int  tsdbCommitTableData(SRWHelper* pHelper, SCommitIter* pCommitIter, SDataCols* pDataCols, TSKEY maxKey);
 int  tsdbMoveLastBlockIfNeccessary(SRWHelper* pHelper);
 int  tsdbWriteCompInfo(SRWHelper* pHelper);

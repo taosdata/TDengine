@@ -31,7 +31,7 @@ install_main_dir="/usr/local/taos"
 bin_dir="/usr/local/taos/bin"
 
 # v1.5 jar dir
-v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/taos"
 
 service_config_dir="/etc/systemd/system"
 nginx_port=6060
@@ -79,25 +79,63 @@ osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 os_type=0
 if echo $osinfo | grep -qwi "ubuntu" ; then
-  echo "This is ubuntu system"
+#  echo "This is ubuntu system"
   os_type=1
 elif echo $osinfo | grep -qwi "debian" ; then
-  echo "This is debian system"
+#  echo "This is debian system"
   os_type=1
 elif echo $osinfo | grep -qwi "Kylin" ; then
-  echo "This is Kylin system"
+#  echo "This is Kylin system"
   os_type=1
 elif  echo $osinfo | grep -qwi "centos" ; then
-  echo "This is centos system"
+#  echo "This is centos system"
   os_type=2
 elif echo $osinfo | grep -qwi "fedora" ; then
-  echo "This is fedora system"
+#  echo "This is fedora system"
   os_type=2
 else
   echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
   echo "please feel free to contact taosdata.com for support."
   os_type=1
 fi
+
+
+# =============================  get input parameters =================================================
+
+# install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
+
+# set parameters by default value
+interactiveFqdn=yes   # [yes | no]
+verType=server        # [server | client]
+initType=systemd      # [systemd | service | ...]
+
+while getopts "hv:e:i:" arg
+do
+  case $arg in
+    e)
+      #echo "interactiveFqdn=$OPTARG"
+      interactiveFqdn=$( echo $OPTARG )
+      ;;
+    v)
+      #echo "verType=$OPTARG"
+      verType=$(echo $OPTARG)
+      ;;
+    i)
+      #echo "initType=$OPTARG"
+      initType=$(echo $OPTARG)
+      ;;
+    h)
+      echo "Usage: `basename $0` -v [server | client]  -e [yes | no]"
+      exit 0
+      ;;
+    ?) #unknow option 
+      echo "unkonw argument"
+      exit 1
+      ;;
+  esac
+done
+
+#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
@@ -129,15 +167,17 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+    ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos             || :
-    [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd          || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos || :
+    [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
+    [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
+    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
+    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
+    [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 
     if [ "$verMode" == "cluster" ]; then
         ${csudo} cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo} chmod 0555 ${nginx_dir}/*
@@ -149,19 +189,19 @@ function install_bin() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
-    ${csudo} rm -rf ${v15_java_app_dir}              || :
+    #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*  
     
     ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
-	if [ "$verMode" == "cluster" ]; then
-        # Compatible with version 1.5
-        ${csudo} mkdir -p ${v15_java_app_dir}
-        ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
-        ${csudo} chmod 777 ${v15_java_app_dir} || :
-    fi
+	  #if [ "$verMode" == "cluster" ]; then
+    #    # Compatible with version 1.5
+    #    ${csudo} mkdir -p ${v15_java_app_dir}
+    #    ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
+    #    ${csudo} chmod 777 ${v15_java_app_dir} || :
+    #fi
 }
 
 function install_header() {
@@ -183,56 +223,41 @@ function install_config() {
     ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 
-    if [ "$verMode" == "cluster" ]; then
-        [ ! -z $1 ] && return 0 || : # only install client
+    [ ! -z $1 ] && return 0 || : # only install client
     
-        if ((${update_flag}==1)); then
-            return 0
-        fi
-
-        IP_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
-        IP_PATTERN="\b$IP_FORMAT\.$IP_FORMAT\.$IP_FORMAT\.$IP_FORMAT\b"
-
-        echo
-        echo -e -n "${GREEN}Enter the IP address of an existing TDengine cluster node to join${NC} OR ${GREEN}leave it blank to build one${NC} :"
-        read masterIp
-        while true; do
-            if [ ! -z "$masterIp" ]; then
-                # check the format of the masterIp
-                if [[ $masterIp =~ $IP_PATTERN ]]; then
-                    # Write the first IP to configuration file
-                    sudo sed -i -r "s/#*\s*(masterIp\s*).*/\1$masterIp/" ${cfg_dir}/taos.cfg
-
-                    # Get the second IP address
-
-                    echo
-                    echo -e -n "${GREEN}Enter the IP address of another node in cluster${NC} OR ${GREEN}leave it blank to skip${NC}: "
-                    read secondIp
-                    while true; do
-
-                        if [ ! -z "$secondIp" ]; then
-                            if [[ $secondIp =~ $IP_PATTERN ]]; then
-                                # Write the second IP to configuration file
-                                sudo sed -i -r "s/#*\s*(secondIp\s*).*/\1$secondIp/" ${cfg_dir}/taos.cfg
-                                break
-                            else
-                                read -p "Please enter the correct IP address: " secondIp
-                            fi
-                        else
-                            break
-                        fi
-                    done
+    if ((${update_flag}==1)); then
+        return 0
+    fi
     
-                    break
-                else
-                    read -p "Please enter the correct IP address: " masterIp
-                fi
-            else
+    if [ "$interactiveFqdn" == "no" ]; then
+        return 0
+    fi
+
+    #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+    #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
+    #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
+    #FQDN_PATTERN=":[0-9]{1,5}$"
+
+    # first full-qualified domain name (FQDN) for TDengine cluster system
+    echo
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo
+    echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
+    read firstEp
+    while true; do
+        if [ ! -z "$firstEp" ]; then
+            # check the format of the firstEp
+            #if [[ $firstEp == $FQDN_PATTERN ]]; then
+                # Write the first FQDN to configuration file                    
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg    
                 break
-            fi
-        done
-	
-	fi
+            #else
+            #    read -p "Please enter the correct FQDN:port: " firstEp
+            #fi
+        else
+            break
+        fi
+    done	
 }
 
 
@@ -266,16 +291,24 @@ function clean_service_on_sysvinit() {
     if pidof taosd &> /dev/null; then
         ${csudo} service taosd stop || :
     fi
+    
+    if pidof tarbitrator &> /dev/null; then
+        ${csudo} service tarbitratord stop || :
+    fi
 
     if ((${initd_mod}==1)); then
         ${csudo} chkconfig --del taosd || :
+        ${csudo} chkconfig --del tarbitratord || :
     elif ((${initd_mod}==2)); then
         ${csudo} insserv -r taosd || :
+        ${csudo} insserv -r tarbitratord || :
     elif ((${initd_mod}==3)); then
         ${csudo} update-rc.d -f taosd remove || :
+        ${csudo} update-rc.d -f tarbitratord remove || :
     fi
     
     ${csudo} rm -f ${service_config_dir}/taosd || :
+    ${csudo} rm -f ${service_config_dir}/tarbitratord || :
     
     if $(which init &> /dev/null); then
         ${csudo} init q || :
@@ -292,9 +325,13 @@ function install_service_on_sysvinit() {
     if ((${os_type}==1)); then
         ${csudo} cp -f ${script_dir}/init.d/taosd.deb ${install_main_dir}/init.d/taosd
         ${csudo} cp    ${script_dir}/init.d/taosd.deb ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
+        ${csudo} cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     elif ((${os_type}==2)); then
         ${csudo} cp -f ${script_dir}/init.d/taosd.rpm ${install_main_dir}/init.d/taosd
         ${csudo} cp    ${script_dir}/init.d/taosd.rpm ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
+        ${csudo} cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     fi
     
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
@@ -303,11 +340,16 @@ function install_service_on_sysvinit() {
     if ((${initd_mod}==1)); then
         ${csudo} chkconfig --add taosd || :
         ${csudo} chkconfig --level 2345 taosd on || :
+        ${csudo} chkconfig --add tarbitratord || :
+        ${csudo} chkconfig --level 2345 tarbitratord on || :
     elif ((${initd_mod}==2)); then
         ${csudo} insserv taosd || :
         ${csudo} insserv -d taosd || :
+        ${csudo} insserv tarbitratord || :
+        ${csudo} insserv -d tarbitratord || :
     elif ((${initd_mod}==3)); then
         ${csudo} update-rc.d taosd defaults || :
+        ${csudo} update-rc.d tarbitratord defaults || :
     fi
 }
 
@@ -331,8 +373,17 @@ function clean_service_on_systemd() {
         fi
         ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
 	
-        ${csudo} rm -f ${nginx_service_config}
-	fi
+        ${csudo} rm -f ${nginx_service_config}              
+
+        tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
+        if systemctl is-active --quiet tarbitratord; then
+            echo "tarbitrator is running, stopping it..."
+            ${csudo} systemctl stop tarbitratord &> /dev/null || echo &> /dev/null
+        fi
+        ${csudo} systemctl disable tarbitratord &> /dev/null || echo &> /dev/null
+
+        ${csudo} rm -f ${tarbitratord_service_config}
+	  fi
 }
 
 # taos:2345:respawn:/etc/init.d/taosd start
@@ -364,28 +415,52 @@ function install_service_on_systemd() {
     ${csudo} systemctl enable taosd
 
     if [ "$verMode" == "cluster" ]; then		
+    
+        tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
+
+        ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'TimeoutStartSec=0'                       >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'StandardOutput=null'                     >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'Restart=always'                          >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'StartLimitBurst=3'                       >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'StartLimitInterval=60s'                  >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
+        ${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
+        ${csudo} systemctl enable tarbitratord  
+    
         nginx_service_config="${service_config_dir}/nginxd.service"
-        ${csudo} bash -c "echo '[Unit]'                             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Description=Nginx For TDengine Service' >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'After=network-online.target'        >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${nginx_service_config}"
-        ${csudo} bash -c "echo                                      >> ${nginx_service_config}"
-        ${csudo} bash -c "echo '[Service]'                          >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Type=forking'                       >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'PIDFile=/usr/local/nginxd/logs/nginx.pid'        >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'ExecStart=/usr/local/nginxd/sbin/nginx'          >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'ExecStop=/usr/local/nginxd/sbin/nginx -s stop'   >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'TimeoutStartSec=0'                  >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'StandardOutput=null'                >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Restart=always'                     >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo                                      >> ${nginx_service_config}"
-        ${csudo} bash -c "echo '[Install]'                          >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${nginx_service_config}"
+        ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Description=Nginx For TDengine Service'             >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'After=network-online.target'                        >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Wants=network-online.target'                        >> ${nginx_service_config}"
+        ${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
+        ${csudo} bash -c "echo '[Service]'                                          >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Type=forking'                                       >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'PIDFile=/usr/local/nginxd/logs/nginx.pid'           >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'ExecStart=/usr/local/nginxd/sbin/nginx'             >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'ExecStop=/usr/local/nginxd/sbin/nginx -s stop'      >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'LimitNOFILE=infinity'                               >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'LimitNPROC=infinity'                                >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'LimitCORE=infinity'                                 >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'TimeoutStartSec=0'                                  >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'StandardOutput=null'                                >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Restart=always'                                     >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'StartLimitBurst=3'                                  >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'StartLimitInterval=60s'                             >> ${nginx_service_config}"
+        ${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
+        ${csudo} bash -c "echo '[Install]'                                          >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'WantedBy=multi-user.target'                         >> ${nginx_service_config}"
         if ! ${csudo} systemctl enable nginxd &> /dev/null; then
             ${csudo} systemctl daemon-reexec
             ${csudo} systemctl enable nginxd
@@ -487,12 +562,11 @@ function update_TDengine() {
     if [ -z $1 ]; then
         install_bin
         install_service
-        install_config
+        install_config		
 		
-		if [ "$verMode" == "cluster" ]; then    
+        openresty_work=false
+		    if [ "$verMode" == "cluster" ]; then    
             # Check if openresty is installed
-            openresty_work=false
-
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
@@ -502,10 +576,10 @@ function update_TDengine() {
                     echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
                 fi
             fi
-		fi 
+		    fi 
 
-        echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        #echo
+        #echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
         if ((${service_mod}==0)); then
@@ -516,15 +590,12 @@ function update_TDengine() {
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
         fi
 
-        if [ "$verMode" == "cluster" ]; then  
-            if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-            else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-            fi
+        if [ ${openresty_work} = 'true' ]; then
+            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         else
-		    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
+                
         echo
         echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
     else
@@ -567,8 +638,8 @@ function install_TDengine() {
         install_bin
         install_service
 
-        if [ "$verMode" == "cluster" ]; then  
-            openresty_work=false
+        openresty_work=false
+        if [ "$verMode" == "cluster" ]; then
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
@@ -583,8 +654,8 @@ function install_TDengine() {
         install_config	
 
         # Ask if to start the service
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        #echo
+        #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
         if ((${service_mod}==0)); then
@@ -593,20 +664,22 @@ function install_TDengine() {
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
         else
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
+        fi		
+
+        if [ ${openresty_work} = 'true' ]; then
+             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        else
+             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
 		
-        if [ "$verMode" == "cluster" ]; then  
-           if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-           else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-            fi
-		else
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        if [ ! -z "$firstEp" ]; then
+	    echo		    
+	    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+	    echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+            echo
         fi
-		
-        echo
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo       
     else # Only install client
         install_bin
         install_config
@@ -620,7 +693,7 @@ function install_TDengine() {
 
 
 ## ==============================Main program starts from here============================
-if [ -z $1 ]; then
+if [ "$verType" == "server" ]; then
     # Install server and client
     if [ -x ${bin_dir}/taosd ]; then
         update_flag=1
@@ -628,7 +701,8 @@ if [ -z $1 ]; then
     else
         install_TDengine
     fi
-else
+elif [ "$verType" == "client" ]; then
+    interactiveFqdn=no
     # Only install client
     if [ -x ${bin_dir}/taos ]; then
         update_flag=1
@@ -636,4 +710,6 @@ else
     else
         install_TDengine client
     fi
+else 
+    echo  "please input correct verType"   
 fi

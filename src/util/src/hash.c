@@ -14,17 +14,16 @@
  */
 
 #include "os.h"
-
 #include "hash.h"
 #include "tulog.h"
-#include "tutil.h"
+#include "taosdef.h"
 
 #define HASH_NEED_RESIZE(_h) ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 
 #define FREE_HASH_NODE(_n) \
   do {                     \
-    tfree((_n)->data);     \
-    tfree(_n);             \
+    taosTFree((_n)->data); \
+    taosTFree(_n);         \
   } while (0)
 
 static FORCE_INLINE void __wr_lock(void *lock, int32_t type) {
@@ -463,7 +462,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
   size_t memBlock = taosArrayGetSize(pHashObj->pMemBlock);
   for (int32_t i = 0; i < memBlock; ++i) {
     void *p = taosArrayGetP(pHashObj->pMemBlock, i);
-    tfree(p);
+    taosTFree(p);
   }
 
   taosArrayDestroy(pHashObj->pMemBlock);

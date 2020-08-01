@@ -19,7 +19,6 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
-#include "ttime.h"
 #include "tname.h"
 #include "tbalance.h"
 #include "tdataformat.h"
@@ -53,8 +52,8 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 
 static void mnodeDestroyDb(SDbObj *pDb) {
   pthread_mutex_destroy(&pDb->mutex);
-  tfree(pDb->vgList);
-  tfree(pDb);
+  taosTFree(pDb->vgList);
+  taosTFree(pDb);
 }
 
 static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
@@ -301,6 +300,12 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
+  if (pCfg->quorum < TSDB_MIN_DB_REPLICA_OPTION || pCfg->quorum > TSDB_MAX_DB_REPLICA_OPTION) {
+    mError("invalid db option quorum:%d valid range: [%d, %d]", pCfg->quorum, TSDB_MIN_DB_REPLICA_OPTION,
+           TSDB_MAX_DB_REPLICA_OPTION);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -320,12 +325,15 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->compression < 0) pCfg->compression = tsCompression;
   if (pCfg->walLevel < 0) pCfg->walLevel = tsWAL;
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
+  if (pCfg->quorum < 0) pCfg->quorum = tsQuorum;
 }
 
 static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
   SDbObj *pDb = pMsg->pDb;
-  if (pDb != NULL) {
+  if (code == TSDB_CODE_SUCCESS) {
     mLInfo("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+  } else {
+    mError("db:%s, failed to create by %s, reason:%s", pDb->name, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   }
 
   return code;
@@ -369,14 +377,15 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
     .precision           = pCreate->precision,
     .compression         = pCreate->compression,
     .walLevel            = pCreate->walLevel,
-    .replications        = pCreate->replications
+    .replications        = pCreate->replications,
+    .quorum              = pCreate->quorum
   };
 
   mnodeSetDefaultDbCfg(&pDb->cfg);
 
   code = mnodeCheckDbCfg(&pDb->cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);
+    taosTFree(pDb);
     return code;
   }
 
@@ -386,17 +395,16 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
     .pObj    = pDb,
     .rowSize = sizeof(SDbObj),
     .pMsg    = pMsg,
-    .cb      = mnodeCreateDbCb
+    .writeCb = mnodeCreateDbCb
   };
 
   code = sdbInsertRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    mLInfo("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     mnodeDestroyDb(pDb);
-    return code;
-  } else {
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
@@ -505,6 +513,12 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     strcpy(pSchema[cols].name, "replica");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+
+    pShow->bytes[cols] = 2;
+    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+    strcpy(pSchema[cols].name, "quorum");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
@@ -655,6 +669,10 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int16_t *)pWrite = pDb->cfg.quorum;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *)pWrite = pDb->cfg.daysPerFile;
       cols++;
 #ifndef __CLOUD_VERSION__
@@ -754,8 +772,8 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
   };
 
   int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_MND_SDB_ERROR;
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to set dropping state, reason:%s", pDb->name, tstrerror(code));
   }
 
   return code;
@@ -803,6 +821,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   int8_t  compression    = pAlter->compression;
   int8_t  walLevel       = pAlter->walLevel;
   int8_t  replications   = pAlter->replications;
+  int8_t  quorum         = pAlter->quorum;
   int8_t  precision      = pAlter->precision;
   
   terrno = TSDB_CODE_SUCCESS;
@@ -901,6 +920,11 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
     }
   }
 
+  if (quorum >= 0 && quorum != pDb->cfg.quorum) {
+    mDebug("db:%s, quorum:%d change to %d", pDb->name, pDb->cfg.quorum, quorum);
+    newCfg.compression = quorum;
+  }
+
   return newCfg;
 }
 
@@ -947,12 +971,12 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter, void *pMsg) {
       .table = tsDbSdb,
       .pObj  = pDb,
       .pMsg  = pMsg,
-      .cb    = mnodeAlterDbCb
+      .writeCb = mnodeAlterDbCb
     };
 
     code = sdbUpdateRow(&oper);
-    if (code == TSDB_CODE_SUCCESS) {
-      if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
   }
 
@@ -995,16 +1019,16 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   mInfo("db:%s, drop db from sdb", pDb->name);
 
   SSdbOper oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsDbSdb,
-    .pObj  = pDb,
-    .pMsg  = pMsg,
-    .cb    = mnodeDropDbCb
+    .type   = SDB_OPER_GLOBAL,
+    .table  = tsDbSdb,
+    .pObj   = pDb,
+    .pMsg   = pMsg,
+    .writeCb = mnodeDropDbCb
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to drop, reason:%s", pDb->name, tstrerror(code));
   }
 
   return code;
@@ -1031,7 +1055,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t code = mnodeSetDbDropping(pMsg->pDb);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
     return code;
   }

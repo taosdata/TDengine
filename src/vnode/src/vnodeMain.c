@@ -25,7 +25,6 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "tsdb.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "vnode.h"
@@ -44,6 +43,7 @@ static int      vnodeProcessTsdbStatus(void *arg, int status);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
+static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 int32_t vnodeInitResources() {
@@ -277,6 +277,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.writeToCache = vnodeWriteToQueue;
   syncInfo.confirmForward = dnodeSendRpcVnodeWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
+  syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
@@ -346,7 +347,7 @@ void vnodeRelease(void *pVnodeRaw) {
     dnodeFreeVnodeRqueue(pVnode->rqueue);
   pVnode->rqueue = NULL;
  
-  tfree(pVnode->rootDir);
+  taosTFree(pVnode->rootDir);
 
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};
@@ -417,10 +418,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
   if (pVnode->status != TAOS_VN_STATUS_READY) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
-  // still need report status when unsynced
-  if (pVnode->syncCfg.replica > 1 && pVnode->role == TAOS_SYNC_ROLE_UNSYNCED) {
-  } else if (pVnode->tsdb == NULL) {
-  } else {
+  if (pVnode->tsdb) {
     tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
   }
 
@@ -547,6 +545,13 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
     cqStart(pVnode->cq);
   else
     cqStop(pVnode->cq);
+}
+
+static void vnodeCtrlFlow(void *ahandle, int32_t mseconds) {
+  SVnodeObj *pVnode = ahandle;
+  if (pVnode->delay != mseconds) 
+    vInfo("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
+  pVnode->delay = mseconds;
 }
 
 static int vnodeResetTsdb(SVnodeObj *pVnode)
@@ -864,7 +869,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
 
 PARSE_OVER:
-  tfree(content);
+  taosTFree(content);
   cJSON_Delete(root);
   if (fp) fclose(fp);
   return terrno;
@@ -939,7 +944,7 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   vInfo("vgId:%d, read vnode version successfully, version:%" PRId64, pVnode->vgId, pVnode->version);
 
 PARSE_OVER:
-  tfree(content);
+  taosTFree(content);
   cJSON_Delete(root);
   if(fp) fclose(fp);
   return terrno;

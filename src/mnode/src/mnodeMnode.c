@@ -16,11 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "tsync.h"
 #include "tbalance.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "tsocket.h"
 #include "tdataformat.h"
 #include "mnodeDef.h"
@@ -30,8 +30,6 @@
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
 #include "mnodeUser.h"
-
-#include "tglobal.h"
 
 static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
@@ -58,7 +56,7 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
 #endif
 
 static int32_t mnodeMnodeActionDestroy(SSdbOper *pOper) {
-  tfree(pOper->pObj);
+  taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -190,18 +188,7 @@ void *mnodeGetNextMnode(void *pIter, SMnodeObj **pMnode) {
 }
 
 char *mnodeGetMnodeRoleStr(int32_t role) {
-  switch (role) {
-    case TAOS_SYNC_ROLE_OFFLINE:
-      return "offline";
-    case TAOS_SYNC_ROLE_UNSYNCED:
-      return "unsynced";
-    case TAOS_SYNC_ROLE_SLAVE:
-      return "slave";
-    case TAOS_SYNC_ROLE_MASTER:
-      return "master";
-    default:
-      return "undefined";
-  }
+  return syncRole[role];
 }
 
 void mnodeUpdateMnodeEpSet() {
@@ -290,9 +277,8 @@ int32_t mnodeAddMnode(int32_t dnodeId) {
   };
 
   int32_t code = sdbInsertRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    tfree(pMnode);
-    code = TSDB_CODE_MND_SDB_ERROR;
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    taosTFree(pMnode);
   }
 
   mnodeUpdateMnodeEpSet();
@@ -324,9 +310,6 @@ int32_t mnodeDropMnode(int32_t dnodeId) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_SDB_ERROR;
-  }
 
   sdbDecRef(tsMnodeSdb, pMnode);
 

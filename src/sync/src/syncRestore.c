@@ -225,10 +225,10 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
 static void syncCloseRecvBuffer(SSyncNode *pNode)
 {
   if (pNode->pRecv) {
-    tfree(pNode->pRecv->buffer);
+    taosTFree(pNode->pRecv->buffer);
   }
 
-  tfree(pNode->pRecv);
+  taosTFree(pNode->pRecv);
 }
 
 static int syncOpenRecvBuffer(SSyncNode *pNode) 
@@ -300,6 +300,8 @@ void *syncRestoreData(void *param)
   taosBlockSIGPIPE();
   __sync_fetch_and_add(&tsSyncNum, 1);
 
+  (*pNode->notifyRole)(pNode->ahandle, TAOS_SYNC_ROLE_SYNCING);
+
   if (syncOpenRecvBuffer(pNode) < 0) {
     sError("%s, failed to allocate recv buffer", pPeer->id);
   } else { 
@@ -307,7 +309,6 @@ void *syncRestoreData(void *param)
       sInfo("%s, it is synced successfully", pPeer->id);
       nodeRole = TAOS_SYNC_ROLE_SLAVE;
       syncBroadcastStatus(pNode);
-      (*pNode->notifyRole)(pNode->ahandle, nodeRole);
     } else {
       sError("%s, failed to restore data, restart connection", pPeer->id);
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
@@ -315,8 +316,10 @@ void *syncRestoreData(void *param)
     }
   }
 
+  (*pNode->notifyRole)(pNode->ahandle, nodeRole);
+
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
-  tclose(pPeer->syncFd)
+  taosClose(pPeer->syncFd)
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
   syncDecPeerRef(pPeer);

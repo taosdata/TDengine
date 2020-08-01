@@ -116,6 +116,7 @@ static SKeyword keywordTable[] = {
     {"STATE",        TK_STATE},
     {"KEEP",         TK_KEEP},
     {"REPLICA",      TK_REPLICA},
+    {"QUORUM",       TK_QUORUM},
     {"DAYS",         TK_DAYS},
     {"MINROWS",      TK_MINROWS},
     {"MAXROWS",      TK_MAXROWS},

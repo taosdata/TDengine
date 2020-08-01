@@ -47,15 +47,16 @@ typedef enum {
   SDB_OPER_LOCAL
 } ESdbOper;
 
-typedef struct {
+typedef struct SSdbOper {
   ESdbOper type;
-  void *   table;
-  void *   pObj;
-  void *   rowData;
   int32_t  rowSize;
   int32_t  retCode; // for callback in sdb queue
   int32_t  processedCount; // for sync fwd callback
-  int32_t  (*cb)(struct SMnodeMsg *pMsg, int32_t code);
+  int32_t  (*reqFp)(struct SMnodeMsg *pMsg);
+  int32_t  (*writeCb)(struct SMnodeMsg *pMsg, int32_t code);
+  void *   table;
+  void *   pObj;
+  void *   rowData;
   struct SMnodeMsg *pMsg;
 } SSdbOper;
 
@@ -86,6 +87,7 @@ void    sdbUpdateMnodeRoles();
 int32_t sdbInsertRow(SSdbOper *pOper);
 int32_t sdbDeleteRow(SSdbOper *pOper);
 int32_t sdbUpdateRow(SSdbOper *pOper);
+int32_t sdbInsertRowImp(SSdbOper *pOper);
 
 void    *sdbGetRow(void *handle, void *key);
 void    *sdbFetchRow(void *handle, void *pIter, void **ppRow);

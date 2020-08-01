@@ -22,6 +22,7 @@
 #include "taoserror.h"
 #include "twal.h"
 #include "tqueue.h"
+#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #define walPrefix "wal"
 
@@ -101,7 +102,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     }
   }
 
-  if (tmkdir(path, 0755) != 0) {
+  if (taosMkDir(path, 0755) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("wal:%s, failed to create directory(%s)", path, strerror(errno));
     walRelease(pWal);
@@ -128,7 +129,7 @@ void walClose(void *handle) {
   if (handle == NULL) return;
   
   SWal *pWal = handle;  
-  tclose(pWal->fd);
+  taosClose(pWal->fd);
   if (pWal->timer) taosTmrStopA(&pWal->timer);
 
   if (pWal->keep == 0) {
@@ -420,7 +421,7 @@ int walHandleExistingFiles(const char *path) {
       if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
         snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
         snprintf(nname, sizeof(nname), "%s/old/%s", path, ent->d_name);
-        if (tmkdir(opath, 0755) != 0) {
+        if (taosMkDir(opath, 0755) != 0) {
           wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
           terrno = TAOS_SYSTEM_ERROR(errno);
           break; 

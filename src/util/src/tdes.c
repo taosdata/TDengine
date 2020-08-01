@@ -1,8 +1,5 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+
+#include "os.h"
 #include "tkey.h"
 
 #define ENCRYPTION_MODE 1

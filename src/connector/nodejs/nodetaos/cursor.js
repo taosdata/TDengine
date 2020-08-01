@@ -98,7 +98,7 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
   if (this._connection == null) {
     throw new errors.ProgrammingError('Cursor is not connected');
   }
-  this._connection._clearResultSet();
+
   this._reset_result();
 
   let stmt = operation;
@@ -111,18 +111,18 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
     });
     obs.observe({ entryTypes: ['measure'] });
     performance.mark('A');
-    res = this._chandle.query(this._connection._conn, stmt);
+    this._result = this._chandle.query(this._connection._conn, stmt);
     performance.mark('B');
     performance.measure('query', 'A', 'B');
   }
   else {
-    res = this._chandle.query(this._connection._conn, stmt);
+    this._result = this._chandle.query(this._connection._conn, stmt);
   }
-
+  res = this._chandle.errno(this._result);
   if (res == 0) {
-    let fieldCount = this._chandle.fieldsCount(this._connection._conn);
+    let fieldCount = this._chandle.fieldsCount(this._result);
     if (fieldCount == 0) {
-      let affectedRowCount = this._chandle.affectedRows(this._connection._conn);
+      let affectedRowCount = this._chandle.affectedRows(this._result);
       let response = this._createAffectedResponse(affectedRowCount, time)
       if (options['quiet'] != true) {
         console.log(response);
@@ -131,16 +131,15 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
       return affectedRowCount; //return num of affected rows, common with insert, use statements
     }
     else {
-      let resAndField = this._chandle.useResult(this._connection._conn, fieldCount)
-      this._result = resAndField.result;
-      this._fields = resAndField.fields;
-      this.fields = resAndField.fields;
+      this._fields = this._chandle.useResult(this._result);
+      this.fields = this._fields;
       wrapCB(callback);
+
       return this._result; //return a pointer to the result
     }
   }
   else {
-    throw new errors.ProgrammingError(this._chandle.errStr(this._connection._conn))
+    throw new errors.ProgrammingError(this._chandle.errStr(this._result))
   }
 
 }
@@ -198,18 +197,18 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
   while(true) {
 
     let blockAndRows = this._chandle.fetchBlock(this._result, this._fields);
-
     let block = blockAndRows.blocks;
     let num_of_rows = blockAndRows.num_of_rows;
-
     if (num_of_rows == 0) {
       break;
     }
     this._rowcount += num_of_rows;
+    let numoffields = this._fields.length;
     for (let i = 0; i < num_of_rows; i++) {
       data.push([]);
-      let rowBlock = new Array(this._fields.length);
-      for (let j = 0; j < this._fields.length; j++) {
+      
+      let rowBlock = new Array(numoffields);
+      for (let j = 0; j < numoffields; j++) {
         rowBlock[j] = block[j][i];
       }
       data[data.length-1] = (rowBlock);
@@ -221,7 +220,7 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
   let response = this._createSetResponse(this._rowcount, time)
   console.log(response);
 
-  this._connection._clearResultSet();
+ // this._connection._clearResultSet();
   let fields = this.fields;
   this._reset_result();
   this.data = data;
@@ -266,13 +265,15 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     }
 
     if (resCode >= 0) {
-      let fieldCount = cr._chandle.numFields(res2);
-      if (fieldCount == 0) {
-        cr._chandle.freeResult(res2);
-      }
-      else {
-        return res2;
-      }
+//      let fieldCount = cr._chandle.numFields(res2);
+//      if (fieldCount == 0) {
+//        //cr._chandle.freeResult(res2);
+//        return res2;
+//      } 
+//      else {
+//        return res2;
+//      }
+      return res2;
 
     }
     else {
@@ -381,6 +382,9 @@ TDengineCursor.prototype.stopQuery = function stopQuery(result) {
 }
 TDengineCursor.prototype._reset_result = function _reset_result() {
   this._rowcount = -1;
+  if (this._result != null) {
+    this._chandle.freeResult(this._result);
+  }
   this._result = null;
   this._fields = null;
   this.data = [];

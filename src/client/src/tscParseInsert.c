@@ -30,7 +30,6 @@
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tstoken.h"
-#include "ttime.h"
 
 #include "tdataformat.h"
 
@@ -1388,7 +1387,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     assert(taos_errno(pSql) == code);
 
     taos_free_result(pSql);
-    tfree(pSupporter);
+    taosTFree(pSupporter);
     fclose(fp);
 
     pParentSql->res.code = code;
@@ -1453,7 +1452,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     }
   }
 
-  tfree(tokenBuf);
+  taosTFree(tokenBuf);
   free(line);
 
   if (count > 0) {
@@ -1466,7 +1465,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
 
   } else {
     taos_free_result(pSql);
-    tfree(pSupporter);
+    taosTFree(pSupporter);
     fclose(fp);
 
     pParentSql->fp = pParentSql->fetchFp;
@@ -1496,7 +1495,7 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
 
-    tfree(pSupporter)
+    taosTFree(pSupporter)
     tscQueueAsyncRes(pSql);
 
     return;

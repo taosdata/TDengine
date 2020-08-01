@@ -17,7 +17,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   LIST(APPEND BIN_SRC ./src/tarbitrator.c)
   LIST(APPEND BIN_SRC ./src/taosTcpPool.c)
   ADD_EXECUTABLE(tarbitrator ${BIN_SRC})
-  TARGET_LINK_LIBRARIES(tarbitrator tutil sync common)
+  TARGET_LINK_LIBRARIES(tarbitrator sync common osdetail tutil)
 
   ADD_SUBDIRECTORY(test)
 ENDIF ()

@@ -13,44 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "tglobal.h"
 #include "ttimer.h"
 #include "tulog.h"
-#include "tutil.h"
-#include <signal.h>
 
 #ifndef TAOS_OS_FUNC_TIMER
-
-/*
-  to make taosMsleep work,
-   signal SIGALRM shall be blocked in the calling thread,
-
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGALRM);
-  pthread_sigmask(SIG_BLOCK, &set, NULL);
-*/
-void taosMsleep(int mseconds) {
-  struct timeval timeout;
-  int            seconds, useconds;
-
-  seconds = mseconds / 1000;
-  useconds = (mseconds % 1000) * 1000;
-  timeout.tv_sec = seconds;
-  timeout.tv_usec = useconds;
-
-  /* sigset_t set; */
-  /* sigemptyset(&set); */
-  /* sigaddset(&set, SIGALRM); */
-  /* pthread_sigmask(SIG_BLOCK, &set, NULL); */
-
-  select(0, NULL, NULL, NULL, &timeout);
-
-  /* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
-}
-
 
 static void taosDeleteTimer(void *tharg) {
   timer_t *pTimer = tharg;
@@ -128,6 +96,37 @@ int taosInitTimer(void (*callback)(int), int ms) {
 void taosUninitTimer() {
   stopTimer = true;
   pthread_join(timerThread, NULL);
+}
+
+#endif
+
+#ifndef TAOS_OS_FUNC_TIMER_SLEEP
+/*
+  to make taosMsleep work,
+   signal SIGALRM shall be blocked in the calling thread,
+
+  sigset_t set;
+  sigemptyset(&set);
+  sigaddset(&set, SIGALRM);
+  pthread_sigmask(SIG_BLOCK, &set, NULL);
+*/
+void taosMsleep(int mseconds) {
+  struct timeval timeout;
+  int            seconds, useconds;
+
+  seconds = mseconds / 1000;
+  useconds = (mseconds % 1000) * 1000;
+  timeout.tv_sec = seconds;
+  timeout.tv_usec = useconds;
+
+  /* sigset_t set; */
+  /* sigemptyset(&set); */
+  /* sigaddset(&set, SIGALRM); */
+  /* pthread_sigmask(SIG_BLOCK, &set, NULL); */
+
+  select(0, NULL, NULL, NULL, &timeout);
+
+  /* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
 }
 
 #endif

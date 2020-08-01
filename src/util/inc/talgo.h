@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+#ifndef __COMPAR_FN_T
+# define __COMPAR_FN_T
+typedef int (*__compar_fn_t) (const void *, const void *);
+#endif
+
 #define TD_EQ 0x1
 #define TD_GT 0x2
 #define TD_LT 0x4
