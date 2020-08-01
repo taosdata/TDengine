@@ -245,7 +245,7 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
   }
 
   pQueryInfo->fillType = TSDB_FILL_NONE;
-  tfree(pQueryInfo->fillVal);
+  taosTFree(pQueryInfo->fillVal);
 }
 
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
@@ -259,9 +259,9 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   
     // not enough memory
     if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
-      tfree(pRes->tsrow);
-      tfree(pRes->buffer);
-      tfree(pRes->length);
+      taosTFree(pRes->tsrow);
+      taosTFree(pRes->buffer);
+      taosTFree(pRes->length);
     
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return pRes->code;
@@ -274,23 +274,23 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 void tscDestroyResPointerInfo(SSqlRes* pRes) {
   if (pRes->buffer != NULL) { // free all buffers containing the multibyte string
     for (int i = 0; i < pRes->numOfCols; i++) {
-      tfree(pRes->buffer[i]);
+      taosTFree(pRes->buffer[i]);
     }
     
     pRes->numOfCols = 0;
   }
   
-  tfree(pRes->pRsp);
-  tfree(pRes->tsrow);
-  tfree(pRes->length);
+  taosTFree(pRes->pRsp);
+  taosTFree(pRes->tsrow);
+  taosTFree(pRes->length);
   
-  tfree(pRes->pGroupRec);
-  tfree(pRes->pColumnIndex);
-  tfree(pRes->buffer);
+  taosTFree(pRes->pGroupRec);
+  taosTFree(pRes->pColumnIndex);
+  taosTFree(pRes->buffer);
   
   if (pRes->pArithSup != NULL) {
-    tfree(pRes->pArithSup->data);
-    tfree(pRes->pArithSup);
+    taosTFree(pRes->pArithSup->data);
+    taosTFree(pRes->pArithSup);
   }
   
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
@@ -307,11 +307,11 @@ static void tscFreeQueryInfo(SSqlCmd* pCmd) {
     
     freeQueryInfoImpl(pQueryInfo);
     clearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
-    tfree(pQueryInfo);
+    taosTFree(pQueryInfo);
   }
   
   pCmd->numOfClause = 0;
-  tfree(pCmd->pQueryInfo);
+  taosTFree(pCmd->pQueryInfo);
 }
 
 void tscResetSqlCmdObj(SSqlCmd* pCmd) {
@@ -357,13 +357,13 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
   if (pObj->signature == pObj) {
     //pthread_mutex_lock(&pObj->mutex);
-    tfree(pSql->sqlstr);
+    taosTFree(pSql->sqlstr);
     //pthread_mutex_unlock(&pObj->mutex);
   }
   
   tscFreeSqlResult(pSql);
   
-  tfree(pSql->pSubs);
+  taosTFree(pSql->pSubs);
   pSql->numOfSubs = 0;
   
   tscResetSqlCmdObj(pCmd);
@@ -383,10 +383,10 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
-  tfree(pCmd->payload);
+  taosTFree(pCmd->payload);
   pCmd->allocSize = 0;
   
-  tfree(pSql->sqlstr);
+  taosTFree(pSql->sqlstr);
   sem_destroy(&pSql->rspSem);
   free(pSql);
 }
@@ -396,12 +396,12 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
     return;
   }
 
-  tfree(pDataBlock->pData);
-  tfree(pDataBlock->params);
+  taosTFree(pDataBlock->pData);
+  taosTFree(pDataBlock->params);
 
   // free the refcount for metermeta
   taosCacheRelease(tscCacheHandle, (void**)&(pDataBlock->pTableMeta), false);
-  tfree(pDataBlock);
+  taosTFree(pDataBlock);
 }
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
@@ -679,7 +679,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 
         taosHashCleanup(pVnodeDataBlockHashList);
         tscDestroyBlockArrayList(pVnodeDataBlockList);
-        tfree(dataBuf->pData);
+        taosTFree(dataBuf->pData);
 
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
@@ -735,7 +735,7 @@ void tscCloseTscObj(STscObj* pObj) {
   }
   
   tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, pObj->pDnodeConn);
-  tfree(pObj);
+  taosTFree(pObj);
 }
 
 bool tscIsInsertData(char* sqlstr) {
@@ -916,7 +916,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     
     if (pInfo->pArithExprInfo != NULL) {
       tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
-      tfree(pInfo->pArithExprInfo);
+      taosTFree(pInfo->pArithExprInfo);
     }
   }
   
@@ -1029,7 +1029,7 @@ void* sqlExprDestroy(SSqlExpr* pExpr) {
     tVariantDestroy(&pExpr->param[i]);
   }
   
-  tfree(pExpr);
+  taosTFree(pExpr);
   
   return NULL;
 }
@@ -1116,11 +1116,11 @@ SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
 static void destroyFilterInfo(SColumnFilterInfo* pFilterInfo, int32_t numOfFilters) {
   for(int32_t i = 0; i < numOfFilters; ++i) {
     if (pFilterInfo[i].filterstr) {
-      tfree(pFilterInfo[i].pz);
+      taosTFree(pFilterInfo[i].pz);
     }
   }
   
-  tfree(pFilterInfo);
+  taosTFree(pFilterInfo);
 }
 
 SColumn* tscColumnClone(const SColumn* src) {
@@ -1351,7 +1351,7 @@ void tscTagCondRelease(STagCond* pTagCond) {
     size_t s = taosArrayGetSize(pTagCond->pCond);
     for (int32_t i = 0; i < s; ++i) {
       SCond* p = taosArrayGet(pTagCond->pCond, i);
-      tfree(p->cond);
+      taosTFree(p->cond);
     }
   
     taosArrayDestroy(pTagCond->pCond);
@@ -1546,7 +1546,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
-  tfree(pQueryInfo->fillVal);
+  taosTFree(pQueryInfo->fillVal);
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -1566,7 +1566,7 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool rem
     free(pTableMetaInfo);
   }
   
-  tfree(pQueryInfo->pTableMetaInfo);
+  taosTFree(pQueryInfo->pTableMetaInfo);
 }
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
@@ -1613,7 +1613,7 @@ void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
   }
 
   taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
-  tfree(pTableMetaInfo->vgroupList);
+  taosTFree(pTableMetaInfo->vgroupList);
   
   tscColumnListDestroy(pTableMetaInfo->tagColList);
   pTableMetaInfo->tagColList = NULL;
@@ -2084,7 +2084,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   
   pRes->numOfTotal = num;
   
-  tfree(pSql->pSubs);
+  taosTFree(pSql->pSubs);
   pSql->numOfSubs = 0;
   pSql->fp = fp;
 

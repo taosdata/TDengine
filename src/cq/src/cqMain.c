@@ -114,7 +114,7 @@ void cqClose(void *handle) {
     SCqObj *pTemp = pObj;
     pObj = pObj->next;
     tdFreeSchema(pTemp->pSchema);
-    tfree(pTemp->sqlStr);
+    taosTFree(pTemp->sqlStr);
     free(pTemp);
   } 
   

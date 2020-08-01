@@ -190,7 +190,7 @@ static int syncReadOneWalRecord(int sfd, SWalHead *pHead, uint32_t *pEvent)
 static int syncMonitorLastWal(SSyncPeer *pPeer, char *name) 
 { 
   pPeer->watchNum = 0;
-  tclose(pPeer->notifyFd);
+  taosClose(pPeer->notifyFd);
   pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
   if (pPeer->notifyFd < 0) {
     sError("%s, failed to init inotify(%s)", pPeer->id, strerror(errno));
@@ -271,7 +271,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   }
 
   free(pHead);
-  tclose(sfd); 
+  taosClose(sfd); 
 
   if (code == 0) return bytes;
   return -1;
@@ -352,7 +352,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     sDebug("%s, last wal is closed, try new one", pPeer->id);
   }
 
-  tclose(pPeer->notifyFd);
+  taosClose(pPeer->notifyFd);
 
   return code;
 }
@@ -486,8 +486,8 @@ void *syncRetrieveData(void *param)
   }
 
   pPeer->fileChanged = 0;
-  tclose(pPeer->notifyFd);
-  tclose(pPeer->syncFd);
+  taosClose(pPeer->notifyFd);
+  taosClose(pPeer->syncFd);
   syncDecPeerRef(pPeer);
 
   return NULL;

@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "tutil.h"
 #include "cJSON.h"
+#undef TAOS_MEM_CHECK
 
 void simLogSql(char *sql, bool useSharp) {
   static FILE *fp = NULL;

@@ -21,7 +21,6 @@
 #include "tsched.h"
 #include "tcache.h"
 #include "tsclient.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 
@@ -156,7 +155,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
 
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
     taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), true);
-    tfree(pTableMetaInfo->vgroupList);
+    taosTFree(pTableMetaInfo->vgroupList);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
     return;
@@ -260,9 +259,9 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
     taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
     tscFreeSqlResult(pSql);
-    tfree(pSql->pSubs);
+    taosTFree(pSql->pSubs);
     pSql->numOfSubs = 0;
-    tfree(pTableMetaInfo->vgroupList);
+    taosTFree(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
   }
 }
@@ -592,6 +591,6 @@ void taos_close_stream(TAOS_STREAM *handle) {
     tscFreeSqlObj(pSql);
     pStream->pSql = NULL;
 
-    tfree(pStream);
+    taosTFree(pStream);
   }
 }

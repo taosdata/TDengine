@@ -917,15 +917,16 @@ TDengine 同时也提供了node.js 的连接器。用户可以通过[npm](https:
 首先，通过[npm](https://www.npmjs.com/)安装node.js 连接器.
 
 ```cmd
-npm install td-connector
+npm install td2.0-connector
 ```
 我们建议用户使用npm 安装node.js连接器。如果您没有安装npm, 可以将*src/connector/nodejs/*拷贝到您的nodejs 项目目录下
 
 我们使用[node-gyp](https://github.com/nodejs/node-gyp)和TDengine服务端进行交互。安装node.js 连接器之前，还需安装以下软件：
 
-### Unix
+### Linux
 
 - `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
+- `node`  必须采用v8.x版本，之后的版本存在兼容性的问题。
 - `make`
 - c语言编译器比如[GCC](https://gcc.gnu.org)
 
@@ -980,10 +981,10 @@ npm install td-connector
 
 #### 连接
 
-使用node.js连接器时，必须先<em>require</em> ```td-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
+使用node.js连接器时，必须先<em>require</em> ```td2.0-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
 
 ```javascript
-const taos = require('td-connector');
+const taos = require('td2.0-connector');
 var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
 var cursor = conn.cursor(); // Initializing a new cursor
 ```

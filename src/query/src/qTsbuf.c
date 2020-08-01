@@ -21,7 +21,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
     return NULL;
   }
   
-  getTmpfilePath("join", pTSBuf->path);
+  taosGetTmpfilePath("join", pTSBuf->path);
   pTSBuf->f = fopen(pTSBuf->path, "w+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
@@ -142,11 +142,11 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
     return NULL;
   }
   
-  tfree(pTSBuf->assistBuf);
-  tfree(pTSBuf->tsData.rawBuf);
+  taosTFree(pTSBuf->assistBuf);
+  taosTFree(pTSBuf->tsData.rawBuf);
   
-  tfree(pTSBuf->pData);
-  tfree(pTSBuf->block.payload);
+  taosTFree(pTSBuf->pData);
+  taosTFree(pTSBuf->block.payload);
   
   fclose(pTSBuf->f);
   
@@ -739,11 +739,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   int64_t offset = getDataStartOffset();
   int32_t size = pSrcBuf->fileSize - offset;
 
-#ifdef LINUX
-  ssize_t rc = taosTSendFile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
-#else
-  ssize_t rc = fsendfile(pDestBuf->f, pSrcBuf->f, &offset, size);
-#endif
+  ssize_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
   if (rc == -1) {
 //    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));

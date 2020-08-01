@@ -57,12 +57,11 @@
  *
  */
 
+#include "os.h"
 #include "sim.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "simParse.h"
 #include "tutil.h"
+#undef TAOS_MEM_CHECK
 
 static SCommand *cmdHashList[MAX_NUM_CMD];
 static SCmdLine cmdLine[MAX_CMD_LINES];

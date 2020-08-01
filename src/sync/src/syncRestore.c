@@ -225,10 +225,10 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
 static void syncCloseRecvBuffer(SSyncNode *pNode)
 {
   if (pNode->pRecv) {
-    tfree(pNode->pRecv->buffer);
+    taosTFree(pNode->pRecv->buffer);
   }
 
-  tfree(pNode->pRecv);
+  taosTFree(pNode->pRecv);
 }
 
 static int syncOpenRecvBuffer(SSyncNode *pNode) 
@@ -319,7 +319,7 @@ void *syncRestoreData(void *param)
   (*pNode->notifyRole)(pNode->ahandle, nodeRole);
 
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
-  tclose(pPeer->syncFd)
+  taosClose(pPeer->syncFd)
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
   syncDecPeerRef(pPeer);

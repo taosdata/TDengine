@@ -21,7 +21,6 @@
 #include "tsync.h"
 #include "tbalance.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "tsocket.h"
 #include "tdataformat.h"
 #include "mnodeDef.h"
@@ -57,7 +56,7 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
 #endif
 
 static int32_t mnodeMnodeActionDestroy(SSdbOper *pOper) {
-  tfree(pOper->pObj);
+  taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -279,7 +278,7 @@ int32_t mnodeAddMnode(int32_t dnodeId) {
 
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    tfree(pMnode);
+    taosTFree(pMnode);
   }
 
   mnodeUpdateMnodeEpSet();

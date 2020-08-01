@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "taoserror.h"
 #include "taosmsg.h"
@@ -90,10 +89,10 @@ static void    mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colName);
 
 static void mnodeDestroyChildTable(SChildTableObj *pTable) {
-  tfree(pTable->info.tableId);
-  tfree(pTable->schema);
-  tfree(pTable->sql);
-  tfree(pTable);
+  taosTFree(pTable->info.tableId);
+  taosTFree(pTable->schema);
+  taosTFree(pTable->sql);
+  taosTFree(pTable);
 }
 
 static int32_t mnodeChildTableActionDestroy(SSdbOper *pOper) {
@@ -411,9 +410,9 @@ static void mnodeDestroySuperTable(SSuperTableObj *pStable) {
     taosHashCleanup(pStable->vgHash);
     pStable->vgHash = NULL;
   }
-  tfree(pStable->info.tableId);
-  tfree(pStable->schema);
-  tfree(pStable);
+  taosTFree(pStable->info.tableId);
+  taosTFree(pStable->schema);
+  taosTFree(pStable);
 }
 
 static int32_t mnodeSuperTableActionDestroy(SSdbOper *pOper) {
@@ -1759,6 +1758,9 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     pMsg->pTable = NULL;
     mError("app:%p:%p, table:%s, failed to create, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
            tstrerror(code));
+  } else {
+    mDebug("app:%p:%p, table:%s, allocated in vgroup, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
+           pTable->info.tableId, pVgroup->vgId, pTable->sid, pTable->uid);
   }
 
   return code;
@@ -1790,9 +1792,6 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
 
       pMsg->pVgroup = pVgroup;
       mnodeIncVgroupRef(pVgroup);
-
-      mDebug("app:%p:%p, table:%s, allocated in vgroup, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg, pCreate->tableId,
-             pVgroup->vgId, sid);
 
       return mnodeDoCreateChildTable(pMsg, sid);
     }
@@ -2349,6 +2348,15 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   if (sdbCheckRowDeleted(tsChildTableSdb, pTable)) {
     mDebug("app:%p:%p, table:%s, create table rsp received, but a deleting opertion incoming, vgId:%d sid:%d uid:%" PRIu64,
            mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid);
+
+    // if the vgroup is already dropped from hash, it can't be accquired by pTable->vgId
+    // so the refCount of vgroup can not be decreased
+    SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
+    if (pVgroup == NULL) {
+      mnodeRemoveTableFromVgroup(pVgroup, pTable);
+    }
+    mnodeDecVgroupRef(pVgroup);
+
     mnodeSendDropChildTableMsg(mnodeMsg, false);
     rpcMsg->code = TSDB_CODE_SUCCESS;
   }

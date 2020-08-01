@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "ttime.h"
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
@@ -34,7 +33,7 @@ static int32_t mnodeCreateRootAcct();
 static int32_t mnodeAcctActionDestroy(SSdbOper *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   pthread_mutex_destroy(&pAcct->mutex);
-  tfree(pOper->pObj);
+  taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 

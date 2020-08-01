@@ -19,7 +19,6 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
-#include "ttime.h"
 #include "tname.h"
 #include "tbalance.h"
 #include "tdataformat.h"
@@ -53,8 +52,8 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 
 static void mnodeDestroyDb(SDbObj *pDb) {
   pthread_mutex_destroy(&pDb->mutex);
-  tfree(pDb->vgList);
-  tfree(pDb);
+  taosTFree(pDb->vgList);
+  taosTFree(pDb);
 }
 
 static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
@@ -386,7 +385,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = mnodeCheckDbCfg(&pDb->cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);
+    taosTFree(pDb);
     return code;
   }
 

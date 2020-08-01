@@ -18,8 +18,6 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
-#include "tsystem.h"
-#include "taosdef.h"
 
 #ifndef TAOS_OS_FUNC_SYSINFO
 
@@ -63,7 +61,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   size_t len;
   char * line = NULL;
   while (!feof(fp)) {
-    tfree(line);
+    taosTFree(line);
     len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
@@ -85,7 +83,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   sscanf(line, "%s %" PRId64, tmp, &memKB);
   *memoryUsedMB = (float)((double)memKB / 1024);
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
   return true;
 }
@@ -109,7 +107,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   char cpu[10] = {0};
   sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
   return true;
 }
@@ -138,7 +136,7 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     }
   }
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
   return true;
 }
@@ -378,7 +376,7 @@ static bool taosGetCardInfo(int64_t *bytes) {
     *bytes += (rbytes + tbytes);
   }
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
 
   return true;
@@ -433,7 +431,7 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   int    readIndex = 0;
 
   while (!feof(fp)) {
-    tfree(line);
+    taosTFree(line);
     len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
@@ -451,7 +449,7 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
     if (readIndex >= 2) break;
   }
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
 
   if (readIndex < 2) {
@@ -543,12 +541,12 @@ void taosKillSystem() {
   kill(tsProcId, 2);
 }
 
-int tSystem(const char *cmd) {
+int taosSystem(const char *cmd) {
   FILE *fp;
   int   res;
   char  buf[1024];
   if (cmd == NULL) {
-    uError("tSystem cmd is NULL!\n");
+    uError("taosSystem cmd is NULL!\n");
     return -1;
   }
 
@@ -568,6 +566,77 @@ int tSystem(const char *cmd) {
 
     return res;
   }
+}
+
+int _sysctl(struct __sysctl_args *args );
+void taosSetCoreDump() {
+  if (0 == tsEnableCoreFile) {
+    return;
+  }
+  
+  // 1. set ulimit -c unlimited
+  struct rlimit rlim;
+  struct rlimit rlim_new;
+  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    uInfo("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    rlim_new.rlim_cur = RLIM_INFINITY;
+    rlim_new.rlim_max = RLIM_INFINITY;
+    if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
+      uInfo("set unlimited fail, error: %s", strerror(errno));
+      rlim_new.rlim_cur = rlim.rlim_max;
+      rlim_new.rlim_max = rlim.rlim_max;
+      (void)setrlimit(RLIMIT_CORE, &rlim_new);
+    }
+  }
+
+  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    uInfo("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+  }
+
+#ifndef _TD_ARM_
+  // 2. set the path for saving core file
+  struct __sysctl_args args;
+  int     old_usespid = 0;
+  size_t  old_len     = 0;
+  int     new_usespid = 1;
+  size_t  new_len     = sizeof(new_usespid);
+  
+  int name[] = {CTL_KERN, KERN_CORE_USES_PID};
+  
+  memset(&args, 0, sizeof(struct __sysctl_args));
+  args.name    = name;
+  args.nlen    = sizeof(name)/sizeof(name[0]);
+  args.oldval  = &old_usespid;
+  args.oldlenp = &old_len;
+  args.newval  = &new_usespid;
+  args.newlen  = new_len;
+  
+  old_len = sizeof(old_usespid);
+  
+  if (syscall(SYS__sysctl, &args) == -1) {
+      uInfo("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+  }
+  
+  uInfo("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
+
+
+  old_usespid = 0;
+  old_len     = 0;
+  memset(&args, 0, sizeof(struct __sysctl_args));
+  args.name    = name;
+  args.nlen    = sizeof(name)/sizeof(name[0]);
+  args.oldval  = &old_usespid;
+  args.oldlenp = &old_len;
+  
+  old_len = sizeof(old_usespid);
+  
+  if (syscall(SYS__sysctl, &args) == -1) {
+      uInfo("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+  }
+  
+  uInfo("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
+#endif
+
 }
 
 #endif

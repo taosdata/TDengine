@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taos.h"
 #include "tulog.h"
-#include "ttime.h"
 #include "tutil.h"
 #include "hash.h"
 

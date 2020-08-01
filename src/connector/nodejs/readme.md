@@ -1,23 +1,24 @@
 # TDengine Node.js connector
-[![minzip](https://img.shields.io/bundlephobia/minzip/td-connector.svg)](https://github.com/taosdata/TDengine/tree/master/src/connector/nodejs) [![NPM](https://img.shields.io/npm/l/td-connector.svg)](https://github.com/taosdata/TDengine/#what-is-tdengine)
+[![minzip](https://img.shields.io/bundlephobia/minzip/td2.0-connector.svg)](https://github.com/taosdata/TDengine/tree/master/src/connector/nodejs) [![NPM](https://img.shields.io/npm/l/td2.0-connector.svg)](https://github.com/taosdata/TDengine/#what-is-tdengine)
 
-This is the Node.js library that lets you connect to [TDengine](https://www.github.com/taosdata/tdengine). It is built so that you can use as much of it as you want or as little of it as you want through providing an extensive API. If you want the raw data in the form of an array of arrays for the row data retrieved from a table, you can do that. If you want to wrap that data with objects that allow you easily manipulate and display data such as using a prettifier function, you can do that!
+This is the Node.js library that lets you connect to [TDengine](https://www.github.com/taosdata/tdengine) 2.0 version. It is built so that you can use as much of it as you want or as little of it as you want through providing an extensive API. If you want the raw data in the form of an array of arrays for the row data retrieved from a table, you can do that. If you want to wrap that data with objects that allow you easily manipulate and display data such as using a prettifier function, you can do that!
 
 ## Installation
 
 To get started, just type in the following to install the connector through [npm](https://www.npmjs.com/)
 
 ```cmd
-npm install td-connector
+npm install td2.0-connector
 ```
 
 To interact with TDengine, we make use of the [node-gyp](https://github.com/nodejs/node-gyp) library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)
 
-### On Unix
+### On Linux
 
 - `python` (`v2.7` recommended, `v3.x.x` is **not** supported)
 - `make`
 - A proper C/C++ compiler toolchain, like [GCC](https://gcc.gnu.org)
+- `node` (between `v10.x` and `v11.x`, other version has some dependency compatibility problems)
 
 ### On macOS
 
@@ -71,12 +72,12 @@ The following is a short summary of the basic usage of the connector, the  full 
 
 ### Connection
 
-To use the connector, first require the library ```td-connector```. Running the function ```taos.connect``` with the connection options passed in as an object will return a TDengine connection object. The required connection option is ```host```, other options if not set, will be the default values as shown below.
+To use the connector, first require the library ```td2.0-connector```. Running the function ```taos.connect``` with the connection options passed in as an object will return a TDengine connection object. The required connection option is ```host```, other options if not set, will be the default values as shown below.
 
 A cursor also needs to be initialized in order to interact with TDengine from Node.js.
 
 ```javascript
-const taos = require('td-connector');
+const taos = require('td2.0-connector');
 var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
 var cursor = conn.cursor(); // Initializing a new cursor
 ```
