@@ -240,6 +240,18 @@ taos_qset taosOpenQset() {
 void taosCloseQset(taos_qset param) {
   if (param == NULL) return;
   STaosQset *qset = (STaosQset *)param;
+
+  // remove all the queues from qset
+  pthread_mutex_lock(&qset->mutex);
+  while (qset->head) {
+    STaosQueue *queue = qset->head;
+    qset->head = qset->head->next;
+
+    queue->qset = NULL;
+    queue->next = NULL;
+  }
+  pthread_mutex_unlock(&qset->mutex);
+
   pthread_mutex_destroy(&qset->mutex);
   tsem_destroy(&qset->sem);
   free(qset);
@@ -312,6 +324,7 @@ void taosRemoveFromQset(taos_qset p1, taos_queue p2) {
       pthread_mutex_lock(&queue->mutex);
       atomic_sub_fetch_32(&qset->numOfItems, queue->numOfItems);
       queue->qset = NULL;
+      queue->next = NULL;
       pthread_mutex_unlock(&queue->mutex);
     }
   } 
