@@ -41,17 +41,8 @@ typedef struct SHashNode {
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
-//  HASH_GLOBAL_LOCK = 1,
   HASH_ENTRY_LOCK  = 1,
 } SHashLockTypeE;
-
-//typedef struct SHashLock {
-//#if defined(LINUX)
-//  pthread_rwlock_t *lock;
-//#else
-//  pthread_mutex_t  *lock;
-//#endif
-//} SHashLock;
 
 typedef struct SHashEntry {
   int32_t    num;      // number of elements in current entry

@@ -340,33 +340,33 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   return pData;
 }
 
-void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime) {
-  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
-    return NULL;
-  }
-
-  __cache_rd_lock(pCacheObj);
-  
-  SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
-  if (ptNode != NULL) {
-     T_REF_INC(*ptNode);
-    (*ptNode)->expireTime = expireTime; // taosGetTimestampMs() + (*ptNode)->lifespan;
-  }
-
-  __cache_unlock(pCacheObj);
-
-  if (ptNode != NULL) {
-    atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uDebug("cache:%s, key:%p, %p expireTime is updated in cache, refcnt:%d", pCacheObj->name, key,
-        (*ptNode)->data, T_REF_VAL_GET(*ptNode));
-  } else {
-    atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
-  }
-
-  atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
-  return (ptNode != NULL) ? (*ptNode)->data : NULL;
-}
+//void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime) {
+//  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0) {
+//    return NULL;
+//  }
+//
+//  __cache_rd_lock(pCacheObj);
+//
+//  SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGet(pCacheObj->pHashTable, key, keyLen);
+//  if (ptNode != NULL) {
+//     T_REF_INC(*ptNode);
+//    (*ptNode)->expireTime = expireTime; // taosGetTimestampMs() + (*ptNode)->lifespan;
+//  }
+//
+//  __cache_unlock(pCacheObj);
+//
+//  if (ptNode != NULL) {
+//    atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
+//    uDebug("cache:%s, key:%p, %p expireTime is updated in cache, refcnt:%d", pCacheObj->name, key,
+//        (*ptNode)->data, T_REF_VAL_GET(*ptNode));
+//  } else {
+//    atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
+//    uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
+//  }
+//
+//  atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
+//  return (ptNode != NULL) ? (*ptNode)->data : NULL;
+//}
 
 void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   if (pCacheObj == NULL || data == NULL) return NULL;

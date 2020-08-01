@@ -447,8 +447,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
           pHashObj->freeFp(pNode->data);
         }
 
-        free(pNode->data);
-        free(pNode);
+        FREE_HASH_NODE(pNode);
         pNode = pNext;
       }
     }
@@ -651,6 +650,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
   SHashNode *pNewNode = calloc(1, sizeof(SHashNode));
+
   if (pNewNode == NULL) {
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
