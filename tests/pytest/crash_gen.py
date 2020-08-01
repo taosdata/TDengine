@@ -2294,6 +2294,12 @@ class ServiceManagerThread:
         self._thread.daemon = True  # thread dies with the program
         self._thread.start()
 
+        self._thread2 = threading.Thread(
+            target=self.svcErrorReader,
+            args=(self._tdeSubProcess.getStdErr(), self._ipcQueue))
+        self._thread2.daemon = True  # thread dies with the program
+        self._thread2.start()
+
         # wait for service to start
         for i in range(0, 10):
             time.sleep(1.0)
@@ -2322,12 +2328,12 @@ class ServiceManagerThread:
             raise RuntimeError("sub process object missing")
 
         self._status = MainExec.STATUS_STOPPING
-        self._tdeSubProcess.stop()
+        retCode = self._tdeSubProcess.stop()
+        print("Attempted to stop sub process, got return code: {}".format(retCode))
 
         if self._tdeSubProcess.isRunning():  # still running
-            print(
-                "FAILED to stop sub process, it is still running... pid = {}".format(
-                    self._tdeSubProcess.pid))
+            print("FAILED to stop sub process, it is still running... pid = {}".format(
+                    self._tdeSubProcess.getPid()))
         else:
             self._tdeSubProcess = None  # not running any more
             self.join()  # stop the thread, change the status, etc.
@@ -2343,6 +2349,9 @@ class ServiceManagerThread:
             self._thread.join()
             self._thread = None
             self._status = MainExec.STATUS_STOPPED
+            # STD ERR thread
+            self._thread2.join()
+            self._thread2 = None
         else:
             print("Joining empty thread, doing nothing")
 
@@ -2423,6 +2432,10 @@ class ServiceManagerThread:
         print("\nNo more output from IO thread managing TDengine service")
         out.close()
 
+    def svcErrorReader(self, err: IO, queue):
+        for line in iter(err.readline, b''):
+            print("\nTD Svc STDERR: {}".format(line))
+
 
 class TdeSubProcess:
     def __init__(self):
@@ -2431,8 +2444,14 @@ class TdeSubProcess:
     def getStdOut(self):
         return self.subProcess.stdout
 
+    def getStdErr(self):
+        return self.subProcess.stderr
+
     def isRunning(self):
         return self.subProcess is not None
+
+    def getPid(self):
+        return self.subProcess.pid
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -2469,18 +2488,18 @@ class TdeSubProcess:
             os.rename(logPath, logPathSaved)
         # os.mkdir(logPath) # recreate, no need actually, TDengine will auto-create with proper perms
             
-
         svcCmd = [taosdPath, '-c', cfgPath]
-        svcCmdSingle = "{} -c {}".format(taosdPath, cfgPath)
+        # svcCmdSingle = "{} -c {}".format(taosdPath, cfgPath)
         # svcCmd = ['vmstat', '1']
         if self.subProcess:  # already there
             raise RuntimeError("Corrupt process state")
 
         # print("Starting service: {}".format(svcCmd))
         self.subProcess = subprocess.Popen(
-            # svcCmd, shell=False,
-            svcCmdSingle, shell=True, # capture core dump?
+            svcCmd, shell=False,
+            # svcCmdSingle, shell=True, # capture core dump?
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             # bufsize=1, # not supported in binary mode
             close_fds=ON_POSIX
             )  # had text=True, which interferred with reading EOF
@@ -2488,9 +2507,9 @@ class TdeSubProcess:
     def stop(self):
         if not self.subProcess:
             print("Sub process already stopped")
-            return
+            return -1
 
-        retCode = self.subProcess.poll()
+        retCode = self.subProcess.poll() # contains real sub process return code
         if retCode:  # valid return code, process ended
             self.subProcess = None
         else:  # process still alive, let's interrupt it
@@ -2501,11 +2520,15 @@ class TdeSubProcess:
             self.subProcess.send_signal(signal.SIGINT)
             try:
                 self.subProcess.wait(10)
+                retCode = self.subProcess.returncode
             except subprocess.TimeoutExpired as err:
                 print("Time out waiting for TDengine service process to exit")
+                retCode = -3
             else:
                 print("TDengine service process terminated successfully from SIG_INT")
+                retCode = -4
                 self.subProcess = None
+        return retCode
 
 class ThreadStacks: # stack info for all threads
     def __init__(self):
