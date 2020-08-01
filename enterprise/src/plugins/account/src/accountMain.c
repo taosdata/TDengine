@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tgrant.h"
@@ -241,7 +240,7 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to create by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    tfree(pAcct);
+    taosTFree(pAcct);
   } else {
     mLInfo("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
 
@@ -555,7 +554,7 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
   int32_t code = sdbUpdateRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    tfree(pAcct);
+    taosTFree(pAcct);
   } else {
     mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }

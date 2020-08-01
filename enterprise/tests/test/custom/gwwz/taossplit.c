@@ -23,7 +23,6 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tutil.h"
-#include "ttime.h"
 #include <error.h>
 
 #define TIME_UNIT 1000  //ms
@@ -632,7 +631,7 @@ void tdParseCsvFile(char *csvfile) {
   int lineNum = 0;
 
   if (taosContainSchema) {
-    tfree(line);
+    taosTFree(line);
     getline(&line, &len, fp);
     if (line == NULL) {
       tdPrint("file:%s is empty", csvfile);
@@ -641,7 +640,7 @@ void tdParseCsvFile(char *csvfile) {
   }
 
   do {
-    tfree(line);
+    taosTFree(line);
     int ret = getline(&line, &len, fp);
     if (line == NULL || ret == -1 || len == 0) {
       tdPrint("file:%s read finished, totallines:%d", csvfile, lineNum);
