@@ -29,7 +29,7 @@ taos>
 
 将新的节点添加到现有集群，具体有以下几步：
 
-1. 按照["立即开始“](https://www.taosdata.com/cn/getting-started/)一章的方法进行安装，但不要启动taosd
+1. 按照["立即开始“](https://www.taosdata.com/cn/getting-started/)一章的方法进行安装，**但不要启动taosd**
 
 2. 如果是使用涛思数据的官方安装包进行安装，在安装结束时，会询问集群的End Port, 输入第一个节点的End Point即可。如果是源码安装，请编辑配置文件taos.cfg(缺省是在/etc/taos/目录)，增加一行：
 
@@ -64,7 +64,7 @@ taos>
 **提示：**
 
 - firstEp, secondEp这两个参数仅仅在该节点第一次加入集群时有作用，加入集群后，该节点会保存最新的mnode的End Point列表，不再依赖这两个参数。
-- 两个没有配置first, second参数的dnode启动后，会独立运行起来。这个时候，无法将其中一个节点加入到另外一个节点，形成集群。**无法将两个独立的集群合并成为新的集群**。
+- 两个没有配置firstEp, secondEp参数的dnode启动后，会独立运行起来。这个时候，无法将其中一个节点加入到另外一个节点，形成集群。**无法将两个独立的集群合并成为新的集群**。
 
 ##节点管理
 
@@ -135,8 +135,10 @@ SHOW MNODES;
 - 改节点离线超过一定时间（taos.cfg里配置参数offlineThreshold控制时长)，系统将自动把该节点删除，产生系统报警信息，触发负载均衡流程。如果该被删除的节点重现上线时，它将无法加入集群，需要系统管理员重新将其添加进集群才会开始工作。
 - 离线后，在offlineThreshold的时长内重新上线，系统将自动启动数据恢复流程，等数据完全恢复后，该节点将开始正常工作。
 
+**注意：**如果一个虚拟节点组（包括mnode组）里每个节点都处于离线或unsynced状态，必须等该虚拟节点组里的所有节点都上线、都能交换状态信息后，才能选出Master，该虚拟节点组才能对外提供服务。比如整个集群有3个节点，副本数为3，如果3个节点都宕机，然后2个节点重启，是无法工作的，只有等3个节点都重启成功，才能对外服务。
+
 ##Arbitrator的使用
 
-如果副本数为偶数，当一个vnode group里一半vnode不工作时，是无法从中选出master的。同理，一半mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
+如果副本数为偶数，当一个vnode group里一半或超过一半的vnode不工作时，是无法从中选出master的。同理，一半或超过一半的mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
 
 TDengine安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6030。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。

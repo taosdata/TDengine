@@ -224,9 +224,9 @@ Arbitrator的程序tarbitrator.c在复制模块的同一目录, 编译整个系�
 
 如果整个虚拟节点组全部宕机，重启，但不是所有虚拟节点都上线，这个时候TDengine是不会选出master的，因为未上线的节点有可能有最高version的数据。而RAFT协议，只要超过半数上线，就会选出Leader。
 
-## Meta Data数据复制问题
+## Meta Data的数据复制
 
-TDengine里存在时序数据，也存在Meta Data。Meta Data对数据的可靠性要求更高，那么本设计能否满足要求呢？下面做个仔细分析
+TDengine里存在时序数据，也存在Meta Data。Meta Data对数据的可靠性要求更高，那么TDengine设计能否满足要求呢？下面做个仔细分析
 
 TDengine里Meta Data包括以下：
 
