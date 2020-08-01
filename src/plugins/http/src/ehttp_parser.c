@@ -185,7 +185,8 @@ static HTTP_PARSER_STATE ehttp_parser_top(ehttp_parser_t *parser) {
 
 static int ehttp_parser_push(ehttp_parser_t *parser, HTTP_PARSER_STATE state) {
   size_t                   n      = parser->stacks_count + 1;
-  HTTP_PARSER_STATE *stacks       = (HTTP_PARSER_STATE*)reallocarray(parser->stacks, n, sizeof(*stacks));
+  // HTTP_PARSER_STATE *stacks       = (HTTP_PARSER_STATE*)reallocarray(parser->stacks, n, sizeof(*stacks));
+  HTTP_PARSER_STATE *stacks       = (HTTP_PARSER_STATE*)realloc(parser->stacks, n * sizeof(*stacks));
   if (!stacks) return -1;
 
   parser->stacks_count            = n;
@@ -380,7 +381,8 @@ static int ehttp_parser_check_field(ehttp_parser_t *parser, const char *key, con
 }
 
 static int ehttp_parser_kvs_append_kv(ehttp_parser_t *parser, const char *key, const char *val) {
-  ehttp_parser_kv_t *kvs   = (ehttp_parser_kv_t*)reallocarray(parser->kvs, parser->kvs_count + 1, sizeof(*kvs));
+  // ehttp_parser_kv_t *kvs   = (ehttp_parser_kv_t*)reallocarray(parser->kvs, parser->kvs_count + 1, sizeof(*kvs));
+  ehttp_parser_kv_t *kvs   = (ehttp_parser_kv_t*)realloc(parser->kvs, (parser->kvs_count + 1) * sizeof(*kvs));
   if (!kvs) return -1;
 
   parser->kvs = kvs;
