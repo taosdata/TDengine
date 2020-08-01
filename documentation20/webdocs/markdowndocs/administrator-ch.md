@@ -226,9 +226,7 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：
-
-[TDengine DUMP工具使用指南]: https://www.taosdata.com/blog/2020/03/09/1334.html
+TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：<a href='https://www.taosdata.com/blog/2020/03/09/1334.html'>TDengine DUMP工具使用指南</a>
 
 ## 数据导出
 
@@ -246,9 +244,7 @@ select * from <tb_name> >> data.csv
 
 **用taosdump导出数据**
 
-TDengine提供了方便的数据库导出工具taosdump。用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表,所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见博客：
-
-[TDengine DUMP工具使用指南]: https://www.taosdata.com/blog/2020/03/09/1334.html
+TDengine提供了方便的数据库导出工具taosdump。用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表,所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见博客：<a href='https://www.taosdata.com/blog/2020/03/09/1334.html'>TDengine DUMP工具使用指南</a>
 
 ## 系统连接、任务查询管理
 
