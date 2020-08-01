@@ -76,8 +76,9 @@ typedef struct SHashMutableIterator {
   SHashObj  *pHashObj;
   int32_t    entryIndex;
   SHashNode *pCur;
-  SHashNode *pNext;  // current node can be deleted for mutable iterator, so keep the next one before return current
-  int32_t    num;    // already check number of elements in hash table
+  SHashNode *pNext;           // current node can be deleted for mutable iterator, so keep the next one before return current
+  size_t     numOfChecked;    // already check number of elements in hash table
+  size_t     numOfEntries;    // number of entries while the iterator is created
 } SHashMutableIterator;
 
 /**
@@ -118,6 +119,8 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
  */
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
 
+void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void(*fp)(void*));
+
 /**
  * remove item with the specified key
  * @param pHashObj
@@ -126,8 +129,9 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  */
 int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
 
+int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize);
 
-int32_t taosHashRemoveNode(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize);
+int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
 /**
  * clean up hash table
