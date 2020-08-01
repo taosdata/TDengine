@@ -55,6 +55,7 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
+  D("==context[%p] destroyed==", pContext);
   if (pContext->fd > 0) tclose(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
@@ -80,6 +81,7 @@ bool httpInitContexts() {
     httpError("failed to init context cache");
     return false;
   }
+  D("==cache [%p] created==", tsHttpServer.contextCache);
 
   return true;
 }
@@ -119,6 +121,8 @@ bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, Htt
 HttpContext *httpCreateContext(int32_t fd) {
   HttpContext *pContext = calloc(1, sizeof(HttpContext));
   if (pContext == NULL) return NULL;
+
+  D("==context[%p] created==", pContext);
 
   pContext->fd = fd;
   pContext->httpVersion = HTTP_VERSION_10;
@@ -209,6 +213,7 @@ bool httpInitContext(HttpContext *pContext) {
 }
 
 void httpCloseContextByApp(HttpContext *pContext) {
+  D("==");
   pContext->parsed = false;
   bool keepAlive = true;
 
@@ -220,6 +225,7 @@ void httpCloseContextByApp(HttpContext *pContext) {
   }
 
   if (keepAlive) {
+    D("==keepAlive==");
     if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_READY)) {
       httpDebug("context:%p, fd:%d, ip:%s, last state:handling, keepAlive:true, reuse context", pContext, pContext->fd,
                 pContext->ipstr);
@@ -240,6 +246,7 @@ void httpCloseContextByApp(HttpContext *pContext) {
                 pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
     }
   } else {
+    D("==not keepAlive==");
     httpRemoveContextFromEpoll(pContext);
     httpDebug("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:false, close context", pContext, pContext->fd,
               pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
@@ -365,9 +372,7 @@ static void on_body(void *arg, const char *chunk, size_t len) {
 
   if (pParser->failed) return;
 
-  if (!pContext->parsed) {
-    pContext->parsed = true;
-  }
+  if (pParser->data.pos == 0) pParser->data.pos = pParser->pLast;
 
   A("not implemented yet");
 }
@@ -377,6 +382,8 @@ static void on_end(void *arg) {
   HttpParser  *pParser  = &pContext->parser;
 
   if (pParser->failed) return;
+
+  if (pParser->data.pos == 0) pParser->data.pos = pParser->pLast;
 
   if (!pContext->parsed) {
     pContext->parsed = true;

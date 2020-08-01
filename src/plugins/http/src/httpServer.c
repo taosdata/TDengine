@@ -138,7 +138,7 @@ static bool httpDecompressData(HttpContext *pContext) {
 }
 
 static bool httpReadData(HttpContext *pContext) {
-  if (1) return ehttpReadData(pContext);
+  if (0) return ehttpReadData(pContext);
 
   if (!pContext->parsed) {
     httpInitContext(pContext);
@@ -446,6 +446,29 @@ static bool ehttpReadData(HttpContext *pContext) {
       D("==parsing failed: [0x%x]==", pContext->parser.failed);
       httpNotifyContextClose(pContext);
       return false;
+    }
+    if (pContext->parsed) {
+      int ret = httpCheckReadCompleted(pContext);
+      if (ret == HTTP_CHECK_BODY_CONTINUE) {
+        //httpDebug("context:%p, fd:%d, ip:%s, not finished yet, wait another event", pContext, pContext->fd, pContext->ipstr);
+        httpReleaseContext(pContext);
+        return false;
+      } else if (ret == HTTP_CHECK_BODY_SUCCESS){
+        httpDebug("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
+                  pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->parser.bufsize, pContext->parser.data.len);
+        if (httpDecompressData(pContext)) {
+          return true;
+        } else {
+          httpNotifyContextClose(pContext);
+          httpReleaseContext(pContext);
+          return false;
+        }
+      } else {
+        httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
+        httpNotifyContextClose(pContext);
+        httpReleaseContext(pContext);
+        return false;
+      }
     }
     return pContext->parsed;
   } else if (nread < 0) {
