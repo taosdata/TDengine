@@ -31,4 +31,7 @@ void         httpCloseContextByApp(HttpContext *pContext);
 void         httpNotifyContextClose(HttpContext *pContext);
 bool         httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState);
 
+void         ehttpIncContextRef(HttpContext *pContext);
+void         ehttpDecContextRef(HttpContext **ppContext);
+
 #endif

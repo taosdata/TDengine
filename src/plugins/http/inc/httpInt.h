@@ -212,6 +212,8 @@ typedef struct HttpContext {
   void *       timer;
   HttpEncodeMethod * encodeMethod;
   struct HttpThread *pThread;
+
+  int             closed:2;
 } HttpContext;
 
 typedef struct HttpThread {
