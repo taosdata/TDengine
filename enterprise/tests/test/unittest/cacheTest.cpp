@@ -2,15 +2,14 @@
 #include <gtest/gtest.h>
 #include <sys/time.h>
 
+#include "os.h"
 #include "taos.h"
 #include "taosdef.h"
-
 #include "testCommon.h"
 #include "tstoken.h"
 #include "tutil.h"
 #include "tcache.h"
 #include "ttimer.h"
-#include "ttime.h"
 
 // test cache
 TEST(testCase, client_cache_test) {

@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tulog.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "trpc.h"
 #include "tutil.h"
