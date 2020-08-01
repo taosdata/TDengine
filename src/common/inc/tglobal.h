@@ -32,6 +32,7 @@ extern uint16_t tsSyncPort;
 extern int32_t  tsStatusInterval;
 extern int32_t  tsNumOfMnodes;
 extern int32_t  tsEnableVnodeBak;
+extern int32_t  tsEnableTelemetryReporting;
 
 // common
 extern int      tsRpcTimer;

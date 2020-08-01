@@ -30,6 +30,7 @@
 #include "dnodeMWrite.h"
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
+#include "dnodeTelemetry.h"
 
 static int32_t dnodeInitStorage();
 static void dnodeCleanupStorage();
@@ -47,18 +48,19 @@ typedef struct {
 } SDnodeComponent;
 
 static const SDnodeComponent tsDnodeComponents[] = {
-  {"storage", dnodeInitStorage,    dnodeCleanupStorage},
-  {"vread",   dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
-  {"vwrite",  dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
-  {"mread",   dnodeInitMnodeRead,  dnodeCleanupMnodeRead},
-  {"mwrite",  dnodeInitMnodeWrite, dnodeCleanupMnodeWrite},
-  {"mpeer",   dnodeInitMnodePeer,  dnodeCleanupMnodePeer},  
-  {"client",  dnodeInitClient,     dnodeCleanupClient},
-  {"server",  dnodeInitServer,     dnodeCleanupServer},
-  {"mgmt",    dnodeInitMgmt,       dnodeCleanupMgmt},
-  {"modules", dnodeInitModules,    dnodeCleanupModules},
-  {"mgmt-tmr",dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
-  {"shell",   dnodeInitShell,      dnodeCleanupShell}
+  {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
+  {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
+  {"mread",     dnodeInitMnodeRead,  dnodeCleanupMnodeRead},
+  {"mwrite",    dnodeInitMnodeWrite, dnodeCleanupMnodeWrite},
+  {"mpeer",     dnodeInitMnodePeer,  dnodeCleanupMnodePeer},  
+  {"client",    dnodeInitClient,     dnodeCleanupClient},
+  {"server",    dnodeInitServer,     dnodeCleanupServer},
+  {"mgmt",      dnodeInitMgmt,       dnodeCleanupMgmt},
+  {"modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"mgmt-tmr",  dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
+  {"shell",     dnodeInitShell,      dnodeCleanupShell},
+  {"telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
 };
 
 static int dnodeCreateDir(const char *dir) {
