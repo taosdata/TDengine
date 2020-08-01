@@ -298,11 +298,13 @@ void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
   }
 
   SHashNode *pNode = doSearchInEntryList(pe, key, keyLen, hashVal);
-  if (fp != NULL) {
-    fp(pNode->data);
+  if (pNode != NULL) {
+    if (fp != NULL) {
+      fp(pNode->data);
+    }
+    data = pNode->data;
   }
 
-  data = pNode->data;
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosRUnLockLatch(&pe->latch);
   }
