@@ -1,10 +1,10 @@
+#include "os.h"
 #include <gtest/gtest.h>
 #include <cassert>
 #include <iostream>
 
 #include "taos.h"
 #include "tstoken.h"
-#include "ttime.h"
 #include "tutil.h"
 
 int main(int argc, char** argv) {

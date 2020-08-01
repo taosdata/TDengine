@@ -5,19 +5,19 @@
 2.0版本在之前版本的基础上，进行了完全的重构，配置文件和数据文件是不兼容的。在升级之前务必进行如下操作：
 
 1. 删除配置文件，执行 <code> sudo rm -rf /etc/taos/taos.cfg </code>
-
 2. 删除日志文件，执行 <code> sudo rm -rf /var/log/taos/ </code>
-
 3. 确保数据已经不再需要的前提下，删除数据文件，执行 <code> sudo rm -rf /var/lib/taos/ </code>
-
 4. 安装最新稳定版本的TDengine
-5.  如果数据需要迁移数据或者数据文件损坏，请联系涛思数据官方技术支持团队，进行协助解决
+5. 如果数据需要迁移数据或者数据文件损坏，请联系涛思数据官方技术支持团队，进行协助解决
 
-#### 2. <a href='blog/2019/12/03/jdbcdriver找不到动态链接库/'>Windows平台下JDBCDriver找不到动态链接库</a>
+#### 2. Windows平台下JDBCDriver找不到动态链接库，怎么办？
+请看为此问题撰写的<a href='blog/2019/12/03/jdbcdriver找不到动态链接库/'>技术博客 </a>
 
-#### 3. <a href='blog/2019/12/03/创建数据表时提示more-dnodes-are-needed/'>创建数据表时提示more dnodes are needed</a>
+#### 3. 创建数据表时提示more dnodes are needed
+请看为此问题撰写的<a href='blog/2019/12/03/创建数据表时提示more-dnodes-are-needed/'>技术博客</a>
 
-#### 4. <a href='blog/2019/12/06/tdengine-crash时生成core文件的方法/'>TDengine crash时生成core文件的方法</a>
+#### 4. 如何让TDengine crash时生成core文件？
+请看为此问题撰写的<a href='blog/2019/12/06/tdengine-crash时生成core文件的方法/'>技术博客</a>
 
 #### 5. 遇到错误"failed to connect to server", 我怎么办？
 
@@ -68,7 +68,8 @@ windows下插入nchar类的数据中如果有中文，请先确认系统的地�
 
 ​      Connection = DriverManager.getConnection(url, properties);
 
-#### 12. <a href='blog/2020/01/06/tdengine-go-windows驱动的编译/'>TDengine GO windows驱动的编译</a>
+#### 12.TDengine GO windows驱动的如何编译？
+请看为此问题撰写的<a href='blog/2020/01/06/tdengine-go-windows驱动的编译/'>技术博客 
 
 
 

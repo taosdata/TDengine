@@ -1,33 +1,35 @@
-#系统管理
+# TDengine的运营与维护
 
 ## 容量规划
 
-一个系统的处理能力是有限的，但通过对TDengine配置参数的调整，可以做到资源的最佳配置。
+使用TDengine来搭建一个物联网大数据平台，计算资源、存储资源需要根据业务场景进行规划。下面分别讨论系统运行所需要的内存、CPU以及硬盘空间。
 
-###内存需求
+### 内存需求
 
-每个Database可以创建固定数目的Vnode，默认与CPU核数相同，可通过maxVgroupsPerDb配置；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与Tag总大小有关的内存；此外，系统会有一些固定的内存开销。因此，每个Database需要的系统内存可通过如下公式计算：
+每个DB可以创建固定数目的vnode，默认与CPU核数相同，可通过maxVgroupsPerDb配置；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个DB需要的系统内存可通过如下公式计算：
 
 ```
 Memory Size = maxVgroupsPerDb * (blocks * cache + 10Mb) + numOfTables * (tagSizePerTable + 0.5Kb)
 ```
 
-示例：假设是4核机器，cache是缺省大小16M, blocks是缺省值6，假设有10万张表，标签总长度是256字节，则从的内存需求为：4\*(16\*6+10) + 100000*(0.25+0.5)/1000 = 499M 
+示例：假设是4核机器，cache是缺省大小16M, blocks是缺省值6，假设有10万张表，标签总长度是256字节，则总的内存需求为：4\*(16\*6+10) + 100000*(0.25+0.5)/1000 = 499M。 
+
+实际运行的系统往往会根据数据特点的不同，将数据存放在不同的DB里。因此做规划时，也需要考虑。
 
 如果内存充裕，可以加大Blocks的配置，这样更多数据将保存在内存里，提高查询速度。
 
-###CPU需求
+### CPU需求
 
 CPU的需求取决于如下两方面：
 
-- 数据插入：TDengine单核每秒能至少处理一万个插入请求。每个插入请求可以带多条记录。条数越大，插入效率越高。但对前端数据采集的要求越高，因为需要缓存记录，然后一批插入。
-- 查询需求：TDengine提供高效的查询，但是每个场景的查询差异很大，查询频次变化也很大，难以给出客观数字。需要用户针对自己的场景，写一些查询语句，才能确定。
+* __数据插入__ TDengine单核每秒能至少处理一万个插入请求。每个插入请求可以带多条记录，一次插入一条记录与插入10条记录，消耗的计算资源差别很小。因此每次插入，条数越大，插入效率越高。如果一个插入请求带200条以上记录，单核就能达到每秒插入100万条记录的速度。但对前端数据采集的要求越高，因为需要缓存记录，然后一批插入。
+* __查询需求__ TDengine提供高效的查询，但是每个场景的查询差异很大，查询频次变化也很大，难以给出客观数字。需要用户针对自己的场景，写一些查询语句，才能确定。
 
 因此仅对数据插入而言，CPU是可以估算出来的，但查询所耗的计算资源无法估算。在实际运营过程中，不建议CPU使用率超过50%，超过后，需要增加新的节点，以获得更多计算资源。
 
-###存储需求
+### 存储需求
 
-TDengine相对于通用数据库，有超高的压缩比，在绝大多数场景下，TDengine的压缩比不会低于5倍，有的场合，压缩比可达到10倍以上，取决于数据特征。压缩前的原始数据大小可通过如下方式计算：
+TDengine相对于通用数据库，有超高的压缩比，在绝大多数场景下，TDengine的压缩比不会低于5倍，有的场合，压缩比可达到10倍以上，取决于实际场景的数据特征。压缩前的原始数据大小可通过如下方式计算：
 
 ```
 Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
@@ -39,6 +41,12 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 为提高速度，可以配置多快硬盘，这样可以并发写入或读取数据。
 
+### 物理机或虚拟机台数
+
+根据上面的内存、CPU、存储的预估，就可以知道整个系统需要多少核、多少内存、多少存储空间。如果数据副本数不为1，总需求量需要再乘以副本数。
+
+因为TDengine具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
+
 ## 容错和灾备
 
 ### 容错
@@ -47,15 +55,16 @@ TDengine支持**WAL**（Write Ahead Log）机制，实现数据的容错能力�
 
 TDengine接收到应用的请求数据包时，先将请求的原始数据包写入数据库日志文件，等数据成功写入数据库数据文件后，再删除相应的WAL。这样保证了TDengine能够在断电等因素导致的服务重启时从数据库日志文件中恢复数据，避免数据的丢失。
 
-涉及的系统配置参数有两个.
+涉及的系统配置参数有两个：
 
-walLevel：WAL级别，0：不写wal; 1：写wal, 但不执行fsync; 2：写wal, 而且执行fsync。
+- walLevel：WAL级别，0：不写wal; 1：写wal, 但不执行fsync; 2：写wal, 而且执行fsync。
+- fsync：当walLevel设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。
 
-fsync：当walLevel设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。
+如果要100%的保证数据不丢失，需要将walLevel设置为2，fsync设置为0。这时写入速度将会下降。但如果应用侧启动的写数据的线程数达到一定的数量(超过50)，那么写入数据的性能也会很不错，只会比fsync设置为3000毫秒下降30%左右。
 
-**灾备**
+### 灾备
 
-TDengine的集群通过多个副本的机制，来提供系统的高可靠性，实现灾备能力。
+TDengine的集群通过多个副本的机制，来提供系统的高可用性，实现灾备能力。
 
 TDengine集群是由mnode负责管理的，为保证mnode的高可靠，可以配置多个mnode副本，副本数由系统配置参数numOfMnodes决定，为了支持高可靠，需要设置大于1。为保证元数据的强一致性，mnode副本之间通过同步方式进行数据复制，保证了元数据的强一致性。
 
@@ -63,33 +72,7 @@ TDengine集群中的时序数据的副本数是与数据库关联的，一个集
 
 TDengine集群的节点数必须大于等于副本数，否则创建表时将报错。
 
-当TDengine集群中的节点部署在不同的物理机上（比如不同的机架、或不同的IDC），并设置多个副本数时，就实现了异地容灾，从而提供系统的高可靠性，无需再使用其他软件或工具。
-
-## 文件目录结构
-
-安装TDengine后，默认会在操作系统中生成下列目录或文件：
-
-| 目录/文件               | 说明                                              |
-| ---------------------- | :------------------------------------------------|
-| /usr/local/taos/bin | TDengine可执行文件目录。其中的执行文件都会软链接到/usr/bin目录下。 |
-| /usr/local/taos/connector | TDengine各种连接器目录。 |
-| /usr/local/taos/driver | TDengine动态链接库目录。会软链接到/usr/lib目录下。 |
-| /usr/local/taos/examples | TDengine各种语言应用示例目录。 |
-| /usr/local/taos/include | TDengine对外提供的C语言接口的头文件。 |
-| /etc/taos/taos.cfg     | TDengine默认[配置文件]                            |
-| /var/lib/taos          | TDengine默认数据文件目录,可通过[配置文件]修改位置.    |
-| /var/log/taos          | TDengine默认日志文件目录,可通过[配置文件]修改位置     |
-
-**可执行文件**
-
-TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下。其中包括：
-
-- _taosd_：TDengine服务端可执行文件
-- _taos_： TDengine Shell可执行文件
-- _taosdump_：数据导入导出工具
-- remove.sh：卸载TDengine的脚本, 请谨慎执行，链接到/usr/bin目录下的rmtaos命令。会删除TDengine的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos。
-
-您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
+当TDengine集群中的节点部署在不同的物理机上，并设置多个副本数时，就实现了系统的高可靠性，无需再使用其他软件或工具。TDengine企业版还可以将副本部署在不同机房，从而实现异地容灾。
 
 ## 服务端配置
 
@@ -97,8 +80,8 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 
 下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节。**注意：配置修改后，需要重启*taosd*服务才能生效。**
 
-- first: taosd启动时，主动连接的集群中第一个dnode的end point, 缺省值为 localhost:6030。
-- second: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 缺省值为空。
+- firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 缺省值为 localhost:6030。
+- secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 缺省值为空。
 - fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 缺省值为空。
 - serverPort：taosd启动后，对外服务的端口号，默认值为6030。
 - httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求。
@@ -142,7 +125,7 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vnode个数。
-- arbitrator: 系统中裁决器的end point。
+- arbitrator: 系统中裁决器的end point，缺省为空
 - timezone：时区。从系统中动态获取当前的时区设置。
 - locale：系统区位信息及编码格式。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 - charset：字符集编码。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
@@ -153,8 +136,8 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 
 客户端配置参数列表及解释
 
-- first: taos启动时，主动连接的集群中第一个taosd实例的end point, 缺省值为 localhost:6030。
-- second: taos启动时，如果first连接不上，尝试连接集群中第二个taosd实例的end point, 缺省值为空。
+- firstEp: taos启动时，主动连接的集群中第一个taosd实例的end point, 缺省值为 localhost:6030。
+- secondEp: taos启动时，如果first连接不上，尝试连接集群中第二个taosd实例的end point, 缺省值为空。
 - charset：字符集编码。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 - locale：系统区位信息及编码格式。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 
@@ -243,9 +226,7 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：
-
-[TDengine DUMP工具使用指南]: https://www.taosdata.com/blog/2020/03/09/1334.html
+TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：<a href='https://www.taosdata.com/blog/2020/03/09/1334.html'>TDengine DUMP工具使用指南</a>
 
 ## 数据导出
 
@@ -263,9 +244,7 @@ select * from <tb_name> >> data.csv
 
 **用taosdump导出数据**
 
-TDengine提供了方便的数据库导出工具taosdump。用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表,所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见博客：
-
-[TDengine DUMP工具使用指南]: https://www.taosdata.com/blog/2020/03/09/1334.html
+TDengine提供了方便的数据库导出工具taosdump。用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表,所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见博客：<a href='https://www.taosdata.com/blog/2020/03/09/1334.html'>TDengine DUMP工具使用指南</a>
 
 ## 系统连接、任务查询管理
 
@@ -312,4 +291,32 @@ KILL STREAM <stream-id>
 TDengine启动后，会自动创建一个监测数据库SYS，并自动将服务器的CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库。TDengine还将重要的系统操作（比如登录、创建、删除数据库等）日志以及各种错误报警信息记录下来存放在SYS库里。系统管理员可以从CLI直接查看这个数据库，也可以在WEB通过图形化界面查看这些监测信息。
 
 这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项enableMonitor将其关闭或打开。
+
+## 文件目录结构
+
+安装TDengine后，默认会在操作系统中生成下列目录或文件：
+
+| 目录/文件                 | 说明                                                         |
+| ------------------------- | :----------------------------------------------------------- |
+| /usr/local/taos/bin       | TDengine可执行文件目录。其中的执行文件都会软链接到/usr/bin目录下。 |
+| /usr/local/taos/connector | TDengine各种连接器目录。                                     |
+| /usr/local/taos/driver    | TDengine动态链接库目录。会软链接到/usr/lib目录下。           |
+| /usr/local/taos/examples  | TDengine各种语言应用示例目录。                               |
+| /usr/local/taos/include   | TDengine对外提供的C语言接口的头文件。                        |
+| /etc/taos/taos.cfg        | TDengine默认[配置文件]                                       |
+| /var/lib/taos             | TDengine默认数据文件目录,可通过[配置文件]修改位置.           |
+| /var/log/taos             | TDengine默认日志文件目录,可通过[配置文件]修改位置            |
+
+**可执行文件**
+
+TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下。其中包括：
+
+- _taosd_：TDengine服务端可执行文件
+- _taos_： TDengine Shell可执行文件
+- _taosdump_：数据导入导出工具
+- remove.sh：卸载TDengine的脚本, 请谨慎执行，链接到/usr/bin目录下的rmtaos命令。会删除TDengine的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos。
+
+您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
+
+
 

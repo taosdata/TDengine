@@ -14,12 +14,11 @@
  */
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
-#include "ttime.h"
+#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #ifdef TSDB_IDX
 const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};
@@ -65,7 +64,7 @@ _err:
 void tsdbFreeFileH(STsdbFileH *pFileH) {
   if (pFileH) {
     pthread_rwlock_destroy(&pFileH->fhlock);
-    tfree(pFileH->pFGroup);
+    taosTFree(pFileH->pFGroup);
     free(pFileH);
   }
 }
@@ -116,14 +115,14 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
   }
 
-  tfree(tDataDir);
+  taosTFree(tDataDir);
   closedir(dir);
   return 0;
 
 _err:
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&fileGroup.files[type]);
 
-  tfree(tDataDir);
+  taosTFree(tDataDir);
   if (dir != NULL) closedir(dir);
   tsdbCloseFileH(pRepo);
   return -1;
@@ -156,8 +155,10 @@ SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
         goto _err;
     }
 
+    pthread_rwlock_wrlock(&pFileH->fhlock);
     pFileH->pFGroup[pFileH->nFGroups++] = fGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
+    pthread_rwlock_unlock(&pFileH->fhlock);
     return tsdbSearchFGroup(pFileH, fid, TD_EQ);
   }
 
@@ -168,54 +169,72 @@ _err:
   return NULL;
 }
 
-void tsdbInitFileGroupIter(STsdbFileH *pFileH, SFileGroupIter *pIter, int direction) { // TODO
+void tsdbInitFileGroupIter(STsdbFileH *pFileH, SFileGroupIter *pIter, int direction) {
+  pIter->pFileH = pFileH;
   pIter->direction = direction;
-  pIter->base = pFileH->pFGroup;
-  pIter->numOfFGroups = pFileH->nFGroups;
+
   if (pFileH->nFGroups == 0) {
-    pIter->pFileGroup = NULL;
+    pIter->index = -1;
+    pIter->fileId = -1;
   } else {
     if (direction == TSDB_FGROUP_ITER_FORWARD) {
-      pIter->pFileGroup = pFileH->pFGroup;
+      pIter->index = 0;
     } else {
-      pIter->pFileGroup = pFileH->pFGroup + pFileH->nFGroups - 1;
+      pIter->index = pFileH->nFGroups - 1;
     }
+    pIter->fileId = pFileH->pFGroup[pIter->index].fileId;
   }
 }
 
-void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) { // TODO
-  if (pIter->numOfFGroups == 0) {
-    assert(pIter->pFileGroup == NULL);
+void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
+  STsdbFileH *pFileH = pIter->pFileH;
+
+  if (pFileH->nFGroups == 0) {
+    pIter->index = -1;
+    pIter->fileId = -1;
     return;
   }
 
   int   flags = (pIter->direction == TSDB_FGROUP_ITER_FORWARD) ? TD_GE : TD_LE;
-  void *ptr = taosbsearch(&fid, pIter->base, pIter->numOfFGroups, sizeof(SFileGroup), keyFGroupCompFunc, flags);
+  void *ptr = taosbsearch(&fid, (void *)pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, flags);
   if (ptr == NULL) {
-    pIter->pFileGroup = NULL;
+    pIter->index = -1;
+    pIter->fileId = -1;
   } else {
-    pIter->pFileGroup = (SFileGroup *)ptr;
+    pIter->index = POINTER_DISTANCE(ptr, pFileH->pFGroup) / sizeof(SFileGroup);
+    pIter->fileId = ((SFileGroup *)ptr)->fileId;
   }
 }
 
-SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {//TODO
-  SFileGroup *ret = pIter->pFileGroup;
-  if (ret == NULL) return NULL;
+SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
+  STsdbFileH *pFileH = pIter->pFileH;
+  SFileGroup *pFGroup = NULL;
+
+  if (pIter->index < 0 || pIter->index >= pFileH->nFGroups || pIter->fileId < 0) return NULL;
+
+  pFGroup = &pFileH->pFGroup[pIter->index];
+  if (pFGroup->fileId != pIter->fileId) {
+    tsdbSeekFileGroupIter(pIter, pIter->fileId);
+  }
+
+  if (pIter->index < 0) return NULL;
+
+  pFGroup = &pFileH->pFGroup[pIter->index];
+  ASSERT(pFGroup->fileId == pIter->fileId);
 
   if (pIter->direction == TSDB_FGROUP_ITER_FORWARD) {
-    if ((pIter->pFileGroup + 1) == (pIter->base + pIter->numOfFGroups)) {
-      pIter->pFileGroup = NULL;
-    } else {
-      pIter->pFileGroup += 1;
-    }
+    pIter->index++;
   } else {
-    if (pIter->pFileGroup == pIter->base) {
-      pIter->pFileGroup = NULL;
-    } else {
-      pIter->pFileGroup -= 1;
-    }
+    pIter->index--;
   }
-  return ret;
+
+  if (pIter->index >= 0 && pIter->index < pFileH->nFGroups) {
+    pIter->fileId = pFileH->pFGroup[pIter->index].fileId;
+  } else {
+    pIter->fileId = -1;
+  }
+
+  return pFGroup;
 }
 
 int tsdbOpenFile(SFile *pFile, int oflag) {

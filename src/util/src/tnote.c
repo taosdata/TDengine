@@ -13,9 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// no test file errors here
-#undef TAOS_RANDOM_FILE_FAIL
-
+#include "os.h"
 #include "tnote.h"
 
 taosNoteInfo  m_HttpNote;

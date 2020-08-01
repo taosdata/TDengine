@@ -297,7 +297,7 @@ void taosReadGlobalLogCfg() {
     taosReadLogOption(option, value);
   }
 
-  tfree(line);
+  taosTFree(line);
   fclose(fp);
 }
 
@@ -349,7 +349,7 @@ bool taosReadGlobalCfg() {
 
   fclose(fp);
 
-  tfree(line);
+  taosTFree(line);
   
   return true;
 }

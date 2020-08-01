@@ -1,13 +1,12 @@
+#include "os.h"
 #include <gtest/gtest.h>
 #include <cassert>
 #include <iostream>
 
 #include "taos.h"
 #include "tsdb.h"
-
 #include "qTsbuf.h"
 #include "tstoken.h"
-#include "ttime.h"
 #include "tutil.h"
 
 namespace {

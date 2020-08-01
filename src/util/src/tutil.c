@@ -16,7 +16,6 @@
 #include "os.h"
 #include "tcrc32c.h"
 #include "tglobal.h"
-#include "ttime.h"
 #include "taosdef.h"
 #include "tutil.h"
 #include "tulog.h"

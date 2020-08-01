@@ -22,6 +22,7 @@
 #include "taoserror.h"
 #include "twal.h"
 #include "tqueue.h"
+#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #define walPrefix "wal"
 
@@ -128,7 +129,7 @@ void walClose(void *handle) {
   if (handle == NULL) return;
   
   SWal *pWal = handle;  
-  tclose(pWal->fd);
+  taosClose(pWal->fd);
   if (pWal->timer) taosTmrStopA(&pWal->timer);
 
   if (pWal->keep == 0) {

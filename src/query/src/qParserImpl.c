@@ -22,7 +22,6 @@
 #include "tglobal.h"
 #include "tstoken.h"
 #include "tstrbuild.h"
-#include "ttime.h"
 #include "ttokendef.h"
 #include "tutil.h"
 
@@ -609,7 +608,7 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
     doDestroyQuerySql(pQuerySql);
   }
   
-  tfree(pClause->pClause);
+  taosTFree(pClause->pClause);
 }
 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pStableName,
@@ -679,12 +678,12 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
     tFieldListDestroy(pCreateTableInfo->colInfo.pTagColumns);
 
     tVariantListDestroy(pCreateTableInfo->usingInfo.pTagVals);
-    tfree(pInfo->pCreateTableInfo);
+    taosTFree(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     tVariantListDestroy(pInfo->pAlterInfo->varList);
     tFieldListDestroy(pInfo->pAlterInfo->pAddColumns);
     
-    tfree(pInfo->pAlterInfo);
+    taosTFree(pInfo->pAlterInfo);
   } else {
     if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
       free(pInfo->pDCLInfo->a);
@@ -694,7 +693,7 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
       tVariantListDestroy(pInfo->pDCLInfo->dbOpt.keep);
     }
 
-    tfree(pInfo->pDCLInfo);
+    taosTFree(pInfo->pDCLInfo);
   }
 }
 

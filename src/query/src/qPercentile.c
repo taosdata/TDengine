@@ -70,7 +70,7 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
         printf("id: %d  count: %" PRIu64 "\n", j, buffer->num);
       }
     }
-    tfree(pPage);
+    taosTFree(pPage);
     
     assert(buffer->num == pMemBuffer->fileMeta.numOfElemsInFile);
   }
@@ -284,7 +284,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
     };
     default: {
       uError("MemBucket:%p,not support data type %d,failed", pBucket, pBucket->dataType);
-      tfree(pBucket);
+      taosTFree(pBucket);
       return NULL;
     }
   }
@@ -292,14 +292,14 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
   int32_t numOfCols = pDesc->pColumnModel->numOfCols;
   if (numOfCols != 1) {
     uError("MemBucket:%p,only consecutive data is allowed,invalid numOfCols:%d", pBucket, numOfCols);
-    tfree(pBucket);
+    taosTFree(pBucket);
     return NULL;
   }
 
   SSchema* pSchema = getColumnModelSchema(pDesc->pColumnModel, 0);
   if (pSchema->type != dataType) {
     uError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", pBucket, pSchema->type, dataType);
-    tfree(pBucket);
+    taosTFree(pBucket);
     return NULL;
   }
 
@@ -329,7 +329,7 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
   if (pBucket->pSegs) {
     for (int32_t i = 0; i < pBucket->numOfSegs; ++i) {
       tMemBucketSegment *pSeg = &(pBucket->pSegs[i]);
-      tfree(pSeg->pBoundingEntries);
+      taosTFree(pSeg->pBoundingEntries);
 
       if (pSeg->pBuffer == NULL || pSeg->numOfSlots == 0) {
         continue;
@@ -340,12 +340,12 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
           pSeg->pBuffer[j] = destoryExtMemBuffer(pSeg->pBuffer[j]);
         }
       }
-      tfree(pSeg->pBuffer);
+      taosTFree(pSeg->pBuffer);
     }
   }
 
-  tfree(pBucket->pSegs);
-  tfree(pBucket);
+  taosTFree(pBucket->pSegs);
+  taosTFree(pBucket);
 }
 
 /*
@@ -789,7 +789,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
             }
           }
           double val = (1 - fraction) * td + fraction * nd;
-          tfree(buffer);
+          taosTFree(buffer);
 
           return val;
         } else {  // incur a second round bucket split
@@ -891,8 +891,8 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
           if (unlink(pMemBuffer->path) != 0) {
             uError("MemBucket:%p, remove tmp file %s failed", pMemBucket, pMemBuffer->path);
           }
-          tfree(pMemBuffer);
-          tfree(pPage);
+          taosTFree(pMemBuffer);
+          taosTFree(pPage);
 
           return getPercentileImpl(pMemBucket, count - num, fraction);
         }
