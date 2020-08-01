@@ -11,7 +11,7 @@ TDengine采用关系型数据模型，需要建库、建表。因此对于一个
 ```cmd
 CREATE DATABASE power KEEP 365 DAYS 10 REPLICA 3 BLOCKS 4;
 ```
-上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>
+上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL</a>
 
 **注意：**
 
@@ -36,14 +36,12 @@ CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
 
 TDengine建议将数据采集点的全局唯一ID作为表名(比如设备序列号）。但对于有的场景，并没有唯一的ID，可以将多个ID组合成一个唯一的ID。不建议将具有唯一性的ID作为标签值。
 
-
 **自动建表**：在某些特殊场景中，用户在写数据时并不确定某个数据采集点的表是否存在，此时可在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。比如：
 
 ```cmd
 INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
 ```
 上述SQL语句将记录(now, 10.2, 219, 0.32) 插入进表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值“Beijing.Chaoyang", 2。
-
 
 **多列模型**：TDengine支持多列模型，只要这些物理量是同时采集的，这些量就可以作为不同列放在同一张表里。有的数据采集点有多组采集量，每一组的数据采集时间是不一样的，这时需要对同一个采集点建多张表。但还有一种极限的设计，单列模型，无论是否同时采集，每个采集的物理量单独建表。TDengine建议，只要采集时间一致，就采用多列模型，因为插入效率以及存储效率更高。
 
