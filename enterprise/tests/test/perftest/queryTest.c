@@ -64,13 +64,10 @@ void fetchCallBack_Single(void* param, TAOS_RES* tres, TAOS_ROW row) {
 }
 
 void queryCallback(void* param, TAOS_RES* tres, int code) {
-  printf("query completed, code: %d, start to fetch data\n", code);
+  printf("query completed, code: %s, start to fetch data\n", taos_errstr(tres));
+
   if (code < 0) {
-    if (param != NULL)
-      printf("==================query:%d, error:%d, taos_res:%p=============================", *((int32_t*)param), code,
-             tres);
-    else
-      printf("==================query:, error:%d, taos_res:%p=============================", code, tres);
+    printf("==================query:, error:%d, taos_res:%p=============================\n", code, tres);
     return;
   }
 
