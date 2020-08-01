@@ -5,7 +5,7 @@
 #include <iostream>
 
 #include "hash.h"
-#include "taos.h""
+#include "taos.h"
 
 namespace {
 // the simple test code for basic operations
