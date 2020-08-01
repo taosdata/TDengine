@@ -31,8 +31,8 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-    taosCloseSocket(pContext->fd);
-    pContext->fd = -1;
+    int32_t fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
+    taosCloseSocket(fd);
   }
 }
 
