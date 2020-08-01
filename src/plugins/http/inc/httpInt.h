@@ -242,6 +242,8 @@ typedef struct HttpServer {
   pthread_mutex_t   serverMutex;
   HttpDecodeMethod *methodScanner[HTTP_METHOD_SCANNER_SIZE];
   bool (*processData)(HttpContext *pContext);
+
+  int               fallback:2;
 } HttpServer;
 
 extern const char *httpKeepAliveStr[];

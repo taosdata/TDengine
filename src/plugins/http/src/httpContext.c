@@ -72,6 +72,13 @@ static void httpDestroyContext(void *data) {
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
 
+  if (!tsHttpServer.fallback) {
+    if (pContext->parser.parser) {
+      ehttp_parser_destroy(pContext->parser.parser);
+      pContext->parser.parser = NULL;
+    }
+  }
+
   tfree(pContext);
 }
 
@@ -169,11 +176,6 @@ void httpReleaseContext(HttpContext *pContext) {
     httpDebug("context:%p, won't be destroyed for cache is already released", pContext);
     // httpDestroyContext((void **)(&ppContext));
   }
-
-  if (pContext->parser.parser) {
-    ehttp_parser_destroy(pContext->parser.parser);
-    pContext->parser.parser = NULL;
-  }
 }
 
 bool httpInitContext(HttpContext *pContext) {
@@ -193,19 +195,21 @@ bool httpInitContext(HttpContext *pContext) {
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
 
-  ehttp_parser_callbacks_t callbacks = {
-    on_request_line,
-    on_status_line,
-    on_header_field,
-    on_body,
-    on_end,
-    on_error
-  };
-  ehttp_parser_conf_t conf = {
-    .flush_block_size = 0
-  };
-  pParser->parser = ehttp_parser_create(callbacks, conf, pContext);
-  pParser->inited = 1;
+  if (!tsHttpServer.fallback) {
+    ehttp_parser_callbacks_t callbacks = {
+      on_request_line,
+      on_status_line,
+      on_header_field,
+      on_body,
+      on_end,
+      on_error
+    };
+    ehttp_parser_conf_t conf = {
+      .flush_block_size = 0
+    };
+    pParser->parser = ehttp_parser_create(callbacks, conf, pContext);
+    pParser->inited = 1;
+  }
 
   httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, parsed:%d",
           pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, pContext->parsed);

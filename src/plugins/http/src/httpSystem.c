@@ -39,6 +39,12 @@ HttpServer tsHttpServer;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 
 int httpInitSystem() {
+  tsHttpServer.fallback = 0;
+  const char *v = getenv("FALLBACK");
+  if (v) {
+    tsHttpServer.fallback = 1;
+  }
+
   strcpy(tsHttpServer.label, "rest");
   tsHttpServer.serverIp = 0;
   tsHttpServer.serverPort = tsHttpPort;
