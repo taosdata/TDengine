@@ -119,9 +119,9 @@ taos_consume
 taos_unsubscribe
 ```
 
-这些API的文档请见 [C/C++ 数据订阅接口](TODO: update link)，
+这些API的文档请见 [C/C++ 数据订阅接口](connector/#C/C++-Connector)，
 下面仍以智能电表场景为例介绍一下它们的具体用法（超级表和子表结构请参考上一节“连续查询”），
-完整的示例代码可以在[这里](TODO: update link)找到。
+完整的示例代码可以在 [这里](https://github.com/taosdata/TDengine/blob/master/tests/examples/c/subscribe.c) 找到。
 
 如果我们希望当某个电表的电流超过一定限制（比如10A）后能得到通知并进行一些处理， 有两种方法：
 一是分别对每张子表进行查询，每次查询后记录最后一条数据的时间戳，后续只查询这个时间戳之后的数据：
