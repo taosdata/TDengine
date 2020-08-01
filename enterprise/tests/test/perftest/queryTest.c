@@ -255,7 +255,7 @@ int multiThreadQuery(int32_t numOfThreads, char* sql) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_options(TSDB_OPTION_CHARSET, "cp11936");
 
