@@ -2359,6 +2359,8 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
     mnodeSendDropChildTableMsg(mnodeMsg, false);
     rpcMsg->code = TSDB_CODE_SUCCESS;
+    dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
+    return;
   }
 
   if (rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {

@@ -449,6 +449,12 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     }
   }
 
+  if (pDb->numOfVgroups < 1) {
+    mDebug("app:%p:%p, db:%s, failed create new vgroup since:%s, numOfVgroups:%d maxVgroupsPerDb:%d ",
+           pMsg->rpcMsg.ahandle, pMsg, pDb->name, tstrerror(code), pDb->numOfVgroups, maxVgroupsPerDb);
+    return code;
+  }
+
   SVgObj *pVgroup = pDb->vgList[0];
   if (pVgroup == NULL) {
     pthread_mutex_unlock(&pDb->mutex);

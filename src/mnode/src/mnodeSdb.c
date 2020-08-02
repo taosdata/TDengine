@@ -494,7 +494,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
     sdbDeleteHash(pTable, pOper);
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
