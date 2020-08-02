@@ -83,11 +83,12 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   // refer to db
   SDbObj *pDb = mnodeGetDb(pVgroup->dbName);
   if (pDb == NULL) {
+    mError("vgId:%d, db:%s is not exist while insert into hash", pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_MND_INVALID_DB;
   }
   
   if (pDb->status != TSDB_DB_STATUS_READY) {
-    mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mError("vgId:%d, db:%s status:%d, in dropping", pVgroup->vgId, pDb->name, pDb->status);
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
@@ -116,10 +117,12 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
 static int32_t mnodeVgroupActionDelete(SSdbOper *pOper) {
   SVgObj *pVgroup = pOper->pObj;
 
-  if (pVgroup->pDb != NULL) {
-    mnodeRemoveVgroupFromDb(pVgroup);
+  if (pVgroup->pDb == NULL) {
+    mError("vgId:%d, db:%s is not exist while insert into hash", pVgroup->vgId, pVgroup->dbName);
+    return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
 
+  mnodeRemoveVgroupFromDb(pVgroup);
   mnodeDecDbRef(pVgroup->pDb);
 
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
@@ -446,6 +449,12 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     }
   }
 
+  if (pDb->numOfVgroups < 1) {
+    mDebug("app:%p:%p, db:%s, failed create new vgroup since:%s, numOfVgroups:%d maxVgroupsPerDb:%d ",
+           pMsg->rpcMsg.ahandle, pMsg, pDb->name, tstrerror(code), pDb->numOfVgroups, maxVgroupsPerDb);
+    return code;
+  }
+
   SVgObj *pVgroup = pDb->vgList[0];
   if (pVgroup == NULL) {
     pthread_mutex_unlock(&pDb->mutex);
@@ -517,6 +526,19 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
 
     dnodeReprocessMnodeWriteMsg(pMsg);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    // if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_READY) {
+    //   mInfo("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
+    //         pDb->name, pVgroup->numOfVnodes);
+    //   pVgroup->status = TAOS_VG_STATUS_READY;
+    //   SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
+    //   (void)sdbUpdateRow(&desc);
+    //   dnodeReprocessMnodeWriteMsg(pMsg);
+    //   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    // } else {
+    //   mError("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d, but vgroup is dropping", pMsg->rpcMsg.ahandle,
+    //          pMsg, pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
+    //   return TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    // }
   }
 }
 
@@ -955,7 +977,7 @@ void mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle) {
 
 static void mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
   pVgroup->status = TAOS_VG_STATUS_DROPPING; // deleting
-  mDebug("vgId:%d, send drop all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
+  mDebug("vgId:%d, send drop all vnodes msg, ahandle:%p db:%s", pVgroup->vgId, ahandle, pVgroup->dbName);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
     mDebug("vgId:%d, send drop vnode msg to dnode:%d, ahandle:%p", pVgroup->vgId, pVgroup->vnodeGid[i].dnodeId, ahandle);
@@ -1117,6 +1139,7 @@ void mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb) {
     }
 
     mnodeDecVgroupRef(pVgroup);
+    numOfVgroups++;
   }
 
   sdbFreeIter(pIter);
