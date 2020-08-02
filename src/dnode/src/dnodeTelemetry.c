@@ -18,7 +18,7 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "tutil.h"
-#include "ttime.h"
+#include "osTime.h"
 #include "tsocket.h"
 #include "tbuffer.h"
 #include "mnode.h"
@@ -31,16 +31,9 @@
 static sem_t tsExitSem;
 static pthread_t tsTelemetryThread;
 
-#if 1
-  #define TELEMETRY_SERVER "telemetry.taosdata.com"
-  #define TELEMETRY_PORT 80
-  #define REPORT_INTERVAL 86400
-#else
-  #define TELEMETRY_SERVER "localhost"
-  #define TELEMETRY_PORT 80
-  #define REPORT_INTERVAL 5
-#endif
-
+#define TELEMETRY_SERVER "telemetry.taosdata.com"
+#define TELEMETRY_PORT 80
+#define REPORT_INTERVAL 86400
 
 static void beginObject(SBufferWriter* bw) {
   tbufWriteChar(bw, '{');
