@@ -22,7 +22,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 **Tips:** 
 
-- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置）。
+- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置，最大可配置为8M）。
 - TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程切频繁切换，带来额外开销。
 
 ## Prometheus直接写入
@@ -49,7 +49,8 @@ go build
 参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/),在Prometheus的配置文件中的<remote_write>部分，增加以下配置
 
 - url: bailongma API服务提供的URL, 参考下面的blm_prometheus启动示例章节
-  启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
+
+启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
 
 ### 启动blm_prometheus程序
 blm_prometheus程序有以下选项，在启动blm_prometheus程序时可以通过设定这些选项来设定blm_prometheus的配置。
@@ -127,7 +128,7 @@ go build
 一切正常的情况下，就会在对应的目录下生成一个blm_telegraf的可执行程序。
 
 ### 安装Telegraf
-目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads
+目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：<a href='https://portal.influxdata.com/downloads'>https://portal.influxdata.com/downloads</a>
 
 ### 配置Telegraf
 修改Telegraf配置文件/etc/telegraf/telegraf.conf中与TDengine有关的配置项。 

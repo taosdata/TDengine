@@ -458,6 +458,7 @@ void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
         pDb->vgList[v2] = pDb->vgList[v2 + 1];
       }
       pDb->numOfVgroups--;
+      pDb->vgList[pDb->numOfVgroups] = NULL;
       break;
     }
   }
