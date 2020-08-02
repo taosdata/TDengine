@@ -17,7 +17,6 @@
 #include "tidpool.h"
 #include "tmd5.h"
 #include "tmempool.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "lz4.h"
@@ -748,7 +747,8 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
   if (pConn) {
     if (pConn->linkUid != pHead->linkUid) {
       terrno = TSDB_CODE_RPC_MISMATCHED_LINK_ID;
-      tError("%s %p %p, linkUid:0x%x is not matched with received:0x%x", pRpc->label, pConn, (void*)pHead->ahandle, pConn->linkUid, pHead->linkUid);
+      tDebug("%s %p %p, linkUid:0x%x is not matched with received:0x%x", pRpc->label, pConn, (void *)pHead->ahandle,
+             pConn->linkUid, pHead->linkUid);
       pConn = NULL;
     }
   }
@@ -1563,10 +1563,10 @@ static void rpcDecRef(SRpcInfo *pRpc)
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
 
-    tfree(pRpc->connList);
+    taosTFree(pRpc->connList);
     pthread_mutex_destroy(&pRpc->mutex);
     tDebug("%s rpc resources are released", pRpc->label);
-    tfree(pRpc);
+    taosTFree(pRpc);
   }
 }
 

@@ -37,9 +37,9 @@ struct define notes:
 */
 
 typedef struct SClusterObj {
-  int32_t clusterId;
+  char    uid[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
-  int8_t  reserved[36];
+  int8_t  reserved[12];
   int8_t  updateEnd[4];
   int32_t refCount;
 } SClusterObj;
@@ -90,7 +90,7 @@ typedef struct STableObj {
 
 typedef struct SSuperTableObj {
   STableObj  info; 
-  int8_t     reserved0[1]; // for fill struct STableObj to 4byte align
+  int8_t     reserved0[9]; // for fill struct STableObj to 4byte align
   int16_t    nextColId;
   int32_t    sversion;
   uint64_t   uid;
@@ -103,12 +103,11 @@ typedef struct SSuperTableObj {
   int32_t    numOfTables;
   SSchema *  schema;
   void *     vgHash;
-  int8_t     reserved2[6];
 } SSuperTableObj;
 
 typedef struct {
   STableObj  info;  
-  int8_t     reserved0[1]; // for fill struct STableObj to 4byte align
+  int8_t     reserved0[9]; // for fill struct STableObj to 4byte align
   int16_t    nextColId;    //used by normal table
   int32_t    sversion;     //used by normal table  
   uint64_t   uid;
@@ -144,7 +143,7 @@ typedef struct SVgObj {
   int8_t         status;
   int8_t         reserved0[4];
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
-  int8_t         reserved1[4];
+  int8_t         reserved1[12];
   int8_t         updateEnd[4];
   int32_t        refCount;
   int32_t        numOfTables;
@@ -251,6 +250,7 @@ typedef struct {
   int32_t  rowSize;
   int32_t  numOfRows;
   void *   pIter;
+  void **  ppShow;
   int16_t  offset[TSDB_MAX_COLUMNS];
   int16_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;

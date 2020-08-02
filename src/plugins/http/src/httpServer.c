@@ -18,7 +18,6 @@
 #include "taosmsg.h"
 #include "tsocket.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
 #include "httpInt.h"
@@ -203,7 +202,7 @@ static void httpProcessHttpData(void *param) {
       if (pContext == NULL) {
         httpError("context:%p, is already released, close connect", events[i].data.ptr);
         //epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-        //tclose(events[i].data.fd);
+        //taosClose(events[i].data.fd);
         continue;
       }
 
@@ -299,12 +298,14 @@ static void *httpAcceptHttpConnection(void *arg) {
       totalFds += pServer->pThreads[i].numOfContexts;
     }
 
+#if 0
     if (totalFds > tsHttpCacheSessions * 100) {
       httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*100, refuse connection", connFd,
                 inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
       taosCloseSocket(connFd);
       continue;
     }
+#endif    
 
     taosKeepTcpAlive(connFd);
     taosSetNonblocking(connFd, 1);
@@ -329,14 +330,14 @@ static void *httpAcceptHttpConnection(void *arg) {
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
                 pContext->ipstr, pThread->label, strerror(errno));
-      tclose(pContext->fd);
+      taosClose(pContext->fd);
       httpReleaseContext(pContext);
       continue;
     }
 
     // notify the data process, add into the FdObj list
     atomic_add_fetch_32(&pThread->numOfContexts, 1);
-    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfContexts:%d totalFds:%d, accept a new connection", pContext,
+    httpDebug("context:%p, fd:%d, ip:%s, thread:%s numOfContexts:%d totalContext:%d, accept a new connection", pContext,
               connFd, pContext->ipstr, pThread->label, pThread->numOfContexts, totalFds);
 
     // pick up next thread for next connection

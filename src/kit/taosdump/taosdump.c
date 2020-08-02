@@ -448,8 +448,8 @@ int main(int argc, char *argv[]) {
 
 void taosFreeDbInfos() {
   if (dbInfos == NULL) return;
-  for (int i = 0; i < 128; i++) tfree(dbInfos[i]);
-  tfree(dbInfos);
+  for (int i = 0; i < 128; i++) taosTFree(dbInfos[i]);
+  taosTFree(dbInfos);
 }
 
 // check table is normal table or super table
@@ -606,11 +606,11 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
 
     if (numOfTable >= arguments->table_batch) {
       numOfTable = 0;
-      tclose(fd);
+      taosClose(fd);
       fd = -1;
     }
   }
-  tclose(fd);
+  taosClose(fd);
   fd = -1;
   taos_free_result(result);
 
@@ -780,14 +780,14 @@ int taosDumpOut(struct arguments *arguments) {
 
         if (retCode < 0) {
           if (-1 != normalTblFd){
-            tclose(normalTblFd);
+            taosClose(normalTblFd);
           }
           goto _clean_tmp_file;
         }
       }
 
       if (-1 != normalTblFd){
-        tclose(normalTblFd);
+        taosClose(normalTblFd);
       }
 
       // start multi threads to dumpout
@@ -806,7 +806,7 @@ int taosDumpOut(struct arguments *arguments) {
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  tfree(command);
+  taosTFree(command);
   taosFreeDbInfos();  
   fprintf(stderr, "dump out rows: %" PRId64 "\n", totalDumpOutRows);
   return 0;
@@ -815,7 +815,7 @@ _exit_failure:
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  tfree(command);
+  taosTFree(command);
   taosFreeDbInfos();
   fprintf(stderr, "dump out rows: %" PRId64 "\n", totalDumpOutRows);
   return -1;
@@ -1076,7 +1076,7 @@ void* taosDumpOutWorkThreadFp(void *arg)
   }
 
   taos_free_result(tmpResult);
-  tclose(fd);
+  taosClose(fd);
   fclose(fp);  
 
   return NULL;
@@ -1206,7 +1206,7 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
     (void)taosDumpStable(tableRecord.name, fp, taosCon);
   }
 
-  tclose(fd);
+  taosClose(fd);
   remove(".stables.tmp");
   
   free(tmpCommand);
@@ -1288,11 +1288,11 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
 
     if (numOfTable >= arguments->table_batch) {
       numOfTable = 0;
-      tclose(fd);
+      taosClose(fd);
       fd = -1;
     }
   }
-  tclose(fd);
+  taosClose(fd);
   fd = -1;
   taos_free_result(tmpResult);
 
@@ -1760,13 +1760,13 @@ void taosLoadFileCharset(FILE *fp, char *fcharset) {
   }
   strcpy(fcharset, line + 2);
 
-  tfree(line);
+  taosTFree(line);
   return;
 
 _exit_no_charset:
   fseek(fp, 0, SEEK_SET);
   *fcharset = '\0';
-  tfree(line);
+  taosTFree(line);
   return;
 }
 
@@ -1860,9 +1860,9 @@ static void taosMallocSQLFiles()
 static void taosFreeSQLFiles()
 {
   for (int i = 0; i < tsSqlFileNum; i++) {
-    tfree(tsDumpInSqlFiles[i]);
+    taosTFree(tsDumpInSqlFiles[i]);
   }
-  tfree(tsDumpInSqlFiles);
+  taosTFree(tsDumpInSqlFiles);
 }
 
 static void taosGetDirectoryFileList(char *inputDir)
@@ -2063,17 +2063,17 @@ int taosDumpInOneFile_old(TAOS     * taos, FILE* fp, char* fcharset, char* encod
   }
 
   if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  tfree(line);
-  tfree(command);
-  tfree(lcommand);
+  taosTFree(line);
+  taosTFree(command);
+  taosTFree(lcommand);
   taos_close(taos);
   fclose(fp);
   return 0;
 
 _dumpin_exit_failure:
   if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  tfree(command);
-  tfree(lcommand);
+  taosTFree(command);
+  taosTFree(lcommand);
   taos_close(taos);
   fclose(fp);
   return -1;
@@ -2120,8 +2120,8 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
     cmd_len = 0;
   }
 
-  tfree(cmd);
-  tfree(line);
+  taosTFree(cmd);
+  taosTFree(line);
   fclose(fp);
   return 0;
 }

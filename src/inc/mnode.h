@@ -42,6 +42,7 @@ typedef struct SMnodeMsg {
   int8_t    expected;
   int8_t    retry;
   int32_t   code;
+  void *    pObj;
   struct SAcctObj * pAcct;
   struct SDnodeObj *pDnode;
   struct SUserObj * pUser;

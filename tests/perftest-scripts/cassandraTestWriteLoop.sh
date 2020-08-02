@@ -17,7 +17,7 @@ function runTest {
 
   for r in ${!rowsPerRequest[@]}; do
     for c in `seq 1 $clients`; do
-      avgRPR[$r, $c]=0
+      avgRPR[$r,$c]=0
     done
   done
 
@@ -46,7 +46,6 @@ function runTest {
       avgRPR[$r,$c]=`echo "scale=4; $totalRPR / $NUM_LOOP" | bc`
       printTo "r:$r c:$c avgRPR:${avgRPR[$r,$c]}"
     done
-
   done
 
   printf "R/R, "
@@ -79,9 +78,14 @@ while : ; do
       verbose=true
       shift ;;
 
+    -n)
+      NUM_LOOP=$2
+      shift 2;;
+
     -c)
       clients=$2
       shift 2;;
+
     *)
       break ;;
   esac

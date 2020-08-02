@@ -25,7 +25,6 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "tsdb.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "vnode.h"
@@ -348,7 +347,7 @@ void vnodeRelease(void *pVnodeRaw) {
     dnodeFreeVnodeRqueue(pVnode->rqueue);
   pVnode->rqueue = NULL;
  
-  tfree(pVnode->rootDir);
+  taosTFree(pVnode->rootDir);
 
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};
@@ -870,7 +869,7 @@ static int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
 
 PARSE_OVER:
-  tfree(content);
+  taosTFree(content);
   cJSON_Delete(root);
   if (fp) fclose(fp);
   return terrno;
@@ -945,7 +944,7 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   vInfo("vgId:%d, read vnode version successfully, version:%" PRId64, pVnode->vgId, pVnode->version);
 
 PARSE_OVER:
-  tfree(content);
+  taosTFree(content);
   cJSON_Delete(root);
   if(fp) fclose(fp);
   return terrno;

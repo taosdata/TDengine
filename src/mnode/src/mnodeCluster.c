@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "ttime.h"
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
@@ -27,14 +26,14 @@
 
 static void *  tsClusterSdb = NULL;
 static int32_t tsClusterUpdateSize;
-static int32_t tsClusterId;
+static char    tsClusterId[TSDB_CLUSTER_ID_LEN];
 static int32_t mnodeCreateCluster();
 
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static int32_t mnodeClusterActionDestroy(SSdbOper *pOper) {
-  tfree(pOper->pObj);
+  taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -71,7 +70,7 @@ static int32_t mnodeClusterActionRestored() {
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create cluster");
     int32_t code = mnodeCreateCluster();
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("failed to create cluster, reason:%s", tstrerror(code));
       return code;
     }
@@ -91,7 +90,7 @@ int32_t mnodeInitCluster() {
     .hashSessions = TSDB_DEFAULT_CLUSTER_HASH_SIZE,
     .maxRowSize   = tsClusterUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
-    .keyType      = SDB_KEY_INT,
+    .keyType      = SDB_KEY_STRING,
     .insertFp     = mnodeClusterActionInsert,
     .deleteFp     = mnodeClusterActionDelete,
     .updateFp     = mnodeClusterActionUpdate,
@@ -119,10 +118,6 @@ void mnodeCleanupCluster() {
   tsClusterSdb = NULL;
 }
 
-void *mnodeGetCluster(int32_t clusterId) {
-  return sdbGetRow(tsClusterSdb, &clusterId);
-}
-
 void *mnodeGetNextCluster(void *pIter, SClusterObj **pCluster) {
   return sdbFetchRow(tsClusterSdb, pIter, (void **)pCluster); 
 }
@@ -142,8 +137,14 @@ static int32_t mnodeCreateCluster() {
   SClusterObj *pCluster = malloc(sizeof(SClusterObj));
   memset(pCluster, 0, sizeof(SClusterObj));
   pCluster->createdTime = taosGetTimestampMs();
-  pCluster->clusterId = labs((pCluster->createdTime >> 32) & (pCluster->createdTime)) | (*(int32_t*)tsFirst);
-  
+  bool getuid = taosGetSystemUid(pCluster->uid);
+  if (!getuid) {
+    strcpy(pCluster->uid, "tdengine2.0");
+    mError("failed to get uid from system, set to default val %s", pCluster->uid);
+  } else {
+    mDebug("uid is %s", pCluster->uid);
+  }
+
   SSdbOper oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsClusterSdb,
@@ -153,29 +154,28 @@ static int32_t mnodeCreateCluster() {
   return sdbInsertRow(&oper);
 }
 
-int32_t mnodeGetClusterId() {
+const char* mnodeGetClusterId() {
   return tsClusterId;
 }
 
 void mnodeUpdateClusterId() {
   SClusterObj *pCluster = NULL;
-  mnodeGetNextCluster(NULL, &pCluster);
+  void *pIter = mnodeGetNextCluster(NULL, &pCluster);
   if (pCluster != NULL) {
-    tsClusterId = pCluster->clusterId;
-    mnodeDecClusterRef(pCluster);
-    mInfo("cluster id is %d", tsClusterId);
-  } else {
-    //assert(false);
+    tstrncpy(tsClusterId, pCluster->uid, TSDB_CLUSTER_ID_LEN);
+    mInfo("cluster id is set to %s", tsClusterId);
   }
-}
 
+  mnodeDecClusterRef(pCluster);
+  sdbFreeIter(pIter);
+}
 
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  pShow->bytes[cols] = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "clusterId");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -214,7 +214,7 @@ static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *) pWrite = pCluster->clusterId;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pCluster->uid, TSDB_CLUSTER_ID_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

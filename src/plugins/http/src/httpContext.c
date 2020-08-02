@@ -18,7 +18,6 @@
 #include "taosmsg.h"
 #include "tsocket.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tglobal.h"
 #include "tcache.h"
@@ -32,29 +31,30 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-    taosCloseSocket(pContext->fd);
-    pContext->fd = -1;
+    int32_t fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
+    taosCloseSocket(fd);
   }
 }
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
-  if (pContext->fd > 0) tclose(pContext->fd);
+  if (pContext->fd > 0) taosClose(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
   httpRemoveContextFromEpoll(pContext);
   httpReleaseSession(pContext);
   atomic_sub_fetch_32(&pThread->numOfContexts, 1);
   
+  httpDebug("context:%p, is destroyed, refCount:%d data:%p thread:%s numOfContexts:%d", pContext, pContext->refCount,
+            data, pContext->pThread->label, pContext->pThread->numOfContexts);
   pContext->pThread = 0;
   pContext->state = HTTP_CONTEXT_STATE_CLOSED;
 
   // avoid double free
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
-  
-  httpDebug("context:%p, is destroyed, refCount:%d data:%p", pContext, pContext->refCount, data);
-  tfree(pContext);
+
+  taosTFree(pContext);
 }
 
 bool httpInitContexts() {
@@ -134,7 +134,10 @@ HttpContext *httpGetContext(void *ptr) {
 
 void httpReleaseContext(HttpContext *pContext) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
-  assert(refCount >= 0);
+  if (refCount < 0) {
+    httpError("context:%p, is already released, refCount:%d", pContext, refCount);
+    return;
+  }
 
   HttpContext **ppContext = pContext->ppContext;
   httpDebug("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);

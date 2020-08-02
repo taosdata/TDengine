@@ -74,9 +74,11 @@ TDengineConnection.prototype.rollback = function rollback() {
  * Clear the results from connector
  * @private
  */
-TDengineConnection.prototype._clearResultSet = function _clearResultSet() {
+/*
+ TDengineConnection.prototype._clearResultSet = function _clearResultSet() {
   var result = this._chandle.useResult(this._conn).result;
   if (result) {
     this._chandle.freeResult(result)
   }
 }
+*/

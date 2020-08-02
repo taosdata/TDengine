@@ -128,7 +128,7 @@ void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
   
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
-    tfree(pVar->pz);
+    taosTFree(pVar->pz);
     pVar->nLen = 0;
   }
 

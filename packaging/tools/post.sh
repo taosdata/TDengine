@@ -106,6 +106,31 @@ function install_config() {
 
     ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
+    #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+    #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
+    #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
+    #FQDN_PATTERN=":[0-9]{1,5}$"
+
+    # first full-qualified domain name (FQDN) for TDengine cluster system
+    echo
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo
+    echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
+    read firstEp
+    while true; do
+        if [ ! -z "$firstEp" ]; then
+            # check the format of the firstEp
+            #if [[ $firstEp == $FQDN_PATTERN ]]; then
+                # Write the first FQDN to configuration file                    
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg    
+                break
+            #else
+            #    read -p "Please enter the correct FQDN:port: " firstEp
+            #fi
+        else
+            break
+        fi
+    done	
 }
 
 function clean_service_on_sysvinit() {
@@ -227,8 +252,8 @@ function install_TDengine() {
     install_config	
 
     # Ask if to start the service
-    echo
-    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    #echo
+    #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
     echo
     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
@@ -241,7 +266,13 @@ function install_TDengine() {
     fi
 
     echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-
+    
+    if [ ! -z "$firstEp" ]; then
+        echo		    
+	echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+	echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+        echo
+    fi
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }

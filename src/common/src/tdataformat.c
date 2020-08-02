@@ -93,7 +93,7 @@ int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version) {
 
 void tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder) {
   if (pBuilder) {
-    tfree(pBuilder->columns);
+    taosTFree(pBuilder->columns);
   }
 }
 
@@ -310,8 +310,14 @@ void dataColSetOffset(SDataCol *pCol, int nEle) {
 }
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
-  SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * maxCols);
+  SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols));
   if (pCols == NULL) return NULL;
+
+  pCols->cols = (SDataCol *)calloc(maxCols, sizeof(SDataCol));
+  if (pCols->cols == NULL) {
+    tdFreeDataCols(pCols);
+    return NULL;
+  }
 
   pCols->maxRowSize = maxRowSize;
   pCols->maxCols = maxCols;
@@ -320,15 +326,27 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
 
   pCols->buf = malloc(pCols->bufSize);
   if (pCols->buf == NULL) {
-    free(pCols);
+    tdFreeDataCols(pCols);
     return NULL;
   }
 
   return pCols;
 }
 
-void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
-  // assert(schemaNCols(pSchema) <= pCols->numOfCols);
+int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
+  if (schemaNCols(pSchema) > pCols->maxCols) {
+    pCols->maxCols = schemaNCols(pSchema);
+    pCols->cols = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
+    if (pCols->cols == NULL) return -1;
+  }
+
+  if (schemaTLen(pSchema) > pCols->maxRowSize) {
+    pCols->maxRowSize = schemaTLen(pSchema);
+    pCols->bufSize = schemaTLen(pSchema) * pCols->maxPoints;
+    pCols->buf = realloc(pCols->buf, pCols->bufSize);
+    if (pCols->buf == NULL) return -1;
+  }
+
   tdResetDataCols(pCols);
   pCols->numOfCols = schemaNCols(pSchema);
 
@@ -337,11 +355,14 @@ void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
     dataColInit(pCols->cols + i, schemaColAt(pSchema, i), &ptr, pCols->maxPoints);
     ASSERT((char *)ptr - (char *)(pCols->buf) <= pCols->bufSize);
   }
+  
+  return 0;
 }
 
 void tdFreeDataCols(SDataCols *pCols) {
   if (pCols) {
-    tfree(pCols->buf);
+    taosTFree(pCols->buf);
+    taosTFree(pCols->cols);
     free(pCols);
   }
 }
@@ -664,8 +685,8 @@ int tdInitKVRowBuilder(SKVRowBuilder *pBuilder) {
 }
 
 void tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder) {
-  tfree(pBuilder->pColIdx);
-  tfree(pBuilder->buf);
+  taosTFree(pBuilder->pColIdx);
+  taosTFree(pBuilder->buf);
 }
 
 void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {

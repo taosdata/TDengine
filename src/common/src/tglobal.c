@@ -40,6 +40,7 @@ uint16_t tsSyncPort = 6040;
 int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfMnodes = 3;
 int32_t  tsEnableVnodeBak = 1;
+int32_t  tsEnableTelemetryReporting = 0;
 
 // common
 int32_t tsRpcTimer = 1000;
@@ -111,7 +112,7 @@ int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
 int32_t tsMaxVgroupsPerDb  = 0;
-int32_t tsMinTablePerVnode = 100;
+int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 
@@ -297,7 +298,7 @@ static void doInitGlobalConfig() {
   SGlobalCfg cfg = {0};
   
   // ip address
-  cfg.option = "first";
+  cfg.option = "firstEp";
   cfg.ptr = tsFirst;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
@@ -307,7 +308,7 @@ static void doInitGlobalConfig() {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "second";
+  cfg.option = "secondEp";
   cfg.ptr = tsSecond;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
@@ -422,6 +423,16 @@ static void doInitGlobalConfig() {
 
   cfg.option = "vnodeBak";
   cfg.ptr = &tsEnableVnodeBak;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "telemetryReporting";
+  cfg.ptr = &tsEnableTelemetryReporting;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;

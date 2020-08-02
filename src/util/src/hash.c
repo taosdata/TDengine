@@ -303,7 +303,7 @@ void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   pNode->next = NULL;
   pNode->prev = NULL;
 
-  tfree(pNode);
+  taosTFree(pNode);
   __unlock(pHashObj->lock);
 }
 
@@ -335,7 +335,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
   __unlock(pHashObj->lock);
   __lock_destroy(pHashObj->lock);
 
-  tfree(pHashObj->lock);
+  taosTFree(pHashObj->lock);
   memset(pHashObj, 0, sizeof(SHashObj));
   free(pHashObj);
 }

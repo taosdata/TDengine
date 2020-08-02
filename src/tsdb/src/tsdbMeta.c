@@ -69,9 +69,9 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
 
   if (tid < pMeta->maxTables && pMeta->tables[tid] != NULL) {
     if (TABLE_UID(pMeta->tables[tid]) == pCfg->tableId.uid) {
-      tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]),
-                TABLE_TID(pMeta->tables[tid]), TABLE_UID(pMeta->tables[tid]));
-      return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+      tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo),
+                TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]), TABLE_UID(pMeta->tables[tid]));
+      return 0;
     } else {
       tsdbError("vgId:%d table %s at tid %d uid %" PRIu64
                 " exists, replace it with new table, this can be not reasonable",
@@ -185,7 +185,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   return 0;
 
 _err:
-  tfree(tbname);
+  taosTFree(tbname);
   return -1;
 }
 
@@ -453,7 +453,7 @@ void tsdbFreeMeta(STsdbMeta *pMeta) {
   if (pMeta) {
     taosHashCleanup(pMeta->uidMap);
     tdListFree(pMeta->superList);
-    tfree(pMeta->tables);
+    taosTFree(pMeta->tables);
     pthread_rwlock_destroy(&pMeta->rwLock);
     free(pMeta);
   }
@@ -477,11 +477,11 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
   }
 
   tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
-  tfree(fname);
+  taosTFree(fname);
   return 0;
 
 _err:
-  tfree(fname);
+  taosTFree(fname);
   return -1;
 }
 
@@ -745,7 +745,7 @@ static void tsdbFreeTable(STable *pTable) {
     if (pTable->name != NULL)
       tsdbTrace("table %s tid %d uid %" PRIu64 " is freed", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
                 TABLE_UID(pTable));
-    tfree(TABLE_NAME(pTable));
+    taosTFree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
         tdFreeSchema(pTable->schema[i]);
@@ -759,7 +759,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
-    tfree(pTable->sql);
+    taosTFree(pTable->sql);
     free(pTable);
   }
 }
@@ -1065,9 +1065,9 @@ void tsdbClearTableCfg(STableCfg *config) {
     if (config->schema) tdFreeSchema(config->schema);
     if (config->tagSchema) tdFreeSchema(config->tagSchema);
     if (config->tagValues) kvRowFree(config->tagValues);
-    tfree(config->name);
-    tfree(config->sname);
-    tfree(config->sql);
+    taosTFree(config->name);
+    taosTFree(config->sname);
+    taosTFree(config->sql);
     free(config);
   }
 }
@@ -1291,7 +1291,7 @@ static int tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid) {
 
   STable **tTables = pMeta->tables;
   pMeta->tables = tables;
-  tfree(tTables);
+  taosTFree(tTables);
   tsdbDebug("vgId:%d tsdb meta maxTables is adjusted as %d", REPO_ID(pRepo), maxTables);
 
   return 0;

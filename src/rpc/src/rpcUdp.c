@@ -145,7 +145,7 @@ void taosStopUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     if (pConn->thread) pthread_join(pConn->thread, NULL);
-    tfree(pConn->buffer);
+    taosTFree(pConn->buffer);
     // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);
   }
 
@@ -164,7 +164,7 @@ void taosCleanUpUdpConnection(void *handle) {
   }
 
   tDebug("%s UDP is cleaned up", pSet->label);
-  tfree(pSet);
+  taosTFree(pSet);
 }
 
 void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {

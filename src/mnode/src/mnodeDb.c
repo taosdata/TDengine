@@ -19,7 +19,6 @@
 #include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
-#include "ttime.h"
 #include "tname.h"
 #include "tbalance.h"
 #include "tdataformat.h"
@@ -53,8 +52,8 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 
 static void mnodeDestroyDb(SDbObj *pDb) {
   pthread_mutex_destroy(&pDb->mutex);
-  tfree(pDb->vgList);
-  tfree(pDb);
+  taosTFree(pDb->vgList);
+  taosTFree(pDb);
 }
 
 static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
@@ -331,8 +330,10 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
 
 static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
   SDbObj *pDb = pMsg->pDb;
-  if (pDb != NULL) {
+  if (code == TSDB_CODE_SUCCESS) {
     mLInfo("db:%s, is created by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+  } else {
+    mError("db:%s, failed to create by %s, reason:%s", pDb->name, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   }
 
   return code;
@@ -384,7 +385,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
 
   code = mnodeCheckDbCfg(&pDb->cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pDb);
+    taosTFree(pDb);
     return code;
   }
 
@@ -394,17 +395,16 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, void *pMs
     .pObj    = pDb,
     .rowSize = sizeof(SDbObj),
     .pMsg    = pMsg,
-    .cb      = mnodeCreateDbCb
+    .writeCb = mnodeCreateDbCb
   };
 
   code = sdbInsertRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    mLInfo("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     mnodeDestroyDb(pDb);
-    return code;
-  } else {
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
@@ -458,6 +458,7 @@ void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
         pDb->vgList[v2] = pDb->vgList[v2 + 1];
       }
       pDb->numOfVgroups--;
+      pDb->vgList[pDb->numOfVgroups] = NULL;
       break;
     }
   }
@@ -772,8 +773,8 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
   };
 
   int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_MND_SDB_ERROR;
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to set dropping state, reason:%s", pDb->name, tstrerror(code));
   }
 
   return code;
@@ -971,12 +972,12 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SCMAlterDbMsg *pAlter, void *pMsg) {
       .table = tsDbSdb,
       .pObj  = pDb,
       .pMsg  = pMsg,
-      .cb    = mnodeAlterDbCb
+      .writeCb = mnodeAlterDbCb
     };
 
     code = sdbUpdateRow(&oper);
-    if (code == TSDB_CODE_SUCCESS) {
-      if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
   }
 
@@ -1019,16 +1020,16 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   mInfo("db:%s, drop db from sdb", pDb->name);
 
   SSdbOper oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsDbSdb,
-    .pObj  = pDb,
-    .pMsg  = pMsg,
-    .cb    = mnodeDropDbCb
+    .type   = SDB_OPER_GLOBAL,
+    .table  = tsDbSdb,
+    .pObj   = pDb,
+    .pMsg   = pMsg,
+    .writeCb = mnodeDropDbCb
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to drop, reason:%s", pDb->name, tstrerror(code));
   }
 
   return code;
@@ -1055,7 +1056,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t code = mnodeSetDbDropping(pMsg->pDb);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop, reason:%s", pDrop->db, tstrerror(code));
     return code;
   }

@@ -49,8 +49,8 @@ static int32_t mnodeProcessUseMsg(SMnodeMsg *mnodeMsg);
 static void  mnodeFreeShowObj(void *data);
 static bool  mnodeAccquireShowObj(SShowObj *pShow);
 static bool  mnodeCheckShowFinished(SShowObj *pShow);
-static void *mnodePutShowObj(SShowObj *pShow, int32_t size);
-static void  mnodeReleaseShowObj(void *pShow, bool forceRemove);
+static void *mnodePutShowObj(SShowObj *pShow);
+static void  mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove);
 
 extern void *tsMnodeTmr;
 static void *tsMnodeShowCache = NULL;
@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInit(TSDB_DATA_TYPE_INT, 5, false, mnodeFreeShowObj, "show");
+  tsMnodeShowCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 5, false, mnodeFreeShowObj, "show");
   return 0;
 }
 
@@ -121,13 +121,13 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t showObjSize = sizeof(SShowObj) + htons(pShowMsg->payloadLen);
-  SShowObj *pShow = (SShowObj *) calloc(1, showObjSize);
+  SShowObj *pShow = calloc(1, showObjSize);
   pShow->type       = pShowMsg->type;
   pShow->payloadLen = htons(pShowMsg->payloadLen);
   tstrncpy(pShow->db, pShowMsg->db, TSDB_DB_NAME_LEN);
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
-  pShow = mnodePutShowObj(pShow, showObjSize);
+  pShow = mnodePutShowObj(pShow);
   if (pShow == NULL) {    
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
@@ -270,7 +270,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  pHBRsp->onlineDnodes = htonl(mnodeGetOnlinDnodesNum());
+  pHBRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
   pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
   mnodeGetMnodeEpSetForShell(&pHBRsp->epSet);
 
@@ -377,37 +377,41 @@ static bool mnodeCheckShowFinished(SShowObj *pShow) {
 }
 
 static bool mnodeAccquireShowObj(SShowObj *pShow) {
-  SShowObj *pSaved = taosCacheAcquireByKey(tsMnodeShowCache, &pShow->index, sizeof(int32_t));
-  if (pSaved == pShow) {
-    mDebug("%p, show is accquired from cache", pShow);
+  SShowObj **ppShow = taosCacheAcquireByKey(tsMnodeShowCache, &pShow, sizeof(int64_t));
+  if (ppShow) {
+    mDebug("%p, show is accquired from cache, data:%p, index:%d", pShow, ppShow, pShow->index);
     return true;
-  } else {
-    return false;
   }
+
+  return false;
 }
 
-static void *mnodePutShowObj(SShowObj *pShow, int32_t size) {
+static void* mnodePutShowObj(SShowObj *pShow) {
   if (tsMnodeShowCache != NULL) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
-    SShowObj *newQhandle = taosCachePut(tsMnodeShowCache, &pShow->index, sizeof(int32_t), pShow, size, 6);
-    mDebug("%p, show is put into cache, index:%d", newQhandle, pShow->index);
-    free(pShow);
-
-    return newQhandle;
+    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &pShow, sizeof(int64_t), &pShow, sizeof(int64_t), 6);
+    pShow->ppShow = (void**)ppShow;
+    mDebug("%p, show is put into cache, data:%p index:%d", pShow, ppShow, pShow->index);
+    return pShow;
   }
 
   return NULL;
 }
 
 static void mnodeFreeShowObj(void *data) {
-  SShowObj *pShow = data;
+  SShowObj *pShow = *(SShowObj **)data;
   sdbFreeIter(pShow->pIter);
-  mDebug("%p, show is destroyed", pShow);
+
+  mDebug("%p, show is destroyed, data:%p index:%d", pShow, data, pShow->index);
+  taosTFree(pShow);
 }
 
-static void mnodeReleaseShowObj(void *pShow, bool forceRemove) {
-  mDebug("%p, show is released, force:%s", pShow, forceRemove ? "true" : "false");
-  taosCacheRelease(tsMnodeShowCache, &pShow, forceRemove);
+static void mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove) {
+  SShowObj **ppShow = (SShowObj **)pShow->ppShow;
+  mDebug("%p, show is released, force:%s data:%p index:%d", pShow, forceRemove ? "true" : "false", ppShow,
+         pShow->index);
+
+  taosCacheRelease(tsMnodeShowCache, (void **)(&ppShow), forceRemove);
 }
 
 void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {

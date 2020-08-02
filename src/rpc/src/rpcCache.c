@@ -16,7 +16,6 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tmempool.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "rpcLog.h"
@@ -102,9 +101,9 @@ void rpcCloseConnCache(void *handle) {
 
   if (pCache->connHashMemPool) taosMemPoolCleanUp(pCache->connHashMemPool);
 
-  tfree(pCache->connHashList);
-  tfree(pCache->count);
-  tfree(pCache->lockedBy);
+  taosTFree(pCache->connHashList);
+  taosTFree(pCache->count);
+  taosTFree(pCache->lockedBy);
 
   pthread_mutex_unlock(&pCache->mutex);
 

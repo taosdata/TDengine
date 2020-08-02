@@ -75,7 +75,7 @@ void dnodeCleanupMnodePeer() {
   }
 
   taosCloseQset(tsMPeerQset);
-  tfree(tsMPeerPool.peerWorker);
+  taosTFree(tsMPeerPool.peerWorker);
   dInfo("dnode mpeer is closed");
 }
 

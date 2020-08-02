@@ -20,7 +20,6 @@
 #include "tlog.h"
 #include "tutil.h"
 #include "ttimer.h"
-#include "ttime.h"
 #include "tsocket.h"
 #include "tglobal.h"
 #include "taoserror.h"
@@ -311,16 +310,16 @@ int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype)
 
   pthread_mutex_lock(&(pNode->mutex));
 
-  if (pNode->quorum > 1) {
-    syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
-    code = 1;
-  }
-
   for (int i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
     if (pPeer == NULL || pPeer->peerFd <0) continue; 
     if (pPeer->role != TAOS_SYNC_ROLE_SLAVE && pPeer->sstatus != TAOS_SYNC_STATUS_CACHE) continue; 
   
+    if (pNode->quorum > 1 && code == 0) {
+      syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
+      code = 1;
+    }
+
     int retLen = write(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
       sDebug("%s, forward is sent, ver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
@@ -438,9 +437,9 @@ static void syncDecNodeRef(SSyncNode *pNode)
 {
   if (atomic_sub_fetch_8(&pNode->refCount, 1) == 0) {
     pthread_mutex_destroy(&pNode->mutex);
-    tfree(pNode->pRecv);
-    tfree(pNode->pSyncFwds);
-    tfree(pNode);
+    taosTFree(pNode->pRecv);
+    taosTFree(pNode->pSyncFwds);
+    taosTFree(pNode);
 
     if (atomic_sub_fetch_32(&tsNodeNum, 1) == 0) { 
       if (tsTcpPool) taosCloseTcpThreadPool(tsTcpPool);
@@ -466,8 +465,8 @@ int syncDecPeerRef(SSyncPeer *pPeer)
     syncDecNodeRef(pPeer->pSyncNode);
 
     sDebug("%s, resource is freed", pPeer->id);
-    tfree(pPeer->watchFd);
-    tfree(pPeer);
+    taosTFree(pPeer->watchFd);
+    taosTFree(pPeer);
     return 0;
   }
 
@@ -477,7 +476,7 @@ int syncDecPeerRef(SSyncPeer *pPeer)
 static void syncClosePeerConn(SSyncPeer *pPeer) 
 {
   taosTmrStopA(&pPeer->timer);
-  tclose(pPeer->syncFd);
+  taosClose(pPeer->syncFd);
   if (pPeer->peerFd >=0) {
     pPeer->peerFd = -1;
     taosFreeTcpConn(pPeer->pConn);
@@ -756,7 +755,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer)
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
     sError("%s, I am not master anymore", pPeer->id);
-    tclose(pPeer->syncFd);
+    taosClose(pPeer->syncFd);
     return;
   }
 
@@ -1053,7 +1052,7 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer)
 
   if (ret < 0) {
     sError("%s, failed to create sync thread", pPeer->id);
-    tclose(pPeer->syncFd);
+    taosClose(pPeer->syncFd);
     syncDecPeerRef(pPeer);
   } else { 
     sInfo("%s, sync connection is up", pPeer->id);

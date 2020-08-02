@@ -31,7 +31,7 @@ install_main_dir="/usr/local/taos"
 bin_dir="/usr/local/taos/bin"
 
 # v1.5 jar dir
-v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/taos"
 
 service_config_dir="/etc/systemd/system"
 nginx_port=6060
@@ -79,19 +79,19 @@ osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 os_type=0
 if echo $osinfo | grep -qwi "ubuntu" ; then
-  echo "This is ubuntu system"
+#  echo "This is ubuntu system"
   os_type=1
 elif echo $osinfo | grep -qwi "debian" ; then
-  echo "This is debian system"
+#  echo "This is debian system"
   os_type=1
 elif echo $osinfo | grep -qwi "Kylin" ; then
-  echo "This is Kylin system"
+#  echo "This is Kylin system"
   os_type=1
 elif  echo $osinfo | grep -qwi "centos" ; then
-  echo "This is centos system"
+#  echo "This is centos system"
   os_type=2
 elif echo $osinfo | grep -qwi "fedora" ; then
-  echo "This is fedora system"
+#  echo "This is fedora system"
   os_type=2
 else
   echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
@@ -135,7 +135,7 @@ do
   esac
 done
 
-echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
+#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
@@ -189,19 +189,19 @@ function install_bin() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
-    ${csudo} rm -rf ${v15_java_app_dir}              || :
+    #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*  
     
     ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
-	if [ "$verMode" == "cluster" ]; then
-        # Compatible with version 1.5
-        ${csudo} mkdir -p ${v15_java_app_dir}
-        ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
-        ${csudo} chmod 777 ${v15_java_app_dir} || :
-    fi
+	  #if [ "$verMode" == "cluster" ]; then
+    #    # Compatible with version 1.5
+    #    ${csudo} mkdir -p ${v15_java_app_dir}
+    #    ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
+    #    ${csudo} chmod 777 ${v15_java_app_dir} || :
+    #fi
 }
 
 function install_header() {
@@ -223,61 +223,41 @@ function install_config() {
     ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 
-    if [ "$verMode" == "cluster" ]; then
-        [ ! -z $1 ] && return 0 || : # only install client
+    [ ! -z $1 ] && return 0 || : # only install client
     
-        if ((${update_flag}==1)); then
-            return 0
-        fi
-        
-        if [ "$interactiveFqdn" == "no" ]; then
-            return 0
-        fi
-
-        #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
-        #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
-        #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
-        #FQDN_PATTERN=":[0-9]{1,5}$"
-
-        # first full-qualified domain name (FQDN) for TDengine cluster system
-        echo
-        echo -e -n "${GREEN}Enter the FQDN of an existing TDengine cluster node to join${NC} OR ${GREEN}leave it blank to build one${NC} :"
-        read firstFqdn
-        while true; do
-            if [ ! -z "$firstFqdn" ]; then
-                # check the format of the firstFqdn
-                #if [[ $firstFqdn == $FQDN_PATTERN ]]; then
-                    # Write the first FQDN to configuration file
-                    ${csudo} sed -i -r "s/#*\s*(first\s*).*/\1$firstFqdn/" ${cfg_install_dir}/taos.cfg
-
-                    # Get the second FQDN
-                    echo
-                    echo -e -n "${GREEN}Enter the FQDN of another node in cluster${NC} OR ${GREEN}leave it blank to skip${NC}: "
-                    read secondFqdn
-                    while true; do
-                        if [ ! -z "$secondFqdn" ]; then
-                            #if [[ $secondFqdn == $FQDN_PATTERN ]]; then
-                                # Write the second FQDN to configuration file
-                                ${csudo} sed -i -r "s/#*\s*(second\s*).*/\1$secondFqdn/" ${cfg_install_dir}/taos.cfg
-                                break
-                            #else
-                            #    read -p "Please enter the correct FQDN: " secondFqdn
-                            #fi
-                        else
-                            break
-                        fi
-                    done
+    if ((${update_flag}==1)); then
+        return 0
+    fi
     
-                    break
-                #else
-                #    read -p "Please enter the correct FQDN: " firstFqdn
-                #fi
-            else
+    if [ "$interactiveFqdn" == "no" ]; then
+        return 0
+    fi
+
+    #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+    #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
+    #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
+    #FQDN_PATTERN=":[0-9]{1,5}$"
+
+    # first full-qualified domain name (FQDN) for TDengine cluster system
+    echo
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo
+    echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
+    read firstEp
+    while true; do
+        if [ ! -z "$firstEp" ]; then
+            # check the format of the firstEp
+            #if [[ $firstEp == $FQDN_PATTERN ]]; then
+                # Write the first FQDN to configuration file                    
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg    
                 break
-            fi
-        done
-	
-	  fi
+            #else
+            #    read -p "Please enter the correct FQDN:port: " firstEp
+            #fi
+        else
+            break
+        fi
+    done	
 }
 
 
@@ -582,12 +562,11 @@ function update_TDengine() {
     if [ -z $1 ]; then
         install_bin
         install_service
-        install_config
+        install_config		
 		
-		if [ "$verMode" == "cluster" ]; then    
+        openresty_work=false
+		    if [ "$verMode" == "cluster" ]; then    
             # Check if openresty is installed
-            openresty_work=false
-
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
@@ -597,10 +576,10 @@ function update_TDengine() {
                     echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
                 fi
             fi
-		fi 
+		    fi 
 
-        echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        #echo
+        #echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
         if ((${service_mod}==0)); then
@@ -611,15 +590,12 @@ function update_TDengine() {
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
         fi
 
-        if [ "$verMode" == "cluster" ]; then  
-            if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-            else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-            fi
+        if [ ${openresty_work} = 'true' ]; then
+            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         else
-		    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
+                
         echo
         echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
     else
@@ -662,8 +638,8 @@ function install_TDengine() {
         install_bin
         install_service
 
-        if [ "$verMode" == "cluster" ]; then  
-            openresty_work=false
+        openresty_work=false
+        if [ "$verMode" == "cluster" ]; then
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
@@ -678,8 +654,8 @@ function install_TDengine() {
         install_config	
 
         # Ask if to start the service
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        #echo
+        #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
         if ((${service_mod}==0)); then
@@ -688,20 +664,22 @@ function install_TDengine() {
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
         else
             echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
+        fi		
+
+        if [ ${openresty_work} = 'true' ]; then
+             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        else
+             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
         fi
 		
-        if [ "$verMode" == "cluster" ]; then  
-           if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-           else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-           fi
-		    else
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        if [ ! -z "$firstEp" ]; then
+	    echo		    
+	    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+	    echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+            echo
         fi
-		
-        echo
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo       
     else # Only install client
         install_bin
         install_config

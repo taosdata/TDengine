@@ -35,8 +35,6 @@ extern "C" {
 typedef uint32_t TSCKSUM;
 
 static FORCE_INLINE TSCKSUM taosCalcChecksum(TSCKSUM csi, const uint8_t *stream, uint32_t ssize) {
-  assert(ssize >= 0 && stream != NULL);
-
   return (*crc32c)(csi, stream, (size_t)ssize);
 }
 
