@@ -489,8 +489,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   SDMDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;
   pCfg->numOfVnodes  = htonl(pCfg->numOfVnodes);
   pCfg->moduleStatus = htonl(pCfg->moduleStatus);
-  pCfg->dnodeId      = htonl(pCfg->dnodeId);
-  pCfg->clusterId    = htonl(pCfg->clusterId);
+  pCfg->dnodeId = htonl(pCfg->dnodeId);
 
   for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
     SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
@@ -696,12 +695,12 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   //strcpy(pStatus->dnodeName, tsDnodeName);
   pStatus->version          = htonl(tsVersion);
   pStatus->dnodeId          = htonl(tsDnodeCfg.dnodeId);
-  pStatus->clusterId        = htonl(tsDnodeCfg.clusterId);
-  strcpy(pStatus->dnodeEp, tsLocalEp);
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+  tstrncpy(pStatus->clusterId, tsDnodeCfg.clusterId, TSDB_CLUSTER_ID_LEN);
+  tstrncpy(pStatus->dnodeEp, tsLocalEp, TSDB_EP_LEN);
 
   // fill cluster cfg parameters
   pStatus->clusterCfg.numOfMnodes        = htonl(tsNumOfMnodes);
@@ -768,11 +767,11 @@ static bool dnodeReadDnodeCfg() {
   tsDnodeCfg.dnodeId = dnodeId->valueint;
 
   cJSON* clusterId = cJSON_GetObjectItem(root, "clusterId");
-  if (!clusterId || clusterId->type != cJSON_Number) {
+  if (!clusterId || clusterId->type != cJSON_String) {
     dError("failed to read dnodeCfg.json, clusterId not found");
     goto PARSE_CFG_OVER;
   }
-  tsDnodeCfg.clusterId = clusterId->valueint;
+  tstrncpy(tsDnodeCfg.clusterId, clusterId->valuestring, TSDB_CLUSTER_ID_LEN);
 
   ret = true;
 
@@ -793,13 +792,13 @@ static void dnodeSaveDnodeCfg() {
   if (!fp) return;
 
   int32_t len = 0;
-  int32_t maxLen = 100;
+  int32_t maxLen = 200;
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", tsDnodeCfg.dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": %d\n", tsDnodeCfg.clusterId);
-  len += snprintf(content + len, maxLen - len, "}\n"); 
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%s\"\n", tsDnodeCfg.clusterId);
+  len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
   fflush(fp);
@@ -811,9 +810,9 @@ static void dnodeSaveDnodeCfg() {
 
 void dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg) {
   if (tsDnodeCfg.dnodeId == 0) {
-    dInfo("dnodeId is set to %d, clusterId is set to %d", pCfg->dnodeId, pCfg->clusterId);  
+    dInfo("dnodeId is set to %d, clusterId is set to %s", pCfg->dnodeId, pCfg->clusterId);  
     tsDnodeCfg.dnodeId = pCfg->dnodeId;
-    tsDnodeCfg.clusterId = pCfg->clusterId;
+    tstrncpy(tsDnodeCfg.clusterId, pCfg->clusterId, TSDB_CLUSTER_ID_LEN);
     dnodeSaveDnodeCfg();
   }
 }

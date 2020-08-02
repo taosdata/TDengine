@@ -20,16 +20,10 @@
 extern "C" {
 #endif
 
-struct SClusterObj;
-
 int32_t mnodeInitCluster();
 void    mnodeCleanupCluster();
-int32_t mnodeGetClusterId();
 void    mnodeUpdateClusterId();
-void *  mnodeGetCluster(int32_t clusterId);
-void *  mnodeGetNextCluster(void *pIter, struct SClusterObj **pCluster);
-void    mnodeIncClusterRef(struct SClusterObj *pCluster);
-void    mnodeDecClusterRef(struct SClusterObj *pCluster);
+const char* mnodeGetClusterId();
 
 #ifdef __cplusplus
 }

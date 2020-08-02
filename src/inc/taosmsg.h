@@ -548,10 +548,10 @@ typedef struct {
 
 typedef struct {
   int32_t  dnodeId;
-  int32_t  clusterId;
   uint32_t moduleStatus;
   uint32_t numOfVnodes;
-  uint32_t reserved;
+  char     clusterId[TSDB_CLUSTER_ID_LEN];
+  char     reserved[16];
 } SDMDnodeCfg;
 
 typedef struct {
@@ -589,7 +589,7 @@ typedef struct {
   uint16_t    openVnodes;
   uint16_t    numOfCores;
   float       diskAvailable;  // GB
-  int32_t     clusterId;
+  char        clusterId[TSDB_CLUSTER_ID_LEN];
   uint8_t     alternativeRole;
   uint8_t     reserve2[15];
   SClusterCfg clusterCfg;

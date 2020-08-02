@@ -174,7 +174,7 @@ static void addVersionInfo(SBufferWriter* bw) {
 }
 
 static void addRuntimeInfo(SBufferWriter* bw) {
-  addIntField(bw, "clusterId", mnodeGetClusterId());
+  addStringField(bw, "clusterId", mnodeGetClusterId());
   // addIntField(&bw, "numOfDnode", 1);
   // addIntField(&bw, "numOfVnode", 1);
   // addIntField(&bw, "numOfStable", 1);
