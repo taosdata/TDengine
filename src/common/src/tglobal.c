@@ -40,6 +40,7 @@ uint16_t tsSyncPort = 6040;
 int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfMnodes = 3;
 int32_t  tsEnableVnodeBak = 1;
+int32_t  tsEnableTelemetryReporting = 1;
 
 // common
 int32_t tsRpcTimer = 1000;
@@ -422,6 +423,16 @@ static void doInitGlobalConfig() {
 
   cfg.option = "vnodeBak";
   cfg.ptr = &tsEnableVnodeBak;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "telemetryReporting";
+  cfg.ptr = &tsEnableTelemetryReporting;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
