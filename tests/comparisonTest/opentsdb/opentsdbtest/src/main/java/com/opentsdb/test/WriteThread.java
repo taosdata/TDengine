@@ -1,6 +1,5 @@
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
-import lombok.extern.slf4j.Slf4j;
 
 import net.opentsdb.core.TSDB;
 import net.opentsdb.uid.NoSuchUniqueName;
@@ -64,7 +63,7 @@ public class WriteThread extends Thread {
   public void run() { 
     StringEntity stringEntity;
     String port = "4242";
-    String put_url = "http://192.168.1.114:"+port+"/api/put?summary";
+    String put_url = "http://127.0.0.1:"+port+"/api/put?summary";
     try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
       /*
       httpclient.getHttpConnectionManager().getParams()
