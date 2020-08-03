@@ -353,7 +353,6 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
-  pStatus->clusterId    = htonl(pStatus->clusterId);
   
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
@@ -383,10 +382,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pDnode->moduleStatus     = pStatus->moduleStatus;
 
   if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access, set clusterId %d", pDnode->dnodeId, pDnode->dnodeEp, mnodeGetClusterId());
+    mDebug("dnode:%d %s, first access, set clusterId %s", pDnode->dnodeId, pDnode->dnodeEp, mnodeGetClusterId());
   } else {
-    if (pStatus->clusterId != mnodeGetClusterId()) {
-      mError("dnode:%d, input clusterId %d not match with exist %d", pDnode->dnodeId, pStatus->clusterId,
+    if (strncmp(pStatus->clusterId, mnodeGetClusterId(), TSDB_CLUSTER_ID_LEN - 1) != 0) {
+      mError("dnode:%d, input clusterId %s not match with exist %s", pDnode->dnodeId, pStatus->clusterId,
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
@@ -405,7 +404,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
   pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
-  pRsp->dnodeCfg.clusterId = htonl(mnodeGetClusterId());
+  tstrncpy(pRsp->dnodeCfg.clusterId, mnodeGetClusterId(), TSDB_CLUSTER_ID_LEN);
   SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
 
   for (int32_t j = 0; j < openVnodes; ++j) {

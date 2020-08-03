@@ -17,34 +17,34 @@ function runTest {
 
   for r in ${!rowsPerRequest[@]}; do
     for c in `seq 1 $clients`; do
-      avgRPR[$r,$c]=0
+      avgRPR[$r, $c]=0
     done
   done
 
   for r in ${!rowsPerRequest[@]}; do
     for c in `seq 1 $clients`; do
       totalRPR=0
-      OUT_FILE=cassandraWrite-rows${rowsPerRequest[$r]}-clients$c.out
+      OUT_FILE=opentsdbWrite-rows${rowsPerRequest[$r]}-clients$c.out
       for i in `seq 1 $NUM_LOOP`; do
-        printTo "loop i:$i, java -jar $CAS_TEST_DIR/cassandratest/target/cassandratest-1.0-SNAPSHOT-jar-with-dependencies.jar \
-            -datadir $DATA_DIR \
-            -numofFiles $NUM_OF_FILES \
-            -rowsperrequest ${rowsPerRequest[$r]} \
-            -writeclients $c \
-            -conf $CAS_TEST_DIR/application.conf"
-        java -jar $CAS_TEST_DIR/cassandratest/target/cassandratest-1.0-SNAPSHOT-jar-with-dependencies.jar \
-            -datadir $DATA_DIR \
-            -numofFiles $NUM_OF_FILES \
-            -rowsperrequest ${rowsPerRequest[$r]} \
-            -writeclients $c \
-            -conf $CAS_TEST_DIR/application.conf \
-            2>&1 | tee $OUT_FILE
-        RPR=`cat $OUT_FILE | grep "insertation speed:" | awk '{print $(NF-1)}'`
+        printTo "loop i:$i java -jar \
+          $TSDBTEST_DIR/opentsdbtest/target/opentsdbtest-1.0-SNAPSHOT-jar-with-dependencies.jar \
+          -dataDir $DATA_DIR \
+          -numOfFiles $NUM_OF_FILES \
+          -writeClients $c \
+          -rowsPerRequest $r"
+        java -jar \
+          $TSDBTEST_DIR/opentsdbtest/target/opentsdbtest-1.0-SNAPSHOT-jar-with-dependencies.jar \
+          -dataDir $DATA_DIR \
+          -numOfFiles $NUM_OF_FILES \
+          -writeClients $c \
+          -rowsPerRequest ${rowsPerRequest[$r]} \
+          2>&1 | tee $OUT_FILE
+        RPR=`cat $OUT_FILE | grep speed | awk '{print $(NF-1)}'`
         totalRPR=`echo "scale=4; $totalRPR + $RPR" | bc`
         printTo "r:$r rows:${rowsPerRequest[$r]}, clients:$c, i:$i RPR:$RPR"
       done
       avgRPR[$r,$c]=`echo "scale=4; $totalRPR / $NUM_LOOP" | bc`
-      printTo "r:$r c:$c avgRPR:${avgRPR[$r,$c]}"
+      printTo "r:$r c:$c avgRPR:${avgRPR[$r, $c]}"
     done
   done
 
@@ -91,11 +91,9 @@ while : ; do
   esac
 done
 
-printTo "Cassandra Test begin.."
-
 WORK_DIR=/mnt/root/TDengine
-CAS_TEST_DIR=$WORK_DIR/tests/comparisonTest/cassandra
+TSDBTEST_DIR=$WORK_DIR/tests/comparisonTest/opentsdb
 
 runTest
 
-printTo "Cassandra Test done!"
+printTo "Test done!"

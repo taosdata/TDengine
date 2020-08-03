@@ -747,7 +747,8 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
   if (pConn) {
     if (pConn->linkUid != pHead->linkUid) {
       terrno = TSDB_CODE_RPC_MISMATCHED_LINK_ID;
-      tError("%s %p %p, linkUid:0x%x is not matched with received:0x%x", pRpc->label, pConn, (void*)pHead->ahandle, pConn->linkUid, pHead->linkUid);
+      tDebug("%s %p %p, linkUid:0x%x is not matched with received:0x%x", pRpc->label, pConn, (void *)pHead->ahandle,
+             pConn->linkUid, pHead->linkUid);
       pConn = NULL;
     }
   }

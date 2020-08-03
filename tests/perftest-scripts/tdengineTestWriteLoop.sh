@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATA_DIR=/mnt/root/testdata
-NUM_LOOP=5
+NUM_LOOP=1
 NUM_OF_FILES=100
 
 rowsPerRequest=(1 100 500 1000 2000)
@@ -37,7 +37,7 @@ function runTest {
 	      -rowsPerRequest $r"
         RPR=`$TDTEST_DIR/tdengineTest \
           -dataDir $DATA_DIR \
-          -numOfFiles 1 \
+          -numOfFiles $NUM_OF_FILES \
           -w -clients $c \
           -rowsPerRequest $r \
           | grep speed | awk '{print $(NF-1)}'`
@@ -80,6 +80,10 @@ while : ; do
       verbose=true
       shift ;;
 
+    -n)
+      NUM_LOOP=$2
+      shift 2;;
+
     master)
       master=true
       develop=false
@@ -93,18 +97,19 @@ while : ; do
     -c)
       clients=$2
       shift 2;;
+
     *)
       break ;;
   esac
 done
 
 if $master ; then
-  echo "Test master branch.."
+  printTo "Test master branch.."
   cp /mnt/root/cfg/master/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine.master
 else
-  echo "Test develop branch.."
-  cp /mnt/root/cfg/10billion/taos.cfg /etc/taos/taos.cfg
+  printTo "Test develop branch.."
+  cp /mnt/root/cfg/perftest/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine
 fi
 
@@ -113,4 +118,4 @@ TDTEST_DIR=$WORK_DIR/tests/comparisonTest/tdengine
 
 runTest
 
-echo "Test done!"
+printTo "Test done!"
