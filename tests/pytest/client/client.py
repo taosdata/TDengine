@@ -53,11 +53,6 @@ class TDTestCase:
 
         tdSql.execute('set max_binary_display_width 40')
 
-        tdSql.execute('drop database db')
-        ret = tdSql.query('select database()')
-        tdSql.checkData(0, 0, None)
-
-
 
     def stop(self):
         tdSql.close()
