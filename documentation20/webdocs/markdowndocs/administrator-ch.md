@@ -94,7 +94,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
 - maxBinaryDisplayWidth：Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn动态修改此选项。
 
-**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共11个端口，而且必须TCP和UDP都打开。
+**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共12个端口，而且必须TCP和UDP都打开。
 
 不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
 
