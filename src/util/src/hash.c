@@ -409,6 +409,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
       // not qualified, remove it
       if (fp && (!fp(param, pNode->data))) {
         doPopFromEntryList(pEntry, pNode);
+        FREE_HASH_NODE(pNode);
       }
 
       pNode = pNext;
