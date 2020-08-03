@@ -53,9 +53,12 @@ systemctl start taosd
 systemctl status taosd
 ```
 
-如果TDengine服务正常工作，那么您可以通过TDengine的命令行程序`taos`来访问并体验TDengine。
-
-**注：_systemctl_ 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 _sudo_**
+如果TDengine服务正常工作，那么您可以通过TDengine的命令行程序`taos`来访问并体验TDengine。  
+  
+**注意：**  
+  
+- systemctl命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo
+- 为更好的获得产品反馈，改善产品，TDengine会采集基本的使用信息，但您可以修改系统配置文件taos.cfg里的配置参数telemetryReporting, 将其设为0，就可将其关闭。
 
 ## TDengine命令行程序
 
