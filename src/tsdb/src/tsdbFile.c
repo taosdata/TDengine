@@ -247,11 +247,14 @@ int tsdbOpenFile(SFile *pFile, int oflag) {
     return -1;
   }
 
+  tsdbTrace("open file %s, fd %d", pFile->fname, pFile->fd);
+
   return 0;
 }
 
 void tsdbCloseFile(SFile *pFile) {
   if (TSDB_IS_FILE_OPENED(pFile)) {
+    tsdbTrace("close file %s, fd %d", pFile->fname, pFile->fd);
     close(pFile->fd);
     pFile->fd = -1;
   }
@@ -276,7 +279,7 @@ int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   pFile->info.size = TSDB_FILE_HEAD_SIZE;
   pFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  if (tsdbUpdateFileHeader(pFile, 0) < 0) {
+  if (tsdbUpdateFileHeader(pFile) < 0) {
     tsdbCloseFile(pFile);
     return -1;
   }
@@ -313,11 +316,11 @@ void tsdbFitRetention(STsdbRepo *pRepo) {
   pthread_rwlock_unlock(&(pFileH->fhlock));
 }
 
-int tsdbUpdateFileHeader(SFile *pFile, uint32_t version) {
+int tsdbUpdateFileHeader(SFile *pFile) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
   void *pBuf = (void *)buf;
-  taosEncodeFixedU32((void *)(&pBuf), version);
+  taosEncodeFixedU32((void *)(&pBuf), TSDB_FILE_VERSION);
   tsdbEncodeSFileInfo((void *)(&pBuf), &(pFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
@@ -408,6 +411,11 @@ static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   void *pBuf = buf;
   pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
+
+  if (version != TSDB_FILE_VERSION) {
+    tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
+              REPO_ID(pRepo), pFile->fname, version, TSDB_FILE_VERSION);
+  }
 
   tsdbCloseFile(pFile);
 
