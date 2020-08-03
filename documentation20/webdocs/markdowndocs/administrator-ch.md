@@ -80,11 +80,11 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 
 下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节，而且这些参数的缺省配置都是工作的，一般无需设置。**注意：配置修改后，需要重启*taosd*服务才能生效。**
 
-- firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 缺省值为 localhost:6030。
-- secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 缺省值为空。
-- fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 缺省值为空。
+- firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 默认值为localhost:6030。
+- secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 默认值为空。
+- fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 默认值为空。
 - serverPort：taosd启动后，对外服务的端口号，默认值为6030。
-- httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求。
+- httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求, 默认值为6041。
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
 - logDir：日志文件目录，客户端和服务器的运行日志文件将写入该目录。默认值：/var/log/taos。
 - arbitrator：系统中裁决器的end point, 缺省值为空。
@@ -94,7 +94,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
 - maxBinaryDisplayWidth：Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn动态修改此选项。
 
-**注意：**对于端口，TDengine会使用从serverPort起11个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6040共11个端口，而且必须TCP和UDP都打开。
+**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共11个端口，而且必须TCP和UDP都打开。
 
 不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
 
