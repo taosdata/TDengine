@@ -752,9 +752,9 @@ http://<ip>:<PORT>/rest/sql
 参数说明：
 
 - IP: 集群中的任一台主机
-- PORT: 配置文件中httpPort配置项，缺省为6020
+- PORT: 配置文件中httpPort配置项，缺省为6041
 
-例如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
+例如：http://192.168.0.1:6041/rest/sql 是指向IP地址为192.168.0.1的URL. 
 
 HTTP请求的Header里需带有身份认证信息，TDengine支持Basic认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
@@ -814,7 +814,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 HTTP请求中需要带有授权码`<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送`HTTP GET`请求来获取授权码，操作如下：
 
 ```
-curl http://<ip>:6020/rest/login/<username>/<password>
+curl http://<ip>:6041/rest/login/<username>/<password>
 ```
 
 其中，`ip`是TDengine数据库的IP地址，`username`为数据库用户名，`password`为数据库密码，返回值为`JSON`格式，各字段含义如下：
@@ -828,7 +828,7 @@ curl http://<ip>:6020/rest/login/<username>/<password>
 获取授权码示例：
 
 ```
-curl http://192.168.0.1:6020/rest/login/root/taosdata
+curl http://192.168.0.1:6041/rest/login/root/taosdata
 ```
 
 返回值：
@@ -846,7 +846,7 @@ curl http://192.168.0.1:6020/rest/login/root/taosdata
 - 在demo库里查询表d1001的所有记录： 
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6020/rest/sql`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql`
 ```
 返回值：
 
@@ -865,7 +865,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 - 创建库demo：
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6020/rest/sql`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql`
 ```
 
 返回值：
@@ -885,7 +885,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6020/rest/sqlt
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
 ```
 
 返回值：
@@ -906,7 +906,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 
 HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
 ```
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlutc
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
 ```
 
 返回值：
@@ -927,7 +927,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 下面仅列出一些与RESTFul接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
 
-- httpPort: 对外提供RESTFul服务的端口号，默认绑定到6020
+- httpPort: 对外提供RESTFul服务的端口号，默认绑定到6041
 - httpMaxThreads: 启动的线程数量，默认为2
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
