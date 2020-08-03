@@ -1942,11 +1942,12 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
 
 static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
                                    SExtTagsInfo *pTagInfo, char *pTags, int16_t stage) {
-  tValuePair **pList = pInfo->res;
-  
   tVariant val = {0};
   tVariantCreateFromBinary(&val, pData, tDataTypeDesc[type].nSize, type);
-  
+
+  tValuePair **pList = pInfo->res;
+  assert(pList != NULL);
+
   if (pInfo->num < maxLen) {
     if (pInfo->num == 0) {
       valuePairAssign(pList[pInfo->num], type, (const char*) &val.i64Key, ts, pTags, pTagInfo, stage);
@@ -2379,8 +2380,9 @@ static void bottom_func_second_merge(SQLFunctionCtx *pCtx) {
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
+    int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->outputType;
     do_bottom_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
-                           pCtx->outputType, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+                           type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
   
   SET_VAL(pCtx, pInput->num, pOutput->num);
