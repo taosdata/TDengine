@@ -132,7 +132,7 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
     if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
     pFile->info.size = TSDB_FILE_HEAD_SIZE;
     pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-    if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
+    if (tsdbUpdateFileHeader(pFile) < 0) return -1;
 #endif
 
     // Create and open .h
@@ -140,7 +140,7 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
     if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
     pFile->info.size = TSDB_FILE_HEAD_SIZE;
     pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-    if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
+    if (tsdbUpdateFileHeader(pFile) < 0) return -1;
 
     // Create and open .l file if should
     if (tsdbShouldCreateNewLast(pHelper)) {
@@ -149,7 +149,7 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
       pFile->info.size = TSDB_FILE_HEAD_SIZE;
       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
       pFile->info.len = 0;
-      if (tsdbUpdateFileHeader(pFile, 0) < 0) return -1;
+      if (tsdbUpdateFileHeader(pFile) < 0) return -1;
     }
   } else {
     if (tsdbOpenFile(helperDataF(pHelper), O_RDONLY) < 0) return -1;
@@ -166,44 +166,36 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
 
 #ifdef TSDB_IDX
   pFile = helperIdxF(pHelper);
-  if (pFile->fd > 0) {
-    close(pFile->fd);
-    pFile->fd = -1;
-  }
+  tsdbCloseFile(pFile);
 #endif
 
   pFile = helperHeadF(pHelper);
-  if (pFile->fd > 0) {
-    close(pFile->fd);
-    pFile->fd = -1;
-  }
+  tsdbCloseFile(pFile);
 
   pFile = helperDataF(pHelper);
   if (pFile->fd > 0) {
     if (helperType(pHelper) == TSDB_WRITE_HELPER) {
       if (!hasError) {
-        tsdbUpdateFileHeader(pFile, 0);
+        tsdbUpdateFileHeader(pFile);
         fsync(pFile->fd);
       } else {
         // TODO: shrink back to origin
       }
     }
-    close(pFile->fd);
-    pFile->fd = -1;
+    tsdbCloseFile(pFile);
   }
 
   pFile = helperLastF(pHelper);
   if (pFile->fd > 0) {
     if (helperType(pHelper) == TSDB_WRITE_HELPER && !TSDB_NLAST_FILE_OPENED(pHelper)) {
       if (!hasError) {
-        tsdbUpdateFileHeader(pFile, 0);
+        tsdbUpdateFileHeader(pFile);
         fsync(pFile->fd);
       } else {
         // TODO: shrink back to origin
       }
     }
-    close(pFile->fd);
-    pFile->fd = -1;
+    tsdbCloseFile(pFile);
   }
 
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
@@ -211,11 +203,10 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
     pFile = helperNewIdxF(pHelper);
     if (pFile->fd > 0) {
       if (!hasError) {
-        tsdbUpdateFileHeader(pFile, 0);
+        tsdbUpdateFileHeader(pFile);
         fsync(pFile->fd);
       }
-      close(pFile->fd);
-      pFile->fd = -1;
+      tsdbCloseFile(pFile);
       if (hasError) (void)remove(pFile->fname);
     }
 #endif
@@ -223,22 +214,20 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
     pFile = helperNewHeadF(pHelper);
     if (pFile->fd > 0) {
       if (!hasError) {
-        tsdbUpdateFileHeader(pFile, 0);
+        tsdbUpdateFileHeader(pFile);
         fsync(pFile->fd);
       }
-      close(pFile->fd);
-      pFile->fd = -1;
+      tsdbCloseFile(pFile);
       if (hasError) (void)remove(pFile->fname);
     }
 
     pFile = helperNewLastF(pHelper);
     if (pFile->fd > 0) {
       if (!hasError) {
-        tsdbUpdateFileHeader(pFile, 0);
+        tsdbUpdateFileHeader(pFile);
         fsync(pFile->fd);
       }
-      close(pFile->fd);
-      pFile->fd = -1;
+      tsdbCloseFile(pFile);
       if (hasError) (void)remove(pFile->fname);
     }
   }

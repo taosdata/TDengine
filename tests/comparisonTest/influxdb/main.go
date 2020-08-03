@@ -110,6 +110,7 @@ func writeDataImp(wInfo *WriteInfo, wg *sync.WaitGroup, arguments *ProArgs) {
         Addr:     arguments.host,
         Username: arguments.username,
         Password: arguments.password,
+	Timeout: 300 * time.Second,
     })
 
     if err != nil {
@@ -220,6 +221,7 @@ func readData(arguments *ProArgs) {
         Addr:     arguments.host,
         Username: arguments.username,
         Password: arguments.password,
+	Timeout: 300 * time.Second,
     })
 
     if err != nil {

@@ -48,6 +48,18 @@ class TDTestCase:
             "import INTO dev_001 VALUES ('2020-05-13 10:00:00.000', 1),('2020-05-13 10:00:00.001', 1)")
         tdSql.checkAffectedRows(2)
 
+
+        tdSql.execute(
+            "CREATE TABLE if not exists dev_002 using st tags('dev_01')")
+        tdSql.execute(
+            "CREATE TABLE if not exists dev_003 using st tags('dev_01')")
+        print("==============step4")
+        tdLog.info("multiple tables inserts by insert")
+        tdSql.execute(
+            '''insert INTO dev_002 VALUES ('2020-05-13 10:00:00.000', 1),('2020-05-13 10:00:00.001', 1)
+                            dev_003 VALUES ('2020-05-13 10:00:00.000', 2),('2020-05-13 10:00:00.001', 3)''')
+        tdSql.checkAffectedRows(4)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

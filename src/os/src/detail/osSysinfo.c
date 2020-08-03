@@ -651,7 +651,11 @@ bool taosGetSystemUid(char *uid) {
     close(fd);
   }
 
-  return len > 0;
+  if (len >= 36) {
+    uid[36] = 0;
+    return true;
+  }
+  return false;
 }
 
 #endif
