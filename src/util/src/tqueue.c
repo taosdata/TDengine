@@ -241,7 +241,6 @@ void taosCloseQset(taos_qset param) {
   if (param == NULL) return;
   STaosQset *qset = (STaosQset *)param;
 
-#if 0
   // remove all the queues from qset
   pthread_mutex_lock(&qset->mutex);
   while (qset->head) {
@@ -252,7 +251,6 @@ void taosCloseQset(taos_qset param) {
     queue->next = NULL;
   }
   pthread_mutex_unlock(&qset->mutex);
-#endif  
 
   pthread_mutex_destroy(&qset->mutex);
   tsem_destroy(&qset->sem);

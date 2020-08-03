@@ -31,6 +31,7 @@ bool taosGetSysMemory(float *memoryUsedMB);
 void taosPrintOsInfo();
 int  taosSystem(const char * cmd) ;
 void taosKillSystem();
+bool taosGetSystemUid(char *uid);
 
 // TAOS_OS_FUNC_SYSINFO_CORE
 void taosSetCoreDump();

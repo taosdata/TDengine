@@ -988,7 +988,7 @@ int32_t sdbAllocWriteQueue() {
 }
 
 void sdbFreeWritequeue() {
-  taosCloseQset(tsSdbWriteQueue);
+  taosCloseQueue(tsSdbWriteQueue);
   taosFreeQall(tsSdbWriteQall);
   taosCloseQset(tsSdbWriteQset);
   tsSdbWriteQall = NULL;
