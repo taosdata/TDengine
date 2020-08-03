@@ -89,6 +89,7 @@ remote_write:
 ### 查询prometheus写入数据
 prometheus产生的数据格式如下：
 ```
+{
 Timestamp: 1576466279341,
 Value: 37.000000, 
 apiserver_request_latencies_bucket {
