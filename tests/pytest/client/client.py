@@ -49,9 +49,7 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         ret = tdSql.query('show vgroups')
-        tdSql.checkRows(0)
-
-        tdSql.execute('set max_binary_display_width 40')
+        tdSql.checkRows(0)        
 
 
     def stop(self):
