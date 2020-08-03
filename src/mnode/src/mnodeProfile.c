@@ -79,6 +79,7 @@ void mnodeCleanupProfile() {
 }
 
 SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
+#if 0
   int32_t connSize = taosHashGetSize(tsMnodeConnCache->pHashTable);
   if (connSize > tsMaxShellConns) {
     mError("failed to create conn for user:%s ip:%s:%u, conns:%d larger than maxShellConns:%d, ", user, taosIpStr(ip),
@@ -86,6 +87,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
     terrno = TSDB_CODE_MND_TOO_MANY_SHELL_CONNS;
     return NULL;
   }
+#endif  
 
   int32_t connId = atomic_add_fetch_32(&tsConnIndex, 1);
   if (connId == 0) atomic_add_fetch_32(&tsConnIndex, 1);
