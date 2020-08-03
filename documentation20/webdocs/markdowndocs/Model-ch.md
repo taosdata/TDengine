@@ -11,8 +11,8 @@ TDengine采用关系型数据模型，需要建库、建表。因此对于一个
 ```cmd
 CREATE DATABASE power KEEP 365 DAYS 10 REPLICA 3 BLOCKS 4;
 ```
-上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL</a>
-
+上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL</a>  
+  
 **注意：**
 
 - 任何一张表或超级表是属于一个库的，在创建表之前，必须先创建库。
