@@ -39,7 +39,7 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 用户可以通过参数keep，设置数据在磁盘中的最大保存时长。为进一步减少存储成本，TDengine还提供多级存储，最冷的数据可以存放在最廉价的存储介质上，应用的访问不用做任何调整，只是读取速度降低了。
 
-为提高速度，可以配置多快硬盘，这样可以并发写入或读取数据。
+为提高速度，可以配置多快硬盘，这样可以并发写入或读取数据。需要提醒的是，TDengine采取多副本的方式提供数据的高可靠，因此不再需要采用昂贵的磁盘阵列。
 
 ### 物理机或虚拟机台数
 
@@ -152,19 +152,19 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
 
 ```
-CREATE USER user_name PASS ‘password’;
+CREATE USER <user_name> PASS <‘password’>;
 ```
 
 创建用户，并指定用户名和密码，密码需要用单引号引起来
 
 ```
-DROP USER user_name;
+DROP USER <user_name>;
 ```
 
 删除用户，限root用户使用
 
 ```
-ALTER USER user_name PASS ‘password’;
+ALTER USER <user_name> PASS <‘password’>;
 ```
 
 修改用户密码, 为避免被转换为小写，密码需要用单引号引用
@@ -173,7 +173,9 @@ ALTER USER user_name PASS ‘password’;
 SHOW USERS;
 ```
 
-显示所有用户
+显示所有用户  
+  
+**注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身
 
 ## 数据导入
 
