@@ -235,7 +235,9 @@ static void* telemetryThread(void* param) {
     }
 
     int startAt = taosGetTimestampSec();
-    struct timespec timeout = {.tv_sec = timeToWait, .tv_nsec = 0};
+    struct timespec timeout = {.tv_sec = 0, .tv_nsec = 0};
+    clock_gettime(CLOCK_REALTIME, &timeout);
+    timeout.tv_sec += timeToWait;
     if (sem_timedwait(&tsExitSem, &timeout) == 0) {
       break;
     }
