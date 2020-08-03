@@ -1,11 +1,12 @@
+#include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <unistd.h>
-#include <assert.h>
 
 #include "testCommon.h"
 
@@ -191,7 +192,10 @@ void printRow(char *temp, int32_t num_fields, TAOS_FIELD *fields, TAOS_ROW row) 
 void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *temp, ResultInfo *pRes) {
   TAOS_ROW row = NULL;
   int64_t  numOfRows = 0;
-  //    uint64_t start = taosGetTimestampMs();
+
+  struct timeval st, et;
+  gettimeofday(&st, NULL);
+  int64_t stt = st.tv_sec*1000*1000 + st.tv_usec;
 
   char    field[4024] = {0};
   int32_t c = 0;
@@ -204,11 +208,14 @@ void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *tem
     temp[0] = 0;
     numOfRows++;
 
-    taos_print_row(temp, row, fields, num_fields);
+//    taos_print_row(temp, row, fields, num_fields);
 //    printf("%" PRId64 ": %s\n", numOfRows, temp);
   }
 
-  //    printf("total elapsed time:%"PRId64" ms, %"PRId64" rows\n", taosGetTimestampMs() - start, numOfRows);
+  gettimeofday(&et, NULL);
+
+  int64_t ett = et.tv_sec*1000*1000 + et.tv_usec;
+  printf("total elapsed time:%"PRId64" ms, %"PRId64" rows\n", (ett - stt)/1000, numOfRows);
 }
 
 TAOS *connectdb() {
