@@ -88,19 +88,20 @@ remote_write:
 
 ### 查询prometheus写入数据
 prometheus产生的数据格式如下：
-```
+```json
 {
-Timestamp: 1576466279341,
-Value: 37.000000, 
-apiserver_request_latencies_bucket {
-  component="apiserver", 
-  instance="192.168.99.116:8443", 
-  job="kubernetes-apiservers", 
-  le="125000", 
-  resource="persistentvolumes", s
-  cope="cluster",
-  verb="LIST", 
-  version=“v1" 
+  Timestamp: 1576466279341,
+  Value: 37.000000, 
+  apiserver_request_latencies_bucket {
+    component="apiserver", 
+    instance="192.168.99.116:8443", 
+    job="kubernetes-apiservers", 
+    le="125000", 
+    resource="persistentvolumes", s
+    cope="cluster",
+    verb="LIST", 
+    version=“v1" 
+  }
 }
 ```
 其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。blm_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
@@ -184,7 +185,7 @@ url = "http://10.1.2.3:8089/telegraf"
 
 ### 查询telegraf写入数据
 telegraf产生的数据格式如下：
-```
+```json
 {
   "fields": {
     "usage_guest": 0, 

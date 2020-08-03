@@ -13,6 +13,14 @@ CREATE DATABASE power KEEP 365 DAYS 10 REPLICA 3 BLOCKS 4;
 ```
 上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，副本数为3, 内存块数为4。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL</a>  
   
+创建库之后，需要使用SQL命令USE将当前库切换过来，例如：
+
+```cmd
+USE power;	
+```
+
+就当前链接里操作的库换为power，否则对具体表操作前，需要使用“库名.表名”来指定库的名字。  
+  
 **注意：**
 
 - 任何一张表或超级表是属于一个库的，在创建表之前，必须先创建库。
