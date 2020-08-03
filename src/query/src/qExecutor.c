@@ -1813,10 +1813,14 @@ static void doExchangeTimeWindow(SQInfo* pQInfo) {
   for(int32_t i = 0; i < t; ++i) {
     SArray* p1 = GET_TABLEGROUP(pQInfo, i);
 
+    SArray* tableKeyGroup = taosArrayGetP(pQInfo->tableGroupInfo.pGroupList, i);
     size_t len = taosArrayGetSize(p1);
     for(int32_t j = 0; j < len; ++j) {
       STableQueryInfo* pTableQueryInfo = (STableQueryInfo*) taosArrayGetP(p1, j);
       SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
+
+      STableKeyInfo* pInfo = taosArrayGet(tableKeyGroup, j);
+      pInfo->lastKey = pTableQueryInfo->win.skey;
     }
   }
 }
@@ -2925,7 +2929,7 @@ static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *
     return;
   }
   
-  // order has change already!
+  // order has changed already
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
   
   // TODO validate the assertion
@@ -2934,9 +2938,13 @@ static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *
 //  } else {
 //    assert(pTableQueryInfo->win.ekey <= pTableQueryInfo->lastKey + step);
 //  }
-  
-  pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
-  
+
+  if (pTableQueryInfo->lastKey == pTableQueryInfo->win.skey) {
+    // do nothing, no results
+  } else {
+    pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
+  }
+
   SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
   pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
   
@@ -2998,16 +3006,26 @@ void disableFuncInReverseScan(SQInfo *pQInfo) {
       }
     }
   }
-  
+}
+
+static void setupQueryRangeForReverseScan(SQInfo* pQInfo) {
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
   int32_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
-  
+
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray *group = GET_TABLEGROUP(pQInfo, i);
-    
+    SArray *tableKeyGroup = taosArrayGetP(pQInfo->tableGroupInfo.pGroupList, i);
+
     size_t t = taosArrayGetSize(group);
     for (int32_t j = 0; j < t; ++j) {
       STableQueryInfo *pCheckInfo = taosArrayGetP(group, j);
       updateTableQueryInfoForReverseScan(pQuery, pCheckInfo);
+
+      // update the last key in tableKeyInfo list
+      STableKeyInfo *pTableKeyInfo = taosArrayGet(tableKeyGroup, j);
+      pTableKeyInfo->lastKey = pCheckInfo->lastKey;
+
+      assert(pCheckInfo->pTable == pTableKeyInfo->pTable);
     }
   }
 }
@@ -3252,20 +3270,20 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
       .numOfCols = pQuery->numOfCols,
   };
 
+  setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
+  switchCtxOrder(pRuntimeEnv);
+  disableFuncInReverseScan(pQInfo);
+  setupQueryRangeForReverseScan(pQInfo);
+
   // clean unused handle
   if (pRuntimeEnv->pSecQueryHandle != NULL) {
     tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
   }
 
-  // add ref for table
   pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
   if (pRuntimeEnv->pSecQueryHandle == NULL) {
     longjmp(pRuntimeEnv->env, terrno);
   }
-
-  setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
-  switchCtxOrder(pRuntimeEnv);
-  disableFuncInReverseScan(pQInfo);
 }
 
 static void clearEnvAfterReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusInfo *pStatus) {
@@ -3288,6 +3306,13 @@ static void clearEnvAfterReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus
   
   pTableQueryInfo->win = pStatus->w;
   pQuery->window = pTableQueryInfo->win;
+}
+
+static void restoreTimeWindow(STableGroupInfo* pTableGroupInfo, STsdbQueryCond* pCond) {
+  assert(pTableGroupInfo->numOfTables == 1);
+  SArray* pTableKeyGroup = taosArrayGetP(pTableGroupInfo->pGroupList, 0);
+  STableKeyInfo* pKeyInfo = taosArrayGet(pTableKeyGroup, 0);
+  pKeyInfo->lastKey = pCond->twindow.skey;
 }
 
 void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
@@ -3337,6 +3362,7 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
       tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
     }
 
+    restoreTimeWindow(&pQInfo->tableGroupInfo, &cond);
     pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
     if (pRuntimeEnv->pSecQueryHandle == NULL) {
       longjmp(pRuntimeEnv->env, terrno);
@@ -4409,9 +4435,11 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
 
   // todo refactor
   SArray *g1 = taosArrayInit(1, POINTER_BYTES);
-  SArray *tx = taosArrayInit(1, POINTER_BYTES);
+  SArray *tx = taosArrayInit(1, sizeof(STableKeyInfo));
 
-  taosArrayPush(tx, &pCheckInfo->pTable);
+  STableKeyInfo info = {.pTable = pCheckInfo->pTable, .lastKey = pCheckInfo->lastKey};
+  taosArrayPush(tx, &info);
+
   taosArrayPush(g1, &tx);
   STableGroupInfo gp = {.numOfTables = 1, .pGroupList = g1};
 
@@ -4561,7 +4589,9 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
         pRuntimeEnv->pQueryHandle = NULL;
       }
 
+      // no need to update the lastkey for each table
       pRuntimeEnv->pQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &gp, pQInfo);
+
       taosArrayDestroy(g1);
       taosArrayDestroy(tx);
       if (pRuntimeEnv->pQueryHandle == NULL) {
@@ -4687,8 +4717,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
         taosArrayPush(pQInfo->arrTableIdInfo, &tidInfo);
 
         // if the buffer is full or group by each table, we need to jump out of the loop
-        if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL) /*||
-            isGroupbyEachTable(pQuery->pGroupbyExpr, pSupporter->pSidSet)*/) {
+        if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
           break;
         }
 
@@ -4753,21 +4782,22 @@ static void doSaveContext(SQInfo *pQInfo) {
       .colList = pQuery->colList,
       .numOfCols = pQuery->numOfCols,
   };
-  
+
   // clean unused handle
   if (pRuntimeEnv->pSecQueryHandle != NULL) {
     tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
   }
+
+  setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
+  switchCtxOrder(pRuntimeEnv);
+  disableFuncInReverseScan(pQInfo);
+  setupQueryRangeForReverseScan(pQInfo);
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
   pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
   if (pRuntimeEnv->pSecQueryHandle == NULL) {
     longjmp(pRuntimeEnv->env, terrno);
   }
-
-  setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
-  switchCtxOrder(pRuntimeEnv);
-  disableFuncInReverseScan(pQInfo);
 }
 
 static void doRestoreContext(SQInfo *pQInfo) {
@@ -5861,8 +5891,8 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     }
 
     for(int32_t j = 0; j < s; ++j) {
-      void* pTable = taosArrayGetP(pa, j);
-      STableId* id = TSDB_TABLEID(pTable);
+      STableKeyInfo* info = taosArrayGet(pa, j);
+      STableId* id = TSDB_TABLEID(info->pTable);
 
       STableIdInfo* pTableId = taosArraySearch(pTableIdList, id, compareTableIdInfo);
       if (pTableId != NULL ) {
@@ -5872,10 +5902,11 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
       }
 
       void* buf = pQInfo->pBuf + index * sizeof(STableQueryInfo);
-      STableQueryInfo* item = createTableQueryInfo(&pQInfo->runtimeEnv, pTable, window, buf);
+      STableQueryInfo* item = createTableQueryInfo(&pQInfo->runtimeEnv, info->pTable, window, buf);
       if (item == NULL) {
         goto _cleanup;
       }
+
       item->groupIndex = i;
       taosArrayPush(p1, &item);
       taosHashPut(pQInfo->tableqinfoGroupInfo.map, &id->tid, sizeof(id->tid), &item, POINTER_BYTES);
@@ -5904,6 +5935,7 @@ _cleanup_query:
     taosArrayDestroy(pGroupbyExpr->columnInfo);
     free(pGroupbyExpr);
   }
+
   taosTFree(pTagCols);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = &pExprs[i];
@@ -5911,6 +5943,7 @@ _cleanup_query:
       tExprTreeDestroy(&pExprInfo->pExpr, NULL);
     }
   }
+
   taosTFree(pExprs);
 
 _cleanup:
@@ -6198,7 +6231,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     STableIdInfo *id = taosArrayGet(pTableIdList, 0);
 
     qDebug("qmsg:%p query normal table, uid:%"PRId64", tid:%d", pQueryMsg, id->uid, id->tid);
-    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, &tableGroupInfo)) != TSDB_CODE_SUCCESS) {
+    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, pQueryMsg->window.skey, &tableGroupInfo)) != TSDB_CODE_SUCCESS) {
       goto _over;
     }
   } else if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_MULTITABLE_QUERY|TSDB_QUERY_TYPE_STABLE_QUERY)) {
@@ -6215,8 +6248,9 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
       }
 
       qDebug("qmsg:%p query stable, uid:%"PRId64", tid:%d", pQueryMsg, id->uid, id->tid);
-      code = tsdbQuerySTableByTagCond(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen, pQueryMsg->tagNameRelType, tbnameCond, &tableGroupInfo, pGroupColIndex,
-                                          numOfGroupByCols);
+      code = tsdbQuerySTableByTagCond(tsdb, id->uid, pQueryMsg->window.skey, tagCond, pQueryMsg->tagCondLen,
+          pQueryMsg->tagNameRelType, tbnameCond, &tableGroupInfo, pGroupColIndex, numOfGroupByCols);
+
       if (code != TSDB_CODE_SUCCESS) {
         qError("qmsg:%p failed to query stable, reason: %s", pQueryMsg, tstrerror(code));
         goto _over;

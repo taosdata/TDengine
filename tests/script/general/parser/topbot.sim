@@ -66,8 +66,18 @@ if $row != 100 then
   return -1
 endi
 
-sql select last(c2) from tb_tb9
+sql select last(*) from tb_tb9
 if $row != 1 then
+  return -1
+endi
+
+sql select last(c2) from tb_tb9
+if $row != 0 then
+  return -1
+endi
+
+sql select first(c2), last(c2) from tb_tb9
+if $row != 0 then
   return -1
 endi
 

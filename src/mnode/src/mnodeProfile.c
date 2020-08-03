@@ -73,7 +73,6 @@ int32_t mnodeInitProfile() {
 
 void mnodeCleanupProfile() {
   if (tsMnodeConnCache != NULL) {
-    mInfo("conn cache is cleanup");
     taosCacheCleanup(tsMnodeConnCache);
     tsMnodeConnCache = NULL;
   }
