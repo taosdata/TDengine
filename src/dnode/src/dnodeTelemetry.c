@@ -174,7 +174,6 @@ static void addVersionInfo(SBufferWriter* bw) {
 }
 
 static void addRuntimeInfo(SBufferWriter* bw) {
-  addStringField(bw, "clusterId", mnodeGetClusterId());
   // addIntField(&bw, "numOfDnode", 1);
   // addIntField(&bw, "numOfVnode", 1);
   // addIntField(&bw, "numOfStable", 1);
@@ -189,17 +188,18 @@ static void sendTelemetryReport() {
   char buf[128];
   uint32_t ip = taosGetIpFromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
-    dError("failed to get IP address of " TELEMETRY_SERVER ", reason:%s", strerror(errno));
+    dTrace("failed to get IP address of " TELEMETRY_SERVER ", reason:%s", strerror(errno));
     return;
   }
   int fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
   if (fd < 0) {
-    dError("failed to create socket for telemetry, reason:%s", strerror(errno));
+    dTrace("failed to create socket for telemetry, reason:%s", strerror(errno));
     return;
   }
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
   beginObject(&bw);
+  addStringField(&bw, "instanceId", mnodeGetClusterId());
   addIntField(&bw, "reportVersion", 1);
   addOsInfo(&bw);
   addCpuInfo(&bw);
@@ -254,7 +254,7 @@ int32_t dnodeInitTelemetry() {
 
   if (sem_init(&tsExitSem, 0, 0) == -1) {
     // just log the error, it is ok for telemetry to fail
-    dError("failed to create semaphore for telemetry, reason:%s", strerror(errno));
+    dTrace("failed to create semaphore for telemetry, reason:%s", strerror(errno));
     return 0;
   }
 
@@ -265,7 +265,7 @@ int32_t dnodeInitTelemetry() {
   int32_t code = pthread_create(&tsTelemetryThread, &attr, telemetryThread, NULL);
   pthread_attr_destroy(&attr);
   if (code != 0) {
-    dError("failed to create telemetry thread, reason:%s", strerror(errno));
+    dTrace("failed to create telemetry thread, reason:%s", strerror(errno));
   }
 
   return 0;
