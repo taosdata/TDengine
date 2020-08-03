@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
   if (taosOpenLogFileWithMaxLines(temp, tsNumOfLogLines, 1) < 0) printf("failed to init log file\n");
 
   tsReadGlobalConfig();
-  tsHttpPort = 6020;
+  tsHttpPort = 6041;
   strcpy(tsCharset, "CP936");
 
   taosPrintGlobalCfg();
