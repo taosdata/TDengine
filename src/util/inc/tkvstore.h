@@ -21,6 +21,8 @@ extern "C" {
 
 #include <stdint.h>
 
+#define KVSTORE_FILE_VERSION ((uint32_t)0)
+
 typedef int (*iterFunc)(void *, void *cont, int contLen);
 typedef void (*afterFunc)(void *);
 
