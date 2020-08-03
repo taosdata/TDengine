@@ -1,4 +1,6 @@
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src SOURCE_LIST)
 
 add_library(lz4 ${SOURCE_LIST})
+SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /WX-")
+SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /WX-")
 target_include_directories(lz4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inc)

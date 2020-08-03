@@ -67,7 +67,7 @@ char *getpass(const char *prefix) {
 }
 
 char *strndup(const char *s, size_t n) {
-  int len = strlen(s);
+  size_t len = strlen(s);
   if (len >= n) {
     len = n;
   }

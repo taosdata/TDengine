@@ -13,8 +13,8 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TDENGINE_PLATFORM_WINDOWS_H
-#define TDENGINE_PLATFORM_WINDOWS_H
+#ifndef TDENGINE_OS_WINDOWS_H
+#define TDENGINE_OS_WINDOWS_H
 
 #include <assert.h>
 #include <ctype.h>
