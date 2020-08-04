@@ -639,4 +639,23 @@ void taosSetCoreDump() {
 
 }
 
+bool taosGetSystemUid(char *uid) {
+  int fd;
+  int len = 0;
+
+  fd = open("/proc/sys/kernel/random/uuid", 0);
+  if (fd < 0) {
+    return false;
+  } else {
+    len = read(fd, uid, TSDB_CLUSTER_ID_LEN);
+    close(fd);
+  }
+
+  if (len >= 36) {
+    uid[36] = 0;
+    return true;
+  }
+  return false;
+}
+
 #endif

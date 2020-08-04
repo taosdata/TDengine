@@ -44,6 +44,10 @@ extern int tsdbDebugFlag;
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 
+// NOTE: Any file format change must increase this version number by 1
+//       Also, implement the convert function
+#define TSDB_FILE_VERSION ((uint32_t)0)
+
 // Definitions
 // ------------------ tsdbMeta.c
 typedef struct STable {
@@ -443,7 +447,7 @@ void        tsdbCloseFile(SFile* pFile);
 int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
 void        tsdbFitRetention(STsdbRepo* pRepo);
-int         tsdbUpdateFileHeader(SFile* pFile, uint32_t version);
+int         tsdbUpdateFileHeader(SFile* pFile);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);

@@ -97,8 +97,11 @@ SHOW DNODES;
 ```
 SHOW VGROUPS;
 ```
-##高可用性
-TDengine通过多副本的机制来提供系统的高可用性。副本数是与DB关联的，一个集群里可以有多个DB，根据运营的需求，每个DB可以配置不同的副本数。创建数据库时，通过参数replica 指定副本数（缺省为1）。如果副本数为1，系统的可靠性无法保证，只要数据所在的节点宕机，就将无法提供服务。集群的节点数必须大于等于副本数，否则创建表时将返回错误“more dnodes are needed"。比如下面的命令将创建副本数为3的数据库demo：
+##vnode的高可用性
+TDengine通过多副本的机制来提供系统的高可用性，包括vnode和mnode的高可用性。
+
+vnode的副本数是与DB关联的，一个集群里可以有多个DB，根据运营的需求，每个DB可以配置不同的副本数。创建数据库时，通过参数replica 指定副本数（缺省为1）。如果副本数为1，系统的可靠性无法保证，只要数据所在的节点宕机，就将无法提供服务。集群的节点数必须大于等于副本数，否则创建表时将返回错误“more dnodes are needed"。比如下面的命令将创建副本数为3的数据库demo：
+
 ```
 CREATE DATABASE demo replica 3;
 ```
@@ -108,7 +111,7 @@ CREATE DATABASE demo replica 3;
 
 因为vnode的引入，无法简单的给出结论：“集群中过半dnode工作，集群就应该工作”。但是对于简单的情形，很好下结论。比如副本数为3，只有三个dnode，那如果仅有一个节点不工作，整个集群还是可以正常工作的，但如果有两个节点不工作，那整个集群就无法正常工作了。
 
-##Mnode的高可用
+##Mnode的高可用性
 TDengine集群是由mnode (taosd的一个模块，逻辑节点) 负责管理的，为保证mnode的高可用，可以配置多个mnode副本，副本数由系统配置参数numOfMnodes决定，有效范围为1-3。为保证元数据的强一致性，mnode副本之间是通过同步的方式进行数据复制的。
 
 一个集群有多个dnode, 但一个dnode至多运行一个mnode实例。多个dnode情况下，哪个dnode可以作为mnode呢？这是完全由系统根据整个系统资源情况，自动指定的。用户可通过CLI程序taos，在TDengine的console里，执行如下命令：
@@ -119,6 +122,8 @@ SHOW MNODES;
 当集群中第一个节点启动时，该节点一定会运行一个mnode实例，否则该dnode无法正常工作，因为一个系统是必须有至少一个mnode的。如果numOfMnodes配置为2，启动第二个dnode时，该dnode也将运行一个mnode实例。
 
 为保证mnode服务的高可用性，numOfMnodes必须设置为2或更大。因为mnode保存的元数据必须是强一致的，如果numOfMnodes大于2，复制参数quorum自动设为2，也就是说，至少要保证有两个副本写入数据成功，才通知客户端应用写入成功。
+
+**注意：**一个TDengine高可用系统，无论是vnode还是mnode, 都必须配置多个副本。
 
 ##负载均衡
 

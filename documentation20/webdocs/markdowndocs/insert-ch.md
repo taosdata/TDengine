@@ -22,7 +22,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 **Tips:** 
 
-- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置）。
+- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置，最大可配置为8M）。
 - TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程切频繁切换，带来额外开销。
 
 ## Prometheus直接写入
@@ -49,7 +49,8 @@ go build
 参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/),在Prometheus的配置文件中的<remote_write>部分，增加以下配置
 
 - url: bailongma API服务提供的URL, 参考下面的blm_prometheus启动示例章节
-  启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
+
+启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
 
 ### 启动blm_prometheus程序
 blm_prometheus程序有以下选项，在启动blm_prometheus程序时可以通过设定这些选项来设定blm_prometheus的配置。
@@ -87,18 +88,20 @@ remote_write:
 
 ### 查询prometheus写入数据
 prometheus产生的数据格式如下：
-```
-Timestamp: 1576466279341,
-Value: 37.000000, 
-apiserver_request_latencies_bucket {
-  component="apiserver", 
-  instance="192.168.99.116:8443", 
-  job="kubernetes-apiservers", 
-  le="125000", 
-  resource="persistentvolumes", s
-  cope="cluster",
-  verb="LIST", 
-  version=“v1" 
+```json
+{
+  Timestamp: 1576466279341,
+  Value: 37.000000, 
+  apiserver_request_latencies_bucket {
+    component="apiserver", 
+    instance="192.168.99.116:8443", 
+    job="kubernetes-apiservers", 
+    le="125000", 
+    resource="persistentvolumes", s
+    cope="cluster",
+    verb="LIST", 
+    version=“v1" 
+  }
 }
 ```
 其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。blm_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
@@ -127,7 +130,7 @@ go build
 一切正常的情况下，就会在对应的目录下生成一个blm_telegraf的可执行程序。
 
 ### 安装Telegraf
-目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads
+目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：<a href='https://portal.influxdata.com/downloads'>https://portal.influxdata.com/downloads</a>
 
 ### 配置Telegraf
 修改Telegraf配置文件/etc/telegraf/telegraf.conf中与TDengine有关的配置项。 
@@ -182,7 +185,7 @@ url = "http://10.1.2.3:8089/telegraf"
 
 ### 查询telegraf写入数据
 telegraf产生的数据格式如下：
-```
+```json
 {
   "fields": {
     "usage_guest": 0, 
@@ -215,7 +218,5 @@ select * from cpu;
 
 ## EMQ X Broker直接写入
 
-MQTT是一流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ里做简单配置，即可将MQTT的数据直接写入TDengine。
-
-
+MQTT是一流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ Dashboard里使用“规则”做简单配置，即可将MQTT的数据直接写入TDengine。EMQ X 支持通过 发送到 Web 服务 的方式保存数据到 TDEngine，也在企业版上提供原生的 TDEngine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
 

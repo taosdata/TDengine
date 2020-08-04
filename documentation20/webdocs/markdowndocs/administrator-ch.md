@@ -39,7 +39,7 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 用户可以通过参数keep，设置数据在磁盘中的最大保存时长。为进一步减少存储成本，TDengine还提供多级存储，最冷的数据可以存放在最廉价的存储介质上，应用的访问不用做任何调整，只是读取速度降低了。
 
-为提高速度，可以配置多快硬盘，这样可以并发写入或读取数据。
+为提高速度，可以配置多快硬盘，这样可以并发写入或读取数据。需要提醒的是，TDengine采取多副本的方式提供数据的高可靠，因此不再需要采用昂贵的磁盘阵列。
 
 ### 物理机或虚拟机台数
 
@@ -78,13 +78,13 @@ TDengine集群的节点数必须大于等于副本数，否则创建表时将报
 
 TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在/etc/taos目录，可以通过taosd命令行执行参数-c指定配置文件目录。比如taosd -c /home/user来指定配置文件位于/home/user这个目录。
 
-下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节。**注意：配置修改后，需要重启*taosd*服务才能生效。**
+下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节，而且这些参数的缺省配置都是工作的，一般无需设置。**注意：配置修改后，需要重启*taosd*服务才能生效。**
 
-- firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 缺省值为 localhost:6030。
-- secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 缺省值为空。
-- fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 缺省值为空。
+- firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 默认值为localhost:6030。
+- secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 默认值为空。
+- fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 默认值为空。
 - serverPort：taosd启动后，对外服务的端口号，默认值为6030。
-- httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求。
+- httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求, 默认值为6041。
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
 - logDir：日志文件目录，客户端和服务器的运行日志文件将写入该目录。默认值：/var/log/taos。
 - arbitrator：系统中裁决器的end point, 缺省值为空。
@@ -92,7 +92,9 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - debugFlag：运行日志开关。131（输出错误和警告日志），135（ 输出错误、警告和调试日志），143（ 输出错误、警告、调试和跟踪日志）。默认值：131或135（不同模块有不同的默认值）。
 - numOfLogLines：单个日志文件允许的最大行数。默认值：10,000,000行。
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
-- maxBinaryDisplayWidth：Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn动态修改此选项。
+- telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
+
+**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共12个端口，而且必须TCP和UDP都打开。
 
 不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
 
@@ -111,7 +113,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 对于一个应用场景，可能有多种数据特征的数据并存，最佳的设计是将具有相同数据特征的表放在一个库里，这样一个应用有多个库，而每个库可以配置不同的存储参数，从而保证系统有最优的性能。TDengine允许应用在创建库时指定上述存储参数，如果指定，该参数就将覆盖对应的系统配置参数。举例，有下述SQL： 
 
 ```
- create database demo days 10 cache 32 blocks 8 replica 3
+ create database demo days 10 cache 32 blocks 8 replica 3;
 ```
 
 该SQL创建了一个库demo, 每个数据文件存储10天数据，内存块为32兆字节，每个VNODE占用8个内存块，副本数为3，而其他参数与系统配置完全一致。
@@ -140,6 +142,7 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 - secondEp: taos启动时，如果first连接不上，尝试连接集群中第二个taosd实例的end point, 缺省值为空。
 - charset：字符集编码。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 - locale：系统区位信息及编码格式。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
+- maxBinaryDisplayWidth：Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width *nn* 动态修改此选项。
 
 日志的配置参数，与server的配置参数完全一样。
 
@@ -150,28 +153,30 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
 
 ```
-CREATE USER user_name PASS ‘password’
+CREATE USER <user_name> PASS <‘password’>;
 ```
 
 创建用户，并指定用户名和密码，密码需要用单引号引起来
 
 ```
-DROP USER user_name
+DROP USER <user_name>;
 ```
 
 删除用户，限root用户使用
 
 ```
-ALTER USER user_name PASS ‘password’  
+ALTER USER <user_name> PASS <‘password’>;
 ```
 
 修改用户密码, 为避免被转换为小写，密码需要用单引号引用
 
 ```
-SHOW USERS
+SHOW USERS;
 ```
 
-显示所有用户
+显示所有用户  
+  
+**注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身
 
 ## 数据导入
 
@@ -186,7 +191,7 @@ TDengine的shell支持source filename命令，用于批量运行文件中的SQL�
 TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。CSV文件只属于一张表且CSV文件中的数据格式需与要导入表的结构相同, 在导入的时候，其语法如下
 
 ```mysql
-insert into tb1 file 'path/data.csv'
+insert into tb1 file 'path/data.csv';
 ```
 注意：如果CSV文件首行存在描述信息，请手动删除后再导入
 
@@ -237,7 +242,7 @@ TDengine提供了方便的数据库导入导出工具taosdump。用户可以将t
 如果用户需要导出一个表或一个STable中的数据，可在shell中运行
 
 ```
-select * from <tb_name> >> data.csv
+select * from <tb_name> >> data.csv;
 ```
 
 这样，表tb_name中的数据就会按照CSV格式导出到文件data.csv中。
@@ -251,37 +256,37 @@ TDengine提供了方便的数据库导出工具taosdump。用户可以根据需�
 系统管理员可以从CLI查询系统的连接、正在进行的查询、流式计算，并且可以关闭连接、停止正在进行的查询和流式计算。CLI里SQL语法如下：
 
 ```
-SHOW CONNECTIONS
+SHOW CONNECTIONS;
 ```
 
 显示数据库的连接，其中一列显示ip:port, 为连接的IP地址和端口号。
 
 ```
-KILL CONNECTION <connection-id>
+KILL CONNECTION <connection-id>;
 ```
 
 强制关闭数据库连接，其中的connection-id是SHOW CONNECTIONS中显示的第一列的数字。
 
 ```
-SHOW QUERIES
+SHOW QUERIES;
 ```
 
 显示数据查询，其中第一列显示的以冒号隔开的两个数字为query-id，为发起该query应用连接的connection-id和查询次数。
 
 ```
-KILL QUERY <query-id>
+KILL QUERY <query-id>;
 ```
 
 强制关闭数据查询，其中query-id是SHOW QUERIES中显示的 connection-id:query-no字串，如“105:2”，拷贝粘贴即可。
 
 ```
-SHOW STREAMS
+SHOW STREAMS;
 ```
 
 显示流式计算，其中第一列显示的以冒号隔开的两个数字为stream-id, 为启动该stream应用连接的connection-id和发起stream的次数。
 
 ```
-KILL STREAM <stream-id>
+KILL STREAM <stream-id>;
 ```
 
 强制关闭流式计算，其中的中stream-id是SHOW STREAMS中显示的connection-id:stream-no字串，如103:2，拷贝粘贴即可。

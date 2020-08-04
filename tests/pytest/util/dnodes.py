@@ -39,6 +39,7 @@ class TDSimClient:
             "udebugFlag": "135",
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
+            "telemetryReporting": "0",
             }
     def init(self, path):
         self.__init__()
@@ -191,6 +192,7 @@ class TDDnode:
         self.cfg("charset", "UTF-8")
         self.cfg("asyncLog", "0")
         self.cfg("anyIp", "0")
+        self.cfg("tsEnableTelemetryReporting", "0")
         self.cfg("dDebugFlag", "135")
         self.cfg("mDebugFlag", "135")
         self.cfg("sdbDebugFlag", "135")
