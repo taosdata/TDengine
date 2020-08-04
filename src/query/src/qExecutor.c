@@ -6408,6 +6408,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
+  *buildRes = false;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   if (IS_QUERY_KILLED(pQInfo)) {
     qDebug("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
@@ -6751,7 +6752,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     return NULL;
   }
 
-  const int32_t DEFAULT_QHANDLE_LIFE_SPAN = tsShellActivityTimer * 2;
+  const int32_t DEFAULT_QHANDLE_LIFE_SPAN = tsShellActivityTimer * 2 * 1000;
 
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool == NULL) {
