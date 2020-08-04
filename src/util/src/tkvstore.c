@@ -522,7 +522,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
 
       maxBufSize = MAX(maxBufSize, rInfo.size);
 
-      if (lseek(pStore->fd, rInfo.size, SEEK_CUR) < 0) {
+      if (lseek(pStore->fd, (off_t)rInfo.size, SEEK_CUR) < 0) {
         uError("failed to lseek file %s since %s", pStore->fname, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
         goto _err;
@@ -550,7 +550,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
   while (taosHashIterNext(pIter)) {
     SKVRecord *pRecord = taosHashIterGet(pIter);
 
-    if (lseek(pStore->fd, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
+    if (lseek(pStore->fd, (off_t)(pRecord->offset + sizeof(SKVRecord)), SEEK_SET) < 0) {
       uError("failed to lseek file %s since %s, offset %" PRId64, pStore->fname, strerror(errno), pRecord->offset);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
