@@ -275,7 +275,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
     case 'e':
@@ -597,7 +597,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
       numOfThread++;
     }
   
-    memset(tableRecord.name, 0, sizeof(STableRecord));
+    memset(&tableRecord, 0, sizeof(STableRecord));
     tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
@@ -851,6 +851,7 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
   if (code != 0) {
     fprintf(stderr, "failed to run command %s\n", tempCommand);
     free(tempCommand);
+    free(tbuf);
     taos_free_result(tmpResult);
     return -1;
   }
@@ -876,6 +877,7 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
 
   if (isSuperTable) {
     free(tempCommand);
+    free(tbuf);
     return count;
   }
   
@@ -891,6 +893,7 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
     if (code != 0) {
       fprintf(stderr, "failed to run command %s\n", tempCommand);
       free(tempCommand);
+      free(tbuf);
       taos_free_result(tmpResult);
       return -1;
     }
@@ -901,6 +904,7 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
     if (NULL == row) {
       fprintf(stderr, " fetch failed to run command %s\n", tempCommand);
       free(tempCommand);
+      free(tbuf);
       taos_free_result(tmpResult);
       return -1;
     }
@@ -961,6 +965,7 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
   }
 
   free(tempCommand);
+  free(tbuf);
 
   return count;
 }
@@ -1835,7 +1840,7 @@ static void taosParseDirectory(const char *directoryName, const char *prefix, ch
   }
 
   int fileNum = 0;
-  while (fscanf(fp, "%s", fileArray[fileNum++])) {
+  while (fscanf(fp, "%128s", fileArray[fileNum++])) {
     if (strcmp(fileArray[fileNum-1], tsDbSqlFile) == 0) {
       fileNum--;
     }
@@ -1864,7 +1869,7 @@ static void taosCheckTablesSQLFile(const char *directoryName)
     exit(0);
   }
 
-  while (fscanf(fp, "%s", tsDbSqlFile)) {
+  while (fscanf(fp, "%128s", tsDbSqlFile)) {
     break;
   }
 
@@ -1922,20 +1927,6 @@ static FILE*  taosOpenDumpInFile(char *fptr) {
 
   char *fname = full_path.we_wordv[0];
   
-  if (access(fname, F_OK) != 0) {
-    fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
-    
-    wordfree(&full_path);
-    return NULL;
-  }
-  
-  if (access(fname, R_OK) != 0) {
-    fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
-    
-    wordfree(&full_path);
-    return NULL;
-  }
-
   FILE *f = fopen(fname, "r");
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);

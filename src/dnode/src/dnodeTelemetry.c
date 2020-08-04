@@ -33,7 +33,7 @@ static pthread_t tsTelemetryThread;
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT 80
-#define REPORT_INTERVAL 86400
+#define REPORT_INTERVAL 86400 
 
 static void beginObject(SBufferWriter* bw) {
   tbufWriteChar(bw, '{');
@@ -220,28 +220,34 @@ static void sendTelemetryReport() {
   taosWriteSocket(fd, tbufGetData(&bw, false), contLen);
   tbufCloseWriter(&bw);
 
-  taosReadSocket(fd, buf, 10); // read something to avoid nginx error 499
+  // read something to avoid nginx error 499
+  if (taosReadSocket(fd, buf, 10) < 0) {
+    dTrace("failed to receive response, reason:%s", strerror(errno));
+  }
   taosCloseSocket(fd);
 }
 
 static void* telemetryThread(void* param) {
-  int timeToWait = 0;
+  struct timespec end = {0};
+  clock_gettime(CLOCK_REALTIME, &end);
+  end.tv_sec += 300; // wait 5 minutes to send first report
+
   while (1) {
-    if (timeToWait <= 0) {
-      if (sdbIsMaster()) {
-        sendTelemetryReport();
+    while (1) {
+      if (sem_timedwait(&tsExitSem, &end) == 0) {
+        return NULL;
       }
-      timeToWait = REPORT_INTERVAL;
+      struct timespec now = {0};
+      clock_gettime(CLOCK_REALTIME, &now);
+      if (now.tv_sec > end.tv_sec || (now.tv_sec == end.tv_sec && now.tv_nsec >= end.tv_nsec)) {
+        break;
+      }
     }
 
-    int startAt = taosGetTimestampSec();
-    struct timespec timeout = {.tv_sec = 0, .tv_nsec = 0};
-    clock_gettime(CLOCK_REALTIME, &timeout);
-    timeout.tv_sec += timeToWait;
-    if (sem_timedwait(&tsExitSem, &timeout) == 0) {
-      break;
+    if (sdbIsMaster()) {
+      sendTelemetryReport();
     }
-    timeToWait -= (taosGetTimestampSec() - startAt);
+    end.tv_sec += REPORT_INTERVAL;
   }
 
   return NULL;

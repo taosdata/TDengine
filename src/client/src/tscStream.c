@@ -220,15 +220,16 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
   if (numOfRows > 0) { // when reaching here the first execution of stream computing is successful.
-    pStream->numOfRes += numOfRows;
     for(int32_t i = 0; i < numOfRows; ++i) {
       TAOS_ROW row = taos_fetch_row(res);
-      tscDebug("%p stream:%p fetch result", pSql, pStream);
-      tscStreamFillTimeGap(pStream, *(TSKEY*)row[0]);
-      pStream->stime = *(TSKEY *)row[0];
-
-      // user callback function
-      (*pStream->fp)(pStream->param, res, row);
+      if (row != NULL) {
+        tscDebug("%p stream:%p fetch result", pSql, pStream);
+        tscStreamFillTimeGap(pStream, *(TSKEY*)row[0]);
+        pStream->stime = *(TSKEY *)row[0];
+        // user callback function
+        (*pStream->fp)(pStream->param, res, row);
+        pStream->numOfRes++;
+      }
     }
 
     if (!pStream->isProject) {
