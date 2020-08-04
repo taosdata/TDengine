@@ -79,3 +79,8 @@ ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   uError("taosTSendFileImp no implemented yet");
   return 0;
 }
+
+int taosFtruncate(int fd, int64_t length) {
+  uError("taosFtruncate no implemented yet");
+  return 0;
+}

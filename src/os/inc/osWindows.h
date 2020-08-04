@@ -67,6 +67,8 @@ extern "C" {
   #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
   #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
+#define TAOS_OS_FUNC_FILE_FTRUNCATE
+  extern int taosFtruncate(int fd, int64_t length); 
 
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
@@ -90,6 +92,7 @@ extern "C" {
   #define taosCloseSocket(fd) closesocket(fd)
 
 #define TAOS_OS_FUNC_STRING_WCHAR
+  int twcslen(const wchar_t *wcs);
 #define TAOS_OS_FUNC_STRING_GETLINE
 #define TAOS_OS_FUNC_STRING_STR2INT64
   #ifdef _TD_GO_DLL_
@@ -100,7 +103,7 @@ extern "C" {
   #endif
 #define TAOS_OS_FUNC_STRING_STRDUP
   #define taosStrdupImp(str) _strdup(str)
-  #define taosStrndupImp(str, size) _strndup(str, size)
+  #define taosStrndupImp(str, size) _strndup(str, size)  
 
 #define TAOS_OS_FUNC_SYSINFO
 

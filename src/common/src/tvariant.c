@@ -101,19 +101,19 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
-      int32_t lenInwchar = len / TSDB_NCHAR_SIZE;
+      size_t lenInwchar = len / TSDB_NCHAR_SIZE;
       pVar->wpz = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
       
       wcsncpy(pVar->wpz, (wchar_t *)pz, lenInwchar);
       pVar->wpz[lenInwchar] = 0;
-      pVar->nLen = len;
+      pVar->nLen = (int32_t)len;
       
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
       pVar->pz = calloc(len, sizeof(char));
       memcpy(pVar->pz, pz, len);
-      pVar->nLen = len;
+      pVar->nLen = (int32_t)len;
       break;
     }
     
@@ -185,7 +185,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     case TSDB_DATA_TYPE_NCHAR: {
       dst[0] = '\'';
       taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
-      int32_t len = strlen(dst);
+      int32_t len = (int32_t)strlen(dst);
       dst[len] = '\'';
       dst[len + 1] = 0;
       return len + 1;
@@ -361,11 +361,11 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
         pBuf = realloc(pBuf, newSize + 1);
       }
       
-      taosUcs4ToMbs(pVariant->wpz, newSize, pBuf);
+      taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, pBuf);
       free(pVariant->wpz);
       pBuf[newSize] = 0;
     } else {
-      taosUcs4ToMbs(pVariant->wpz, newSize, *pDest);
+      taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, *pDest);
     }
     
   } else {
@@ -384,7 +384,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     *pDest = pBuf;
   }
   
-  *pDestSize = strlen(*pDest);
+  *pDestSize = (int32_t)strlen(*pDest);
   return 0;
 }
 
@@ -428,7 +428,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
     
     if (pDestSize != NULL) {
-      *pDestSize = output;
+      *pDestSize = (int32_t)output;
     }
   }
   
@@ -682,7 +682,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
         float fv = (float)pVariant->i64Key;
         SET_FLOAT_VAL_ALIGN(payload, &fv);
 #else
-        *((float *)payload) = pVariant->i64Key;
+        *((float *)payload) = (float)pVariant->i64Key;
 #endif
       } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
 #ifdef _TD_ARM_32_
@@ -735,7 +735,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
         double dv = (double)(pVariant->i64Key);
         SET_DOUBLE_VAL_ALIGN(payload, &dv);
 #else
-        *((double *)payload) = pVariant->i64Key;
+        *((double *)payload) = (double)pVariant->i64Key;
 #endif
       } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
 #ifdef _TD_ARM_32_

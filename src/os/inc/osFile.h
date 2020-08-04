@@ -68,6 +68,10 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath);
   #define S_ISLNK(m) 0
 #endif
 
+#ifndef TAOS_OS_FUNC_FILE_FTRUNCATE
+  #define taosFtruncate ftruncate
+#endif
+
 #ifdef __cplusplus
 }
 #endif

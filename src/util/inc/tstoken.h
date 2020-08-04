@@ -82,7 +82,7 @@ static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
   const char* z = pToken->z;
   int32_t type = TK_ILLEGAL;
 
-  int32_t i = 0;
+  uint32_t i = 0;
   for(; i < pToken->n; ++i) {
     switch (z[i]) {
       case '+':

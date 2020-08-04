@@ -114,7 +114,7 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
     if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info) < 0) {
       if (terrno != TSDB_CODE_COM_FILE_CORRUPTED) goto _err;
     } else {
-      if (ftruncate(pStore->fd, info.size) < 0) {
+      if (taosFtruncate(pStore->fd, info.size) < 0) {
         uError("failed to truncate %s to %" PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
         goto _err;
