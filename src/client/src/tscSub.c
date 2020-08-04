@@ -203,6 +203,7 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
 
 static SArray* getTableList( SSqlObj* pSql ) {
   const char* p = strstr( pSql->sqlstr, " from " );
+  assert(p != NULL); // we are sure this is a 'select' statement
   char* sql = alloca(strlen(p) + 32);
   sprintf(sql, "select tbid(tbname)%s", p);
   
