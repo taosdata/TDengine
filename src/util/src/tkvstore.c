@@ -535,7 +535,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
 
   buf = malloc(maxBufSize);
   if (buf == NULL) {
-    uError("failed to allocate %d bytes in KV store %s", maxBufSize, pStore->fname);
+    uError("failed to allocate %" PRId64 " bytes in KV store %s", maxBufSize, pStore->fname);
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }

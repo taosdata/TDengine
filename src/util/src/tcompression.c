@@ -52,14 +52,11 @@
 #include "tscompression.h"
 #include "taosdef.h"
 
-const int TEST_NUMBER = 1;
+static const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)
 #define SIMPLE8B_MAX_INT64 ((uint64_t)2305843009213693951L)
 
-bool safeInt64Add(int64_t a, int64_t b) {
-  if ((a > 0 && b > INT64_MAX - a) || (a < 0 && b < INT64_MIN - a)) return false;
-  return true;
-}
+#define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 
 /*
  * Compress Integer (Simple8B).
