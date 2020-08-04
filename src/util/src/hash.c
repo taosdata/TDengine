@@ -284,6 +284,7 @@ void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
 
   // no data, return directly
   if (atomic_load_32(&pe->num) == 0) {
+
     __rd_unlock(&pHashObj->lock, pHashObj->type);
     return NULL;
   }
@@ -293,6 +294,12 @@ void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
   // lock entry
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosRLockLatch(&pe->latch);
+  }
+
+  if (pe->num > 0) {
+    assert(pe->next != NULL);
+  } else {
+    assert(pe->next == NULL);
   }
 
   SHashNode *pNode = doSearchInEntryList(pe, key, keyLen, hashVal);
@@ -342,6 +349,8 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
   // no data, return directly
   if (pe->num == 0) {
+    assert(pe->next == NULL);
+
     __rd_unlock(&pHashObj->lock, pHashObj->type);
     return -1;
   }
@@ -372,6 +381,12 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
       pRes = pNode->next;
       pNode->next = pNode->next->next;
     }
+  }
+
+  if (pe->num == 0) {
+    assert(pe->next == NULL);
+  } else {
+    assert(pe->next != NULL);
   }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
@@ -471,6 +486,8 @@ void taosHashCleanup(SHashObj *pHashObj) {
       }
 
       pNode = pEntry->next;
+      assert(pNode != NULL);
+
       while (pNode) {
         pNext = pNode->next;
         FREE_HASH_NODE(pHashObj, pNode);
@@ -655,6 +672,12 @@ void taosHashTableResize(SHashObj *pHashObj) {
         pe->num -= 1;
         pe->next = pNode->next;
 
+        if (pe->num == 0) {
+          assert(pe->next == NULL);
+        } else {
+          assert(pe->next != NULL);
+        }
+
         SHashEntry *pNewEntry = pHashObj->hashList[j];
         pushfrontNodeInEntryList(pNewEntry, pNode);
       } else {
@@ -671,11 +694,25 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
           // added into new slot
           SHashEntry *pNewEntry = pHashObj->hashList[j];
+
+          if (pNewEntry->num == 0) {
+            assert(pNewEntry->next == NULL);
+          } else {
+            assert(pNewEntry->next != NULL);
+          }
+
           pushfrontNodeInEntryList(pNewEntry, pNext);
         } else {
           pNode = pNext;
         }
       }
+
+      if (pe->num == 0) {
+        assert(pe->next == NULL);
+      } else {
+        assert(pe->next != NULL);
+      }
+
     }
 
   }
