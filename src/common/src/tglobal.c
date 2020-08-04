@@ -126,7 +126,7 @@ int32_t tsMnodeEqualVnodeNum = 4;
 // restful
 int32_t  tsEnableHttpModule = 1;
 int32_t  tsRestRowLimit = 10240;
-uint16_t tsHttpPort = 6020;  // only tcp, range tcp[6020]
+uint16_t tsHttpPort = 6041;  // only tcp, range tcp[6041]
 int32_t  tsHttpCacheSessions = 1000;
 int32_t  tsHttpSessionExpire = 36000;
 int32_t  tsHttpMaxThreads = 2;
