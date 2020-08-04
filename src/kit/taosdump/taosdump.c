@@ -29,6 +29,7 @@
 #include <iconv.h>
 #include <time.h>
 
+#include "os.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -597,7 +598,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
     }
   
     memset(tableRecord.name, 0, sizeof(STableRecord));
-    tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes, TSDB_TABLE_NAME_LEN);
+    tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
     taosTWrite(fd, &tableRecord, sizeof(STableRecord));
@@ -1281,7 +1282,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
         taos_free_result(tmpResult);
         for (int32_t loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
           sprintf(tmpFileName, ".tables.tmp.%d", loopCnt);
-          remove(tmpFileName);
+          (void)remove(tmpFileName);
         }
         free(tmpCommand);
         return -1;
@@ -1291,8 +1292,8 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     }
   
     memset(&tableRecord, 0, sizeof(STableRecord));
-    strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
-    strncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
+    tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
+    tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
 
     taosTWrite(fd, &tableRecord, sizeof(STableRecord));
 
@@ -1316,7 +1317,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
   taosStartDumpOutWorkThreads(arguments, numOfThread, dbInfo->name);
   for (int loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
     sprintf(tmpFileName, ".tables.tmp.%d", loopCnt);
-    remove(tmpFileName);
+    (void)remove(tmpFileName);
   }
   
   free(tmpCommand);
@@ -1756,16 +1757,16 @@ int convertNCharToReadable(char *str, int size, char *buf, int bufsize) {
 void taosDumpCharset(FILE *fp) {
   char charsetline[256];
 
-  fseek(fp, 0, SEEK_SET);
+  (void)fseek(fp, 0, SEEK_SET);
   sprintf(charsetline, "#!%s\n", tsCharset);
-  fwrite(charsetline, strlen(charsetline), 1, fp);
+  (void)fwrite(charsetline, strlen(charsetline), 1, fp);
 }
 
 void taosLoadFileCharset(FILE *fp, char *fcharset) {
   char * line = NULL;
   size_t line_size = 0;
 
-  fseek(fp, 0, SEEK_SET);
+  (void)fseek(fp, 0, SEEK_SET);
   ssize_t size = getline(&line, &line_size, fp);
   if (size <= 2) {
     goto _exit_no_charset;
@@ -1784,7 +1785,7 @@ void taosLoadFileCharset(FILE *fp, char *fcharset) {
   return;
 
 _exit_no_charset:
-  fseek(fp, 0, SEEK_SET);
+  (void)fseek(fp, 0, SEEK_SET);
   *fcharset = '\0';
   taosTFree(line);
   return;
@@ -1845,6 +1846,7 @@ static void taosParseDirectory(const char *directoryName, const char *prefix, ch
 
   if (fileNum != totalFiles) {
     fprintf(stderr, "ERROR: directory:%s changed while read\n", directoryName);
+    pclose(fp);
     exit(0);
   }
 
