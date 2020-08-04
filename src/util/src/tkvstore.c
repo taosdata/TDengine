@@ -286,7 +286,7 @@ int tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid) {
     return -1;
   }
 
-  pStore->info.magic = taosCalcChecksum(pStore->info.magic, (uint8_t *)buf, POINTER_DISTANCE(pBuf, buf));
+  pStore->info.magic = taosCalcChecksum(pStore->info.magic, (uint8_t *)buf, (uint32_t)POINTER_DISTANCE(pBuf, buf));
   pStore->info.size += POINTER_DISTANCE(pBuf, buf);
   pStore->info.nDels++;
   pStore->info.nRecords--;
@@ -485,7 +485,7 @@ static void *tdDecodeKVRecord(void *buf, SKVRecord *pRecord) {
 static int tdRestoreKVStore(SKVStore *pStore) {
   char                  tbuf[128] = "\0";
   void *                buf = NULL;
-  int                   maxBufSize = 0;
+  int64_t               maxBufSize = 0;
   SKVRecord             rInfo = {0};
   SHashMutableIterator *pIter = NULL;
 
@@ -564,7 +564,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     }
 
     if (pStore->iFunc) {
-      if ((*pStore->iFunc)(pStore->appH, buf, pRecord->size) < 0) {
+      if ((*pStore->iFunc)(pStore->appH, buf, (int)pRecord->size) < 0) {
         uError("failed to restore record uid %" PRIu64 " in kv store %s at offset %" PRId64 " size %" PRId64
                " since %s",
                pRecord->uid, pStore->fname, pRecord->offset, pRecord->size, tstrerror(terrno));
