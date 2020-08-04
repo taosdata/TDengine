@@ -68,7 +68,7 @@ typedef struct {
   int8_t   cfgStatus;
   int8_t   unitType;
   int8_t   valType;
-  uint32_t ptrLength;
+  int32_t  ptrLength;
 } SGlobalCfg;
 
 extern SGlobalCfg tsGlobalConfig[];

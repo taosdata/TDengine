@@ -129,7 +129,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
 
       if (zigzag_value >= SIMPLE8B_MAX_INT64) goto _copy_and_exit;
 
-      char tmp_bit;
+      int64_t tmp_bit;
       if (zigzag_value == 0) {
         // Take care here, __builtin_clzl give wrong anser for value 0;
         tmp_bit = 0;

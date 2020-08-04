@@ -78,7 +78,7 @@ uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t hash = val >> 16U;
   hash += (val & 0xFFFFU);
   
-  return hash;
+  return (uint32_t)hash;
 }
 
 _hash_fn_t taosGetDefaultHashFunction(int32_t type) {

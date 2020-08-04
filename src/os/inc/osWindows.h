@@ -60,6 +60,9 @@ extern "C" {
 #define TAOS_OS_FUNC_DIR
 
 #define TAOS_OS_FUNC_FILE
+#define TAOS_OS_FUNC_FILE_ISREG
+#define TAOS_OS_FUNC_FILE_ISDIR
+#define TAOS_OS_FUNC_FILE_ISLNK
 #define TAOS_OS_FUNC_FILE_SENDIFLE
   #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
   #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
