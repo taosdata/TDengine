@@ -186,7 +186,7 @@ static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   return GET_DATA_PAYLOAD(pg);
 }
 
-#define NO_AVAILABLE_PAGES(_b) ((_b)->numOfPages >= (_b)->inMemPages)
+#define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
 static SIDList addNewGroup(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   assert(taosHashGet(pResultBuf->groupSet, (const char*) &groupId, sizeof(int32_t)) == NULL);
@@ -281,7 +281,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   pResultBuf->statis.getPages += 1;
 
   char* availablePage = NULL;
-  if (NO_AVAILABLE_PAGES(pResultBuf)) {
+  if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
     availablePage = evicOneDataPage(pResultBuf);
   }
 
@@ -340,7 +340,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->info.length >= 0 && (*pi)->info.offset >= 0);
 
     char* availablePage = NULL;
-    if (NO_AVAILABLE_PAGES(pResultBuf)) {
+    if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
       availablePage = evicOneDataPage(pResultBuf);
     }
 
@@ -396,12 +396,13 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file size:%"PRId64" bytes",
-        pResultBuf->handle, pResultBuf->totalBufSize, pResultBuf->fileSize);
+    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, inmem size:%dbytes, file size:%"PRId64" bytes",
+        pResultBuf->handle, pResultBuf->totalBufSize, listNEles(pResultBuf->lruList) * pResultBuf->pageSize,
+        pResultBuf->fileSize);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
+    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
            pResultBuf->totalBufSize);
   }
 

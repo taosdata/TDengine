@@ -74,6 +74,8 @@ static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void *qhandle) {
   pRead->rpcMsg.handle = NULL;
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
+
+  vDebug("QInfo:%p add to query task queue for exec, msg:%p", qhandle, pRead);
   taosWriteQitem(pVnode->rqueue, TAOS_QTYPE_QUERY, pRead);
 }
 
@@ -83,7 +85,6 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void* pVnode, void* handle, b
   int32_t code = TSDB_CODE_SUCCESS;
   if ((code = qDumpRetrieveResult(handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
     if (continueExec) {
-      vDebug("QInfo:%p add to query task queue for exec", handle);
       vnodePutItemIntoReadQueue(pVnode, handle);
       pRet->qhandle = handle;
       *freeHandle = false;

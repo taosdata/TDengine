@@ -32,7 +32,7 @@ typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
   char             *key;
-  struct SHashNode *prev;
+//  struct SHashNode *prev;
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key, if hashVal == HASH_VALUE_IN_TRASH, this node is moved to trash
   uint32_t          keyLen;   // length of the key
@@ -47,7 +47,7 @@ typedef enum SHashLockTypeE {
 typedef struct SHashEntry {
   int32_t    num;      // number of elements in current entry
   SRWLatch   latch;    // entry latch
-  SHashNode  head;     // dummy head
+  SHashNode *next;
 } SHashEntry;
 
 typedef struct SHashObj {

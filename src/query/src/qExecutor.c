@@ -2784,6 +2784,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
   setWindowResultInfo(pResultInfo, pQuery, pRuntimeEnv->stableQuery, buf);
   resetMergeResultBuf(pQuery, pRuntimeEnv->pCtx, pResultInfo);
 
+  // todo add windowRes iterator
   int64_t lastTimestamp = -1;
   int64_t startt = taosGetTimestampMs();
 
@@ -2791,7 +2792,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
     int32_t pos = pTree->pNode[0].index;
 
     SWindowResInfo *pWindowResInfo = &pTableList[pos]->windowResInfo;
-    SWindowResult * pWindowRes = getWindowResult(pWindowResInfo, cs.position[pos]);
+    SWindowResult  *pWindowRes = getWindowResult(pWindowResInfo, cs.position[pos]);
     tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pos.pageId);
 
     char *b = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes, page);
@@ -2828,6 +2829,9 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
 
       lastTimestamp = ts;
 
+      // move to the next element of current entry
+      int32_t currentPageId = pWindowRes->pos.pageId;
+
       cs.position[pos] += 1;
       if (cs.position[pos] >= pWindowResInfo->size) {
         cs.position[pos] = -1;
@@ -2835,6 +2839,12 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
         // all input sources are exhausted
         if (--numOfTables == 0) {
           break;
+        }
+      } else {
+        // current page is not needed anymore
+        SWindowResult  *pNextWindowRes = getWindowResult(pWindowResInfo, cs.position[pos]);
+        if (pNextWindowRes->pos.pageId != currentPageId) {
+          releaseResBufPage(pRuntimeEnv->pResultBuf, page);
         }
       }
     }
@@ -5081,8 +5091,6 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
     copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
     clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
   }
-
-  pQInfo->pointsInterpo += numOfFilled;
 }
 
 static void tableQueryImpl(SQInfo *pQInfo) {
@@ -6330,16 +6338,24 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 
   pthread_mutex_unlock(&pQInfo->lock);
 
+  // clear qhandle owner
+//  assert(pQInfo->owner == pthread_self());
+//  pQInfo->owner = 0;
+
   return buildRes;
 }
 
 bool qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
+  assert(pQInfo && pQInfo->signature == pQInfo);
+//  int64_t threadId = pthread_self();
 
-  if (pQInfo == NULL || pQInfo->signature != pQInfo) {
-    qDebug("QInfo:%p has been freed, no need to execute", pQInfo);
-    return false;
-  }
+//  int64_t curOwner = 0;
+//  if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {
+//    qError("QInfo:%p qhandle is now executed by thread:%p", pQInfo, (void*) curOwner);
+//    pQInfo->code = TSDB_CODE_QRY_IN_EXEC;
+//    return false;
+//  }
 
   if (IS_QUERY_KILLED(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
