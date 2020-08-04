@@ -2384,7 +2384,7 @@ static void bottom_func_second_merge(SQLFunctionCtx *pCtx) {
     do_bottom_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
                            type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
-  
+
   SET_VAL(pCtx, pInput->num, pOutput->num);
   
   if (pOutput->num > 0) {
