@@ -590,7 +590,7 @@ int simExecuteRestFulCommand(SScript *script, char *command) {
 
 bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
   char command[4096];
-  sprintf(command, "curl 127.0.0.1:6020/rest/login/%s/%s", user, pass);
+  sprintf(command, "curl 127.0.0.1:6041/rest/login/%s/%s", user, pass);
 
   bool success = false;
   for (int attempt = 0; attempt < 10; ++attempt) {
@@ -815,7 +815,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
   SCmdLine *line = &script->lines[script->linePos];
   char command[4096];
-  sprintf(command, "curl -H 'Authorization: Taosd %s' -d \"%s\" 127.0.0.1:6020/rest/sql", script->auth, rest);
+  sprintf(command, "curl -H 'Authorization: Taosd %s' -d \"%s\" 127.0.0.1:6041/rest/sql", script->auth, rest);
 
   int ret = -1;
   for (int attempt = 0; attempt < 10; ++attempt) {
@@ -947,7 +947,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   TAOS_RES* pSql = NULL;
   if (simAsyncQuery) {
     char command[4096];
-    sprintf(command, "curl -H 'Authorization: Taosd %s' -d '%s' 127.0.0.1:6020/rest/sql", script->auth, rest);
+    sprintf(command, "curl -H 'Authorization: Taosd %s' -d '%s' 127.0.0.1:6041/rest/sql", script->auth, rest);
     ret = simExecuteRestFulCommand(script, command);
   }
   else {

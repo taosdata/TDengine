@@ -2379,10 +2379,11 @@ static void bottom_func_second_merge(SQLFunctionCtx *pCtx) {
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
-    do_bottom_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
-                           pCtx->outputType, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+    int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT) ? TSDB_DATA_TYPE_DOUBLE : pCtx->outputType;
+    do_bottom_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp, type,
+                           &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
-  
+
   SET_VAL(pCtx, pInput->num, pOutput->num);
   
   if (pOutput->num > 0) {

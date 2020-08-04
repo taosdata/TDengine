@@ -44,7 +44,7 @@ static char *    tdGetKVStoreSnapshotFname(char *fdata);
 static char *    tdGetKVStoreNewFname(char *fdata);
 static void      tdFreeKVStore(SKVStore *pStore);
 static int       tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
-static int       tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
+static int       tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo, uint32_t *version);
 static int       tdEncodeKVRecord(void **buf, SKVRecord *pRecord);
 static void *    tdDecodeKVRecord(void *buf, SKVRecord *pRecord);
 static int       tdRestoreKVStore(SKVStore *pStore);
@@ -91,6 +91,7 @@ int tdDestroyKVStore(char *fname) {
 
 SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH) {
   SStoreInfo info = {0};
+  uint32_t   version = 0;
 
   SKVStore *pStore = tdNewKVStore(fname, iFunc, aFunc, appH);
   if (pStore == NULL) return NULL;
@@ -111,9 +112,14 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
     }
   } else {
     uDebug("file %s exists, try to recover the KV store", pStore->fsnap);
-    if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info) < 0) {
+    if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info, &version) < 0) {
       if (terrno != TSDB_CODE_COM_FILE_CORRUPTED) goto _err;
     } else {
+      if (version != KVSTORE_FILE_VERSION) {
+        uError("file %s version %u is not the same as program version %u, this may cause problem", pStore->fsnap,
+               version, KVSTORE_FILE_VERSION);
+      }
+
       if (ftruncate(pStore->fd, info.size) < 0) {
         uError("failed to truncate %s to %" PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -132,7 +138,11 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
     (void)remove(pStore->fsnap);
   }
 
-  if (tdLoadKVStoreHeader(pStore->fd, pStore->fname, &info) < 0) goto _err;
+  if (tdLoadKVStoreHeader(pStore->fd, pStore->fname, &info, &version) < 0) goto _err;
+  if (version != KVSTORE_FILE_VERSION) {
+    uError("file %s version %u is not the same as program version %u, this may cause problem", pStore->fname, version,
+           KVSTORE_FILE_VERSION);
+  }
 
   pStore->info.size = TD_KVSTORE_HEADER_SIZE;
   pStore->info.magic = info.magic;
@@ -320,7 +330,7 @@ int tdKVStoreEndCommit(SKVStore *pStore) {
   return 0;
 }
 
-static int tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
+static int tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo, uint32_t *version) {
   char buf[TD_KVSTORE_HEADER_SIZE] = "\0";
 
   if (lseek(fd, 0, SEEK_SET) < 0) {
@@ -341,7 +351,9 @@ static int tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
     return -1;
   }
 
-  tdDecodeStoreInfo(buf, pInfo);
+  void *pBuf = (void *)buf;
+  pBuf = tdDecodeStoreInfo(pBuf, pInfo);
+  pBuf = taosDecodeFixedU32(pBuf, version);
 
   return 0;
 }
@@ -357,6 +369,7 @@ static int tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo) {
 
   void *pBuf = buf;
   tdEncodeStoreInfo(&pBuf, pInfo);
+  taosEncodeFixedU32(&pBuf, KVSTORE_FILE_VERSION);
   ASSERT(POINTER_DISTANCE(pBuf, buf) + sizeof(TSCKSUM) <= TD_KVSTORE_HEADER_SIZE);
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TD_KVSTORE_HEADER_SIZE);
