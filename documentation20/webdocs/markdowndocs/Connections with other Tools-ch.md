@@ -31,7 +31,7 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录�
 
 ![img](../assets/add_datasource3.jpg)
 
-* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6020)，默认 http://localhost:6020。
+* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041
 * User：TDengine 用户名。
 * Password：TDengine 用户密码。
 
