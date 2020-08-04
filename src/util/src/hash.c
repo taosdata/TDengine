@@ -352,6 +352,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
   SHashNode *pNode = pe->next;
   SHashNode *pRes = NULL;
+
   // remove it
   if ((pNode->keyLen == keyLen) && (memcmp(pNode->key, key, keyLen) == 0)) {
     pe->next = pNode->next;
@@ -622,6 +623,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
     return;
   }
 
+  int64_t st = taosGetTimestampUs();
   void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void*) * newSize);
   if (pNewEntryList == NULL) {  // todo handle error
     //    uDebug("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
@@ -678,8 +680,10 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   }
 
-  //  uDebug("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", pHashObj->capacity,
-  //         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
+  int64_t et = taosGetTimestampUs();
+
+  uDebug("hash table resize completed, new capacity:%"PRId64", load factor:%f, elapsed time:%fms", pHashObj->capacity,
+           ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
