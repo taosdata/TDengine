@@ -1999,7 +1999,8 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
   return 0;
 }
 
-int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
+int tscProcessDropDbRsp(SSqlObj *pSql) {
+  pSql->pTscObj->db[0] = 0;
   taosCacheEmpty(tscCacheHandle);
   return 0;
 }
