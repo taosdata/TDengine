@@ -238,6 +238,12 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // no data in hash table with the specified key, add it into hash table
     pushfrontNodeInEntryList(pe, pNewNode);
 
+    if (pe->num == 0) {
+      assert(pe->next == NULL);
+    } else {
+      assert(pe->next != NULL);
+    }
+
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);
     }
@@ -449,6 +455,12 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
         pEntry->num -= 1;
         pEntry->next = pNode->next;
 
+        if (pEntry->num == 0) {
+          assert(pEntry->next == NULL);
+        } else {
+          assert(pEntry->next != NULL);
+        }
+
         FREE_HASH_NODE(pHashObj, pNode);
       } else {
         break;
@@ -465,6 +477,12 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
         if (fp && (!fp(param, pNext->data))) {
           pNode->next = pNext->next;
           pEntry->num -= 1;
+
+          if (pEntry->num == 0) {
+            assert(pEntry->next == NULL);
+          } else {
+            assert(pEntry->next != NULL);
+          }
 
           FREE_HASH_NODE(pHashObj, pNext);
         } else {
@@ -675,6 +693,13 @@ void taosHashTableResize(SHashObj *pHashObj) {
   pHashObj->capacity = newSize;
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     SHashEntry *pe = pHashObj->hashList[i];
+
+    if (pe->num == 0) {
+      assert(pe->next == NULL);
+    } else {
+      assert(pe->next != NULL);
+    }
+
     if (pe->num == 0) {
       assert(pe->next == NULL);
       continue;
