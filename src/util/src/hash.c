@@ -728,6 +728,8 @@ void taosHashTableResize(SHashObj *pHashObj) {
       while ((pNext = pNode->next) != NULL) {
         int32_t j = HASH_INDEX(pNext->hashVal, pHashObj->capacity);
         if (j != i) {
+          pe->num -= 1;
+
           pNode->next = pNext->next;
           pNext->next = NULL;
 
