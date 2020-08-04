@@ -160,6 +160,9 @@ char *     strndup(const char *s, size_t n);
 #define TCP_KEEPCNT              0x1234
 #define TCP_KEEPIDLE             0x1234
 #define TCP_KEEPINTVL            0x1234
+#define SHUT_RDWR                SD_BOTH
+#define SHUT_RD                  SD_RECEIVE
+#define SHUT_WR                  SD_SEND
 
 #define LOCK_EX 1
 #define LOCK_NB 2
