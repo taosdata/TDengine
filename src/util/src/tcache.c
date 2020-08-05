@@ -438,8 +438,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     char* key = pNode->key;
     char* d = pNode->data;
 
-    int32_t ref = T_REF_DEC(pNode);
-    uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, key, d, ref);
+    int32_t ref = T_REF_VAL_GET(pNode);
+    uDebug("cache:%s, key:%p, %p is released, refcnt:%d", pCacheObj->name, key, d, ref - 1);
 
     /*
      * If it is not referenced by other users, remove it immediately. Otherwise move this node to trashcan wait for all users
@@ -449,6 +449,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
      * that tries to do the same thing.
      */
     if (inTrashCan) {
+      ref = T_REF_DEC(pNode);
+
       if (ref == 0) {
         assert(pNode->pTNodeHeader->pData == pNode);
 
@@ -459,7 +461,10 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
         doDestroyTrashcanElem(pCacheObj, pNode->pTNodeHeader);
       }
     } else {
+      // NOTE: remove it from hash in the first place, otherwise, the pNode may have been released by other thread
+      // when reaches here.
       int32_t ret = taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
+      ref = T_REF_DEC(pNode);
 
       // successfully remove from hash table, if failed, this node must have been move to trash already, do nothing.
       // note that the remove operation can be executed only once.

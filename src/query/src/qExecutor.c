@@ -6432,34 +6432,6 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   return code;
 }
 
-bool qHasMoreResultsToRetrieve(qinfo_t qinfo) {
-  SQInfo *pQInfo = (SQInfo *)qinfo;
-
-  if (!isValidQInfo(pQInfo) || pQInfo->code != TSDB_CODE_SUCCESS) {
-    qDebug("QInfo:%p invalid qhandle or error occurs, abort query, code:%x", pQInfo, pQInfo->code);
-    return false;
-  }
-
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
-  bool ret = false;
-  if (Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
-    ret = false;
-  } else if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
-    ret = true;
-  } else if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-    ret = true;
-  } else {
-    assert(0);
-  }
-
-  if (ret) {
-    qDebug("QInfo:%p has more results waits for client retrieve", pQInfo);
-  }
-
-  return ret;
-}
-
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen, bool* continueExec) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
@@ -6487,11 +6459,11 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   int32_t code = pQInfo->code;
   if (code == TSDB_CODE_SUCCESS) {
-    (*pRsp)->offset = htobe64(pQuery->limit.offset);
+    (*pRsp)->offset   = htobe64(pQuery->limit.offset);
     (*pRsp)->useconds = htobe64(pRuntimeEnv->summary.elapsedTime);
   } else {
-    (*pRsp)->useconds = 0;
-    (*pRsp)->offset = 0;
+    (*pRsp)->offset   = 0;
+    (*pRsp)->useconds = htobe64(pRuntimeEnv->summary.elapsedTime);
   }
   
   (*pRsp)->precision = htons(pQuery->precision);
@@ -6503,20 +6475,28 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   pQInfo->rspContext = NULL;
-  pQInfo->dataReady = QUERY_RESULT_NOT_READY;
+  pQInfo->dataReady  = QUERY_RESULT_NOT_READY;
 
   if (IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
-    (*pRsp)->completed = 1;  // notify no more result to client
-  }
-
-  if (qHasMoreResultsToRetrieve(pQInfo)) {
-    *continueExec = true;
-  } else { // failed to dump result, free qhandle immediately
     *continueExec = false;
-    qKillQuery(pQInfo);
+    (*pRsp)->completed = 1;  // notify no more result to client
+  } else {
+    *continueExec = true;
+    qDebug("QInfo:%p has more results waits for client retrieve", pQInfo);
   }
 
   return code;
+}
+
+int32_t qQueryCompleted(qinfo_t qinfo) {
+  SQInfo *pQInfo = (SQInfo *)qinfo;
+
+  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
+  }
+
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
+  return IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER);
 }
 
 int32_t qKillQuery(qinfo_t qinfo) {

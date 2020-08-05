@@ -353,22 +353,30 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   int32_t     slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
-  if (pe->num == 0) {
-    assert(pe->next == NULL);
-  } else {
-    assert(pe->next != NULL);
-  }
-
   // no data, return directly
   if (pe->num == 0) {
     assert(pe->next == NULL);
-
     __rd_unlock(&pHashObj->lock, pHashObj->type);
     return -1;
   }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosWLockLatch(&pe->latch);
+  }
+
+  if (pe->num == 0) {
+    assert(pe->next == NULL);
+  } else {
+    assert(pe->next != NULL);
+  }
+
+  // double check after locked
+  if (pe->num == 0) {
+    assert(pe->next == NULL);
+    taosWUnLockLatch(&pe->latch);
+
+    __rd_unlock(&pHashObj->lock, pHashObj->type);
+    return -1;
   }
 
   SHashNode *pNode = pe->next;
