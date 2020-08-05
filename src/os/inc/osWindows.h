@@ -107,6 +107,9 @@ typedef SOCKET eventfd_t;
   #define taosStrdupImp(str) _strdup(str)
   #define taosStrndupImp(str, size) _strndup(str, size)  
 
+char *stpcpy (char *dest, const char *src);
+char *stpncpy (char *dest, const char *src, size_t n);
+
 #define TAOS_OS_FUNC_SYSINFO
 
 #define TAOS_OS_FUNC_TIME_DEF

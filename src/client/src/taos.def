@@ -4,7 +4,6 @@ taos_options
 taos_connect
 taos_close
 taos_query
-taos_use_result
 taos_fetch_row
 taos_free_result
 taos_field_count

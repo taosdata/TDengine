@@ -947,11 +947,11 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
         int8_t *data = (int8_t *)pOutput;
         
-        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
+        UPDATE_DATA(pCtx, *data, (int8_t)val, notNullElems, isMin, key);
       } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
         int16_t *data = (int16_t *)pOutput;
         
-        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
+        UPDATE_DATA(pCtx, *data, (int16_t)val, notNullElems, isMin, key);
       } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
         int32_t *data = (int32_t *)pOutput;
 #if defined(_DEBUG_VIEW)
@@ -959,7 +959,7 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
 #endif
         
         if ((*data < val) ^ isMin) {
-          *data = val;
+          *data = (int32_t)val;
           for (int32_t i = 0; i < (pCtx)->tagInfo.numOfTagCols; ++i) {
             SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[i];
             if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {
@@ -982,7 +982,7 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       float *data = (float *)pOutput;
       double val = GET_DOUBLE_VAL(tval);
       
-      UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
+      UPDATE_DATA(pCtx, *data, (float)val, notNullElems, isMin, key);
     }
     
     return;
@@ -2040,7 +2040,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
     case TSDB_DATA_TYPE_INT: {
       int32_t *output = (int32_t *)pCtx->aOutputBuf;
       for (int32_t i = 0; i < len; ++i, output += step) {
-        *output = tvp[i]->v.i64Key;
+        *output = (int32_t)tvp[i]->v.i64Key;
       }
       break;
     }
@@ -2061,21 +2061,21 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
     case TSDB_DATA_TYPE_FLOAT: {
       float *output = (float *)pCtx->aOutputBuf;
       for (int32_t i = 0; i < len; ++i, output += step) {
-        *output = tvp[i]->v.dKey;
+        *output = (float)tvp[i]->v.dKey;
       }
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *output = (int16_t *)pCtx->aOutputBuf;
       for (int32_t i = 0; i < len; ++i, output += step) {
-        *output = tvp[i]->v.i64Key;
+        *output = (int16_t)tvp[i]->v.i64Key;
       }
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *output = (int8_t *)pCtx->aOutputBuf;
       for (int32_t i = 0; i < len; ++i, output += step) {
-        *output = tvp[i]->v.i64Key;
+        *output = (int8_t)tvp[i]->v.i64Key;
       }
       break;
     }
@@ -2430,7 +2430,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   }
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSchema      field[1] = { { pCtx->inputType, "dummyCol", 0, (uint8_t)pCtx->inputBytes } };
+  SSchema      field[1] = { { (uint8_t)pCtx->inputType, "dummyCol", 0, pCtx->inputBytes } };
   
   SColumnModel *pModel = createColumnModel(field, 1, 1000);
   int32_t    orderIdx = 0;
@@ -2875,7 +2875,7 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   
   double(*param)[3] = pInfo->mat;
   
-  param[1][1] = pInfo->num;
+  param[1][1] = (double)pInfo->num;
   param[1][0] = param[0][1];
   
   param[0][0] -= param[1][0] * (param[0][1] / param[1][1]);
@@ -3335,10 +3335,10 @@ static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
         continue;                                                                                 \
       }                                                                                           \
       if (inputData[i] < minOutput) {                                                             \
-        minOutput = inputData[i];                                                                 \
+        minOutput = (double)inputData[i];                                                                 \
       }                                                                                           \
       if (inputData[i] > maxOutput) {                                                             \
-        maxOutput = inputData[i];                                                                 \
+        maxOutput = (double)inputData[i];                                                                 \
       }                                                                                           \
       numOfNotNullElem++;                                                                         \
     }                                                                                             \
@@ -3456,7 +3456,7 @@ static void spread_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
     val = GET_INT32_VAL(pData);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT || pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-    val = GET_INT64_VAL(pData);
+    val = (double)(GET_INT64_VAL(pData));
   } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
     val = GET_DOUBLE_VAL(pData);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
