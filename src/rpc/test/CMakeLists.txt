@@ -16,5 +16,3 @@ IF (TD_LINUX_64)
   ADD_EXECUTABLE(rserver ${SERVER_SRC})
   TARGET_LINK_LIBRARIES(rserver trpc)
 ENDIF ()
-
-
