@@ -376,8 +376,9 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
   // remove it
   if ((pNode->keyLen == keyLen) && (memcmp(pNode->key, key, keyLen) == 0)) {
-    pe->next = pNode->next;
+    pe->num -= 1;
     pRes = pNode;
+    pe->next = pNode->next;
   } else {
     while (pNode->next != NULL) {
       if (((pNode->next)->keyLen == keyLen) && (memcmp((pNode->next)->key, key, keyLen) == 0)) {
@@ -390,6 +391,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
 
     if (pNode->next != NULL) {
+      pe->num -= 1;
       pRes = pNode->next;
       pNode->next = pNode->next->next;
     }
@@ -406,7 +408,6 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   }
 
   if (pRes != NULL) {
-    pe->num -= 1;
     atomic_sub_fetch_64(&pHashObj->size, 1);
     FREE_HASH_NODE(pHashObj, pRes);
 
