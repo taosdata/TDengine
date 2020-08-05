@@ -169,7 +169,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   // (uid, tid) + VGID + TAGSIZE + VARSTR_HEADER_SIZE
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = dataBytes + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE;
+    *bytes = (int16_t)(dataBytes + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE);
     *interBytes = *bytes;
     return TSDB_CODE_SUCCESS;
   }
@@ -198,7 +198,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   if (isSuperTable) {
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = dataBytes + DATA_SET_FLAG_SIZE;
+      *bytes = (int16_t)(dataBytes + DATA_SET_FLAG_SIZE);
       *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
@@ -221,7 +221,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
+      *bytes = (int16_t)(sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param);
       *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
@@ -239,7 +239,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_LAST_ROW) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = sizeof(SLastrowInfo) + dataBytes;
+      *bytes = (int16_t)(sizeof(SLastrowInfo) + dataBytes);
       *interBytes = *bytes;
       
       return TSDB_CODE_SUCCESS;
@@ -308,7 +308,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = *bytes + sizeof(SResultInfo);
   } else if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = dataBytes + sizeof(SFirstLastInfo);
+    *bytes = (int16_t)(dataBytes + sizeof(SFirstLastInfo));
     *interBytes = *bytes;
   } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
     *type = (int16_t)dataType;
@@ -317,7 +317,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     size_t size = sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
     
     // the output column may be larger than sizeof(STopBotInfo)
-    *interBytes = size;
+    *interBytes = (int32_t)size;
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
