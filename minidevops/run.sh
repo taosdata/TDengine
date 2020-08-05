@@ -1,31 +1,24 @@
 #!/bin/bash
 
 #set -x
-LP=`pwd`
-#echo $LP
 
 docker rm -f `docker ps -a -q`
 docker network rm minidevops
 docker network create --ip-range 172.15.1.255/24 --subnet 172.15.1.1/16 minidevops 
 
-#docker run -d   --net="host"   --pid="host"   -v "/:/host:ro"   quay.io/prometheus/node-exporter   --path.rootfs=/host
 
-docker run -d --net minidevops --ip 172.15.1.11 -v $LP/grafana:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana
-#docker run -d --net minidevops --ip 172.15.1.11 -v /Users/tom/Documents/minidevops/grafana:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana
+docker run -d --net minidevops --ip 172.15.1.11 -v $(pwd)/grafana:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana
 
-TDENGINE=`docker run -d --net minidevops --ip 172.15.1.6 -p 6030:6030 -p 6020:6020 -p 6031:6031 -p 6032:6032 -p 6033:6033 -p 6034:6034 -p 6035:6035 -p 6036:6036 -p 6037:6037 -p 6038:6038 -p 6039:6039 -p 6040:6040 -p 6041:6041 -h '172.15.1.6' tdengine/tdengine:2.0.0.0` 
-docker cp /etc/localtime $TDENGINE:/etc/localtime
+docker run -d --net minidevops --ip 172.15.1.6 -p 6030:6030 -p 6020:6020 -p 6031:6031 -p 6032:6032 -p 6033:6033 -p 6034:6034 -p 6035:6035 -p 6036:6036 -p 6037:6037 -p 6038:6038 -p 6039:6039 -p 6040:6040 -p 6041:6041 -h '172.15.1.6' tdengine/tdengine:2.0.0.0
 
-BLMPROMETHEUS=`docker run -d --net minidevops --ip 172.15.1.7 -v $(pwd)/taos:/etc/taos -p 10203:10203 tdengine/blm_prometheus:2.0.0.0 -tdengine-name 172.15.1.6 -tdengine-api-port 6041`
+docker run -d --net minidevops --ip 172.15.1.7 -v $(pwd)/taos:/etc/taos -p 10203:10203 tdengine/blm_prometheus:2.0.0.0 -tdengine-name 172.15.1.6 -tdengine-api-port 6041
 
 
-BLMPTELEGRAF=`docker run -d --net minidevops --ip 172.15.1.8 -p 10202:10202 tdengine/blm_telegraf:2.0.0.0 -host 172.15.1.6`
+docker run -d --net minidevops --ip 172.15.1.8 -p 10202:10202 tdengine/blm_telegraf:2.0.0.0 -host 172.15.1.6
 
-docker run -d  --net minidevops --ip 172.15.1.9 -v $LP/prometheus:/etc/prometheus -p 9090:9090 prom/prometheus
-#docker run -d  --net minidevops --ip 172.15.1.9 -v /Users/tom/Documents/minidevops/prometheus:/etc/prometheus -p 9090:9090 prom/prometheus
+docker run -d  --net minidevops --ip 172.15.1.9 -v $(pwd)/prometheus:/etc/prometheus -p 9090:9090 prom/prometheus
 
-docker run -d --net minidevops --ip 172.15.1.10 -v $LP/telegraf:/etc/telegraf -p 8092:8092 -p 8094:8094 -p 8125:8125 telegraf
-#docker run -d --net minidevops --ip 172.15.1.10 -v /Users/tom/Documents/minidevops/telegraf:/etc/telegraf -p 8092:8092 -p 8094:8094 -p 8125:8125 telegraf
+docker run -d --net minidevops --ip 172.15.1.10 -v $(pwd)/telegraf:/etc/telegraf -p 8092:8092 -p 8094:8094 -p 8125:8125 telegraf
 
 
 sleep 10
