@@ -85,12 +85,12 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void* pVnode, void* handle, b
   int32_t code = TSDB_CODE_SUCCESS;
   if ((code = qDumpRetrieveResult(handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
     if (continueExec) {
+      *freeHandle = false;
       vnodePutItemIntoReadQueue(pVnode, handle);
       pRet->qhandle = handle;
-      *freeHandle = false;
     } else {
-      vDebug("QInfo:%p exec completed", handle);
       *freeHandle = true;
+      vDebug("QInfo:%p exec completed, free handle:%d", handle, *freeHandle);
     }
   } else {
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -214,6 +214,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
       // If retrieval request has not arrived, release the qhandle and decrease the reference count to allow
       // the queryMgmt to free it when expired
+      void** dup = handle;
       qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
 
       // NOTE:
@@ -221,7 +222,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       // the reference count of qhandle can not be decreased. Otherwise, qhandle may be released before or in the
       // procedure of query execution
       if (freehandle) {
-        qReleaseQInfo(pVnode->qMgmt, (void **)&handle, freehandle);
+        qReleaseQInfo(pVnode->qMgmt, (void **)&dup, freehandle);
       }
     }
   }
@@ -268,16 +269,23 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     //TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
+    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, freeHandle);
   } else { // result is not ready, return immediately
     if (!buildRes) {
       qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
       return TSDB_CODE_QRY_NOT_READY;
     }
 
+    void** dup = handle;
     code = vnodeDumpQueryResult(pRet, pVnode, *handle, &freeHandle);
+    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
+
+    // not added into task queue, free it immediate
+    if (freeHandle) {
+      qReleaseQInfo(pVnode->qMgmt, (void**) &dup, freeHandle);
+    }
   }
 
-  qReleaseQInfo(pVnode->qMgmt, (void**) &handle, freeHandle);
   return code;
 }
 
