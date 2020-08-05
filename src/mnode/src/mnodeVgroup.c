@@ -164,9 +164,9 @@ static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
 
 
   // reset vgid status on vgroup changed
-  mDebug("vgId:%d, reset sync status to unsynced", pVgroup->vgId);
+  mDebug("vgId:%d, reset sync status to offline", pVgroup->vgId);
   for (int32_t v = 0; v < pVgroup->numOfVnodes; ++v) {
-    pVgroup->vnodeGid[v].role = TAOS_SYNC_ROLE_UNSYNCED;
+    pVgroup->vnodeGid[v].role = TAOS_SYNC_ROLE_OFFLINE;
   }
 
   mnodeDecVgroupRef(pVgroup);

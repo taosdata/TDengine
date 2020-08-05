@@ -32,8 +32,8 @@
 
 typedef struct {
   int   port;
-  char *host[15];
-} info;
+  char *host;
+} info_s;
 
 typedef struct Arguments {
   char *   host;
@@ -65,10 +65,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 static struct argp argp = {options, parse_opt, 0, 0};
 
-void *checkPort(void *sarg) {
-  info *pinfo = (info *)sarg;
-  int   port = pinfo->port;
-  char *host = *pinfo->host;
+int checkTcpPort(info_s *info) {
+  int   port = info->port;
+  char *host = info->host;
   int   clientSocket;
 
   struct sockaddr_in serverAddr;
@@ -77,38 +76,37 @@ void *checkPort(void *sarg) {
   int                iDataNum;
   if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     perror("socket");
-    return NULL;
+    return -1;
   }
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(port);
 
   serverAddr.sin_addr.s_addr = inet_addr(host);
 
-  printf("=================================\n");
+  //printf("=================================\n");
   if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
     perror("connect");
-    return NULL;
+    return -1;
   }
-  printf("Connect to: %s:%d...success\n", host, port);
+  //printf("Connect to: %s:%d...success\n", host, port);
 
   sprintf(sendbuf, "send port_%d", port);
   send(clientSocket, sendbuf, strlen(sendbuf), 0);
-  printf("Send msg_%d: %s\n", port, sendbuf);
+  //printf("Send msg_%d: %s\n", port, sendbuf);
 
   recvbuf[0] = '\0';
   iDataNum = recv(clientSocket, recvbuf, BUFFER_SIZE, 0);
   recvbuf[iDataNum] = '\0';
-  printf("Read ack msg_%d: %s\n", port, recvbuf);
+  //printf("Read ack msg_%d: %s\n", port, recvbuf);
 
-  printf("=================================\n");
+  //printf("=================================\n");
   close(clientSocket);
-  return NULL;
+  return 0;
 }
 
-void *checkUPort(void *sarg) {
-  info *pinfo = (info *)sarg;
-  int   port = pinfo->port;
-  char *host = *pinfo->host;
+void *checkUdpPort(info_s *info) {
+  int   port = info->port;
+  char *host = info->host;
   int   clientSocket;
 
   struct sockaddr_in serverAddr;
@@ -117,56 +115,62 @@ void *checkUPort(void *sarg) {
   int                iDataNum;
   if ((clientSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     perror("socket");
-    return NULL;
+    return -1;
   }
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(port);
-
   serverAddr.sin_addr.s_addr = inet_addr(host);
-
-  printf("=================================\n");
 
   sprintf(sendbuf, "send msg port_%d by udp", port);
 
   socklen_t sin_size = sizeof(*(struct sockaddr *)&serverAddr);
 
-  sendto(clientSocket, sendbuf, strlen(sendbuf), 0, (struct sockaddr *)&serverAddr, (int)sin_size);
+  int code = sendto(clientSocket, sendbuf, strlen(sendbuf), 0, (struct sockaddr *)&serverAddr, (int)sin_size);
+  if (code < 0) {
+    perror("sendto");
+    return -1;
+  }
 
-  printf("Send msg_%d by udp: %s\n", port, sendbuf);
+  //printf("Send msg_%d by udp: %s\n", port, sendbuf);
 
   recvbuf[0] = '\0';
   iDataNum = recvfrom(clientSocket, recvbuf, BUFFER_SIZE, 0, (struct sockaddr *)&serverAddr, &sin_size);
   recvbuf[iDataNum] = '\0';
-  printf("Read ack msg_%d from udp: %s\n", port, recvbuf);
+  //printf("Read ack msg_%d from udp: %s\n", port, recvbuf);
 
-  printf("=================================\n");
   close(clientSocket);
-  return NULL;
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
-  SArguments arguments = {"127.0.0.1", 6041, 6050};
-
+  SArguments arguments = {"127.0.0.1", 6030, 6060};
+  info_s  info;
+  int ret;
+  
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  printf("host: %s\tport: %d\tmax_port: %d\n", arguments.host, arguments.port, arguments.max_port);
+  printf("host: %s\tport: %d\tmax_port: %d\n\n", arguments.host, arguments.port, arguments.max_port);
 
   int   port = arguments.port;
-  char *host = arguments.host;
-  info *tinfo = malloc(sizeof(info));
-  info *uinfo = malloc(sizeof(info));
+
+  info.host = arguments.host;
 
   for (; port < arguments.max_port; port++) {
-    printf("For test: %s:%d\n", host, port);
+    printf("test: %s:%d\n", info.host, port);
 
-    *tinfo->host = host;
-    tinfo->port = port;
-    checkPort(tinfo);
-
-    *uinfo->host = host;
-    uinfo->port = port;
-    checkUPort(uinfo);
+    info.port = port;
+    ret = checkTcpPort(&info);
+    if (ret != 0) {
+      printf("tcp port:%d test fail.", port);
+    } else {
+      printf("tcp port:%d test ok.", port);
+    }
+    
+    checkUdpPort(&info);
+    if (ret != 0) {
+      printf("udp port:%d test fail.", port);
+    } else {
+      printf("udp port:%d test ok.", port);
+    }
   }
-  free(tinfo);
-  free(uinfo);
 }
