@@ -329,17 +329,6 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   return taosHashRemoveWithData(pHashObj, key, keyLen, NULL, 0);
 }
 
-static FORCE_INLINE void doPopNextFromEntryList(SHashEntry *pe, SHashNode *pNode) {
-  SHashNode *pNext = pNode->next;
-  if (pNext != NULL) {
-    pNode->next = pNext->next;
-  } else {
-    pNode->next = NULL;
-  }
-
-  pe->num -= 1;
-}
-
 int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t dsize) {
   if (pHashObj == NULL || pHashObj->size <= 0) {
     return -1;
@@ -457,7 +446,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
       taosWLockLatch(&pEntry->latch);
     }
 
-    // todo remove first node
+    // todo remove the first node
     SHashNode *pNode = NULL;
     while((pNode = pEntry->next) != NULL) {
       if (fp && (!fp(param, pNode->data))) {

@@ -259,20 +259,20 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     //TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
-    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
+    freeHandle = true;
   } else { // result is not ready, return immediately
     if (!buildRes) {
       qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
       return TSDB_CODE_QRY_NOT_READY;
     }
 
-    void** dup = handle;
     code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle);
+  }
 
-    // not added into task queue, the query must be completed already, free qhandle immediately
-    if (freeHandle) {
-      qReleaseQInfo(pVnode->qMgmt, (void**) &dup, true);
-    }
+  // if qhandle is not added into task queue, the query must be completed already or paused with error ,
+  // free qhandle immediately
+  if (freeHandle) {
+    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
   }
 
   return code;
