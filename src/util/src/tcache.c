@@ -318,6 +318,8 @@ static void incRefFn(void* ptNode) {
   assert(ptNode != NULL);
 
   SCacheDataNode** p = (SCacheDataNode**) ptNode;
+
+  assert(T_REF_VAL_GET(*p) >= 0);
   int32_t ret = T_REF_INC(*p);
   assert(ret > 0);
 }

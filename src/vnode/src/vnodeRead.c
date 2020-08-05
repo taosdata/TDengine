@@ -186,40 +186,35 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   } else {
     assert(pCont != NULL);
     void** qhandle = (void**) pCont;
-//    *handle = /*(void*) */pCont;
 
-//    handle = qAcquireQInfo(pVnode->qMgmt, (uint64_t) pCont);
-//    if (handle == NULL) {
-//      vWarn("QInfo:%p invalid qhandle in continuing exec query, conn:%p", (void*) pCont, pReadMsg->rpcMsg.handle);
-//      code = TSDB_CODE_QRY_INVALID_QHANDLE;
-//    } else {
-      vDebug("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
+    vDebug("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
-      bool freehandle = false;
-      bool buildRes = qTableQuery(*qhandle); // do execute query
+    bool freehandle = false;
+    bool buildRes = qTableQuery(*qhandle); // do execute query
 
-      // build query rsp, the retrieve request has reached here already
-      if (buildRes) {
-        // update the connection info according to the retrieve connection
-        pReadMsg->rpcMsg.handle = qGetResultRetrieveMsg(*qhandle);
-        assert(pReadMsg->rpcMsg.handle != NULL);
+    // build query rsp, the retrieve request has reached here already
+    if (buildRes) {
+      // update the connection info according to the retrieve connection
+      pReadMsg->rpcMsg.handle = qGetResultRetrieveMsg(*qhandle);
+      assert(pReadMsg->rpcMsg.handle != NULL);
 
-        vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
-               pReadMsg->rpcMsg.handle);
-        code = vnodeDumpQueryResult(&pReadMsg->rspRet, pVnode, qhandle, &freehandle);
+      vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
+             pReadMsg->rpcMsg.handle);
+      code = vnodeDumpQueryResult(&pReadMsg->rspRet, pVnode, qhandle, &freehandle);
 
-        // todo test the error code case
-        if (code == TSDB_CODE_SUCCESS) {
-          code = TSDB_CODE_QRY_HAS_RSP;
-        }
-      } else {
-        freehandle = qQueryCompleted(*qhandle);
+      // todo test the error code case
+      if (code == TSDB_CODE_SUCCESS) {
+        code = TSDB_CODE_QRY_HAS_RSP;
       }
+    } else {
+      freehandle = qQueryCompleted(*qhandle);
+    }
 
-      // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
-      if (freehandle || (!buildRes)) {
-        qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
-      }
+    // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
+    // if not build result, free it not by forced.
+    if (freehandle || (!buildRes)) {
+      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
+    }
   }
 
   return code;
@@ -273,9 +268,8 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
     void** dup = handle;
     code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle);
-    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, false);
 
-    // not added into task queue, the query must be completed already, free qhandle immediate
+    // not added into task queue, the query must be completed already, free qhandle immediately
     if (freeHandle) {
       qReleaseQInfo(pVnode->qMgmt, (void**) &dup, true);
     }
