@@ -22,6 +22,7 @@ cfg_install_dir="/etc/taos"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
+lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 
 #install main path
@@ -165,7 +166,6 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
 
@@ -174,7 +174,6 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
     [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
@@ -189,6 +188,7 @@ function install_bin() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
+    ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
     #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*  
@@ -196,6 +196,9 @@ function install_lib() {
     ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
+    ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+    ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+        
 	  #if [ "$verMode" == "cluster" ]; then
     #    # Compatible with version 1.5
     #    ${csudo} mkdir -p ${v15_java_app_dir}
