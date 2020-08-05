@@ -90,10 +90,8 @@ extern "C" {
   #define taosWriteSocket(fd, buf, len) send((SOCKET)fd, buf, len, 0)
   #define taosReadSocket(fd, buf, len) recv((SOCKET)fd, buf, len, 0)
   #define taosCloseSocket(fd) closesocket((SOCKET)fd)
-
 typedef SOCKET eventfd_t; 
 #define eventfd(a, b) -1
-
 
 #define TAOS_OS_FUNC_STRING_WCHAR
   int twcslen(const wchar_t *wcs);

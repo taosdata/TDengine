@@ -2225,7 +2225,7 @@ static void top_function(SQLFunctionCtx *pCtx) {
     }
     
     notNullElems++;
-    do_top_function_add(pRes, pCtx->param[0].i64Key, data, pCtx->ptsList[i], pCtx->inputType, &pCtx->tagInfo, NULL, 0);
+    do_top_function_add(pRes, (int32_t)pCtx->param[0].i64Key, data, pCtx->ptsList[i], pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
   if (!pCtx->hasNull) {
@@ -2251,7 +2251,7 @@ static void top_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   assert(pRes->num >= 0);
   
   SET_VAL(pCtx, 1, 1);
-  do_top_function_add(pRes, pCtx->param[0].i64Key, pData, pCtx->ptsList[index], pCtx->inputType, &pCtx->tagInfo, NULL,
+  do_top_function_add(pRes, (int32_t)pCtx->param[0].i64Key, pData, pCtx->ptsList[index], pCtx->inputType, &pCtx->tagInfo, NULL,
                       0);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -2275,7 +2275,7 @@ static void top_func_merge(SQLFunctionCtx *pCtx) {
   STopBotInfo *pOutput = getTopBotOutputInfo(pCtx);
   
   for (int32_t i = 0; i < pInput->num; ++i) {
-    do_top_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
+    do_top_function_add(pOutput, (int32_t)pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
                         pCtx->inputType, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
 }
@@ -2291,7 +2291,7 @@ static void top_func_second_merge(SQLFunctionCtx *pCtx) {
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
     int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->outputType;
-    do_top_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
+    do_top_function_add(pOutput, (int32_t)pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
                         type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
   
@@ -2315,7 +2315,7 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
     }
     
     notNullElems++;
-    do_bottom_function_add(pRes, pCtx->param[0].i64Key, data, pCtx->ptsList[i], pCtx->inputType, &pCtx->tagInfo, NULL,
+    do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64Key, data, pCtx->ptsList[i], pCtx->inputType, &pCtx->tagInfo, NULL,
                            0);
   }
   
@@ -2340,7 +2340,7 @@ static void bottom_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
   SET_VAL(pCtx, 1, 1);
-  do_bottom_function_add(pRes, pCtx->param[0].i64Key, pData, pCtx->ptsList[index], pCtx->inputType, &pCtx->tagInfo,
+  do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64Key, pData, pCtx->ptsList[index], pCtx->inputType, &pCtx->tagInfo,
                          NULL, 0);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -2364,7 +2364,7 @@ static void bottom_func_merge(SQLFunctionCtx *pCtx) {
   STopBotInfo *pOutput = getTopBotOutputInfo(pCtx);
   
   for (int32_t i = 0; i < pInput->num; ++i) {
-    do_bottom_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
+    do_bottom_function_add(pOutput, (int32_t)pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp,
                            pCtx->inputType, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
 }
@@ -2380,7 +2380,7 @@ static void bottom_func_second_merge(SQLFunctionCtx *pCtx) {
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
     int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT) ? TSDB_DATA_TYPE_DOUBLE : pCtx->outputType;
-    do_bottom_function_add(pOutput, pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp, type,
+    do_bottom_function_add(pOutput, (int32_t)pCtx->param[0].i64Key, &pInput->res[i]->v.i64Key, pInput->res[i]->timestamp, type,
                            &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
   }
 
@@ -2430,7 +2430,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   }
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSchema      field[1] = {{pCtx->inputType, "dummyCol", 0, pCtx->inputBytes}};
+  SSchema      field[1] = { { pCtx->inputType, "dummyCol", 0, (uint8_t)pCtx->inputBytes } };
   
   SColumnModel *pModel = createColumnModel(field, 1, 1000);
   int32_t    orderIdx = 0;
@@ -2543,7 +2543,7 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
         v = GET_INT16_VAL(data);
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        v = GET_INT64_VAL(data);
+        v = (double)(GET_INT64_VAL(data));
         break;
       case TSDB_DATA_TYPE_FLOAT:
         v = GET_FLOAT_VAL(data);
@@ -2588,7 +2588,7 @@ static void apercentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
       v = GET_INT16_VAL(pData);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      v = GET_INT64_VAL(pData);
+      v = (double)(GET_INT64_VAL(pData));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       v = GET_FLOAT_VAL(pData);
@@ -3027,13 +3027,13 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
         } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64Key);
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;  // direct previous may be null
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64Key);  // direct previous may be null
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3121,13 +3121,13 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pCtx->param[1].dKey = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
         } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].dKey;
+          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].dKey;
+          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3154,12 +3154,12 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
         } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64Key);
           *pTimestamp = pCtx->ptsList[i];
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64Key);
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3185,13 +3185,13 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
         } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64Key);
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
           pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64Key;
+          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64Key);
           *pTimestamp = pCtx->ptsList[i];
           
           pOutput += 1;
@@ -3256,7 +3256,7 @@ static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
         pCtx->param[1].nType = pCtx->inputType;
         pCtx->param[1].i64Key = *(int32_t *)pData;
       } else {
-        *(int32_t *)pCtx->aOutputBuf = *(int32_t *)pData - pCtx->param[1].i64Key;
+        *(int32_t *)pCtx->aOutputBuf = *(int32_t *)pData - (int32_t)pCtx->param[1].i64Key;
         pCtx->param[1].i64Key = *(int32_t *)pData;
         *(int64_t *)pCtx->ptsOutputBuf = pCtx->ptsList[index];
       }
@@ -3383,11 +3383,11 @@ static void spread_function(SQLFunctionCtx *pCtx) {
     if ((pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) ||
         (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP)) {
       if (pInfo->min > pCtx->preAggVals.statis.min) {
-        pInfo->min = pCtx->preAggVals.statis.min;
+        pInfo->min = (double)pCtx->preAggVals.statis.min;
       }
       
       if (pInfo->max < pCtx->preAggVals.statis.max) {
-        pInfo->max = pCtx->preAggVals.statis.max;
+        pInfo->max = (double)pCtx->preAggVals.statis.max;
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
       if (pInfo->min > GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.min))) {
