@@ -415,7 +415,7 @@ static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   SSkipListNode* node = tSkipListIterGet(pIter);
   if (node == NULL) return NULL;
 
-  return SL_GET_NODE_DATA(node);
+  return *(SDataRow *)SL_GET_NODE_DATA(node);
 }
 
 static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator* pIter) {
