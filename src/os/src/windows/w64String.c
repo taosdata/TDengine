@@ -67,7 +67,7 @@ char *getpass(const char *prefix) {
 }
 
 char *strndup(const char *s, size_t n) {
-  int len = strlen(s);
+  size_t len = strlen(s);
   if (len >= n) {
     len = n;
   }
@@ -78,13 +78,13 @@ char *strndup(const char *s, size_t n) {
   return r;
 }
 
-size_t twcslen(const wchar_t *wcs) {
+int twcslen(const wchar_t *wcs) {
   int *wstr = (int *)wcs;
   if (NULL == wstr) {
     return 0;
   }
 
-  size_t n = 0;
+  int n = 0;
   while (1) {
     if (0 == *wstr++) {
       break;

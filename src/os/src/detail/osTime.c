@@ -165,7 +165,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
 
   char* sep = strchr(&str[i], ':');
   if (sep != NULL) {
-    int32_t len = sep - &str[i];
+    int32_t len = (int32_t)(sep - &str[i]);
 
     hour = strnatoi(&str[i], len);
     i += len + 1;
@@ -212,7 +212,8 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
 
 /* mktime will be affected by TZ, set by using taos_options */
 #ifdef WINDOWS
-  int64_t seconds = gmtime(&tm); 
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  //int64_t seconds = gmtime(&tm); 
 #else
   int64_t seconds = timegm(&tm);
 #endif

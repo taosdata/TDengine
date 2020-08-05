@@ -1,4 +1,4 @@
-/*
+﻿/*
  * pthread_mutex_consistent.c
  *
  * Description:

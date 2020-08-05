@@ -292,7 +292,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       uError("cache:%s, key:%p, failed to added into cache, out of memory", pCacheObj->name, key);
     }
   } else {  // old data exists, update the node
-    pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);
+    pNode = taosUpdateCacheImpl(pCacheObj, pOld, key, (int32_t)keyLen, pData, (uint32_t)dataSize, duration * 1000L);
     uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode->data, pOld);
   }
 
@@ -509,7 +509,7 @@ SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *
   memcpy(pNewNode->data, pData, size);
 
   pNewNode->key = (char *)pNewNode + sizeof(SCacheDataNode) + size;
-  pNewNode->keySize = keyLen;
+  pNewNode->keySize = (uint16_t)keyLen;
 
   memcpy(pNewNode->key, key, keyLen);
 
@@ -645,7 +645,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
   while (taosHashIterNext(pIter)) {
     SCacheDataNode *pNode = *(SCacheDataNode **)taosHashIterGet(pIter);
 
-    if (pNode->expireTime < time && T_REF_VAL_GET(pNode) <= 0) {
+    if (pNode->expireTime < (uint64_t)time && T_REF_VAL_GET(pNode) <= 0) {
       taosCacheReleaseNode(pCacheObj, pNode);
       continue;
     }

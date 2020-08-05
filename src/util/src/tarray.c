@@ -120,8 +120,8 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
 
   void* dst = TARRAY_GET_ELEM(pArray, index);
 
-  int32_t remain = pArray->size - index;
-  memmove(dst + pArray->elemSize, dst, pArray->elemSize * remain);
+  int32_t remain = (int32_t)(pArray->size - index);
+  memmove((char*)dst + pArray->elemSize, (char*)dst, pArray->elemSize * remain);
   memcpy(dst, pData, pArray->elemSize);
 
   pArray->size += 1;
@@ -138,7 +138,7 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   }
   
   size_t remain = pArray->size - index - 1;
-  memmove(pArray->pData + index * pArray->elemSize, pArray->pData + (index + 1) * pArray->elemSize, remain * pArray->elemSize);
+  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + 1) * pArray->elemSize, remain * pArray->elemSize);
   pArray->size -= 1;
 }
 

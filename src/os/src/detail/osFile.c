@@ -70,7 +70,7 @@ ssize_t taosTReadImp(int fd, void *buf, size_t count) {
   char *  tbuf = (char *)buf;
 
   while (leftbytes > 0) {
-    readbytes = read(fd, (void *)tbuf, leftbytes);
+    readbytes = read(fd, (void *)tbuf, (uint32_t)leftbytes);
     if (readbytes < 0) {
       if (errno == EINTR) {
         continue;
@@ -94,7 +94,7 @@ ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
   char *  tbuf = (char *)buf;
 
   while (nleft > 0) {
-    nwritten = write(fd, (void *)tbuf, nleft);
+    nwritten = write(fd, (void *)tbuf, (uint32_t)nleft);
     if (nwritten < 0) {
       if (errno == EINTR) {
         continue;
@@ -105,7 +105,7 @@ ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
     tbuf += nwritten;
   }
 
-  return n;
+  return (ssize_t)n;
 }
 
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE

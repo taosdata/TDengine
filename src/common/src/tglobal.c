@@ -92,7 +92,7 @@ int32_t tsStreamCompStartDelay = 10000;
 int32_t tsStreamCompRetryDelay = 10;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
-float tsStreamComputDelayRatio = 0.1;
+float tsStreamComputDelayRatio = 0.1f;
 
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
@@ -173,8 +173,8 @@ float   tsTotalTmpDirGB = 0;
 float   tsTotalDataDirGB = 0;
 float   tsAvailTmpDirectorySpace = 0;
 float   tsAvailDataDirGB = 0;
-float   tsReservedTmpDirectorySpace = 0.1;
-float   tsMinimalDataDirGB = 0.5;
+float   tsReservedTmpDirectorySpace = 0.1f;
+float   tsMinimalDataDirGB = 0.5f;
 int32_t tsTotalMemoryMB = 0;
 int32_t tsVersion = 0;
 
@@ -294,7 +294,7 @@ bool taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
-static void doInitGlobalConfig() {
+static void doInitGlobalConfig(void) {
   SGlobalCfg cfg = {0};
   
   // ip address
@@ -405,8 +405,8 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsRatioOfQueryThreads;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0.1;
-  cfg.maxValue = 0.9;
+  cfg.minValue = 0.1f;
+  cfg.maxValue = 0.9f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -607,8 +607,8 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsStreamComputDelayRatio;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.1;
-  cfg.maxValue = 0.9;
+  cfg.minValue = 0.1f;
+  cfg.maxValue = 0.9f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -870,7 +870,7 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsMinimalLogDirGB;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001;
+  cfg.minValue = 0.001f;
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_GB;
@@ -880,7 +880,7 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsReservedTmpDirectorySpace;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001;
+  cfg.minValue = 0.001f;
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_GB;
@@ -890,7 +890,7 @@ static void doInitGlobalConfig() {
   cfg.ptr = &tsMinimalDataDirGB;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001;
+  cfg.minValue = 0.001f;
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_GB;
@@ -1256,7 +1256,7 @@ static void doInitGlobalConfig() {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
-  cfg.maxValue = 0x7fffffff;
+  cfg.maxValue = 65536;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1338,7 +1338,7 @@ int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
  */
 
 bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId) {
-  int len = strlen(option);
+  int len = (int)strlen(option);
   if (strncasecmp(option, "vnode:", 6) != 0) {
     return false;
   }

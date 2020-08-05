@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tulog.h"
 
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char* tdengineTmpFileNamePrefix = "tdengine-";
@@ -76,5 +77,10 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
 
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   uError("taosTSendFileImp no implemented yet");
+  return 0;
+}
+
+int taosFtruncate(int fd, int64_t length) {
+  uError("taosFtruncate no implemented yet");
   return 0;
 }

@@ -6,7 +6,7 @@
 #include "ttokendef.h"
 
 // todo refactor
-__attribute__((unused)) static FORCE_INLINE const char* skipSegments(const char* input, char delim, int32_t num) {
+UNUSED_FUNC static FORCE_INLINE const char* skipSegments(const char* input, char delim, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     while (*input != 0 && *input++ != delim) {
     };
@@ -14,7 +14,7 @@ __attribute__((unused)) static FORCE_INLINE const char* skipSegments(const char*
   return input;
 }
 
-__attribute__((unused)) static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
+UNUSED_FUNC static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
   size_t len = 0;
   while (*src != delimiter && *src != 0) {
     *dst++ = *src++;
@@ -120,11 +120,11 @@ void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
   char* r = strnchr(pToken->z, sep, pToken->n, false);
 
   if (r != NULL) {  // record the table name token
-    pTable->n = r - pToken->z;
+    pTable->n = (uint32_t)(r - pToken->z);
     pTable->z = pToken->z;
 
     r += 1;
-    pToken->n -= (r - pToken->z);
+    pToken->n -= (uint32_t)(r - pToken->z);
     pToken->z = r;
   }
 }
