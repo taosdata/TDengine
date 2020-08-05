@@ -24,7 +24,7 @@ IF (TD_LINUX)
   ENDIF ()
 
 ELSEIF (TD_WINDOWS)
-  TARGET_LINK_LIBRARIES(tutil iconv regex pthread osdetail winmm IPHLPAPI ws2_32 lz4)
+  TARGET_LINK_LIBRARIES(tutil iconv regex pthread osdetail winmm IPHLPAPI ws2_32 lz4 wepoll)
 ELSEIF(TD_DARWIN)
   TARGET_LINK_LIBRARIES(tutil iconv pthread osdetail lz4)
 ENDIF()
