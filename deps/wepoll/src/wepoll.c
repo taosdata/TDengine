@@ -89,14 +89,14 @@ extern "C" {
 WEPOLL_EXPORT HANDLE epoll_create(int size);
 WEPOLL_EXPORT HANDLE epoll_create1(int flags);
 
-WEPOLL_EXPORT int epoll_close(HANDLE ephnd);
+WEPOLL_EXPORT int epoll_close(SOCKET ephnd);
 
-WEPOLL_EXPORT int epoll_ctl(HANDLE ephnd,
+WEPOLL_EXPORT int epoll_ctl(SOCKET ephnd,
                             int op,
                             SOCKET sock,
                             struct epoll_event* event);
 
-WEPOLL_EXPORT int epoll_wait(HANDLE ephnd,
+WEPOLL_EXPORT int epoll_wait(SOCKET ephnd,
                              struct epoll_event* events,
                              int maxevents,
                              int timeout);
@@ -593,7 +593,7 @@ HANDLE epoll_create1(int flags) {
   return epoll__create();
 }
 
-int epoll_close(HANDLE ephnd) {
+int epoll_close(SOCKET ephnd) {
   ts_tree_node_t* tree_node;
   port_state_t* port_state;
 
@@ -614,11 +614,11 @@ int epoll_close(HANDLE ephnd) {
   return port_delete(port_state);
 
 err:
-  err_check_handle(ephnd);
+  err_check_handle((HANDLE)ephnd);
   return -1;
 }
 
-int epoll_ctl(HANDLE ephnd, int op, SOCKET sock, struct epoll_event* ev) {
+int epoll_ctl(SOCKET ephnd, int op, SOCKET sock, struct epoll_event* ev) {
   ts_tree_node_t* tree_node;
   port_state_t* port_state;
   int r;
@@ -645,12 +645,12 @@ int epoll_ctl(HANDLE ephnd, int op, SOCKET sock, struct epoll_event* ev) {
 err:
   /* On Linux, in the case of epoll_ctl(), EBADF takes priority over other
    * errors. Wepoll mimics this behavior. */
-  err_check_handle(ephnd);
+  err_check_handle((HANDLE) ephnd);
   err_check_handle((HANDLE) sock);
   return -1;
 }
 
-int epoll_wait(HANDLE ephnd,
+int epoll_wait(SOCKET ephnd,
                struct epoll_event* events,
                int maxevents,
                int timeout) {
@@ -681,7 +681,7 @@ int epoll_wait(HANDLE ephnd,
   return num_events;
 
 err:
-  err_check_handle(ephnd);
+  err_check_handle((HANDLE) ephnd);
   return -1;
 }
 
