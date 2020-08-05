@@ -43,7 +43,7 @@ extern char configDir[];
 #define MAX_DB_NAME_SIZE 64
 #define MAX_TB_NAME_SIZE 64
 #define MAX_DATA_SIZE    1024
-#define MAX_NUM_DATATYPE 8
+#define MAX_NUM_DATATYPE 30
 #define OPT_ABORT        1 /* –abort */
 #define STRING_LEN       512
 #define MAX_PREPARED_RAND 1000000
@@ -176,6 +176,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
           }
           sptr[index++] = token;
           token = strsep(&running, ", ");
+          if (index >= MAX_NUM_DATATYPE) break;
         }
       }
       break;
@@ -364,7 +365,7 @@ int main(int argc, char *argv[]) {
   arguments.num_of_DPT = 100000;
   arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
-  arguments.insert_only = false;
+  arguments.insert_only = true;
   // end change
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -415,7 +416,7 @@ int main(int argc, char *argv[]) {
     do_aggreFunc = false;
   }
   for (; count_data_type <= MAX_NUM_DATATYPE; count_data_type++) {
-    if (strcasecmp(data_type[count_data_type], "") == 0) {
+    if (data_type[count_data_type] == NULL) {
       break;
     }
 
@@ -1240,7 +1241,7 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
   int c = 0;
 
   for (; c < MAX_NUM_DATATYPE; c++) {
-    if (strcasecmp(data_type[c], "") == 0) {
+    if (data_type[c] == NULL) {
       break;
     }
   }
