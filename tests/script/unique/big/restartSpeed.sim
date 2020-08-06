@@ -16,7 +16,7 @@ print ==========  prepare data
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect 
-sql create database db blocks 2 cache 1 maxTables $maxTables
+sql create database db blocks 3 cache 1 maxTables $maxTables
 sql use db
 
 print ==========  step1
