@@ -266,10 +266,12 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  multiThreadQuery(atoi(argv[1]), argv[2]);
+//  multiThreadQuery(atoi(argv[1]), argv[2]);
+//  return 0;
+  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "select k.* from tm0 k", NULL);
+
   return 0;
-//  executeSQL(conn, "use t1", NULL);
-//  executeSQL(conn, "select h from test.m1", NULL);
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
 //    createEnvironment(conn, 100, 100, 100000, 30);
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
