@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include <WS2tcpip.h>  
 #include <IPHlpApi.h>  
 #include <winsock2.h>  
@@ -33,7 +34,7 @@ void taosWinSocketInit() {
   }
 }
 
-int taosSetNonblocking(SOCKET sock, int on) {
+int taosSetNonblocking(int sock, int on) {
   u_long mode;
   if (on) {
     mode = 1;

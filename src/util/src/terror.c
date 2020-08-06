@@ -49,7 +49,7 @@ static int tsCompareTaosError(const void* a, const void* b) {
 }
 
 static pthread_once_t tsErrorInit = PTHREAD_ONCE_INIT;
-static void tsSortError() {
+static void tsSortError(void) {
   qsort(errors, sizeof(errors)/sizeof(errors[0]), sizeof(errors[0]), tsCompareTaosError);
 }
 

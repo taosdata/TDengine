@@ -445,7 +445,7 @@ bool taosTmrStopA(tmr_h* timerId) {
 bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle, tmr_h* pTmrId) {
   tmr_ctrl_t* ctrl = (tmr_ctrl_t*)handle;
   if (ctrl == NULL || ctrl->label[0] == 0) {
-    return NULL;
+    return false;
   }
 
   uintptr_t  id = (uintptr_t)*pTmrId;
@@ -491,7 +491,7 @@ static void taosTmrModuleInit(void) {
     return;
   }
 
-  for (int i = 0; i < tsMaxTmrCtrl - 1; ++i) {
+  for (uint32_t i = 0; i < tsMaxTmrCtrl - 1; ++i) {
     tmr_ctrl_t* ctrl = tmrCtrls + i;
     ctrl->next = ctrl + 1;
   }

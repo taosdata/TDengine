@@ -24,7 +24,7 @@
 } while (0);
 
 static void median(void *src, size_t size, size_t s, size_t e, const void *param, __ext_compar_fn_t comparFn, void* buf) {
-  int32_t mid = ((e - s) >> 1u) + s;
+  int32_t mid = ((int32_t)(e - s) >> 1u) + (int32_t)s;
   
   if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) == 1) {
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, s), size, buf);
@@ -152,14 +152,14 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const
 
 void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn) {
   char *buf = calloc(1, size);   // prepare the swap buffer
-  tqsortImpl(src, 0, numOfElem - 1, size, param, comparFn, buf);
+  tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
   taosTFree(buf);
 }
 
 void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t compar, int flags) {
   // TODO: need to check the correctness of this function
   int l = 0;
-  int r = nmemb;
+  int r = (int)nmemb;
   int idx = 0;
   int comparison;
   

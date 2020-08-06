@@ -331,18 +331,50 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
 }
 
 static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
-  if (clusterCfg->numOfMnodes        != htonl(tsNumOfMnodes))        return false;
-  if (clusterCfg->enableBalance      != htonl(tsEnableBalance))        return false;
-  if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) return false;
-  if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold))   return false;
-  if (clusterCfg->statusInterval     != htonl(tsStatusInterval))     return false;
-  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode))   return false;
-  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb))    return false;
-
-  if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) return false;
-  if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone)))       return false;
-  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale)))             return false;
-  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset)))          return false;
+  if (clusterCfg->numOfMnodes != htonl(tsNumOfMnodes)) {
+    mError("\"numOfMnodes\"[%d - %d] cfg parameters inconsistent", clusterCfg->numOfMnodes, htonl(tsNumOfMnodes));
+    return false;
+  }  
+  if (clusterCfg->enableBalance      != htonl(tsEnableBalance)) {
+    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, htonl(tsEnableBalance));
+    return false;
+  }
+  if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) {
+    mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg parameters inconsistent", clusterCfg->mnodeEqualVnodeNum, htonl(tsMnodeEqualVnodeNum));
+    return false;
+  }
+  if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold)) {
+    mError("\"offlineThreshold\"[%d - %d] cfg parameters inconsistent", clusterCfg->offlineThreshold, htonl(tsOfflineThreshold));
+    return false;
+  }
+  if (clusterCfg->statusInterval     != htonl(tsStatusInterval)) {
+    mError("\"statusInterval\"[%d - %d] cfg parameters inconsistent", clusterCfg->statusInterval, htonl(tsStatusInterval));
+    return false;
+  }
+  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode)) {
+    mError("\"maxTablesPerVnode\"[%d - %d] cfg parameters inconsistent", clusterCfg->maxtablesPerVnode, htonl(tsMaxTablePerVnode));
+    return false;
+  }
+  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb)) {
+    mError("\"maxVgroupsPerDb\"[%d - %d]  cfg parameters inconsistent", clusterCfg->maxVgroupsPerDb, htonl(tsMaxVgroupsPerDb));
+    return false;
+  }
+  if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) {
+    mError("\"arbitrator\"[%s - %s]  cfg parameters inconsistent", clusterCfg->arbitrator, tsArbitrator);
+    return false;
+  }
+  if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) {
+    mError("\"timezone\"[%s - %s]  cfg parameters inconsistent", clusterCfg->timezone, tsTimezone);
+    return false;
+  }
+  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
+    mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
+    return false;
+  }
+  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
+    mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
+    return false;
+  }
     
   return true;
 }

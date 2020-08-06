@@ -53,7 +53,12 @@ static FORCE_INLINE int taosCheckChecksum(const uint8_t *stream, uint32_t ssize,
 
 static FORCE_INLINE int taosCheckChecksumWhole(const uint8_t *stream, uint32_t ssize) {
   if (ssize < sizeof(TSCKSUM)) return 0;
+
+#if (_WIN64)
+  return 1;
+#else
   return *((TSCKSUM *)(stream + ssize - sizeof(TSCKSUM))) == (*crc32c)(0, stream, (size_t)(ssize - sizeof(TSCKSUM)));
+#endif
 }
 
 #ifdef __cplusplus

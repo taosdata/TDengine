@@ -273,7 +273,7 @@ char *strbetween(char *string, char *begin, char *end) {
   char *_begin = strstr(string, begin);
   if (_begin != NULL) {
     char *_end = strstr(_begin + strlen(begin), end);
-    int   size = _end - _begin;
+    int   size = (int)(_end - _begin);
     if (_end != NULL && size > 0) {
       result = (char *)calloc(1, size);
       memcpy(result, _begin + strlen(begin), size - +strlen(begin));
@@ -332,7 +332,7 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
   }
 
   int versionNumberPos[5] = {0};
-  int len = strlen(versionStr);
+  int len = (int)strlen(versionStr);
   int dot = 0;
   for (int pos = 0; pos < len && dot < 4; ++pos) {
     if (versionStr[pos] == '.') {

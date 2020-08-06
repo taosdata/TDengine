@@ -338,16 +338,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 maven 项目中使用如下 pom.xml 配置即可：
 
 ```xml
-<dependencies>
-    <dependency>
-      <groupId>com.taosdata.jdbc</groupId>
-      <artifactId>taos-jdbcdriver</artifactId>
-      <version>2.0.0</version>
-      <type>jar</type>
-      <scope>system</scope>
-      <systemPath>{localdir}/connector/taos-jdbcdriver-2.0.0-dist.jar</systemPath>
-    </dependency>
-</dependencies>
+<dependency>
+  <groupId>com.taosdata.jdbc</groupId>
+  <artifactId>taos-jdbcdriver</artifactId>
+  <version>2.0.1</version>
+</dependency>
 ```
 
 ### 源码编译打包
@@ -846,7 +841,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 - 在demo库里查询表d1001的所有记录： 
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
 ```
 返回值：
 
@@ -865,7 +860,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 - 创建库demo：
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
 ```
 
 返回值：
@@ -1099,3 +1094,18 @@ promise2.then(function(result) {
 [这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
 
 
+[1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[2]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[3]: https://github.com/taosdata/TDengine
+[4]: https://www.taosdata.com/blog/2019/12/03/jdbcdriver%e6%89%be%e4%b8%8d%e5%88%b0%e5%8a%a8%e6%80%81%e9%93%be%e6%8e%a5%e5%ba%93/
+[5]: https://github.com/brettwooldridge/HikariCP
+[6]: https://github.com/alibaba/druid
+[7]: https://github.com/taosdata/TDengine/issues
+[8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[10]: https://maven.aliyun.com/mvn/search
+[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
+[13]: https://www.taosdata.com/cn/documentation20/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
+[14]: https://www.taosdata.com/cn/documentation20/connector/#Windows
+[15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B
