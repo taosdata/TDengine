@@ -192,6 +192,8 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   }
 
   if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
+
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
   return 0;
 }
 
@@ -385,6 +387,21 @@ int tsdbGetNextMaxTables(int tid) {
   }
 
   return maxTables + 1;
+}
+
+int tsdbCheckCommit(STsdbRepo *pRepo) {
+  ASSERT(pRepo->mem != NULL);
+  STsdbCfg *pCfg = &(pRepo->config);
+
+  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+  ASSERT(pBufBlock != NULL);
+  if ((pRepo->mem->extraBuffList != NULL) ||
+      ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
+    // trigger commit
+    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+  }
+
+  return 0;
 }
 
 STsdbMeta *    tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }

@@ -120,20 +120,23 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   tsdbUnlockRepoMeta(pRepo);
 
   // Write to memtable action
-  int   tlen1 = (newSuper) ? tsdbGetTableEncodeSize(TSDB_UPDATE_META, super) : 0;
-  int   tlen2 = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
-  int   tlen = tlen1 + tlen2;
-  void *buf = tsdbAllocBytes(pRepo, tlen);
-  if (buf == NULL) {
-    goto _err;
-  }
-
+  // TODO: refactor duplicate codes
+  int   tlen = 0;
+  void *pBuf = NULL;
   if (newSuper) {
-    void *pBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, super);
-    ASSERT(POINTER_DISTANCE(pBuf, buf) == tlen1);
-    buf = pBuf;
+    tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, super);
+    pBuf = tsdbAllocBytes(pRepo, tlen);
+    if (pBuf == NULL) goto _err;
+    void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, super);
+    ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
   }
-  tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, table);
+  tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
+  pBuf = tsdbAllocBytes(pRepo, tlen);
+  if (pBuf == NULL) goto _err;
+  void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, table);
+  ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
 
   return 0;
 
@@ -181,6 +184,8 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
 
   tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   free(tbname);
+
+  if (tsdbCheckCommit(pRepo) < 0) goto _err;
 
   return 0;
 
@@ -404,6 +409,8 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
     buf = pBuf;
   }
   tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pTable);
+
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
 
   return 0;
 }
