@@ -1,0 +1,23 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
+
+IF (TD_WINDOWS_64)
+  SET(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+  
+  include(FindWindowsSDK)
+  get_mywindowssdk_include_dirs(${WINDOWSSDK_PREFERRED_DIR} WINSDK_INCLUDE_DIR)
+  get_ucrt_include_dirs(${WINDOWSSDK_PREFERRED_DIR} UCRT_INCLUDE_DIR)
+  
+  Message(STATUS "WINSDK_INCLUDE_DIR ============>  ${WINSDK_INCLUDE_DIR}")
+  Message(STATUS "UCRT_INCLUDE_DIR ============>  ${UCRT_INCLUDE_DIR}")
+  
+  Add_Definitions("-DUCRTINCLUDE=${UCRT_INCLUDE_DIR}")
+  Add_Definitions("-DWSDKINCLUDE=${WINSDK_INCLUDE_DIR}")
+
+  include(FindMSVC)
+  Add_Definitions("-DMSVCINCLUDE=${VC_INCLUDE_DIR}")
+
+  INCLUDE_DIRECTORIES(include)
+  AUX_SOURCE_DIRECTORY(src SRC)
+  ADD_LIBRARY(MsvcLibXw64 ${SRC})
+ENDIF ()
