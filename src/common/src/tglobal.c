@@ -140,7 +140,7 @@ char    tsMqttBrokerAddress[128] = {0};
 char    tsMqttBrokerClientId[128] = {0};
 
 // monitor
-int32_t tsEnableMonitorModule = 0;
+int32_t tsEnableMonitorModule = 1;
 char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
