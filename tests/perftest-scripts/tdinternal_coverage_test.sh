@@ -100,22 +100,29 @@ function runTest {
 	sleep 10
 
 	cd $TDINTERNAL_DIR/community/src/connector/jdbc
-	mvn clean package
-	mvn test | tee -a $TDINTERNAL_COVERAGE_REPORT
+	mvn clean package > /dev/null
+	mvn test > /dev/null | tee -a $TDINTERNAL_COVERAGE_REPORT
 
 	# Test C Demo
 	stopTaosd
 	$TDINTERNAL_DIR/debug/build/bin/taosd -c $TDINTERNAL_DIR/debug/test/cfg > /dev/null &
 	sleep 10
-	yes | $TDINTERNAL_DIR/debug/build/bin/demo 127.0.0.1 | tee -a $TDINTERNAL_COVERAGE_REPORT
+	yes | $TDINTERNAL_DIR/debug/build/bin/demo 127.0.0.1 > /dev/null | tee -a $TDINTERNAL_COVERAGE_REPORT
 
 	# Test waltest
 	dataDir=`grep dataDir $TDINTERNAL_DIR/debug/test/cfg/taos.cfg|awk '{print $2}'`
 	walDir=`find $dataDir -name "wal"|head -n1`
-	echo "dataDir: $dataDir\nwalDir: $walDir" | tee -a $TDINTERNAL_COVERAGE_REPORT
+	echo "dataDir: $dataDir" | tee -a $TDINTERNAL_COVERAGE_REPORT
+  echo "walDir: $walDir" | tee -a $TDINTERNAL_COVERAGE_REPORT
 	if [ -n "$walDir" ]; then
-		yes | $TDINTERNAL_DIR/debug/build/bin/waltest -p $walDir | tee -a $TDINTERNAL_COVERAGE_REPORT
+		yes | $TDINTERNAL_DIR/debug/build/bin/waltest -p $walDir > /dev/null | tee -a $TDINTERNAL_COVERAGE_REPORT
 	fi
+
+  # run Unit Test
+  echo "Run Unit Test: utilTest, queryTest and cliTest"
+  $TDINTERNAL_DIR/debug/build/bin/utilTest > /dev/null 2>&1 && echo "utilTest pass!" || echo "utilTest failed!"
+  $TDINTERNAL_DIR/debug/build/bin/queryTest > /dev/null 2>&1 && echo "queryTest pass!" || echo "queryTest failed!"
+  $TDINTERNAL_DIR/debug/build/bin/cliTest > /dev/null 2>&1 && echo "cliTest pass!" || echo "cliTest failed!"
 
 	stopTaosd
 }

@@ -605,6 +605,10 @@ void mnodeCleanupVgroups() {
   tsVgroupSdb = NULL;
 }
 
+int64_t mnodeGetVgroupNum() {
+  return sdbGetNumOfRows(tsVgroupSdb);
+}
+
 static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mnodeGetDb(pShow->db);
   if (pDb == NULL) {
