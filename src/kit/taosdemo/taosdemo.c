@@ -43,9 +43,10 @@ extern char configDir[];
 #define MAX_DB_NAME_SIZE 64
 #define MAX_TB_NAME_SIZE 64
 #define MAX_DATA_SIZE    1024
-#define MAX_NUM_DATATYPE 8
+#define MAX_NUM_DATATYPE 30
 #define OPT_ABORT        1 /* –abort */
 #define STRING_LEN       512
+#define MAX_PREPARED_RAND 1000000
 
 /* The options we understand. */
 static struct argp_option options[] = {
@@ -175,6 +176,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
           }
           sptr[index++] = token;
           token = strsep(&running, ", ");
+          if (index >= MAX_NUM_DATATYPE) break;
         }
       }
       break;
@@ -311,6 +313,8 @@ int generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp
 
 void rand_string(char *str, int size);
 
+void init_rand_data();
+
 double getCurrentTime();
 
 void callBack(void *param, TAOS_RES *res, int code);
@@ -361,7 +365,7 @@ int main(int argc, char *argv[]) {
   arguments.num_of_DPT = 100000;
   arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
-  arguments.insert_only = false;
+  arguments.insert_only = true;
   // end change
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -403,6 +407,7 @@ int main(int argc, char *argv[]) {
     taos_close(qtaos);
     return 0;
   }
+  init_rand_data();
 
   memset(dataString, 0, STRING_LEN);
   int len = 0;
@@ -411,7 +416,7 @@ int main(int argc, char *argv[]) {
     do_aggreFunc = false;
   }
   for (; count_data_type <= MAX_NUM_DATATYPE; count_data_type++) {
-    if (strcasecmp(data_type[count_data_type], "") == 0) {
+    if (data_type[count_data_type] == NULL) {
       break;
     }
 
@@ -1169,6 +1174,66 @@ double getCurrentTime() {
   return tv.tv_sec + tv.tv_usec / 1E6;
 }
 
+int32_t  randint[MAX_PREPARED_RAND];
+int64_t  randbigint[MAX_PREPARED_RAND];
+float  randfloat[MAX_PREPARED_RAND];
+double  randdouble[MAX_PREPARED_RAND];
+
+int32_t rand_tinyint(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randint[cursor] % 128;
+
+}
+
+int32_t rand_smallint(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randint[cursor] % 32767;
+}
+
+int32_t rand_int(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randint[cursor];
+}
+
+int64_t rand_bigint(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randbigint[cursor];
+  
+}
+
+float rand_float(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randfloat[cursor];  
+  
+}
+
+double rand_double() {
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randdouble[cursor];
+
+}
+
+void init_rand_data(){
+  for (int i = 0; i < MAX_PREPARED_RAND; i++){
+    randint[i] = (int)(rand() % 10);
+    randbigint[i] = (int64_t)(rand() % 2147483648);
+    randfloat[i] = (float)(rand() / 1000.0);
+    randdouble[i] = (double)(rand() / 1000000.0);
+  }
+}
+
 int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
@@ -1176,7 +1241,7 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
   int c = 0;
 
   for (; c < MAX_NUM_DATATYPE; c++) {
-    if (strcasecmp(data_type[c], "") == 0) {
+    if (data_type[c] == NULL) {
       break;
     }
   }
@@ -1188,17 +1253,17 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
 
   for (int i = 0; i < num_of_cols; i++) {
     if (strcasecmp(data_type[i % c], "tinyint") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 128));
+      pstr += sprintf(pstr, ", %d", rand_tinyint() );
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 32767));
+      pstr += sprintf(pstr, ", %d", rand_smallint());
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 10)); 
+      pstr += sprintf(pstr, ", %d", rand_int()); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %" PRId64, rand() % 2147483648);
+      pstr += sprintf(pstr, ", %" PRId64, rand_bigint());
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", (float)(rand() / 1000.0));
+      pstr += sprintf(pstr, ", %10.4f", rand_float());
     } else if (strcasecmp(data_type[i % c], "double") == 0) {
-      double t = (double)(rand() / 1000000.0);
+      double t = rand_double();
       pstr += sprintf(pstr, ", %20.8f", t);
     } else if (strcasecmp(data_type[i % c], "bool") == 0) {
       bool b = rand() & 1;

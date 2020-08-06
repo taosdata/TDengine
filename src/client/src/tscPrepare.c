@@ -298,7 +298,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       break;
 
     case TSDB_DATA_TYPE_BINARY:
-      if ((*bind->length) > param->bytes) {
+      if ((*bind->length) > (uintptr_t)param->bytes) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       size = (short)*bind->length;

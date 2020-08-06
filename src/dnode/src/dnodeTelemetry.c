@@ -22,8 +22,16 @@
 #include "tsocket.h"
 #include "tbuffer.h"
 #include "mnode.h"
+#include "mnodeDef.h"
+#include "mnodeDb.h"
+#include "mnodeDnode.h"
 #include "mnodeCluster.h"
+#include "mnodeDnode.h"
+#include "mnodeVgroup.h"
+#include "mnodeMnode.h"
+#include "mnodeTable.h"
 #include "mnodeSdb.h"
+#include "mnodeAcct.h"
 #include "dnode.h"
 #include "dnodeInt.h"
 #include "dnodeTelemetry.h"
@@ -170,18 +178,23 @@ static void addVersionInfo(SBufferWriter* bw) {
   addStringField(bw, "version", version);
   addStringField(bw, "buildInfo", buildinfo);
   addStringField(bw, "gitInfo", gitinfo);
-  //addStringField(&bw, "installAt", "2020-08-01T00:00:00Z");
 }
 
 static void addRuntimeInfo(SBufferWriter* bw) {
-  // addIntField(&bw, "numOfDnode", 1);
-  // addIntField(&bw, "numOfVnode", 1);
-  // addIntField(&bw, "numOfStable", 1);
-  // addIntField(&bw, "numOfTable", 1);
-  // addIntField(&bw, "numOfRows", 1);
-  // addStringField(&bw, "startAt", "2020-08-01T00:00:00Z");
-  // addStringField(&bw, "memoryUsage", "10240 kB");
-  // addStringField(&bw, "diskUsage", "10240 MB");
+  addIntField(bw, "numOfDnode", mnodeGetDnodesNum());
+  addIntField(bw, "numOfMnode", mnodeGetMnodesNum());
+  addIntField(bw, "numOfVgroup", mnodeGetVgroupNum());
+  addIntField(bw, "numOfDatabase", mnodeGetDbNum());
+  addIntField(bw, "numOfSuperTable", mnodeGetSuperTableNum());
+  addIntField(bw, "numOfChildTable", mnodeGetChildTableNum());
+
+  SAcctInfo info;
+  mnodeGetStatOfAllAcct(&info);
+  addIntField(bw, "numOfColumn", info.numOfTimeSeries);
+  addIntField(bw, "numOfPoint", info.totalPoints);
+  addIntField(bw, "totalStorage", info.totalStorage);
+  addIntField(bw, "compStorage", info.compStorage);
+  // addStringField(bw, "installTime", "2020-08-01T00:00:00Z");
 }
 
 static void sendTelemetryReport() {
@@ -230,18 +243,13 @@ static void sendTelemetryReport() {
 static void* telemetryThread(void* param) {
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
-  end.tv_sec += 300; // wait 5 minutes to send first report
+  end.tv_sec += 300; // wait 5 minutes before send first report
 
   while (1) {
-    while (1) {
-      if (sem_timedwait(&tsExitSem, &end) == 0) {
-        return NULL;
-      }
-      struct timespec now = {0};
-      clock_gettime(CLOCK_REALTIME, &now);
-      if (now.tv_sec > end.tv_sec || (now.tv_sec == end.tv_sec && now.tv_nsec >= end.tv_nsec)) {
-        break;
-      }
+    if (sem_timedwait(&tsExitSem, &end) == 0) {
+      break;
+    } else if (errno != ETIMEDOUT) {
+      continue;
     }
 
     if (sdbIsMaster()) {

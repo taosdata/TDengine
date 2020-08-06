@@ -61,6 +61,10 @@ static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+int64_t mnodeGetDbNum() {
+  return sdbGetNumOfRows(tsDbSdb);
+}
+
 static int32_t mnodeDbActionInsert(SSdbOper *pOper) {
   SDbObj *pDb = pOper->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
