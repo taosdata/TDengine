@@ -28,23 +28,27 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define BUFFER_SIZE 200
+#define MAX_PKG_LEN (16*1000)
+#define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 typedef struct {
   int   port;
   char *host;
+  uint16_t pktLen;
 } info_s;
 
 typedef struct Arguments {
   char *   host;
   uint16_t port;
   uint16_t max_port;
+  uint16_t pktLen;
 } SArguments;
 
 static struct argp_option options[] = {
     {0, 'h', "host", 0, "The host to connect to TDEngine. Default is localhost.", 0},
-    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6041.", 1},
-    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6050.", 2}};
+    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6030.", 1},
+    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6060.", 2},
+    {0, 'l', "test pkg len", 0, "The len of pkg for test. Default is 1000 Bytes, max not greater than 16k Bytes.\nNotes: This parameter must be consistent between the client and the server.", 3}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
@@ -58,6 +62,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'm':
       arguments->max_port = atoi(arg);
+      break;
+    case 'l':
+      arguments->pktLen = atoi(arg);
+      break;
+    default:
+      printf("unknow parameter!\n");
       break;
   }
   return 0;
@@ -75,7 +85,7 @@ int checkTcpPort(info_s *info) {
   char               recvbuf[BUFFER_SIZE];
   int                iDataNum;
   if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket");
+    printf("socket() fail: %s\n", strerror(errno));
     return -1;
   }
   serverAddr.sin_family = AF_INET;
@@ -85,26 +95,30 @@ int checkTcpPort(info_s *info) {
 
   //printf("=================================\n");
   if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-    perror("connect");
+    printf("connect() fail: %s\n", strerror(errno));
     return -1;
   }
   //printf("Connect to: %s:%d...success\n", host, port);
+  memset(sendbuf, 0, BUFFER_SIZE);
+  memset(recvbuf, 0, BUFFER_SIZE);
 
-  sprintf(sendbuf, "send port_%d", port);
-  send(clientSocket, sendbuf, strlen(sendbuf), 0);
-  //printf("Send msg_%d: %s\n", port, sendbuf);
+  sprintf(sendbuf, "client send tcp pkg to %s:%d, content: 1122334455", host, port);
+  sprintf(sendbuf + info->pktLen - 16, "1122334455667788");
 
-  recvbuf[0] = '\0';
+  send(clientSocket, sendbuf, info->pktLen, 0);
+
   iDataNum = recv(clientSocket, recvbuf, BUFFER_SIZE, 0);
-  recvbuf[iDataNum] = '\0';
-  //printf("Read ack msg_%d: %s\n", port, recvbuf);
+  if (iDataNum < info->pktLen) {
+    printf("Read ack pkg len: %d, less than req pkg len: %d from tcp port: %d\n", iDataNum, info->pktLen, port);
+    return -1;
+  }
+  //printf("Read ack pkg len:%d from tcp port: %d, buffer: %s  %s\n", info->pktLen, port, recvbuf, recvbuf+iDataNum-8);
 
-  //printf("=================================\n");
   close(clientSocket);
   return 0;
 }
 
-void *checkUdpPort(info_s *info) {
+int checkUdpPort(info_s *info) {
   int   port = info->port;
   char *host = info->host;
   int   clientSocket;
@@ -117,60 +131,74 @@ void *checkUdpPort(info_s *info) {
     perror("socket");
     return -1;
   }
+  
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(port);
   serverAddr.sin_addr.s_addr = inet_addr(host);
+  
+  memset(sendbuf, 0, BUFFER_SIZE);
+  memset(recvbuf, 0, BUFFER_SIZE);
 
-  sprintf(sendbuf, "send msg port_%d by udp", port);
+  sprintf(sendbuf, "client send udp pkg to %s:%d, content: 1122334455", host, port);
+  sprintf(sendbuf + info->pktLen - 16, "1122334455667788");
 
   socklen_t sin_size = sizeof(*(struct sockaddr *)&serverAddr);
 
-  int code = sendto(clientSocket, sendbuf, strlen(sendbuf), 0, (struct sockaddr *)&serverAddr, (int)sin_size);
+  int code = sendto(clientSocket, sendbuf, info->pktLen, 0, (struct sockaddr *)&serverAddr, (int)sin_size);
   if (code < 0) {
     perror("sendto");
     return -1;
   }
 
-  //printf("Send msg_%d by udp: %s\n", port, sendbuf);
-
-  recvbuf[0] = '\0';
   iDataNum = recvfrom(clientSocket, recvbuf, BUFFER_SIZE, 0, (struct sockaddr *)&serverAddr, &sin_size);
-  recvbuf[iDataNum] = '\0';
-  //printf("Read ack msg_%d from udp: %s\n", port, recvbuf);
 
+  if (iDataNum < info->pktLen) {
+    printf("Read ack pkg len: %d, less than req pkg len: %d from udp port: %d\n", iDataNum, info->pktLen, port);
+    return -1;
+  }
+  
+  //printf("Read ack pkg len:%d from udp port: %d, buffer: %s  %s\n", info->pktLen, port, recvbuf, recvbuf+iDataNum-8);
   close(clientSocket);
   return 0;
 }
 
 int main(int argc, char *argv[]) {
-  SArguments arguments = {"127.0.0.1", 6030, 6060};
+  SArguments arguments = {"127.0.0.1", 6030, 6060, 1000};
   info_s  info;
   int ret;
   
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
+  if (arguments.pktLen > MAX_PKG_LEN) {
+    printf("test pkg len overflow: %d, max len not greater than %d bytes\n", arguments.pktLen, MAX_PKG_LEN);
+    exit(0);
+  }
 
-  printf("host: %s\tport: %d\tmax_port: %d\n\n", arguments.host, arguments.port, arguments.max_port);
+  printf("host: %s\tport: %d\tmax_port: %d\tpkgLen: %d\n", arguments.host, arguments.port, arguments.max_port, arguments.pktLen);
 
   int   port = arguments.port;
 
   info.host = arguments.host;
+  info.pktLen = arguments.pktLen;
 
-  for (; port < arguments.max_port; port++) {
-    printf("test: %s:%d\n", info.host, port);
+  for (; port <= arguments.max_port; port++) {
+    //printf("test: %s:%d\n", info.host, port);
+    printf("\n");
 
     info.port = port;
     ret = checkTcpPort(&info);
     if (ret != 0) {
-      printf("tcp port:%d test fail.", port);
+      printf("tcp port:%d test fail.\t\t", port);
     } else {
-      printf("tcp port:%d test ok.", port);
+      printf("tcp port:%d test ok.\t\t", port);
     }
     
-    checkUdpPort(&info);
+    ret = checkUdpPort(&info);
     if (ret != 0) {
-      printf("udp port:%d test fail.", port);
+      printf("udp port:%d test fail.\t\t", port);
     } else {
-      printf("udp port:%d test ok.", port);
+      printf("udp port:%d test ok.\t\t", port);
     }
   }
+  printf("\n");
+  return 0;
 }
