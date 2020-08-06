@@ -37,14 +37,14 @@ ELSEIF (TD_WINDOWS)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows/win32)
   
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static trpc tutil)
+  TARGET_LINK_LIBRARIES(taos_static trpc tutil query)
 
   # generate dynamic library (*.dll)
   ADD_LIBRARY(taos SHARED ${SRC})
   IF (NOT TD_GODLL)
     SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_COMMUNITY_DIR}/src/client/src/taos.def)
   ENDIF ()
-  TARGET_LINK_LIBRARIES(taos trpc tutil)
+  TARGET_LINK_LIBRARIES(taos trpc tutil query)
 
 ELSEIF (TD_DARWIN)
   SET(CMAKE_MACOSX_RPATH 1)
