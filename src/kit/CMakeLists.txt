@@ -3,3 +3,5 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(shell)
 ADD_SUBDIRECTORY(taosdemo)
+#ADD_SUBDIRECTORY(taosClusterTest)
+ADD_SUBDIRECTORY(taosnetwork)
