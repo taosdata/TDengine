@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#define MAX_PKG_LEN (16*1000)
+#define MAX_PKG_LEN (64*1000)
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 typedef struct {
@@ -119,7 +119,7 @@ static void *bindTcpPort(void *sarg) {
     char *ptr = buffer;
     nleft = pinfo->pktLen;
     while (nleft > 0) {
-      nread = recv(client, buffer, BUFFER_SIZE, 0);
+      nread = recv(client, ptr, BUFFER_SIZE, 0);
 
       if (nread == 0) {
         break;

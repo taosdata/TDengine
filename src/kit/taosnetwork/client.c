@@ -28,7 +28,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MAX_PKG_LEN (16*1000)
+#define MAX_PKG_LEN (64*1000)
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 typedef struct {
@@ -107,9 +107,32 @@ int checkTcpPort(info_s *info) {
 
   send(clientSocket, sendbuf, info->pktLen, 0);
 
-  iDataNum = recv(clientSocket, recvbuf, BUFFER_SIZE, 0);
+  memset(recvbuf, 0, BUFFER_SIZE);
+  int   nleft, nread;
+  char *ptr = recvbuf;
+  nleft = info->pktLen;
+  while (nleft > 0) {
+    nread = recv(clientSocket, ptr, BUFFER_SIZE, 0);;
+  
+    if (nread == 0) {
+      break;
+    } else if (nread < 0) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        printf("recv ack pkg from TCP port: %d fail:%s.\n", port, strerror(errno));
+        close(clientSocket);
+        return -1;
+      }
+    } else {
+      nleft -= nread;
+      ptr += nread;
+      iDataNum += nread;
+    }      
+  }
+
   if (iDataNum < info->pktLen) {
-    printf("Read ack pkg len: %d, less than req pkg len: %d from tcp port: %d\n", iDataNum, info->pktLen, port);
+    printf("recv ack pkg len: %d, less than req pkg len: %d from tcp port: %d\n", iDataNum, info->pktLen, port);
     return -1;
   }
   //printf("Read ack pkg len:%d from tcp port: %d, buffer: %s  %s\n", info->pktLen, port, recvbuf, recvbuf+iDataNum-8);
