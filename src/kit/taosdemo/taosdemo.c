@@ -42,8 +42,8 @@ extern char configDir[];
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
 #define MAX_TB_NAME_SIZE 64
-#define MAX_DATA_SIZE    1024
-#define MAX_NUM_DATATYPE 30
+#define MAX_DATA_SIZE    16000
+#define MAX_NUM_DATATYPE 10
 #define OPT_ABORT        1 /* –abort */
 #define STRING_LEN       512
 #define MAX_PREPARED_RAND 1000000
@@ -155,7 +155,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             strcasecmp(arg, "TINYINT") != 0 && strcasecmp(arg, "BOOL") != 0 &&
             strcasecmp(arg, "SMALLINT") != 0 &&
             strcasecmp(arg, "BIGINT") != 0 && strcasecmp(arg, "DOUBLE") != 0 &&
-            strcasecmp(arg, "BINARY")) {
+            strcasecmp(arg, "BINARY") && strcasecmp(arg, "NCHAR")) {
           argp_error(state, "Invalid data_type!");
         }
         sptr[0] = arg;
@@ -171,7 +171,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
               strcasecmp(token, "BOOL") != 0 &&
               strcasecmp(token, "SMALLINT") != 0 &&
               strcasecmp(token, "BIGINT") != 0 &&
-              strcasecmp(token, "DOUBLE") != 0 && strcasecmp(token, "BINARY")) {
+              strcasecmp(token, "DOUBLE") != 0 && strcasecmp(token, "BINARY") && strcasecmp(arg, "NCHAR")) {
             argp_error(state, "Invalid data_type!");
           }
           sptr[index++] = token;
@@ -412,7 +412,7 @@ int main(int argc, char *argv[]) {
   memset(dataString, 0, STRING_LEN);
   int len = 0;
 
-  if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0) {
+  if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0 || strcasecmp(data_type[0], "NCHAR") == 0 ) {
     do_aggreFunc = false;
   }
   for (; count_data_type <= MAX_NUM_DATATYPE; count_data_type++) {
@@ -438,7 +438,7 @@ int main(int argc, char *argv[]) {
   printf("# Use metric:                        %s\n", use_metric ? "true" : "false");
   printf("# Datatype of Columns:               %s\n", dataString);
   printf("# Binary Length(If applicable):      %d\n",
-          (strcasestr(dataString, "BINARY") != NULL) ? len_of_binary : -1);
+          (strcasestr(dataString, "BINARY") != NULL || strcasestr(dataString, "NCHAR") != NULL ) ? len_of_binary : -1);
   printf("# Number of Columns per record:      %d\n", ncols_per_record);
   printf("# Number of Threads:                 %d\n", threads);
   printf("# Number of Tables:                  %d\n", ntables);
@@ -466,7 +466,7 @@ int main(int argc, char *argv[]) {
   fprintf(fp, "# Use metric:                        %s\n", use_metric ? "true" : "false");
   fprintf(fp, "# Datatype of Columns:               %s\n", dataString);
   fprintf(fp, "# Binary Length(If applicable):      %d\n",
-          (strcasestr(dataString, "BINARY") != NULL) ? len_of_binary : -1);
+          (strcasestr(dataString, "BINARY") != NULL || strcasestr(dataString, "NCHAR") != NULL ) ? len_of_binary : -1);
   fprintf(fp, "# Number of Columns per record:      %d\n", ncols_per_record);
   fprintf(fp, "# Number of Threads:                 %d\n", threads);
   fprintf(fp, "# Number of Tables:                  %d\n", ntables);
@@ -506,7 +506,7 @@ int main(int argc, char *argv[]) {
   len = 0;
 
   for (; colIndex < ncols_per_record - 1; colIndex++) {
-    if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0) {
+    if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0 && strcasecmp(data_type[colIndex % count_data_type], "NCHAR") != 0) {
       len += snprintf(cols + len, STRING_LEN - len, ",f%d %s", colIndex + 1, data_type[colIndex % count_data_type]);
     } else {
       len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d)", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
@@ -522,7 +522,7 @@ int main(int argc, char *argv[]) {
   if (use_metric) {
     /* Create metric table */
     printf("Creating meters super table...\n");
-    snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
+    snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s) tags (areaid int, loc binary(10)", db_name, cols);
     queryDB(taos, command);
     printf("meters created!\n");
   }
@@ -1269,6 +1269,10 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
       bool b = rand() & 1;
       pstr += sprintf(pstr, ", %s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
+      char s[len_of_binary];
+      rand_string(s, len_of_binary);
+      pstr += sprintf(pstr, ", \"%s\"", s);
+    }else if (strcasecmp(data_type[i % c], "nchar") == 0) {
       char s[len_of_binary];
       rand_string(s, len_of_binary);
       pstr += sprintf(pstr, ", \"%s\"", s);
