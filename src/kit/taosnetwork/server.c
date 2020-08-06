@@ -47,8 +47,8 @@ typedef struct Arguments {
 static struct argp_option options[] = {
     {0, 'h', "host", 0, "The host to connect to TDEngine. Default is localhost.", 0},
     {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6041.", 1},
-    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6050.", 2},
-    {0, 'l', "test pkg len", 0, "The len of pkg for test. Default is 1000 Bytes, max not greater than 16k Bytes.\nNotes: This parameter must be consistent between the client and the server.", 3}};
+    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6060.", 2},
+    {0, 'l', "test pkg len", 0, "The len of pkg for test. Default is 1000 Bytes, max not greater than 64k Bytes.\nNotes: This parameter must be consistent between the client and the server.", 3}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
