@@ -23,6 +23,7 @@
 #include "mnodeDb.h"
 #include "mnodeSdb.h"
 #include "mnodeUser.h"
+#include "mnodeVgroup.h"
 
 #include "tglobal.h"
 
@@ -128,6 +129,37 @@ void mnodeCleanupAccts() {
   acctCleanUp();
   sdbCloseTable(tsAcctSdb);
   tsAcctSdb = NULL;
+}
+
+void mnodeGetStatOfAllAcct(SAcctInfo* pAcctInfo) {
+  memset(pAcctInfo, 0, sizeof(*pAcctInfo));
+
+  void   *pIter = NULL;
+  SAcctObj *pAcct = NULL;
+  while (1) {
+    pIter = mnodeGetNextAcct(pIter, &pAcct);
+    if (pAcct == NULL) {
+      break;
+    }
+    pAcctInfo->numOfDbs += pAcct->acctInfo.numOfDbs;
+    pAcctInfo->numOfTimeSeries += pAcct->acctInfo.numOfTimeSeries;
+    mnodeDecAcctRef(pAcct);
+  }
+  sdbFreeIter(pIter);
+
+  SVgObj *pVgroup = NULL;
+  pIter = NULL;
+  while (1) {
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) {
+       break;
+    }
+    pAcctInfo->totalStorage += pVgroup->totalStorage;
+    pAcctInfo->compStorage += pVgroup->compStorage;
+    pAcctInfo->totalPoints += pVgroup->pointsWritten;
+    mnodeDecVgroupRef(pVgroup);
+  }
+  sdbFreeIter(pIter);
 }
 
 void *mnodeGetAcct(char *name) {
