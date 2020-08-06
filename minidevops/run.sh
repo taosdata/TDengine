@@ -1,35 +1,28 @@
 #!/bin/bash
 
 #set -x
-LP=`pwd`
-#echo $LP
 
 docker rm -f `docker ps -a -q`
 docker network rm minidevops
 docker network create --ip-range 172.15.1.255/24 --subnet 172.15.1.1/16 minidevops 
 
-#docker run -d   --net="host"   --pid="host"   -v "/:/host:ro"   quay.io/prometheus/node-exporter   --path.rootfs=/host
 
-docker run -d --net minidevops --ip 172.15.1.11 -v $LP/grafana:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana
-#docker run -d --net minidevops --ip 172.15.1.11 -v /Users/tom/Documents/minidevops/grafana:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana
+docker run -d --net minidevops --ip 172.15.1.11 -v $(pwd)/grafana:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana
 
-TDENGINE=`docker run -d --net minidevops --ip 172.15.1.6 -p 6030:6030 -p 6020:6020 -p 6031:6031 -p 6032:6032 -p 6033:6033 -p 6034:6034 -p 6035:6035 -p 6036:6036 -p 6037:6037 -p 6038:6038 -p 6039:6039 tdengine/tdengine:1.6.4.5` 
-docker cp /etc/localtime $TDENGINE:/etc/localtime
+docker run -d --net minidevops --ip 172.15.1.6 -p 6030:6030 -p 6020:6020 -p 6031:6031 -p 6032:6032 -p 6033:6033 -p 6034:6034 -p 6035:6035 -p 6036:6036 -p 6037:6037 -p 6038:6038 -p 6039:6039 -p 6040:6040 -p 6041:6041 -h '172.15.1.6' tdengine/tdengine:2.0.0.0
 
-BLMPROMETHEUS=`docker run -d --net minidevops --ip 172.15.1.7 -p 10203:10203 tdengine/blm_prometheus 172.15.1.6`
+docker run -d --net minidevops --ip 172.15.1.7 -v $(pwd)/taos:/etc/taos -p 10203:10203 tdengine/blm_prometheus:2.0.0.0 -tdengine-name 172.15.1.6 -tdengine-api-port 6041
 
 
-BLMPTELEGRAF=`docker run -d --net minidevops --ip 172.15.1.8 -p 10202:10202 tdengine/blm_telegraf 172.15.1.6`
+docker run -d --net minidevops --ip 172.15.1.8 -p 10202:10202 tdengine/blm_telegraf:2.0.0.0 -host 172.15.1.6
 
-docker run -d  --net minidevops --ip 172.15.1.9 -v $LP/prometheus:/etc/prometheus -p 9090:9090 prom/prometheus
-#docker run -d  --net minidevops --ip 172.15.1.9 -v /Users/tom/Documents/minidevops/prometheus:/etc/prometheus -p 9090:9090 prom/prometheus
+docker run -d  --net minidevops --ip 172.15.1.9 -v $(pwd)/prometheus:/etc/prometheus -p 9090:9090 prom/prometheus
 
-docker run -d --net minidevops --ip 172.15.1.10 -v $LP/telegraf:/etc/telegraf -p 8092:8092 -p 8094:8094 -p 8125:8125 telegraf
-#docker run -d --net minidevops --ip 172.15.1.10 -v /Users/tom/Documents/minidevops/telegraf:/etc/telegraf -p 8092:8092 -p 8094:8094 -p 8125:8125 telegraf
+docker run -d --net minidevops --ip 172.15.1.10 -v $(pwd)/telegraf:/etc/telegraf -p 8092:8092 -p 8094:8094 -p 8125:8125 telegraf
 
 
 sleep 10
-curl -X POST http://localhost:3000/api/datasources --header "Content-Type:application/json" -u admin:admin -d '{"Name": "TDengine","Type": "tdengine","TypeLogoUrl": "public/plugins/tdengine/img/taosdata_logo.png","Access": "proxy","Url": "http://172.15.1.6:6020","BasicAuth": false,"isDefault": true,"jsonData": {},"readOnly": false}'
+curl -X POST http://localhost:3000/api/datasources --header "Content-Type:application/json" -u admin:admin -d '{"Name": "TDengine","Type": "tdengine","TypeLogoUrl": "public/plugins/tdengine/img/taosdata_logo.png","Access": "proxy","Url": "http://172.15.1.6:6041","BasicAuth": false,"isDefault": true,"jsonData": {},"readOnly": false}'
 
 curl -X POST http://localhost:3000/api/dashboards/db --header "Content-Type:application/json" -u admin:admin -d '{"dashboard":{"annotations":{"list":[{"builtIn":1,"datasource":"-- Grafana --","enable":true,"hide":true,"iconColor":"rgba(0, 211, 255, 1)","name":"Annotations & Alerts","type":"dashboard"}]},"editable":true,"gnetId":null,"graphTooltip":0,"id":1,"links":[],"panels":[{"datasource":null,"gridPos":{"h":8,"w":6,"x":0,"y":0},"id":6,"options":{"fieldOptions":{"calcs":["mean"],"defaults":{"color":{"mode":"thresholds"},"links":[{"title":"","url":""}],"mappings":[],"max":100,"min":0,"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]},"unit":"percent"},"overrides":[],"values":false},"orientation":"auto","showThresholdLabels":false,"showThresholdMarkers":true},"pluginVersion":"6.6.0","targets":[{"refId":"A","sql":"select last_row(value) from telegraf.mem where field=\"used_percent\""}],"timeFrom":null,"timeShift":null,"title":"Memory used percent","type":"gauge"},{"aliasColors":{},"bars":false,"dashLength":10,"dashes":false,"datasource":null,"fill":1,"fillGradient":0,"gridPos":{"h":8,"w":12,"x":6,"y":0},"hiddenSeries":false,"id":8,"legend":{"avg":false,"current":false,"max":false,"min":false,"show":true,"total":false,"values":false},"lines":true,"linewidth":1,"nullPointMode":"null","options":{"dataLinks":[]},"percentage":false,"pointradius":2,"points":false,"renderer":"flot","seriesOverrides":[],"spaceLength":10,"stack":false,"steppedLine":false,"targets":[{"alias":"MEMUSED-PERCENT","refId":"A","sql":"select avg(value) from telegraf.mem where field=\"used_percent\" interval(1m)"}],"thresholds":[],"timeFrom":null,"timeRegions":[],"timeShift":null,"title":"MEM","tooltip":{"shared":true,"sort":0,"value_type":"individual"},"type":"graph","xaxis":{"buckets":null,"mode":"time","name":null,"show":true,"values":[]},"yaxes":[{"format":"short","label":null,"logBase":1,"max":null,"min":null,"show":true},{"format":"short","label":null,"logBase":1,"max":null,"min":null,"show":true}],"yaxis":{"align":false,"alignLevel":null}},{"datasource":null,"gridPos":{"h":3,"w":18,"x":0,"y":8},"id":10,"options":{"displayMode":"lcd","fieldOptions":{"calcs":["mean"],"defaults":{"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"percent"},"overrides":[],"values":false},"orientation":"auto","showUnfilled":true},"pluginVersion":"6.6.0","targets":[{"alias":"CPU-SYS","refId":"A","sql":"select last_row(value) from telegraf.cpu where field=\"usage_system\""},{"alias":"CPU-IDLE","refId":"B","sql":"select last_row(value) from telegraf.cpu where field=\"usage_idle\""},{"alias":"CPU-USER","refId":"C","sql":"select last_row(value) from telegraf.cpu where field=\"usage_user\""}],"timeFrom":null,"timeShift":null,"title":"CPU-USED","type":"bargauge"},{"aliasColors":{},"bars":false,"dashLength":10,"dashes":false,"datasource":"TDengine","description":"General CPU monitor","fill":1,"fillGradient":0,"gridPos":{"h":9,"w":18,"x":0,"y":11},"hiddenSeries":false,"id":2,"legend":{"avg":false,"current":false,"max":false,"min":false,"show":true,"total":false,"values":false},"lines":true,"linewidth":1,"nullPointMode":"null","options":{"dataLinks":[]},"percentage":false,"pointradius":2,"points":false,"renderer":"flot","seriesOverrides":[],"spaceLength":10,"stack":false,"steppedLine":false,"targets":[{"alias":"CPU-USER","refId":"A","sql":"select avg(value) from telegraf.cpu where field=\"usage_user\" and cpu=\"cpu-total\" interval(1m)"},{"alias":"CPU-SYS","refId":"B","sql":"select avg(value) from telegraf.cpu where field=\"usage_system\" and cpu=\"cpu-total\" interval(1m)"},{"alias":"CPU-IDLE","refId":"C","sql":"select avg(value) from telegraf.cpu where field=\"usage_idle\" and cpu=\"cpu-total\" interval(1m)"}],"thresholds":[],"timeFrom":null,"timeRegions":[],"timeShift":null,"title":"CPU","tooltip":{"shared":true,"sort":0,"value_type":"individual"},"type":"graph","xaxis":{"buckets":null,"mode":"time","name":null,"show":true,"values":[]},"yaxes":[{"format":"short","label":null,"logBase":1,"max":null,"min":null,"show":true},{"format":"short","label":null,"logBase":1,"max":null,"min":null,"show":true}],"yaxis":{"align":false,"alignLevel":null}}],"refresh":"10s","schemaVersion":22,"style":"dark","tags":["demo"],"templating":{"list":[]},"time":{"from":"now-3h","to":"now"},"timepicker":{"refresh_intervals":["5s","10s","30s","1m","5m","15m","30m","1h","2h","1d"]},"timezone":"","title":"TDengineDashboardDemo","id":null,"uid":null,"version":0}}'
 
