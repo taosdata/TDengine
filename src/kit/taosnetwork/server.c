@@ -27,24 +27,28 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 
-#define BUFFER_SIZE 200
+#define MAX_PKG_LEN (64*1000)
+#define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 typedef struct {
   int port;
-  int type;  // 0: tcp, 1: udo, default: 0
-} info;
+  uint16_t pktLen;
+} info_s;
 
 typedef struct Arguments {
   char *   host;
   uint16_t port;
   uint16_t max_port;
+  uint16_t pktLen;
 } SArguments;
 
 static struct argp_option options[] = {
     {0, 'h', "host", 0, "The host to connect to TDEngine. Default is localhost.", 0},
-    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6020.", 1},
-    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6050.", 2}};
+    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6041.", 1},
+    {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6060.", 2},
+    {0, 'l', "test pkg len", 0, "The len of pkg for test. Default is 1000 Bytes, max not greater than 64k Bytes.\nNotes: This parameter must be consistent between the client and the server.", 3}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
@@ -59,16 +63,21 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'm':
       arguments->max_port = atoi(arg);
       break;
+    case 'l':
+      arguments->pktLen = atoi(arg);
+      break;
+
+    default:
+      return ARGP_ERR_UNKNOWN;
   }
   return 0;
 }
 
 static struct argp argp = {options, parse_opt, 0, 0};
 
-static void *bindPort(void *sarg) {
-  info *pinfo = (info *)sarg;
+static void *bindTcpPort(void *sarg) {
+  info_s *pinfo = (info_s *)sarg;
   int   port = pinfo->port;
-  int   type = pinfo->type;
   int   serverSocket;
 
   struct sockaddr_in server_addr;
@@ -76,10 +85,10 @@ static void *bindPort(void *sarg) {
   int                addr_len = sizeof(clientAddr);
   int                client;
   char               buffer[BUFFER_SIZE];
-  int                iDataNum;
+  int                iDataNum = 0;
 
   if ((serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-    perror("socket");
+    printf("socket() fail: %s", strerror(errno));
     return NULL;
   }
 
@@ -89,65 +98,67 @@ static void *bindPort(void *sarg) {
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   if (bind(serverSocket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-    perror("connect");
+    printf("port:%d bind() fail: %s", port, strerror(errno));
     return NULL;
   }
 
   if (listen(serverSocket, 5) < 0) {
-    perror("listen");
+    printf("listen() fail: %s", strerror(errno));
     return NULL;
   }
 
-  printf("Bind port: %d success\n", port);
+  //printf("Bind port: %d success\n", port);
   while (1) {
     client = accept(serverSocket, (struct sockaddr *)&clientAddr, (socklen_t *)&addr_len);
     if (client < 0) {
-      perror("accept");
+      printf("accept() fail: %s", strerror(errno));
       continue;
     }
-    printf("=================================\n");
 
-    printf("Client ip is %s, Server port is %d\n", inet_ntoa(clientAddr.sin_addr), port);
-    while (1) {
-      buffer[0] = '\0';
-      iDataNum = recv(client, buffer, BUFFER_SIZE, 0);
+    memset(buffer, 0, BUFFER_SIZE);
+    int   nleft, nread;
+    char *ptr = buffer;
+    nleft = pinfo->pktLen;
+    while (nleft > 0) {
+      nread = recv(client, ptr, BUFFER_SIZE, 0);
 
-      if (iDataNum < 0) {
-        perror("recv null");
-        continue;
-      }
-      if (iDataNum > 0) {
-        buffer[iDataNum] = '\0';
-        printf("read msg:%s\n", buffer);
-        if (strcmp(buffer, "quit") == 0) break;
-        buffer[0] = '\0';
-
-        sprintf(buffer, "ack port_%d", port);
-        printf("send ack msg:%s\n", buffer);
-
-        send(client, buffer, strlen(buffer), 0);
+      if (nread == 0) {
         break;
-      }
+      } else if (nread < 0) {
+        if (errno == EINTR) {
+          continue;
+        } else {
+          printf("recv Client: %s pkg from TCP port: %d fail:%s.\n", inet_ntoa(clientAddr.sin_addr), port, strerror(errno));
+          close(serverSocket);
+          return NULL;
+        }
+      } else {
+        nleft -= nread;
+        ptr += nread;
+        iDataNum += nread;
+      }      
     }
-    printf("=================================\n");
+    
+    printf("recv Client: %s pkg from TCP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
+    if (iDataNum > 0) {
+      send(client, buffer, iDataNum, 0);
+      break;
+    }
   }
   close(serverSocket);
   return NULL;
 }
 
-static void *bindUPort(void *sarg) {
-  info *pinfo = (info *)sarg;
+static void *bindUdpPort(void *sarg) {
+  info_s *pinfo = (info_s *)sarg;
   int   port = pinfo->port;
-  int   type = pinfo->type;
   int   serverSocket;
 
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
-  int                addr_len = sizeof(clientAddr);
-  int                client;
   char               buffer[BUFFER_SIZE];
   int                iDataNum;
-
+    
   if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     perror("socket");
     return NULL;
@@ -164,10 +175,9 @@ static void *bindUPort(void *sarg) {
   }
 
   socklen_t sin_size;
-  printf("Bind port: %d success\n", port);
 
   while (1) {
-    buffer[0] = '\0';
+    memset(buffer, 0, BUFFER_SIZE);
 
     sin_size = sizeof(*(struct sockaddr *)&server_addr);
 
@@ -178,21 +188,10 @@ static void *bindUPort(void *sarg) {
       continue;
     }
     if (iDataNum > 0) {
-      printf("=================================\n");
+      printf("recv Client: %s pkg from UDP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
+      //printf("Read msg from udp:%s ... %s\n", buffer, buffer+iDataNum-16);
 
-      printf("Client ip is %s, Server port is %d\n", inet_ntoa(clientAddr.sin_addr), port);
-      buffer[iDataNum] = '\0';
-      printf("Read msg from udp:%s\n", buffer);
-      if (strcmp(buffer, "quit") == 0) break;
-      buffer[0] = '\0';
-
-      sprintf(buffer, "ack port_%d by udp", port);
-      printf("Send ack msg by udp:%s\n", buffer);
-
-      sendto(serverSocket, buffer, strlen(buffer), 0, (struct sockaddr *)&clientAddr, (int)sin_size);
-
-      send(client, buffer, strlen(buffer), 0);
-      printf("=================================\n");
+      sendto(serverSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int)sin_size);
     }
   }
 
@@ -202,39 +201,44 @@ static void *bindUPort(void *sarg) {
 
 
 int main(int argc, char *argv[]) {
-  SArguments arguments = {"127.0.0.1", 6020, 6050};
+  SArguments arguments = {"127.0.0.1", 6030, 6060, 1000};
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
+  if (arguments.pktLen > MAX_PKG_LEN) {
+    printf("test pkg len overflow: %d, max len not greater than %d bytes\n", arguments.pktLen, MAX_PKG_LEN);
+    exit(0);
+  }
+
   int port = arguments.port;
 
-  int num = arguments.max_port - arguments.port;
+  int num = arguments.max_port - arguments.port + 1;
 
   if (num < 0) {
     num = 1;
   }
   pthread_t *pids = malloc(2 * num * sizeof(pthread_t));
-  info *     infos = malloc(num * sizeof(info));
-  info *     uinfos = malloc(num * sizeof(info));
+  info_s *     tinfos = malloc(num * sizeof(info_s));
+  info_s *     uinfos = malloc(num * sizeof(info_s));
 
   for (size_t i = 0; i < num; i++) {
-    info *pinfo = infos++;
-    pinfo->port = port;
+    info_s *tcpInfo = tinfos + i;
+    tcpInfo->port = port + i;
+    tcpInfo->pktLen = arguments.pktLen;
 
-    if (pthread_create(pids + i, NULL, bindPort, pinfo) != 0)  //创建线程
-    {                                                          //创建线程失败
-      printf("创建线程失败: %d.\n", port);
-      exit(0);
+    if (pthread_create(pids + i, NULL, bindTcpPort, tcpInfo) != 0) 
+    {
+      printf("create thread fail, port:%d.\n", port);
+      exit(-1);
     }
 
-    info *uinfo = uinfos++;
-    uinfo->port = port;
-    uinfo->type = 1;
-    port++;
-    if (pthread_create(pids + num + i, NULL, bindUPort, uinfo) != 0)  //创建线程
-    {                                                                //创建线程失败
-      printf("创建线程失败: %d.\n", port);
-      exit(0);
+    info_s *udpInfo = uinfos + i;
+    udpInfo->port = port + i;
+    if (pthread_create(pids + num + i, NULL, bindUdpPort, udpInfo) != 0)
+    {                          
+      printf("create thread fail, port:%d.\n", port);
+      exit(-1);
     }
   }
+  
   for (int i = 0; i < num; i++) {
     pthread_join(pids[i], NULL);
     pthread_join(pids[(num + i)], NULL);
