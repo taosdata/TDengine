@@ -45,7 +45,7 @@ extern char configDir[];
 #define MAX_DATA_SIZE    16000
 #define MAX_NUM_DATATYPE 10
 #define OPT_ABORT        1 /* –abort */
-#define STRING_LEN       512
+#define STRING_LEN       60000
 #define MAX_PREPARED_RAND 1000000
 
 /* The options we understand. */
@@ -171,11 +171,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
               strcasecmp(token, "BOOL") != 0 &&
               strcasecmp(token, "SMALLINT") != 0 &&
               strcasecmp(token, "BIGINT") != 0 &&
-              strcasecmp(token, "DOUBLE") != 0 && strcasecmp(token, "BINARY") && strcasecmp(arg, "NCHAR")) {
+              strcasecmp(token, "DOUBLE") != 0 && strcasecmp(token, "BINARY") && strcasecmp(token, "NCHAR")) {
             argp_error(state, "Invalid data_type!");
           }
           sptr[index++] = token;
-          token = strsep(&running, ", ");
+          token = strsep(&running, ",");
           if (index >= MAX_NUM_DATATYPE) break;
         }
       }
@@ -513,16 +513,16 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0) {
-    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s)", colIndex + 1, data_type[colIndex % count_data_type]);
+  if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0 && strcasecmp(data_type[colIndex % count_data_type], "NCHAR") != 0){
+    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s", colIndex + 1, data_type[colIndex % count_data_type]);
   } else {
-    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d))", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
+    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d)", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
   }
 
   if (use_metric) {
     /* Create metric table */
     printf("Creating meters super table...\n");
-    snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s) tags (areaid int, loc binary(10)", db_name, cols);
+    snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s) tags (areaid int, loc binary(10))", db_name, cols);
     queryDB(taos, command);
     printf("meters created!\n");
   }
