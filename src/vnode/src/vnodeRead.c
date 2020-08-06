@@ -251,6 +251,10 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     return code;
   }
 
+  // todo add more error check here
+  // register the qhandle to connect to quit query immediate if connection is broken
+  vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, *handle, pVnode->vgId);
+
   bool freeHandle = true;
   bool buildRes   = false;
 
