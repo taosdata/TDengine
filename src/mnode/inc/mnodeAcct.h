@@ -24,6 +24,7 @@ extern "C" {
 
 int32_t mnodeInitAccts();
 void    mnodeCleanupAccts();
+void    mnodeGetStatOfAllAcct(SAcctInfo* pAcctInfo);
 void *  mnodeGetAcct(char *acctName);
 void *  mnodeGetNextAcct(void *pIter, SAcctObj **pAcct);
 void    mnodeIncAcctRef(SAcctObj *pAcct);
