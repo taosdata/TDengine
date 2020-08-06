@@ -338,16 +338,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 maven 项目中使用如下 pom.xml 配置即可：
 
 ```xml
-<dependencies>
-    <dependency>
-      <groupId>com.taosdata.jdbc</groupId>
-      <artifactId>taos-jdbcdriver</artifactId>
-      <version>2.0.0</version>
-      <type>jar</type>
-      <scope>system</scope>
-      <systemPath>{localdir}/connector/taos-jdbcdriver-2.0.0-dist.jar</systemPath>
-    </dependency>
-</dependencies>
+<dependency>
+  <groupId>com.taosdata.jdbc</groupId>
+  <artifactId>taos-jdbcdriver</artifactId>
+  <version>2.0.1</version>
+</dependency>
 ```
 
 ### 源码编译打包
@@ -752,9 +747,9 @@ http://<ip>:<PORT>/rest/sql
 参数说明：
 
 - IP: 集群中的任一台主机
-- PORT: 配置文件中httpPort配置项，缺省为6020
+- PORT: 配置文件中httpPort配置项，缺省为6041
 
-例如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
+例如：http://192.168.0.1:6041/rest/sql 是指向IP地址为192.168.0.1的URL. 
 
 HTTP请求的Header里需带有身份认证信息，TDengine支持Basic认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
@@ -814,7 +809,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 HTTP请求中需要带有授权码`<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送`HTTP GET`请求来获取授权码，操作如下：
 
 ```
-curl http://<ip>:6020/rest/login/<username>/<password>
+curl http://<ip>:6041/rest/login/<username>/<password>
 ```
 
 其中，`ip`是TDengine数据库的IP地址，`username`为数据库用户名，`password`为数据库密码，返回值为`JSON`格式，各字段含义如下：
@@ -828,7 +823,7 @@ curl http://<ip>:6020/rest/login/<username>/<password>
 获取授权码示例：
 
 ```
-curl http://192.168.0.1:6020/rest/login/root/taosdata
+curl http://192.168.0.1:6041/rest/login/root/taosdata
 ```
 
 返回值：
@@ -846,7 +841,7 @@ curl http://192.168.0.1:6020/rest/login/root/taosdata
 - 在demo库里查询表d1001的所有记录： 
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6020/rest/sql`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
 ```
 返回值：
 
@@ -865,7 +860,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 - 创建库demo：
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6020/rest/sql`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
 ```
 
 返回值：
@@ -885,7 +880,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6020/rest/sqlt
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
 ```
 
 返回值：
@@ -906,7 +901,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 
 HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
 ```
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlutc
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
 ```
 
 返回值：
@@ -927,7 +922,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 下面仅列出一些与RESTFul接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
 
-- httpPort: 对外提供RESTFul服务的端口号，默认绑定到6020
+- httpPort: 对外提供RESTFul服务的端口号，默认绑定到6041
 - httpMaxThreads: 启动的线程数量，默认为2
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
@@ -1099,3 +1094,18 @@ promise2.then(function(result) {
 [这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
 
 
+[1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[2]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[3]: https://github.com/taosdata/TDengine
+[4]: https://www.taosdata.com/blog/2019/12/03/jdbcdriver%e6%89%be%e4%b8%8d%e5%88%b0%e5%8a%a8%e6%80%81%e9%93%be%e6%8e%a5%e5%ba%93/
+[5]: https://github.com/brettwooldridge/HikariCP
+[6]: https://github.com/alibaba/druid
+[7]: https://github.com/taosdata/TDengine/issues
+[8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[10]: https://maven.aliyun.com/mvn/search
+[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
+[13]: https://www.taosdata.com/cn/documentation20/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
+[14]: https://www.taosdata.com/cn/documentation20/connector/#Windows
+[15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B

@@ -65,7 +65,7 @@ typedef struct {
 int32_t tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
-float   tsMinimalLogDirGB = 0.1;
+float   tsMinimalLogDirGB = 0.1f;
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
 
 static SLogObj   tsLogObj = { .fileNum = 1 };

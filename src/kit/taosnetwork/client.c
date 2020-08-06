@@ -43,7 +43,7 @@ typedef struct Arguments {
 
 static struct argp_option options[] = {
     {0, 'h', "host", 0, "The host to connect to TDEngine. Default is localhost.", 0},
-    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6020.", 1},
+    {0, 'p', "port", 0, "The TCP or UDP port number to use for the connection. Default is 6041.", 1},
     {0, 'm', "max port", 0, "The max TCP or UDP port number to use for the connection. Default is 6050.", 2}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -145,7 +145,7 @@ void *checkUPort(void *sarg) {
 }
 
 int main(int argc, char *argv[]) {
-  SArguments arguments = {"127.0.0.1", 6020, 6050};
+  SArguments arguments = {"127.0.0.1", 6041, 6050};
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 

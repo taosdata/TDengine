@@ -375,6 +375,14 @@ static void mnodeCleanupChildTables() {
   tsChildTableSdb = NULL;
 }
 
+int64_t mnodeGetSuperTableNum() {
+  return sdbGetNumOfRows(tsSuperTableSdb);
+}
+
+int64_t mnodeGetChildTableNum() {
+  return sdbGetNumOfRows(tsChildTableSdb);
+}
+
 static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
   atomic_add_fetch_32(&pStable->numOfTables, 1);
 
@@ -1345,7 +1353,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
   
-    int16_t len = strnlen(stableName, TSDB_DB_NAME_LEN - 1);
+    int16_t len = strnlen(stableName, TSDB_TABLE_NAME_LEN - 1);
     *(int16_t*) pWrite = len;
     pWrite += sizeof(int16_t); // todo refactor
   

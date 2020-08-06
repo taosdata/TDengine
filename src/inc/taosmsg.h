@@ -206,7 +206,7 @@ typedef struct SSubmitMsg {
   SMsgHead   header;
   int32_t    length;
   int32_t    numOfBlocks;
-  SSubmitBlk blocks[];
+  char       blocks[];
 } SSubmitMsg;
 
 typedef struct {
@@ -680,7 +680,7 @@ typedef struct STableMetaMsg {
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
   int32_t       contLen;
-  STableMetaMsg metas[];
+  char          metas[];
 } SMultiTableMeta;
 
 typedef struct {

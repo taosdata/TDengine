@@ -13,8 +13,8 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TDENGINE_PLATFORM_WINDOWS_H
-#define TDENGINE_PLATFORM_WINDOWS_H
+#ifndef TDENGINE_OS_WINDOWS_H
+#define TDENGINE_OS_WINDOWS_H
 
 #include <assert.h>
 #include <ctype.h>
@@ -60,10 +60,15 @@ extern "C" {
 #define TAOS_OS_FUNC_DIR
 
 #define TAOS_OS_FUNC_FILE
+#define TAOS_OS_FUNC_FILE_ISREG
+#define TAOS_OS_FUNC_FILE_ISDIR
+#define TAOS_OS_FUNC_FILE_ISLNK
 #define TAOS_OS_FUNC_FILE_SENDIFLE
   #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
   #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
+#define TAOS_OS_FUNC_FILE_FTRUNCATE
+  extern int taosFtruncate(int fd, int64_t length); 
 
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
@@ -87,6 +92,7 @@ extern "C" {
   #define taosCloseSocket(fd) closesocket(fd)
 
 #define TAOS_OS_FUNC_STRING_WCHAR
+  int twcslen(const wchar_t *wcs);
 #define TAOS_OS_FUNC_STRING_GETLINE
 #define TAOS_OS_FUNC_STRING_STR2INT64
   #ifdef _TD_GO_DLL_
@@ -97,7 +103,7 @@ extern "C" {
   #endif
 #define TAOS_OS_FUNC_STRING_STRDUP
   #define taosStrdupImp(str) _strdup(str)
-  #define taosStrndupImp(str, size) _strndup(str, size)
+  #define taosStrndupImp(str, size) _strndup(str, size)  
 
 #define TAOS_OS_FUNC_SYSINFO
 
@@ -154,6 +160,9 @@ char *     strndup(const char *s, size_t n);
 #define TCP_KEEPCNT              0x1234
 #define TCP_KEEPIDLE             0x1234
 #define TCP_KEEPINTVL            0x1234
+#define SHUT_RDWR                SD_BOTH
+#define SHUT_RD                  SD_RECEIVE
+#define SHUT_WR                  SD_SEND
 
 #define LOCK_EX 1
 #define LOCK_NB 2

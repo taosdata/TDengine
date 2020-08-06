@@ -158,7 +158,7 @@ typedef struct SParamInfo {
   int32_t  idx;
   char     type;
   uint8_t  timePrec;
-  short    bytes;
+  int16_t  bytes;
   uint32_t offset;
 } SParamInfo;
 

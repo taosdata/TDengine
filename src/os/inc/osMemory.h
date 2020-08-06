@@ -74,9 +74,9 @@ void   taosTMemset(void *ptr, int c);
     #define taosCalloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
     #define taosRealloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
     #define taosFree(ptr) taos_free(ptr, __FILE__, __LINE__)
-    #define taosStrdup(str) taos_strdup(str, __FILE__, __LINE__)
-    #define taosStrndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
-    #define taosGetline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
+    //#define taosStrdup(str) taos_strdup(str, __FILE__, __LINE__)
+    //#define taosStrndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
+    //#define taosGetline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
   #endif  
 #endif 
 

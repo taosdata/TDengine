@@ -72,8 +72,8 @@ DLL_EXPORT void  taos_close(TAOS *taos);
 typedef struct TAOS_BIND {
   int            buffer_type;
   void *         buffer;
-  unsigned long  buffer_length;  // unused
-  unsigned long *length;
+  uintptr_t      buffer_length;  // unused
+  uintptr_t      *length;
   int *          is_null;
   int            is_unsigned;  // unused
   int *          error;        // unused

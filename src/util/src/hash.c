@@ -69,7 +69,7 @@ static FORCE_INLINE void __wr_unlock(void *lock, int32_t type) {
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   int32_t len = MIN(length, HASH_MAX_CAPACITY);
 
-  uint32_t i = 4;
+  int32_t i = 4;
   while (i < len) i = (i << 1u);
   return i;
 }
@@ -167,7 +167,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   }
 
   // the max slots is not defined by user
-  pHashObj->capacity = taosHashCapacity(capacity);
+  pHashObj->capacity = taosHashCapacity((int32_t)capacity);
   assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashFp = fn;

@@ -101,7 +101,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
     assert(0);
     return;
   }
-  
+
   pCacheObj->totalSize -= pNode->size;
   int32_t size = taosHashGetSize(pCacheObj->pHashTable);
   assert(size > 0);
@@ -472,7 +472,7 @@ SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *
   memcpy(pNewNode->data, pData, size);
 
   pNewNode->key = (char *)pNewNode + sizeof(SCacheDataNode) + size;
-  pNewNode->keySize = keyLen;
+  pNewNode->keySize = (uint16_t)keyLen;
 
   memcpy(pNewNode->key, key, keyLen);
 

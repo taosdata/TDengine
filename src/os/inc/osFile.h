@@ -56,6 +56,22 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
 // TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath);
 
+#ifdef TAOS_OS_FUNC_FILE_ISDIR
+  #define S_ISDIR(m) (((m) & 0170000) == (0040000))  
+#endif
+
+#ifdef TAOS_OS_FUNC_FILE_ISREG
+  #define S_ISREG(m) !(S_ISDIR(m))
+#endif
+
+#ifdef TAOS_OS_FUNC_FILE_ISLNK
+  #define S_ISLNK(m) 0
+#endif
+
+#ifndef TAOS_OS_FUNC_FILE_FTRUNCATE
+  #define taosFtruncate ftruncate
+#endif
+
 #ifdef __cplusplus
 }
 #endif

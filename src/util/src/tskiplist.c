@@ -19,7 +19,7 @@
 #include "tutil.h"
 #include "tcompare.h"
 
-__attribute__ ((unused)) static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList, int32_t level) {  // record link count in each level
+UNUSED_FUNC static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList, int32_t level) {  // record link count in each level
 #if SKIP_LIST_RECORD_PERFORMANCE
   for (int32_t i = 0; i < level; ++i) {
     pSkipList->state.nLevelNodeCnt[i]++;
@@ -27,7 +27,7 @@ __attribute__ ((unused)) static FORCE_INLINE void recordNodeEachLevel(SSkipList 
 #endif
 }
 
-__attribute__ ((unused)) static FORCE_INLINE void removeNodeEachLevel(SSkipList *pSkipList, int32_t level) {
+UNUSED_FUNC static FORCE_INLINE void removeNodeEachLevel(SSkipList *pSkipList, int32_t level) {
 #if SKIP_LIST_RECORD_PERFORMANCE
   for (int32_t i = 0; i < level; ++i) {
     pSkipList->state.nLevelNodeCnt[i]--;
@@ -132,7 +132,7 @@ static bool initForwardBackwardPtr(SSkipList* pSkipList) {
   pSkipList->pTail = (SSkipListNode*) ((char*) pSkipList->pHead + SL_NODE_HEADER_SIZE(maxLevel));
   pSkipList->pTail->level = pSkipList->maxLevel;
   
-  for(int32_t i = 0; i < maxLevel; ++i) {
+  for (uint32_t i = 0; i < maxLevel; ++i) {
     SL_GET_FORWARD_POINTER(pSkipList->pHead, i) = pSkipList->pTail;
     SL_GET_BACKWARD_POINTER(pSkipList->pTail, i) = pSkipList->pHead;
   }
@@ -177,7 +177,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint8_t keyLen, ui
     }
   }
 
-  srand(time(NULL));
+  srand((uint32_t)time(NULL));
 
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);
