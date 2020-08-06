@@ -105,7 +105,7 @@ func readFile(filename string) {
 
 	fmt.Println("================http token=============================")
 	token, err = getToken()
-	url = fmt.Sprintf("http://%s:%d/rest/sql", config.HostIp, 6020)
+	url = fmt.Sprintf("http://%s:%d/rest/sql", config.HostIp, 6041)
 
 	fmt.Println("httpToken:", token)
 	fmt.Println("httpUrl:", url)
@@ -116,7 +116,7 @@ func readFile(filename string) {
 }
 
 func getToken() (string, error) {
-	resp, err := http.Get(fmt.Sprintf("http://%s:%d/rest/login/%s/%s", config.HostIp, 6020, "root", "taosdata"))
+	resp, err := http.Get(fmt.Sprintf("http://%s:%d/rest/login/%s/%s", config.HostIp, 6041, "root", "taosdata"))
 	if err != nil {
 		return "", err
 	}
