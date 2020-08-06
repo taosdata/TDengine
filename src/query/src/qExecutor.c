@@ -125,6 +125,9 @@ static void finalizeQueryResult(SQueryRuntimeEnv *pRuntimeEnv);
     (tw)->ekey = (tw)->skey + ((_q)->intervalTime - 1);               \
   } while (0)
 
+#define SET_STABLE_QUERY_OVER(_q) ((_q)->tableIndex = (_q)->tableqinfoGroupInfo.numOfTables)
+#define IS_STASBLE_QUERY_OVER(_q) ((_q)->tableIndex >= (_q)->tableqinfoGroupInfo.numOfTables)
+
 // todo move to utility
 static int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *group);
 
@@ -2656,6 +2659,10 @@ int32_t mergeIntoGroupResult(SQInfo *pQInfo) {
     qDebug("QInfo:%p no result in group %d, continue", pQInfo, pQInfo->groupIndex - 1);
   }
 
+  if (pQInfo->groupIndex == numOfGroups) {
+    SET_STABLE_QUERY_OVER(pQInfo);
+  }
+
   qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "ms", pQInfo,
          pQInfo->groupIndex - 1, numOfGroups, taosGetTimestampMs() - st);
 
@@ -2674,7 +2681,7 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
     // check if all results has been sent to client
     int32_t numOfGroup = GET_NUM_OF_TABLEGROUP(pQInfo);
     if (pQInfo->numOfGroupResultPages == 0 && pQInfo->groupIndex == numOfGroup) {
-      pQInfo->tableIndex = pQInfo->tableqinfoGroupInfo.numOfTables;  // set query completed
+      SET_STABLE_QUERY_OVER(pQInfo);
       return;
     }
   }
@@ -3821,7 +3828,7 @@ static void stableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBloc
   }
 }
 
-bool queryHasRemainResults(SQueryRuntimeEnv* pRuntimeEnv) {
+bool queryHasRemainResForTableQuery(SQueryRuntimeEnv* pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SFillInfo *pFillInfo = pRuntimeEnv->pFillInfo;
 
@@ -3830,8 +3837,7 @@ bool queryHasRemainResults(SQueryRuntimeEnv* pRuntimeEnv) {
   }
 
   if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
-    // There are results not returned to client yet, so filling operation applied to the remain result is required
-    // in the first place.
+    // There are results not returned to client yet, so filling applied to the remain result is required firstly.
     int32_t remain = taosNumOfRemainRows(pFillInfo);
     if (remain > 0) {
       return true;
@@ -3885,14 +3891,14 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     data += sizeof(STableIdInfo);
   }
 
-  // all data returned, set query over
+  // Check if query is completed or not for stable query or normal table query respectively.
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
     if (pQInfo->runtimeEnv.stableQuery) {
-      if (pQInfo->tableIndex >= pQInfo->tableqinfoGroupInfo.numOfTables) {
+      if (IS_STASBLE_QUERY_OVER(pQInfo)) {
         setQueryStatus(pQuery, QUERY_OVER);
       }
     } else {
-      if (!queryHasRemainResults(&pQInfo->runtimeEnv)) {
+      if (!queryHasRemainResForTableQuery(&pQInfo->runtimeEnv)) {
         setQueryStatus(pQuery, QUERY_OVER);
       }
     }
@@ -3938,7 +3944,7 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
       ret = 0;
     }
 
-    if (!queryHasRemainResults(pRuntimeEnv)) {
+    if (!queryHasRemainResForTableQuery(pRuntimeEnv)) {
       return ret;
     }
   }
@@ -4702,7 +4708,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       // the limitation of output result is reached, set the query completed
       if (limitResults(pRuntimeEnv)) {
-        pQInfo->tableIndex = pQInfo->tableqinfoGroupInfo.numOfTables;
+        SET_STABLE_QUERY_OVER(pQInfo);
         break;
       }
 
@@ -5097,7 +5103,7 @@ static void tableQueryImpl(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
-  if (queryHasRemainResults(pRuntimeEnv)) {
+  if (queryHasRemainResForTableQuery(pRuntimeEnv)) {
 
     if (pQuery->fillType != TSDB_FILL_NONE) {
       /*
@@ -6598,7 +6604,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
     *(int64_t*) pQuery->sdata[0]->data = num;
 
     count = 1;
-    pQInfo->tableIndex = num;  //set query completed
+    SET_STABLE_QUERY_OVER(pQInfo);
     qDebug("QInfo:%p create count(tbname) query, res:%d rows:1", pQInfo, count);
   } else {  // return only the tags|table name etc.
     count = 0;
