@@ -97,7 +97,7 @@ public class TSDBJNIConnector {
 
         this.taos = this.connectImp(host, port, dbName, user, password);
         if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
-            throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(null)), "", this.getErrCode(null));
+            throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(0L)), "", this.getErrCode(0l));
         }
 
         return true;
@@ -115,7 +115,7 @@ public class TSDBJNIConnector {
             freeResultSet(taosResultSetPointer);
         }
 
-        long pSql = 0l;
+        Long pSql = 0l;
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
         } catch (Exception e) {
@@ -124,16 +124,11 @@ public class TSDBJNIConnector {
             throw new SQLException(TSDBConstants.WrapErrMsg("Unsupported encoding"));
         }
         int code = this.getErrCode(pSql);
-
-        if (code < 0) {
+        if (code != 0) {
             affectedRows = -1;
-            if (code == TSDBConstants.JNI_TDENGINE_ERROR) {
-                this.freeResultSet(pSql);
-                throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(pSql)), "", this.getErrCode(pSql));
-            } else {
-                this.freeResultSet(pSql);
-                throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode(pSql));
-            }
+            String err_msg = this.getErrMsg(pSql);
+            this.freeResultSet(pSql);
+            throw new SQLException(TSDBConstants.WrapErrMsg(err_msg), "", code);
         }
 
         // Try retrieving result set for the executed SQL using the current connection pointer. If the executed
@@ -151,20 +146,20 @@ public class TSDBJNIConnector {
     /**
      * Get recent error code by connection
      */
-    public int getErrCode(Long pSql) {
-        return Math.abs(this.getErrCodeImp(this.taos, pSql));
+    public int getErrCode(long pSql) {
+        return this.getErrCodeImp(this.taos, pSql);
     }
 
-    private native int getErrCodeImp(long connection, Long pSql);
+    private native int getErrCodeImp(long connection, long pSql);
 
     /**
      * Get recent error message by connection
      */
-    public String getErrMsg(Long pSql) {
-        return this.getErrMsgImp(this.taos, pSql);
+    public String getErrMsg(long pSql) {
+        return this.getErrMsgImp(pSql);
     }
 
-    private native String getErrMsgImp(long connection, Long pSql);
+    private native String getErrMsgImp(long pSql);
 
     /**
      * Get resultset pointer
@@ -248,7 +243,7 @@ public class TSDBJNIConnector {
     public void closeConnection() throws SQLException {
         int code = this.closeConnectionImp(this.taos);
         if (code < 0) {
-            throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode(null));
+            throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode(0l));
         } else if (code == 0) {
             this.taos = TSDBConstants.JNI_NULL_POINTER;
         } else {

@@ -375,6 +375,14 @@ static void mnodeCleanupChildTables() {
   tsChildTableSdb = NULL;
 }
 
+int64_t mnodeGetSuperTableNum() {
+  return sdbGetNumOfRows(tsSuperTableSdb);
+}
+
+int64_t mnodeGetChildTableNum() {
+  return sdbGetNumOfRows(tsChildTableSdb);
+}
+
 static void mnodeAddTableIntoStable(SSuperTableObj *pStable, SChildTableObj *pCtable) {
   atomic_add_fetch_32(&pStable->numOfTables, 1);
 
