@@ -189,7 +189,7 @@ void mnodeDecDbRef(SDbObj *pDb) {
 }
 
 SDbObj *mnodeGetDbByTableId(char *tableId) {
-  char db[TSDB_TABLE_ID_LEN], *pos;
+  char db[TSDB_TABLE_FNAME_LEN], *pos;
  
   // tableId format should be :  acct.db.table
   pos = strstr(tableId, TS_PATH_DELIMITER);

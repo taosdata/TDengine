@@ -989,7 +989,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 }
 
 int validateTableName(char *tblName, int len, SSQLToken* psTblToken) {
-  tstrncpy(psTblToken->z, tblName, TSDB_TABLE_ID_LEN);
+  tstrncpy(psTblToken->z, tblName, TSDB_TABLE_FNAME_LEN);
 
   psTblToken->n    = len;
   psTblToken->type = TK_ID;
@@ -1077,7 +1077,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pCmd->curSql = sToken.z;
-    char buf[TSDB_TABLE_ID_LEN];
+    char buf[TSDB_TABLE_FNAME_LEN];
     SSQLToken sTblToken;
     sTblToken.z = buf;
     // Check if the table name available or not
