@@ -1087,11 +1087,11 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
     *xlen = totalLen;
   }
 
-  if (totalLen < TSDB_TABLE_ID_LEN) {
+  if (totalLen < TSDB_TABLE_FNAME_LEN) {
     fullName[totalLen] = 0;
   }
 
-  return (totalLen < TSDB_TABLE_ID_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_TSC_INVALID_SQL;
+  return (totalLen < TSDB_TABLE_FNAME_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_TSC_INVALID_SQL;
 }
 
 static void extractColumnNameFromString(tSQLExprItem* pItem) {
@@ -2136,13 +2136,10 @@ int32_t getTableIndexImpl(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColum
   }
 
   pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
-  char tableName[TSDB_TABLE_ID_LEN] = {0};
-
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-    extractTableName(pTableMetaInfo->name, tableName);
-
-    if (strncasecmp(tableName, pTableToken->z, pTableToken->n) == 0 && strlen(tableName) == pTableToken->n) {
+    char* name = pTableMetaInfo->aliasName;
+    if (strncasecmp(name, pTableToken->z, pTableToken->n) == 0 && strlen(name) == pTableToken->n) {
       pIndex->tableIndex = i;
       break;
     }
@@ -3658,7 +3655,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   SStringBuilder sb1; memset(&sb1, 0, sizeof(sb1));
   taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
 
-  char db[TSDB_TABLE_ID_LEN] = {0};
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
 
   // remove the duplicated input table names
   int32_t num = 0;
@@ -3683,7 +3680,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
       taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);
     }
 
-    char      idBuf[TSDB_TABLE_ID_LEN] = {0};
+    char      idBuf[TSDB_TABLE_FNAME_LEN] = {0};
     int32_t   xlen = strlen(segments[i]);
     SSQLToken t = {.z = segments[i], .n = xlen, .type = TK_STRING};
 
@@ -5915,15 +5912,16 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
 int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   assert(pQuerySql != NULL && (pQuerySql->from == NULL || pQuerySql->from->nExpr > 0));
 
-  const char* msg0 = "invalid table name";
-  const char* msg1 = "table name too long";
-  const char* msg2 = "point interpolation query needs timestamp";
-  const char* msg5 = "fill only available for interval query";
-  const char* msg6 = "start(end) time of query range required or time range too large";
-  const char* msg7 = "illegal number of tables in from clause";
-  const char* msg8 = "too many columns in selection clause";
-  const char* msg9 = "TWA query requires both the start and end time";
-  const char* msg10= "too many tables in from clause";
+  const char* msg0  = "invalid table name";
+  const char* msg1  = "table name too long";
+  const char* msg2  = "point interpolation query needs timestamp";
+  const char* msg5  = "fill only available for interval query";
+  const char* msg6  = "start(end) time of query range required or time range too large";
+  const char* msg7  = "illegal number of tables in from clause";
+  const char* msg8  = "too many columns in selection clause";
+  const char* msg9  = "TWA query requires both the start and end time";
+  const char* msg10 = "too many tables in from clause";
+  const char* msg11 = "invalid table alias name";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5966,7 +5964,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   // set all query tables, which are maybe more than one.
-  for (int32_t i = 0; i < pQuerySql->from->nExpr; ++i) {
+  for (int32_t i = 0; i < pQuerySql->from->nExpr; ) {
     tVariant* pTableItem = &pQuerySql->from->a[i].pVar;
 
     if (pTableItem->nType != TSDB_DATA_TYPE_BINARY) {
@@ -5980,24 +5978,34 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    if (pQueryInfo->numOfTables <= i) {  // more than one table
+    if (pQueryInfo->numOfTables <= i/2) {  // more than one table
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo* pMeterInfo1 = tscGetMetaInfo(pQueryInfo, i);
+    STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
-    if (tscSetTableFullName(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
+    if (tscSetTableFullName(pTableMetaInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    code = tscGetTableMeta(pSql, pMeterInfo1);
+    tVariant* pTableItem1 = &pQuerySql->from->a[i + 1].pVar;
+    SSQLToken aliasName = {.z = pTableItem1->pz, .n = pTableItem1->nLen, .type = TK_STRING};
+    if (tscValidateName(&aliasName) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
+    }
+
+    tstrncpy(pTableMetaInfo1->aliasName, pTableItem1->pz, sizeof(pTableMetaInfo1->aliasName));
+
+    code = tscGetTableMeta(pSql, pTableMetaInfo1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    i += 2;
   }
 
-  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
+  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr / 2);
   bool isSTable = false;
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {

@@ -80,8 +80,9 @@ typedef struct STableMetaInfo {
    * 2. keep the vgroup index for multi-vnode insertion
    */
   int32_t vgroupIndex;
-  char    name[TSDB_TABLE_ID_LEN];        // (super) table name
-  SArray* tagColList;                     // SArray<SColumn*>, involved tag columns
+  char    name[TSDB_TABLE_FNAME_LEN];        // (super) table name
+  char    aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
+  SArray* tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -128,7 +129,7 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
 } SJoinNode;
@@ -162,7 +163,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_FNAME_LEN];
   int8_t   tsSource;     // where does the UNIX timestamp come from, server or client
   bool     ordered;      // if current rows are ordered or not
   int64_t  vgId;         // virtual group id
