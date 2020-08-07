@@ -167,8 +167,8 @@ bool httpInitContext(HttpContext *pContext) {
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
 
-  httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, parsed:%d",
-          pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, pContext->parsed);
+  httpDebug("context:%p, fd:%d, ip:%s, accessTimes:%d, parsed:%d", pContext, pContext->fd, pContext->ipstr,
+            pContext->accessTimes, pContext->parsed);
   return true;
 }
 
