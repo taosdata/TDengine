@@ -30,7 +30,7 @@
 #include "syncInt.h"
 
 // global configurable
-int       tsMaxSyncNum = 4;
+int       tsMaxSyncNum = 2;
 int       tsSyncTcpThreads = 2;
 int       tsMaxWatchFiles = 100;
 int       tsMaxFwdInfo = 200;
