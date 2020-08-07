@@ -18,6 +18,8 @@
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
+#include "dirent.h"
+
 #define TAOS_RANDOM_FILE_FAIL_TEST
 
 #ifdef TSDB_IDX

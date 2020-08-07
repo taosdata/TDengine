@@ -64,7 +64,7 @@ void Filetime2Timeval(const FILETIME *pFT, struct timeval *ptv) {
   ULARGE_INTEGER ull;
   ull.LowPart = pFT->dwLowDateTime;
   ull.HighPart = pFT->dwHighDateTime;
-  ptv->tv_sec = ull.QuadPart / 10000000ULL - 11644473600ULL;
+  ptv->tv_sec = (long)(ull.QuadPart / 10000000ULL - 11644473600ULL);
   ptv->tv_usec = (int32_t)((ull.QuadPart % 10000000ULL)/10);
 }
 
