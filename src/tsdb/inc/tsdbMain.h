@@ -123,6 +123,7 @@ typedef struct {
   int32_t      maxTables;
   STableData** tData;
   SList*       actList;
+  SList*       extraBuffList;
   SList*       bufBlockList;
 } SMemTable;
 
@@ -392,6 +393,8 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
 }
 
 // ------------------ tsdbBuffer.c
+#define TSDB_BUFFER_RESERVE 1024  // Reseve 1K as commit threshold
+
 STsdbBufPool* tsdbNewBufPool();
 void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
 int           tsdbOpenBufPool(STsdbRepo* pRepo);
@@ -415,7 +418,7 @@ static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   SSkipListNode* node = tSkipListIterGet(pIter);
   if (node == NULL) return NULL;
 
-  return SL_GET_NODE_DATA(node);
+  return *(SDataRow *)SL_GET_NODE_DATA(node);
 }
 
 static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator* pIter) {
@@ -423,6 +426,19 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator* pIter) {
   if (row == NULL) return -1;
 
   return dataRowKey(row);
+}
+
+static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
+  ASSERT(pRepo != NULL);
+  if (pRepo->mem == NULL) return NULL;
+
+  SListNode* pNode = listTail(pRepo->mem->bufBlockList);
+  if (pNode == NULL) return NULL;
+
+  STsdbBufBlock* pBufBlock = NULL;
+  tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void*)(&pBufBlock));
+
+  return pBufBlock;
 }
 
 // ------------------ tsdbFile.c
@@ -523,6 +539,7 @@ char*       tsdbGetDataDirName(char* rootDir);
 int         tsdbGetNextMaxTables(int tid);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
 STsdbFileH* tsdbGetFile(TSDB_REPO_T* pRepo);
+int         tsdbCheckCommit(STsdbRepo* pRepo);
 
 #ifdef __cplusplus
 }

@@ -18,8 +18,6 @@
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 
-static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo);
-
 static void        tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes);
 static SMemTable * tsdbNewMemTable(STsdbRepo *pRepo);
 static void        tsdbFreeMemTable(SMemTable *pMemTable);
@@ -45,7 +43,6 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   SMemTable * pMemTable = pRepo->mem;
   STableData *pTableData = NULL;
   SSkipList * pSList = NULL;
-  int         bytes = 0;
 
   if (pMemTable != NULL && TABLE_TID(pTable) < pMemTable->maxTables && pMemTable->tData[TABLE_TID(pTable)] != NULL &&
       pMemTable->tData[TABLE_TID(pTable)]->uid == TABLE_UID(pTable)) {
@@ -55,27 +52,39 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 
   tSkipListNewNodeInfo(pSList, &level, &headSize);
 
-  bytes = headSize + dataRowLen(row);
-  SSkipListNode *pNode = tsdbAllocBytes(pRepo, bytes);
+  SSkipListNode *pNode = (SSkipListNode *)malloc(headSize + sizeof(SDataRow *));
   if (pNode == NULL) {
-    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
-              REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), bytes, tstrerror(terrno));
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
+
+  void *pRow = tsdbAllocBytes(pRepo, dataRowLen(row));
+  if (pRow == NULL) {
+    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
+              REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), dataRowLen(row), tstrerror(terrno));
+    free(pNode);
+    return -1;
+  }
+
   pNode->level = level;
-  dataRowCpy(SL_GET_NODE_DATA(pNode), row);
+  dataRowCpy(pRow, row);
+  *(SDataRow *)SL_GET_NODE_DATA(pNode) = pRow;
 
   // Operations above may change pRepo->mem, retake those values
   ASSERT(pRepo->mem != NULL);
   pMemTable = pRepo->mem;
 
   if (TABLE_TID(pTable) >= pMemTable->maxTables) {
-    if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) return -1;;
+    if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) {
+      tsdbFreeBytes(pRepo, pRow, dataRowLen(row));
+      free(pNode);
+      return -1;
+    }
   }
   pTableData = pMemTable->tData[TABLE_TID(pTable)];
 
   if (pTableData == NULL || pTableData->uid != TABLE_UID(pTable)) {
-    if (pTableData != NULL) {  // destroy the table skiplist (may have race condition problem)
+    if (pTableData != NULL) {
       taosWLockLatch(&(pMemTable->latch));
       pMemTable->tData[TABLE_TID(pTable)] = NULL;
       tsdbFreeTableData(pTableData);
@@ -87,7 +96,8 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
       tsdbError("vgId:%d failed to insert row with key %" PRId64
                 " to table %s while create new table data object since %s",
                 REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), tstrerror(terrno));
-      tsdbFreeBytes(pRepo, (void *)pNode, bytes);
+      tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
+      free(pNode);
       return -1;
     }
 
@@ -97,7 +107,8 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   ASSERT((pTableData != NULL) && pTableData->uid == TABLE_UID(pTable));
 
   if (tSkipListPut(pTableData->pData, pNode) == NULL) {
-    tsdbFreeBytes(pRepo, (void *)pNode, bytes);
+    tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
+    free(pNode);
   } else {
     if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
@@ -189,43 +200,58 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) 
 
 void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   STsdbCfg *     pCfg = &pRepo->config;
-  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+  STsdbBufBlock *pBufBlock = NULL;
+  void *         ptr = NULL;
 
-  if (pBufBlock != NULL && pBufBlock->remain < bytes) {
-    if (listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) {  // need to commit mem
-      if (tsdbAsyncCommit(pRepo) < 0) return NULL;
-    } else {
+  // Either allocate from buffer blocks or from SYSTEM memory pool
+  if (pRepo->mem == NULL) {
+    SMemTable *pMemTable = tsdbNewMemTable(pRepo);
+    if (pMemTable == NULL) return NULL;
+    pRepo->mem = pMemTable;
+  }
+
+  ASSERT(pRepo->mem != NULL);
+
+  pBufBlock = tsdbGetCurrBufBlock(pRepo);
+  if ((pRepo->mem->extraBuffList != NULL) ||
+      ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < bytes))) {
+    // allocate from SYSTEM buffer pool
+    if (pRepo->mem->extraBuffList == NULL) {
+      pRepo->mem->extraBuffList = tdListNew(0);
+      if (pRepo->mem->extraBuffList == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return NULL;
+      }
+    }
+
+    ASSERT(pRepo->mem->extraBuffList != NULL);
+    SListNode *pNode = (SListNode *)malloc(sizeof(SListNode) + bytes);
+    if (pNode == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      return NULL;
+    }
+
+    pNode->next = pNode->prev = NULL;
+    tdListAppend(pRepo->mem->extraBuffList, pNode);
+    ptr = (void *)(pNode->data);
+    tsdbTrace("vgId:%d allocate %d bytes from SYSTEM buffer block", REPO_ID(pRepo), bytes);
+  } else {  // allocate from TSDB buffer pool
+    if (pBufBlock == NULL || pBufBlock->remain < bytes) {
+      ASSERT(listNEles(pRepo->mem->bufBlockList) < pCfg->totalBlocks / 3);
       if (tsdbLockRepo(pRepo) < 0) return NULL;
       SListNode *pNode = tsdbAllocBufBlockFromPool(pRepo);
       tdListAppendNode(pRepo->mem->bufBlockList, pNode);
       if (tsdbUnlockRepo(pRepo) < 0) return NULL;
-    }
-  }
-
-  if (pRepo->mem == NULL) {
-    SMemTable *pMemTable = tsdbNewMemTable(pRepo);
-    if (pMemTable == NULL) return NULL;
-
-    if (tsdbLockRepo(pRepo) < 0) {
-      tsdbFreeMemTable(pMemTable);
-      return NULL;
+      pBufBlock = tsdbGetCurrBufBlock(pRepo);
     }
 
-    SListNode *pNode = tsdbAllocBufBlockFromPool(pRepo);
-    tdListAppendNode(pMemTable->bufBlockList, pNode);
-    pRepo->mem = pMemTable;
-
-    if (tsdbUnlockRepo(pRepo) < 0) return NULL;
+    ASSERT(pBufBlock->remain >= bytes);
+    ptr = POINTER_SHIFT(pBufBlock->data, pBufBlock->offset);
+    pBufBlock->offset += bytes;
+    pBufBlock->remain -= bytes;
+    tsdbTrace("vgId:%d allocate %d bytes from TSDB buffer block, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
+              listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
   }
-
-  pBufBlock = tsdbGetCurrBufBlock(pRepo);
-  ASSERT(pBufBlock->remain >= bytes);
-  void *ptr = POINTER_SHIFT(pBufBlock->data, pBufBlock->offset);
-  pBufBlock->offset += bytes;
-  pBufBlock->remain -= bytes;
-
-  tsdbTrace("vgId:%d allocate %d bytes from buffer block, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
-            listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
 
   return ptr;
 }
@@ -327,27 +353,23 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------
-static FORCE_INLINE STsdbBufBlock *tsdbGetCurrBufBlock(STsdbRepo *pRepo) {
-  ASSERT(pRepo != NULL);
-  if (pRepo->mem == NULL) return NULL;
-
-  SListNode *pNode = listTail(pRepo->mem->bufBlockList);
-  if (pNode == NULL) return NULL;
-
-  STsdbBufBlock *pBufBlock = NULL;
-  tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void *)(&pBufBlock));
-
-  return pBufBlock;
-}
-
 static void tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes) {
-  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
-  ASSERT(pBufBlock != NULL);
-  pBufBlock->offset -= bytes;
-  pBufBlock->remain += bytes;
-  ASSERT(ptr == POINTER_SHIFT(pBufBlock->data, pBufBlock->offset));
-  tsdbTrace("vgId:%d return %d bytes to buffer block, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
-            listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
+  ASSERT(pRepo->mem != NULL);
+  if (pRepo->mem->extraBuffList == NULL) {
+    STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+    ASSERT(pBufBlock != NULL);
+    pBufBlock->offset -= bytes;
+    pBufBlock->remain += bytes;
+    ASSERT(ptr == POINTER_SHIFT(pBufBlock->data, pBufBlock->offset));
+    tsdbTrace("vgId:%d free %d bytes to TSDB buffer pool, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
+              listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
+  } else {
+    SListNode *pNode = (SListNode *)POINTER_SHIFT(ptr, -sizeof(SListNode));
+    ASSERT(listTail(pRepo->mem->extraBuffList) == pNode);
+    tdListPopNode(pRepo->mem->extraBuffList, pNode);
+    free(pNode);
+    tsdbTrace("vgId:%d free %d bytes to SYSTEM buffer pool", REPO_ID(pRepo), bytes);
+  }
 }
 
 static SMemTable* tsdbNewMemTable(STsdbRepo *pRepo) {
@@ -396,6 +418,7 @@ static void tsdbFreeMemTable(SMemTable* pMemTable) {
     ASSERT((pMemTable->bufBlockList == NULL) ? true : (listNEles(pMemTable->bufBlockList) == 0));
     ASSERT((pMemTable->actList == NULL) ? true : (listNEles(pMemTable->actList) == 0));
 
+    tdListFree(pMemTable->extraBuffList);
     tdListFree(pMemTable->bufBlockList);
     tdListFree(pMemTable->actList);
     taosTFree(pMemTable->tData);
@@ -416,7 +439,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   pTableData->numOfRows = 0;
 
   pTableData->pData = tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
-                                      TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, tsdbGetTsTupleKey);
+                                      TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 1, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -436,7 +459,7 @@ static void tsdbFreeTableData(STableData *pTableData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(data); }
+static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(*(SDataRow *)data); }
 
 static void *tsdbCommitData(void *arg) {
   STsdbRepo *  pRepo = (STsdbRepo *)arg;

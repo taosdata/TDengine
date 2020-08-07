@@ -1007,9 +1007,15 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
-  tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x",
-        pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
-        pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+  if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
+    tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+           pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+  } else {
+    tDebug("%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, pHead->msgType, pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+           pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+  }
 
   int32_t code = terrno;
   if (code != TSDB_CODE_RPC_ALREADY_PROCESSED) {

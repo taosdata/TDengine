@@ -149,9 +149,9 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
 
   if (cmd == MONITOR_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep 30 cache 1 "
-             "blocks 2 maxtables 16 precision 'us'",
-             tsMonitorDbName);
+             "create database if not exists %s replica 1 days 10 keep 30 cache %d "
+             "blocks %d maxtables 16 precision 'us'",
+             tsMonitorDbName, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
   } else if (cmd == MONITOR_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.dn(ts timestamp"

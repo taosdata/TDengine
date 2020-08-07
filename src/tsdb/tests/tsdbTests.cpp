@@ -35,7 +35,7 @@ static int insertData(SInsertInfo *pInfo) {
 
   for (int k = 0; k < pInfo->totalRows/pInfo->rowsPerSubmit; k++) {
     memset((void *)pMsg, 0, sizeof(SSubmitMsg));
-    SSubmitBlk *pBlock = pMsg->blocks;
+    SSubmitBlk *pBlock = (SSubmitBlk *)pMsg->blocks;
     pBlock->uid = pInfo->uid;
     pBlock->tid = pInfo->tid;
     pBlock->sversion = pInfo->sversion;
