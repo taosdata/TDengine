@@ -42,7 +42,8 @@ public class AsyncSubscribeTest extends BaseTest {
         long ts = System.currentTimeMillis();
         for (int i = 0; i < 2; i++) {
             ts += i;
-            statement.executeUpdate("insert into \" + dbName + \".\" + tName + \" values (" + ts + ", " + (100 + i) + ", " + i + ")");
+            String sql = "insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")";
+            statement.executeUpdate(sql);
         }
     }
 
