@@ -415,7 +415,11 @@ static int32_t balanceMonitorVgroups() {
     } else if (vgReplica < dbReplica) {
       mInfo("vgId:%d, replica:%d numOfVnodes:%d, try add one vnode", pVgroup->vgId, dbReplica, vgReplica);
       hasUpdatingVgroup = true;
-      balanceAddVnode(pVgroup, NULL, NULL);
+      int32_t code = balanceAddVnode(pVgroup, NULL, NULL);
+      if (code == TSDB_CODE_SUCCESS) {
+        mnodeDecVgroupRef(pVgroup);
+        break;
+      }
     }
 
     mnodeDecVgroupRef(pVgroup);
