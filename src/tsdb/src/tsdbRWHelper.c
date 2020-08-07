@@ -110,30 +110,15 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   // Set the files
   pHelper->files.fGroup = *pGroup;
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-#ifdef TSDB_IDX
-    tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NIDX, helperNewIdxF(pHelper)->fname);
-#endif
     tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NHEAD, helperNewHeadF(pHelper)->fname);
     tsdbGetDataFileName(pHelper->pRepo, pGroup->fileId, TSDB_FILE_TYPE_NLAST, helperNewLastF(pHelper)->fname);
   }
 
   // Open the files
-#ifdef TSDB_IDX
-  if (tsdbOpenFile(helperIdxF(pHelper), O_RDONLY) < 0) return -1;
-#endif
   if (tsdbOpenFile(helperHeadF(pHelper), O_RDONLY) < 0) return -1;
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
     if (tsdbOpenFile(helperDataF(pHelper), O_RDWR) < 0) return -1;
     if (tsdbOpenFile(helperLastF(pHelper), O_RDWR) < 0) return -1;
-
-#ifdef TSDB_IDX
-    // Create and open .i file
-    pFile = helperNewIdxF(pHelper);
-    if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
-    pFile->info.size = TSDB_FILE_HEAD_SIZE;
-    pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-    if (tsdbUpdateFileHeader(pFile) < 0) return -1;
-#endif
 
     // Create and open .h
     pFile = helperNewHeadF(pHelper);
@@ -163,11 +148,6 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
 int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   SFile *pFile = NULL;
-
-#ifdef TSDB_IDX
-  pFile = helperIdxF(pHelper);
-  tsdbCloseFile(pFile);
-#endif
 
   pFile = helperHeadF(pHelper);
   tsdbCloseFile(pFile);
@@ -199,18 +179,6 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError) {
   }
 
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-#ifdef TSDB_IDX
-    pFile = helperNewIdxF(pHelper);
-    if (pFile->fd > 0) {
-      if (!hasError) {
-        tsdbUpdateFileHeader(pFile);
-        fsync(pFile->fd);
-      }
-      tsdbCloseFile(pFile);
-      if (hasError) (void)remove(pFile->fname);
-    }
-#endif
-
     pFile = helperNewHeadF(pHelper);
     if (pFile->fd > 0) {
       if (!hasError) {
@@ -412,10 +380,6 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
       return -1;
     }
 
-#ifdef TSDB_IDX
-    pFile = helperNewIdxF(pHelper);
-#endif
-
     if (taosTSizeof(pHelper->pWIdx) < pFile->info.len + sizeof(SCompIdx) + 12) {
       pHelper->pWIdx = taosTRealloc(pHelper->pWIdx, taosTSizeof(pHelper->pWIdx) == 0 ? 1024 : taosTSizeof(pHelper->pWIdx) * 2);
       if (pHelper->pWIdx == NULL) {
@@ -435,11 +399,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
   ASSERT(helperType(pHelper) == TSDB_WRITE_HELPER);
   off_t offset = 0;
 
-#ifdef TSDB_IDX
-  SFile *pFile = helperNewIdxF(pHelper);
-#else
   SFile *pFile = helperNewHeadF(pHelper);
-#endif
 
   pFile->info.len += sizeof(TSCKSUM);
   if (taosTSizeof(pHelper->pWIdx) < pFile->info.len) {
@@ -474,11 +434,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
 
 int tsdbLoadCompIdx(SRWHelper *pHelper, void *target) {
   ASSERT(pHelper->state == TSDB_HELPER_FILE_SET_AND_OPEN);
-#ifdef TSDB_IDX
-  SFile *pFile = helperIdxF(pHelper);
-#else
   SFile *pFile = helperHeadF(pHelper);
-#endif
   int fd = pFile->fd;
 
   if (!helperHasState(pHelper, TSDB_HELPER_IDX_LOAD)) {
@@ -1052,10 +1008,6 @@ static void tsdbResetHelperFileImpl(SRWHelper *pHelper) {
   helperLastF(pHelper)->fd = -1;
   helperNewHeadF(pHelper)->fd = -1;
   helperNewLastF(pHelper)->fd = -1;
-#ifdef TSDB_IDX
-  helperIdxF(pHelper)->fd = -1;
-  helperNewIdxF(pHelper)->fd = -1;
-#endif
 }
 
 static int tsdbInitHelperFile(SRWHelper *pHelper) {
