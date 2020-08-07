@@ -1,4 +1,4 @@
-###############################################################################
+ï»¿###############################################################################
 #									      #
 #   File name	    Files.mak						      #
 #									      #
@@ -31,7 +31,7 @@
 #    2016-10-11 JFL moved debugm.h to SysToolsLib global C include dir.       #
 #    2017-02-16 JFL Added open.obj.    			                      #
 #                   							      #
-#         © Copyright 2016 Hewlett Packard Enterprise Development LP          #
+#         Copyright 2016 Hewlett Packard Enterprise Development LP          #
 # Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 #
 ###############################################################################
 

@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename	    fullpath.c						      *
 *									      *
@@ -9,7 +9,7 @@
 *   History								      *
 *    2016-09-13 JFL Created this module with routine from truename.c.         *
 *                                                                             *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

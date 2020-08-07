@@ -1,4 +1,4 @@
-/*-
+﻿/*-
  * Copyright (c) 2000 The NetBSD Foundation, Inc.
  * All rights reserved.
  *

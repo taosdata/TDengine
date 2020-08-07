@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    debugv.c						      *
 *                                                                             *
@@ -9,7 +9,7 @@
 *   History:								      *
 *    2013-03-27 JFL jf.larvoire@hp.com created this file.                     *
 *									      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

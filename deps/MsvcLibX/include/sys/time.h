@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    sys/time.h						      *
 *                                                                             *
@@ -21,7 +21,7 @@
 *		    Added macros TIMEVAL_TO_TIMESPEC & TIMESPEC_TO_TIMEVAL.   *
 *    2016-07-06 JFL Avoid error if winsocks2.h has been previously included.  *
 *		    							      *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*        Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

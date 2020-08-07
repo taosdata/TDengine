@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    unistd.h						      *
 *                                                                             *
@@ -18,7 +18,7 @@
 *    2014-06-30 JFL Moved PATH_MAX definition to limits.h.		      *
 *    2016-08-25 JFL Implemented ResolveLinksA().			      *
 *									      *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*        Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

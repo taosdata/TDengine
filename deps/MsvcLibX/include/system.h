@@ -1,2 +1,2 @@
-/* CoreUtils global system configuration definitions */
+﻿/* CoreUtils global system configuration definitions */
 

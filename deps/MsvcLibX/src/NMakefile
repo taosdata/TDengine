@@ -1,4 +1,4 @@
-###############################################################################
+ï»¿###############################################################################
 #									      #
 #   File name	    NMakefile						      #
 #									      #
@@ -30,7 +30,7 @@
 #    2017-02-16 JFL Default goals now depend on the existence of their        #
 #		    corresponding make file.				      #
 #		    							      #
-#         © Copyright 2016 Hewlett Packard Enterprise Development LP          #
+#         Copyright 2016 Hewlett Packard Enterprise Development LP          #
 # Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 #
 ###############################################################################
 

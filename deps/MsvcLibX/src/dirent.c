@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    dirent.c						      *
 *                                                                             *
@@ -30,7 +30,7 @@
 *    2015-12-14 JFL Bug fix: WIN32 readdirW always read the root on "D:".     *
 *		    Bug fix: DOS opendir failed on root dirs, like "D:\".     *
 *		    							      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

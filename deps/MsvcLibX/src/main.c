@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename	    main.c						      *
 *									      *
@@ -12,7 +12,7 @@
 *    2017-02-05 JFL Redesigned to override libc's _setargv(). This avoids     *
 *                   having to encapsulate the main() routine with one here.   *
 *                                                                             *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    stdio.h						      *
 *                                                                             *
@@ -11,7 +11,7 @@
 *    2015-11-15 JFL Visual Studio 2015 moved this file to the Windows Kit UCRT.
 *    2015-12-09 JFL Alias fputs to fputsU, and vfprintf to vfprintfU.	      *
 *									      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

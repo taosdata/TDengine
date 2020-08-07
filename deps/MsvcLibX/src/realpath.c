@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename	    realpath.c						      *
 *									      *
@@ -23,7 +23,7 @@
 *                   Convert short WIN32 paths to long paths.                  *
 *    2016-09-13 JFL Resize output buffers, to avoid wasting lots of memory.   *
 *                                                                             *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

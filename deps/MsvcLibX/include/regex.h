@@ -1,4 +1,4 @@
-#ifndef _HSREGEX_H_
+﻿#ifndef _HSREGEX_H_
 #define _HSREGEX_H_
 #ifndef _HSREGEX_H
 #define	_HSREGEX_H	/* never again */

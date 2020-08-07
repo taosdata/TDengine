@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    debugm.h						      *
 *                                                                             *
@@ -44,7 +44,7 @@
 *    2016-10-04 JFL Added macros DEBUG_OFF(), DEBUG_MORE(), DEBUG_LESS().     *
 *		    Allow using DEBUG_ON()/MORE()/LESS()/OFF() in release mode.
 *		    							      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 

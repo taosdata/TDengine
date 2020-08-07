@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    sys/types.h						      *
 *                                                                             *
@@ -11,7 +11,7 @@
 *    2014-06-06 JFL Moved mode_t & off*_t definitions here, from sys\stat.h.  *
 *    2015-11-15 JFL Visual Studio 2015 moved this file to the Windows Kit UCRT.
 *									      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
