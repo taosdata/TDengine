@@ -307,7 +307,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
     keyNext = tsdbNextIterKey(pIter);
     if (keyNext < 0 || keyNext > maxKey) return numOfRows;
     void *ptr = taosbsearch((void *)(&keyNext), (void *)filterKeys, nFilterKeys, sizeof(TSKEY), compTSKEY, TD_GE);
-    filterIter = (ptr == NULL) ? nFilterKeys : (POINTER_DISTANCE(ptr, filterKeys) / sizeof(TSKEY));
+    filterIter = (ptr == NULL) ? nFilterKeys : (int)((POINTER_DISTANCE(ptr, filterKeys) / sizeof(TSKEY)));
   }
 
   do {
@@ -364,7 +364,7 @@ static void tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes) {
     tsdbTrace("vgId:%d free %d bytes to TSDB buffer pool, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
               listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
   } else {
-    SListNode *pNode = (SListNode *)POINTER_SHIFT(ptr, -sizeof(SListNode));
+    SListNode *pNode = (SListNode *)POINTER_SHIFT(ptr, -(int)(sizeof(SListNode)));
     ASSERT(listTail(pRepo->mem->extraBuffList) == pNode);
     tdListPopNode(pRepo->mem->extraBuffList, pNode);
     free(pNode);
@@ -495,8 +495,8 @@ static void *tsdbCommitData(void *arg) {
       goto _exit;
     }
 
-    int sfid = TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision);
-    int efid = TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision);
+    int sfid = (int)(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision));
+    int efid = (int)(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision));
 
     // Loop to commit to each file
     for (int fid = sfid; fid <= efid; fid++) {

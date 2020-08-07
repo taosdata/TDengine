@@ -58,7 +58,7 @@
 
 /* Generate the OS-and-debug-mode-specific library name */
 #define _MSVCLIBX_LIB "MsvcLibX" _MSVCLIBX_LIB_OS_SUFFIX _MSVCLIBX_LIB_DBG_SUFFIX ".lib"
-#pragma message("Adding pragma comment(lib, \"" _MSVCLIBX_LIB "\")")
+//#pragma message("Adding pragma comment(lib, \"" _MSVCLIBX_LIB "\")")
 #pragma comment(lib, _MSVCLIBX_LIB)
 
 /* Library-specific routine used internally by many standard routines */
