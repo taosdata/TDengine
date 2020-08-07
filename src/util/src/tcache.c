@@ -512,7 +512,8 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
 void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
   assert(pCacheObj);
   assert(data);
-  assert(*data);
+  //assert(*data);
+  if (!*data) return NULL;
 
   __cache_rd_lock(pCacheObj);
   if (pCacheObj->deleting) {
