@@ -174,6 +174,9 @@ static FORCE_INLINE SCacheDataNode* taosCacheReleaseNode(SCacheObj *pCacheObj, S
 
   SCacheDataNode *pNext = remove_node_in_trash(pCacheObj, pNode);
 
+  pCacheObj->numOfElemsInTrash--;
+  pNode->signature = 0;
+
   free(pNode);
 
   return pNext;
@@ -191,8 +194,8 @@ static FORCE_INLINE SCacheDataNode* taosCacheReleaseNode(SCacheObj *pCacheObj, S
 //           in pair, and make the logic of this module ugly complex.
 static FORCE_INLINE SCacheDataNode* taosCacheMoveToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   taosHashRemove(pCacheObj->pHashTable, pNode->key, pNode->keySize);
-  int ret = T_REF_DEC(pNode);
-  assert(ret > 0);
+  int ref = T_REF_DEC(pNode);
+  assert(ref > 0);
 
   SCacheDataNode *pNext = remove_node_in_hash(pCacheObj, pNode);
 
@@ -253,6 +256,9 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
     // only the cacher itself holding the ref in hash set
     size_t newSize = sizeof(SCacheDataNode) + dataSize + keyLen + 1;
 
+    // pNewNode address might change
+    remove_node_in_hash(pCacheObj, pNode);
+
     pNewNode = (SCacheDataNode *)realloc(pNode, newSize);
     if (pNewNode == NULL) {
       return NULL;
@@ -272,7 +278,8 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
 
     // the address of this node may be changed, so the prev and next element should update the corresponding pointer
     taosHashPut(pCacheObj->pHashTable, key, keyLen, &pNewNode, sizeof(void *));
-    // not need to refresh the node list
+    append_node_in_hash(pCacheObj, pNewNode);
+    T_REF_INC(pNewNode);
   } else {
     if (!pNode->inTrashCan) {
       taosCacheMoveToTrash(pCacheObj, pNode);
@@ -485,6 +492,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
     uError("key: %p the data from cache is invalid", pNode);
     __cache_unlock(pCacheObj);
     // shall we assert here to punish?
+    assert(0);
     return NULL;
   }
 
@@ -518,6 +526,7 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
   if (pNode->signature != (uint64_t)pNode) {
     uError("key: %p the data from cache is invalid", pNode);
     __cache_unlock(pCacheObj);
+    assert(0);
     return NULL;
   }
 
@@ -541,7 +550,7 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
 void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   assert(pCacheObj);
   assert(data);
-  assert(*data);
+  if (!*data) return;
   __cache_rd_lock(pCacheObj);
 
   size_t offset = offsetof(SCacheDataNode, data);
@@ -549,6 +558,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 
   if (pNode->signature != (uint64_t)pNode) {
     uError("%p, release invalid cache data", pNode);
+    assert(0);
     __cache_unlock(pCacheObj);
     return;
   }
@@ -561,6 +571,9 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 
   int32_t ref = T_REF_INC(pNode);
   assert(ref >= 2);
+  if (ref == 2) {
+    assert(pNode->inTrashCan);
+  }
 
   *data = NULL;
 
@@ -720,6 +733,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
       assert(!pNode->inTrashCan);
       int32_t ref = T_REF_INC(pNode);
+      assert(ref >= 2);
       pNext = taosCacheMoveToTrash(pCacheObj, pNode);
       ref = T_REF_DEC(pNode);
       assert(ref >= 0);
