@@ -225,8 +225,8 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   SRspRet *pRet = &pReadMsg->rspRet;
 
   SRetrieveTableMsg *pRetrieve = pCont;
-  pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
   pRetrieve->free = htons(pRetrieve->free);
+  pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
   vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, (void*) pRetrieve->qhandle, pRetrieve->free, pReadMsg->rpcMsg.handle);
 
@@ -236,24 +236,29 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   void** handle = qAcquireQInfo(pVnode->qMgmt, pRetrieve->qhandle);
   if (handle == NULL || (*handle) != (void*) pRetrieve->qhandle) {
     code = TSDB_CODE_QRY_INVALID_QHANDLE;
-    vDebug("vgId:%d, invalid qhandle in fetch result, QInfo:%p", pVnode->vgId, (void*) pRetrieve->qhandle);
+    vDebug("vgId:%d, invalid qhandle in retrieving result, QInfo:%p", pVnode->vgId, (void*) pRetrieve->qhandle);
     
     vnodeBuildNoResultQueryRsp(pRet);
     return code;
   }
 
   if (pRetrieve->free == 1) {
-    vDebug("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
+    vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
     qKillQuery(*handle);
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
 
     vnodeBuildNoResultQueryRsp(pRet);
+    code = TSDB_CODE_TSC_QUERY_CANCELLED;
     return code;
   }
 
-  // todo add more error check here
   // register the qhandle to connect to quit query immediate if connection is broken
-  vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, *handle, pVnode->vgId);
+  if (vnodeNotifyCurrentQhandle(pReadMsg->rpcMsg.handle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, QInfo:%p, retrieve discarded since link is broken, %p", pVnode->vgId, *handle, pReadMsg->rpcMsg.handle);
+    code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
+    return code;
+  }
 
   bool freeHandle = true;
   bool buildRes   = false;
@@ -273,8 +278,8 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle);
   }
 
-  // if qhandle is not added into task queue, the query must be completed already or paused with error ,
-  // free qhandle immediately
+  // If qhandle is not added into vread queue, the query should be completed already or paused with error.
+  // Here free qhandle immediately
   if (freeHandle) {
     qReleaseQInfo(pVnode->qMgmt, (void**) &handle, true);
   }

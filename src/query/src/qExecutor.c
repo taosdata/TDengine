@@ -6361,8 +6361,8 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
   pthread_mutex_unlock(&pQInfo->lock);
 
   // clear qhandle owner
-//  assert(pQInfo->owner == pthread_self());
-//  pQInfo->owner = 0;
+  assert(pQInfo->owner == pthread_self());
+  pQInfo->owner = 0;
 
   return buildRes;
 }
@@ -6370,14 +6370,14 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 bool qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
-//  int64_t threadId = pthread_self();
+  int64_t threadId = pthread_self();
 
-//  int64_t curOwner = 0;
-//  if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {
-//    qError("QInfo:%p qhandle is now executed by thread:%p", pQInfo, (void*) curOwner);
-//    pQInfo->code = TSDB_CODE_QRY_IN_EXEC;
-//    return false;
-//  }
+  int64_t curOwner = 0;
+  if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {
+    qError("QInfo:%p qhandle is now executed by thread:%p", pQInfo, (void*) curOwner);
+    pQInfo->code = TSDB_CODE_QRY_IN_EXEC;
+    return false;
+  }
 
   if (IS_QUERY_KILLED(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
@@ -6529,6 +6529,13 @@ int32_t qKillQuery(qinfo_t qinfo) {
   }
 
   setQueryKilled(pQInfo);
+
+  // Wait for the query executing thread being stopped/
+  // Once the query is stopped, the owner of qHandle will be cleared immediately.
+  while(pQInfo->owner != 0) {
+    taosMsleep(100);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
