@@ -6549,11 +6549,14 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       int32_t i = pQInfo->tableIndex++;
       STableQueryInfo *item = taosArrayGetP(pa, i);
 
-      char *output = pQuery->sdata[0]->data + i * rsize;
+      char *output = pQuery->sdata[0]->data + count * rsize;
       varDataSetLen(output, rsize - VARSTR_HEADER_SIZE);
 
       output = varDataVal(output);
       STableId* id = TSDB_TABLEID(item->pTable);
+
+      *(int16_t *)output = 0;
+      output += sizeof(int16_t);
 
       *(int64_t *)output = id->uid;  // memory align problem, todo serialize
       output += sizeof(id->uid);
