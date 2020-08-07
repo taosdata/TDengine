@@ -30,8 +30,8 @@
 #endif
 
 #include "msvclibx.h"	/* Generate a library search record to load MsvcLibX.lib. */
-#include "sys/types.h"	/* Define pid_t and getppid(). */
-#include "dirent.h"	/* Define pid_t and getppid(). */
+#include "sys/msvcTypes.h"	/* Define pid_t and getppid(). */
+#include "msvcDirent.h"	/* Define pid_t and getppid(). */
 #include <direct.h>	/* For functions like _chdir() and _getcwd() */
 #include <process.h>	/* For _getpid() */
 

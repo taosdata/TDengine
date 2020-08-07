@@ -20,7 +20,7 @@
 
 #ifdef _WIN32
 
-#include WINSDK_INCLUDE_FILE(windows.h) /* Include Windows SDK's own windows.h */
+#include <windows.h> /* Include Windows SDK's own windows.h */
 
 /****************** Define UTF-8 versions of WIN32 routines ******************/
 

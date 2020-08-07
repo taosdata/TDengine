@@ -15,7 +15,7 @@
 
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ security warnings */
 
-#include <unistd.h>
+#include "msvcUnistd.h"
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>

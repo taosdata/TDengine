@@ -21,7 +21,7 @@
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
-#include "sys/utsname.h"
+#include "sys/msvcTsname.h"
 #include <stdlib.h>	/* For itoa() */
 
 static char major[4] = {0};

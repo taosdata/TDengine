@@ -15,8 +15,8 @@
 
 #include "msvclibx.h"
 
-#include <time.h>
-#include <sys/time.h>
+#include "msvcTime.h"
+#include "sys/msvcTime.h"
 
 #ifdef _MSDOS
 /* MS-DOS only has a 1-second resolution on system time.

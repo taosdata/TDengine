@@ -19,8 +19,9 @@
 /* Microsoft C libraries include files */
 #include <stdio.h>
 /* MsvcLibX library extensions */
-#include "debugm.h"
+#include "msvcDebugm.h"
 #include "msvclibx.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 

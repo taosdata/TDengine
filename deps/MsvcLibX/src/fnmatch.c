@@ -26,8 +26,8 @@
 #include <string.h>
 #include <malloc.h>
 
-#include "fnmatch.h" /* Include our associated .h, in the same dir as this .c. Do not use <>. */
-#include "debugm.h"
+#include "msvcFnmatch.h" /* Include our associated .h, in the same dir as this .c. Do not use <>. */
+#include "msvcDebugm.h"
 
 #ifndef TRUE
 #define TRUE 1

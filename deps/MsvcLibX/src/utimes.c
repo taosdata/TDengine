@@ -23,10 +23,10 @@
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ security warnings */
 
 #include <errno.h>
-#include <sys/time.h> /* Must be included before any direct or indirect <windows.h> inclusion */
-#include <sys/stat.h>
-
-#include "debugm.h"
+#include "sys/msvcTime.h" /* Must be included before any direct or indirect <windows.h> inclusion */
+#include "sys/msvcStat.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_DEBUG)
 #include <stdio.h>
@@ -36,7 +36,7 @@
 
 #include <windows.h>
 #include <io.h> /* For MSVC's _get_osfhandle() */
-#include <unistd.h> /* For MsvcLibX's ResolveLinks() */
+#include "msvcUnistd.h" /* For MsvcLibX's ResolveLinks() */
 
 DEBUG_CODE(
   int Timeval2String(char *buf, size_t bufsize, const struct timeval *tvp) {

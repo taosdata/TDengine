@@ -20,8 +20,9 @@
 #include <errno.h>
 #include <stdio.h>
 /* MsvcLibX library extensions */
-#include <unistd.h>
-#include "debugm.h"
+#include "msvcUnistd.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_MSDOS)
 

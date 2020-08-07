@@ -31,8 +31,8 @@
 
 #define WIN32_LEAN_AND_MEAN /* Avoid lots of unnecessary inclusions */
 #include <windows.h>
-
-#include <sys/stat.h> /* For MsvcLibX's Filetime2Timespec */
+#include "msvcTime.h"
+#include "sys/msvcStat.h" /* For MsvcLibX's Filetime2Timespec */
 
 int clock_gettime(clockid_t clock_id, struct timespec *pTS) {
   FILETIME ft;

@@ -29,13 +29,14 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 /* MsvcLibX library extensions */
 #include "msvclibx.h"
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h> /* For ResolveLinks() definition */
-#include "debugm.h"
-#include <stdint.h>
+#include <sys/msvcStat.h>
+#include "msvcDirent.h"
+#include "msvcUnistd.h" /* For ResolveLinks() definition */
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_MSDOS)
 /* Make sure it's only defined it in one of the lstatxxx versions */

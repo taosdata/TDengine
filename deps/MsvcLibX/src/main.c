@@ -19,13 +19,13 @@
 #define _UTF8_SOURCE
 #define _CRT_SECURE_NO_WARNINGS /* Avoid depreciation warnings */
 
-#include <stdio.h>
 #include "msvclibx.h"
+#include "msvcStdio.h"
 
 #ifdef _WIN32
 
 #include <windows.h>
-#include <iconv.h>	/* For MsvcLibX' codePage global variable */
+#include "msvcIconv.h"	/* For MsvcLibX' codePage global variable */
 
 /*---------------------------------------------------------------------------*\
 *                                                                             *

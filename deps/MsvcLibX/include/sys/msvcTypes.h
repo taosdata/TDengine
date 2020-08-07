@@ -20,7 +20,7 @@
 
 #include "msvclibx.h"
 
-#include UCRT_INCLUDE_FILE(sys\types.h) /* Include MSVC's own <sys/types.h> file */
+#include <sys\types.h> /* Include MSVC's own <sys/types.h> file */
 
 /************************ MS-DOS-specific definitions ************************/
 
@@ -90,6 +90,7 @@ typedef int uid_t;
 
 /* MsvcLibX uses mode_t in sys/stat.h */
 typedef int mode_t;
+#define HAVE_MODE_T
 
 /* File link counts type (not used by MsvcLibX so far) */
 typedef int nlink_t; /* Is short in some Unix versions */

@@ -18,7 +18,6 @@
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
-#include "dirent.h"
 
 #define TAOS_RANDOM_FILE_FAIL_TEST
 
@@ -203,7 +202,7 @@ void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
     pIter->index = -1;
     pIter->fileId = -1;
   } else {
-    pIter->index = POINTER_DISTANCE(ptr, pFileH->pFGroup) / sizeof(SFileGroup);
+    pIter->index = (int)(POINTER_DISTANCE(ptr, pFileH->pFGroup) / sizeof(SFileGroup));
     pIter->fileId = ((SFileGroup *)ptr)->fileId;
   }
 }

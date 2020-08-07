@@ -40,7 +40,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "getopt.h"
+#include "msvcGetopt.h"
 
 #ifndef _DIAGASSERT
 #ifdef NDEBUG

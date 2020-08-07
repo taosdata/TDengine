@@ -19,8 +19,9 @@
 
 #include <errno.h>
 #include "msvclibx.h"
-#include "fcntl.h"
-#include "debugm.h"
+#include "msvcFcntl.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 

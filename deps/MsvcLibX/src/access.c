@@ -16,11 +16,12 @@
 
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ security warnings */
 
-#include <stdio.h>
 #include <errno.h>
 #include <io.h>
+#include "msvcStdio.h"
 #include "msvclibx.h"
-#include "debugm.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 

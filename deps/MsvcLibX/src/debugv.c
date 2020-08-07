@@ -13,7 +13,7 @@
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
-#include "debugm.h"
+#include "msvcDebugm.h"
 
 #if defined(_DEBUG)
 

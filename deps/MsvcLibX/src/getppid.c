@@ -21,7 +21,7 @@
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
-#include <unistd.h>
+#include "msvcUnistd.h"
 
 #ifdef _WIN32
 

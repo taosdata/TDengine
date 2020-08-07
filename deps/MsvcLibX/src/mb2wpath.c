@@ -17,7 +17,7 @@
 #define _UTF8_SOURCE /* Generate the UTF-8 version of printf routines */
 
 #include "msvclibx.h"
-#include "debugm.h"
+#include "msvcDebugm.h"
 
 #if defined(_WIN32)
 

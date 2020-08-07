@@ -18,12 +18,12 @@
 #define _UTF8_SOURCE /* Generate the UTF-8 version of routines */
 
 #include <stdlib.h>
-#include <limits.h>
 #include <malloc.h>
+#include "msvcLimits.h"
 
 #ifdef _WIN32	/* Automatically defined when targeting a Win32 application */
 
-#include <windows.h>		/* Also includes MsvcLibX' WIN32 UTF-8 extensions */
+#include "msvcWindows.h"		/* Also includes MsvcLibX' WIN32 UTF-8 extensions */
 
 /*---------------------------------------------------------------------------*\
 *                                                                             *

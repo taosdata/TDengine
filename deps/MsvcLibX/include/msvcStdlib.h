@@ -18,7 +18,7 @@
 
 #include "msvclibx.h"
 
-#include UCRT_INCLUDE_FILE(stdlib.h) /* Include MSVC's own <stdlib.h> file */
+#include <stdlib.h> /* Include MSVC's own <stdlib.h> file */
 
 #ifdef __cplusplus
 extern "C" {

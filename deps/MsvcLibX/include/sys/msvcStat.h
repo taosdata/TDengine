@@ -28,11 +28,11 @@
 
 #include "msvclibx.h"
 
-#include <sys/types.h>
-#include UCRT_INCLUDE_FILE(sys\stat.h) /* Include MSVC's own <sys/stat.h> file */
-#include <dirent.h> /* For dirent2stat() arguments definitions */
-#include <time.h> /* for time_t definition */
-#include <sys/time.h> /* for timespec definition */
+#include "sys/msvcTypes.h"
+#include <sys/stat.h> /* Include MSVC's own <sys/stat.h> file */
+#include "msvcDirent.h" /* For dirent2stat() arguments definitions */
+#include "msvcTime.h" /* for time_t definition */
+#include "sys/msvcTime.h" /* for timespec definition */
 /* Include MsvcLibX's <direct.h> override, to avoid conflict with the standard mkdir defined here,
    should <direct.h> be manually included later on in the C source */
 #include <direct.h>
@@ -154,7 +154,7 @@ extern char *Filetime2String(uint16_t date, uint16_t time, char *pBuf, size_t nB
      if we were to use MsvcLibX extended stat structures and routines */
   #define _LIBX_stat   _CONCAT(_MSVC_stat,_ns)
   #define _LIBX_stat64 _CONCAT(_MSVC_stat64,_ns)
-#include "debugm.h"
+#include "msvcDebugm.h"
 #pragma message("Defining type struct " VALUEIZE(_LIBX_stat))
   struct _LIBX_stat {
     /* MSVC standard stat structure fields */

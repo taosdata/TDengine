@@ -13,11 +13,11 @@
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
-#include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include "msvcUnistd.h"
 
 char *mkdtemp(char *pszName) {
   char *pszXXX, *pc;

@@ -18,7 +18,7 @@
 #include <io.h>
 #include <fcntl.h>
 #include <string.h>
-#include "xfreopen.h"
+#include "msvcXfreopen.h"
 
 FILE *xfreopen(const char *filename, const char *mode, FILE *stream) {
   int iMode = 0;

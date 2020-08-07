@@ -23,8 +23,9 @@
 #include <stdio.h>
 #include <string.h>
 /* MsvcLibX library extensions */
-#include "iconv.h"
-#include "debugm.h"
+#include "msvcIconv.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_MSDOS)
 

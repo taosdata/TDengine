@@ -1,40 +1,34 @@
 ﻿/*****************************************************************************\
 *                                                                             *
-*   Filename:	    fcntl.h						      *
+*   Filename:	    process.h						      *
 *                                                                             *
-*   Description:    MsvcLibX extensions to fcntl.h.			      *
+*   Description:    MsvcLibX extensions to process.h.			      *
 *                                                                             *
 *   Notes:	    							      *
 *                                                                             *
 *   History:								      *
-*    2017-02-16 JFL Created this file.                                        *
+*    2014-03-27 JFL Created this file.                                        *
+*    2015-11-15 JFL Visual Studio 2015 moved this file to the Windows Kit UCRT.
 *									      *
-*         Copyright 2017 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
-#ifndef	_MSVCLIBX_FCNTL_H
-#define	_MSVCLIBX_FCNTL_H	1
+#ifndef	_MSVCLIBX_PROCESS_H
+#define	_MSVCLIBX_PROCESS_H	1
 
 #include "msvclibx.h"
 
-#include UCRT_INCLUDE_FILE(fcntl.h) /* Include MSVC's own <fcntl.h> file */
-
-/* Microsoft defines _open() in io.h */
-#include <io.h>
-
-#if defined(_MSDOS)
-#define open _open
-#endif
+#include <process.h> /* Include MSVC's own <process.h> file */
 
 #if defined(_WIN32)
-extern int openA(const char *, int, ...); /* MsvcLibX ANSI version of open */
-extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
+extern intptr_t _spawnvpU(int iMode, const char *pszCommand, char *const *argv);
 #if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
-#define open openU
+#define _spawnvp _spawnvpU
 #else /* _ANSI_SOURCE */
-#define open openA
+#define _spawnvp _spawnvp
 #endif /* defined(_UTF8_SOURCE) */
 #endif /* defined(_WIN32) */
 
-#endif /* defined(_MSVCLIBX_FCNTL_H)  */
+#endif /* defined(_MSVCLIBX_PROCESS_H)  */
+

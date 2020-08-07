@@ -21,10 +21,10 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-/* MsvcLibX library extensions */
-#include <sys/stat.h>
-#include "debugm.h"
 #include <stdint.h>
+/* MsvcLibX library extensions */
+#include "sys/msvcStat.h"
+#include "msvcDebugm.h"
 
 
 #if defined(_MSDOS)

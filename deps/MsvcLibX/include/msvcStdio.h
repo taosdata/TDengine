@@ -20,7 +20,7 @@
 
 #include "msvclibx.h"
 
-#include UCRT_INCLUDE_FILE(stdio.h) /* Include MSVC's own <stdio.h> file */
+#include <stdio.h> /* Include MSVC's own <stdio.h> file */
 
 #include <sys/types.h>
 

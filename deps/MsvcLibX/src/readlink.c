@@ -27,16 +27,17 @@
 
 #define _UTF8_SOURCE /* Generate the UTF-8 version of routines */
 
-#include <unistd.h>
+#include "msvcUnistd.h"
 #pragma comment(lib, "Mpr.lib")
 
 #include <errno.h>
-#include "debugm.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 
 #include <windows.h>
-#include "reparsept.h"
+#include "msvcReparsept.h"
 
 /* Get the Reparse Point Tag for a mount point - Wide char version */
 /* See http://msdn.microsoft.com/en-us/library/windows/desktop/aa365511(v=vs.85).aspx */

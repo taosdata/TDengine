@@ -31,13 +31,15 @@
 
 #define _UTF8_SOURCE /* Generate the UTF-8 version of routines */
 
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <direct.h>	/* For _getdcwd() */
 #include <ctype.h>	/* For toupper() */
-#include "debugm.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
+#include "msvcUnistd.h"
+#include "msvcWindows.h"
 
 #define TRUE 1
 #define FALSE 0

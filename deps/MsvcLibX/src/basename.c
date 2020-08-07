@@ -20,11 +20,11 @@
 
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ 2005 security warnings */
 
-#include <stdlib.h>
 #include <malloc.h>
 #include <string.h>
-#include <libgen.h>
-#include <limits.h>
+#include "msvcStdlib.h"
+#include "msvcLibgen.h"
+#include "msvcLimits.h"
 
 #define TRUE 1
 #define FALSE 0

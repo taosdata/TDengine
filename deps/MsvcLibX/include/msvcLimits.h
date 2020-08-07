@@ -18,7 +18,7 @@
 
 #include "msvclibx.h"
 
-#include MSVC_INCLUDE_FILE(limits.h) /* Include MSVC's own <limits.h> file */
+#include <limits.h> /* Include MSVC's own <limits.h> file */
 
 /************************ MS-DOS-specific definitions ************************/
 

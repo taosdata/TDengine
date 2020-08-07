@@ -20,7 +20,7 @@
 #include <errno.h>
 #include <stdio.h>
 /* MsvcLibX library extensions */
-#include "debugm.h"
+#include "msvcDebugm.h"
 
 
 #ifdef _WIN32
@@ -65,7 +65,6 @@ int _get_errno_from_oserr(unsigned long dwErr) {
   return errno;
 }
 #else
-#pragma message("Using the default " MSVCLIBX_STRINGIZE(_get_errno_from_oserr) "()")
 /* Equivalent function in MSVC library. Does not know about symlink errors. */
 extern int __cdecl _get_errno_from_oserr(unsigned long oserrno);
 #endif

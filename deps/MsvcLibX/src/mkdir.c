@@ -22,8 +22,9 @@
 #include <direct.h>	/* For _mkdir() */
 #include <errno.h>
 /* MsvcLibX library extensions */
-#include <sys/stat.h>
+#include <sys/msvcStat.h>
 #include "msvclibx.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 

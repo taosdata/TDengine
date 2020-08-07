@@ -22,10 +22,10 @@
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ security warnings */
 
 #include <errno.h>
-#include <sys/time.h> /* Must be included before any direct or indirect <windows.h> inclusion */
-#include <utime.h>
-
-#include "debugm.h"
+#include "sys/msvcTime.h" /* Must be included before any direct or indirect <windows.h> inclusion */
+#include "msvcUtime.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_DEBUG)
 #include <stdio.h>
@@ -35,7 +35,7 @@
 
 #include <windows.h>
 #include <io.h> /* For  MSVC's _get_osfhandle() */
-#include <unistd.h> /* For MsvcLibX's ResolveLinks() */
+#include "msvcUnistd.h" /* For MsvcLibX's ResolveLinks() */
 
 /* Convert a Windows FILETIME to a Unix time_t.
    A FILETIME is the number of 100-nanosecond intervals since January 1, 1601.

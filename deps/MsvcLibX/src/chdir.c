@@ -18,12 +18,14 @@
 
 /* Microsoft C libraries include files */
 #include <errno.h>
-#include <stdio.h>
 #include <string.h>
 /* MsvcLibX library extensions */
-#include <unistd.h>
-#include <iconv.h>
-#include "debugm.h"
+#include "msvcStdio.h"
+#include "msvcUnistd.h"
+#include "msvcIconv.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
+#include "sys/msvcTypes.h"
 
 #if defined(_MSDOS)
 
