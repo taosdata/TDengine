@@ -335,13 +335,13 @@ int main(int argc, char *argv[]) {
                                 0,               // mode
                                 {
                                 "int",           // datatype
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                ""
+                                "int",
+                                "int",
+                                "int",
+                                "int",
+                                "int",
+                                "int",
+                                "float"
                                 },
                                 8,               // len_of_binary
                                 1,               // num_of_CPR

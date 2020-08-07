@@ -20,17 +20,17 @@
 extern "C" {
 #endif
 
-int taosReadn(int sock, char *buffer, int len);
-int taosWriteMsg(int fd, void *ptr, int nbytes);
-int taosReadMsg(int fd, void *ptr, int nbytes);
-int taosNonblockwrite(int fd, char *ptr, int nbytes);
-int taosCopyFds(int sfd, int dfd, int64_t len);
-int taosSetNonblocking(int sock, int on);
+int taosReadn(SOCKET sock, char *buffer, int len);
+int taosWriteMsg(SOCKET fd, void *ptr, int nbytes);
+int taosReadMsg(SOCKET fd, void *ptr, int nbytes);
+int taosNonblockwrite(SOCKET fd, char *ptr, int nbytes);
+int taosCopyFds(SOCKET sfd, SOCKET dfd, int64_t len);
+int taosSetNonblocking(SOCKET sock, int on);
 
-int  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
-int  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
-int  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
-int  taosKeepTcpAlive(int sockFd);
+SOCKET taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
+SOCKET taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
+SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
+int  taosKeepTcpAlive(SOCKET sockFd);
 
 int      taosGetFqdn(char *);
 uint32_t taosGetIpFromFqdn(const char *);

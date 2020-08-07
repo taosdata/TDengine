@@ -208,7 +208,7 @@ char* tsGetTagsValue(STableMeta* pTableMeta) {
 }
 
 // todo refactor
-__attribute__ ((unused))static FORCE_INLINE char* skipSegments(char* input, char delim, int32_t num) {
+UNUSED_FUNC static FORCE_INLINE char* skipSegments(char* input, char delim, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     while (*input != 0 && *input++ != delim) {
     };
@@ -216,7 +216,7 @@ __attribute__ ((unused))static FORCE_INLINE char* skipSegments(char* input, char
   return input;
 }
 
-__attribute__ ((unused)) static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
+UNUSED_FUNC static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
   size_t len = 0;
   while (*src != delimiter && *src != 0) {
     *dst++ = *src++;

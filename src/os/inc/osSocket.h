@@ -32,6 +32,7 @@ extern "C" {
         x = FD_INITIALIZER;  \
       }                      \
     }
+  typedef int SOCKET;
 #endif    
 
 #define taosClose(x) taosCloseSocket(x)
@@ -54,11 +55,11 @@ extern "C" {
 #endif
 
 // TAOS_OS_FUNC_SOCKET
-int taosSetNonblocking(int sock, int on);
+int taosSetNonblocking(SOCKET sock, int on);
 void taosBlockSIGPIPE();
 
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
+int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen);
 
 #ifdef __cplusplus
 }

@@ -85,11 +85,13 @@ extern "C" {
 #define TAOS_OS_FUNC_SOCKET
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 #define TAOS_OS_FUNC_SOCKET_OP
-  #define taosSend(sockfd, buf, len, flags) send(sockfd, buf, len, flags)
-  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, buf, len, flags, dest_addr, addrlen)
-  #define taosWriteSocket(fd, buf, len) send(fd, buf, len, 0)
-  #define taosReadSocket(fd, buf, len) recv(fd, buf, len, 0)
-  #define taosCloseSocket(fd) closesocket(fd)
+  #define taosSend(sockfd, buf, len, flags) send((SOCKET)sockfd, buf, len, flags)
+  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto((SOCKET)sockfd, buf, len, flags, dest_addr, addrlen)
+  #define taosWriteSocket(fd, buf, len) send((SOCKET)fd, buf, len, 0)
+  #define taosReadSocket(fd, buf, len) recv((SOCKET)fd, buf, len, 0)
+  #define taosCloseSocket(fd) closesocket((SOCKET)fd)
+typedef SOCKET eventfd_t; 
+#define eventfd(a, b) -1
 
 #define TAOS_OS_FUNC_STRING_WCHAR
   int twcslen(const wchar_t *wcs);
@@ -104,6 +106,9 @@ extern "C" {
 #define TAOS_OS_FUNC_STRING_STRDUP
   #define taosStrdupImp(str) _strdup(str)
   #define taosStrndupImp(str, size) _strndup(str, size)  
+
+char *stpcpy (char *dest, const char *src);
+char *stpncpy (char *dest, const char *src, size_t n);
 
 #define TAOS_OS_FUNC_SYSINFO
 

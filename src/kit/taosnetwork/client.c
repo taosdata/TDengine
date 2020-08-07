@@ -149,7 +149,7 @@ int checkUdpPort(info_s *info) {
   struct sockaddr_in serverAddr;
   char               sendbuf[BUFFER_SIZE];
   char               recvbuf[BUFFER_SIZE];
-  int                iDataNum;
+  int                iDataNum = 0;
   if ((clientSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     perror("socket");
     return -1;

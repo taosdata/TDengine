@@ -26,7 +26,7 @@ sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 
 print ======== step1 
-sql create database db replica 3 blocks 2
+sql create database db replica 3 blocks 3
 sql create table db.mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 $tbPrefix = db.t
