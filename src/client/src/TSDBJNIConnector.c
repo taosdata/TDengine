@@ -224,7 +224,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
    */
   tsNumOfThreadsPerCore = 0.0;
 
-  ret = (jlong)taos_connect((char *)host, (char *)user, (char *)pass, (char *)dbname, jport);
+  ret = (jlong)taos_connect((char *)host, (char *)user, (char *)pass, (char *)dbname, (uint16_t)jport);
   if (ret == 0) {
     jniError("jobj:%p, conn:%p, connect to database failed, host=%s, user=%s, dbname=%s, port=%d", jobj, (void *)ret,
              (char *)host, (char *)user, (char *)dbname, jport);

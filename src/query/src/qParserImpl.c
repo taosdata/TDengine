@@ -158,7 +158,7 @@ tSQLExpr *tSQLExprCreateFunction(tSQLExprList *pList, SSQLToken *pFuncToken, SSQ
   pExpr->nSQLOptr = optType;
   pExpr->pParam = pList;
 
-  int32_t len = (endToken->z + endToken->n) - pFuncToken->z;
+  int32_t len = (int32_t)((endToken->z + endToken->n) - pFuncToken->z);
   pExpr->operand.z = pFuncToken->z;
 
   pExpr->operand.n = len;  // raw field name
@@ -468,7 +468,7 @@ void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType) 
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
   
   // truncate the column name
-  if (pName->n >= maxLen) {
+  if ((int32_t)pName->n >= maxLen) {
     pName->n = maxLen - 1;
   }
 
@@ -524,7 +524,7 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
 
   SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
   pQuery->selectToken = *pSelectToken;
-  pQuery->selectToken.n = strlen(pQuery->selectToken.z);  // all later sql string are belonged to the stream sql
+  pQuery->selectToken.n = (uint32_t)strlen(pQuery->selectToken.z);  // all later sql string are belonged to the stream sql
 
   pQuery->pSelection = pSelection;
   pQuery->from = pFrom;

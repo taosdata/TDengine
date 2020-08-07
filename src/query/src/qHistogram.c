@@ -482,10 +482,10 @@ int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
     }
   }
 
-  double m1 = pHisto->elems[slotIdx].num;
+  double m1 = (double)pHisto->elems[slotIdx].num;
   double v1 = pHisto->elems[slotIdx].val;
 
-  double m2 = pHisto->elems[slotIdx + 1].num;
+  double m2 = (double)pHisto->elems[slotIdx + 1].num;
   double v2 = pHisto->elems[slotIdx + 1].val;
 
   double estNum = m1 + (m2 - m1) * (v - v1) / (v2 - v1);
@@ -538,7 +538,7 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
       pVal[i] = pHisto->elems[j].val;
     }
 
-    double start = pHisto->elems[j].num;
+    double start = (double)pHisto->elems[j].num;
     double range = pHisto->elems[j + 1].num - start;
 
     if (range == 0) {

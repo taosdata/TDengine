@@ -54,7 +54,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
     return;
   }
 
-  strntolower(pSql->sqlstr, sqlstr, sqlLen);
+  strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   pSql->cmd.curSql = pSql->sqlstr;
@@ -81,7 +81,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
     return;
   }
   
-  int32_t sqlLen = strlen(sqlstr);
+  int32_t sqlLen = (int32_t)strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
     terrno = TSDB_CODE_TSC_INVALID_SQL;

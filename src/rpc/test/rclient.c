@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 
   gettimeofday(&systemTime, NULL);
   endTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;  
-  float usedTime = (endTime - startTime)/1000.0;  // mseconds
+  float usedTime = (endTime - startTime)/1000.0f;  // mseconds
 
   tInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
   tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);

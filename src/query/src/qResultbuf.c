@@ -6,7 +6,7 @@
 #include "queryLog.h"
 #include "taoserror.h"
 
-#define GET_DATA_PAYLOAD(_p) ((_p)->pData + POINTER_BYTES)
+#define GET_DATA_PAYLOAD(_p) ((tFilePage*)(((char*)(_p)->pData) + POINTER_BYTES))
 
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
                                     int32_t inMemBufSize, const void* handle) {
@@ -95,8 +95,8 @@ static int32_t allocatePositionInFile(SDiskbasedResultBuf* pResultBuf, size_t si
       SFreeListItem* pi = taosArrayGet(pResultBuf->pFree, i);
       if (pi->len >= size) {
         offset = pi->offset;
-        pi->offset += size;
-        pi->len -= size;
+        pi->offset += (int32_t)size;
+        pi->len -= (int32_t)size;
 
         return offset;
       }
@@ -172,7 +172,7 @@ static char* flushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 // load file block data in disk
 static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-  ret = fread(GET_DATA_PAYLOAD(pg), 1, pg->info.length, pResultBuf->file);
+  ret = (int32_t)fread(GET_DATA_PAYLOAD(pg), 1, pg->info.length, pResultBuf->file);
   if (ret != pg->info.length) {
     terrno = errno;
     return NULL;
@@ -183,7 +183,7 @@ static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   int32_t fullSize = 0;
   doDecompressData(GET_DATA_PAYLOAD(pg), pg->info.length, &fullSize, pResultBuf);
 
-  return GET_DATA_PAYLOAD(pg);
+  return (char*)GET_DATA_PAYLOAD(pg);
 }
 
 #define NO_AVAILABLE_PAGES(_b) ((_b)->numOfPages >= (_b)->inMemPages)
@@ -246,7 +246,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
   // all pages are referenced by user, try to allocate new space
   if (pn == NULL) {
     int32_t prev = pResultBuf->inMemPages;
-    pResultBuf->inMemPages = pResultBuf->inMemPages * 1.5;
+    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f);
 
     qWarn("%p in memory buf page not sufficient, expand from %d to %d, page size:%d", pResultBuf, prev,
           pResultBuf->inMemPages, pResultBuf->pageSize);
