@@ -72,6 +72,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
 
   // invalid file
   if (header.magic != TS_COMP_FILE_MAGIC) {
+    tsBufDestroy(pTSBuf);
     return NULL;
   }
   
