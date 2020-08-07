@@ -2223,3 +2223,21 @@ int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
 
   return 0;
 }
+
+bool tscSetSqlOwner(SSqlObj* pSql) {
+  SSqlRes* pRes = &pSql->res;
+
+  // set the sql object owner
+  uint64_t threadId = taosGetPthreadId();
+  if (atomic_val_compare_exchange_64(&pSql->owner, 0, threadId) != 0) {
+    pRes->code = TSDB_CODE_QRY_IN_EXEC;
+    return false;
+  }
+
+  return true;
+}
+
+void tscClearSqlOwner(SSqlObj* pSql) {
+  assert(pSql->owner != 0);
+  atomic_store_64(&pSql->owner, 0);
+}

@@ -302,6 +302,7 @@ typedef struct STscObj {
 
 typedef struct SSqlObj {
   void            *signature;
+  pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   void            *pRpcCtx;
   void            (*fp)();
