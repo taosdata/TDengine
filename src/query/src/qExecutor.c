@@ -405,8 +405,6 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
         newCap = pWindowResInfo->capacity * 1.5;
       }
 
-      printf("%ld\n", newCap);
-
       char *t = realloc(pWindowResInfo->pResult, newCap * sizeof(SWindowResult));
       pRuntimeEnv->summary.internalSupSize += (newCap - pWindowResInfo->capacity) * sizeof(SWindowResult);
 
