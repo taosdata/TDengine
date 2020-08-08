@@ -295,6 +295,7 @@ bool taosCfgDynamicOptions(char *msg) {
 }
 
 static void doInitGlobalConfig(void) {
+  osInit();
   SGlobalCfg cfg = {0};
   
   // ip address

@@ -94,6 +94,9 @@ extern "C" {
 typedef SOCKET eventfd_t; 
 #define eventfd(a, b) -1
 
+#define TAOS_OS_DEF_EPOLL
+  #define TAOS_EPOLL_WAIT_TIME 100
+
 #define TAOS_OS_FUNC_STRING_WCHAR
   int twcslen(const wchar_t *wcs);
 #define TAOS_OS_FUNC_STRING_GETLINE
