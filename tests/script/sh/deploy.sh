@@ -137,7 +137,7 @@ echo "numOfLogLines          20000000"           >> $TAOS_CFG
 echo "mnodeEqualVnodeNum     0"                  >> $TAOS_CFG
 echo "clog                   2"                  >> $TAOS_CFG
 #echo "cache                 1"                  >> $TAOS_CFG
-#echo "block                 2"                  >> $TAOS_CFG
+echo "days                   10"                  >> $TAOS_CFG
 echo "statusInterval         1"                  >> $TAOS_CFG
 echo "maxVgroupsPerDb        4"                  >> $TAOS_CFG
 echo "minTablesPerVnode      4"                  >> $TAOS_CFG
