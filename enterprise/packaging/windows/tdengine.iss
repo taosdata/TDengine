@@ -9,8 +9,8 @@
 #define MyAppSourceDir "C:\TDengine"
 #define MyAppAllFile "\*"
 #define MyAppDLLName "\driver\taos.dll"
-#define MyAppVersion "1.6"
-#define MyAppInstallName "TDengine-client-enterprise-windows-x64-1.6.4.1"
+#define MyAppVersion "2.0"
+#define MyAppInstallName "TDengine-client-windows-x64-2.0.0.0"
 
 [Setup]
 VersionInfoVersion={#MyAppVersion}
