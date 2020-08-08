@@ -24,6 +24,7 @@
 #include "dnodeMgmt.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
+#include "dnodeCheck.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeMRead.h"
@@ -61,6 +62,7 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"mgmt-tmr",  dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
   {"shell",     dnodeInitShell,      dnodeCleanupShell},
   {"telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+  {"check",     dnodeInitCheck,      dnodeCleanupCheck},
 };
 
 static int dnodeCreateDir(const char *dir) {
@@ -123,6 +125,7 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
+  dnodeStartCheck();
   dnodeStartModules();
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
 
