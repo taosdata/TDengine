@@ -679,7 +679,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   }
 
   taosTFree(dataDir);
-  tsdbCloseHelperFile(pHelper, 0);
+  tsdbCloseHelperFile(pHelper, 0, pGroup);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
@@ -701,7 +701,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
 _err:
   taosTFree(dataDir);
-  tsdbCloseHelperFile(pHelper, 1);
+  tsdbCloseHelperFile(pHelper, 1, NULL);
   return -1;
 }
 

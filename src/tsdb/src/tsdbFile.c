@@ -20,7 +20,7 @@
 #include "tutil.h"
 #define TAOS_RANDOM_FILE_FAIL_TEST
 
-const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".l"};
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
 static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
