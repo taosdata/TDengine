@@ -2442,11 +2442,8 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
       STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
       destroyTableMemIterator(pTableCheckInfo);
 
-      if (pTableCheckInfo->pDataCols != NULL) {
-        taosTFree(pTableCheckInfo->pDataCols->buf);
-      }
-
-      taosTFree(pTableCheckInfo->pDataCols);
+      tdFreeDataCols(pTableCheckInfo->pDataCols);
+      pTableCheckInfo->pDataCols = NULL;
       taosTFree(pTableCheckInfo->pCompInfo);
     }
     taosArrayDestroy(pQueryHandle->pTableCheckInfo);

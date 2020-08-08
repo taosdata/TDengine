@@ -912,7 +912,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
   
   pQueryMsg->head.contLen = htonl(msgLen);
-  assert(msgLen + minMsgSize() <= size);
+  assert(msgLen + minMsgSize() <= pCmd->allocSize);
 
   return TSDB_CODE_SUCCESS;
 }
