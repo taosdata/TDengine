@@ -1902,6 +1902,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         if (changeFunctionID(optr, &functionId) != TSDB_CODE_SUCCESS) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
+        tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
+        colIndex += 1;  // the first column is ts
 
         pExpr = tscSqlExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, resultSize, false);
         addExprParams(pExpr, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double), 0);
