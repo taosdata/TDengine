@@ -426,7 +426,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
 
   size_t size = taosArrayGetSize(pSub->progress) * sizeof(STableIdInfo);
   size += sizeof(SQueryTableMsg) + 4096;
-  tscAllocPayload(&pSql->cmd, size);
+  tscAllocPayload(&pSql->cmd, (int)size);
   for (int retry = 0; retry < 3; retry++) {
     tscRemoveFromSqlList(pSql);
 
