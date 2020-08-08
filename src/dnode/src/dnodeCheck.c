@@ -14,12 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <stdio.h>
-#include <sys/statfs.h>
-#include <sys/vfs.h>
-#include <sys/sysinfo.h>
-#include <errno.h>
-
 #include "os.h"
 #include "taosdef.h"
 #include "tglobal.h"
@@ -58,7 +52,6 @@ static int bindTcpPort(int port) {
     close(serverSocket);
     return -1;
   }
-
 
   if (listen(serverSocket, 5) < 0) {
     dError("port:%d listen() fail: %s", port, strerror(errno));
@@ -101,10 +94,12 @@ static int dnodeCheckNetwork() {
   for (int port = startPort; port < startPort + 12; port++) {
     ret = bindTcpPort(port);
     if (0 != ret) {
+      dError("failed to tcp bind port %d, quit", port);
       return -1;
     }
     ret = bindUdpPort(port);
     if (0 != ret) {
+      dError("failed to udp bind port %d, quit", port);
       return -1;
     }    
   } 
@@ -258,10 +253,6 @@ int32_t dnodeInitCheck() {
     }
   }
 
-  return 0;
-}
-
-void dnodeStartCheck() {
   for (ECheckItemType index = 0; index < TSDB_CHECK_ITEM_MAX; ++index) {
     if (tsCheckItem[index].enable && tsCheckItem[index].startFp) {
       if ((*tsCheckItem[index].startFp)() != 0) {
@@ -270,6 +261,9 @@ void dnodeStartCheck() {
       }
     }
   }
+
+  return 0;
 }
+
 
 

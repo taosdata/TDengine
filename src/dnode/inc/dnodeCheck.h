@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 int32_t dnodeInitCheck();
-void    dnodeStartCheck();
 void    dnodeCleanupCheck();
 
 #ifdef __cplusplus

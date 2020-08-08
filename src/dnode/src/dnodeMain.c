@@ -49,6 +49,7 @@ typedef struct {
 } SDnodeComponent;
 
 static const SDnodeComponent tsDnodeComponents[] = {
+  {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be first component !!!
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
@@ -62,7 +63,6 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"mgmt-tmr",  dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
   {"shell",     dnodeInitShell,      dnodeCleanupShell},
   {"telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
-  {"check",     dnodeInitCheck,      dnodeCleanupCheck},
 };
 
 static int dnodeCreateDir(const char *dir) {
@@ -125,7 +125,6 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
-  dnodeStartCheck();
   dnodeStartModules();
   dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
 
