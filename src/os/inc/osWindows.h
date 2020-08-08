@@ -42,6 +42,7 @@
 #include "msvcProcess.h"
 #include "msvcDirect.h"
 #include "msvcFcntl.h"
+#include "msvcStdio.h"
 #include "sys/msvcStat.h"
 #include "sys/msvcTypes.h"
 
