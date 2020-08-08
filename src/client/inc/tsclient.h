@@ -256,6 +256,7 @@ typedef struct SResRec {
 
 typedef struct {
   int64_t               numOfRows;                  // num of results in current retrieved
+  int64_t               numOfRowsGroup;             // num of results of current group
   int64_t               numOfTotal;                 // num of total results
   int64_t               numOfClauseTotal;           // num of total result in current subclause
   char *                pRsp;

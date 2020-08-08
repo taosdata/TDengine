@@ -5954,13 +5954,13 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return doLocalQueryProcess(pCmd, pQueryInfo, pQuerySql);
   }
 
-  if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM) {
+  if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM * 2) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
 
-  if (pQuerySql->from->nExpr > 2) {
+  if (pQuerySql->from->nExpr > 4) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
   }
 
@@ -5983,7 +5983,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i);
+    STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i/2);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
     if (tscSetTableFullName(pTableMetaInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
