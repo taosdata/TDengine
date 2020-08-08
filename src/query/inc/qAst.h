@@ -48,7 +48,7 @@ typedef struct tQueryInfo {
   SSchema       sch;      // schema of tags
   char*         q;
   __compar_fn_t compare;  // filter function
-  void*         param;    // STSchema
+  bool          indexed;  // indexed columns
 } tQueryInfo;
 
 typedef struct SExprTraverseSupp {

@@ -2102,7 +2102,7 @@ void filterPrepare(void* expr, void* param) {
   pInfo->sch      = *pSchema;
   pInfo->optr     = pExpr->_node.optr;
   pInfo->compare  = getComparFunc(pSchema->type, pInfo->optr);
-  pInfo->param    = pTSSchema;
+  pInfo->indexed  = pTSSchema->columns->colId == pInfo->sch.colId;
 
   if (pInfo->optr == TSDB_RELATION_IN) {
     pInfo->q = (char*) pCond->arr;
