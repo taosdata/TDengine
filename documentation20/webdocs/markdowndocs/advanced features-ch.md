@@ -119,7 +119,7 @@ taos_consume
 taos_unsubscribe
 ```
 
-这些API的文档请见 [C/C++ 数据订阅接口](connector/#C/C++-Connector)，
+这些API的文档请见 [C/C++ Connector](https://www.taosdata.com/cn/documentation20/connector/)，
 下面仍以智能电表场景为例介绍一下它们的具体用法（超级表和子表结构请参考上一节“连续查询”），
 完整的示例代码可以在 [这里](https://github.com/taosdata/TDengine/blob/master/tests/examples/c/subscribe.c) 找到。
 
