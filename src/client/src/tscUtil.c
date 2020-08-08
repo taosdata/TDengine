@@ -1556,12 +1556,22 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd) {
   }
 }
 
+void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
+  if (pVgroupTables != NULL) {
+    for (size_t i = 0; i < taosArrayGetSize(pVgroupTables); i++) {
+      SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
+      taosArrayDestroy(pInfo->itemList);
+    }
+    taosArrayDestroy(pVgroupTables);
+  }
+}
+
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
   tscDebug("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-  
+    tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
     free(pTableMetaInfo);
   }

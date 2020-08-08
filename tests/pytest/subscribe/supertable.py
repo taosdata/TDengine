@@ -31,16 +31,19 @@ class TDTestCase:
 		now = int(time.time() * 1000)
 		tdSql.prepare()
 
-		tdLog.info("create a super table and 10 sub-tables, then insert 5 rows into each sub-table.")
+		numTables = 2000
+		rowsPerTable = 5
+		totalRows = numTables * rowsPerTable
+		tdLog.info("create a super table and %d sub-tables, then insert %d rows into each sub-table." % (numTables, rowsPerTable))
 		tdSql.execute("create table meters(ts timestamp, a int, b int) tags(area int, loc binary(20));")
-		for i in range(0, 10):
-			for j in range(0, 5):
+		for i in range(0, numTables):
+			for j in range(0, rowsPerTable):
 				tdSql.execute("insert into t%d using meters tags(%d, 'area%d') values (%d, %d, %d);" % (i, i, i, now + j, j, j))
 
 		tdLog.info("consumption 01.")
 		tdSub.init(self.conn.subscribe(True, topic, sqlstr, 0))
 		tdSub.consume()
-		tdSub.checkRows(50)
+		tdSub.checkRows(totalRows)
 
 		tdLog.info("consumption 02: no new rows inserted")
 		tdSub.consume()
@@ -61,17 +64,17 @@ class TDTestCase:
 		tdSub.close(False)
 		tdSub.init(self.conn.subscribe(False, topic, sqlstr, 0))
 		tdSub.consume()
-		tdSub.checkRows(51)
+		tdSub.checkRows(totalRows + 1)
 
 		tdLog.info("consumption 06: keep progress and restart the subscription")
 		tdSub.close(True)
 		tdSub.init(self.conn.subscribe(True, topic, sqlstr, 0))
 		tdSub.consume()
-		tdSub.checkRows(51)
+		tdSub.checkRows(totalRows + 1)
 
 		tdLog.info("consumption 07: insert one row to two table then remove one table")
 		tdSql.execute("insert into t0 values (%d, 11, 11);" % (now + 11))
-		tdSql.execute("insert into t1 values (%d, 11, 11);" % (now + 11))
+		tdSql.execute("insert into t%d values (%d, 11, 11);" % ((numTables-1), (now + 11)))
 		tdSql.execute("drop table t0")
 		tdSub.consume()
 		tdSub.checkRows(1)
@@ -80,7 +83,7 @@ class TDTestCase:
 		tdSub.close(False)
 		tdSub.init(self.conn.subscribe(True, topic, sqlstr + " where ts > %d" % now, 0))
 		tdSub.consume()
-		tdSub.checkRows(37)
+		tdSub.checkRows((numTables-1) * (rowsPerTable-1) + 1)
 
 		tdLog.info("consumption 09: insert large timestamp to t2 then insert smaller timestamp to t1")
 		tdSql.execute("insert into t2 values (%d, 100, 100);" % (now + 100))
@@ -101,9 +104,14 @@ class TDTestCase:
 
 		tdLog.info("consumption 11: two vnodes")
 		tdSql.execute("insert into t2 values (%d, 102, 100);" % (now + 104))
-		tdSql.execute("insert into t9 values (%d, 102, 100);" % (now + 104))
+		tdSql.execute("insert into t1299 values (%d, 102, 100);" % (now + 104))
 		tdSub.consume()
 		tdSub.checkRows(2)
+
+		tdLog.info("consumption 12: create a new table")
+		tdSql.execute("insert into t%d using meters tags(%d, 'area%d') values (%d, 102, 100);" % (numTables, numTables, numTables, now + 105))
+		tdSub.consume()
+		tdSub.checkRows(1)
 
 	def stop(self):
 		tdSub.close(False)
