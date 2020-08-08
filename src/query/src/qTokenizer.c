@@ -25,7 +25,7 @@
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {
   const char* name;  // The keyword name
-  uint16_t     type;  // type
+  uint16_t    type;  // type
   uint8_t     len;   // length
 } SKeyword;
 
@@ -659,3 +659,7 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
 }
 
 bool isKeyWord(const char* z, int32_t len) { return (tSQLKeywordCode((char*)z, len) != TK_ID); }
+
+void taosCleanupKeywordsTable() {
+  taosHashCleanup(KeywordHashTable);
+}
