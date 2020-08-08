@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    dirent.c						      *
 *                                                                             *
@@ -30,7 +30,7 @@
 *    2015-12-14 JFL Bug fix: WIN32 readdirW always read the root on "D:".     *
 *		    Bug fix: DOS opendir failed on root dirs, like "D:\".     *
 *		    							      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -38,7 +38,7 @@
 
 #define _UTF8_SOURCE /* Generate the UTF-8 version of WIN32 printf & scandir */
 
-#include "dirent.h" /* Include our associated .h, in the same dir as this .c. Do not use <>. */
+#include "msvcDirent.h" /* Include our associated .h, in the same dir as this .c. Do not use <>. */
 #ifndef _DIRENT_FOR_DOS_WINDOWS
 #error "This requires MsvcLibX own version of dirent.h for DOS/Windows"
 #endif
@@ -49,9 +49,10 @@
 #include <memory.h>
 #include <errno.h>
 /* MsvcLibX library extensions */
-#include <unistd.h> /* For readlink() */
-#include <sys/stat.h>  /* For Filetime2String() */
-#include "debugm.h" /* Use our house debugging framework */
+#include "msvcUnistd.h" /* For readlink() */
+#include "sys/msvcStat.h"  /* For Filetime2String() */
+#include "msvcDebugm.h" /* Use our house debugging framework */
+#include "msvcLimits.h" /* Use our house debugging framework */
 
 /*****************************************************************************\
 *                                                                             *

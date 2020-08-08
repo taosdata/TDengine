@@ -100,18 +100,19 @@
 #endif
 #endif /* PTW32_SCHED_LEVEL >= PTW32_SCHED_LEVEL_MAX */
 
-#if (defined(__MINGW64__) || defined(__MINGW32__)) || defined(_UWIN)
-# if PTW32_SCHED_LEVEL >= PTW32_SCHED_LEVEL_MAX
-/* For pid_t */
-#  include <sys/types.h>
-/* Required by Unix 98 */
-#  include <time.h>
-# else
-   typedef int pid_t;
-# endif
-#else
- typedef int pid_t;
-#endif
+// #if (defined(__MINGW64__) || defined(__MINGW32__)) || defined(_UWIN)
+// # if PTW32_SCHED_LEVEL >= PTW32_SCHED_LEVEL_MAX
+// /* For pid_t */
+// #  include <sys/types.h>
+// /* Required by Unix 98 */
+// #  include <time.h>
+// # else
+//    typedef int pid_t;
+// # endif
+// #else
+//  typedef int pid_t;
+// #endif
+#include <sys/msvcTypes.h>
 
 /* Thread scheduling policies */
 

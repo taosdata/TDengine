@@ -443,7 +443,7 @@ STsdbMeta *tsdbNewMeta(STsdbCfg *pCfg) {
     goto _err;
   }
 
-  pMeta->uidMap = taosHashInit(TSDB_INIT_NTABLES * 1.1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  pMeta->uidMap = taosHashInit((size_t)(TSDB_INIT_NTABLES * 1.1), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   if (pMeta->uidMap == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -672,7 +672,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
-    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, tsize);
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, (VarDataLenT)tsize);
     TABLE_UID(pTable) = pCfg->superUid;
     TABLE_TID(pTable) = -1;
     TABLE_SUID(pTable) = -1;
@@ -690,7 +690,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), colBytes(pCol), 1, 0, 1, getTagIndexKey);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
@@ -703,7 +703,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
-    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, tsize);
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, (VarDataLenT)tsize);
     TABLE_UID(pTable) = pCfg->tableId.uid;
     TABLE_TID(pTable) = pCfg->tableId.tid;
 
@@ -1165,7 +1165,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
       pTable->pIndex =
-          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), colBytes(pCol), 1, 0, 1, getTagIndexKey);
+          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
       if (pTable->pIndex == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tsdbFreeTable(pTable);
@@ -1191,7 +1191,7 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (sizeof(SListNode) + sizeof(SActObj)) * (tSkipListGetSize(pTable->pIndex) + 1);
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (tSkipListGetSize(pTable->pIndex) + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }

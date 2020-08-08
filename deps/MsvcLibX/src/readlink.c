@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    readlink.c						      *
 *									      *
@@ -19,7 +19,7 @@
 *    2014-07-03 JFL Added support for pathnames >= 260 characters. 	      *
 *    2016-09-09 JFL Fixed a crash in debug mode, due to stack overflows.      *
 *                                                                             *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -27,16 +27,17 @@
 
 #define _UTF8_SOURCE /* Generate the UTF-8 version of routines */
 
-#include <unistd.h>
+#include "msvcUnistd.h"
 #pragma comment(lib, "Mpr.lib")
 
 #include <errno.h>
-#include "debugm.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 
 #include <windows.h>
-#include "reparsept.h"
+#include "msvcReparsept.h"
 
 /* Get the Reparse Point Tag for a mount point - Wide char version */
 /* See http://msdn.microsoft.com/en-us/library/windows/desktop/aa365511(v=vs.85).aspx */

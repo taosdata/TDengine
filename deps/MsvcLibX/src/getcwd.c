@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    getcwd.c						      *
 *									      *
@@ -10,7 +10,7 @@
 *    2014-02-28 JFL Created this module.				      *
 *    2014-07-02 JFL Added support for pathnames >= 260 characters. 	      *
 *                                                                             *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -20,8 +20,9 @@
 #include <errno.h>
 #include <stdio.h>
 /* MsvcLibX library extensions */
-#include <unistd.h>
-#include "debugm.h"
+#include "msvcUnistd.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_MSDOS)
 

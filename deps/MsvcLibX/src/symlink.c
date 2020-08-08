@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    symlink.c						      *
 *									      *
@@ -19,7 +19,7 @@
 *                   do not support symlinks.                                  *
 *    2016-08-25 JFL Fixed two warnings.                                       *
 *                                                                             *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -27,17 +27,18 @@
 
 #define _UTF8_SOURCE /* Generate the UTF-8 version of routines */
 
-#include <unistd.h>
+#include "msvcUnistd.h"
 #pragma comment(lib, "Mpr.lib")
 
 #include <errno.h>
-#include "debugm.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #ifdef _WIN32
 
 #include <windows.h>
 
-#include "reparsept.h"
+#include "msvcReparsept.h"
 
 /*---------------------------------------------------------------------------*\
 *                                                                             *
