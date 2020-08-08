@@ -689,7 +689,8 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     }
 
     if (addToResult) {
-      taosArrayPush(res, pData);
+      STableKeyInfo info = {.pTable = *(void**)pData, .lastKey = -1};
+      taosArrayPush(res, &info);
     }
   }
 
