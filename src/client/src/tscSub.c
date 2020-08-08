@@ -230,6 +230,19 @@ static SArray* getTableList( SSqlObj* pSql ) {
   return result;
 }
 
+static int32_t compareTidTag(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*)p1;
+  const STidTags* t2 = (const STidTags*)p2;
+  
+  if (t1->vgId != t2->vgId) {
+    return (t1->vgId > t2->vgId) ? 1 : -1;
+  }
+  if (t1->tid != t2->tid) {
+    return (t1->tid > t2->tid) ? 1 : -1;
+  }
+  return 0;
+}
+
 
 static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   SSqlObj* pSql = pSub->pSql;
@@ -270,7 +283,8 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   pSub->progress = progress;
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    taosArraySort( tables, tscCompareTidTags );
+    taosArraySort( tables, compareTidTag );
+    tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscBuildVgroupTableInfo(pSql, pTableMetaInfo, tables);
   }
   taosArrayDestroy(tables);

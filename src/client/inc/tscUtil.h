@@ -230,6 +230,7 @@ int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
+void tscFreeVgroupTableInfo(SArray* pVgroupTables);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
