@@ -13,5 +13,7 @@ IF (TD_LINUX)
 #  ELSE ()
 #    TARGET_LINK_LIBRARIES(taosdemo taos_static)
 #  ENDIF ()
-
+ELSEIF (TD_WINDOWS)
+  AUX_SOURCE_DIRECTORY(. SRC)
+  ADD_EXECUTABLE(taosdemo ${SRC})
 ENDIF ()
