@@ -42,10 +42,11 @@ extern char configDir[];
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
 #define MAX_TB_NAME_SIZE 64
-#define MAX_DATA_SIZE    1024
-#define MAX_NUM_DATATYPE 8
+#define MAX_DATA_SIZE    16000
+#define MAX_NUM_DATATYPE 10
 #define OPT_ABORT        1 /* –abort */
-#define STRING_LEN       512
+#define STRING_LEN       60000
+#define MAX_PREPARED_RAND 1000000
 
 /* The options we understand. */
 static struct argp_option options[] = {
@@ -154,7 +155,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             strcasecmp(arg, "TINYINT") != 0 && strcasecmp(arg, "BOOL") != 0 &&
             strcasecmp(arg, "SMALLINT") != 0 &&
             strcasecmp(arg, "BIGINT") != 0 && strcasecmp(arg, "DOUBLE") != 0 &&
-            strcasecmp(arg, "BINARY")) {
+            strcasecmp(arg, "BINARY") && strcasecmp(arg, "NCHAR")) {
           argp_error(state, "Invalid data_type!");
         }
         sptr[0] = arg;
@@ -170,11 +171,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
               strcasecmp(token, "BOOL") != 0 &&
               strcasecmp(token, "SMALLINT") != 0 &&
               strcasecmp(token, "BIGINT") != 0 &&
-              strcasecmp(token, "DOUBLE") != 0 && strcasecmp(token, "BINARY")) {
+              strcasecmp(token, "DOUBLE") != 0 && strcasecmp(token, "BINARY") && strcasecmp(token, "NCHAR")) {
             argp_error(state, "Invalid data_type!");
           }
           sptr[index++] = token;
-          token = strsep(&running, ", ");
+          token = strsep(&running, ",");
+          if (index >= MAX_NUM_DATATYPE) break;
         }
       }
       break;
@@ -311,6 +313,8 @@ int generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp
 
 void rand_string(char *str, int size);
 
+void init_rand_data();
+
 double getCurrentTime();
 
 void callBack(void *param, TAOS_RES *res, int code);
@@ -331,13 +335,13 @@ int main(int argc, char *argv[]) {
                                 0,               // mode
                                 {
                                 "int",           // datatype
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                ""
+                                "int",
+                                "int",
+                                "int",
+                                "int",
+                                "int",
+                                "int",
+                                "float"
                                 },
                                 8,               // len_of_binary
                                 1,               // num_of_CPR
@@ -361,7 +365,7 @@ int main(int argc, char *argv[]) {
   arguments.num_of_DPT = 100000;
   arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
-  arguments.insert_only = false;
+  arguments.insert_only = true;
   // end change
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -403,15 +407,16 @@ int main(int argc, char *argv[]) {
     taos_close(qtaos);
     return 0;
   }
+  init_rand_data();
 
   memset(dataString, 0, STRING_LEN);
   int len = 0;
 
-  if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0) {
+  if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0 || strcasecmp(data_type[0], "NCHAR") == 0 ) {
     do_aggreFunc = false;
   }
   for (; count_data_type <= MAX_NUM_DATATYPE; count_data_type++) {
-    if (strcasecmp(data_type[count_data_type], "") == 0) {
+    if (data_type[count_data_type] == NULL) {
       break;
     }
 
@@ -433,7 +438,7 @@ int main(int argc, char *argv[]) {
   printf("# Use metric:                        %s\n", use_metric ? "true" : "false");
   printf("# Datatype of Columns:               %s\n", dataString);
   printf("# Binary Length(If applicable):      %d\n",
-          (strcasestr(dataString, "BINARY") != NULL) ? len_of_binary : -1);
+          (strcasestr(dataString, "BINARY") != NULL || strcasestr(dataString, "NCHAR") != NULL ) ? len_of_binary : -1);
   printf("# Number of Columns per record:      %d\n", ncols_per_record);
   printf("# Number of Threads:                 %d\n", threads);
   printf("# Number of Tables:                  %d\n", ntables);
@@ -461,7 +466,7 @@ int main(int argc, char *argv[]) {
   fprintf(fp, "# Use metric:                        %s\n", use_metric ? "true" : "false");
   fprintf(fp, "# Datatype of Columns:               %s\n", dataString);
   fprintf(fp, "# Binary Length(If applicable):      %d\n",
-          (strcasestr(dataString, "BINARY") != NULL) ? len_of_binary : -1);
+          (strcasestr(dataString, "BINARY") != NULL || strcasestr(dataString, "NCHAR") != NULL ) ? len_of_binary : -1);
   fprintf(fp, "# Number of Columns per record:      %d\n", ncols_per_record);
   fprintf(fp, "# Number of Threads:                 %d\n", threads);
   fprintf(fp, "# Number of Tables:                  %d\n", ntables);
@@ -501,23 +506,23 @@ int main(int argc, char *argv[]) {
   len = 0;
 
   for (; colIndex < ncols_per_record - 1; colIndex++) {
-    if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0) {
+    if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0 && strcasecmp(data_type[colIndex % count_data_type], "NCHAR") != 0) {
       len += snprintf(cols + len, STRING_LEN - len, ",f%d %s", colIndex + 1, data_type[colIndex % count_data_type]);
     } else {
       len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d)", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
     }
   }
 
-  if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0) {
-    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s)", colIndex + 1, data_type[colIndex % count_data_type]);
+  if (strcasecmp(data_type[colIndex % count_data_type], "BINARY") != 0 && strcasecmp(data_type[colIndex % count_data_type], "NCHAR") != 0){
+    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s", colIndex + 1, data_type[colIndex % count_data_type]);
   } else {
-    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d))", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
+    len += snprintf(cols + len, STRING_LEN - len, ",f%d %s(%d)", colIndex + 1, data_type[colIndex % count_data_type], len_of_binary);
   }
 
   if (use_metric) {
     /* Create metric table */
     printf("Creating meters super table...\n");
-    snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
+    snprintf(command, BUFFER_SIZE, "create table if not exists %s.meters (ts timestamp%s) tags (areaid int, loc binary(10))", db_name, cols);
     queryDB(taos, command);
     printf("meters created!\n");
   }
@@ -1169,6 +1174,66 @@ double getCurrentTime() {
   return tv.tv_sec + tv.tv_usec / 1E6;
 }
 
+int32_t  randint[MAX_PREPARED_RAND];
+int64_t  randbigint[MAX_PREPARED_RAND];
+float  randfloat[MAX_PREPARED_RAND];
+double  randdouble[MAX_PREPARED_RAND];
+
+int32_t rand_tinyint(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randint[cursor] % 128;
+
+}
+
+int32_t rand_smallint(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randint[cursor] % 32767;
+}
+
+int32_t rand_int(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randint[cursor];
+}
+
+int64_t rand_bigint(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randbigint[cursor];
+  
+}
+
+float rand_float(){
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randfloat[cursor];  
+  
+}
+
+double rand_double() {
+  static int cursor;
+  cursor++;
+  cursor = cursor % MAX_PREPARED_RAND;
+  return randdouble[cursor];
+
+}
+
+void init_rand_data(){
+  for (int i = 0; i < MAX_PREPARED_RAND; i++){
+    randint[i] = (int)(rand() % 10);
+    randbigint[i] = (int64_t)(rand() % 2147483648);
+    randfloat[i] = (float)(rand() / 1000.0);
+    randdouble[i] = (double)(rand() / 1000000.0);
+  }
+}
+
 int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
@@ -1176,7 +1241,7 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
   int c = 0;
 
   for (; c < MAX_NUM_DATATYPE; c++) {
-    if (strcasecmp(data_type[c], "") == 0) {
+    if (data_type[c] == NULL) {
       break;
     }
   }
@@ -1188,22 +1253,26 @@ int32_t generateData(char *res, char **data_type, int num_of_cols, int64_t times
 
   for (int i = 0; i < num_of_cols; i++) {
     if (strcasecmp(data_type[i % c], "tinyint") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 128));
+      pstr += sprintf(pstr, ", %d", rand_tinyint() );
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 32767));
+      pstr += sprintf(pstr, ", %d", rand_smallint());
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 10)); 
+      pstr += sprintf(pstr, ", %d", rand_int()); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %" PRId64, rand() % 2147483648);
+      pstr += sprintf(pstr, ", %" PRId64, rand_bigint());
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", (float)(rand() / 1000.0));
+      pstr += sprintf(pstr, ", %10.4f", rand_float());
     } else if (strcasecmp(data_type[i % c], "double") == 0) {
-      double t = (double)(rand() / 1000000.0);
+      double t = rand_double();
       pstr += sprintf(pstr, ", %20.8f", t);
     } else if (strcasecmp(data_type[i % c], "bool") == 0) {
       bool b = rand() & 1;
       pstr += sprintf(pstr, ", %s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
+      char s[len_of_binary];
+      rand_string(s, len_of_binary);
+      pstr += sprintf(pstr, ", \"%s\"", s);
+    }else if (strcasecmp(data_type[i % c], "nchar") == 0) {
       char s[len_of_binary];
       rand_string(s, len_of_binary);
       pstr += sprintf(pstr, ", \"%s\"", s);

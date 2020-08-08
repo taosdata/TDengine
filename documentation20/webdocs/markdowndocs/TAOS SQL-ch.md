@@ -281,6 +281,30 @@ SELECT select_expr [, select_expr ...]
     [LIMIT limit_val [, OFFSET offset_val]]
     [>> export_file]
 ```
+说明：针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分SQL仍会执行。下面的sql中，insert语句是无效的，但是d1001仍会被创建。
+```mysql
+taos> create table meters(ts timestamp, current float, voltage int, phase float) tags(location binary(30), groupId int);
+Query OK, 0 row(s) affected (0.008245s)
+
+taos> show stables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ meters                         | 2020-08-06 17:50:27.831 |       4 |      2 |           0 |
+Query OK, 1 row(s) in set (0.001029s)
+
+taos> show tables;
+Query OK, 0 row(s) in set (0.000946s)
+
+taos> insert into d1001 using meters tags('Beijing.Chaoyang', 2);
+
+DB error: invalid SQL: keyword VALUES or FILE required
+
+taos> show tables;
+           table_name           |      created_time       | columns |          stable_name           |
+======================================================================================================
+ d1001                          | 2020-08-06 17:52:02.097 |       4 | meters                         |
+Query OK, 1 row(s) in set (0.001091s)
+```
 
 #### SELECT子句
 一个选择子句可以是联合查询（UNION）和另一个查询的子查询（SUBQUERY）。
@@ -313,6 +337,7 @@ taos> SELECT * FROM meters;
  2018-10-03 14:38:16.800 |             12.30000 |         221 |              0.31000 | Beijing.Chaoyang               |           2 |
 Query OK, 9 row(s) in set (0.002022s)
 ```
+
 
 通配符支持表名前缀，以下两个SQL语句均为返回全部的列：
 ```mysql

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include <WS2tcpip.h>  
 #include <IPHlpApi.h>  
 #include <winsock2.h>  
@@ -47,7 +48,7 @@ int taosSetNonblocking(SOCKET sock, int on) {
 
 void taosBlockSIGPIPE() {}
 
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
+int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen) {
   if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
     return 0;
   }

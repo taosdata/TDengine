@@ -641,8 +641,8 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     pSupporter->pIdTagList = tmp;
 
     memcpy(pSupporter->pIdTagList + pSupporter->totalLen, pRes->data, validLen);
-    pSupporter->totalLen += validLen;
-    pSupporter->num += pRes->numOfRows;
+    pSupporter->totalLen += (int32_t)validLen;
+    pSupporter->num += (int32_t)pRes->numOfRows;
 
     // query not completed, continue to retrieve tid + tag tuples
     if (!pRes->completed) {
@@ -775,7 +775,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     if (!pRes->completed) {
       taosGetTmpfilePath("ts-join", pSupporter->path);
       pSupporter->f = fopen(pSupporter->path, "w");
-      pRes->row = pRes->numOfRows;
+      pRes->row = (int32_t)pRes->numOfRows;
 
       taos_fetch_rows_a(tres, tsCompRetrieveCallback, param);
       return;
@@ -801,7 +801,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     
     // TODO check for failure
     pSupporter->f = fopen(pSupporter->path, "w");
-    pRes->row = pRes->numOfRows;
+    pRes->row = (int32_t)pRes->numOfRows;
 
     // set the callback function
     pSql->fp = tscJoinQueryCallback;
@@ -1214,7 +1214,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       getResultDataInfo(s->type, s->bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
 
-      SSchema s1 = {.colId = s->colId, .type = type, .bytes = bytes};
+      SSchema s1 = {.colId = s->colId, .type = (uint8_t)type, .bytes = bytes};
       pSupporter->tagSize = s1.bytes;
       assert(isValidDataType(s1.type) && s1.bytes > 0);
 
@@ -1561,7 +1561,8 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     tscDebug("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pParentSql, pSql, trsupport->subqueryIndex,
         pState->numOfTotal - remain);
 
-    return tscFreeSubSqlObj(trsupport, pSql);
+    tscFreeSubSqlObj(trsupport, pSql);
+    return;
   }
   
   // all subqueries are failed
@@ -1598,7 +1599,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
   
   // data in from current vnode is stored in cache and disk
-  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num;
+  uint32_t numOfRowsFromSubquery = (uint32_t)(trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num);
     tscDebug("%p sub:%p all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
         pTableMetaInfo->vgroupList->vgroups[0].epAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
         numOfRowsFromSubquery, idx);
@@ -1616,14 +1617,16 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   if (tsTotalTmpDirGB != 0 && tsAvailTmpDirectorySpace < tsReservedTmpDirectorySpace) {
     tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pParentSql, pSql,
              tsAvailTmpDirectorySpace, tsReservedTmpDirectorySpace);
-    return tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_TSC_NO_DISKSPACE);
+    tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_TSC_NO_DISKSPACE);
+    return;
   }
   
   // each result for a vnode is ordered as an independant list,
   // then used as an input of loser tree for disk-based merge
   int32_t code = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pQueryInfo->groupbyExpr.orderType);
   if (code != 0) { // set no disk space error info, and abort retry
-    return tscAbortFurtherRetryRetrieval(trsupport, pSql, code);
+    tscAbortFurtherRetryRetrieval(trsupport, pSql, code);
+    return;
   }
   
   int32_t remain = -1;
@@ -1631,7 +1634,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
     tscDebug("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pParentSql, pSql, trsupport->subqueryIndex,
         pState->numOfTotal - remain);
 
-    return tscFreeSubSqlObj(trsupport, pSql);
+    tscFreeSubSqlObj(trsupport, pSql);
+    return;
   }
   
   // all sub-queries are returned, start to local merge process
@@ -1724,7 +1728,8 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pParentSql, pSql, tsMaxNumOfOrderedResults, num);
-      return tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
+      return;
     }
 
 #ifdef _DEBUG_VIEW
@@ -1739,11 +1744,12 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (tsTotalTmpDirGB != 0 && tsAvailTmpDirectorySpace < tsReservedTmpDirectorySpace) {
       tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pParentSql, pSql,
                tsAvailTmpDirectorySpace, tsReservedTmpDirectorySpace);
-      return tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
+      return;
     }
     
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
-                               pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
+                               (int32_t)pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret != 0) { // set no disk space error info, and abort retry
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
       
@@ -1871,7 +1877,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
   // todo remove this parameter in async callback function definition.
   // all data has been sent to vnode, call user function
-  int32_t v = (pParentObj->res.code != TSDB_CODE_SUCCESS)? pParentObj->res.code:pParentObj->res.numOfRows;
+  int32_t v = (pParentObj->res.code != TSDB_CODE_SUCCESS) ? pParentObj->res.code : (int32_t)pParentObj->res.numOfRows;
   (*pParentObj->fp)(pParentObj->param, pParentObj, v);
 }
 
@@ -1907,7 +1913,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   assert(size > 0);
 
   pSql->pSubs = calloc(size, POINTER_BYTES);
-  pSql->numOfSubs = size;
+  pSql->numOfSubs = (uint16_t)size;
 
   tscDebug("%p submit data to %zu vnode(s)", pSql, size);
 
@@ -1999,7 +2005,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
       continue;
     }
 
-    numOfRes = MIN(numOfRes, pSql->pSubs[i]->res.numOfRows);
+    numOfRes = (int32_t)(MIN(numOfRes, pSql->pSubs[i]->res.numOfRows));
   }
 
   int32_t totalSize = tscGetResRowLength(pQueryInfo->exprList);
@@ -2172,7 +2178,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
         SArithmeticSupport *sas = (SArithmeticSupport *) calloc(1, sizeof(SArithmeticSupport));
         sas->offset     = 0;
         sas->pArithExpr = pSup->pArithExprInfo;
-        sas->numOfCols  = tscSqlExprNumOfExprs(pQueryInfo);
+        sas->numOfCols  = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
         sas->exprList   = pQueryInfo->exprList;
         sas->data       = calloc(sas->numOfCols, POINTER_BYTES);
 

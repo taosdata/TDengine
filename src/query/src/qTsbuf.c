@@ -75,7 +75,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL;
   }
   
-  if (header.numOfVnode > pTSBuf->numOfAlloc) {
+  if ((int32_t)header.numOfVnode > pTSBuf->numOfAlloc) {
     pTSBuf->numOfAlloc = header.numOfVnode;
     STSVnodeBlockInfoEx* tmp = realloc(pTSBuf->pData, sizeof(STSVnodeBlockInfoEx) * pTSBuf->numOfAlloc);
     if (tmp == NULL) {
@@ -171,7 +171,7 @@ static STSVnodeBlockInfoEx* tsBufGetLastVnodeInfo(STSBuf* pTSBuf) {
 static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
   if (pTSBuf->numOfAlloc <= pTSBuf->numOfVnodes) {
     uint32_t newSize = (uint32_t)(pTSBuf->numOfAlloc * 1.5);
-    assert(newSize > pTSBuf->numOfAlloc);
+    assert((int32_t)newSize > pTSBuf->numOfAlloc);
     
     STSVnodeBlockInfoEx* tmp = (STSVnodeBlockInfoEx*)realloc(pTSBuf->pData, sizeof(STSVnodeBlockInfoEx) * newSize);
     if (tmp == NULL) {
@@ -288,7 +288,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
      * set the right position for the reversed traverse, the reversed traverse is started from
      * the end of each comp data block
      */
-    int32_t ret = fseek(pTSBuf->f, -sizeof(pBlock->padding), SEEK_CUR);
+    int32_t ret = fseek(pTSBuf->f, -(int32_t)(sizeof(pBlock->padding)), SEEK_CUR);
     size_t sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
     UNUSED(sz); 
     
@@ -474,7 +474,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
     offset = pBlockInfo->offset + pBlockInfo->compLen;
   }
   
-  if (fseek(pTSBuf->f, offset, SEEK_SET) != 0) {
+  if (fseek(pTSBuf->f, (int32_t)offset, SEEK_SET) != 0) {
     return -1;
   }
   
@@ -524,7 +524,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
    * may exceed the maximum allowed size during *tsBufAppend* function by invoking expandBuffer function
    */
   if (s > pTSBuf->tsData.allocSize) {
-    expandBuffer(&pTSBuf->tsData, s);
+    expandBuffer(&pTSBuf->tsData, (int32_t)s);
   }
   
   pTSBuf->tsData.len =
@@ -737,7 +737,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   assert(r == 0);
   
   int64_t offset = getDataStartOffset();
-  int32_t size = pSrcBuf->fileSize - offset;
+  int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
 
   ssize_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
@@ -896,7 +896,7 @@ static int32_t doUpdateVnodeInfo(STSBuf* pTSBuf, int64_t offset, STSVnodeBlockIn
     return -1;
   }
   
-  if (fseek(pTSBuf->f, offset, SEEK_SET) != 0) {
+  if (fseek(pTSBuf->f, (int32_t)offset, SEEK_SET) != 0) {
     return -1;
   }
   

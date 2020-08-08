@@ -204,8 +204,8 @@ static void getStatics_i64(const TSKEY *primaryKey, const void *pData, int32_t n
 static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
                          int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   float *data = (float *)pData;
-  float fmin      = DBL_MAX;
-  float fmax      = -DBL_MAX;
+  float fmin      = FLT_MAX;
+  float fmax      = -FLT_MAX;
   double dsum     = 0;
   *minIndex       = 0;
   *maxIndex       = 0;

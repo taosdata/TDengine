@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #define POW2(x) ((x) * (x))
+#define ABS(x) ((x) > 0 ? (x) : -(x))
 
 #ifndef TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)        \

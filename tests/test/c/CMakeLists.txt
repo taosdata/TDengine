@@ -6,7 +6,7 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/os/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/common/inc)
 
-IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
+IF (TD_LINUX)
   #add_executable(insertPerTable insertPerTable.c)
   #target_link_libraries(insertPerTable taos_static pthread)
 

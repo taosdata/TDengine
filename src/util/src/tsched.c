@@ -192,12 +192,12 @@ void taosCleanUpScheduler(void *param) {
 
   pSched->stop = true;
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    if (pSched->qthread[i]) {
+  if (taosCheckPthreadValid(pSched->qthread[i])) {
       tsem_post(&pSched->fullSem);
     }
   }
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    if (pSched->qthread[i]) {
+    if (taosCheckPthreadValid(pSched->qthread[i])) {
       pthread_join(pSched->qthread[i], NULL);
     }
   }

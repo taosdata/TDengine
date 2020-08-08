@@ -155,14 +155,14 @@ int64_t getFilledNumOfRes(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
 
-    numOfRes = (int64_t)(labs(lastKey - pFillInfo->start) / pFillInfo->slidingTime) + 1;
+    numOfRes = (int64_t)(ABS(lastKey - pFillInfo->start) / pFillInfo->slidingTime) + 1;
     assert(numOfRes >= numOfRows);
   } else { // reach the end of data
     if ((ekey1 < pFillInfo->start && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 > pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo))) {
       return 0;
     } else {  // the numOfRes rows are all filled with specified policy
-      numOfRes = (labs(ekey1 - pFillInfo->start) / pFillInfo->slidingTime) + 1;
+      numOfRes = (ABS(ekey1 - pFillInfo->start) / pFillInfo->slidingTime) + 1;
     }
   }
 
@@ -185,34 +185,34 @@ static double linearInterpolationImpl(double v1, double v2, double k1, double k2
 int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoint* point) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
-      *(int32_t*)point->val = (int32_t) linearInterpolationImpl(*(int32_t*)point1->val, *(int32_t*)point2->val, point1->key,
-                                                        point2->key, point->key);
+      *(int32_t*)point->val = (int32_t)linearInterpolationImpl(*(int32_t*)point1->val, *(int32_t*)point2->val, (double)point1->key,
+                                                              (double)point2->key, (double)point->key);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      *(float*)point->val =
-          linearInterpolationImpl(*(float*)point1->val, *(float*)point2->val, point1->key, point2->key, point->key);
+      *(float*)point->val = (float)
+        linearInterpolationImpl(*(float*)point1->val, *(float*)point2->val, (double)point1->key, (double)point2->key, (double)point->key);
       break;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
       *(double*)point->val =
-          linearInterpolationImpl(*(double*)point1->val, *(double*)point2->val, point1->key, point2->key, point->key);
+        linearInterpolationImpl(*(double*)point1->val, *(double*)point2->val, (double)point1->key, (double)point2->key, (double)point->key);
       break;
     };
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: {
-      *(int64_t*)point->val = (int64_t) linearInterpolationImpl(*(int64_t*)point1->val, *(int64_t*)point2->val, point1->key,
-                                                        point2->key, point->key);
+      *(int64_t*)point->val = (int64_t)linearInterpolationImpl((double)(*(int64_t*)point1->val), (double)(*(int64_t*)point2->val), (double)point1->key,
+        (double)point2->key, (double)point->key);
       break;
     };
     case TSDB_DATA_TYPE_SMALLINT: {
-      *(int16_t*)point->val = (int16_t) linearInterpolationImpl(*(int16_t*)point1->val, *(int16_t*)point2->val, point1->key,
-                                                        point2->key, point->key);
+      *(int16_t*)point->val = (int16_t)linearInterpolationImpl(*(int16_t*)point1->val, *(int16_t*)point2->val, (double)point1->key,
+        (double)point2->key, (double)point->key);
       break;
     };
     case TSDB_DATA_TYPE_TINYINT: {
       *(int8_t*) point->val = (int8_t)
-          linearInterpolationImpl(*(int8_t*)point1->val, *(int8_t*)point2->val, point1->key, point2->key, point->key);
+        linearInterpolationImpl(*(int8_t*)point1->val, *(int8_t*)point2->val, (double)point1->key, (double)point2->key, (double)point->key);
       break;
     };
     default: {
@@ -467,7 +467,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
 int64_t taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity) {
   int32_t remain = taosNumOfRemainRows(pFillInfo);  // todo use iterator?
 
-  int32_t rows = getFilledNumOfRes(pFillInfo, pFillInfo->endKey, capacity);
+  int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, pFillInfo->endKey, capacity);
   int32_t numOfRes = generateDataBlockImpl(pFillInfo, output, remain, rows, pFillInfo->pData);
   assert(numOfRes == rows);
   

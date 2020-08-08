@@ -44,10 +44,10 @@ int  taosCheckVersion(char *input_client_version, char *input_server_version, in
 char *   taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
 
-static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, char *target) {
+static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   MD5_CTX context;
   MD5Init(&context);
-  MD5Update(&context, inBuf, inLen);
+  MD5Update(&context, inBuf, (unsigned int)inLen);
   MD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
