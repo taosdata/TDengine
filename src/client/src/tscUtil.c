@@ -1931,6 +1931,7 @@ int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
     return pTagCond->joinInfo.right.tagColId;
   } else {
     assert(0);
+    return -1;
   }
 }
 

@@ -42,6 +42,7 @@
 #include "msvcProcess.h"
 #include "msvcDirect.h"
 #include "msvcFcntl.h"
+#include "msvcStdio.h"
 #include "sys/msvcStat.h"
 #include "sys/msvcTypes.h"
 
@@ -145,6 +146,7 @@ int        flock(int fd, int option);
 int        fsync(int filedes);
 char *     strndup(const char *s, size_t n);
 char *     dirname(char *pszPathname);
+int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 
 // for access function in io.h
 #define F_OK 00  //Existence only
