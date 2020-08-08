@@ -150,7 +150,8 @@ static SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const
  * @param pCacheObj      cache object
  * @param pNode     data node
  */
-static FORCE_INLINE SCacheDataNode* taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
+#define taosCacheReleaseNode(a1,a2) CALL_FUNC2(taosCacheReleaseNode, a1,a2)
+static FORCE_INLINE DECL_FUNC2(SCacheDataNode*, taosCacheReleaseNode, SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   if (pNode->signature != (uint64_t)pNode) {
     uError("key:%s, %p data is invalid, or has been released", pNode->key, pNode);
     // shall not reach here
@@ -159,20 +160,25 @@ static FORCE_INLINE SCacheDataNode* taosCacheReleaseNode(SCacheObj *pCacheObj, S
   }
 
   int32_t ref = T_REF_VAL_GET(pNode);
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node to destory");
   assert(ref == 0);
   assert(pNode->inTrashCan);
   if (pCacheObj->freeFp) {
     pthread_t me = pthread_self();
     pNode->cb_thread = &me;
 
+    DUMP_NODE(uInfo, pCacheObj, pNode, "node to callback");
     __cache_unlock(pCacheObj);
     pCacheObj->freeFp(pNode->data);
     __cache_wr_lock(pCacheObj);
+    DUMP_NODE(uInfo, pCacheObj, pNode, "node callback'd");
 
     pNode->cb_thread = NULL;
   }
 
   SCacheDataNode *pNext = remove_node_in_trash(pCacheObj, pNode);
+
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node just before free");
 
   pCacheObj->numOfElemsInTrash--;
   pNode->signature = 0;
@@ -245,7 +251,8 @@ static FORCE_INLINE SCacheDataNode *taosAddToCacheImpl(SCacheObj *pCacheObj, con
  * @param dataSize
  * @return
  */
-static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode *pNode, const char *key, int32_t keyLen,
+#define taosUpdateCacheImpl(a1,a2,a3,a4,a5,a6,a7) CALL_FUNC7(taosUpdateCacheImpl, a1,a2,a3,a4,a5,a6,a7)
+static DECL_FUNC7(SCacheDataNode *, taosUpdateCacheImpl, SCacheObj *pCacheObj, SCacheDataNode *pNode, const char *key, int32_t keyLen,
                                            const void *pData, uint32_t dataSize, uint64_t duration) {
   // potential bug: what if user double call taosCachePut/taosCacheRelease with same params?
   SCacheDataNode *pNewNode = NULL;
@@ -253,6 +260,7 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
   int32_t ref = T_REF_VAL_GET(pNode);
   assert(ref>=1);
   if (ref == 1 && !pNode->inTrashCan) {
+    DUMP_NODE(uInfo, pCacheObj, pNode, "original node");
     // only the cacher itself holding the ref in hash set
     size_t newSize = sizeof(SCacheDataNode) + dataSize + keyLen + 1;
 
@@ -280,6 +288,7 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
     taosHashPut(pCacheObj->pHashTable, key, keyLen, &pNewNode, sizeof(void *));
     append_node_in_hash(pCacheObj, pNewNode);
     T_REF_INC(pNewNode);
+    DUMP_NODE(uInfo, pCacheObj, pNewNode, "inplace update");
   } else {
     if (!pNode->inTrashCan) {
       taosCacheMoveToTrash(pCacheObj, pNode);
@@ -287,6 +296,7 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
 
     pNewNode = taosAddToCacheImpl(pCacheObj, key, keyLen, pData, dataSize, duration);
     // what if failed here? we simply don't recover pNode from trash back to hash set
+    DUMP_NODE(uInfo, pCacheObj, pNewNode, "new node created");
   }
 
   return pNewNode;
@@ -296,7 +306,8 @@ static SCacheDataNode *taosUpdateCacheImpl(SCacheObj *pCacheObj, SCacheDataNode 
  * do cleanup the taos cache
  * @param pCacheObj
  */
-static void doCleanupDataCache(SCacheObj *pCacheObj);
+static DECL_FUNC1(void, doCleanupDataCache, SCacheObj *pCacheObj);
+#define doCleanupDataCache(a1) CALL_FUNC1(doCleanupDataCache, a1)
 
 /**
  * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
@@ -304,7 +315,7 @@ static void doCleanupDataCache(SCacheObj *pCacheObj);
  */
 static void* taosCacheTimedRefresh(void *handle);
 
-SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char* cacheName) {
+DECL_FUNC5(SCacheObj *, taosCacheInit, int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char* cacheName) {
   if (refreshTimeInSeconds <= 0) {
     return NULL;
   }
@@ -352,10 +363,13 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
   pthread_create(&pCacheObj->refreshWorker, &thattr, taosCacheTimedRefresh, pCacheObj);
 
   pthread_attr_destroy(&thattr);
+
+  DUMP(uInfo, "cache %s:[%p]: created", pCacheObj->name, pCacheObj);
+
   return pCacheObj;
 }
 
-void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int duration) {
+DECL_FUNC6(void *, taosCachePut, SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int duration) {
   SCacheDataNode *pNode;
   assert(pCacheObj);
   assert(pCacheObj->pHashTable);
@@ -388,6 +402,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
   if (pNode) {
     // inc ref before return pNode to caller
     T_REF_INC(pNode);
+    DUMP_NODE(uInfo, pCacheObj, pNode, "node return to caller");
   }
 
   __cache_unlock(pCacheObj);
@@ -395,7 +410,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
   return (pNode != NULL) ? pNode->data : NULL;
 }
 
-void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
+DECL_FUNC3(void *, taosCacheAcquireByKey, SCacheObj *pCacheObj, const void *key, size_t keyLen) {
   assert(pCacheObj);
   assert(pCacheObj->pHashTable);
   __cache_rd_lock(pCacheObj);
@@ -414,7 +429,9 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     assert(pNode);
 
     if (pNode->cb_thread == NULL) {
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node to acquire");
       T_REF_INC(pNode);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node acquired");
       pData = pNode->data;
     }
   }
@@ -434,7 +451,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   return pData;
 }
 
-void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime) {
+DECL_FUNC4(void*, taosCacheUpdateExpireTimeByName, SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime) {
   assert(pCacheObj);
   assert(pCacheObj->pHashTable);
   __cache_rd_lock(pCacheObj);
@@ -453,7 +470,9 @@ void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t ke
     assert(pNode);
 
     if (pNode->cb_thread == NULL) {
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node to update expire time");
       T_REF_INC(pNode);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node expire time updated");
       pNode->expireTime = expireTime; // taosGetTimestampMs() + (*ptNode)->lifespan;
       pData = pNode->data;
       // no need to wakeup working thread, since this node is still holded by the caller
@@ -475,7 +494,7 @@ void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t ke
   return pData;
 }
 
-void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
+DECL_FUNC2(void *, taosCacheAcquireByData, SCacheObj *pCacheObj, void *data) {
   assert(pCacheObj);
   assert(data);
 
@@ -501,15 +520,18 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
     return NULL;
   }
 
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node to acquire by data");
   int32_t ref = T_REF_INC(pNode);
   uDebug("cache:%s, data: %p acquired by data in cache, refcnt:%d", pCacheObj->name, pNode->data, ref);
+
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node acquired by data");
 
   __cache_unlock(pCacheObj);
 
   return data;
 }
 
-void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
+DECL_FUNC2(void *, taosCacheTransfer, SCacheObj *pCacheObj, void **data) {
   assert(pCacheObj);
   assert(data);
   //assert(*data);
@@ -544,11 +566,13 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
   // clear its reference to old area
   *data = NULL;
 
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node transfer'd");
+
   __cache_unlock(pCacheObj);
   return d;
 }
 
-void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
+DECL_FUNC3(void, taosCacheRelease, SCacheObj *pCacheObj, void **data, bool _remove) {
   assert(pCacheObj);
   assert(data);
   if (!*data) return;
@@ -570,6 +594,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     return;
   }
 
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node to release");
   int32_t ref = T_REF_INC(pNode);
   assert(ref >= 2);
   if (ref == 2) {
@@ -589,11 +614,13 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   if (_remove) {
     if (!pNode->inTrashCan) {
       taosCacheMoveToTrash(pCacheObj, pNode);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node trash'd");
     }
   }
 
   ref = T_REF_DEC(pNode);
   ref = T_REF_DEC(pNode);
+  DUMP_NODE(uInfo, pCacheObj, pNode, "node released");
   assert(ref >= 0);
   if (ref == 0) {
     if (!pCacheObj->deleting) {
@@ -604,7 +631,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   __cache_unlock(pCacheObj);
 }
 
-void taosCacheEmpty(SCacheObj *pCacheObj) {
+DECL_FUNC1(void, taosCacheEmpty, SCacheObj *pCacheObj) {
   // ref to comments in doCacheRefresh
   __cache_rd_lock(pCacheObj);
   int zombi_found = 0;
@@ -620,9 +647,11 @@ void taosCacheEmpty(SCacheObj *pCacheObj) {
     SCacheDataNode *pNext = NULL;
 
     assert(!pNode->inTrashCan);
+    DUMP_NODE(uInfo, pCacheObj, pNode, "node to trash");
     int32_t ref = T_REF_INC(pNode);
     pNext = taosCacheMoveToTrash(pCacheObj, pNode);
     ref = T_REF_DEC(pNode);
+    DUMP_NODE(uInfo, pCacheObj, pNode, "node trash'd");
     assert(ref >= 0);
     if (ref==0) zombi_found = 1;
 
@@ -636,10 +665,9 @@ void taosCacheEmpty(SCacheObj *pCacheObj) {
   __cache_unlock(pCacheObj);
 }
 
-void taosCacheCleanup(SCacheObj *pCacheObj) {
-  uInfo("==%s[%d]==", __FILE__, __LINE__);
+DECL_FUNC1(void, taosCacheCleanup, SCacheObj *pCacheObj) {
+  DUMP(uInfo, "cache %s:[%p]: to cleanup", pCacheObj->name, pCacheObj);
   __cache_wr_lock(pCacheObj);
-  uInfo("==%s[%d]==", __FILE__, __LINE__);
   // it's caller's duty to keep it from double-cleanup!
   if (pCacheObj == NULL) {
     __cache_unlock(pCacheObj);
@@ -667,6 +695,7 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
   taosTFree(pCacheObj->name);
   memset(pCacheObj, 0, sizeof(SCacheObj));
   free(pCacheObj);
+  DUMP(uInfo, "cache [%p]: cleaned up", pCacheObj);
 }
 
 SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pData, size_t size,
@@ -695,7 +724,8 @@ SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *
   return pNewNode;
 }
 
-static void doSwipeTrash(SCacheObj* pCacheObj) {
+#define doSwipeTrash(a1) CALL_FUNC1(doSwipeTrash, a1)
+static DECL_FUNC1(void, doSwipeTrash, SCacheObj* pCacheObj) {
   SCacheDataNode *pNode = pCacheObj->trash_head;
   while (pNode) {
     int32_t ref = T_REF_VAL_GET(pNode);
@@ -704,12 +734,13 @@ static void doSwipeTrash(SCacheObj* pCacheObj) {
       assert(pNode->inTrashCan); 
       pNode = taosCacheReleaseNode(pCacheObj, pNode);
     } else {
+      DUMP_NODE(uInfo, pCacheObj, pNode, "alive node in trash");
       pNode = pNode->next;
     }
   }
 }
 
-void doCleanupDataCache(SCacheObj *pCacheObj) {
+static DECL_FUNC1(void, doCleanupDataCache, SCacheObj *pCacheObj) {
   // ref to comments in doCacheRefresh
   int busy = 0;
   pthread_t me = pthread_self();
@@ -733,10 +764,12 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
       SCacheDataNode *pNext = NULL;
 
       assert(!pNode->inTrashCan);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node to trash");
       int32_t ref = T_REF_INC(pNode);
       assert(ref >= 2);
       pNext = taosCacheMoveToTrash(pCacheObj, pNode);
       ref = T_REF_DEC(pNode);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node trash'd");
       assert(ref >= 0);
       // doSwipeTrash will take care later when ref == 0
 
@@ -782,7 +815,8 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
   taosHashCleanup(pCacheObj->pHashTable);
 }
 
-static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
+#define doCacheRefresh(a1,a2,a3) CALL_FUNC3(doCacheRefresh, a1,a2,a3)
+static DECL_FUNC3(void, doCacheRefresh, SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
   // SHashMutableIterator is not thread-safe
   // and holding the whole hash-set in lock will result in performance-set-back
   SCacheDataNode *pNode = pCacheObj->hash_head;
@@ -798,9 +832,11 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
     assert(!pNode->inTrashCan);
     if ((pCacheObj->deleting || pNode->expireTime < (uint64_t)time) && ref == 1) {
       // if it's in deleting-state or it's timeup, and only this module holding the ref
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node to trash");
       int32_t ref = T_REF_INC(pNode);
       SCacheDataNode *pNext = taosCacheMoveToTrash(pCacheObj, pNode);
       ref = T_REF_DEC(pNode);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "node trash'd");
       assert(ref >= 0);
       // working thread will take care in doSwipeTrash when ref == 0
       pNode = pNext;
@@ -811,9 +847,11 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
       pthread_t me = pthread_self();
       pNode->cb_thread = &me;
 
+      DUMP_NODE(uInfo, pCacheObj, pNode, "alive node to callback");
       __cache_unlock(pCacheObj);
       fp(pNode->data);
       __cache_wr_lock(pCacheObj);
+      DUMP_NODE(uInfo, pCacheObj, pNode, "alive node callback'd");
 
       pNode->cb_thread = NULL;
     }
@@ -914,7 +952,7 @@ void* taosCacheTimedRefresh(void *handle) {
   return NULL;
 }
 
-void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
+DECL_FUNC2(void, taosCacheRefresh, SCacheObj *pCacheObj, __cache_free_fn_t fp) {
   if (pCacheObj == NULL) {
     return;
   }
