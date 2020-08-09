@@ -141,7 +141,7 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
   SSqlObj *pSql = (SSqlObj *) tres;
   assert(pSql != NULL);
   
-  sem_post(&pSql->rspSem);
+  tsem_post(&pSql->rspSem);
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
@@ -156,7 +156,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pSql->param = pSql;
     
     tscProcessSql(pSql);
-    sem_wait(&pSql->rspSem);
+    tsem_wait(&pSql->rspSem);
     
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
@@ -225,12 +225,12 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
   assert(tres != NULL);
   
   SSqlObj *pSql = (SSqlObj *) tres;
-  sem_post(&pSql->rspSem);
+  tsem_post(&pSql->rspSem);
 }
 
 static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
-  sem_post(&pSql->rspSem);
+  tsem_post(&pSql->rspSem);
 }
 
 TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
@@ -439,7 +439,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
        pCmd->command == TSDB_SQL_CLI_VERSION ||
        pCmd->command == TSDB_SQL_CURRENT_USER )) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
-    sem_wait(&pSql->rspSem);
+    tsem_wait(&pSql->rspSem);
   }
 
   return doSetResultRowData(pSql, true);
@@ -729,7 +729,7 @@ static void asyncCallback(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSqlObj *pSql = ((SSqlObj *)param);
   pSql->res.code = code;
-  sem_post(&pSql->rspSem);
+  tsem_post(&pSql->rspSem);
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) {
@@ -780,7 +780,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pSql->param = pSql;
   int code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    sem_wait(&pSql->rspSem);
+    tsem_wait(&pSql->rspSem);
     code = pSql->res.code;
   }
   if (code != TSDB_CODE_SUCCESS) {

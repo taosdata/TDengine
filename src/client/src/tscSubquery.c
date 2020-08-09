@@ -2057,7 +2057,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     doBuildResFromSubqueries(pSql);
-    sem_post(&pSql->rspSem);
+    tsem_post(&pSql->rspSem);
 
     return;
 
@@ -2083,7 +2083,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 //      free(pState);
 //
 //      pRes->completed = true;  // set query completed
-//      sem_post(&pSql->rspSem);
+//      tsem_post(&pSql->rspSem);
 //      return;
 //    }
 

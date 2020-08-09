@@ -33,7 +33,7 @@ typedef struct SSubscriptionProgress {
 typedef struct SSub {
   void *                  signature;
   char                    topic[32];
-  sem_t                   sem;
+  tsem_t                  sem;
   int64_t                 lastSyncTime;
   int64_t                 lastConsumeTime;
   TAOS *                  taos;
@@ -85,7 +85,7 @@ static void asyncCallback(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSub *pSub = ((SSub *)param);
   pSub->pSql->res.code = code;
-  sem_post(&pSub->sem);
+  tsem_post(&pSub->sem);
 }
 
 
@@ -154,7 +154,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 
   code = tsParseSql(pSql, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    sem_wait(&pSub->sem);
+    tsem_wait(&pSub->sem);
     code = pSql->res.code;
   }
   if (code != TSDB_CODE_SUCCESS) {
@@ -451,7 +451,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->fetchFp = asyncCallback;
     pSql->param = pSub;
     tscDoQuery(pSql);
-    sem_wait(&pSub->sem);
+    tsem_wait(&pSub->sem);
 
     if (pRes->code != TSDB_CODE_SUCCESS) {
       continue;

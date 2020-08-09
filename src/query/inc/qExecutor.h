@@ -186,7 +186,7 @@ typedef struct SQInfo {
   void*            signature;
   int32_t          pointsInterpo;
   int32_t          code;  // error code to returned to client
-//  sem_t            dataReady;
+//tsem_t           dataReady;
 
   void*            tsdb;
   int32_t          vgId;
