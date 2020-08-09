@@ -256,6 +256,7 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
     return NULL;
   }
   
+  tsem_init(&pSql->rspSem, 0, 0);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   // wait for the callback function to post the semaphore
