@@ -198,7 +198,7 @@ public class OpentsdbTest{
             case "q2":
               //count
               startTime = System.currentTimeMillis();
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               httpPost = new HttpPost(get_url);
               qjson = "  {\n" +
               "   \"start\": 1563249700,\n" +
@@ -351,7 +351,7 @@ public class OpentsdbTest{
               break;
             case "q3":
               startTime = System.currentTimeMillis();
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               httpPost = new HttpPost(get_url);
               qjson = "  {\n" +
               "   \"start\": 1563249700,\n" +
@@ -411,7 +411,7 @@ public class OpentsdbTest{
               break;
             case "q4":
               startTime = System.currentTimeMillis();
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               httpPost = new HttpPost(get_url);
               qjson = "  {\n" +
               "   \"start\": 1563249700,\n" +
