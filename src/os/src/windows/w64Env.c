@@ -22,7 +22,7 @@ extern void taosWinSocketInit();
 
 void osInit() {
   if (configDir[0] == 0) {
-    strcpy(configDir, "~/TDengine/cfg");
+    strcpy(configDir, "C:/TDengine/cfg");
   }
 
   strcpy(tsVnodeDir, "C:/TDengine/data");
