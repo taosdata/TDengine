@@ -18,13 +18,10 @@
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
+
 #define TAOS_RANDOM_FILE_FAIL_TEST
 
-#ifdef TSDB_IDX
-const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};
-#else
-const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".l"};
-#endif
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
 static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
@@ -201,7 +198,7 @@ void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
     pIter->index = -1;
     pIter->fileId = -1;
   } else {
-    pIter->index = POINTER_DISTANCE(ptr, pFileH->pFGroup) / sizeof(SFileGroup);
+    pIter->index = (int)(POINTER_DISTANCE(ptr, pFileH->pFGroup) / sizeof(SFileGroup));
     pIter->fileId = ((SFileGroup *)ptr)->fileId;
   }
 }
@@ -304,8 +301,8 @@ void tsdbFitRetention(STsdbRepo *pRepo) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = pFileH->pFGroup;
 
-  int mfid = TSDB_KEY_FILEID(taosGetTimestamp(pCfg->precision), pCfg->daysPerFile, pCfg->precision) -
-             TSDB_MAX_FILE(pCfg->keep, pCfg->daysPerFile);
+  int mfid = (int)(TSDB_KEY_FILEID(taosGetTimestamp(pCfg->precision), pCfg->daysPerFile, pCfg->precision) -
+             TSDB_MAX_FILE(pCfg->keep, pCfg->daysPerFile));
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
@@ -370,7 +367,7 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
 
   SFileGroup fileGroup = *pFGroup;
 
-  int nFilesLeft = pFileH->nFGroups - (POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
+  int nFilesLeft = pFileH->nFGroups - (int)(POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
   if (nFilesLeft > 0) {
     memmove((void *)pFGroup, POINTER_SHIFT(pFGroup, sizeof(SFileGroup)), sizeof(SFileGroup) * nFilesLeft);
   }
@@ -411,6 +408,10 @@ static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   void *pBuf = buf;
   pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
+
+  if (pFile->info.size == TSDB_FILE_HEAD_SIZE) {
+    pFile->info.size = lseek(pFile->fd, 0, SEEK_END);
+  }
 
   if (version != TSDB_FILE_VERSION) {
     tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",

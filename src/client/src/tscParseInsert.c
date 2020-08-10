@@ -61,7 +61,7 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
     if (v > INT64_MAX || v <= INT64_MIN) {
       errno = ERANGE;
     } else {
-      *value = v;
+      *value = (int64_t)v;
     }
   }
   
@@ -426,7 +426,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     *str += index;
 
     if (sToken.type == TK_QUESTION) {
-      uint32_t offset = start - pDataBlocks->pData;
+      uint32_t offset = (uint32_t)(start - pDataBlocks->pData);
       if (tscAddParamToDataBlock(pDataBlocks, pSchema->type, (uint8_t)timePrec, pSchema->bytes, offset) != NULL) {
         continue;
       }
@@ -450,7 +450,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       char    delim = sToken.z[0];
       int32_t cnt = 0;
       int32_t j = 0;
-      for (int32_t k = 1; k < sToken.n - 1; ++k) {
+      for (uint32_t k = 1; k < sToken.n - 1; ++k) {
         if (sToken.z[k] == delim || sToken.z[k] == '\\') {
           if (sToken.z[k + 1] == delim) {
             cnt++;
@@ -504,7 +504,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       ptr += schema[i].bytes;
     }
 
-    rowSize = ptr - payload;
+    rowSize = (int32_t)(ptr - payload);
   }
 
   return rowSize;
@@ -846,7 +846,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
         if (TK_STRING == sToken.type) {
           strdequote(sToken.z);
-          sToken.n = strtrim(sToken.z);
+          sToken.n = (uint32_t)strtrim(sToken.z);
         }
 
         if (sToken.type == TK_RP) {
@@ -972,7 +972,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
   }
 
-  int32_t len = cend - cstart + 1;
+  int32_t len = (int32_t)(cend - cstart + 1);
   if (cstart != NULL && createTable == true) {
     /* move the column list to start position of the next accessed points */
     memmove(sql - len, cstart, len);
@@ -1188,7 +1188,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
         if (TK_STRING == sToken.type) {
           strdequote(sToken.z);
-          sToken.n = strtrim(sToken.z);
+          sToken.n = (uint32_t)strtrim(sToken.z);
         }
 
         if (sToken.type == TK_RP) {
@@ -1426,7 +1426,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
 
   char *tokenBuf = calloc(1, 4096);
 
-  while ((readLen = getline(&line, &n, fp)) != -1) {
+  while ((readLen = taosGetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
     }
@@ -1471,7 +1471,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     pParentSql->fp = pParentSql->fetchFp;
 
     // all data has been sent to vnode, call user function
-    int32_t v = (pParentSql->res.code != TSDB_CODE_SUCCESS) ? pParentSql->res.code : pParentSql->res.numOfRows;
+    int32_t v = (pParentSql->res.code != TSDB_CODE_SUCCESS) ? pParentSql->res.code : (int32_t)pParentSql->res.numOfRows;
     (*pParentSql->fp)(pParentSql->param, pParentSql, v);
   }
 }

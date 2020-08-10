@@ -223,12 +223,12 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   
   rowLen += ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE);
 
-  f.bytes = typeColLength + VARSTR_HEADER_SIZE;
+  f.bytes = (int16_t)(typeColLength + VARSTR_HEADER_SIZE);
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "Type", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, typeColLength + VARSTR_HEADER_SIZE,
+  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, (int16_t)(typeColLength + VARSTR_HEADER_SIZE),
       typeColLength, false);
   
   rowLen += typeColLength + VARSTR_HEADER_SIZE;
@@ -243,12 +243,12 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   
   rowLen += sizeof(int32_t);
 
-  f.bytes = noteColLength + VARSTR_HEADER_SIZE;
+  f.bytes = (int16_t)(noteColLength + VARSTR_HEADER_SIZE);
   f.type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(f.name, "Note", sizeof(f.name));
   
   pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
-  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, noteColLength + VARSTR_HEADER_SIZE,
+  pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY, (int16_t)(noteColLength + VARSTR_HEADER_SIZE),
       noteColLength, false);
   
   rowLen += noteColLength + VARSTR_HEADER_SIZE;
@@ -305,7 +305,7 @@ static void tscProcessCurrentDB(SSqlObj *pSql) {
   if (t == 0) {
     setVardataNull(vx, TSDB_DATA_TYPE_BINARY);
   } else {
-    STR_WITH_SIZE_TO_VARSTR(vx, db, t);
+    STR_WITH_SIZE_TO_VARSTR(vx, db, (VarDataLenT)t);
   }
   
   tscSetLocalQueryResult(pSql, vx, pExpr->aliasName, pExpr->resType, pExpr->resBytes);
@@ -320,10 +320,10 @@ static void tscProcessServerVer(SSqlObj *pSql) {
   pExpr->resType = TSDB_DATA_TYPE_BINARY;
   
   size_t t = strlen(v);
-  pExpr->resBytes = t + VARSTR_HEADER_SIZE;
+  pExpr->resBytes = (int16_t)(t + VARSTR_HEADER_SIZE);
   
   char* vx = calloc(1, pExpr->resBytes);
-  STR_WITH_SIZE_TO_VARSTR(vx, v, t);
+  STR_WITH_SIZE_TO_VARSTR(vx, v, (VarDataLenT)t);
   tscSetLocalQueryResult(pSql, vx, pExpr->aliasName, pExpr->resType, pExpr->resBytes);
   
   taosTFree(vx);
@@ -336,10 +336,10 @@ static void tscProcessClientVer(SSqlObj *pSql) {
   pExpr->resType = TSDB_DATA_TYPE_BINARY;
   
   size_t t = strlen(version);
-  pExpr->resBytes = t + VARSTR_HEADER_SIZE;
+  pExpr->resBytes = (int16_t)(t + VARSTR_HEADER_SIZE);
   
   char* v = calloc(1, pExpr->resBytes);
-  STR_WITH_SIZE_TO_VARSTR(v, version, t);
+  STR_WITH_SIZE_TO_VARSTR(v, version, (VarDataLenT)t);
   tscSetLocalQueryResult(pSql, v, pExpr->aliasName, pExpr->resType, pExpr->resBytes);
   
   taosTFree(v);
@@ -379,10 +379,10 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   pQueryInfo->fieldsInfo.pFields = taosArrayInit(1, sizeof(TAOS_FIELD));
   pQueryInfo->fieldsInfo.pSupportInfo = taosArrayInit(1, sizeof(SFieldSupInfo));
   
-  TAOS_FIELD f = tscCreateField(type, columnName, valueLength);
+  TAOS_FIELD f = tscCreateField((int8_t)type, columnName, (int16_t)valueLength);
   tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   
-  tscInitResObjForLocalQuery(pSql, 1, valueLength);
+  tscInitResObjForLocalQuery(pSql, 1, (int32_t)valueLength);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, 0);

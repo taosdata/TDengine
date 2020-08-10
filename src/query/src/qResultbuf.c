@@ -96,8 +96,8 @@ static int32_t allocatePositionInFile(SDiskbasedResultBuf* pResultBuf, size_t si
       SFreeListItem* pi = taosArrayGet(pResultBuf->pFree, i);
       if (pi->len >= size) {
         offset = pi->offset;
-        pi->offset += size;
-        pi->len -= size;
+        pi->offset += (int32_t)size;
+        pi->len -= (int32_t)size;
 
         return offset;
       }
@@ -173,7 +173,7 @@ static char* flushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 // load file block data in disk
 static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-  ret = fread(GET_DATA_PAYLOAD(pg), 1, pg->info.length, pResultBuf->file);
+  ret = (int32_t)fread(GET_DATA_PAYLOAD(pg), 1, pg->info.length, pResultBuf->file);
   if (ret != pg->info.length) {
     terrno = errno;
     return NULL;
@@ -184,7 +184,7 @@ static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   int32_t fullSize = 0;
   doDecompressData(GET_DATA_PAYLOAD(pg), pg->info.length, &fullSize, pResultBuf);
 
-  return GET_DATA_PAYLOAD(pg);
+  return (char*)GET_DATA_PAYLOAD(pg);
 }
 
 static SIDList addNewGroup(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
@@ -248,7 +248,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
     int32_t prev = pResultBuf->inMemPages;
 
     // increase by 50% of previous mem pages
-    pResultBuf->inMemPages = pResultBuf->inMemPages * 1.5;
+    pResultBuf->inMemPages = pResultBuf->inMemPages * 1.5f;
 
     qWarn("%p in memory buf page not sufficient, expand from %d to %d, page size:%d", pResultBuf, prev,
           pResultBuf->inMemPages, pResultBuf->pageSize);

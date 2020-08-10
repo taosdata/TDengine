@@ -34,7 +34,7 @@ void taosWinSocketInit() {
   }
 }
 
-int taosSetNonblocking(int sock, int on) {
+int taosSetNonblocking(SOCKET sock, int on) {
   u_long mode;
   if (on) {
     mode = 1;
@@ -48,7 +48,7 @@ int taosSetNonblocking(int sock, int on) {
 
 void taosBlockSIGPIPE() {}
 
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
+int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen) {
   if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
     return 0;
   }

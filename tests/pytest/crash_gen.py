@@ -643,7 +643,7 @@ class DbConn:
         self.execute("use {}".format(dbName))
 
     def hasDatabases(self):
-        return self.query("show databases") > 0
+        return self.query("show databases") > 1 # We now have a "log" database by default
 
     def hasTables(self):
         return self.query("show tables") > 0
@@ -850,6 +850,7 @@ class DbConnNative(DbConn):
             raise RuntimeError(
                 "Cannot execute database commands until connection is open")
         logger.debug("[SQL] Executing SQL: {}".format(sql))
+        self._lastSql = sql
         nRows = self._tdSql.execute(sql)
         logger.debug(
             "[SQL] Execution Result, nRows = {}, SQL = {}".format(
@@ -861,6 +862,7 @@ class DbConnNative(DbConn):
             raise RuntimeError(
                 "Cannot query database until connection is open")
         logger.debug("[SQL] Executing SQL: {}".format(sql))
+        self._lastSql = sql
         nRows = self._tdSql.query(sql)
         logger.debug(
             "[SQL] Query Result, nRows = {}, SQL = {}".format(
@@ -1771,6 +1773,9 @@ class TdSuperTable:
     def __init__(self, stName):
         self._stName = stName
 
+    def getName(self):
+        return self._stName
+
     def create(self, dbc, cols: dict, tags: dict):
         sql = "CREATE TABLE db.{} ({}) TAGS ({})".format(
             self._stName,
@@ -1864,16 +1869,29 @@ class TaskReadData(StateTransitionTask):
             wt.getDbConn().close()
             wt.getDbConn().open()
         
-        for rTbName in sTable.getRegTables(wt.getDbConn()):  # regular tables
-            aggExpr = Dice.choice(['*', 'count(*)', 'avg(speed)', 
+        dbc = wt.getDbConn()
+        for rTbName in sTable.getRegTables(dbc):  # regular tables
+            aggExpr = Dice.choice([
+                '*', 
+                'count(*)', 
+                'avg(speed)', 
                 # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
-                'sum(speed)', 'stddev(speed)', 
-                'min(speed)', 'max(speed)', 'first(speed)', 'last(speed)']) # TODO: add more from 'top'
+                'sum(speed)', 
+                'stddev(speed)', 
+                'min(speed)', 
+                'max(speed)', 
+                'first(speed)', 
+                'last(speed)']) # TODO: add more from 'top'
+            filterExpr = Dice.choice([ # TODO: add various kind of WHERE conditions
+                None
+            ])
             try:
-                self.execWtSql(wt, "select {} from db.{}".format(aggExpr, rTbName))
+                dbc.execute("select {} from db.{}".format(aggExpr, rTbName))
+                if aggExpr not in ['stddev(speed)']: #TODO: STDDEV not valid for super tables?!
+                    dbc.execute("select {} from db.{}".format(aggExpr, sTable.getName()))
             except taos.error.ProgrammingError as err:                    
                 errno2 = err.errno if (err.errno > 0) else 0x80000000 + err.errno
-                logger.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, wt.getDbConn().getLastSql()))
+                logger.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, dbc.getLastSql()))
                 raise
 
 class TaskDropSuperTable(StateTransitionTask):
@@ -2204,8 +2222,8 @@ class SvcManager:
                 # print("Process: {}".format(proc.name()))
             
             self.svcMgrThread = ServiceManagerThread()  # create the object
-            self.svcMgrThread.start()
             print("Attempting to start TAOS service started, printing out output...")
+            self.svcMgrThread.start()            
             self.svcMgrThread.procIpcBatch(
                 trimToTarget=10,
                 forceOutput=True)  # for printing 10 lines
@@ -2222,8 +2240,8 @@ class SvcManager:
             if self.svcMgrThread.isStopped():
                 self.svcMgrThread.procIpcBatch(outputLines)  # one last time
                 self.svcMgrThread = None
-                print("----- End of TDengine Service Output -----\n")
-                print("SMT execution terminated")
+                print("End of TDengine Service Output")
+                print("----- TDengine Service (managed by SMT) is now terminated -----\n")
             else:
                 print("WARNING: SMT did not terminate as expected")
 
@@ -2330,6 +2348,8 @@ class ServiceManagerThread:
         self._status = MainExec.STATUS_STOPPING
         retCode = self._tdeSubProcess.stop()
         print("Attempted to stop sub process, got return code: {}".format(retCode))
+        if (retCode==-11): # SGV
+            logger.error("[[--ERROR--]]: TDengine service SEGV fault (check core file!)")
 
         if self._tdeSubProcess.isRunning():  # still running
             print("FAILED to stop sub process, it is still running... pid = {}".format(
@@ -2624,12 +2644,12 @@ class ClientManager:
     def _printLastNumbers(self):  # to verify data durability
         dbManager = DbManager(resetDb=False)
         dbc = dbManager.getDbConn()
-        if dbc.query("show databases") == 0:  # no databae
+        if dbc.query("show databases") <= 1:  # no database (we have a default called "log")
             return
+        dbc.execute("use db")
         if dbc.query("show tables") == 0:  # no tables
             return
 
-        dbc.execute("use db")
         sTbName = dbManager.getFixedSuperTableName()
 
         # get all regular tables

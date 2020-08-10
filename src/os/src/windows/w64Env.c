@@ -18,8 +18,13 @@
 #include "tglobal.h"
 #include "tulog.h"
 
+extern void taosWinSocketInit();
+
 void osInit() {
-  strcpy(configDir, "C:/TDengine/cfg");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "~/TDengine/cfg");
+  }
+
   strcpy(tsVnodeDir, "C:/TDengine/data");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
@@ -27,4 +32,5 @@ void osInit() {
   strcpy(tsLogDir, "C:/TDengine/log");
   strcpy(tsScriptDir, "C:/TDengine/script");
   strcpy(tsOsName, "Windows");
+  taosWinSocketInit();
 }

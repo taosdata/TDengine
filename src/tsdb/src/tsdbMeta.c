@@ -120,20 +120,23 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   tsdbUnlockRepoMeta(pRepo);
 
   // Write to memtable action
-  int   tlen1 = (newSuper) ? tsdbGetTableEncodeSize(TSDB_UPDATE_META, super) : 0;
-  int   tlen2 = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
-  int   tlen = tlen1 + tlen2;
-  void *buf = tsdbAllocBytes(pRepo, tlen);
-  if (buf == NULL) {
-    goto _err;
-  }
-
+  // TODO: refactor duplicate codes
+  int   tlen = 0;
+  void *pBuf = NULL;
   if (newSuper) {
-    void *pBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, super);
-    ASSERT(POINTER_DISTANCE(pBuf, buf) == tlen1);
-    buf = pBuf;
+    tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, super);
+    pBuf = tsdbAllocBytes(pRepo, tlen);
+    if (pBuf == NULL) goto _err;
+    void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, super);
+    ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
   }
-  tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, table);
+  tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
+  pBuf = tsdbAllocBytes(pRepo, tlen);
+  if (pBuf == NULL) goto _err;
+  void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, table);
+  ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
 
   return 0;
 
@@ -181,6 +184,8 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
 
   tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   free(tbname);
+
+  if (tsdbCheckCommit(pRepo) < 0) goto _err;
 
   return 0;
 
@@ -405,6 +410,8 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
   }
   tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pTable);
 
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
+
   return 0;
 }
 
@@ -436,7 +443,7 @@ STsdbMeta *tsdbNewMeta(STsdbCfg *pCfg) {
     goto _err;
   }
 
-  pMeta->uidMap = taosHashInit(TSDB_INIT_NTABLES * 1.1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  pMeta->uidMap = taosHashInit((size_t)(TSDB_INIT_NTABLES * 1.1), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   if (pMeta->uidMap == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -665,7 +672,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
-    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, tsize);
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->sname, (VarDataLenT)tsize);
     TABLE_UID(pTable) = pCfg->superUid;
     TABLE_TID(pTable) = -1;
     TABLE_SUID(pTable) = -1;
@@ -683,7 +690,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), colBytes(pCol), 1, 0, 1, getTagIndexKey);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
@@ -696,7 +703,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
     }
-    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, tsize);
+    STR_WITH_SIZE_TO_VARSTR(pTable->name, pCfg->name, (VarDataLenT)tsize);
     TABLE_UID(pTable) = pCfg->tableId.uid;
     TABLE_TID(pTable) = pCfg->tableId.tid;
 
@@ -1158,7 +1165,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
       pTable->pIndex =
-          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), colBytes(pCol), 1, 0, 1, getTagIndexKey);
+          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
       if (pTable->pIndex == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tsdbFreeTable(pTable);
@@ -1184,7 +1191,7 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (sizeof(SListNode) + sizeof(SActObj)) * (tSkipListGetSize(pTable->pIndex) + 1);
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (tSkipListGetSize(pTable->pIndex) + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }

@@ -129,3 +129,28 @@ int tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes) {
   return ret;
 #endif
 }
+
+
+/* Copy memory to memory until the specified number of bytes
+has been copied, return pointer to following byte.
+Overlap is NOT handled correctly. */
+void *mempcpy(void *dest, const void *src, size_t len) {
+  return (char*)memcpy(dest, src, len) + len;
+}
+
+/* Copy SRC to DEST, returning the address of the terminating '\0' in DEST.  */
+char *stpcpy (char *dest, const char *src) {
+  size_t len = strlen (src);
+  return (char*)memcpy(dest, src, len + 1) + len;
+}
+
+/* Copy no more than N characters of SRC to DEST, returning the address of
+   the terminating '\0' in DEST, if any, or else DEST + N.  */
+char *stpncpy (char *dest, const char *src, size_t n) {
+  size_t size = strnlen (src, n);
+  memcpy (dest, src, size);
+  dest += size;
+  if (size == n)
+    return dest;
+  return memset (dest, '\0', n - size);
+}

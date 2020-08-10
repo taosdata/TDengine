@@ -133,7 +133,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
 }
 
 static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
-  int32_t numOfCols = tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   int32_t offset = 0;
   
   SFillColInfo* pFillCol = calloc(numOfCols, sizeof(SFillColInfo));
@@ -141,7 +141,7 @@ static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     
     pFillCol[i].col.bytes  = pExpr->resBytes;
-    pFillCol[i].col.type   = pExpr->resType;
+    pFillCol[i].col.type   = (int8_t)pExpr->resType;
     pFillCol[i].flag       = pExpr->colInfo.flag;
     pFillCol[i].col.offset = offset;
     pFillCol[i].functionId = pExpr->functionId;
@@ -361,7 +361,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     pQueryInfo->limit.offset = pQueryInfo->prjOffset;
   }
 
-  pReducer->offset = pQueryInfo->limit.offset;
+  pReducer->offset = (int32_t)pQueryInfo->limit.offset;
 
   pRes->pLocalReducer = pReducer;
   pRes->numOfGroups = 0;
@@ -376,7 +376,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
     pReducer->pFillInfo = taosInitFillInfo(pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
-                                           4096, numOfCols, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit,
+                                           4096, (int32_t)numOfCols, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit,
                                            tinfo.precision, pQueryInfo->fillType, pFillCol);
   }
 
@@ -405,7 +405,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 
   // sort before flush to disk, the data must be consecutively put on tFilePage.
   if (pDesc->orderInfo.numOfCols > 0) {
-    tColDataQSort(pDesc, pPage->num, 0, pPage->num - 1, pPage->data, orderType);
+    tColDataQSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType);
   }
 
 #ifdef _DEBUG_VIEW
@@ -414,7 +414,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 #endif
 
   // write to cache after being sorted
-  if (tExtMemBufferPut(pMemoryBuf, pPage->data, pPage->num) < 0) {
+  if (tExtMemBufferPut(pMemoryBuf, pPage->data, (int32_t)pPage->num) < 0) {
     tscError("failed to save data in temporary buffer");
     return -1;
   }
@@ -446,7 +446,7 @@ int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePa
   }
 
   // current buffer is overflow, flush data to extensive buffer
-  int32_t numOfRemainEntries = pModel->capacity - pPage->num;
+  int32_t numOfRemainEntries = pModel->capacity - (int32_t)pPage->num;
   tColModelAppend(pModel, pPage, data, 0, numOfRemainEntries, numOfRows);
 
   // current buffer is full, need to flushed to disk
@@ -679,7 +679,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     pSchema[i].bytes = pExpr->resBytes;
-    pSchema[i].type = pExpr->resType;
+    pSchema[i].type = (int8_t)pExpr->resType;
 
     rlen += pExpr->resBytes;
   }
@@ -689,7 +689,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     capacity = nBufferSizes / rlen;
   }
   
-  pModel = createColumnModel(pSchema, size, capacity);
+  pModel = createColumnModel(pSchema, (int32_t)size, capacity);
 
   int32_t pg = DEFAULT_PAGE_SIZE;
   int32_t overhead = sizeof(tFilePage);
@@ -740,12 +740,12 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
       getResultDataInfo(p1->type, p1->bytes, functionId, 0, &type, &bytes, &inter, 0, false);
     }
 
-    pSchema[i].type = type;
+    pSchema[i].type = (uint8_t)type;
     pSchema[i].bytes = bytes;
     strcpy(pSchema[i].name, pModel->pFields[i].field.name);
   }
   
-  *pFinalModel = createColumnModel(pSchema, size, capacity);
+  *pFinalModel = createColumnModel(pSchema, (int32_t)size, capacity);
   taosTFree(pSchema);
 
   return TSDB_CODE_SUCCESS;
@@ -780,7 +780,7 @@ int32_t loadNewDataFromDiskFor(SLocalReducer *pLocalReducer, SLocalDataSource *p
   pOneInterDataSrc->rowIdx = 0;
   pOneInterDataSrc->pageId += 1;
 
-  if (pOneInterDataSrc->pageId <
+  if ((uint32_t)pOneInterDataSrc->pageId <
       pOneInterDataSrc->pMemBuffer->fileMeta.flushoutData.pFlushoutInfo[pOneInterDataSrc->flushoutIdx].numOfPages) {
     tExtMemBufferLoadData(pOneInterDataSrc->pMemBuffer, &(pOneInterDataSrc->filePage), pOneInterDataSrc->flushoutIdx,
                           pOneInterDataSrc->pageId);
@@ -896,8 +896,8 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
 
     if (pQueryInfo->limit.offset > 0) {
       if (pQueryInfo->limit.offset < pRes->numOfRows) {
-        int32_t prevSize = pFinalDataPage->num;
-        tColModelErase(pLocalReducer->resColModel, pFinalDataPage, prevSize, 0, pQueryInfo->limit.offset - 1);
+        int32_t prevSize = (int32_t)pFinalDataPage->num;
+        tColModelErase(pLocalReducer->resColModel, pFinalDataPage, prevSize, 0, (int32_t)pQueryInfo->limit.offset - 1);
 
         /* remove the hole in column model */
         tColModelCompact(pLocalReducer->resColModel, pFinalDataPage, prevSize);
@@ -974,7 +974,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
         }
 
         /* all output for current group are completed */
-        int32_t totalRemainRows = getFilledNumOfRes(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
+        int32_t totalRemainRows = (int32_t)getFilledNumOfRes(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
         if (totalRemainRows <= 0) {
           break;
         }
@@ -1261,7 +1261,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
   
   SFillInfo* pFillInfo = pLocalReducer->pFillInfo;
   if (pFillInfo != NULL) {
-    taosFillSetStartInfo(pFillInfo, pResBuf->num, pQueryInfo->window.ekey);
+    taosFillSetStartInfo(pFillInfo, (int32_t)pResBuf->num, pQueryInfo->window.ekey);
     taosFillCopyInputDataFromOneFilePage(pFillInfo, pResBuf);
   }
   
@@ -1320,7 +1320,7 @@ static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
     int64_t etime = *(int64_t *)(pFinalDataBuf->data + TSDB_KEYSIZE * (pFillInfo->numOfRows - 1));
 
     // the first column must be the timestamp column
-    int32_t rows = getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+    int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do fill gap
       doFillResult(pSql, pLocalReducer, false);
     }
@@ -1350,7 +1350,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       int64_t etime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
       assert(pFillInfo->numOfRows == 0);
-      int32_t rows = getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+      int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo
         doFillResult(pSql, pLocalReducer, true);
       }

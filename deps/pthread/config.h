@@ -8,6 +8,7 @@
  *********************************************************************/
 
 /* We're building the pthreads-win32 library */
+#undef PTW32_BUILD
 #define PTW32_BUILD
 
 /* Do we know about the C type sigset_t? */

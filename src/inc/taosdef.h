@@ -292,7 +292,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16
 
-#define TSDB_MIN_TOTAL_BLOCKS           2
+#define TSDB_MIN_TOTAL_BLOCKS           3
 #define TSDB_MAX_TOTAL_BLOCKS           10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
@@ -303,7 +303,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
-#define TSDB_DEFAULT_DAYS_PER_FILE      10 
+#define TSDB_DEFAULT_DAYS_PER_FILE      2 
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
 #define TSDB_MAX_KEEP                   365000   // data in db to be reserved.

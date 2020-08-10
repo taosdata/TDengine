@@ -96,7 +96,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   }
 
   tscDebug("%p query time:%" PRId64 " sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
-  int32_t sqlSize = TSDB_SLOW_QUERY_SQL_LEN + size;
+  int32_t sqlSize = (int32_t)(TSDB_SLOW_QUERY_SQL_LEN + size);
   
   char *sql = malloc(sqlSize);
   if (sql == NULL) {

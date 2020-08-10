@@ -85,7 +85,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
 
   if (db) {
-    int32_t len = strlen(db);
+    int32_t len = (int32_t)strlen(db);
     /* db name is too long */
     if (len >= TSDB_DB_NAME_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
@@ -240,7 +240,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
     return NULL;
   }
   
-  if (sqlLen > tsMaxSQLStringLen) {
+  if (sqlLen > (uint32_t)tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
     terrno = TSDB_CODE_TSC_INVALID_SQL;
     return NULL;
@@ -306,7 +306,7 @@ int taos_affected_rows(TAOS_RES *tres) {
   SSqlObj* pSql = (SSqlObj*) tres;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  return (pSql->res.numOfRows);
+  return (int)(pSql->res.numOfRows);
 }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
@@ -341,7 +341,7 @@ int taos_retrieve(TAOS_RES *res) {
   }
   tscProcessSql(pSql);
 
-  return pRes->numOfRows;
+  return (int)pRes->numOfRows;
 }
 
 int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
@@ -382,7 +382,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   *rows = pRes->tsrow;
 
-  return (pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows;
+  return (int)((pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows);
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
@@ -731,7 +731,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   tscDebug("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
-  int32_t sqlLen = strlen(sql);
+  int32_t sqlLen = (int32_t)strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
@@ -804,11 +804,11 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     }
 
     memcpy(tblName, str, nextStr - str);
-    int32_t len = nextStr - str;
+    int32_t len = (int32_t)(nextStr - str);
     tblName[len] = '\0';
 
     str = nextStr + 1;
-    len = strtrim(tblName);
+    len = (int32_t)strtrim(tblName);
 
     SSQLToken sToken = {.n = len, .type = TK_ID, .z = tblName};
     tSQLGetToken(tblName, &sToken.type);
@@ -874,7 +874,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   assert(pSql->fp == NULL);
   tscDebug("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
 
-  int32_t tblListLen = strlen(tableNameList);
+  int32_t tblListLen = (int32_t)strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
     tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;

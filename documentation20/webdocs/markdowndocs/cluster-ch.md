@@ -107,7 +107,7 @@ CREATE DATABASE demo replica 3;
 ```
 一个DB里的数据会被切片分到多个vnode group，vnode group里的vnode数目就是DB的副本数，同一个vnode group里各vnode的数据是完全一致的。为保证高可用性，vnode group里的vnode一定要分布在不同的dnode里（实际部署时，需要在不同的物理机上），只要一个vgroup里超过半数的vnode处于工作状态，这个vgroup就能正常的对外服务。
 
-一个dnode里可能有多个DB的数据，因此一个dnode离线时，可能会影响到多个DB。如果一个vnode group里的一半或一半以上的vnode不工作，那么该vnode group就无法对外服务，无法插入或读取数据，这样会影响到它所属的DB的一部分表的d读写操作。
+一个dnode里可能有多个DB的数据，因此一个dnode离线时，可能会影响到多个DB。如果一个vnode group里的一半或一半以上的vnode不工作，那么该vnode group就无法对外服务，无法插入或读取数据，这样会影响到它所属的DB的一部分表的读写操作。
 
 因为vnode的引入，无法简单的给出结论：“集群中过半dnode工作，集群就应该工作”。但是对于简单的情形，很好下结论。比如副本数为3，只有三个dnode，那如果仅有一个节点不工作，整个集群还是可以正常工作的，但如果有两个节点不工作，那整个集群就无法正常工作了。
 
