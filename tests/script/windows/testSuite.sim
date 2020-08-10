@@ -1,14 +1,14 @@
 run windows/alter/table.sim   
 run windows/alter/metrics.sim  
 
-#run windows/compute/avg.sim         
+run windows/compute/avg.sim         
 run windows/compute/bottom.sim 
 run windows/compute/count.sim       
 run windows/compute/diff.sim       
 run windows/compute/first.sim        
 run windows/compute/interval.sim   
 run windows/compute/last.sim    
-##run windows/compute/leastsquare.sim 
+run windows/compute/leastsquare.sim 
 run windows/compute/max.sim           
 run windows/compute/min.sim         
 run windows/compute/percentile.sim   
@@ -37,12 +37,12 @@ run windows/field/tinyint.sim
 run windows/import/basic.sim   
 
 run windows/insert/basic.sim              
-#run windows/insert/query_block1_file.sim   
-#run windows/insert/query_block1_memory.sim 
-#run windows/insert/query_block2_file.sim   
-#run windows/insert/query_block2_memory.sim 
-#run windows/insert/query_file_memory.sim   
-#run windows/insert/query_multi_file.sim  
+run windows/insert/query_block1_file.sim   
+run windows/insert/query_block1_memory.sim 
+run windows/insert/query_block2_file.sim   
+run windows/insert/query_block2_memory.sim 
+run windows/insert/query_file_memory.sim   
+run windows/insert/query_multi_file.sim  
 
 run windows/table/binary.sim 
 run windows/table/bool.sim 
