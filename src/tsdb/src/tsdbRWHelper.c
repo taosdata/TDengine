@@ -120,14 +120,6 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
     if (tsdbOpenFile(helperDataF(pHelper), O_RDWR) < 0) return -1;
     if (tsdbOpenFile(helperLastF(pHelper), O_RDWR) < 0) return -1;
 
-    // NOTE: For data file compatibility
-    if (helperDataF(pHelper)->info.size == TSDB_FILE_HEAD_SIZE) {
-      helperDataF(pHelper)->info.size = (uint64_t)lseek(helperDataF(pHelper)->fd, 0, SEEK_END);
-    }
-    if (helperLastF(pHelper)->info.size == TSDB_FILE_HEAD_SIZE) {
-      helperLastF(pHelper)->info.size = (uint64_t)lseek(helperLastF(pHelper)->fd, 0, SEEK_END);
-    }
-
     // Create and open .h
     pFile = helperNewHeadF(pHelper);
     if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;

@@ -409,6 +409,10 @@ static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
 
+  if (pFile->info.size == TSDB_FILE_HEAD_SIZE) {
+    pFile->info.size = lseek(pFile->fd, 0, SEEK_END);
+  }
+
   if (version != TSDB_FILE_VERSION) {
     tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
               REPO_ID(pRepo), pFile->fname, version, TSDB_FILE_VERSION);
