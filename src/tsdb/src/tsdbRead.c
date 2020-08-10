@@ -247,7 +247,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
           .lastKey = pKeyInfo->lastKey,
           .pTableObj = pKeyInfo->pTable,
       };
-	    info.tableId = ((STable*)(pKeyInfo->pTable))->tableId;
+      info.tableId = ((STable*)(pKeyInfo->pTable))->tableId;
 
       assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
       info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));

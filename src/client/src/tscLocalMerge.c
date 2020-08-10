@@ -915,7 +915,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
     if (pQueryInfo->limit.limit >= 0 && pRes->numOfRowsGroup > pQueryInfo->limit.limit) {
       /* impose the limitation of output rows on the final result */
       int32_t prevSize = (int32_t)pFinalDataPage->num;
-	    int32_t overflow = (int32_t)(pRes->numOfRowsGroup - pQueryInfo->limit.limit);
+      int32_t overflow = (int32_t)(pRes->numOfRowsGroup - pQueryInfo->limit.limit);
       assert(overflow < pRes->numOfRows);
 
       pRes->numOfRowsGroup = pQueryInfo->limit.limit;

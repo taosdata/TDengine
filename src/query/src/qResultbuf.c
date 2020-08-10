@@ -327,7 +327,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     // no need to update the LRU list if only one page exists
     if (pResultBuf->numOfPages == 1) {
       (*pi)->used = true;
-	    return (void *)(GET_DATA_PAYLOAD(*pi));
+      return (void *)(GET_DATA_PAYLOAD(*pi));
     }
 
     SPageInfo** pInfo = (SPageInfo**) ((*pi)->pn->data);
@@ -336,7 +336,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     lruListMoveToFront(pResultBuf->lruList, (*pi));
     (*pi)->used = true;
 
-	  return (void *)(GET_DATA_PAYLOAD(*pi));
+    return (void *)(GET_DATA_PAYLOAD(*pi));
 
   } else { // not in memory
     assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->info.length >= 0 && (*pi)->info.offset >= 0);
@@ -358,7 +358,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     (*pi)->used = true;
 
     loadPageFromDisk(pResultBuf, *pi);
-	  return (void *)(GET_DATA_PAYLOAD(*pi));
+    return (void *)(GET_DATA_PAYLOAD(*pi));
   }
 }
 

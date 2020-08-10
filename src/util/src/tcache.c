@@ -388,7 +388,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
         } else {  // ref == 0
           atomic_sub_fetch_64(&pCacheObj->totalSize, pNode->size);
 
-		  int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
+          int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
           uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
                  pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
