@@ -394,7 +394,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     pFile->info.len += tsdbEncodeSCompIdx(&pBuf, &(pHelper->curCompIdx));
 
     pFile->info.size += pIdx->len;
-    ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
+    // ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
   }
 
   return 0;
@@ -436,7 +436,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
 
   pFile->info.offset = offset;
   pFile->info.size += pFile->info.len;
-  ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
+  // ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
 
   return 0;
 }
@@ -813,7 +813,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
             pCompBlock->keyLast);
 
   pFile->info.size += pCompBlock->len;
-  ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
+  // ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
 
   return 0;
 
