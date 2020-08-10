@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 sql create database ibadb
 sql use ibadb
 sql create table tb(ts timestamp, i int)
