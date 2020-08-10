@@ -80,8 +80,9 @@ typedef struct STableMetaInfo {
    * 2. keep the vgroup index for multi-vnode insertion
    */
   int32_t vgroupIndex;
-  char    name[TSDB_TABLE_ID_LEN];        // (super) table name
-  SArray* tagColList;                     // SArray<SColumn*>, involved tag columns
+  char    name[TSDB_TABLE_FNAME_LEN];        // (super) table name
+  char    aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
+  SArray* tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -106,7 +107,7 @@ typedef struct SColumnIndex {
 typedef struct SFieldSupInfo {
   bool            visible;
   SExprInfo      *pArithExprInfo;
-  SSqlExpr *      pSqlExpr;
+  SSqlExpr       *pSqlExpr;
 } SFieldSupInfo;
 
 typedef struct SFieldInfo {
@@ -128,7 +129,7 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
 } SJoinNode;
@@ -162,7 +163,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_FNAME_LEN];
   int8_t   tsSource;     // where does the UNIX timestamp come from, server or client
   bool     ordered;      // if current rows are ordered or not
   int64_t  vgId;         // virtual group id
@@ -255,6 +256,7 @@ typedef struct SResRec {
 
 typedef struct {
   int64_t               numOfRows;                  // num of results in current retrieved
+  int64_t               numOfRowsGroup;             // num of results of current group
   int64_t               numOfTotal;                 // num of total results
   int64_t               numOfClauseTotal;           // num of total result in current subclause
   char *                pRsp;
@@ -301,6 +303,7 @@ typedef struct STscObj {
 
 typedef struct SSqlObj {
   void            *signature;
+  pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   void            *pRpcCtx;
   void            (*fp)();
@@ -419,7 +422,6 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-//void    tscGetResultColumnChr(SSqlRes *pRes, SFieldInfo* pFieldInfo, int32_t column);
 
 static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
   SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);

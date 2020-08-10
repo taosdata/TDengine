@@ -433,7 +433,7 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
   pStore->iFunc = iFunc;
   pStore->aFunc = aFunc;
   pStore->appH = appH;
-  pStore->map = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  pStore->map = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   if (pStore->map == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     goto _err;

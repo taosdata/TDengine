@@ -679,14 +679,9 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   }
 
   taosTFree(dataDir);
-  tsdbCloseHelperFile(pHelper, 0);
+  tsdbCloseHelperFile(pHelper, 0, pGroup);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
-
-#ifdef TSDB_IDX
-  rename(helperNewIdxF(pHelper)->fname, helperIdxF(pHelper)->fname);
-  pGroup->files[TSDB_FILE_TYPE_IDX].info = helperNewIdxF(pHelper)->info;
-#endif
 
   rename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
   pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
@@ -706,7 +701,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
 _err:
   taosTFree(dataDir);
-  tsdbCloseHelperFile(pHelper, 1);
+  tsdbCloseHelperFile(pHelper, 1, NULL);
   return -1;
 }
 

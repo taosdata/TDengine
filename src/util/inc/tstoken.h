@@ -24,8 +24,6 @@ extern "C" {
 #include "tutil.h"
 #include "ttokendef.h"
 
-
-
 #define TSQL_TBNAME   "TBNAME"
 #define TSQL_TBNAME_L "tbname"
 

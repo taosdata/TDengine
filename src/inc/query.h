@@ -76,6 +76,9 @@ void* qGetResultRetrieveMsg(qinfo_t qinfo);
  */
 int32_t qKillQuery(qinfo_t qinfo);
 
+int32_t qQueryCompleted(qinfo_t qinfo);
+
+
 /**
  * destroy query info structure
  * @param qHandle

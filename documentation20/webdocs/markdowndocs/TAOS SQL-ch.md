@@ -157,7 +157,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     DROP TABLE [IF EXISTS] stb_name;
     ```
-    删除STable会自动删除通过STable创建的字表。
+    删除STable会自动删除通过STable创建的子表。
 
 - **显示当前数据库下的所有超级表信息**
 
@@ -206,7 +206,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
 
-- **修改字表标签值**
+- **修改子表标签值**
 
     ```mysql
     ALTER TABLE tb_name SET TAG tag_name=new_tag_value;

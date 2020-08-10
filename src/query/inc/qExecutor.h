@@ -52,10 +52,10 @@ typedef struct SWindowStatus {
 
 typedef struct SWindowResult {
   uint16_t      numOfRows;   // number of rows of current  time window
+  SWindowStatus status;      // this result status: closed or opened
   SPosInfo      pos;         // Position of current result in disk-based output buffer
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
   STimeWindow   window;      // The time window that current result covers.
-  SWindowStatus status;      // this result status: closed or opened
 } SWindowResult;
 
 /**
@@ -122,6 +122,7 @@ typedef struct SQueryCostInfo {
   uint32_t discardBlocks;
   uint64_t elapsedTime;
   uint64_t computTime;
+  uint64_t internalSupSize;
 } SQueryCostInfo;
 
 typedef struct SQuery {
@@ -184,10 +185,8 @@ enum {
 
 typedef struct SQInfo {
   void*            signature;
-  int32_t          pointsInterpo;
-  int32_t          code;  // error code to returned to client
-//tsem_t           dataReady;
-
+  int32_t          code;   // error code to returned to client
+  pthread_t        owner; // if it is in execution
   void*            tsdb;
   int32_t          vgId;
   STableGroupInfo  tableGroupInfo;       // table id list < only includes the STable list>

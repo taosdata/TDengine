@@ -37,7 +37,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   
   pWindowResInfo->type = type;
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
-  pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
+  pWindowResInfo->hashList = taosHashInit(threshold, fn, true, false);
   if (pWindowResInfo->hashList == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -46,11 +46,16 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->size     = 0;
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
   
+  pRuntimeEnv->summary.internalSupSize += sizeof(SWindowResult) * threshold;
+
   // use the pointer arraylist
   pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
   if (pWindowResInfo->pResult == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
+  pRuntimeEnv->summary.internalSupSize += sizeof(SWindowResult) * threshold;
+  pRuntimeEnv->summary.internalSupSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
 
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
@@ -104,7 +109,7 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   pWindowResInfo->size = 0;
   
   _hash_fn_t fn = taosGetDefaultHashFunction(pWindowResInfo->type);
-  pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, false);
+  pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, true, false);
   
   pWindowResInfo->startTime = TSKEY_INITIAL_VAL;
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;

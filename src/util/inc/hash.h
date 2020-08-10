@@ -20,7 +20,9 @@
 extern "C" {
 #endif
 
+#include "tarray.h"
 #include "hashfunc.h"
+#include "tlockfree.h"
 
 #define HASH_MAX_CAPACITY (1024 * 1024 * 16)
 #define HASH_DEFAULT_LOAD_FACTOR (0.75)
@@ -29,38 +31,45 @@ extern "C" {
 typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
-  char *key;
-//  union {
-    struct SHashNode * prev;
-//    struct SHashEntry *prev1;
-//  };
-//
+  char             *key;
+//  struct SHashNode *prev;
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key, if hashVal == HASH_VALUE_IN_TRASH, this node is moved to trash
   uint32_t          keyLen;   // length of the key
-  char              data[];
+  char             *data;
 } SHashNode;
 
-typedef struct SHashObj {
-  SHashNode     **hashList;
-  size_t          capacity;  // number of slots
-  size_t          size;      // number of elements in hash table
-  _hash_fn_t      hashFp;    // hash function
-  _hash_free_fn_t freeFp;    // hash node free callback function
+typedef enum SHashLockTypeE {
+  HASH_NO_LOCK     = 0,
+  HASH_ENTRY_LOCK  = 1,
+} SHashLockTypeE;
 
-#if defined(LINUX)
-  pthread_rwlock_t *lock;
-#else
-  pthread_mutex_t *lock;
-#endif
+typedef struct SHashEntry {
+  int32_t    num;      // number of elements in current entry
+  SRWLatch   latch;    // entry latch
+  SHashNode *next;
+} SHashEntry;
+
+typedef struct SHashObj {
+  SHashEntry    **hashList;
+  size_t          capacity;     // number of slots
+  size_t          size;         // number of elements in hash table
+  _hash_fn_t      hashFp;       // hash function
+  _hash_free_fn_t freeFp;       // hash node free callback function
+
+  SRWLatch        lock;         // read-write spin lock
+  SHashLockTypeE  type;         // lock type
+  bool            enableUpdate; // enable update
+  SArray         *pMemBlock;    // memory block allocated for SHashEntry
 } SHashObj;
 
 typedef struct SHashMutableIterator {
-  SHashObj * pHashObj;
+  SHashObj  *pHashObj;
   int32_t    entryIndex;
   SHashNode *pCur;
-  SHashNode *pNext;  // current node can be deleted for mutable iterator, so keep the next one before return current
-  int32_t    num;    // already check number of elements in hash table
+  SHashNode *pNext;           // current node can be deleted for mutable iterator, so keep the next one before return current
+  size_t     numOfChecked;    // already check number of elements in hash table
+  size_t     numOfEntries;    // number of entries while the iterator is created
 } SHashMutableIterator;
 
 /**
@@ -71,7 +80,7 @@ typedef struct SHashMutableIterator {
  * @param threadsafe  thread safe or not
  * @return
  */
-SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe);
+SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type);
 
 /**
  * return the size of hash table
@@ -101,26 +110,25 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
  */
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
 
+void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void(*fp)(void*));
+
 /**
  * remove item with the specified key
  * @param pHashObj
  * @param key
  * @param keyLen
  */
-void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
+int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
+
+int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize);
+
+int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
 /**
  * clean up hash table
  * @param handle
  */
 void taosHashCleanup(SHashObj *pHashObj);
-
-/**
- * Set the free callback function
- * This function if set will be invoked right before freeing each hash node
- * @param pHashObj
- */
-void taosHashSetFreecb(SHashObj *pHashObj, _hash_free_fn_t freeFp);
 
 /**
  *

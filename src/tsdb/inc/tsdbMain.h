@@ -151,21 +151,21 @@ typedef struct {
 // ------------------ tsdbFile.c
 extern const char* tsdbFileSuffix[];
 typedef enum {
-#ifdef TSDB_IDX
-  TSDB_FILE_TYPE_IDX = 0,
-  TSDB_FILE_TYPE_HEAD,
-#else
   TSDB_FILE_TYPE_HEAD = 0,
-#endif
   TSDB_FILE_TYPE_DATA,
   TSDB_FILE_TYPE_LAST,
-  TSDB_FILE_TYPE_MAX,
-#ifdef TSDB_IDX
-  TSDB_FILE_TYPE_NIDX,
-#endif
+  TSDB_FILE_TYPE_STAT,
   TSDB_FILE_TYPE_NHEAD,
-  TSDB_FILE_TYPE_NLAST
+  TSDB_FILE_TYPE_NDATA,
+  TSDB_FILE_TYPE_NLAST,
+  TSDB_FILE_TYPE_NSTAT
 } TSDB_FILE_TYPE;
+
+#ifndef TDINTERNAL
+#define TSDB_FILE_TYPE_MAX (TSDB_FILE_TYPE_LAST+1)
+#else
+#define TSDB_FILE_TYPE_MAX (TSDB_FILE_TYPE_STAT+1)
+#endif
 
 typedef struct {
   uint32_t magic;
@@ -281,9 +281,6 @@ typedef struct {
   TSKEY      minKey;
   TSKEY      maxKey;
   SFileGroup fGroup;
-#ifdef TSDB_IDX
-  SFile nIdxF;
-#endif
   SFile      nHeadF;
   SFile      nLastF;
 } SHelperFile;
@@ -497,10 +494,6 @@ void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TS
 #define helperState(h) (h)->state
 #define TSDB_NLAST_FILE_OPENED(h) ((h)->files.nLastF.fd > 0)
 #define helperFileId(h) ((h)->files.fGroup.fileId)
-#ifdef TSDB_IDX
-#define helperIdxF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_IDX]))
-#define helperNewIdxF(h) (&((h)->files.nIdxF))
-#endif
 #define helperHeadF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_HEAD]))
 #define helperDataF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_DATA]))
 #define helperLastF(h) (&((h)->files.fGroup.files[TSDB_FILE_TYPE_LAST]))
@@ -512,7 +505,7 @@ int  tsdbInitWriteHelper(SRWHelper* pHelper, STsdbRepo* pRepo);
 void tsdbDestroyHelper(SRWHelper* pHelper);
 void tsdbResetHelper(SRWHelper* pHelper);
 int  tsdbSetAndOpenHelperFile(SRWHelper* pHelper, SFileGroup* pGroup);
-int  tsdbCloseHelperFile(SRWHelper* pHelper, bool hasError);
+int  tsdbCloseHelperFile(SRWHelper* pHelper, bool hasError, SFileGroup* pGroup);
 int  tsdbSetHelperTable(SRWHelper* pHelper, STable* pTable, STsdbRepo* pRepo);
 int  tsdbCommitTableData(SRWHelper* pHelper, SCommitIter* pCommitIter, SDataCols* pDataCols, TSKEY maxKey);
 int  tsdbMoveLastBlockIfNeccessary(SRWHelper* pHelper);

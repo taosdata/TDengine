@@ -21,11 +21,7 @@
 
 #define TAOS_RANDOM_FILE_FAIL_TEST
 
-#ifdef TSDB_IDX
-const char *tsdbFileSuffix[] = {".idx", ".head", ".data", ".last", "", ".i", ".h", ".l"};
-#else
-const char *tsdbFileSuffix[] = {".head", ".data", ".last", "", ".h", ".l"};
-#endif
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
 static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
 static void  tsdbDestroyFile(SFile *pFile);
@@ -412,6 +408,10 @@ static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   void *pBuf = buf;
   pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
+
+  if (pFile->info.size == TSDB_FILE_HEAD_SIZE) {
+    pFile->info.size = lseek(pFile->fd, 0, SEEK_END);
+  }
 
   if (version != TSDB_FILE_VERSION) {
     tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
