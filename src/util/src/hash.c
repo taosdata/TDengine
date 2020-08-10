@@ -88,23 +88,6 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashEntry *pe, const void *k
   return pNode;
 }
 
-static FORCE_INLINE SHashNode *doSerchPrevInEntryList(SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
-  SHashNode *prev= NULL;
-  SHashNode *pNode = pe->next;
-
-  while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(pNode->key, key, keyLen) == 0)) {
-      assert(pNode->hashVal == hashVal);
-      break;
-    }
-
-    prev = pNode;
-    pNode = pNode->next;
-  }
-
-  return prev;
-}
-
 /**
  * Resize the hash list if the threshold is reached
  *
