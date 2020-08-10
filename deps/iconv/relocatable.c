@@ -360,7 +360,7 @@ find_shared_library_fullname ()
 
 		  ungetc (c, fp);
 		  shared_library_fullname = NULL; size = 0;
-		  len = getline (&shared_library_fullname, &size, fp);
+		  len = getline(&shared_library_fullname, &size, fp);
 		  if (len >= 0)
 		    {
 		      /* Success: filled shared_library_fullname.  */

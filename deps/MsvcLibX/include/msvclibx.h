@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    MsvcLibX.h						      *
 *                                                                             *
@@ -15,7 +15,7 @@
 *    2016-09-28 JFL Can also be included by MS' Resource Compiler.            *
 *    2017-02-05 JFL Changed the UTF-8 programs initialization method.         *
 *									      *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*        Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -58,7 +58,7 @@
 
 /* Generate the OS-and-debug-mode-specific library name */
 #define _MSVCLIBX_LIB "MsvcLibX" _MSVCLIBX_LIB_OS_SUFFIX _MSVCLIBX_LIB_DBG_SUFFIX ".lib"
-#pragma message("Adding pragma comment(lib, \"" _MSVCLIBX_LIB "\")")
+//#pragma message("Adding pragma comment(lib, \"" _MSVCLIBX_LIB "\")")
 #pragma comment(lib, _MSVCLIBX_LIB)
 
 /* Library-specific routine used internally by many standard routines */

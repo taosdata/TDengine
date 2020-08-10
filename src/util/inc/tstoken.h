@@ -182,6 +182,8 @@ static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
   return (i < pToken->n)? TK_ILLEGAL:type;
 }
 
+void taosCleanupKeywordsTable();
+
 #ifdef __cplusplus
 }
 #endif

@@ -659,3 +659,7 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
 }
 
 bool isKeyWord(const char* z, int32_t len) { return (tSQLKeywordCode((char*)z, len) != TK_ID); }
+
+void taosCleanupKeywordsTable() {
+  taosHashCleanup(KeywordHashTable);
+}

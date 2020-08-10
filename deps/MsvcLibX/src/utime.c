@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename	    utime.c						      *
 *									      *
@@ -13,7 +13,7 @@
 *    2014-07-02 JFL Added support for pathnames >= 260 characters. 	      *
 *    2016-08-25 JFL Added missing routine utimeA().                	      *
 *                                                                             *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -22,10 +22,10 @@
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ security warnings */
 
 #include <errno.h>
-#include <sys/time.h> /* Must be included before any direct or indirect <windows.h> inclusion */
-#include <utime.h>
-
-#include "debugm.h"
+#include "sys/msvcTime.h" /* Must be included before any direct or indirect <windows.h> inclusion */
+#include "msvcUtime.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_DEBUG)
 #include <stdio.h>
@@ -35,7 +35,7 @@
 
 #include <windows.h>
 #include <io.h> /* For  MSVC's _get_osfhandle() */
-#include <unistd.h> /* For MsvcLibX's ResolveLinks() */
+#include "msvcUnistd.h" /* For MsvcLibX's ResolveLinks() */
 
 /* Convert a Windows FILETIME to a Unix time_t.
    A FILETIME is the number of 100-nanosecond intervals since January 1, 1601.
