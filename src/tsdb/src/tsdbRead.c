@@ -232,10 +232,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   }
 
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
-  assert(pMeta != NULL);
-
-  size_t sizeOfGroup = taosArrayGetSize(groupList->pGroupList);
-  assert(sizeOfGroup >= 1 && pCond != NULL && pCond->numOfCols > 0);
+  assert(pMeta != NULL && sizeOfGroup >= 1 && pCond != NULL && pCond->numOfCols > 0);
 
   for (int32_t i = 0; i < sizeOfGroup; ++i) {
     SArray* group = *(SArray**) taosArrayGet(groupList->pGroupList, i);
@@ -251,10 +248,12 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
           .tableId = ((STable*)(pKeyInfo->pTable))->tableId,
           .pTableObj = pKeyInfo->pTable,
       };
-      info.tableId = pTable->tableId;
 
       assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
       info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));
+
+      info.tableId.tid = info.pTableObj->tableId.tid;
+      info.tableId.uid = info.pTableObj->tableId.uid;
 
       if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
         assert(info.lastKey >= pQueryHandle->window.skey);
