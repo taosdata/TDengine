@@ -196,9 +196,9 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   assert(sizeOfGroup >= 1 && pCond != NULL && pCond->numOfCols > 0);
 
   if (ASCENDING_TRAVERSE(pCond->order)) {
-    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
-  } else {
     assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+  } else {
+    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
   }
 
   // allocate buffer in order to load data blocks from file
