@@ -172,6 +172,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   if (pQueryHandle == NULL) {
     goto out_of_memory;
   }
+
   pQueryHandle->order       = pCond->order;
   pQueryHandle->window      = pCond->twindow;
   pQueryHandle->pTsdb       = tsdb;
@@ -183,6 +184,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   pQueryHandle->qinfo       = qinfo;
   pQueryHandle->outputCapacity = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
   pQueryHandle->allocSize   = 0;
+  pQueryHandle->locateStart = false;
 
   if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
     goto out_of_memory;
@@ -192,6 +194,12 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
 
   size_t sizeOfGroup = taosArrayGetSize(groupList->pGroupList);
   assert(sizeOfGroup >= 1 && pCond != NULL && pCond->numOfCols > 0);
+
+  if (ASCENDING_TRAVERSE(pCond->order)) {
+    assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+  } else {
+    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+  }
 
   // allocate buffer in order to load data blocks from file
   int32_t numOfCols = pCond->numOfCols;
@@ -243,6 +251,8 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
       info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));
 
       taosArrayPush(pQueryHandle->pTableCheckInfo, &info);
+      tsdbDebug("%p check table uid:%"PRId64", tid:%d from lastKey:%"PRId64" %p", pQueryHandle, info.tableId.uid,
+          info.tableId.tid, info.lastKey, qinfo);
     }
   }
   
@@ -645,7 +655,7 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
   int16_t* colIds = pQueryHandle->defaultLoadColumn->pData;
   int32_t ret = tsdbLoadBlockDataCols(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, QH_GET_NUM_OF_COLS(pQueryHandle));
-    if (ret == TSDB_CODE_SUCCESS) {
+  if (ret == TSDB_CODE_SUCCESS) {
     SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
 
     pBlockLoadInfo->fileGroup = pQueryHandle->pFileGroup;
@@ -1070,6 +1080,14 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
       cur->pos >= 0 && cur->pos < pBlock->numOfRows);
 
   TSKEY* tsArray = pCols->cols[0].pData;
+
+  if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+    TSKEY s = tsArray[cur->pos];
+    assert(s >= pQueryHandle->window.skey && s <= pQueryHandle->window.ekey);
+  } else {
+    TSKEY s = tsArray[cur->pos];
+    assert(s <= pQueryHandle->window.skey && s >= pQueryHandle->window.ekey);
+  }
 
   // for search the endPos, so the order needs to reverse
   int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
@@ -1550,7 +1568,7 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
     STableCheckInfo* pCheckInfo = pBlockInfo->pTableCheckInfo;
 
     // current block is done, try next
-    if (!cur->mixBlock || cur->blockCompleted) {
+    if ((!cur->mixBlock) || cur->blockCompleted) {
       if ((cur->slot == pQueryHandle->numOfBlocks - 1 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
           (cur->slot == 0 && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
         // all data blocks in current file has been checked already, try next file if exists
@@ -1569,6 +1587,7 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
         return TSDB_CODE_SUCCESS;
       }
     } else {
+      tsdbDebug("%p continue in current data block, index:%d, %p", pQueryHandle, cur->slot, pQueryHandle->qinfo);
       handleDataMergeIfNeeded(pQueryHandle, pBlockInfo->compBlock, pCheckInfo);
       *exists = pQueryHandle->realNumOfRows > 0;
 
