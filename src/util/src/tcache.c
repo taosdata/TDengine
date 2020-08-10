@@ -30,14 +30,6 @@ static FORCE_INLINE void __cache_wr_lock(SCacheObj *pCacheObj) {
 #endif
 }
 
-static FORCE_INLINE void __cache_rd_lock(SCacheObj *pCacheObj) {
-#if defined(LINUX)
-  pthread_rwlock_rdlock(&pCacheObj->lock);
-#else
-  pthread_mutex_lock(&pCacheObj->lock);
-#endif
-}
-
 static FORCE_INLINE void __cache_unlock(SCacheObj *pCacheObj) {
 #if defined(LINUX)
   pthread_rwlock_unlock(&pCacheObj->lock);
