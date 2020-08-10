@@ -50,7 +50,7 @@ int32_t vnodeInitResources() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
-  tsDnodeVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true);
+  tsDnodeVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
   if (tsDnodeVnodesHash == NULL) {
     vError("failed to init vnode list");
     return TSDB_CODE_VND_OUT_OF_MEMORY;

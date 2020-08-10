@@ -302,7 +302,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   SAcctObj *pAcct = pUser->pAcct;
 
   if (pConnectMsg->db[0]) {
-    char dbName[TSDB_TABLE_ID_LEN * 3] = {0};
+    char dbName[TSDB_TABLE_FNAME_LEN * 3] = {0};
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     SDbObj *pDb = mnodeGetDb(dbName);
     if (pDb == NULL) {

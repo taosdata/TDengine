@@ -47,6 +47,8 @@ void simpleTest() {
   EXPECT_EQ(pTSBuf->block.numOfElem, num);
 
   tsBufDestroy(pTSBuf);
+
+  free(list);
 }
 
 // one large list of ts, the ts list need to be split into several small blocks
@@ -71,6 +73,7 @@ void largeTSTest() {
   EXPECT_EQ(pTSBuf->block.numOfElem, num);
 
   tsBufDestroy(pTSBuf);
+  free(list);
 }
 
 void multiTagsTest() {
@@ -208,6 +211,8 @@ void loadDataTest() {
 
   int64_t e = taosGetTimestampUs();
   printf("end:%" PRIu64 ", elapsed:%" PRIu64 ", total obj:%d\n", e, e - s, x);
+  tsBufDestroy(pTSBuf);
+  tsBufDestroy(pNewBuf);
 }
 
 void randomIncTsTest() {}
@@ -338,6 +343,8 @@ void TSTraverse() {
       }
     }
   }
+
+  tsBufDestroy(pTSBuf);
 }
 
 void performanceTest() {}
@@ -352,9 +359,12 @@ void invalidFileTest() {
 
   STSBuf* pNewBuf = tsBufCreateFromFile("/tmp/test", true);
   EXPECT_TRUE(pNewBuf == NULL);
+  tsBufDestroy(pNewBuf);
 
   pNewBuf = tsBufCreateFromFile("/tmp/911", true);
   EXPECT_TRUE(pNewBuf == NULL);
+
+  tsBufDestroy(pNewBuf);
 }
 
 void mergeDiffVnodeBufferTest() {

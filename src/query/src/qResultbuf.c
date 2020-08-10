@@ -6,7 +6,8 @@
 #include "queryLog.h"
 #include "taoserror.h"
 
-#define GET_DATA_PAYLOAD(_p) ((tFilePage*)(((char*)(_p)->pData) + POINTER_BYTES))
+#define GET_DATA_PAYLOAD(_p) ((_p)->pData + POINTER_BYTES)
+#define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
                                     int32_t inMemBufSize, const void* handle) {
@@ -25,7 +26,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   pResBuf->comp         = true;
   pResBuf->file         = NULL;
   pResBuf->handle       = handle;
-  pResBuf->fileSize = 0;
+  pResBuf->fileSize     = 0;
 
   // at least more than 2 pages must be in memory
   assert(inMemBufSize >= pagesize * 2);
@@ -34,9 +35,9 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 
   // init id hash table
-  pResBuf->groupSet  = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  pResBuf->groupSet  = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   pResBuf->assistBuf = malloc(pResBuf->pageSize + 2); // EXTRA BYTES
-  pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  pResBuf->all = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
 
   char path[PATH_MAX] = {0};
   taosGetTmpfilePath("qbuf", path);
@@ -186,8 +187,6 @@ static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   return (char*)GET_DATA_PAYLOAD(pg);
 }
 
-#define NO_AVAILABLE_PAGES(_b) ((_b)->numOfPages >= (_b)->inMemPages)
-
 static SIDList addNewGroup(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   assert(taosHashGet(pResultBuf->groupSet, (const char*) &groupId, sizeof(int32_t)) == NULL);
 
@@ -211,11 +210,12 @@ static SPageInfo* registerPage(SDiskbasedResultBuf* pResultBuf, int32_t groupId,
   pResultBuf->numOfPages += 1;
 
   SPageInfo* ppi = malloc(sizeof(SPageInfo));//{ .info = PAGE_INFO_INITIALIZER, .pageId = pageId, .pn = NULL};
-  ppi->info     = PAGE_INFO_INITIALIZER;
-  ppi->pageId   = pageId;
-  ppi->pData    = NULL;
-  ppi->pn       = NULL;
-  ppi->used     = true;
+
+  ppi->pageId = pageId;
+  ppi->pData  = NULL;
+  ppi->info   = PAGE_INFO_INITIALIZER;
+  ppi->used   = true;
+  ppi->pn     = NULL;
 
   return *(SPageInfo**) taosArrayPush(list, &ppi);
 }
@@ -246,7 +246,9 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
   // all pages are referenced by user, try to allocate new space
   if (pn == NULL) {
     int32_t prev = pResultBuf->inMemPages;
-    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f);
+
+    // increase by 50% of previous mem pages
+    pResultBuf->inMemPages = pResultBuf->inMemPages * 1.5f;
 
     qWarn("%p in memory buf page not sufficient, expand from %d to %d, page size:%d", pResultBuf, prev,
           pResultBuf->inMemPages, pResultBuf->pageSize);
@@ -281,7 +283,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   pResultBuf->statis.getPages += 1;
 
   char* availablePage = NULL;
-  if (NO_AVAILABLE_PAGES(pResultBuf)) {
+  if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
     availablePage = evicOneDataPage(pResultBuf);
   }
 
@@ -340,7 +342,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->info.length >= 0 && (*pi)->info.offset >= 0);
 
     char* availablePage = NULL;
-    if (NO_AVAILABLE_PAGES(pResultBuf)) {
+    if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
       availablePage = evicOneDataPage(pResultBuf);
     }
 
@@ -353,6 +355,8 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     ((void**)((*pi)->pData))[0] = (*pi);
 
     lruListPushFront(pResultBuf->lruList, *pi);
+    (*pi)->used = true;
+
     loadPageFromDisk(pResultBuf, *pi);
     return GET_DATA_PAYLOAD(*pi);
   }
@@ -396,12 +400,13 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, file size:%"PRId64" bytes",
-        pResultBuf->handle, pResultBuf->totalBufSize, pResultBuf->fileSize);
+    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, inmem size:%dbytes, file size:%"PRId64" bytes",
+        pResultBuf->handle, pResultBuf->totalBufSize, listNEles(pResultBuf->lruList) * pResultBuf->pageSize,
+        pResultBuf->fileSize);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%p disk-based output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
+    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
            pResultBuf->totalBufSize);
   }
 

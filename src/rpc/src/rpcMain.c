@@ -260,7 +260,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   }
 
   if (pRpc->connType == TAOS_CONN_SERVER) {
-    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
+    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
     if (pRpc->hash == NULL) {
       tError("%s failed to init string hash", pRpc->label);
       rpcClose(pRpc);

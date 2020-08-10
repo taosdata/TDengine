@@ -277,6 +277,9 @@ void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRo
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
 int  tscSetMgmtEpSetFromCfg(const char *first, const char *second);
 
+bool tscSetSqlOwner(SSqlObj* pSql);
+void tscClearSqlOwner(SSqlObj* pSql);
+
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
 char* strdup_throw(const char* str);

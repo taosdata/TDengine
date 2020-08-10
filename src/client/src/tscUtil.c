@@ -644,7 +644,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
   STableDataBlocks* pOneTableBlock = taosArrayGetP(pTableDataBlockList, 0);
   int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
 
-  void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
   size_t total = taosArrayGetSize(pTableDataBlockList);
@@ -858,12 +858,13 @@ void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src) {
 }
 
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
+  assert(index < pFieldInfo->numOfOutput);
   return TARRAY_GET_ELEM(pFieldInfo->pFields, index);
 }
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, index);
-  assert(pInfo != NULL);
+  assert(pInfo != NULL && pInfo->pSqlExpr != NULL);
 
   return pInfo->pSqlExpr->offset;
 }
@@ -1680,6 +1681,77 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   return pNew;
 }
 
+// current sql function is not direct output result, so create a dummy output field
+static void doSetNewFieldInfo(SQueryInfo* pNewQueryInfo, SSqlExpr* pExpr) {
+  TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
+  tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
+
+  SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
+
+  pInfo1->pSqlExpr = pExpr;
+  pInfo1->visible = false;
+}
+
+static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* pNewQueryInfo, int64_t uid) {
+  int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
+  if (numOfOutput == 0) {
+    return;
+  }
+
+  size_t      numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
+
+  // set the field info in pNewQueryInfo object
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+
+    if (pExpr->uid == uid) {
+      if (i < pFieldInfo->numOfOutput) {
+        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
+
+        if (pInfo->pSqlExpr != NULL) {
+          TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
+          assert(strcmp(p->name, pExpr->aliasName) == 0);
+
+          SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
+          *pInfo1 = *pInfo;
+        } else {
+          assert(pInfo->pArithExprInfo != NULL);
+          doSetNewFieldInfo(pNewQueryInfo, pExpr);
+        }
+      } else { // it is a arithmetic column, does not have actual field for sqlExpr, so build it
+        doSetNewFieldInfo(pNewQueryInfo, pExpr);
+      }
+    }
+  }
+
+  // make sure the the sqlExpr for each fields is correct
+  numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
+
+  // update the pSqlExpr pointer in SFieldSupInfo according the field name
+  // make sure the pSqlExpr point to the correct SqlExpr in pNewQueryInfo, not SqlExpr in pQueryInfo
+  for (int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
+    TAOS_FIELD* field = tscFieldInfoGetField(&pNewQueryInfo->fieldsInfo, f);
+
+    bool matched = false;
+    for (int32_t k1 = 0; k1 < numOfExprs; ++k1) {
+      SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
+
+      if (strcmp(field->name, pExpr1->aliasName) == 0) {  // establish link according to the result field name
+        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pNewQueryInfo->fieldsInfo, f);
+        pInfo->pSqlExpr = pExpr1;
+
+        matched = true;
+        break;
+      }
+    }
+
+    assert(matched);
+  }
+
+  tscFieldInfoUpdateOffset(pNewQueryInfo);
+}
+
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
@@ -1773,49 +1845,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true);
 
-  int32_t numOfOutput = (int32_t)tscSqlExprNumOfExprs(pNewQueryInfo);
-
-  if (numOfOutput > 0) {  // todo refactor to extract method
-    size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-    
-    for (int32_t i = 0; i < numOfExprs; ++i) {
-      SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-      
-      if (pExpr->uid == uid) {
-        TAOS_FIELD* p = tscFieldInfoGetField(pFieldInfo, i);
-        SFieldSupInfo* pInfo = tscFieldInfoGetSupp(pFieldInfo, i);
-  
-        SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, p);
-        *pInfo1 = *pInfo;
-      }
-    }
-
-    // make sure the the sqlExpr for each fields is correct
-    // todo handle the agg arithmetic expression
-    numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
-
-    for(int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutput; ++f) {
-      TAOS_FIELD* field = tscFieldInfoGetField(&pNewQueryInfo->fieldsInfo, f);
-      bool matched = false;
-
-      for(int32_t k1 = 0; k1 < numOfExprs; ++k1) {
-        SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
-
-        if (strcmp(field->name, pExpr1->aliasName) == 0) {  // establish link according to the result field name
-          SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pNewQueryInfo->fieldsInfo, f);
-          pInfo->pSqlExpr = pExpr1;
-
-          matched = true;
-          break;
-        }
-      }
-
-      assert(matched);
-    }
-  
-    tscFieldInfoUpdateOffset(pNewQueryInfo);
-  }
+  doSetSqlExprAndResultFieldInfo(pQueryInfo, pNewQueryInfo, uid);
 
   pNew->fp = fp;
   pNew->fetchFp = fp;
@@ -2013,6 +2043,10 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   }
   
   int32_t numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
+  if (pTableMetaInfo->pVgroupTables != NULL) {
+    numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+  }
+
   return tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
          (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vgroupIndex < numOfVgroups - 1);
 }
@@ -2199,4 +2233,22 @@ int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
   }
 
   return 0;
+}
+
+bool tscSetSqlOwner(SSqlObj* pSql) {
+  SSqlRes* pRes = &pSql->res;
+
+  // set the sql object owner
+  uint64_t threadId = taosGetPthreadId();
+  if (atomic_val_compare_exchange_64(&pSql->owner, 0, threadId) != 0) {
+    pRes->code = TSDB_CODE_QRY_IN_EXEC;
+    return false;
+  }
+
+  return true;
+}
+
+void tscClearSqlOwner(SSqlObj* pSql) {
+  assert(pSql->owner != 0);
+  atomic_store_64(&pSql->owner, 0);
 }

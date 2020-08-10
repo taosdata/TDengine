@@ -1026,9 +1026,11 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pQueryInfo->fieldsInfo.numOfOutput);
 
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+  int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * numOfExprs);
+
+  for (int32_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
 
     int32_t tableIndexOfSub = -1;
@@ -1045,8 +1047,8 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     SSqlCmd* pSubCmd = &pSql->pSubs[tableIndexOfSub]->cmd;
     SQueryInfo* pSubQueryInfo = tscGetQueryInfoDetail(pSubCmd, 0);
     
-    size_t numOfExprs = taosArrayGetSize(pSubQueryInfo->exprList);
-    for (int32_t k = 0; k < numOfExprs; ++k) {
+    size_t numOfSubExpr = taosArrayGetSize(pSubQueryInfo->exprList);
+    for (int32_t k = 0; k < numOfSubExpr; ++k) {
       SSqlExpr* pSubExpr = tscSqlExprGet(pSubQueryInfo, k);
       if (pExpr->functionId == pSubExpr->functionId && pExpr->colInfo.colId == pSubExpr->colInfo.colId) {
         pRes->pColumnIndex[i] = (SColumnIndex){.tableIndex = tableIndexOfSub, .columnIndex = k};
@@ -1054,6 +1056,10 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
       }
     }
   }
+
+  // restore the offset value for super table query in case of final result.
+  tscRestoreSQLFuncForSTableQuery(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
 }
 
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
@@ -1079,7 +1085,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     assert(taos_errno(pSql) == code);
 
-    tscError("%p abort query, code:%d, global code:%d", pSql, code, pParentSql->res.code);
+    tscError("%p abort query, code:%s, global code:%s", pSql, tstrerror(code), tstrerror(pParentSql->res.code));
     pParentSql->res.code = code;
 
     quitAllSubquery(pParentSql, pSupporter);
@@ -2052,9 +2058,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
   }
 
   while (1) {
-    if (pRes->row < pRes->numOfRows) {
-      assert(0);
-    }
+    assert (pRes->row >= pRes->numOfRows);
 
     doBuildResFromSubqueries(pSql);
     sem_post(&pSql->rspSem);
