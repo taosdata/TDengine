@@ -71,6 +71,8 @@ static void        tsdbStopStream(STsdbRepo *pRepo);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
+  taosRemoveDir(rootDir);
+
   if (mkdir(rootDir, 0755) < 0) {
     tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -94,6 +96,8 @@ int32_t tsdbDropRepo(char *rootDir) { return tsdbUnsetRepoEnv(rootDir); }
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
   STsdbCfg   config = {0};
   STsdbRepo *pRepo = NULL;
+
+  terrno = TSDB_CODE_SUCCESS;
 
   if (tsdbLoadConfig(rootDir, &config) < 0) {
     tsdbError("failed to open repo in rootDir %s since %s", rootDir, tstrerror(terrno));
@@ -799,6 +803,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
 
   tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_DESC);
   while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
+    if (pFGroup->state) continue;
     if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
     if (tsdbLoadCompIdx(&rhelper, NULL) < 0) goto _err;
     for (int i = 1; i < pMeta->maxTables; i++) {

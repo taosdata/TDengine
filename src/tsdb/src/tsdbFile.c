@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #define _DEFAULT_SOURCE
+#include <regex.h>
+
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
@@ -23,10 +25,11 @@
 
 const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
-static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
-static void  tsdbDestroyFile(SFile *pFile);
-static int   compFGroup(const void *arg1, const void *arg2);
-static int   keyFGroupCompFunc(const void *key, const void *fgroup);
+static int  tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
+static void tsdbDestroyFile(SFile *pFile);
+static int  compFGroup(const void *arg1, const void *arg2);
+static int  keyFGroupCompFunc(const void *key, const void *fgroup);
+static void tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -69,12 +72,14 @@ void tsdbFreeFileH(STsdbFileH *pFileH) {
 int tsdbOpenFileH(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
 
-  char *tDataDir = NULL;
-  DIR * dir = NULL;
-  int   fid = 0;
-  int   vid = 0;
+  char *  tDataDir = NULL;
+  DIR *   dir = NULL;
+  int     fid = 0;
+  int     vid = 0;
+  regex_t regex1, regex2;
+  int     code = 0;
 
-  SFileGroup fileGroup = {0};
+  SFileGroup  fileGroup = {0};
   STsdbFileH *pFileH = pRepo->tsdbFileH;
 
   tDataDir = tsdbGetDataDirName(pRepo->rootDir);
@@ -90,34 +95,65 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     goto _err;
   }
 
+  code = regcomp(&regex1, "^v[0-9]+f[0-9]+\\.(head|data|last|stat)$", REG_EXTENDED);
+  if (code != 0) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  code = regcomp(&regex2, "^v[0-9]+f[0-9]+\\.(h|d|l|s)$", REG_EXTENDED);
+  if (code != 0) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
+  }
+
   struct dirent *dp = NULL;
   while ((dp = readdir(dir)) != NULL) {
-    if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
-    sscanf(dp->d_name, "v%df%d", &vid, &fid);
+    if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
 
-    if (tsdbSearchFGroup(pRepo->tsdbFileH, fid, TD_EQ) != NULL) continue;
+    code = regexec(&regex1, dp->d_name, 0, NULL, 0);
+    if (code == 0) {
+      sscanf(dp->d_name, "v%df%d", &vid, &fid);
+      if (vid != REPO_ID(pRepo)) {
+        tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
+        continue;
+      }
 
-    memset((void *)(&fileGroup), 0, sizeof(SFileGroup));
-    fileGroup.fileId = fid;
-    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-      if (tsdbInitFile(&fileGroup.files[type], pRepo, fid, type) < 0) {
-        tsdbError("vgId:%d failed to init file fid %d type %d", REPO_ID(pRepo), fid, type);
+      if (tsdbSearchFGroup(pFileH, fid, TD_EQ) != NULL) continue;
+      memset((void *)(&fileGroup), 0, sizeof(SFileGroup));
+      fileGroup.fileId = fid;
+
+      tsdbInitFileGroup(&fileGroup, pRepo);
+    } else if (code == REG_NOMATCH) {
+      code = regexec(&regex2, dp->d_name, 0, NULL, 0);
+      if (code == 0) {
+        tsdbDebug("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), dp->d_name);
+        remove(dp->d_name);
+      } else if (code == REG_NOMATCH) {
+        tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
+        continue;
+      } else {
         goto _err;
       }
+    } else {
+      goto _err;
     }
-
-    tsdbDebug("vgId:%d file group %d init", REPO_ID(pRepo), fid);
 
     pFileH->pFGroup[pFileH->nFGroups++] = fileGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
   }
 
+  regfree(&regex1);
+  regfree(&regex2);
   taosTFree(tDataDir);
   closedir(dir);
   return 0;
 
 _err:
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&fileGroup.files[type]);
+
+  regfree(&regex1);
+  regfree(&regex2);
 
   taosTFree(tDataDir);
   if (dir != NULL) closedir(dir);
@@ -448,5 +484,16 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
     return 0;
   } else {
     return fid > pFGroup->fileId ? 1 : -1;
+  }
+}
+
+static void tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo) {
+  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+    if (tsdbInitFile(&pFGroup->files[type], pRepo, pFGroup->fileId, type) < 0) {
+      memset(&pFGroup->files[type].info, 0, sizeof(STsdbFileInfo));
+      pFGroup->files[type].info.magic = TSDB_FILE_INIT_MAGIC;
+      pFGroup->state = 1;
+      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    }
   }
 }
