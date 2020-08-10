@@ -254,12 +254,12 @@ static const char isIdChar[] = {
 
 static void* KeywordHashTable = NULL;
 
-static void doInitKeywordsTable() {
+static void doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
   
   KeywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
-    keywordTable[i].len = strlen(keywordTable[i].name);
+    keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
     void* ptr = &keywordTable[i];
     taosHashPut(KeywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
   }
@@ -659,3 +659,7 @@ SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
 }
 
 bool isKeyWord(const char* z, int32_t len) { return (tSQLKeywordCode((char*)z, len) != TK_ID); }
+
+void taosCleanupKeywordsTable() {
+  taosHashCleanup(KeywordHashTable);
+}

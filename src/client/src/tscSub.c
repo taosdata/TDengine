@@ -203,6 +203,7 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
 
 static SArray* getTableList( SSqlObj* pSql ) {
   const char* p = strstr( pSql->sqlstr, " from " );
+  assert(p != NULL); // we are sure this is a 'select' statement
   char* sql = alloca(strlen(p) + 32);
   sprintf(sql, "select tbid(tbname)%s", p);
   
@@ -227,6 +228,19 @@ static SArray* getTableList( SSqlObj* pSql ) {
   taos_free_result(pNew);
   
   return result;
+}
+
+static int32_t compareTidTag(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*)p1;
+  const STidTags* t2 = (const STidTags*)p2;
+  
+  if (t1->vgId != t2->vgId) {
+    return (t1->vgId > t2->vgId) ? 1 : -1;
+  }
+  if (t1->tid != t2->tid) {
+    return (t1->tid > t2->tid) ? 1 : -1;
+  }
+  return 0;
 }
 
 
@@ -269,7 +283,8 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   pSub->progress = progress;
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    taosArraySort( tables, tscCompareTidTags );
+    taosArraySort( tables, compareTidTag );
+    tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscBuildVgroupTableInfo(pSql, pTableMetaInfo, tables);
   }
   taosArrayDestroy(tables);
@@ -409,6 +424,9 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     }
   }
 
+  size_t size = taosArrayGetSize(pSub->progress) * sizeof(STableIdInfo);
+  size += sizeof(SQueryTableMsg) + 4096;
+  tscAllocPayload(&pSql->cmd, (int)size);
   for (int retry = 0; retry < 3; retry++) {
     tscRemoveFromSqlList(pSql);
 

@@ -57,7 +57,7 @@ void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw) {
   
   SCond cond = {
     .uid = uid,
-    .len = tbufTell(bw),
+    .len = (int32_t)(tbufTell(bw)),
     .cond = NULL,
   };
   
@@ -481,7 +481,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
    */
   pCmd->payloadLen = pDataBlock->size;
 
-  assert(pCmd->allocSize >= pCmd->payloadLen + 100 && pCmd->payloadLen > 0);
+  assert(pCmd->allocSize >= (uint32_t)(pCmd->payloadLen + 100) && pCmd->payloadLen > 0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -570,7 +570,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 
   SSubmitBlk* pBlock = pDataBlock;
   memcpy(pDataBlock, pTableDataBlock->pData, sizeof(SSubmitBlk));
-  pDataBlock += sizeof(SSubmitBlk);
+  pDataBlock = (char*)pDataBlock + sizeof(SSubmitBlk);
 
   int32_t flen = 0;  // original total length of row
 
@@ -584,7 +584,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
       pCol->bytes = htons(pSchema[j].bytes);
       pCol->offset = 0;
 
-      pDataBlock += sizeof(STColumn);
+      pDataBlock = (char*)pDataBlock + sizeof(STColumn);
       flen += TYPE_BYTES[pSchema[j].type];
     }
 
@@ -604,7 +604,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     SDataRow trow = (SDataRow) pDataBlock;
-    dataRowSetLen(trow, TD_DATA_ROW_HEAD_SIZE + flen);
+    dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + flen));
     dataRowSetVersion(trow, pTableMeta->sversion);
 
     int toffset = 0;
@@ -614,7 +614,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
       p += pSchema[j].bytes;
     }
 
-    pDataBlock += dataRowLen(trow);
+    pDataBlock = (char*)pDataBlock + dataRowLen(trow);
     pBlock->dataLen += dataRowLen(trow);
   }
 
@@ -667,7 +667,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 
     if (dataBuf->nAllocSize < destSize) {
       while (dataBuf->nAllocSize < destSize) {
-        dataBuf->nAllocSize = dataBuf->nAllocSize * 1.5;
+        dataBuf->nAllocSize = (uint32_t)(dataBuf->nAllocSize * 1.5);
       }
 
       char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
@@ -759,7 +759,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     if (pCmd->payload == NULL) return TSDB_CODE_TSC_OUT_OF_MEMORY;
     pCmd->allocSize = size;
   } else {
-    if (pCmd->allocSize < size) {
+    if (pCmd->allocSize < (uint32_t)size) {
       char* b = realloc(pCmd->payload, size);
       if (b == NULL) return TSDB_CODE_TSC_OUT_OF_MEMORY;
       pCmd->payload = b;
@@ -769,7 +769,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     memset(pCmd->payload, 0, pCmd->allocSize);
   }
 
-  assert(pCmd->allocSize >= size);
+  assert(pCmd->allocSize >= (uint32_t)size);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -963,7 +963,7 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
 
 SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                            int16_t size, int16_t interSize, bool isTagCol) {
-  int32_t num = taosArrayGetSize(pQueryInfo->exprList);
+  int32_t num = (int32_t)taosArrayGetSize(pQueryInfo->exprList);
   if (index == num) {
     return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
   }
@@ -1184,7 +1184,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  */
 static int32_t validateQuoteToken(SSQLToken* pToken) {
   strdequote(pToken->z);
-  pToken->n = strtrim(pToken->z);
+  pToken->n = (uint32_t)strtrim(pToken->z);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1207,7 +1207,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
       strdequote(pToken->z);
-      pToken->n = strtrim(pToken->z);
+      pToken->n = (uint32_t)strtrim(pToken->z);
 
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1232,7 +1232,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
     char*   pStr = pToken->z;
 
     if (pToken->type == TK_SPACE) {
-      pToken->n = strtrim(pToken->z);
+      pToken->n = (uint32_t)strtrim(pToken->z);
     }
 
     pToken->n = tSQLGetToken(pToken->z, &pToken->type);
@@ -1251,7 +1251,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
     int32_t firstPartLen = pToken->n;
 
     pToken->z = sep + 1;
-    pToken->n = oldLen - (sep - pStr) - 1;
+    pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
     int32_t len = tSQLGetToken(pToken->z, &pToken->type);
     if (len != pToken->n || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
       return TSDB_CODE_TSC_INVALID_SQL;
@@ -1556,12 +1556,22 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd) {
   }
 }
 
+void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
+  if (pVgroupTables != NULL) {
+    for (size_t i = 0; i < taosArrayGetSize(pVgroupTables); i++) {
+      SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
+      taosArrayDestroy(pInfo->itemList);
+    }
+    taosArrayDestroy(pVgroupTables);
+  }
+}
+
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
   tscDebug("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-  
+    tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
     free(pTableMetaInfo);
   }
@@ -1763,7 +1773,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true);
 
-  int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
+  int32_t numOfOutput = (int32_t)tscSqlExprNumOfExprs(pNewQueryInfo);
 
   if (numOfOutput > 0) {  // todo refactor to extract method
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
@@ -1931,6 +1941,7 @@ int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
     return pTagCond->joinInfo.right.tagColId;
   } else {
     assert(0);
+    return -1;
   }
 }
 

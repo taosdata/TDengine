@@ -10,7 +10,7 @@ sleep 3000
 sql connect
 
 print ======== step1 
-sql create database db blocks 2
+sql create database db blocks 3
 sql create table db.mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
 $tbPrefix = db.t

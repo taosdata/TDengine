@@ -1,0 +1,10 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
+
+IF (TD_LINUX)
+  AUX_SOURCE_DIRECTORY(. SRC)
+  ADD_EXECUTABLE(taosClient client.c)
+  ADD_EXECUTABLE(taosServer server.c)
+  TARGET_LINK_LIBRARIES( taosServer -lpthread -lm -lrt )
+  TARGET_LINK_LIBRARIES( taosClient -lpthread -lm -lrt )
+ENDIF ()

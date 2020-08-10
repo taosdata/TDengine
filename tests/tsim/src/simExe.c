@@ -313,7 +313,9 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d",
         script->fileName, buf, code, errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
+#ifdef LINUX    
     signal(SIGCHLD, SIG_DFL);
+#endif
     if (repeatTimes++ >= 10) {
       exit(0);
     }
@@ -418,14 +420,14 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
     var = strchr(src, '$');
     if (var == NULL) break;
     if (var && ((var - src - 1) > 0) && *(var - 1) == '\\') {
-      srcLen = var - src - 1;
+      srcLen = (int)(var - src - 1);
       memcpy(dst + dstLen, src, srcLen);
       dstLen += srcLen;
       src = var;
       break;
     }
 
-    srcLen = var - src;
+    srcLen = (int)(var - src);
     memcpy(dst + dstLen, src, srcLen);
     dstLen += srcLen;
 
@@ -433,7 +435,7 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
     value = simGetVariable(script, token, tokenLen);
 
     strcpy(dst + dstLen, value);
-    dstLen += strlen(value);
+    dstLen += (int)strlen(value);
   }
 
   strcpy(dst + dstLen, src);
@@ -455,9 +457,9 @@ void simCloseNativeConnect(SScript *script) {
 
 void simCloseTaosdConnect(SScript *script) {
   if (simAsyncQuery) {
-    return simCloseRestFulConnect(script);
+    simCloseRestFulConnect(script);
   } else {
-    return simCloseNativeConnect(script);
+    simCloseNativeConnect(script);
   }
 }
 //  {"status":"succ","code":0,"desc":"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"}
@@ -575,7 +577,7 @@ int simExecuteRestFulCommand(SScript *script, char *command) {
 
   while (!feof(fp)) {
     int availSize = mallocSize - alreadyReadSize;
-    int len = fread(content + alreadyReadSize, 1, availSize, fp);
+    int len = (int)fread(content + alreadyReadSize, 1, availSize, fp);
     if (len >= availSize) {
       alreadyReadSize += len;
       mallocSize *= 2;

@@ -55,18 +55,18 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
     // load data in disk to memory
     tFilePage *pPage = (tFilePage *)calloc(1, pMemBuffer->pageSize);
     
-    for (int32_t i = 0; i < pMemBuffer->fileMeta.flushoutData.nLength; ++i) {
+    for (uint32_t i = 0; i < pMemBuffer->fileMeta.flushoutData.nLength; ++i) {
       tFlushoutInfo *pFlushInfo = &pMemBuffer->fileMeta.flushoutData.pFlushoutInfo[i];
       
       int32_t ret = fseek(pMemBuffer->file, pFlushInfo->startPageId * pMemBuffer->pageSize, SEEK_SET);
       UNUSED(ret);
       
       for (uint32_t j = 0; j < pFlushInfo->numOfPages; ++j) {
-        ret = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
+        ret = (int32_t)fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
         UNUSED(ret);
         assert(pPage->num > 0);
         
-        tColModelAppend(pDesc->pColumnModel, buffer, pPage->data, 0, pPage->num, pPage->num);
+        tColModelAppend(pDesc->pColumnModel, buffer, pPage->data, 0, (int32_t)pPage->num, (int32_t)pPage->num);
         printf("id: %d  count: %" PRIu64 "\n", j, buffer->num);
       }
     }
@@ -78,12 +78,12 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
   // load data in pMemBuffer to buffer
   tFilePagesItem *pListItem = pMemBuffer->pHead;
   while (pListItem != NULL) {
-    tColModelAppend(pDesc->pColumnModel, buffer, pListItem->item.data, 0, pListItem->item.num,
-                    pListItem->item.num);
+    tColModelAppend(pDesc->pColumnModel, buffer, pListItem->item.data, 0, (int32_t)pListItem->item.num,
+                   (int32_t)pListItem->item.num);
     pListItem = pListItem->pNext;
   }
   
-  tColDataQSort(pDesc, buffer->num, 0, buffer->num - 1, buffer->data, TSDB_ORDER_ASC);
+  tColDataQSort(pDesc, (int32_t)buffer->num, 0, (int32_t)buffer->num - 1, buffer->data, TSDB_ORDER_ASC);
   
   pDesc->pColumnModel->capacity = oldCapacity;  // restore value
   return buffer;
@@ -883,7 +883,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
             if (sz != pMemBuffer->pageSize) {
               uError("MemBucket:%p, read tmp file %s failed", pMemBucket, pMemBuffer->path);
             } else {
-              tMemBucketPut(pMemBucket, pPage->data, pPage->num);
+              tMemBucketPut(pMemBucket, pPage->data, (int32_t)pPage->num);
             }
           }
 

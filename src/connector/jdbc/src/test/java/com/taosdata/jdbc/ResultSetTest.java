@@ -71,7 +71,7 @@ public class ResultSetTest extends BaseTest {
         }
 
         try {
-            statement.executeQuery("select * from " + dbName + "." + tName);
+            statement.executeQuery("select * from " + dbName + "." + tName + " where ts = " + ts);
             resSet = statement.getResultSet();
             System.out.println(((TSDBResultSet) resSet).getRowData());
             while (resSet.next()) {
@@ -806,9 +806,9 @@ public class ResultSetTest extends BaseTest {
 
     @Test
     public void testBatch() throws SQLException {
-        String[] sqls = new String[]{"insert into test.t0 values (1496732686001,2147483600,1496732687000,3.1415925,3.1415926\n" +
-                "535897,\"涛思数据，强~！\",12,12,\"TDengine is powerful\")", "insert into test.t0 values (1496732686002,2147483600,1496732687000,3.1415925,3.1415926\n" +
-                "535897,\"涛思数据，强~！\",12,12,\"TDengine is powerful\")"};
+        String[] sqls = new String[]{"insert into test.t0 values (1496732686001,2147483600,1496732687000,3.1415925,3.1415926535897," +
+                "'涛思数据，强~',12,0,'TDengine is powerful')", "insert into test.t0 values (1496732686002,2147483600,1496732687000,3.1415925,3.1415926535897," +
+                "'涛思数据，强~',12,1,'TDengine is powerful')"};
         for (String sql : sqls) {
             statement.addBatch(sql);
         }
@@ -816,7 +816,6 @@ public class ResultSetTest extends BaseTest {
         assertEquals(res.length, 2);
         statement.clearBatch();
     }
-
     @AfterClass
     public static void close() throws Exception {
         statement.executeUpdate("drop database " + dbName);

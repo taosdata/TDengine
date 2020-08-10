@@ -92,9 +92,9 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - debugFlag：运行日志开关。131（输出错误和警告日志），135（ 输出错误、警告和调试日志），143（ 输出错误、警告、调试和跟踪日志）。默认值：131或135（不同模块有不同的默认值）。
 - numOfLogLines：单个日志文件允许的最大行数。默认值：10,000,000行。
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
-- maxBinaryDisplayWidth：Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn动态修改此选项。
+- telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
 
-**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共11个端口，而且必须TCP和UDP都打开。
+**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共12个端口，而且必须TCP和UDP都打开。
 
 不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
 
@@ -142,6 +142,7 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 - secondEp: taos启动时，如果first连接不上，尝试连接集群中第二个taosd实例的end point, 缺省值为空。
 - charset：字符集编码。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 - locale：系统区位信息及编码格式。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
+- maxBinaryDisplayWidth：Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width *nn* 动态修改此选项。
 
 日志的配置参数，与server的配置参数完全一样。
 

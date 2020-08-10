@@ -67,7 +67,7 @@ char *getpass(const char *prefix) {
 }
 
 char *strndup(const char *s, size_t n) {
-  int len = strlen(s);
+  size_t len = strlen(s);
   if (len >= n) {
     len = n;
   }
@@ -78,13 +78,13 @@ char *strndup(const char *s, size_t n) {
   return r;
 }
 
-size_t twcslen(const wchar_t *wcs) {
+int twcslen(const wchar_t *wcs) {
   int *wstr = (int *)wcs;
   if (NULL == wstr) {
     return 0;
   }
 
-  size_t n = 0;
+  int n = 0;
   while (1) {
     if (0 == *wstr++) {
       break;
@@ -128,4 +128,29 @@ int tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes) {
   free(f2_mbs);
   return ret;
 #endif
+}
+
+
+/* Copy memory to memory until the specified number of bytes
+has been copied, return pointer to following byte.
+Overlap is NOT handled correctly. */
+void *mempcpy(void *dest, const void *src, size_t len) {
+  return (char*)memcpy(dest, src, len) + len;
+}
+
+/* Copy SRC to DEST, returning the address of the terminating '\0' in DEST.  */
+char *stpcpy (char *dest, const char *src) {
+  size_t len = strlen (src);
+  return (char*)memcpy(dest, src, len + 1) + len;
+}
+
+/* Copy no more than N characters of SRC to DEST, returning the address of
+   the terminating '\0' in DEST, if any, or else DEST + N.  */
+char *stpncpy (char *dest, const char *src, size_t n) {
+  size_t size = strnlen (src, n);
+  memcpy (dest, src, size);
+  dest += size;
+  if (size == n)
+    return dest;
+  return memset (dest, '\0', n - size);
 }

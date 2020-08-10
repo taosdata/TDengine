@@ -577,7 +577,7 @@ static int verticalPrintResult(TAOS_RES* tres) {
 
   int maxColNameLen = 0;
   for (int col = 0; col < num_fields; col++) {
-    int len = strlen(fields[col].name);
+    int len = (int)strlen(fields[col].name);
     if (len > maxColNameLen) {
       maxColNameLen = len;
     }
@@ -604,9 +604,8 @@ static int verticalPrintResult(TAOS_RES* tres) {
   return numOfRows;
 }
 
-
 static int calcColWidth(TAOS_FIELD* field, int precision) {
-  int width = strlen(field->name);
+  int width = (int)strlen(field->name);
 
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -741,7 +740,7 @@ void read_history() {
     return;
   }
 
-  while ((read_size = getline(&line, &line_size, f)) != -1) {
+  while ((read_size = taosGetline(&line, &line_size, f)) != -1) {
     line[read_size - 1] = '\0';
     history.hist[history.hend] = strdup(line);
 
@@ -822,7 +821,7 @@ void source_file(TAOS *con, char *fptr) {
     return;
   }
 
-  while ((read_len = getline(&line, &line_len, f)) != -1) {
+  while ((read_len = taosGetline(&line, &line_len, f)) != -1) {
     if (read_len >= tsMaxSQLStringLen) continue;
     line[--read_len] = '\0';
 

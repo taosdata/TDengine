@@ -251,8 +251,15 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
   sprintf(temp, "%s/tsdb", rootDir);
+
+  terrno = 0;
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
   if (pVnode->tsdb == NULL) {
+    vnodeCleanUp(pVnode);
+    return terrno;
+  } else if (terrno != 0 && pVnode->syncCfg.replica <= 1) {
+    vError("vgId:%d, failed to open tsdb, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
+           tstrerror(terrno));
     vnodeCleanUp(pVnode);
     return terrno;
   }

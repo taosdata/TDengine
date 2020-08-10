@@ -192,6 +192,8 @@ int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *
   }
 
   if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
+
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
   return 0;
 }
 
@@ -209,7 +211,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   char *sdup = strdup(pRepo->rootDir);
   char *prefix = dirname(sdup);
-  int   prefixLen = strlen(prefix);
+  int   prefixLen = (int)strlen(prefix);
   taosTFree(sdup);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
@@ -230,7 +232,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
         fname = strdup(pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].fname);
         magic = pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].info.magic;
       } else {
-        if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < eindex) {
+        if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
           fname = strdup(pFGroup->files[0].fname);
           *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
           magic = pFGroup->files[0].info.magic;
@@ -325,7 +327,7 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
 
 // ----------------- INTERNAL FUNCTIONS -----------------
 char *tsdbGetMetaFileName(char *rootDir) {
-  int   tlen = strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2;
+  int   tlen = (int)(strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -364,7 +366,7 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
 }
 
 char *tsdbGetDataDirName(char *rootDir) {
-  int   tlen = strlen(rootDir) + strlen(TSDB_DATA_DIR_NAME) + 2;
+  int   tlen = (int)(strlen(rootDir) + strlen(TSDB_DATA_DIR_NAME) + 2);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -385,6 +387,21 @@ int tsdbGetNextMaxTables(int tid) {
   }
 
   return maxTables + 1;
+}
+
+int tsdbCheckCommit(STsdbRepo *pRepo) {
+  ASSERT(pRepo->mem != NULL);
+  STsdbCfg *pCfg = &(pRepo->config);
+
+  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+  ASSERT(pBufBlock != NULL);
+  if ((pRepo->mem->extraBuffList != NULL) ||
+      ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
+    // trigger commit
+    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+  }
+
+  return 0;
 }
 
 STsdbMeta *    tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
@@ -610,7 +627,7 @@ _err:
 }
 
 static char *tsdbGetCfgFname(char *rootDir) {
-  int   tlen = strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 2;
+  int   tlen = (int)(strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 2);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -836,8 +853,8 @@ static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
       return -1;
     }
 
-    int mfid = TSDB_KEY_FILEID(taosGetTimestamp(pCfg->precision), pCfg->daysPerFile, pCfg->precision) -
-               TSDB_MAX_FILE(keep, pCfg->daysPerFile);
+    int mfid = (int)(TSDB_KEY_FILEID(taosGetTimestamp(pCfg->precision), pCfg->daysPerFile, pCfg->precision) -
+               TSDB_MAX_FILE(keep, pCfg->daysPerFile));
 
     int i = 0;
     for (; i < pFileH->nFGroups; i++) {

@@ -81,7 +81,7 @@ static FORCE_INLINE void __lock_destroy(void *lock) {
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   int32_t len = MIN(length, HASH_MAX_CAPACITY);
 
-  uint32_t i = 4;
+  int32_t i = 4;
   while (i < len) i = (i << 1u);
   return i;
 }
@@ -176,7 +176,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
   }
 
   // the max slots is not defined by user
-  pHashObj->capacity = taosHashCapacity(capacity);
+  pHashObj->capacity = taosHashCapacity((int32_t)capacity);
   assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashFp = fn;
@@ -219,7 +219,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
   __wr_lock(pHashObj->lock);
 
   uint32_t   hashVal = 0;
-  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &hashVal);
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, (uint32_t)keyLen, &hashVal);
 
   if (pNode == NULL) {  // no data in hash table with the specified key, add it into hash table
     taosHashTableResize(pHashObj);
@@ -261,7 +261,7 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
   __rd_lock(pHashObj->lock);
 
   uint32_t   hashVal = 0;
-  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &hashVal);
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, (int32_t)keyLen, &hashVal);
 
   __unlock(pHashObj->lock);
 
@@ -278,7 +278,7 @@ void taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   __wr_lock(pHashObj->lock);
 
   uint32_t   val = 0;
-  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &val);
+  SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, (uint32_t)keyLen, &val);
   if (pNode == NULL) {
     __unlock(pHashObj->lock);
     return;
@@ -460,7 +460,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   SHashNode *pNode = NULL;
   SHashNode *pNext = NULL;
   
-  int32_t newSize = pHashObj->capacity << 1u;
+  int32_t newSize = (int32_t)(pHashObj->capacity) << 1u;
   if (newSize > HASH_MAX_CAPACITY) {
 //    uDebug("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
 //           pHashObj->capacity, HASH_MAX_CAPACITY);
@@ -539,7 +539,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
   
   pNewNode->key = pNewNode->data + dsize;
   memcpy(pNewNode->key, key, keyLen);
-  pNewNode->keyLen = keyLen;
+  pNewNode->keyLen = (uint32_t)keyLen;
   
   pNewNode->hashVal = hashVal;
   return pNewNode;

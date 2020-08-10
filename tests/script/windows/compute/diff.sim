@@ -1,5 +1,5 @@
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = m_di_db
 $tbPrefix = m_di_tb

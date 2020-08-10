@@ -47,14 +47,14 @@ static bool isProjectStream(SQueryInfo* pQueryInfo) {
 }
 
 static int64_t tscGetRetryDelayTime(int64_t slidingTime, int16_t prec) {
-  float retryRangeFactor = 0.3;
+  float retryRangeFactor = 0.3f;
 
   // change to ms
   if (prec == TSDB_TIME_PRECISION_MICRO) {
     slidingTime = slidingTime / 1000;
   }
 
-  int64_t retryDelta = (int64_t)tsStreamCompRetryDelay * retryRangeFactor;
+  int64_t retryDelta = (int64_t)(tsStreamCompRetryDelay * retryRangeFactor);
   retryDelta = ((rand() % retryDelta) + tsStreamCompRetryDelay) * 1000L;
 
   if (slidingTime < retryDelta) {
@@ -220,15 +220,16 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
   if (numOfRows > 0) { // when reaching here the first execution of stream computing is successful.
-    pStream->numOfRes += numOfRows;
     for(int32_t i = 0; i < numOfRows; ++i) {
       TAOS_ROW row = taos_fetch_row(res);
-      tscDebug("%p stream:%p fetch result", pSql, pStream);
-      tscStreamFillTimeGap(pStream, *(TSKEY*)row[0]);
-      pStream->stime = *(TSKEY *)row[0];
-
-      // user callback function
-      (*pStream->fp)(pStream->param, res, row);
+      if (row != NULL) {
+        tscDebug("%p stream:%p fetch result", pSql, pStream);
+        tscStreamFillTimeGap(pStream, *(TSKEY*)row[0]);
+        pStream->stime = *(TSKEY *)row[0];
+        // user callback function
+        (*pStream->fp)(pStream->param, res, row);
+        pStream->numOfRes++;
+      }
     }
 
     if (!pStream->isProject) {
@@ -298,7 +299,7 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
   pSql->cmd.command = TSDB_SQL_SELECT;
 
   // start timer for next computing
-  taosTmrReset(tscProcessStreamTimer, timer, pStream, tscTmr, &pStream->pTimer);
+  taosTmrReset(tscProcessStreamTimer, (int32_t)timer, pStream, tscTmr, &pStream->pTimer);
 }
 
 static int64_t getLaunchTimeDelay(const SSqlStream* pStream) {
@@ -313,7 +314,7 @@ static int64_t getLaunchTimeDelay(const SSqlStream* pStream) {
   
   int64_t remainTimeWindow = pStream->slidingTime - delayDelta;
   if (maxDelay > remainTimeWindow) {
-    maxDelay = (remainTimeWindow / 1.5);
+    maxDelay = (int64_t)(remainTimeWindow / 1.5f);
   }
   
   int64_t currentDelay = (rand() % maxDelay);  // a random number
@@ -504,7 +505,7 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
 
   int64_t starttime = tscGetLaunchTimestamp(pStream);
   pCmd->command = TSDB_SQL_SELECT;
-  taosTmrReset(tscProcessStreamTimer, starttime, pStream, tscTmr, &pStream->pTimer);
+  taosTmrReset(tscProcessStreamTimer, (int32_t)starttime, pStream, tscTmr, &pStream->pTimer);
 
   tscDebug("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,
            pStream, pTableMetaInfo->name, pStream->interval, pStream->slidingTime, starttime, pSql->sqlstr);

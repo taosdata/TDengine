@@ -131,7 +131,10 @@ static void monitorInitConn(void *para, void *unused) {
 }
 
 static void monitorInitConnCb(void *param, TAOS_RES *result, int32_t code) {
-  if (code < 0) {
+  // free it firstly in any cases.
+  taos_free_result(result);
+
+  if (code != TSDB_CODE_SUCCESS) {
     monitorError("monitor:%p, connect to database failed, reason:%s", tsMonitorConn.conn, tstrerror(code));
     taos_close(tsMonitorConn.conn);
     tsMonitorConn.conn = NULL;
@@ -149,9 +152,9 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
 
   if (cmd == MONITOR_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep 30 cache 1 "
-             "blocks 2 maxtables 16 precision 'us'",
-             tsMonitorDbName);
+             "create database if not exists %s replica 1 days 10 keep 30 cache %d "
+             "blocks %d maxtables 16 precision 'us'",
+             tsMonitorDbName, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
   } else if (cmd == MONITOR_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.dn(ts timestamp"
@@ -214,7 +217,7 @@ static void monitorInitDatabase() {
 }
 
 static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
-  if (-code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || -code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
+  if (code == TSDB_CODE_MND_TABLE_ALREADY_EXIST || code == TSDB_CODE_MND_DB_ALREADY_EXIST || code >= 0) {
     monitorDebug("monitor:%p, sql success, reason:%s, %s", tsMonitorConn.conn, tstrerror(code), tsMonitorConn.sql);
     if (tsMonitorConn.cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       monitorInfo("dnode:%s is started", tsLocalEp);
@@ -226,6 +229,8 @@ static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
     tsMonitorConn.state = MONITOR_STATE_UN_INIT;
     monitorStartSystemRetry();
   }
+
+  taos_free_result(result);
 }
 
 void monitorStopSystem() {
@@ -238,6 +243,8 @@ void monitorStopSystem() {
   if (tsMonitorConn.timer != NULL) {
     taosTmrStopA(&(tsMonitorConn.timer));
   }
+
+  taos_close(tsMonitorConn.conn);
 }
 
 void monitorCleanUpSystem() {
@@ -250,13 +257,16 @@ static void monitorStartTimer() {
 }
 
 static void dnodeMontiorLogCallback(void *param, TAOS_RES *result, int32_t code) {
-  if (code < 0) {
-    monitorError("monitor:%p, save %s failed, reason:%s", tsMonitorConn.conn, (char *)param, tstrerror(code));
-  } else if (code == 0) {
-    monitorError("monitor:%p, save %s failed, affect rows:%d", tsMonitorConn.conn, (char *)param, code);
+  int32_t c = taos_errno(result);
+
+  if (c != TSDB_CODE_SUCCESS) {
+    monitorError("monitor:%p, save %s failed, reason:%s", tsMonitorConn.conn, (char *)param, tstrerror(c));
   } else {
-    monitorDebug("monitor:%p, save %s info success, reason:%s", tsMonitorConn.conn, (char *)param, tstrerror(code));
+    int32_t rows = taos_affected_rows(result);
+    monitorDebug("monitor:%p, save %s succ, rows:%d", tsMonitorConn.conn, (char *)param, rows);
   }
+
+  taos_free_result(result);
 }
 
 // unit is MB

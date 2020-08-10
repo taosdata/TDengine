@@ -75,6 +75,11 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
 }
 
 void mnodeProcessPeerRsp(SRpcMsg *pMsg) {
+  if (!sdbIsMaster()) {
+    mError("%p, msg:%s is not processed for it is not master", pMsg->ahandle, taosMsg[pMsg->msgType]);
+    return;
+  }
+
   if (tsMnodeProcessPeerRspFp[pMsg->msgType]) {
     (*tsMnodeProcessPeerRspFp[pMsg->msgType])(pMsg);
   } else {

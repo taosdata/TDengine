@@ -31,6 +31,7 @@ extern "C" {
 // TAOS_OS_FUNC_SEMPHONE_PTHREAD
 bool taosCheckPthreadValid(pthread_t thread);
 int64_t taosGetPthreadId();
+void taosResetPthread(pthread_t *thread);
 
 #ifdef __cplusplus
 }

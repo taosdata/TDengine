@@ -196,14 +196,14 @@ static FORCE_INLINE void *taosDecodeFixedI64(void *buf, int64_t *value) {
 static FORCE_INLINE int taosEncodeVariantU16(void **buf, uint16_t value) {
   int i = 0;
   while (value >= ENCODE_LIMIT) {
-    if (buf != NULL) ((uint8_t *)(*buf))[i] = (value | ENCODE_LIMIT);
+    if (buf != NULL) ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
     value >>= 7;
     i++;
     ASSERT(i < 3);
   }
 
   if (buf != NULL) {
-    ((uint8_t *)(*buf))[i] = value;
+    ((uint8_t *)(*buf))[i] = (uint8_t)value;
     *buf = POINTER_SHIFT(*buf, i + 1);
   }
 
@@ -292,14 +292,14 @@ static FORCE_INLINE void *taosDecodeVariantI32(void *buf, int32_t *value) {
 static FORCE_INLINE int taosEncodeVariantU64(void **buf, uint64_t value) {
   int i = 0;
   while (value >= ENCODE_LIMIT) {
-    if (buf != NULL) ((uint8_t *)(*buf))[i] = (value | ENCODE_LIMIT);
+    if (buf != NULL) ((uint8_t *)(*buf))[i] = (uint8_t)(value | ENCODE_LIMIT);
     value >>= 7;
     i++;
     ASSERT(i < 10);
   }
 
   if (buf != NULL) {
-    ((uint8_t *)(*buf))[i] = value;
+    ((uint8_t *)(*buf))[i] = (uint8_t)value;
     *buf = POINTER_SHIFT(*buf, i + 1);
   }
 
@@ -346,7 +346,7 @@ static FORCE_INLINE int taosEncodeString(void **buf, char *value) {
     memcpy(*buf, value, size);
     *buf = POINTER_SHIFT(*buf, size);
   }
-  tlen += size;
+  tlen += (int)size;
 
   return tlen;
 }

@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <assert.h>
-#include <arpa/inet.h>
 #include "tbuffer.h"
 #include "exception.h"
 #include <taoserror.h>

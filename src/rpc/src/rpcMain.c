@@ -33,7 +33,7 @@
 #include "rpcHead.h"
 
 #define RPC_MSG_OVERHEAD (sizeof(SRpcReqContext) + sizeof(SRpcHead) + sizeof(SRpcDigest)) 
-#define rpcHeadFromCont(cont) ((SRpcHead *) (cont - sizeof(SRpcHead)))
+#define rpcHeadFromCont(cont) ((SRpcHead *) ((char*)cont - sizeof(SRpcHead)))
 #define rpcContFromHead(msg) (msg + sizeof(SRpcHead))
 #define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
 #define rpcContLenFromMsg(msgLen) (msgLen - sizeof(SRpcHead))
@@ -322,6 +322,8 @@ void *rpcMallocCont(int contLen) {
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
+  } else {
+    tDebug("malloc mem: %p", start);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
@@ -331,7 +333,7 @@ void rpcFreeCont(void *cont) {
   if ( cont ) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     free(temp);
-    // tTrace("free mem: %p", temp);
+    tDebug("free mem: %p", temp);
   }
 }
 
@@ -359,7 +361,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   SRpcReqContext *pContext;
 
   int contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
-  pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
+  pContext = (SRpcReqContext *) ((char*)pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
   pContext->ahandle = pMsg->ahandle;
   pContext->signature = pContext;
   pContext->pRpc = (SRpcInfo *)shandle;
@@ -492,7 +494,7 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
 
 void rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   SRpcReqContext *pContext;
-  pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
+  pContext = (SRpcReqContext *) ((char*)pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
 
   memset(pRsp, 0, sizeof(SRpcMsg));
   
@@ -551,7 +553,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     free(temp);
-    // tTrace("free mem: %p", temp);
+    tDebug("free mem: %p", temp);
   }
 }
 
@@ -654,7 +656,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
 
     pConn->pRpc = pRpc;
     pConn->sid = sid;
-    pConn->tranId = (uint16_t)(random() & 0xFFFF);
+    pConn->tranId = (uint16_t)(taosRand() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = (uint32_t)((int64_t)pConn + (int64_t)getpid() + (int64_t)pConn->tranId);
     pConn->spi = pRpc->spi;
@@ -1007,9 +1009,15 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
-  tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x",
-        pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
-        pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+  if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
+    tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+           pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+  } else {
+    tDebug("%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, pHead->msgType, pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+           pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+  }
 
   int32_t code = terrno;
   if (code != TSDB_CODE_RPC_ALREADY_PROCESSED) {
@@ -1092,10 +1100,15 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     }
 
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
-      pContext->redirect++;
-      if (pContext->redirect > TSDB_MAX_REPLICA) {
-        pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
-        tWarn("%s, too many redirects, quit", pConn->info);
+      if (rpcMsg.contLen < sizeof(SRpcEpSet)) {
+        // if EpSet is not included in the msg, treat it as NOT_READY
+        pHead->code = TSDB_CODE_RPC_NOT_READY; 
+      } else {
+        pContext->redirect++;
+        if (pContext->redirect > TSDB_MAX_REPLICA) {
+          pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+          tWarn("%s, too many redirects, quit", pConn->info);
+        }
       }
     }
 

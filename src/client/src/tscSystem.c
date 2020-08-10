@@ -78,7 +78,7 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
   return 0;
 }
 
-void taos_init_imp() {
+void taos_init_imp(void) {
   char temp[128];
   
   errno = TSDB_CODE_SUCCESS;
@@ -124,9 +124,9 @@ void taos_init_imp() {
   int queueSize = tsMaxConnections*2;
 
   if (tscEmbedded == 0) {
-    tscNumOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
+    tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / 2.0);
   } else {
-    tscNumOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
+    tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / 4.0);
   }
 
   if (tscNumOfThreads < 2) tscNumOfThreads = 2;
@@ -164,7 +164,8 @@ void taos_cleanup() {
     taosCleanUpScheduler(tscQhandle);
     tscQhandle = NULL;
   }
-  
+
+  taosCleanupKeywordsTable();
   taosCloseLog();
   
   taosTmrCleanUp(tscTmr);

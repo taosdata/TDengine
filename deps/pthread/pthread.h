@@ -228,6 +228,8 @@ typedef unsigned long ULONG_PTR;
 #include "config.h"
 #endif /* HAVE_PTW32_CONFIG_H */
 
+#include "msvcTime.h"
+
 #if !defined(NEED_FTIME)
 #include <time.h>
 #else /* NEED_FTIME */

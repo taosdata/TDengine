@@ -18,7 +18,10 @@
 #include "tglobal.h"
 
 void osInit() {
-  strcpy(configDir, "~/TDengine/cfg");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "~/TDengine/cfg");
+  }
+
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");

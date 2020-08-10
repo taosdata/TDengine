@@ -26,11 +26,11 @@ uint32_t taosSafeRand(void) {
 
   fd = open("/dev/urandom", 0);
   if (fd < 0) {
-    seed = time(0);
+    seed = (int)time(0);
   } else {
     int len = read(fd, &seed, sizeof(seed));
     if (len < 0) {
-      seed = time(0);
+      seed = (int)time(0);
     }
     close(fd);
   }

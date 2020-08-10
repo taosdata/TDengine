@@ -30,6 +30,7 @@ enum _TSDB_DB_STATUS {
 // api
 int32_t mnodeInitDbs();
 void    mnodeCleanupDbs();
+int64_t mnodeGetDbNum();
 SDbObj *mnodeGetDb(char *db);
 SDbObj *mnodeGetDbByTableId(char *db);
 void *  mnodeGetNextDb(void *pIter, SDbObj **pDb);

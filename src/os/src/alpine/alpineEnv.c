@@ -18,7 +18,10 @@
 #include "tglobal.h"
 
 void osInit() {
-  strcpy(configDir, "/etc/taos");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "/etc/taos");
+  }
+
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
