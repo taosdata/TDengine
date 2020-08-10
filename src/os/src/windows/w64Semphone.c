@@ -32,3 +32,7 @@ int64_t taosGetPthreadId() {
   return (int64_t)pthread_self();
 #endif
 }
+
+bool taosComparePthread(pthread_t first, pthread_t second) {
+  return first.p == second.p;
+}

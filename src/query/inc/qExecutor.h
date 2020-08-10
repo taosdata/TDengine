@@ -186,7 +186,7 @@ enum {
 typedef struct SQInfo {
   void*            signature;
   int32_t          code;   // error code to returned to client
-  pthread_t        owner; // if it is in execution
+  int64_t          owner; // if it is in execution
   void*            tsdb;
   int32_t          vgId;
   STableGroupInfo  tableGroupInfo;       // table id list < only includes the STable list>
