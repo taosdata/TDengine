@@ -95,7 +95,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   }
 
   pCacheObj->totalSize -= pNode->size;
-  int32_t size = taosHashGetSize(pCacheObj->pHashTable);
+  int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
   assert(size > 0);
 
   uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
@@ -388,7 +388,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
         } else {  // ref == 0
           atomic_sub_fetch_64(&pCacheObj->totalSize, pNode->size);
 
-          int32_t size = taosHashGetSize(pCacheObj->pHashTable);
+		  int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
           uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
                  pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
@@ -560,7 +560,7 @@ bool travHashTableFn(void* param, void* data) {
   SCacheObj*     pCacheObj= ps->pCacheObj;
 
   SCacheDataNode* pNode = *(SCacheDataNode **) data;
-  if (pNode->expireTime < ps->time && T_REF_VAL_GET(pNode) <= 0) {
+  if ((int64_t)pNode->expireTime < ps->time && T_REF_VAL_GET(pNode) <= 0) {
     taosCacheReleaseNode(pCacheObj, pNode);
 
     // this node should be remove from hash table

@@ -263,7 +263,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
 }
 
 TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
-  return taos_query_c(taos, sqlstr, strlen(sqlstr));
+  return taos_query_c(taos, sqlstr, (uint32_t)strlen(sqlstr));
 }
 
 int taos_result_precision(TAOS_RES *res) {
