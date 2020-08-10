@@ -97,6 +97,9 @@ typedef SOCKET eventfd_t;
 #define TAOS_OS_DEF_EPOLL
   #define TAOS_EPOLL_WAIT_TIME 100
 
+#define TAOS_OS_DEF_ZU
+  #define PRIzu "ld"  
+
 #define TAOS_OS_FUNC_STRING_WCHAR
   int twcslen(const wchar_t *wcs);
 #define TAOS_OS_FUNC_STRING_GETLINE

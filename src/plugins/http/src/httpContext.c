@@ -70,7 +70,7 @@ bool httpInitContexts() {
 void httpCleanupContexts() {
   if (tsHttpServer.contextCache != NULL) {
     SCacheObj *cache = tsHttpServer.contextCache;
-    httpInfo("context cache is cleanuping, size:%zu", taosHashGetSize(cache->pHashTable));
+    httpInfo("context cache is cleanuping, size:%" PRIzu "", taosHashGetSize(cache->pHashTable));
     taosCacheCleanup(tsHttpServer.contextCache);
     tsHttpServer.contextCache = NULL;
   }

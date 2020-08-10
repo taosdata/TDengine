@@ -362,7 +362,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     }
 
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
-    tscDebug("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%zu, colList:%zu, fieldsInfo:%d, name:%s",
+    tscDebug("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, taosArrayGetSize(pNewQueryInfo->exprList),
              numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, pTableMetaInfo->name);
   }
@@ -522,7 +522,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   
   tscDebug(
       "%p subquery:%p tableIndex:%d, vgroupIndex:%d, numOfVgroups:%d, type:%d, ts_comp query to retrieve timestamps, "
-      "numOfExpr:%zu, colList:%zu, numOfOutputFields:%d, name:%s",
+      "numOfExpr:%" PRIzu ", colList:%" PRIzu ", numOfOutputFields:%d, name:%s",
       pParent, pSql, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pQueryInfo->type,
       tscSqlExprNumOfExprs(pQueryInfo), numOfCols, pQueryInfo->fieldsInfo.numOfOutput, pTableMetaInfo->name);
   
@@ -1225,7 +1225,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   
       tscDebug(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to tid_tag query to retrieve (tableId, tags), "
-          "exprInfo:%zu, colList:%zu, fieldsInfo:%d, tagIndex:%d, name:%s",
+          "exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, tagIndex:%d, name:%s",
           pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, index.columnIndex, pNewQueryInfo->pTableMetaInfo[0]->name);
     } else {
@@ -1260,7 +1260,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       tscDebug(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%u, transfer to ts_comp query to retrieve timestamps, "
-          "exprInfo:%zu, colList:%zu, fieldsInfo:%d, name:%s",
+          "exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
           pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, pNewQueryInfo->pTableMetaInfo[0]->name);
     }
@@ -1915,7 +1915,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   pSql->pSubs = calloc(size, POINTER_BYTES);
   pSql->numOfSubs = (uint16_t)size;
 
-  tscDebug("%p submit data to %zu vnode(s)", pSql, size);
+  tscDebug("%p submit data to %" PRIzu " vnode(s)", pSql, size);
 
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   pState->numOfTotal = pSql->numOfSubs;
@@ -1949,7 +1949,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
       tscDebug("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, numOfSub);
       numOfSub++;
     } else {
-      tscDebug("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%zu, code:%s", pSql, numOfSub,
+      tscDebug("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%" PRIzu ", code:%s", pSql, numOfSub,
                size, tstrerror(pRes->code));
       goto _error;
     }

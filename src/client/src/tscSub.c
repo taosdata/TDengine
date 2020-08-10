@@ -339,7 +339,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   fclose(fp);
 
   taosArraySort(progress, tscCompareSubscriptionProgress);
-  tscDebug("subscription progress loaded, %zu tables: %s", taosArrayGetSize(progress), pSub->topic);
+  tscDebug("subscription progress loaded, %%" PRIzu " tables: %s", taosArrayGetSize(progress), pSub->topic);
   return 1;
 }
 

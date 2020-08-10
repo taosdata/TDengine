@@ -509,7 +509,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     ssize_t tsize = taosTRead(pStore->fd, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
     if (tsize < sizeof(SKVRecord)) {
-      uError("failed to read %zu bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
+      uError("failed to read %" PRIzu " bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
              pStore->info.size, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
