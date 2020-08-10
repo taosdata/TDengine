@@ -451,6 +451,8 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
     while((pNode = pEntry->next) != NULL) {
       if (fp && (!fp(param, pNode->data))) {
         pEntry->num -= 1;
+        atomic_sub_fetch_64(&pHashObj->size, 1);
+
         pEntry->next = pNode->next;
 
         if (pEntry->num == 0) {
@@ -475,6 +477,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
         if (fp && (!fp(param, pNext->data))) {
           pNode->next = pNext->next;
           pEntry->num -= 1;
+          atomic_sub_fetch_64(&pHashObj->size, 1);
 
           if (pEntry->num == 0) {
             assert(pEntry->next == NULL);
