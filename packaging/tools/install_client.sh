@@ -31,6 +31,7 @@ cfg_install_dir="/etc/taos"
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
+    lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
 else
     bin_link_dir="/usr/local/bin"
@@ -45,7 +46,7 @@ install_main_dir="/usr/local/taos"
 bin_dir="/usr/local/taos/bin"
 
 # v1.5 jar dir
-v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/taos"
 
 # Color setting
 RED='\033[0;31m'
@@ -90,7 +91,7 @@ function install_bin() {
 
   ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
-    #Make link
+  #Make link
   [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
   if [ "$osType" == "Darwin" ]; then
       [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
@@ -106,13 +107,16 @@ function clean_lib() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
-    ${csudo} rm -rf ${v15_java_app_dir}                         || :
+    ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
+    #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+        ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
     else
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib

@@ -173,7 +173,7 @@ static int dnodeCheckDatafile() {
 }
 
 static void dnodeAllocCheckItem() {
-  tsCheckItem[TSDB_CHECK_ITEM_NETWORK].enable       = true;
+  tsCheckItem[TSDB_CHECK_ITEM_NETWORK].enable       = false;
   tsCheckItem[TSDB_CHECK_ITEM_NETWORK].name         = "network";
   tsCheckItem[TSDB_CHECK_ITEM_NETWORK].initFp       = NULL;
   tsCheckItem[TSDB_CHECK_ITEM_NETWORK].cleanUpFp    = NULL;
