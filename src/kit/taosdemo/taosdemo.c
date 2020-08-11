@@ -250,7 +250,7 @@ typedef struct DemoArguments {
   static struct argp argp = {options, parse_opt, 0, 0};
 
   void parse_args(int argc, char *argv[], SDemoArguments *arguments) {
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    argp_parse(&argp, argc, argv, 0, 0, arguments);
     if (arguments->abort) {
       #ifndef _ALPINE
         error(10, 0, "ABORTED");
