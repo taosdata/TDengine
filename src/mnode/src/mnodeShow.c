@@ -389,7 +389,7 @@ static bool mnodeAccquireShowObj(SShowObj *pShow) {
 static void* mnodePutShowObj(SShowObj *pShow) {
   if (tsMnodeShowCache != NULL) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
-    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &pShow, sizeof(int64_t), &pShow, sizeof(int64_t), 6);
+    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &pShow, sizeof(int64_t), &pShow, sizeof(int64_t), 6000);
     pShow->ppShow = (void**)ppShow;
     mDebug("%p, show is put into cache, data:%p index:%d", pShow, ppShow, pShow->index);
     return pShow;
