@@ -1683,7 +1683,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
 
 // current sql function is not direct output result, so create a dummy output field
 static void doSetNewFieldInfo(SQueryInfo* pNewQueryInfo, SSqlExpr* pExpr) {
-  TAOS_FIELD f = {.type = pExpr->resType, .bytes = pExpr->resBytes};
+  TAOS_FIELD f = {.type = (uint8_t)pExpr->resType, .bytes = pExpr->resBytes};
   tstrncpy(f.name, pExpr->aliasName, sizeof(f.name));
 
   SFieldSupInfo* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
@@ -1693,7 +1693,7 @@ static void doSetNewFieldInfo(SQueryInfo* pNewQueryInfo, SSqlExpr* pExpr) {
 }
 
 static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* pNewQueryInfo, int64_t uid) {
-  int32_t numOfOutput = tscSqlExprNumOfExprs(pNewQueryInfo);
+  int32_t numOfOutput = (int32_t)tscSqlExprNumOfExprs(pNewQueryInfo);
   if (numOfOutput == 0) {
     return;
   }
@@ -2044,7 +2044,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   
   int32_t numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
   if (pTableMetaInfo->pVgroupTables != NULL) {
-    numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
   }
 
   return tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
@@ -2249,6 +2249,6 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
 }
 
 void tscClearSqlOwner(SSqlObj* pSql) {
-  assert(pSql->owner != 0);
+  assert(taosCheckPthreadValid(pSql->owner));
   atomic_store_64(&pSql->owner, 0);
 }

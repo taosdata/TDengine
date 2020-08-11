@@ -167,7 +167,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
     void *p = calloc(pHashObj->capacity, sizeof(SHashEntry));
     for (int32_t i = 0; i < pHashObj->capacity; ++i) {
-      pHashObj->hashList[i] = p + i * sizeof(SHashEntry);
+      pHashObj->hashList[i] = (void *)((char *)p + i * sizeof(SHashEntry));
     }
 
     taosArrayPush(pHashObj->pMemBlock, &p);
@@ -179,7 +179,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 size_t taosHashGetSize(const SHashObj *pHashObj) { return (pHashObj == NULL) ? 0 : pHashObj->size; }
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
-  uint32_t   hashVal = (*pHashObj->hashFp)(key, keyLen);
+  uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
   SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
   if (pNewNode == NULL) {
     return -1;
@@ -263,7 +263,7 @@ void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
     return NULL;
   }
 
-  uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
+  uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
 
   // only add the read lock to disable the resize process
   __rd_lock(&pHashObj->lock, pHashObj->type);
@@ -317,7 +317,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
     return -1;
   }
 
-  uint32_t hashVal = (*pHashObj->hashFp)(key, keyLen);
+  uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
 
   // disable the resize process
   __rd_lock(&pHashObj->lock, pHashObj->type);
@@ -418,7 +418,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
   // disable the resize process
   __rd_lock(&pHashObj->lock, pHashObj->type);
 
-  int32_t numOfEntries = pHashObj->capacity;
+  int32_t numOfEntries = (int32_t)pHashObj->capacity;
   for (int32_t i = 0; i < numOfEntries; ++i) {
     SHashEntry *pEntry = pHashObj->hashList[i];
     if (pEntry->num == 0) {
@@ -649,7 +649,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   SHashNode *pNode = NULL;
   SHashNode *pNext = NULL;
 
-  int32_t newSize = pHashObj->capacity << 1u;
+  int32_t newSize = (int32_t)(pHashObj->capacity << 1u);
   if (newSize > HASH_MAX_CAPACITY) {
     //    uDebug("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
     //           pHashObj->capacity, HASH_MAX_CAPACITY);
@@ -669,7 +669,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   void * p = calloc(inc, sizeof(SHashEntry));
 
   for (int32_t i = 0; i < inc; ++i) {
-    pHashObj->hashList[i + pHashObj->capacity] = p + i * sizeof(SHashEntry);
+    pHashObj->hashList[i + pHashObj->capacity] = (void *)((char *)p + i * sizeof(SHashEntry));
   }
 
   taosArrayPush(pHashObj->pMemBlock, &p);
@@ -762,7 +762,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
   pNewNode->key = pNewNode->data + dsize;
   memcpy(pNewNode->key, key, keyLen);
 
-  pNewNode->keyLen = keyLen;
+  pNewNode->keyLen = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
   return pNewNode;
 }

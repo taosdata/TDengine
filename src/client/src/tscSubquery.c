@@ -1027,7 +1027,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfExprs = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * numOfExprs);
 
   for (int32_t i = 0; i < numOfExprs; ++i) {

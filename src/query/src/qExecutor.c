@@ -130,8 +130,8 @@ static void finalizeQueryResult(SQueryRuntimeEnv *pRuntimeEnv);
     (tw)->ekey = (tw)->skey + ((_q)->intervalTime - 1);               \
   } while (0)
 
-#define SET_STABLE_QUERY_OVER(_q) ((_q)->tableIndex = (_q)->tableqinfoGroupInfo.numOfTables)
-#define IS_STASBLE_QUERY_OVER(_q) ((_q)->tableIndex >= (_q)->tableqinfoGroupInfo.numOfTables)
+#define SET_STABLE_QUERY_OVER(_q) ((_q)->tableIndex = (int32_t)((_q)->tableqinfoGroupInfo.numOfTables))
+#define IS_STASBLE_QUERY_OVER(_q) ((_q)->tableIndex >= (int32_t)((_q)->tableqinfoGroupInfo.numOfTables))
 
 // todo move to utility
 static int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *group);
@@ -405,9 +405,9 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
     if (pWindowResInfo->size >= pWindowResInfo->capacity) {
       int64_t newCap = 0;
       if (pWindowResInfo->capacity > 10000) {
-        newCap = pWindowResInfo->capacity * 1.25;
+        newCap = (int64_t)(pWindowResInfo->capacity * 1.25);
       } else {
-        newCap = pWindowResInfo->capacity * 1.5;
+        newCap = (int64_t)(pWindowResInfo->capacity * 1.5);
       }
 
       char *t = realloc(pWindowResInfo->pResult, newCap * sizeof(SWindowResult));
@@ -2725,7 +2725,7 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
       memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num, bytes * pData->num);
     }
 
-    offset += pData->num;
+    offset += (int32_t)pData->num;
   }
 
   assert(pQuery->rec.rows == 0);
@@ -3051,7 +3051,7 @@ void disableFuncInReverseScan(SQInfo *pQInfo) {
 
 static void setupQueryRangeForReverseScan(SQInfo* pQInfo) {
   SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
-  int32_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
+  int32_t numOfGroups = (int32_t)(GET_NUM_OF_TABLEGROUP(pQInfo));
 
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray *group = GET_TABLEGROUP(pQInfo, i);
@@ -6378,7 +6378,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
   pthread_mutex_unlock(&pQInfo->lock);
 
   // clear qhandle owner
-  assert(pQInfo->owner == pthread_self());
+  assert(pQInfo->owner == taosGetPthreadId());
   pQInfo->owner = 0;
 
   return buildRes;
@@ -6387,7 +6387,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 bool qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
-  int64_t threadId = pthread_self();
+  int64_t threadId = taosGetPthreadId();
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {
@@ -6549,7 +6549,7 @@ int32_t qKillQuery(qinfo_t qinfo) {
 
   // Wait for the query executing thread being stopped/
   // Once the query is stopped, the owner of qHandle will be cleared immediately.
-  while(pQInfo->owner != 0) {
+  while (pQInfo->owner != 0) {
     taosMsleep(100);
   }
 

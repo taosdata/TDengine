@@ -6,7 +6,7 @@
 #include "queryLog.h"
 #include "taoserror.h"
 
-#define GET_DATA_PAYLOAD(_p) ((_p)->pData + POINTER_BYTES)
+#define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
 int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
@@ -248,7 +248,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
     int32_t prev = pResultBuf->inMemPages;
 
     // increase by 50% of previous mem pages
-    pResultBuf->inMemPages = pResultBuf->inMemPages * 1.5f;
+    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f);
 
     qWarn("%p in memory buf page not sufficient, expand from %d to %d, page size:%d", pResultBuf, prev,
           pResultBuf->inMemPages, pResultBuf->pageSize);
@@ -313,7 +313,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   ((void**)pi->pData)[0] = pi;
   pi->used = true;
 
-  return GET_DATA_PAYLOAD(pi);
+  return (void *)(GET_DATA_PAYLOAD(pi));
 }
 
 tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
@@ -327,7 +327,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     // no need to update the LRU list if only one page exists
     if (pResultBuf->numOfPages == 1) {
       (*pi)->used = true;
-      return GET_DATA_PAYLOAD(*pi);
+      return (void *)(GET_DATA_PAYLOAD(*pi));
     }
 
     SPageInfo** pInfo = (SPageInfo**) ((*pi)->pn->data);
@@ -336,7 +336,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     lruListMoveToFront(pResultBuf->lruList, (*pi));
     (*pi)->used = true;
 
-    return GET_DATA_PAYLOAD(*pi);
+    return (void *)(GET_DATA_PAYLOAD(*pi));
 
   } else { // not in memory
     assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->info.length >= 0 && (*pi)->info.offset >= 0);
@@ -358,7 +358,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     (*pi)->used = true;
 
     loadPageFromDisk(pResultBuf, *pi);
-    return GET_DATA_PAYLOAD(*pi);
+    return (void *)(GET_DATA_PAYLOAD(*pi));
   }
 }
 

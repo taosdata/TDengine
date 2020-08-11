@@ -1182,7 +1182,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     char* c = tbufGetData(&bw, true);
 
     // set the serialized binary string as the parameter of arithmetic expression
-    addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, len, index.tableIndex);
+    addExprParams(pExpr, c, TSDB_DATA_TYPE_BINARY, (int32_t)len, index.tableIndex);
 
     insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->aliasName, pExpr);
 
@@ -1237,7 +1237,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   }
 
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
-    int32_t outputIndex = tscSqlExprNumOfExprs(pQueryInfo);
+    int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
     tSQLExprItem* pItem = &pSelection->a[i];
 
     // project on all fields
@@ -3144,7 +3144,7 @@ static int32_t arithmeticExprToString(tSQLExpr* pExpr, char** str) {
 
   int32_t code = doArithmeticExprToString(pExpr, str);
   if (code == TSDB_CODE_SUCCESS) { // remove out the parenthesis
-    int32_t len = strlen(start);
+    int32_t len = (int32_t)strlen(start);
     memmove(start, start + 1, len - 2);
     start[len - 2] = 0;
   }
