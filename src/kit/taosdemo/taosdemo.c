@@ -306,7 +306,7 @@ typedef struct DemoArguments {
     printf("%s%s\n", indent, "-R");
     printf("%s%s%s\n", indent, indent, "rate, Out of order data's rate--if order=1 Default 10, min: 0, max: 50.");
     printf("%s%s\n", indent, "-D");
-    printf("%s%s%s\n", indent, indent, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database.");
+    printf("%s%s%s\n", indent, indent, "Delete data methods 0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database.");
   }
 
   void parse_args(int argc, char *argv[], SDemoArguments *arguments) {

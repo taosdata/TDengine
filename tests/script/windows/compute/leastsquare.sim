@@ -69,12 +69,14 @@ if $data00 != @{slop:1.000000, intercept:1.000000}@ then
 endi
 
 print =============== step5
+print select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1m)
 print ===> $data01 
 if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
+print select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 print ===> $data01
 if $data01 != @{slop:1.000000, intercept:1.000000}@ then

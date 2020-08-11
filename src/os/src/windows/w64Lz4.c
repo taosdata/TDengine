@@ -21,9 +21,29 @@
 #include "tulog.h"
 #include "tutil.h"
 
+unsigned char _MyBitScanForward64(unsigned long *ret, uint64_t x) {
+  unsigned long x0 = (unsigned long)x, top, bottom;
+  _BitScanForward(&top, (unsigned long)(x >> 32));
+  _BitScanForward(&bottom, x0);
+  *ret = x0 ? bottom : 32 + top;
+  return x != 0;
+}
+
+unsigned char _MyBitScanReverse64(unsigned long *ret, uint64_t x) {
+  unsigned long x1 = (unsigned long)(x >> 32), top, bottom;
+  _BitScanReverse(&top, x1);
+  _BitScanReverse(&bottom, (unsigned long)x);
+  *ret = x1 ? top + 32 : bottom;
+  return x != 0;
+}
+
 int32_t BUILDIN_CLZL(uint64_t val) {
   unsigned long r = 0;
+#ifdef _WIN64
   _BitScanReverse64(&r, val);
+#else
+  _MyBitScanReverse64(&r, val);
+#endif
   return (int)(r >> 3);
 }
 
@@ -35,7 +55,11 @@ int32_t BUILDIN_CLZ(uint32_t val) {
 
 int32_t BUILDIN_CTZL(uint64_t val) {
   unsigned long r = 0;
+#ifdef _WIN64
   _BitScanForward64(&r, val);
+#else
+  _MyBitScanForward64(&r, val);
+#endif
   return (int)(r >> 3);
 }
 

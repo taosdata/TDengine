@@ -783,10 +783,15 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_TIMESTAMP:
               tt = *(int64_t *)row[i] / 1000;
+              if (tt < 0) {
+                tt = 0;
+              }
+
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
               sprintf(value, "%s.%03d", timeStr,
-                      (int)(*((int64_t *)row[i]) % 1000));
+                (int)(*((int64_t *)row[i]) % 1000));
+              
               break;
             default:
               break;

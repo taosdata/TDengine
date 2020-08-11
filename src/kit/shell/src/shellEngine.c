@@ -128,6 +128,9 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     taos_close(con);
     write_history();
+#ifdef WINDOWS
+    exit(EXIT_SUCCESS);
+#endif
     return -1;
   }
 
@@ -366,6 +369,10 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     tt = (time_t)(val / 1000000);
   } else {
     tt = (time_t)(val / 1000);
+  }
+
+  if (tt < 0) {
+    tt = 0;
   }
 
   struct tm* ptm = localtime(&tt);
@@ -736,7 +743,7 @@ void read_history() {
 
   FILE *f = fopen(f_history, "r");
   if (f == NULL) {
-    fprintf(stderr, "Opening file %s\n", f_history);
+    fprintf(stderr, "Failed to open file %s\n", f_history);
     return;
   }
 
@@ -761,7 +768,7 @@ void write_history() {
 
   FILE *f = fopen(f_history, "w");
   if (f == NULL) {
-    fprintf(stderr, "Opening file %s\n", f_history);
+    fprintf(stderr, "Failed to open file %s for write\n", f_history);
     return;
   }
 
