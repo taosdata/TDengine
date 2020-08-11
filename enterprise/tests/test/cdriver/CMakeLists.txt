@@ -7,6 +7,6 @@ IF (TD_LINUX_64)
   add_executable(synctest ./synctest.c )
   target_link_libraries(synctest taos_static  pthread)
 
-  add_executable(benchmark_by_table benchmark_by_table.c)
-  target_link_libraries(benchmark_by_table taos_static  pthread)
+#  add_executable(benchmark_by_table benchmark_by_table.c)
+#  target_link_libraries(benchmark_by_table taos_static  pthread)
 ENDIF()

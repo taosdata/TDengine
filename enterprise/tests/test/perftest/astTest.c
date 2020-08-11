@@ -149,10 +149,10 @@ static void addOneNode(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
                        bool h, int32_t numOfTags) {
     STabObj *pTable = calloc(1, sizeof(STabObj));
     pTable->numOfTags = numOfTags;
-    pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_ID_LEN);
+    pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_FNAME_LEN);
     strcpy(pTable->tableId, tableId);
 
-    char *tags = pTable->pTagData + TSDB_TABLE_ID_LEN;
+    char *tags = pTable->pTagData + TSDB_TABLE_FNAME_LEN;
     int32_t offset = 0;
 
     *(int32_t *) tags = a;
@@ -187,10 +187,10 @@ static void addOneNode_binary(SSchema *pSchema, int32_t tagsLen, tSkipList *pSki
                               bool h, int32_t numOfTags) {
     STabObj *pTable = calloc(1, sizeof(STabObj));
     pTable->numOfTags = numOfTags;
-    pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_ID_LEN);
+    pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_FNAME_LEN);
     strcpy(pTable->tableId, tableId);
 
-    char *tags = pTable->pTagData + TSDB_TABLE_ID_LEN;
+    char *tags = pTable->pTagData + TSDB_TABLE_FNAME_LEN;
     int32_t offset = 0;
     memcpy(tags, c, pSchema[0].bytes);
 
