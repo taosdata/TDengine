@@ -368,6 +368,10 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     tt = (time_t)(val / 1000);
   }
 
+  if (tt < 0) {
+    tt = 0;
+  }
+
   struct tm* ptm = localtime(&tt);
   size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
 
