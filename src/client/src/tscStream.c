@@ -135,6 +135,10 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
       etime = pStream->stime + (etime - pStream->stime) / pStream->interval * pStream->interval;
     }
     pQueryInfo->window.ekey = etime;
+    if (pQueryInfo->window.skey >= pQueryInfo->window.ekey) {
+      tscSetRetryTimer(pStream, pSql, pStream->slidingTime);
+      return;
+    }
   }
 
   // launch stream computing in a new thread

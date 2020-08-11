@@ -232,7 +232,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
     }
 
     pNode->next = pNode->prev = NULL;
-    tdListAppend(pRepo->mem->extraBuffList, pNode);
+    tdListAppendNode(pRepo->mem->extraBuffList, pNode);
     ptr = (void *)(pNode->data);
     tsdbTrace("vgId:%d allocate %d bytes from SYSTEM buffer block", REPO_ID(pRepo), bytes);
   } else {  // allocate from TSDB buffer pool
