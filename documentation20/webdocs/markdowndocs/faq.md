@@ -10,7 +10,7 @@ Version 2.X is a complete refactoring of the previous version, and configuration
 4. Enjoy the latest stable version of TDengine
 5. If the data needs to be migrated or the data file is corrupted, please contact the official technical support team for assistance
 
-#### 2. When encoutered with the error "failed to connect to server", what can I do?
+#### 2. When encoutered with the error "Unable to establish connection", what can I do?
 
 The client may encounter connection errors. Please follow the steps below for troubleshooting:
 
