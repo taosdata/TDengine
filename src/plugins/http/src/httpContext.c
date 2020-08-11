@@ -108,7 +108,8 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
 
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &pContext, sizeof(int64_t), &pContext, sizeof(int64_t), 3000);
+  uint64_t handleVal = (uint64_t)pContext;
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(int64_t), &pContext, sizeof(int64_t), 3000);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
@@ -119,7 +120,8 @@ HttpContext *httpCreateContext(int32_t fd) {
 }
 
 HttpContext *httpGetContext(void *ptr) {
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &ptr, sizeof(HttpContext *));
+  uint64_t handleVal = (uint64_t)ptr;
+  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;
