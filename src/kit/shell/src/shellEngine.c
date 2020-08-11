@@ -128,6 +128,9 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     taos_close(con);
     write_history();
+#ifdef WINDOWS
+    exit(EXIT_SUCCESS);
+#endif
     return -1;
   }
 
