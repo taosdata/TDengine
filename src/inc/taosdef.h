@@ -416,6 +416,19 @@ typedef enum {
   TSDB_MOD_MAX
 } EModuleType;
 
+  typedef enum {
+    TSDB_CHECK_ITEM_NETWORK,
+    TSDB_CHECK_ITEM_MEM,
+    TSDB_CHECK_ITEM_CPU,
+    TSDB_CHECK_ITEM_DISK,
+    TSDB_CHECK_ITEM_OS,    
+    TSDB_CHECK_ITEM_ACCESS,    
+    TSDB_CHECK_ITEM_VERSION,
+    TSDB_CHECK_ITEM_DATAFILE,
+    TSDB_CHECK_ITEM_MAX
+  } ECheckItemType;
+
+
 #ifdef __cplusplus
 }
 #endif

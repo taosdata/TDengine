@@ -5996,7 +5996,12 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
     }
 
-    tstrncpy(pTableMetaInfo1->aliasName, pTableItem1->pz, sizeof(pTableMetaInfo1->aliasName));
+    // has no table alias name
+    if (memcmp(pTableItem->pz, pTableItem1->pz, pTableItem1->nLen) == 0) {
+      extractTableName(pTableMetaInfo1->name, pTableMetaInfo1->aliasName);
+    } else {
+      tstrncpy(pTableMetaInfo1->aliasName, pTableItem1->pz, sizeof(pTableMetaInfo1->aliasName));
+    }
 
     code = tscGetTableMeta(pSql, pTableMetaInfo1);
     if (code != TSDB_CODE_SUCCESS) {
