@@ -743,7 +743,7 @@ void read_history() {
 
   FILE *f = fopen(f_history, "r");
   if (f == NULL) {
-    fprintf(stderr, "Opening file %s\n", f_history);
+    fprintf(stderr, "Failed to open file %s\n", f_history);
     return;
   }
 
@@ -768,7 +768,7 @@ void write_history() {
 
   FILE *f = fopen(f_history, "w");
   if (f == NULL) {
-    fprintf(stderr, "Opening file %s\n", f_history);
+    fprintf(stderr, "Failed to open file %s for write\n", f_history);
     return;
   }
 
