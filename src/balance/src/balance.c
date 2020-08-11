@@ -409,7 +409,7 @@ static int32_t balanceMonitorVgroups() {
 
     int32_t dbReplica = pVgroup->pDb->cfg.replications;
     int32_t vgReplica = pVgroup->numOfVnodes;
-    int32_t code;
+    int32_t code = -1;
     
     if (vgReplica > dbReplica) {
       mInfo("vgId:%d, replica:%d numOfVnodes:%d, try remove one vnode", pVgroup->vgId, dbReplica, vgReplica);
