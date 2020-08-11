@@ -2,6 +2,13 @@ sql connect
 sleep 3000
 print ======================== dnode1 start
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $dbPrefix = ta_se_db
 $tbPrefix = ta_se_tb
 $mtPrefix = ta_se_mt
@@ -30,7 +37,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -40,8 +47,8 @@ endi
 sql alter table $tb set tag tagcx 1 -x step21
   return -1
 step21:
-sql alter table $tb set tgcol1=false
-sql alter table $tb set tgcol2=4
+sql alter table $tb set tag tgcol1=false
+sql alter table $tb set tag tgcol2=4
 
 sql reset query cache
 
@@ -53,7 +60,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != false then 
+if $data02 != 0 then
   return -1
 endi
 if $data03 != 4 then 
@@ -68,7 +75,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != false then 
+if $data02 != 0 then
   return -1
 endi
 if $data03 != 4 then 
@@ -83,10 +90,10 @@ endi
 if $data31 != INT then 
   return -1
 endi
-if $data23 != false then 
+if $data23 != TAG then
   return -1
 endi
-if $data33 != 4 then 
+if $data33 != TAG then 
   return -1
 endi
 
@@ -111,8 +118,8 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $tb set tgcol1=3
-sql alter table $tb set tgcol2=4
+sql alter table $tb set tag tgcol1=3
+sql alter table $tb set tag tgcol2=4
 
 sql reset query cache
 
@@ -169,12 +176,12 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then 
   return -1
 endi
 
-sql alter table $tb set tgcol1=3
-sql alter table $tb set tgcol2=4
+sql alter table $tb set tag tgcol1=3
+sql alter table $tb set tag tgcol2=4
 
 sql reset query cache
 
@@ -189,7 +196,7 @@ endi
 if $data02 != 3 then 
   return -1
 endi
-if $data03 != 4.0000 then 
+if $data03 != 4.00000 then 
   return -1
 endi
 
@@ -204,7 +211,7 @@ endi
 if $data02 != 3 then 
   return -1
 endi
-if $data03 != 4.0000 then 
+if $data03 != 4.00000 then 
   return -1
 endi
   
@@ -230,8 +237,8 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $tb set tgcol1=3
-sql alter table $tb set tgcol2='4'
+sql alter table $tb set tag tgcol1=3
+sql alter table $tb set tag tgcol2='4'
 
 sql reset query cache
 
@@ -299,11 +306,11 @@ if $data07 != 6 then
 endi
 
 sql alter table $mt drop tag tgcol3
-sql alter table $tb set tgcol1='7'
-sql alter table $tb set tgcol2=8
-sql alter table $tb set tgcol4='9'
-sql alter table $tb set tgcol5=10
-sql alter table $tb set tgcol6='11'
+sql alter table $tb set tag tgcol1='7'
+sql alter table $tb set tag tgcol2=8
+sql alter table $tb set tag tgcol4='9'
+sql alter table $tb set tag tgcol5=10
+sql alter table $tb set tag tgcol6='11'
 
 sql reset query cache
   
@@ -330,7 +337,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -357,7 +364,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -384,7 +391,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -411,7 +418,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -438,7 +445,7 @@ endi
 if $data06 != 11 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 

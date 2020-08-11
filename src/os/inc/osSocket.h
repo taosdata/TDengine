@@ -33,7 +33,11 @@ extern "C" {
       }                      \
     }
   typedef int SOCKET;
-#endif    
+#endif
+
+#ifndef TAOS_OS_DEF_EPOLL
+  #define TAOS_EPOLL_WAIT_TIME -1
+#endif  
 
 #define taosClose(x) taosCloseSocket(x)
 

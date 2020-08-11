@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename	    err2errno.c						      *
 *									      *
@@ -12,7 +12,7 @@
 *                   Removed a few useless special cases, and added EZERO case.*
 *                   Make sure the global errno is _not_ changed by this funct.*
 *                                                                             *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -20,7 +20,7 @@
 #include <errno.h>
 #include <stdio.h>
 /* MsvcLibX library extensions */
-#include "debugm.h"
+#include "msvcDebugm.h"
 
 
 #ifdef _WIN32
@@ -65,7 +65,6 @@ int _get_errno_from_oserr(unsigned long dwErr) {
   return errno;
 }
 #else
-#pragma message("Using the default " MSVCLIBX_STRINGIZE(_get_errno_from_oserr) "()")
 /* Equivalent function in MSVC library. Does not know about symlink errors. */
 extern int __cdecl _get_errno_from_oserr(unsigned long oserrno);
 #endif

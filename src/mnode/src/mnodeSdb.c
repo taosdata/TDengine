@@ -874,7 +874,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
     hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   }
-  pTable->iHandle = taosHashInit(pTable->hashSessions, hashFp, true);
+  pTable->iHandle = taosHashInit(pTable->hashSessions, hashFp, true, true);
 
   tsSdbObj.numOfTables++;
   tsSdbObj.tableList[pTable->tableId] = pTable;

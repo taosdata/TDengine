@@ -36,7 +36,7 @@
 #include "dnodeInt.h"
 #include "dnodeTelemetry.h"
 
-static sem_t tsExitSem;
+static tsem_t tsExitSem;
 static pthread_t tsTelemetryThread;
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
@@ -266,7 +266,7 @@ int32_t dnodeInitTelemetry() {
     return 0;
   }
 
-  if (sem_init(&tsExitSem, 0, 0) == -1) {
+  if (tsem_init(&tsExitSem, 0, 0) == -1) {
     // just log the error, it is ok for telemetry to fail
     dTrace("failed to create semaphore for telemetry, reason:%s", strerror(errno));
     return 0;
@@ -291,8 +291,8 @@ void dnodeCleanupTelemetry() {
   }
 
   if (tsTelemetryThread) {
-    sem_post(&tsExitSem);
+    tsem_post(&tsExitSem);
     pthread_join(tsTelemetryThread, NULL);
-    sem_destroy(&tsExitSem);
+    tsem_destroy(&tsExitSem);
   }
 }

@@ -147,12 +147,12 @@ int32_t tsMonitorInterval = 30;  // seconds
 
 // internal
 int32_t tscEmbedded = 0;
-char    configDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char    configDir[TSDB_FILENAME_LEN] = {0};
 char    tsVnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
-char    tsScriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char    tsDataDir[TSDB_FILENAME_LEN] = {0};
+char    tsScriptDir[TSDB_FILENAME_LEN] = {0};
 char    tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
 
 /*
@@ -295,6 +295,7 @@ bool taosCfgDynamicOptions(char *msg) {
 }
 
 static void doInitGlobalConfig(void) {
+  osInit();
   SGlobalCfg cfg = {0};
   
   // ip address

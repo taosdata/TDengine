@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $i = 0
 $dbPrefix = tb_mf_db
 $tbPrefix = tb_mf_tb
@@ -27,7 +34,7 @@ $N = 20000
 $x = 0
 
 while $x < $N
-  $ms = $x . m 
+  $ms = $x . s 
   #print insert into $tb values (now + $ms , $x )
   sql insert into $tb values (now + $ms , $x ) -x error_insert
   $x = $x + 1

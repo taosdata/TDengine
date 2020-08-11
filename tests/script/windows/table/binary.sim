@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $i = 0
 $dbPrefix = lm_bn_db
 $tbPrefix = lm_bn_tb
@@ -38,7 +45,8 @@ if $data00 != 23456 then
 endi
 
 print =============== step4
-sql insert into $tb values (now+3a, '345678')
+sql_error insert into $tb values (now+3a, '345678')
+sql insert into $tb values (now+3a, '34567')
 sql select speed from $tb order by ts desc
 if $rows != 3 then 
   return -1

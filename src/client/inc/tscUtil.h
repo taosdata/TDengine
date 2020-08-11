@@ -53,12 +53,18 @@ typedef struct SParsedDataColInfo {
   bool           hasVal[TSDB_MAX_COLUMNS];
 } SParsedDataColInfo;
 
+#pragma pack(push,1)
+// this struct is transfered as binary, padding two bytes to avoid
+// an 'uid' whose low bytes is 0xff being recoginized as NULL,
+// and set 'pack' to 1 to avoid break existing code.
 typedef struct STidTags {
+  int16_t  padding;
   int64_t  uid;
   int32_t  tid;
   int32_t  vgId;
   char     tag[];
 } STidTags;
+#pragma pack(pop)
 
 typedef struct SJoinSupporter {
   SSubqueryState* pState;
@@ -224,6 +230,7 @@ int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
+void tscFreeVgroupTableInfo(SArray* pVgroupTables);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
@@ -269,6 +276,9 @@ void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
 int  tscSetMgmtEpSetFromCfg(const char *first, const char *second);
+
+bool tscSetSqlOwner(SSqlObj* pSql);
+void tscClearSqlOwner(SSqlObj* pSql);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

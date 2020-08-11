@@ -1,8 +1,15 @@
-sql connect
 sleep 3000
+sql connect
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
 
 print =============== step1
-sql drop database dd 
+sql_error drop database dd
 
 sql create database -x step1
 	return -1
@@ -40,7 +47,7 @@ if $rows != 0 then
 endi
 
 print =============== step4
-sql create database a012345678901201234567890120123456789012 -x step4
+sql create database a012345678901201234567890120123456789012a012345678901201234567890120123456789012 -x step4
 	return -1
 step4:
 sql show databases

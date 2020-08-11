@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $dbPrefix = m_mu_db
 $tbPrefix = m_mu_tb
 $mtPrefix = m_mu_mt
@@ -199,7 +206,6 @@ sql select a + c from $tb where f = 2 and ts < now + 4m order by ts asc
 sql select a + f from $tb where g = 2 and ts > now + 4m order by ts asc  -x step74
   return -1
 step74:
-
 
 print =============== clear
 sql drop database $db

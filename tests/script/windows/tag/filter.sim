@@ -2,6 +2,13 @@ sql connect
 sleep 3000
 print ======================== dnode1 start
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $dbPrefix = ta_fi_db
 $tbPrefix = ta_fi_tb
 $mtPrefix = ta_fi_mt
@@ -85,9 +92,7 @@ sql select count(tgcol), avg(tgcol), sum(tgcol), min(tgcol), max(tgcol), first(t
 step7:
 
 print =============== step8
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tbcol -x step8
-  return -1
-step8:
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tbcol
 
 print =============== step9
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by noexist  -x step9
@@ -102,9 +107,7 @@ if $data00 != 100 then
 endi
 
 print =============== step11
-sql select count(tbcol) as c from $mt group by tbcol -x step11
-  return -1
-step11:
+sql select count(tbcol) as c from $mt group by tbcol
 
 print =============== step12
 sql select count(tbcol) as c from $mt group by noexist -x step12
@@ -121,7 +124,8 @@ endi
 print =============== step14
 sql select count(tbcol) as c from $mt where ts > 1000 group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
-if $data00 != 100 then 
+if $data00 != 100 then
+  print expect 100, actual $data00
   return -1
 endi
 

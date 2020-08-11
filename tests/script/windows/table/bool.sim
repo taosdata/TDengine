@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $i = 0
 $dbPrefix = lm_bo_db
 $tbPrefix = lm_bo_tb
@@ -19,7 +26,7 @@ if $rows != 1 then
   return -1
 endi
 
-if $data01 != true then 
+if $data01 != 1 then
   return -1
 endi
 
@@ -30,7 +37,7 @@ if $rows != 2 then
   return -1
 endi
 
-if $data01 != true then 
+if $data01 != 1 then
   return -1
 endi
 
@@ -41,7 +48,7 @@ if $rows != 3 then
   return -1
 endi
 
-if $data01 != true then 
+if $data01 != 1 then
   return -1
 endi
 
@@ -52,7 +59,7 @@ if $rows != 4 then
   return -1
 endi
 
-if $data01 != false then 
+if $data01 != 0 then
   return -1
 endi
 
@@ -63,7 +70,7 @@ if $rows != 5 then
   return -1
 endi
 
-if $data01 != true then 
+if $data01 != 1 then
   return -1
 endi
 
@@ -74,7 +81,7 @@ if $rows != 6 then
   return -1
 endi
 
-if $data01 != false then 
+if $data01 != 0 then
   return -1
 endi
 

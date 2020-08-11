@@ -164,7 +164,8 @@ void taos_cleanup() {
     taosCleanUpScheduler(tscQhandle);
     tscQhandle = NULL;
   }
-  
+
+  taosCleanupKeywordsTable();
   taosCloseLog();
   
   taosTmrCleanUp(tscTmr);

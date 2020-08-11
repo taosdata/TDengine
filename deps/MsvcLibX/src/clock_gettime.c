@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    clock_gettime.c					      *
 *                                                                             *
@@ -9,7 +9,7 @@
 *   History:								      *
 *    2014-06-04 JFL Created this file.                                        *
 *									      *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -31,8 +31,8 @@
 
 #define WIN32_LEAN_AND_MEAN /* Avoid lots of unnecessary inclusions */
 #include <windows.h>
-
-#include <sys/stat.h> /* For MsvcLibX's Filetime2Timespec */
+#include "msvcTime.h"
+#include "sys/msvcStat.h" /* For MsvcLibX's Filetime2Timespec */
 
 int clock_gettime(clockid_t clock_id, struct timespec *pTS) {
   FILETIME ft;

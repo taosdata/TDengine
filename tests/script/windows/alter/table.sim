@@ -1,6 +1,13 @@
 sleep 3000
 sql connect
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 print ======== step1 
 sql create database d1
 sql use d1
@@ -28,7 +35,6 @@ endi
 
 print ======== step2
 sql alter table tb add column b smallint
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -51,7 +57,6 @@ endi
 
 print ======== step3
 sql alter table tb add column c tinyint
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -80,7 +85,6 @@ endi
 
 print ======== step4
 sql alter table tb add column d int
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -115,7 +119,6 @@ endi
 
 print ======== step5
 sql alter table tb add column e bigint
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -156,7 +159,6 @@ endi
 
 print ======== step6
 sql alter table tb add column f float
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -203,7 +205,6 @@ endi
 
 print ======== step7
 sql alter table tb add column g double
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -256,7 +257,6 @@ endi
 
 print ======== step8
 sql alter table tb add column h binary(10)
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -406,7 +406,6 @@ step115:
 
 print ======== step12
 sql alter table tb drop column b
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -462,7 +461,6 @@ endi
 
 print ======== step13
 sql alter table tb drop column c
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -512,7 +510,6 @@ endi
 
 print ======== step14
 sql alter table tb drop column d
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -556,7 +553,6 @@ endi
 
 print ======== step15
 sql alter table tb drop column e
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -594,7 +590,6 @@ endi
 
 print ======== step16
 sql alter table tb drop column f
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -626,7 +621,6 @@ endi
 
 print ======== step17
 sql alter table tb drop column g
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -652,7 +646,6 @@ endi
 
 print ============= step18
 sql alter table tb drop column h
-sleep 2500
 sql describe tb
 if $data00 != ts then
   return -1
@@ -666,7 +659,7 @@ endi
 if $data11 != INT then
   return -1
 endi
-if $data20 != NULL then
+if $data20 != null then
   return -1
 endi
 

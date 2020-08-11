@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    utimes.c						      *
 *									      *
@@ -14,7 +14,7 @@
 *    2014-06-04 JFL Added handling of UTIME_NOW and UTIME_OMIT.		      *
 *    2014-07-02 JFL Added support for pathnames >= 260 characters. 	      *
 *                                                                             *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -23,10 +23,10 @@
 #define _CRT_SECURE_NO_WARNINGS 1 /* Avoid Visual C++ security warnings */
 
 #include <errno.h>
-#include <sys/time.h> /* Must be included before any direct or indirect <windows.h> inclusion */
-#include <sys/stat.h>
-
-#include "debugm.h"
+#include "sys/msvcTime.h" /* Must be included before any direct or indirect <windows.h> inclusion */
+#include "sys/msvcStat.h"
+#include "msvcDebugm.h"
+#include "msvcLimits.h"
 
 #if defined(_DEBUG)
 #include <stdio.h>
@@ -36,7 +36,7 @@
 
 #include <windows.h>
 #include <io.h> /* For MSVC's _get_osfhandle() */
-#include <unistd.h> /* For MsvcLibX's ResolveLinks() */
+#include "msvcUnistd.h" /* For MsvcLibX's ResolveLinks() */
 
 DEBUG_CODE(
   int Timeval2String(char *buf, size_t bufsize, const struct timeval *tvp) {
@@ -64,7 +64,7 @@ void Filetime2Timeval(const FILETIME *pFT, struct timeval *ptv) {
   ULARGE_INTEGER ull;
   ull.LowPart = pFT->dwLowDateTime;
   ull.HighPart = pFT->dwHighDateTime;
-  ptv->tv_sec = ull.QuadPart / 10000000ULL - 11644473600ULL;
+  ptv->tv_sec = (long)(ull.QuadPart / 10000000ULL - 11644473600ULL);
   ptv->tv_usec = (int32_t)((ull.QuadPart % 10000000ULL)/10);
 }
 
