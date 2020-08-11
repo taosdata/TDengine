@@ -186,6 +186,7 @@ typedef struct {
 
 typedef struct {
   int   fileId;
+  int   state; // 0 for health, 1 for problem
   SFile files[TSDB_FILE_TYPE_MAX];
 } SFileGroup;
 
