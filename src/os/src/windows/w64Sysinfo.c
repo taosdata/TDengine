@@ -21,6 +21,15 @@
 #include "ttimer.h"
 #include "tulog.h"
 #include "tutil.h"
+#if (_WIN64)
+#include <windows.h>  
+#include <iphlpapi.h>
+#include <psapi.h> 
+#include <ws2tcpip.h>
+#include <stdio.h>
+#include <mswsock.h>
+#pragma comment(lib, "Mswsock.lib ")
+#endif
 
 static void taosGetSystemTimezone() {
   // get and set default timezone
@@ -69,11 +78,64 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-bool taosGetDisk() { return true; }
+bool taosGetDisk() {
+  const double   unit = 1024 * 1024 * 1024;
+  BOOL            fResult;
+  unsigned _int64 i64FreeBytesToCaller;
+  unsigned _int64 i64TotalBytes;
+  unsigned _int64 i64FreeBytes;
+  char            dir[4] = {'C', ':', '\\', '\0'};
+  int             drive_type;
+
+  if (tscEmbedded) {
+	drive_type = GetDriveTypeA(dir);
+    if (drive_type == DRIVE_FIXED) {
+			fResult = GetDiskFreeSpaceExA(dir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
+										  (PULARGE_INTEGER)&i64FreeBytes);
+			if (fResult) {
+                          tsTotalDataDirGB = tsTotalLogDirGB = tsTotalTmpDirGB = (float)(i64TotalBytes / unit);
+                          tsAvailDataDirGB = tsAvailLogDirGB = tsAvailTmpDirectorySpace = (float)(i64FreeBytes / unit);
+			}
+		}
+  }
+  return true;
+}
+
+bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
+  IO_COUNTERS io_counter;
+  if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
+    if (readbyte) *readbyte = io_counter.ReadTransferCount;
+    if (writebyte) *writebyte = io_counter.WriteTransferCount;
+    return true;
+  }
+  return false;
+}
 
 bool taosGetProcIO(float *readKB, float *writeKB) {
-  *readKB = 0;
-  *writeKB = 0;
+  static int64_t lastReadbyte = -1;
+  static int64_t lastWritebyte = -1;
+
+  int64_t curReadbyte = 0;
+  int64_t curWritebyte = 0;
+
+  if (!taosReadProcIO(&curReadbyte, &curWritebyte)) {
+    return false;
+  }
+
+  if (lastReadbyte == -1 || lastWritebyte == -1) {
+    lastReadbyte = curReadbyte;
+    lastWritebyte = curWritebyte;
+    return false;
+  }
+
+  *readKB = (float)((double)(curReadbyte - lastReadbyte) / 1024);
+  *writeKB = (float)((double)(curWritebyte - lastWritebyte) / 1024);
+  if (*readKB < 0) *readKB = 0;
+  if (*writeKB < 0) *writeKB = 0;
+
+  lastReadbyte = curReadbyte;
+  lastWritebyte = curWritebyte;
+
   return true;
 }
 
@@ -89,12 +151,31 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 }
 
 bool taosGetProcMemory(float *memoryUsedMB) {
-  *memoryUsedMB = 0;
+  unsigned bytes_used = 0;
+#if defined(_WIN32) && defined(_MSC_VER)
+  PROCESS_MEMORY_COUNTERS pmc;
+  HANDLE                  cur_proc = GetCurrentProcess();
+
+  if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
+    bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
+  }
+#endif
+
+  *memoryUsedMB = (float)bytes_used / 1024 / 1024;
+
   return true;
 }
 
 bool taosGetSysMemory(float *memoryUsedMB) {
-  *memoryUsedMB = 0;
+  MEMORYSTATUSEX memsStat;
+  float          nMemFree;
+  float          nMemTotal;
+
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) { return false; }
+  nMemFree = memsStat.ullAvailPhys / (1024.0f * 1024.0f);
+  nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
+  *memoryUsedMB  = nMemTotal - nMemFree;
   return true;
 }
 
