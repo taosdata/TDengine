@@ -306,7 +306,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 |
 | --- | --- | --- |
-| 2.0.0 | 2.0.0.x 及以上 | 1.8.x |
+| 2.0.2 | 2.0.0.x 及以上 | 1.8.x |
 | 1.0.3 | 1.6.1.x 及以上 | 1.8.x |
 | 1.0.2 | 1.6.1.x 及以上 | 1.8.x |
 | 1.0.1 | 1.6.1.x 及以上 | 1.8.x |
@@ -341,7 +341,7 @@ maven 项目中使用如下 pom.xml 配置即可：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.1</version>
+  <version>2.0.2</version>
 </dependency>
 ```
 
@@ -363,7 +363,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 > 端口 6030 为默认连接端口，JDBC URL 中的 log 为系统本身的监控数据库。
 
 TDengine 的 JDBC URL 规范格式为：
-`jdbc:TSDB://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+`jdbc:TAOS://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
 其中，`{}` 中的内容必须，`[]` 中为可选。配置参数说明如下：
 
