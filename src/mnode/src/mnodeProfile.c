@@ -35,8 +35,8 @@
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 
-#define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
-#define CONN_CHECK_TIME (tsShellActivityTimer * 2)
+#define CONN_KEEP_TIME  (tsShellActivityTimer * 3000)
+#define CONN_CHECK_TIME (tsShellActivityTimer * 2000)
 #define QUERY_ID_SIZE   20
 #define QUERY_STREAM_SAVE_SIZE 20
 
