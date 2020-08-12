@@ -242,6 +242,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_BYTES_PER_ROW    16384
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
+#define TSDB_MAX_TAG_CONDITIONS   1024
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16

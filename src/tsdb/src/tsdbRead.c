@@ -2373,7 +2373,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, TSKEY skey, co
   int32_t ret = TSDB_CODE_SUCCESS;
   tExprNode* expr = NULL;
 
-  TRY(TSDB_MAX_TAGS) {
+  TRY(TSDB_MAX_TAG_CONDITIONS) {
     expr = exprTreeFromTableName(tbnameCond);
     if (expr == NULL) {
       expr = exprTreeFromBinary(pTagCond, len);
