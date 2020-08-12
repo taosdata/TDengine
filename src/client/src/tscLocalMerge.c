@@ -1349,7 +1349,6 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       ((pRes->numOfRowsGroup < pQueryInfo->limit.limit && pQueryInfo->limit.limit > 0) || (pQueryInfo->limit.limit < 0))) {
       int64_t etime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
-      assert(pFillInfo->numOfRows == 0);
       int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo
         doFillResult(pSql, pLocalReducer, true);
