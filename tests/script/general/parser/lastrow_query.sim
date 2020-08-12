@@ -51,7 +51,14 @@ if $data09 != NCHAR then
   return -1
 endi
 
+# regression test case 1
 sql select count(*) from lr_tb1 where ts>'2018-09-18 08:45:00.1' and ts<'2018-09-18 08:45:00.2'
 if $row != 0 then
+  return -1
+endi
+
+# regression test case 2
+sql select count(*) from lr_db0.lr_stb0 where ts>'2018-9-18 8:00:00' and ts<'2018-9-18 14:00:00' interval(1s) fill(NULL);
+if $row != 21600 then
   return -1
 endi
