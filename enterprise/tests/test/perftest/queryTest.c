@@ -342,14 +342,14 @@ void generatedData(TAOS* taos) {
 int main(int argc, char** argv) {
 
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
   if (conn == NULL) {
     printf("Failed to connect to DB, reason:%s", taos_errstr(conn));
     exit(-1);
   }
-
+#if 0
   executeSQL(conn, "use netmonitortaos", NULL);
   if (atoi(argv[1]) == 1) {
     generatedData(conn);
@@ -370,10 +370,13 @@ int main(int argc, char** argv) {
     }
   }
   return 0;
+
+#endif
+
 //  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  return 0;
-  executeSQL(conn, "use test", NULL);
-  executeSQL(conn, "select k.* from tm0 k", NULL);
+  executeSQL(conn, "use lr_db0", NULL);
+  executeSQL(conn, "select count(*) from lr_db0.lr_stb0 where ts>'2018-9-18 8:50:00' and ts<'2018-9-18 14:59:00' interval(1s) fill(NULL);", NULL);
 
   return 0;
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
