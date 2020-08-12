@@ -371,9 +371,13 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     tt = (time_t)(val / 1000);
   }
 
+/* comment out as it make testcases like select_with_tags.sim fail.
+  but in windows, this may cause the call to localtime crash if tt < 0,
+  need to find a better solution.
   if (tt < 0) {
     tt = 0;
   }
+  */
 
   struct tm* ptm = localtime(&tt);
   size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);

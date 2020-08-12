@@ -783,9 +783,13 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_TIMESTAMP:
               tt = *(int64_t *)row[i] / 1000;
+              /* comment out as it make testcases like select_with_tags.sim fail.
+                but in windows, this may cause the call to localtime crash if tt < 0,
+                need to find a better solution.
               if (tt < 0) {
                 tt = 0;
               }
+              */
 
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
