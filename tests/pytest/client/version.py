@@ -25,26 +25,12 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        ret = tdSql.query('select database()')
-        tdSql.checkData(0, 0, "db")        
-        
-        ret = tdSql.query('select server_status()')
-        tdSql.checkData(0, 0, 1)
+        ret = tdSql.query('select server_version()')
+        tdSql.checkData(0, 0, "2.0.0.6")
 
-        ret = tdSql.query('select server_status() as result')
-        tdSql.checkData(0, 0, 1)
-
-        ret = tdSql.query('show dnodes')
-
-        ret = tdSql.execute('alter dnode "%s" debugFlag 135' % tdSql.getData(0,0))
-        tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (tdSql.getData(0, 0), ret))
-
-        ret = tdSql.query('show mnodes')
-        tdSql.checkRows(1)
-
-        ret = tdSql.query('show vgroups')
-        tdSql.checkRows(0)        
-
+        ret = tdSql.query('select client_version()')
+        tdSql.checkData(0, 0, "2.0.0.6")
+      
 
     def stop(self):
         tdSql.close()
