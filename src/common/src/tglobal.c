@@ -1315,6 +1315,7 @@ bool taosCheckGlobalCfg() {
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
   tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
+  tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
   return true;
 }
