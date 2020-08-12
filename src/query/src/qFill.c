@@ -131,13 +131,13 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInpu
   assert(pFillInfo->numOfRows == pInput->num);
   int32_t t = 0;
   
-  for(int32_t i = 0; i < pFillInfo->numOfCols && t < pFillInfo->numOfTags; ++i) {
+  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
     
     char* s = pInput->data + pCol->col.offset * pInput->num;
     memcpy(pFillInfo->pData[i], s, pInput->num * pCol->col.bytes);
     
-    if (pCol->flag == TSDB_COL_TAG) {  // copy the tag value
+    if (pCol->flag == TSDB_COL_TAG && t < pFillInfo->numOfTags) {  // copy the tag value
       memcpy(pFillInfo->pTags[t++], pFillInfo->pData[i], pCol->col.bytes);
     }
   }
