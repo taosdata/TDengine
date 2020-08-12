@@ -1115,14 +1115,6 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
 
   TSKEY* tsArray = pCols->cols[0].pData;
 
-  if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-    TSKEY s = tsArray[cur->pos];
-    assert(s >= pQueryHandle->window.skey && s <= pQueryHandle->window.ekey);
-  } else {
-    TSKEY s = tsArray[cur->pos];
-    assert(s <= pQueryHandle->window.skey && s >= pQueryHandle->window.ekey);
-  }
-
   // for search the endPos, so the order needs to reverse
   int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
 
