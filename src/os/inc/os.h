@@ -24,12 +24,12 @@ extern "C" {
 #include "osDarwin.h"
 #endif
 
+#ifdef _TD_ARM_64
+#include "osArm64.h"
+#endif
+
 #ifdef _TD_LINUX_64
-  #ifdef _TD_ARM_64
-    #include "osArm64.h"
-  #elif
-    #include "osLinux64.h"
-  #endif
+#include "osLinux64.h"
 #endif
 
 #ifdef _TD_LINUX_32
