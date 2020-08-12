@@ -25,7 +25,11 @@ extern "C" {
 #endif
 
 #ifdef _TD_LINUX_64
-#include "osLinux64.h"
+  #ifdef _TD_ARM_64
+    #include "osArm64.h"
+  #elif
+    #include "osLinux64.h"
+  #endif
 #endif
 
 #ifdef _TD_LINUX_32
