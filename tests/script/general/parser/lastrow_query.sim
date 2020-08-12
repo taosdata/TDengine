@@ -51,3 +51,7 @@ if $data09 != NCHAR then
   return -1
 endi
 
+sql select count(*) from lr_tb1 where ts>'2018-09-18 08:45:00.1' and ts<'2018-09-18 08:45:00.2'
+if $row != 0 then
+  return -1
+endi
