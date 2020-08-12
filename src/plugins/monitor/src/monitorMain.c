@@ -35,7 +35,7 @@
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    100
-#define IP_LEN_STR     18
+#define IP_LEN_STR     TSDB_EP_LEN
 #define CHECK_INTERVAL 1000
 
 typedef enum {
