@@ -43,7 +43,6 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   ELSEIF (${CMAKE_SIZEOF_VOID_P} MATCHES 4)
     SET(TD_LINUX_32 TRUE)
     MESSAGE(STATUS "The current platform is Linux 32-bit")
-
   ELSE ()
     MESSAGE(FATAL_ERROR "The current platform is Linux neither 32-bit nor 64-bit, not supported yet")
     EXIT ()
