@@ -97,6 +97,8 @@ run general/parser/topbot.sim
 sleep 2000
 run general/parser/union.sim
 sleep 2000
+run general/parser/bug.sim
+sleep 2000
 run general/parser/sliding.sim
 
 #sleep 2000
