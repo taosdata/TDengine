@@ -158,9 +158,10 @@ public class TSDBStatement implements Statement {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             // no result set is retrieved
+			this.connecter.freeResultSet(pSql);:
             res = false;
         }
-		this.connecter.freeResultSet(pSql);
+
 
 		return res;
 	}
