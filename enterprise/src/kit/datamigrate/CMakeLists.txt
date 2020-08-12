@@ -8,7 +8,7 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/vnode/detail/inc)
 INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/modules/multilevel_storage/inc)
 INCLUDE_DIRECTORIES(inc)
 
-IF (TD_LINUX_64)
+IF (TD_LINUX)
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(taosmigrate ${SRC})
   TARGET_LINK_LIBRARIES(taosmigrate taos_static)
