@@ -791,6 +791,10 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               }
               */
 
+#ifdef WINDOWS
+              if (tt < 0) tt = 0;
+#endif
+
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
               sprintf(value, "%s.%03d", timeStr,
