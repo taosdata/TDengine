@@ -54,7 +54,7 @@ int8_t  tsDaylight = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
-int32_t tsEnableCoreFile = 0;
+int32_t tsEnableCoreFile = 1;
 int32_t tsMaxBinaryDisplayWidth = 30;
 
 /*
