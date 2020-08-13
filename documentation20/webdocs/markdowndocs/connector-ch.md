@@ -460,6 +460,49 @@ while(resultSet.next()){
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
 
+### 订阅
+
+#### 创建
+
+```java
+TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
+```
+
+`subscribe` 方法的三个参数含义如下：
+
+* topic：订阅的主题（即名称），此参数是订阅的唯一标识
+* sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
+* restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
+
+如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic' 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
+
+#### 消费数据
+
+```java
+int total = 0;
+while(true) {
+    TSDBResultSet rs = sub.consume();
+    int count = 0;
+    while(rs.next()) {
+        count++;
+    }
+    total += count;
+    System.out.printf("%d rows consumed, total %d\n", count, total);
+    Thread.sleep(1000);
+}
+```
+
+`consume` 方法返回一个结果集，其中包含从上次 `consume` 到目前为止的所有新数据。请务必按需选择合理的调用 `consume` 的频率（如例子中的`Thread.sleep(1000)`），否则会给服务端造成不必要的压力。
+
+#### 关闭订阅
+
+```java
+sub.close(true);
+```
+
+`close` 方法关闭一个订阅。如果其参数为 `true` 表示保留订阅进度信息，后续可以创建同名订阅继续消费数据；如为 `false` 则不保留订阅进度。
+
+
 ### 关闭资源
 
 ```java
