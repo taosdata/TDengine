@@ -11,7 +11,9 @@ if command -v sudo > /dev/null; then
 fi
 
 #ulimit -c unlimited
-${csudo} echo "ulimit -c unlimited" >> /etc/profile
+${csudo} sed -i '/ulimit -c unlimited/d' /etc/profile
+${csudo} sed -i '$a\ulimit -c unlimited' /etc/profile
+#${csudo} echo "ulimit -c unlimited" >> /etc/profile
 source /etc/profile
 
 ${csudo} mkdir -p /coredump
