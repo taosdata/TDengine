@@ -2338,6 +2338,11 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
       continue;
     }
 
+    if (terrno != TSDB_CODE_SUCCESS) { // load data block failed, abort query
+      longjmp(pRuntimeEnv->env, terrno);
+      break;
+    }
+
     // query start position can not move into tableApplyFunctionsOnBlock due to limit/offset condition
     pQuery->pos = QUERY_IS_ASC_QUERY(pQuery)? 0 : blockInfo.rows - 1;
     int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, pStatis, binarySearchForKey, pDataBlock);

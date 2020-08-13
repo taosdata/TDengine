@@ -679,7 +679,13 @@ static bool doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlo
 
   if (pCheckInfo->pDataCols == NULL) {
     STsdbMeta* pMeta = tsdbGetMeta(pRepo);
+
     pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
+    if (pCheckInfo->pDataCols == NULL) {
+      tsdbError("%p failed to malloc buf, %p", pQueryHandle, pQueryHandle->qinfo);
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      return blockLoaded;
+    }
   }
 
   STSchema* pSchema = tsdbGetTableSchema(pCheckInfo->pTableObj);
@@ -745,7 +751,11 @@ static void handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* 
       return;
     }
 
-    doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot);
+    // return error, add test cases
+    if (!doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot)) {
+
+    }
+
     doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
   } else {
     /*
@@ -1714,9 +1724,9 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
         STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, j);
         STableCheckInfo info = {
             .lastKey = pSecQueryHandle->window.skey,
-            //.tableId = pCheckInfo->tableId,
             .pTableObj = pCheckInfo->pTableObj,
         };
+
         info.tableId = pCheckInfo->tableId;
 
         taosArrayPush(pSecQueryHandle->pTableCheckInfo, &info);
@@ -1726,8 +1736,9 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       tsdbInitCompBlockLoadInfo(&pSecQueryHandle->compBlockLoadInfo);
       pSecQueryHandle->defaultLoadColumn = taosArrayClone(pQueryHandle->defaultLoadColumn);
 
-      bool ret = tsdbNextDataBlock((void*) pSecQueryHandle);
-      assert(ret);
+      if (!tsdbNextDataBlock((void*) pSecQueryHandle)) {
+        return false;
+      }
 
       tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
       tsdbRetrieveDataBlock((void*) pSecQueryHandle, pSecQueryHandle->defaultLoadColumn);
@@ -1770,7 +1781,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     bool exists = true;
     int32_t code = getDataBlocksInFiles(pQueryHandle, &exists);
     if (code != TSDB_CODE_SUCCESS) {
-      return false;
+      return code;
     }
 
     if (exists) {
@@ -2048,8 +2059,10 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
         return pHandle->pColumns;
       } else {  // only load the file block
         SCompBlock* pBlock = pBlockInfo->compBlock;
-        doLoadFileDataBlock(pHandle, pBlock, pCheckInfo, pHandle->cur.slot);
 
+        if (!doLoadFileDataBlock(pHandle, pBlock, pCheckInfo, pHandle->cur.slot)) {
+          return NULL;
+        }
         // todo refactor
         int32_t numOfRows = copyDataFromFileBlock(pHandle, pHandle->outputCapacity, 0, 0, pBlock->numOfRows - 1);
 
