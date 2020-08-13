@@ -2312,13 +2312,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-  while (true) {
-    if (!tsdbNextDataBlock(pQueryHandle)) {
-      if (terrno != TSDB_CODE_SUCCESS) {
-        longjmp(pRuntimeEnv->env, terrno);
-      }
-      break;
-    }
+  while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
 
     if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
@@ -2355,6 +2349,10 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL | QUERY_COMPLETED)) {
       break;
     }
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) {
+    longjmp(pRuntimeEnv->env, terrno);
   }
 
   // if the result buffer is not full, set the query complete
@@ -4046,14 +4044,7 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-  while (true) {
-    if (!tsdbNextDataBlock(pQueryHandle)) {
-      if (terrno != TSDB_CODE_SUCCESS) {
-        longjmp(pRuntimeEnv->env, terrno);
-      }
-      break;
-    }
-
+  while (tsdbNextDataBlock(pQueryHandle)) {
     if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
       finalizeQueryResult(pRuntimeEnv); // clean up allocated resource during query
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
@@ -4072,6 +4063,10 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
       updateOffsetVal(pRuntimeEnv, &blockInfo);
       break;
     }
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) {
+    longjmp(pRuntimeEnv->env, terrno);
   }
 }
 
@@ -4097,14 +4092,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   STableQueryInfo *pTableQueryInfo = pQuery->current;
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-  while (true) {
-    if (!tsdbNextDataBlock(pRuntimeEnv->pQueryHandle)) {
-      if (terrno != TSDB_CODE_SUCCESS) {
-        longjmp(pRuntimeEnv->env, terrno);
-      }
-      break;
-    }
-
+  while (tsdbNextDataBlock(pRuntimeEnv->pQueryHandle)) {
     tsdbRetrieveDataBlockInfo(pRuntimeEnv->pQueryHandle, &blockInfo);
 
     if (QUERY_IS_ASC_QUERY(pQuery)) {
@@ -4198,6 +4186,11 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
         break;  // offset is not 0, and next time window begins or ends in the next block.
       }
     }
+  }
+
+  // check for error
+  if (terrno != TSDB_CODE_SUCCESS) {
+    longjmp(pRuntimeEnv->env, terrno);
   }
 
   return true;
@@ -4416,14 +4409,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
-  while (true) {
-    if (!tsdbNextDataBlock(pQueryHandle)) {
-      if (terrno != TSDB_CODE_SUCCESS) {
-        longjmp(pRuntimeEnv->env, terrno);
-      }
-      break;
-    }
-
+  while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
     
     if (IS_QUERY_KILLED(pQInfo)) {
@@ -4455,6 +4441,10 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
   
     qDebug("QInfo:%p check data block, uid:%"PRId64", tid:%d, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, lastKey:%" PRId64,
            pQInfo, blockInfo.uid, blockInfo.tid, blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, pQuery->current->lastKey);
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) {
+    longjmp(pRuntimeEnv->env, terrno);
   }
 
   updateWindowResNumOfRes(pRuntimeEnv);
