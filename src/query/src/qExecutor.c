@@ -6501,8 +6501,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   (*pRsp)->numOfRows = htonl((int32_t)pQuery->rec.rows);
 
-  int32_t code = pQInfo->code;
-  if (code == TSDB_CODE_SUCCESS) {
+  if (pQInfo->code == TSDB_CODE_SUCCESS) {
     (*pRsp)->offset   = htobe64(pQuery->limit.offset);
     (*pRsp)->useconds = htobe64(pRuntimeEnv->summary.elapsedTime);
   } else {
@@ -6511,11 +6510,10 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
   
   (*pRsp)->precision = htons(pQuery->precision);
-  if (pQuery->rec.rows > 0 && code == TSDB_CODE_SUCCESS) {
-    code = doDumpQueryResult(pQInfo, (*pRsp)->data);
+  if (pQuery->rec.rows > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
+    doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {
     setQueryStatus(pQuery, QUERY_OVER);
-    code = pQInfo->code;
   }
 
   pQInfo->rspContext = NULL;
@@ -6529,7 +6527,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     qDebug("QInfo:%p has more results waits for client retrieve", pQInfo);
   }
 
-  return code;
+  return pQInfo->code;
 }
 
 int32_t qQueryCompleted(qinfo_t qinfo) {
