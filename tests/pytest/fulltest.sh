@@ -158,6 +158,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 
 # client
 python3 ./test.py -f client/client.py
+python3 ./test.py -f client/version.py
 
 # Misc
 python3 testCompress.py
