@@ -142,6 +142,7 @@ static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
     
     pFillCol[i].col.bytes  = pExpr->resBytes;
     pFillCol[i].col.type   = (int8_t)pExpr->resType;
+    pFillCol[i].col.colId  = pExpr->colInfo.colId;
     pFillCol[i].flag       = pExpr->colInfo.flag;
     pFillCol[i].col.offset = offset;
     pFillCol[i].functionId = pExpr->functionId;
