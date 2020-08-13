@@ -128,6 +128,9 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     taos_close(con);
     write_history();
+#ifdef WINDOWS
+    exit(EXIT_SUCCESS);
+#endif
     return -1;
   }
 
@@ -367,6 +370,18 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   } else {
     tt = (time_t)(val / 1000);
   }
+
+/* comment out as it make testcases like select_with_tags.sim fail.
+  but in windows, this may cause the call to localtime crash if tt < 0,
+  need to find a better solution.
+  if (tt < 0) {
+    tt = 0;
+  }
+  */
+
+#ifdef WINDOWS
+  if (tt < 0) tt = 0;
+#endif
 
   struct tm* ptm = localtime(&tt);
   size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
@@ -736,7 +751,7 @@ void read_history() {
 
   FILE *f = fopen(f_history, "r");
   if (f == NULL) {
-    fprintf(stderr, "Opening file %s\n", f_history);
+    fprintf(stderr, "Failed to open file %s\n", f_history);
     return;
   }
 
@@ -761,7 +776,7 @@ void write_history() {
 
   FILE *f = fopen(f_history, "w");
   if (f == NULL) {
-    fprintf(stderr, "Opening file %s\n", f_history);
+    fprintf(stderr, "Failed to open file %s for write\n", f_history);
     return;
   }
 

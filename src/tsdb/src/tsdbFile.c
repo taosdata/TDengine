@@ -128,7 +128,11 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
       code = regexec(&regex2, dp->d_name, 0, NULL, 0);
       if (code == 0) {
         tsdbDebug("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), dp->d_name);
-        remove(dp->d_name);
+        char *fname = malloc(strlen(tDataDir) + strlen(dp->d_name) + 2);
+        if (fname == NULL) goto _err;
+        sprintf(fname, "%s/%s", tDataDir, dp->d_name);
+        remove(fname);
+        free(fname);
       } else if (code == REG_NOMATCH) {
         tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
         continue;

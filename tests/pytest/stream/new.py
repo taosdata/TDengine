@@ -54,7 +54,7 @@ class TDTestCase:
                 tdSql.execute("insert into tb%d values(now + %ds, %d, %d)" % (i, j, j, j))
 
         tdLog.info("=============== step5")
-        tdLog.sleep(30)
+        tdLog.sleep(40)
         tdSql.waitedQuery("select * from st order by ts desc", 1, 120)
         v = tdSql.getData(0, 3)
         if v <= 51:

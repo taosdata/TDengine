@@ -1115,14 +1115,6 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
 
   TSKEY* tsArray = pCols->cols[0].pData;
 
-  if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-    TSKEY s = tsArray[cur->pos];
-    assert(s >= pQueryHandle->window.skey && s <= pQueryHandle->window.ekey);
-  } else {
-    TSKEY s = tsArray[cur->pos];
-    assert(s <= pQueryHandle->window.skey && s >= pQueryHandle->window.ekey);
-  }
-
   // for search the endPos, so the order needs to reverse
   int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
 
@@ -2381,7 +2373,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, TSKEY skey, co
   int32_t ret = TSDB_CODE_SUCCESS;
   tExprNode* expr = NULL;
 
-  TRY(TSDB_MAX_TAGS) {
+  TRY(TSDB_MAX_TAG_CONDITIONS) {
     expr = exprTreeFromTableName(tbnameCond);
     if (expr == NULL) {
       expr = exprTreeFromBinary(pTagCond, len);
@@ -2406,6 +2398,8 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, TSKEY skey, co
   } CATCH( code ) {
     CLEANUP_EXECUTE();
     terrno = code;
+    tsdbUnlockRepoMeta(tsdb);     // unlock tsdb in any cases
+
     goto _error;
     // TODO: more error handling
   } END_TRY
