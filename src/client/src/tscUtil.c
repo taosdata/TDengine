@@ -1394,7 +1394,7 @@ void tscSetFreeHeatBeat(STscObj* pObj) {
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 }
 
-bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
+bool tscShouldFreeHeartBeat(SSqlObj* pHb) {
   assert(pHb == pHb->signature);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pHb->cmd, 0);

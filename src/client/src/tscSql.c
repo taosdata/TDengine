@@ -216,10 +216,15 @@ void taos_close(TAOS *taos) {
   }
 
   if (pObj->pHb != NULL) {
+    if (pObj->pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
+      rpcCancelRequest(pObj->pHb->pRpcCtx);
+    }
+
     tscSetFreeHeatBeat(pObj);
-  } else {
-    tscCloseTscObj(pObj);
+    tscFreeSqlObj(pObj->pHb);
   }
+
+  tscCloseTscObj(pObj);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {

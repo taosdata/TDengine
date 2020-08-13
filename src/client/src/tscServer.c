@@ -171,46 +171,23 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   STscObj *pObj = (STscObj *)handle;
-
-  if (pObj == NULL) return;
-  if (pObj->signature != pObj) return;
-  if (pObj->pTimer != tmrId) return;
-
-  if (pObj->pHb == NULL) {
-    SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
-    if (NULL == pSql) return;
-
-    pSql->fp = tscProcessHeartBeatRsp;
-    
-    SQueryInfo *pQueryInfo = NULL;
-    tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
-    pQueryInfo->command = TSDB_SQL_HB;
-    
-    pSql->cmd.command = TSDB_SQL_HB;
-    if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
-      taosTFree(pSql);
-      return;
-    }
-
-    pSql->cmd.command = TSDB_SQL_HB;
-    pSql->param = pObj;
-    pSql->pTscObj = pObj;
-    pSql->signature = pSql;
-    pObj->pHb = pSql;
-    tscAddSubqueryInfo(&pObj->pHb->cmd);
-
-    tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
+  if (pObj == NULL || pObj->signature != pObj) {
+    return;
   }
 
-  if (tscShouldFreeHeatBeat(pObj->pHb)) {
-    tscDebug("%p free HB object and release connection", pObj->pHb);
-    tscFreeSqlObj(pObj->pHb);
+  SSqlObj* pHB = pObj->pHb;
+  if (pObj->pTimer != tmrId || pHB == NULL) {
+    return;
+  }
+
+  if (tscShouldFreeHeartBeat(pHB)) {
+    tscDebug("%p free HB object and release connection", pHB);
+    tscFreeSqlObj(pHB);
     tscCloseTscObj(pObj);
   } else {
-//    taosMsleep(500);
-    int32_t code = tscProcessSql(pObj->pHb);
+    int32_t code = tscProcessSql(pHB);
     if (code != TSDB_CODE_SUCCESS) {
-      tscError("%p failed to sent HB to server, reason:%s", pObj->pHb, tstrerror(code));
+      tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
     }
   }
 }
@@ -267,6 +244,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
+
+  pSql->pRpcCtx = NULL;    // clear the rpcCtx
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
@@ -1956,6 +1935,35 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   return 0;
 }
 
+static void createHBObj(STscObj* pObj) {
+  if (pObj->pHb != NULL) {
+    return;
+  }
+
+  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  if (NULL == pSql) return;
+
+  pSql->fp = tscProcessHeartBeatRsp;
+
+  SQueryInfo *pQueryInfo = NULL;
+  tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
+  pQueryInfo->command = TSDB_SQL_HB;
+
+  pSql->cmd.command = pQueryInfo->command;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
+    taosTFree(pSql);
+    return;
+  }
+
+  pSql->param = pObj;
+  pSql->pTscObj = pObj;
+  pSql->signature = pSql;
+  pObj->pHb = pSql;
+  tscAddSubqueryInfo(&pObj->pHb->cmd);
+
+  tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
+}
+
 int tscProcessConnectRsp(SSqlObj *pSql) {
   char temp[TSDB_TABLE_FNAME_LEN * 2];
   STscObj *pObj = pSql->pTscObj;
@@ -1977,6 +1985,9 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;
   pObj->connId = htonl(pConnect->connId);
+
+  createHBObj(pObj);
+
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
