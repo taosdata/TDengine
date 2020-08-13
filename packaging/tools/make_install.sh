@@ -194,6 +194,8 @@ function install_lib() {
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${versioninfo}.dylib ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
+    
+    ${csudo} ldconfig
 }
 
 function install_header() {

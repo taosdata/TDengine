@@ -209,6 +209,8 @@ function install_lib() {
     #    ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
     #    ${csudo} chmod 777 ${v15_java_app_dir} || :
     #fi
+    
+    ${csudo} ldconfig
 }
 
 function install_header() {
