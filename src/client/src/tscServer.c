@@ -199,17 +199,20 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     pObj->pHb = pSql;
     tscAddSubqueryInfo(&pObj->pHb->cmd);
 
-    tscDebug("%p pHb is allocated, pObj:%p", pObj->pHb, pObj);
+    tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
   }
 
   if (tscShouldFreeHeatBeat(pObj->pHb)) {
-    tscDebug("%p free HB object and release connection", pObj);
+    tscDebug("%p free HB object and release connection", pObj->pHb);
     tscFreeSqlObj(pObj->pHb);
     tscCloseTscObj(pObj);
-    return;
+  } else {
+//    taosMsleep(500);
+    int32_t code = tscProcessSql(pObj->pHb);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("%p failed to sent HB to server, reason:%s", pObj->pHb, tstrerror(code));
+    }
   }
-
-  tscProcessSql(pObj->pHb);
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
