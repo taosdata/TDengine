@@ -541,7 +541,7 @@ void rpcCancelRequest(void *handle) {
   if (pContext->signature != pContext) return;
 
   if (pContext->pConn) {
-    tDebug("%s, app trys to cancel request", pContext->pConn->info);
+    tDebug("%s, app tries to cancel request", pContext->pConn->info);
     pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
     pContext->pConn = NULL;
