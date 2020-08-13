@@ -48,7 +48,12 @@ do
       osType=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite] -n [version number]"
+      echo "Usage: `basename $0` -v [cluster | edge] "
+      echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
+      echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...] "
+      echo "                  -V [stable | beta] "
+      echo "                  -l [full | lite] "
+      echo "                  -n [version number] "
       exit 0
       ;;
     ?) #unknow option 
