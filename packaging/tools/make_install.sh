@@ -34,6 +34,7 @@ cfg_install_dir="/etc/taos"
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
+    lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
 else
     bin_link_dir="/usr/local/bin"
@@ -173,12 +174,18 @@ function install_bin() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :
+    ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
     
     versioninfo=$(${script_dir}/get_version.sh ${source_dir}/src/util/src/version.c)
     if [ "$osType" != "Darwin" ]; then
         ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${versioninfo} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+        
+        if [ -d "${lib64_link_dir}" ]; then
+          ${csudo} ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${lib64_link_dir}/libtaos.so.1
+          ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
+        fi
     else
         ${csudo} cp ${binary_dir}/build/lib/libtaos.${versioninfo}.dylib ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${versioninfo}.dylib ${lib_link_dir}/libtaos.1.dylib

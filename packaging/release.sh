@@ -10,6 +10,7 @@ set -e
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  
 #             -V [stable | beta]
 #             -l [full | lite]
+#             -n [2.0.0.3]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
@@ -17,8 +18,9 @@ verType=stable   # [stable, beta]
 cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]
 pagMode=full     # [full | lite]
+verNumber=""
 
-while getopts "hv:V:c:o:l:" arg
+while getopts "hv:V:c:o:l:n:" arg
 do
   case $arg in
     v)
@@ -37,12 +39,16 @@ do
       #echo "pagMode=$OPTARG"
       pagMode=$(echo $OPTARG)
       ;;
+    n)
+      #echo "verNumber=$OPTARG"
+      verNumber=$(echo $OPTARG)
+      ;;
     o)
       #echo "osType=$OPTARG"
       osType=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite]"
+      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite] -n [version number]"
       exit 0
       ;;
     ?) #unknow option 
@@ -52,7 +58,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} verNumber=${verNumber}"
 
 curr_dir=$(pwd)
 
@@ -80,7 +86,6 @@ function is_valid_version() {
     if [[ $1 =~ $rx ]]; then
         return 0
     fi
-
     return 1
 }
 
@@ -89,26 +94,25 @@ function vercomp () {
         echo 0
         exit 0
     fi
+    
     local IFS=.
     local i ver1=($1) ver2=($2)
+
     # fill empty fields in ver1 with zeros
     for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
         ver1[i]=0
     done
 
     for ((i=0; i<${#ver1[@]}; i++)); do
-        if [[ -z ${ver2[i]} ]]
-        then
+        if [[ -z ${ver2[i]} ]]; then
             # fill empty fields in ver2 with zeros
             ver2[i]=0
         fi
-        if ((10#${ver1[i]} > 10#${ver2[i]}))
-        then
+        if ((10#${ver1[i]} > 10#${ver2[i]})); then
             echo 1
             exit 0
         fi
-        if ((10#${ver1[i]} < 10#${ver2[i]}))
-        then
+        if ((10#${ver1[i]} < 10#${ver2[i]})); then
             echo 2
             exit 0
         fi
@@ -120,10 +124,11 @@ function vercomp () {
 version=$(cat ${versioninfo} | grep " version" | cut -d '"' -f2)
 compatible_version=$(cat ${versioninfo} | grep " compatible_version" | cut -d '"' -f2)
 
-while true; do
-  read -p "Do you want to release a new version? [y/N]: " is_version_change
+if [ -z ${verNumber} ]; then
+  while true; do
+    read -p "Do you want to release a new version? [y/N]: " is_version_change
 
-  if [[ ( "${is_version_change}" == "y") || ( "${is_version_change}" == "Y") ]]; then
+    if [[ ( "${is_version_change}" == "y") || ( "${is_version_change}" == "Y") ]]; then
       read -p "Please enter the new version: " tversion
       while true; do
           if (! is_valid_version $tversion) || [ "$(vercomp $tversion $version)" = '2' ]; then
@@ -152,13 +157,24 @@ while true; do
       done
 
       break
-  elif [[ ( "${is_version_change}" == "n") || ( "${is_version_change}" == "N") ]]; then
+    elif [[ ( "${is_version_change}" == "n") || ( "${is_version_change}" == "N") ]]; then
       echo "Use old version: ${version} compatible version: ${compatible_version}."
       break
-  else
+    else
       continue
-  fi
-done
+    fi
+  done
+else 
+  echo "old version: $version, new version: $verNumber"
+  #if ( ! is_valid_version $verNumber ) || [[ "$(vercomp $version $verNumber)" == '2' ]]; then
+  #  echo "please enter correct version"
+  #  exit 0
+  #else
+    version=${verNumber}
+  #fi  
+fi  
+
+echo "=======================new version number: ${version}======================================"
 
 # output the version info to the buildinfo file.
 build_time=$(date +"%F %R")
