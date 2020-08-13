@@ -21,6 +21,7 @@
 extern void taosWinSocketInit();
 
 void osInit() {
+  taosSetCoreDump();
   if (configDir[0] == 0) {
     strcpy(configDir, "C:/TDengine/cfg");
   }

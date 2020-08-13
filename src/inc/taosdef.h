@@ -394,6 +394,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_PORT_DNODESHELL 0 
 #define TSDB_PORT_DNODEDNODE 5 
 #define TSDB_PORT_SYNC       10 
+#define TSDB_PORT_HTTP       11 
 
 #define TAOS_QTYPE_RPC      0
 #define TAOS_QTYPE_FWD      1
