@@ -974,12 +974,12 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 ## Go Connector
 
-TDengine提供了GO驱动程序`taosSql`. `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengin, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`
+TDengine提供了GO驱动程序`taosSql`. `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`
 
 ```Go
 import (
     "database/sql"
-    _ "github.com/taosdata/driver-go/taoSql"
+    _ "github.com/taosdata/driver-go/taosSql"
 )
 ```
 ### 常用API
