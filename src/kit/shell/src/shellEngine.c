@@ -310,7 +310,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     if (error_no == 0) {
       printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(con), numOfRows, (et - st) / 1E6);
+      printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
   } else {
     int num_rows_affacted = taos_affected_rows(pSql);
