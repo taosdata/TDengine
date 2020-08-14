@@ -613,11 +613,13 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
     if (sql == NULL) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
-      taosTFree(pStmt->pSql->sqlstr);
-      pStmt->pSql->sqlstr = sql;
-      SSqlObj* pSql = taos_query((TAOS*)pStmt->taos, pStmt->pSql->sqlstr);
-      ret = taos_errno(pSql);
-      taos_free_result(pSql);
+      if (pStmt->pSql != NULL) {
+        taos_free_result(pStmt->pSql);
+        pStmt->pSql = NULL;
+      }
+      pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
+      ret = taos_errno(pStmt->pSql);
+      free(sql);
     }
   }
   return ret;
