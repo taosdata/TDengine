@@ -248,17 +248,17 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
   return 0;
 }
 
-static void setTagsValue(SFillInfo* pColInfo, tFilePage** data, SFillTagColInfo *pTags, int32_t start, int32_t num) {
-  for(int32_t j = 0; j < pColInfo->numOfCols; ++j) {
-    SFillColInfo* pCol = &pColInfo->pFillCol[j];
+static void setTagsValue(SFillInfo* pFillInfo, tFilePage** data, int32_t num) {
+  for(int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
+    SFillColInfo* pCol = &pFillInfo->pFillCol[j];
     if (pCol->flag == TSDB_COL_NORMAL) {
       continue;
     }
 
     char* val1 = elePtrAt(data[j]->data, pCol->col.bytes, num);
 
-    for(int32_t i = 0; i < pColInfo->numOfTags; ++i) {
-      SFillTagColInfo* pTag = &pColInfo->pTags[i];
+    for(int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
+      SFillTagColInfo* pTag = &pFillInfo->pTags[i];
       if (pTag->col.colId == pCol->col.colId) {
         assignVal(val1, pTag->tagVal, pCol->col.bytes, pCol->col.type);
         break;
@@ -267,8 +267,8 @@ static void setTagsValue(SFillInfo* pColInfo, tFilePage** data, SFillTagColInfo 
   }
 }
 
-static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* num, char** srcData,
-                                int64_t ts, SFillTagColInfo* pTags, bool outOfBound) {
+static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* num, char** srcData, int64_t ts,
+                             bool outOfBound) {
   char* prevValues = pFillInfo->prevValues;
   char* nextValues = pFillInfo->nextValues;
 
@@ -312,7 +312,7 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
       }
     }
 
-    setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+    setTagsValue(pFillInfo, data, *num);
   } else if (pFillInfo->fillType == TSDB_FILL_LINEAR) {
     // TODO : linear interpolation supports NULL value
     if (prevValues != NULL && !outOfBound) {
@@ -337,7 +337,7 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
         taosDoLinearInterpolation(type, &point1, &point2, &point);
       }
 
-      setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+      setTagsValue(pFillInfo, data, *num);
 
     } else {
       for (int32_t i = 1; i < numOfValCols; ++i) {
@@ -352,7 +352,7 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
         }
       }
 
-      setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+      setTagsValue(pFillInfo, data, *num);
   
     }
   } else { /* fill the default value */
@@ -363,7 +363,7 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
       assignVal(val1, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
     }
 
-    setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+    setTagsValue(pFillInfo, data, *num);
   }
 
   pFillInfo->start += (pFillInfo->slidingTime * step);
@@ -397,8 +397,6 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
   char** nextValues = &pFillInfo->nextValues;
 
   int32_t numOfTags = pFillInfo->numOfTags;
-  SFillTagColInfo* pTags = pFillInfo->pTags;
-
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
   if (numOfRows == 0) {
     /*
@@ -406,7 +404,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
      * real result set. Note that we need to keep the direct previous result rows, to generated the filled data.
      */
     while (num < outputRows) {
-      doFillResultImpl(pFillInfo, data, &num, srcData, pFillInfo->start, pTags, true);
+      doFillResultImpl(pFillInfo, data, &num, srcData, pFillInfo->start, true);
     }
     
     pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
@@ -433,12 +431,11 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         
         while (((pFillInfo->start < ts && FILL_IS_ASC_FILL(pFillInfo)) ||
                 (pFillInfo->start > ts && !FILL_IS_ASC_FILL(pFillInfo))) && num < outputRows) {
-          doFillResultImpl(pFillInfo, data, &num, srcData, ts, pTags, false);
+          doFillResultImpl(pFillInfo, data, &num, srcData, ts, false);
         }
 
         /* output buffer is full, abort */
-        if ((num == outputRows && FILL_IS_ASC_FILL(pFillInfo)) ||
-            (num < 0 && !FILL_IS_ASC_FILL(pFillInfo))) {
+        if ((num == outputRows && FILL_IS_ASC_FILL(pFillInfo)) || (num < 0 && !FILL_IS_ASC_FILL(pFillInfo))) {
           pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
           return outputRows;
         }
@@ -447,10 +444,12 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         initBeforeAfterDataBuf(pFillInfo, prevValues);
         
         // assign rows to dst buffer
-        int32_t i = 0;
-        for (; i < pFillInfo->numOfCols - numOfTags; ++i) {
+        for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
           SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-          
+          if (pCol->flag == TSDB_COL_TAG) {
+            continue;
+          }
+
           char* val1 = elePtrAt(data[i]->data, pCol->col.bytes, num);
           char* src  = elePtrAt(srcData[i], pCol->col.bytes, pFillInfo->rowIdx);
           
@@ -472,10 +471,12 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         }
 
         // set the tag value for final result
-        setTagsValue(pFillInfo, data, pTags, pFillInfo->numOfCols - numOfTags, num);
+        setTagsValue(pFillInfo, data, num);
 
         pFillInfo->start += (pFillInfo->slidingTime * step);
         pFillInfo->rowIdx += 1;
+
+        pFillInfo->numOfCurrent +=1;
         num += 1;
       }
 
