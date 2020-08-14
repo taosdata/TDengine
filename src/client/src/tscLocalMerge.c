@@ -380,20 +380,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
                                            4096, (int32_t)numOfCols, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit,
                                            tinfo.precision, pQueryInfo->fillType, pFillCol);
   }
-
-  int32_t startIndex = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
-
-  if (pQueryInfo->groupbyExpr.numOfGroupCols > 0 && pReducer->pFillInfo != NULL) {
-    pReducer->pFillInfo->pTags[0] = (char *)pReducer->pFillInfo->pTags + POINTER_BYTES * pQueryInfo->groupbyExpr.numOfGroupCols;
-    for (int32_t i = 1; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
-      SSchema *pSchema = getColumnModelSchema(pReducer->resColModel, startIndex + i - 1);
-      pReducer->pFillInfo->pTags[i] = pSchema->bytes + pReducer->pFillInfo->pTags[i - 1];
-    }
-  } else {
-    if (pReducer->pFillInfo != NULL) {
-      assert(pReducer->pFillInfo->pTags == NULL);
-    }
-  }
 }
 
 static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePage *pPage,
