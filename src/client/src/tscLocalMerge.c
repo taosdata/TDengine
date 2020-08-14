@@ -972,7 +972,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
   }
 
   if (pRes->numOfRows > 0) {
-    int32_t currentTotal = pRes->numOfRowsGroup + pRes->numOfRows;
+    int32_t currentTotal = (int32_t)(pRes->numOfRowsGroup + pRes->numOfRows);
 
     if (pQueryInfo->limit.limit >= 0 && currentTotal > pQueryInfo->limit.limit) {
       int32_t overflow = (int32_t)(currentTotal - pQueryInfo->limit.limit);

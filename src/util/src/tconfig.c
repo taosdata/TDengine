@@ -133,7 +133,7 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
 }
 
 static void taosReadIpStrConfig(SGlobalCfg *cfg, char *input_value) {
-  uint32_t value = inet_addr(input_value);
+  uint32_t value = taosInetAddr(input_value);
   char *   option = (char *)cfg->ptr;
   if (value == INADDR_NONE) {
     uError("config option:%s, input value:%s, is not a valid ip address, use default value:%s",

@@ -61,8 +61,15 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
   res  = res*24;
   res  = ((res + hour) * 60 + min) * 60 + sec;
 
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  int64_t timezone = _timezone;
+#endif
+#endif
+
   return (res + timezone);
 }
+
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
 void deltaToUtcInitOnce() {  
