@@ -646,7 +646,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 #### Linux
 
-用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
+用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到python2和python3的connector安装包。用户可以通过pip命令安装： 
 
 ​		`pip install src/connector/python/linux/python2/`
 
