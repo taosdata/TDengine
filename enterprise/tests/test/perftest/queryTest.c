@@ -376,9 +376,10 @@ int main(int argc, char** argv) {
 //  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  return 0;
   executeSQL(conn, "use lr_db0", NULL);
-  executeSQL(conn, "select count(*) from lr_db0.lr_stb0 where ts>'2018-9-18 8:50:00' and ts<'2018-9-18 14:59:00' interval(1s) fill(NULL);", NULL);
-
+  executeSQL(conn, "select count(*) from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' "
+                   "interval(24h) fill(NULL) group by t1", NULL);
   return 0;
+
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
 //    createEnvironment(conn, 100, 100, 100000, 30);
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
