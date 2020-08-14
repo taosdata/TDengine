@@ -45,11 +45,11 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
 
-  - ip：TDengine管理主节点的IP地址
-  - user：用户名
-  - pass：密码
-  - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
-  - port：端口号
+    - ip：TDengine管理主节点的IP地址
+    - user：用户名
+    - pass：密码
+    - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
+    - port：端口号
   
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续API调用。
 
@@ -646,7 +646,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 #### Linux
 
-用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
+用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到python2和python3的connector安装包。用户可以通过pip命令安装： 
 
 ​		`pip install src/connector/python/linux/python2/`
 
