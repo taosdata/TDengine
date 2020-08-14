@@ -65,7 +65,7 @@ uint32_t taosInetAddr(char *ipAddr) {
   return inet_addr(ipAddr);
 }
 
-const char *taosInetNtoa(IN_ADDR ipInt) {
+const char *taosInetNtoa(struct in_addr ipInt) {
   return inet_ntoa(ipInt);
 }
 

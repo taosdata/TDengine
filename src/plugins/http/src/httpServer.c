@@ -323,7 +323,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     }
 
     pContext->pThread = pThread;
-    sprintf(pContext->ipstr, "%s:%u", taosInetAddr(clientAddr.sin_addr), htons(clientAddr.sin_port));
+    sprintf(pContext->ipstr, "%s:%u", taosInetNtoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
     
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;

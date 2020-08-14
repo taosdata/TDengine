@@ -67,7 +67,7 @@ int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int op
 
 // TAOS_OS_FUNC_SOCKET_INET
 uint32_t taosInetAddr(char *ipAddr);
-const char *taosInetNtoa(IN_ADDR ipInt);
+const char *taosInetNtoa(struct in_addr ipInt);
 
 #ifdef __cplusplus
 }

@@ -128,7 +128,7 @@ static void *bindTcpPort(void *sarg) {
         if (errno == EINTR) {
           continue;
         } else {
-          printf("recv Client: %s pkg from TCP port: %d fail:%s.\n", taosInetNtoa(clientAddr.sin_addr), port, strerror(errno));
+          printf("recv Client: %s pkg from TCP port: %d fail:%s.\n", inet_ntoa(clientAddr.sin_addr), port, strerror(errno));
           close(serverSocket);
           return NULL;
         }
@@ -139,7 +139,7 @@ static void *bindTcpPort(void *sarg) {
       }      
     }
     
-    printf("recv Client: %s pkg from TCP port: %d, pkg len: %d\n", taosInetNtoa(clientAddr.sin_addr), port, iDataNum);
+    printf("recv Client: %s pkg from TCP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
     if (iDataNum > 0) {
       send(client, buffer, iDataNum, 0);
       break;
@@ -188,7 +188,7 @@ static void *bindUdpPort(void *sarg) {
       continue;
     }
     if (iDataNum > 0) {
-      printf("recv Client: %s pkg from UDP port: %d, pkg len: %d\n", taosInetNtoa(clientAddr.sin_addr), port, iDataNum);
+      printf("recv Client: %s pkg from UDP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
       //printf("Read msg from udp:%s ... %s\n", buffer, buffer+iDataNum-16);
 
       sendto(serverSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int)sin_size);

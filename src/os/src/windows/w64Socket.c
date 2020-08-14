@@ -76,7 +76,7 @@ uint32_t taosInetAddr(char *ipAddr) {
   }
 }
 
-const char *taosInetNtoa(IN_ADDR ipInt) {
+const char *taosInetNtoa(struct in_addr ipInt) {
   // not thread safe, only for debug usage while print log
   static char tmpDstStr[16];
   return inet_ntop(AF_INET, &ipInt, tmpDstStr, INET6_ADDRSTRLEN);
