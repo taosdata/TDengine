@@ -177,3 +177,6 @@ python3 ./test.py -f functions/function_stddev.py
 python3 ./test.py -f functions/function_sum.py
 python3 ./test.py -f functions/function_top.py
 python3 ./test.py -f functions/function_twa.py
+
+# tools
+python3 test.py -f tools/taosdemo.py

@@ -195,10 +195,15 @@ int main(int argc, char *argv[])
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);
   }
+  if (rows == 2) {
+    printf("two rows are fetched as expectation\n");
+  } else {
+    printf("expect two rows, but %d rows are fetched\n", rows);
+  }
 
   taos_free_result(result);
   taos_stmt_close(stmt);
 
-  return getchar();
+  return 0;
 }
 
