@@ -330,6 +330,31 @@ int tdKVStoreEndCommit(SKVStore *pStore) {
   return 0;
 }
 
+void tsdbGetStoreInfo(char *fname, uint32_t *magic, int32_t *size) {
+  char       buf[TD_KVSTORE_HEADER_SIZE] = "\0";
+  SStoreInfo info = {0};
+
+  int fd = open(fname, O_RDONLY);
+  if (fd < 0) goto _err;
+
+  if (taosTRead(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) goto _err;
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TD_KVSTORE_HEADER_SIZE)) goto _err;
+
+  void *pBuf = (void *)buf;
+  pBuf = tdDecodeStoreInfo(pBuf, &info);
+  off_t offset = lseek(fd, 0, SEEK_END);
+  if (offset < 0) goto _err;
+  close(fd);
+
+  *magic = info.magic;
+  *size = (int32_t)offset;
+
+_err:
+  if (fd >= 0) close(fd);
+  *magic = TD_KVSTORE_INIT_MAGIC;
+  *size = 0;
+}
+
 static int tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo, uint32_t *version) {
   char buf[TD_KVSTORE_HEADER_SIZE] = "\0";
 

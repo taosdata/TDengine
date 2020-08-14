@@ -423,6 +423,35 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   }
 }
 
+void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int32_t *size) {
+  char          buf[TSDB_FILE_HEAD_SIZE] = "\0";
+  uint32_t      version = 0;
+  STsdbFileInfo info = {0};
+
+  int fd = open(fname, O_RDONLY);
+  if (fd < 0) goto _err;
+
+  if (taosTRead(fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) goto _err;
+
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) goto _err;
+
+  void *pBuf = (void *)buf;
+  pBuf = taosDecodeFixedU32(pBuf, &version);
+  pBuf = tsdbDecodeSFileInfo(pBuf, &info);
+
+  off_t offset = lseek(fd, 0, SEEK_END);
+  if (offset < 0) goto _err;
+  close(fd);
+
+  *magic = info.magic;
+  *size = (int32_t)offset;
+
+_err:
+  if (fd >= 0) close(fd);
+  *magic = TSDB_FILE_INIT_MAGIC;
+  *size = 0;
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   uint32_t version;
