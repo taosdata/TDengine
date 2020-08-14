@@ -65,6 +65,10 @@ void taosBlockSIGPIPE();
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen);
 
+// TAOS_OS_FUNC_SOCKET_INET
+uint32_t taosInetAddr(char *ipAddr);
+const char *taosInetNtoa(IN_ADDR ipInt);
+
 #ifdef __cplusplus
 }
 #endif

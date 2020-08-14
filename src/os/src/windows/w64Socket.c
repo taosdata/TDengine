@@ -63,3 +63,23 @@ int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int op
 
   return setsockopt(socketfd, level, optname, optval, optlen);
 }
+
+#ifdef TAOS_OS_FUNC_SOCKET_INET
+
+uint32_t taosInetAddr(char *ipAddr) {
+  uint32_t value;
+  int ret = inet_pton(AF_INET, ipAddr, &value);
+  if (ret <= 0) {
+    return INADDR_NONE;
+  } else {
+    return value;
+  }
+}
+
+const char *taosInetNtoa(IN_ADDR ipInt) {
+  // not thread safe, only for debug usage while print log
+  static char tmpDstStr[16];
+  return inet_ntop(AF_INET, &ipInt, tmpDstStr, INET6_ADDRSTRLEN);
+}
+
+#endif

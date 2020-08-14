@@ -302,7 +302,7 @@ static void *httpAcceptHttpConnection(void *arg) {
 #if 0
     if (totalFds > tsHttpCacheSessions * 100) {
       httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*100, refuse connection", connFd,
-                inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
+                taosInetNtoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
       taosCloseSocket(connFd);
       continue;
     }
@@ -316,14 +316,14 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     pContext = httpCreateContext(connFd);
     if (pContext == NULL) {
-      httpError("fd:%d, ip:%s:%u, no enough resource to allocate http context", connFd, inet_ntoa(clientAddr.sin_addr),
+      httpError("fd:%d, ip:%s:%u, no enough resource to allocate http context", connFd, taosInetNtoa(clientAddr.sin_addr),
                 htons(clientAddr.sin_port));
       taosCloseSocket(connFd);
       continue;
     }
 
     pContext->pThread = pThread;
-    sprintf(pContext->ipstr, "%s:%u", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
+    sprintf(pContext->ipstr, "%s:%u", taosInetAddr(clientAddr.sin_addr), htons(clientAddr.sin_port));
     
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;

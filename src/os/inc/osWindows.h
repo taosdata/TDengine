@@ -164,9 +164,25 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 #define MSG_NOSIGNAL             0
 #define SO_NO_CHECK              0x1234
 #define SOL_TCP                  0x1234
-#define TCP_KEEPCNT              0x1234
-#define TCP_KEEPIDLE             0x1234
-#define TCP_KEEPINTVL            0x1234
+
+#ifndef TCP_KEEPCNT
+  #define TCP_KEEPCNT              0x1234
+#endif
+
+#ifndef TCP_KEEPIDLE
+  #define TCP_KEEPIDLE             0x1234
+#endif
+
+#ifndef TCP_KEEPINTVL
+  #define TCP_KEEPINTVL            0x1234
+#endif
+
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  #define TAOS_OS_FUNC_SOCKET_INET
+#endif
+#endif
+
 #define SHUT_RDWR                SD_BOTH
 #define SHUT_RD                  SD_RECEIVE
 #define SHUT_WR                  SD_SEND

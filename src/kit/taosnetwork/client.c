@@ -91,7 +91,7 @@ int checkTcpPort(info_s *info) {
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(port);
 
-  serverAddr.sin_addr.s_addr = inet_addr(host);
+  serverAddr.sin_addr.s_addr = taosInetAddr(host);
 
   //printf("=================================\n");
   if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
@@ -157,7 +157,7 @@ int checkUdpPort(info_s *info) {
   
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(port);
-  serverAddr.sin_addr.s_addr = inet_addr(host);
+  serverAddr.sin_addr.s_addr = taosInetAddr(host);
   
   memset(sendbuf, 0, BUFFER_SIZE);
   memset(recvbuf, 0, BUFFER_SIZE);

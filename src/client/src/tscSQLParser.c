@@ -2390,7 +2390,7 @@ bool validateIpAddress(const char* ip, size_t size) {
 
   strncpy(tmp, ip, size);
 
-  in_addr_t epAddr = inet_addr(tmp);
+  in_addr_t epAddr = taosInetAddr(tmp);
 
   return epAddr != INADDR_NONE;
 }
