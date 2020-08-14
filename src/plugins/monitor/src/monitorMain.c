@@ -234,17 +234,22 @@ static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
 }
 
 void monitorStopSystem() {
-  monitorInfo("monitor module is stopped");
-  monitorExecuteSQLFp = NULL;
+  if (tsMonitorConn.state == MONITOR_STATE_STOPPED) return;
   tsMonitorConn.state = MONITOR_STATE_STOPPED;
+  monitorExecuteSQLFp = NULL;
+
+  monitorInfo("monitor module is stopped");
+
   if (tsMonitorConn.initTimer != NULL) {
     taosTmrStopA(&(tsMonitorConn.initTimer));
   }
   if (tsMonitorConn.timer != NULL) {
     taosTmrStopA(&(tsMonitorConn.timer));
   }
-
-  taos_close(tsMonitorConn.conn);
+  if (tsMonitorConn.conn != NULL) {
+    taos_close(tsMonitorConn.conn);
+    tsMonitorConn.conn = NULL;
+  }
 }
 
 void monitorCleanUpSystem() {
