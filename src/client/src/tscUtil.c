@@ -1394,7 +1394,7 @@ void tscSetFreeHeatBeat(STscObj* pObj) {
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 }
 
-bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
+bool tscShouldFreeHeartBeat(SSqlObj* pHb) {
   assert(pHb == pHb->signature);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pHb->cmd, 0);
@@ -2140,43 +2140,6 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
     tscDoQuery(pSql);
   }
 }
-
-//void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-//  SFieldSupInfo* pInfo = TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);
-//  assert(pInfo->pSqlExpr != NULL);
-//
-//  int32_t type = pInfo->pSqlExpr->resType;
-//  int32_t bytes = pInfo->pSqlExpr->resBytes;
-//
-//  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-//
-//  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-//    int32_t realLen = varDataLen(pData);
-//    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
-//
-//    if (isNull(pData, type)) {
-//      pRes->tsrow[columnIndex] = NULL;
-//    } else {
-//      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
-//    }
-//
-//    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-//      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
-//    }
-//
-//    pRes->length[columnIndex] = realLen;
-//  } else {
-//    assert(bytes == tDataTypeDesc[type].nSize);
-//
-//    if (isNull(pData, type)) {
-//      pRes->tsrow[columnIndex] = NULL;
-//    } else {
-//      pRes->tsrow[columnIndex] = pData;
-//    }
-//
-//    pRes->length[columnIndex] = bytes;
-//  }
-//}
 
 void* malloc_throw(size_t size) {
   void* p = malloc(size);

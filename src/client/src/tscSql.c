@@ -181,6 +181,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   return NULL;
 }
+
 TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t userLen, 
     const char *pass, uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
     char ipBuf[TSDB_EP_LEN] = {0};
@@ -215,10 +216,15 @@ void taos_close(TAOS *taos) {
   }
 
   if (pObj->pHb != NULL) {
+    if (pObj->pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
+      rpcCancelRequest(pObj->pHb->pRpcCtx);
+    }
+
     tscSetFreeHeatBeat(pObj);
-  } else {
-    tscCloseTscObj(pObj);
+    tscFreeSqlObj(pObj->pHb);
   }
+
+  tscCloseTscObj(pObj);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {

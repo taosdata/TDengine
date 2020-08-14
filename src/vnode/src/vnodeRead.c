@@ -93,8 +93,11 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void* pVnode, void** handle, 
       vDebug("QInfo:%p exec completed, free handle:%d", *handle, *freeHandle);
     }
   } else {
-    pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
-    memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
+    SRetrieveTableRsp* pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+    pRsp->completed = true;
+
+    pRet->rsp = pRsp;
     *freeHandle = true;
   }
 
@@ -200,18 +203,18 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
       vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
              pReadMsg->rpcMsg.handle);
-      code = vnodeDumpQueryResult(&pReadMsg->rspRet, pVnode, qhandle, &freehandle);
 
-      // todo test the error code case
-      if (code == TSDB_CODE_SUCCESS) {
-        code = TSDB_CODE_QRY_HAS_RSP;
-      }
+      // set the real rsp error code
+      pReadMsg->rpcMsg.code = vnodeDumpQueryResult(&pReadMsg->rspRet, pVnode, qhandle, &freehandle);
+
+      // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
+      code = TSDB_CODE_QRY_HAS_RSP;
     } else {
       freehandle = qQueryCompleted(*qhandle);
     }
 
     // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
-    // if not build result, free it not by forced.
+    // If the building of result is not required, simply free it. Otherwise, mandatorily free the qhandle
     if (freehandle || (!buildRes)) {
       qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
     }
