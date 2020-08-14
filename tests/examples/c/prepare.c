@@ -198,7 +198,8 @@ int main(int argc, char *argv[])
 
   taos_free_result(result);
   taos_stmt_close(stmt);
-
+  
+  printf("Data has been written, Please press enter to return");
   return getchar();
 }
 
