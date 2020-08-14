@@ -56,7 +56,7 @@ void check_row_count(int line, TAOS_RES* res, int expected) {
 
 
 void do_query(TAOS* taos, const char* sql) {
-  TAOS_RES* res = taos_query(taos, "drop database if exists test;");
+  TAOS_RES* res = taos_query(taos, sql);
   taos_free_result(res);
 }
 
