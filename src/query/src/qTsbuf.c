@@ -8,7 +8,6 @@ static void TSBufUpdateVnodeInfo(STSBuf* pTSBuf, int32_t index, STSVnodeBlockInf
 static STSBuf* allocResForTSBuf(STSBuf* pTSBuf);
 static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
 
-
 /**
  * todo error handling
  * support auto closeable tmp file
@@ -225,11 +224,12 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   }
   
   STSBlock* pBlock = &pTSBuf->block;
-  
-  pBlock->numOfElem = pTSBuf->tsData.len / TSDB_KEYSIZE;
+  STSList*  pTsData = &pTSBuf->tsData;
+
+  pBlock->numOfElem = pTsData->len / TSDB_KEYSIZE;
   pBlock->compLen =
-      tsCompressTimestamp(pTSBuf->tsData.rawBuf, pTSBuf->tsData.len, pTSBuf->tsData.len / TSDB_KEYSIZE, pBlock->payload,
-                          pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
+      tsCompressTimestamp(pTsData->rawBuf, pTsData->len, pTsData->len/TSDB_KEYSIZE, pBlock->payload, pTsData->allocSize,
+          TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
   
   int64_t r = fseek(pTSBuf->f, pTSBuf->fileSize, SEEK_SET);
   UNUSED(r);
@@ -241,13 +241,18 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    *
    * both side has the compressed length is used to support load data forwards/backwords.
    */
-  fwrite(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
+  fwrite(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  fwrite(&pBlock->tag.nLen,  sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    fwrite(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
+    fwrite(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+  }
+
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
-  
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-  
   fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
-  
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
   
   int32_t blockSize = sizeof(pBlock->tag) + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
@@ -298,9 +303,24 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     ret = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(ret);
   }
-  
-  size_t sz = fread(&pBlock->tag, sizeof(pBlock->tag), 1, pTSBuf->f);
-  UNUSED(sz);
+
+  fread(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  fread(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+
+  // NOTE: mix types tags are not supported
+  size_t sz = 0;
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    char* tp = realloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
+    assert(tp != NULL);
+
+    memset(tp, 0, pBlock->tag.nLen + 1);
+    pBlock->tag.pz = tp;
+
+    sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
+    sz = fread(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+  }
+
   sz = fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
   UNUSED(sz);
   sz = fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
@@ -361,7 +381,7 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len) {
+void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len) {
   STSVnodeBlockInfoEx* pBlockInfo = NULL;
   STSList*             ptsData = &pTSBuf->tsData;
   
@@ -375,15 +395,15 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
   }
   
   assert(pBlockInfo->info.vnode == vnodeId);
-  
-  if (pTSBuf->block.tag != tag && ptsData->len > 0) {
+
+  if ((tVariantCompare(&pTSBuf->block.tag, tag) != 0) && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
     writeDataToDisk(pTSBuf);
   } else {
     expandBuffer(ptsData, len);
   }
   
-  pTSBuf->block.tag = tag;
+  tVariantAssign(&pTSBuf->block.tag, tag);
   memcpy(ptsData->rawBuf + ptsData->len, pData, (size_t)len);
   
   // todo check return value
@@ -465,7 +485,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   return 0;
 }
 
-static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int64_t tag) {
+static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, tVariant* tag) {
   bool decomp = false;
   
   int64_t offset = 0;
@@ -484,7 +504,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
       return -1;
     }
     
-    if (pTSBuf->block.tag == tag) {
+    if (tVariantCompare(&pTSBuf->block.tag, tag) == 0) {
       return i;
     }
   }
@@ -669,8 +689,8 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
   
   elem1.vnode = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
   elem1.ts = *(TSKEY*)(pTSBuf->tsData.rawBuf + pCur->tsIndex * TSDB_KEYSIZE);
-  elem1.tag = pBlock->tag;
-  
+  tVariantAssign(&elem1.tag, &pBlock->tag);
+
   return elem1;
 }
 
@@ -800,7 +820,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   return pTSBuf;
 }
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag) {
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag) {
   STSElem elem = {.vnode = -1};
   
   if (pTSBuf == NULL) {
@@ -881,7 +901,9 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag, elem.ts);
+    if (elem.tag.nType == TSDB_DATA_TYPE_BIGINT) {
+      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag.i64Key, elem.ts);
+    }
   }
   
   pTSBuf->cur.order = old;

@@ -12,11 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
 #include "tvariant.h"
-#include "hash.h"
-#include "hashfunc.h"
-#include "os.h"
 #include "hash.h"
 #include "taos.h"
 #include "taosdef.h"
@@ -169,6 +167,36 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
+  }
+}
+
+int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
+  assert((p1->nType != TSDB_DATA_TYPE_NULL) || (p2->nType != TSDB_DATA_TYPE_NULL));
+
+  switch (p1->nType) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      if (p1->nLen == p2->nLen) {
+        return memcmp(p1->pz, p2->pz, p1->nLen);
+      } else {
+        return p1->nLen > p2->nLen? 1:-1;
+      }
+    };
+
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      if (p1->dKey == p2->dKey) {
+        return 0;
+      } else {
+        return p1->dKey > p2->dKey? 1:-1;
+      }
+
+    default:
+      if (p1->i64Key == p2->i64Key) {
+        return 0;
+      } else {
+        return p1->i64Key > p2->i64Key? 1:-1;
+      }
   }
 }
 

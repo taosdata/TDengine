@@ -22,6 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "taosdef.h"
+#include "tvariant.h"
 
 #define MEM_BUF_SIZE (1 << 20)
 #define TS_COMP_FILE_MAGIC 0x87F5EC4C
@@ -42,9 +43,9 @@ typedef struct STSRawBlock {
 } STSRawBlock;
 
 typedef struct STSElem {
-  TSKEY   ts;
-  int64_t tag;
-  int32_t vnode;
+  TSKEY     ts;
+  tVariant  tag;
+  int32_t   vnode;
 } STSElem;
 
 typedef struct STSCursor {
@@ -55,11 +56,11 @@ typedef struct STSCursor {
 } STSCursor;
 
 typedef struct STSBlock {
-  int64_t tag;        // tag value
-  int32_t numOfElem;  // number of elements
-  int32_t compLen;    // size after compressed
-  int32_t padding;    // 0xFFFFFFFF by default, after the payload
-  char*   payload;    // actual data that is compressed
+  tVariant tag;        // tag value
+  int32_t  numOfElem;  // number of elements
+  int32_t  compLen;    // size after compressed
+  int32_t  padding;    // 0xFFFFFFFF by default, after the payload
+  char*    payload;    // actual data that is compressed
 } STSBlock;
 
 /*
@@ -109,7 +110,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
 
 void* tsBufDestroy(STSBuf* pTSBuf);
 
-void    tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len);
+void    tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
 
 STSBuf* tsBufClone(STSBuf* pTSBuf);
@@ -122,7 +123,7 @@ void    tsBufResetPos(STSBuf* pTSBuf);
 STSElem tsBufGetElem(STSBuf* pTSBuf);
 bool    tsBufNextPos(STSBuf* pTSBuf);
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag);
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag);
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf);
 void      tsBufSetTraverseOrder(STSBuf* pTSBuf, int32_t order);

@@ -98,7 +98,7 @@ typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
   TSKEY       lastKey;
   int32_t     groupIndex;     // group id in table list
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
-  int64_t     tag;
+  tVariant    tag;
   STimeWindow win;
   STSCursor   cur;
   void*       pTable;         // for retrieve the page id list

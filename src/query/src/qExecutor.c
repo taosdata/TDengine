@@ -1103,7 +1103,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
   // compare tag first
-  if (pCtx[0].tag.i64Key != elem.tag) {
+  if (tVariantCompare(&pCtx[0].tag, &elem.tag) != 0) {
     return TS_JOIN_TAG_NOT_EQUALS;
   }
 
@@ -3644,9 +3644,8 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
   // both the master and supplement scan needs to set the correct ts comp start position
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pTableQueryInfo->cur.vgroupIndex == -1) {
-      pTableQueryInfo->tag = pRuntimeEnv->pCtx[0].tag.i64Key;
-
-      tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, pTableQueryInfo->tag);
+      tVariantAssign(&pTableQueryInfo->tag, &pRuntimeEnv->pCtx[0].tag);
+      tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, &pTableQueryInfo->tag);
 
       // keep the cursor info of current meter
       pTableQueryInfo->cur = pRuntimeEnv->pTSBuf->cur;
@@ -4501,8 +4500,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
 
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vgroupIndex == -1) {
-      int64_t tag = pRuntimeEnv->pCtx[0].tag.i64Key;
-      STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, tag);
+      STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, &pRuntimeEnv->pCtx[0].tag);
 
       // failed to find data with the specified tag value
       if (elem.vnode < 0) {

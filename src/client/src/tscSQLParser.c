@@ -3064,7 +3064,6 @@ static int32_t getColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQ
 
 static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
   const char* msg1 = "invalid join query condition";
-  const char* msg2 = "join on binary/nchar not supported";
   const char* msg3 = "type of join columns must be identical";
   const char* msg4 = "invalid column name in join condition";
 
@@ -3106,10 +3105,6 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* 
 
   if (pTagSchema1->type != pTagSchema2->type) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-  }
-
-  if (pTagSchema1->type == TSDB_DATA_TYPE_BINARY || pTagSchema1->type == TSDB_DATA_TYPE_NCHAR) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
   pTagCond->joinInfo.hasJoin = true;
