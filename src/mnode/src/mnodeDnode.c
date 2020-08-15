@@ -857,13 +857,13 @@ static int32_t mnodeGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   pShow->bytes[cols] = TSDB_CFG_OPTION_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "config name");
+  tstrncpy(pSchema[cols].name, "name", sizeof(pSchema[cols].name));
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_CFG_VALUE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "config value");
+  tstrncpy(pSchema[cols].name, "value", sizeof(pSchema[cols].name));
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -898,27 +898,32 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
     int32_t   cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    snprintf(pWrite, TSDB_CFG_OPTION_LEN, "%s", cfg->option);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, cfg->option, TSDB_CFG_OPTION_LEN);
+
     cols++;
+    int32_t t = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
       case TAOS_CFG_VTYPE_INT16:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_INT32:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int32_t *)cfg->ptr));
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int32_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_FLOAT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
+        varDataSetLen(pWrite, t);
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_STRING:
       case TAOS_CFG_VTYPE_IPSTR:
       case TAOS_CFG_VTYPE_DIRECTORY:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%s", (char *)cfg->ptr);
+        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, cfg->ptr, TSDB_CFG_VALUE_LEN);
         numOfRows++;
         break;
       default:
