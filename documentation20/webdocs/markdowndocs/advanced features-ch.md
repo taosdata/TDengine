@@ -329,14 +329,12 @@ Query OK, 5 row(s) in set (0.004896s)
 
 ```java
 public class SubscribeDemo {
-    private static final String topic = "topic_meter_current_bg_10";
+    private static final String topic = "topic-meter-current-bg-10";
     private static final String sql = "select * from meters where current > 10";
 
     public static void main(String[] args) {
         Connection connection = null;
-        Statement statement = null;
         TSDBSubscribe subscribe = null;
-        long subscribeId = 0;
 
         try {
             // 加载驱动
@@ -347,16 +345,12 @@ public class SubscribeDemo {
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             String jdbcUrl = "jdbc:TAOS://127.0.0.1:6030/power?user=root&password=taosdata";
             connection = DriverManager.getConnection(jdbcUrl, properties);
-            System.out.println("create the connection");
-            // 创建Subscribe
-            subscribe = ((TSDBConnection) connection).createSubscribe();
-            // subscribe订阅topic，topic为主题名称，sql为查询语句，restart代表是否每次订阅接受历史数据
-            subscribeId = subscribe.subscribe(topic, sql, true);
-            System.out.println("create a subscribe topic: " + topic + "@[" + subscribeId + "]");
+            // 创建Subscribe，topic为主题名称，sql为查询语句，restar为true代表每次订阅消费历史数据
+            subscribe = ((TSDBConnection) connection).subscribe(topic, sql, true);
             int count = 0;
             while (true) {
                 // 消费数据
-                TSDBResultSet resultSet = subscribe.consume(subscribeId);
+                TSDBResultSet resultSet = subscribe.consume();
                 // 打印结果集
                 if (resultSet != null) {
                     ResultSetMetaData metaData = resultSet.getMetaData();
@@ -377,18 +371,10 @@ public class SubscribeDemo {
             e.printStackTrace();
         } finally {
             try {
-                if (null != subscribe && subscribeId != 0) {
-                    subscribe.unsubscribe(subscribeId, true);
-                    System.out.println("unsubscribe the top@[" + subscribeId + "]");
-                }
-                if (statement != null) {
-                    statement.close();
-                    System.out.println("close the statement.");
-                }
-                if (connection != null) {
-                    connection.close();
-                    System.out.println("close the connection.");
-                }
+                if (null != subscribe)
+                    subscribe.close(true);
+                if (connection != null) 
+                    connection.close(); 
             } catch (SQLException throwables) {
                 throwables.printStackTrace();
             }
