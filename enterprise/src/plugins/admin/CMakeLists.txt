@@ -11,5 +11,5 @@ AUX_SOURCE_DIRECTORY(src SRC)
   
 IF (TD_LINUX)
   ADD_LIBRARY(admin ${SRC})
-  TARGET_LINK_LIBRARIES(admin taos_static z)
+  TARGET_LINK_LIBRARIES(admin z)
 ENDIF ()
