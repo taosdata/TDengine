@@ -85,7 +85,7 @@ static SKeyword keywordTable[] = {
     {"QUERIES",      TK_QUERIES},
     {"CONNECTIONS",  TK_CONNECTIONS},
     {"STREAMS",      TK_STREAMS},
-    {"CONFIGS",      TK_CONFIGS},
+    {"VARIABLES",    TK_VARIABLES},
     {"SCORES",       TK_SCORES},
     {"GRANTS",       TK_GRANTS},
     {"DOT",          TK_DOT},
