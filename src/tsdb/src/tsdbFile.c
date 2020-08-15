@@ -15,13 +15,14 @@
 #define _DEFAULT_SOURCE
 #include <regex.h>
 
+#define TAOS_RANDOM_FILE_FAIL_TEST
+
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
 
-#define TAOS_RANDOM_FILE_FAIL_TEST
 
 const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 

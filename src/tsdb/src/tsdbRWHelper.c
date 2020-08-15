@@ -14,13 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
+
+#define TAOS_RANDOM_FILE_FAIL_TEST
+
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 #include "tscompression.h"
 #include "tsdbMain.h"
-#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 #define TSDB_KEY_COL_OFFSET 0
