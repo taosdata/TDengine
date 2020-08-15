@@ -3,9 +3,9 @@
 #include <assert.h>
 #include <textbuffer.h>
 
-#include "tsclient.h"
+#include "tscLocalMerge.h"
 #include "tscUtil.h"
-#include "tscSecondaryMerge.h"
+#include "tsclient.h"
 
 const int32_t PAGE_SIZE = 4096;
 const int32_t NUM_OF_COLS = 2;

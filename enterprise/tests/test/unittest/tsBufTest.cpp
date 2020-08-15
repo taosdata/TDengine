@@ -49,7 +49,7 @@ void simpleTest() {
   EXPECT_EQ(pTSBuf->tsData.len, 0);
   EXPECT_EQ(pTSBuf->block.numOfElem, num);
 
-  tsBufDestory(pTSBuf);
+  tsBufDestroy(pTSBuf);
 }
 
 // one large list of ts, the ts list need to be split into several small blocks
@@ -73,7 +73,7 @@ void largeTSTest() {
   EXPECT_EQ(pTSBuf->tsData.len, 0);
   EXPECT_EQ(pTSBuf->block.numOfElem, num);
 
-  tsBufDestory(pTSBuf);
+  tsBufDestroy(pTSBuf);
 }
 
 void multiTagsTest() {
@@ -103,7 +103,7 @@ void multiTagsTest() {
   EXPECT_EQ(pTSBuf->tsData.len, 0);
   EXPECT_EQ(pTSBuf->block.numOfElem, num);
 
-  tsBufDestory(pTSBuf);
+  tsBufDestroy(pTSBuf);
 }
 
 void multiVnodeTagsTest() {
@@ -141,7 +141,7 @@ void multiVnodeTagsTest() {
   EXPECT_EQ(pTSBuf->tsData.len, 0);
   EXPECT_EQ(pTSBuf->block.numOfElem, num);
 
-  tsBufDestory(pTSBuf);
+  tsBufDestroy(pTSBuf);
 }
 
 void loadDataTest() {
@@ -388,8 +388,8 @@ void mergeDiffVnodeBufferTest() {
 
   tsBufDisplay(pTSBuf1);
 
-  tsBufDestory(pTSBuf2);
-  tsBufDestory(pTSBuf1);
+  tsBufDestroy(pTSBuf2);
+  tsBufDestroy(pTSBuf1);
 }
 
 void mergeIdenticalVnodeBufferTest() {
@@ -434,8 +434,8 @@ void mergeIdenticalVnodeBufferTest() {
     printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
   }
 
-  tsBufDestory(pTSBuf1);
-  tsBufDestory(pTSBuf2);
+  tsBufDestroy(pTSBuf1);
+  tsBufDestroy(pTSBuf2);
 }
 }  // namespace
 

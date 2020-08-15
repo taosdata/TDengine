@@ -287,7 +287,7 @@ static void grantResetMaster() {
   grantStatus.curQueryTime = grantGetCulsterCurQueryTime();
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
-  uInfo("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
+  uDebug("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
          grantStatus.curTimeSeries);
   free(ts);
 
@@ -482,7 +482,7 @@ int32_t grantCheck(EGrantType grant) {
 }
 
 static void grantProcessRspInDnode(SRpcMsg *rpcMsg) {
-  uInfo("grant rsp received from mnode, result:%s", tstrerror(rpcMsg->code));
+  uDebug("grant rsp received from mnode, result:%s", tstrerror(rpcMsg->code));
   if (rpcMsg->code != TSDB_CODE_SUCCESS && tsMnodeTmr != NULL) {
     taosTmrReset(grantSendMsgToMgmt, 3000, NULL, tsMnodeTmr, &grantSendTimer);
   }
@@ -512,7 +512,7 @@ static void grantSendMsgToMgmt() {
   pGrant->reserveKey2 = htonl(grantObj.reserveKey2);
 
   char *ts = grantSecondsToString(grantObj.expireTimeSec);
-  uInfo("grant send message to mnode, storage:%uGB, timeseries:%u, database:%u, users:%u, expire:%s %u",
+  uDebug("grant send message to mnode, storage:%uGB, timeseries:%u, database:%u, users:%u, expire:%s %u",
         grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts, grantObj.expireTimeSec);
   free(ts);
 
@@ -570,7 +570,7 @@ static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
 
   if (grantStatus.expireTimeSec > curTime) {
-    uInfo("grant message received from dnode, storage:%uGB, timeseries:%u, database:%u, user:%u, expire:%s %u, curtime:%u, set to grant state"
+    uDebug("grant message received from dnode, storage:%uGB, timeseries:%u, database:%u, user:%u, expire:%s %u, curtime:%u, set to grant state"
       , htonl(pGrant->limitStorage), grantStatus.limitTimeSeries, grantStatus.limitDbs, grantStatus.limitUsers, ts, grantStatus.expireTimeSec, curTime);
     grantStatus.expired = false;
   }

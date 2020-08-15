@@ -1,14 +1,15 @@
 #ifndef TBASE_TESTCOMMON_H_H
 #define TBASE_TESTCOMMON_H_H
 
-#include "../../../../../community/src/inc/ttypes.h"
-#include "../../../../../community/src/inc/taosmsg.h"
-#include "../../../../../community/src/inc/taos.h"
+#include <stdbool.h>
+#include <inttypes.h>
+
+#include "taos.h"
 
 typedef struct {
     int32_t     numOfCols;
     int32_t     numOfRows;
-    tVariant*   pVal;
+    void*   pVal;
 } ResultInfo;
 
 int32_t executeSQL(TAOS *conn, char *sql, ResultInfo* pRes);
