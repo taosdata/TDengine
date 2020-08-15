@@ -22,4 +22,4 @@ else
 fi
 
 # Launch the snap
-$SNAP/usr/bin/taosd -c $CONFIG_FILE $@
+$SNAP/usr/bin/taos -c $CONFIG_FILE $@
