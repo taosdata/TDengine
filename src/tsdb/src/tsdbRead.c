@@ -1795,14 +1795,17 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
 
   if (pQueryHandle->checkFiles) {
     bool exists = true;
+
     int32_t code = getDataBlocksInFiles(pQueryHandle, &exists);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      pQueryHandle->activeIndex = 0;
+      pQueryHandle->checkFiles  = false;
+
+      return false;
     }
 
     if (exists) {
-      elapsedTime = taosGetTimestampUs() - stime;
-      pQueryHandle->cost.checkForNextTime += elapsedTime;
+      pQueryHandle->cost.checkForNextTime += (taosGetTimestampUs() - stime);
       return exists;
     }
 
