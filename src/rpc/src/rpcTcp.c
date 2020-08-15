@@ -254,11 +254,11 @@ static void *taosAcceptTcpConnection(void *arg) {
       pFdObj->ip = caddr.sin_addr.s_addr;
       pFdObj->port = htons(caddr.sin_port);
       tDebug("%s new TCP connection from %s:%hu, fd:%d FD:%p numOfFds:%d", pServerObj->label, 
-              inet_ntoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
+              taosInetNtoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
     } else {
       taosCloseSocket(connFd);
       tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
-             inet_ntoa(caddr.sin_addr), htons(caddr.sin_port));
+             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
     }  
 
     // pick up next thread for next connection

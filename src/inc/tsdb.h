@@ -167,9 +167,14 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct {
-  size_t   numOfTables;
+  void  *pTable;
+  TSKEY  lastKey;
+} STableKeyInfo;
+
+typedef struct {
+  size_t    numOfTables;
   SArray   *pGroupList;
-  SHashObj *map;         // speedup acquire the tableQueryInfo from STableId
+  SHashObj *map;         // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
 /**
@@ -177,24 +182,24 @@ typedef struct {
  *
  * @param tsdb       tsdb handle
  * @param pCond      query condition, including time window, result set order, and basic required columns for each block
- * @param tableqinfoGroupInfo  tableId list in the form of set, seperated into different groups according to group by condition
+ * @param tableInfoGroup  table object list in the form of set, grouped into different sets according to the
+ *                        group by condition
  * @param qinfo      query info handle from query processor
  * @return
  */
-TsdbQueryHandleT *tsdbQueryTables(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableqinfoGroupInfo, void *qinfo);
+TsdbQueryHandleT *tsdbQueryTables(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, void *qinfo);
 
 /**
  * Get the last row of the given query time window for all the tables in STableGroupInfo object.
  * Note that only one data block with only row will be returned while invoking retrieve data block function for
  * all tables in this group.
  *
- * @param tsdb        tsdb handle
- * @param pCond       query condition, including time window, result set order, and basic required columns for each
- * block
- * @param tableqinfoGroupInfo   tableId list.
+ * @param tsdb   tsdb handle
+ * @param pCond  query condition, including time window, result set order, and basic required columns for each block
+ * @param tableInfo  table list.
  * @return
  */
-TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableqinfoGroupInfo, void *qinfo);
+TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfo, void *qinfo);
 
 /**
  * get the queried table object list
@@ -260,7 +265,7 @@ SArray *tsdbRetrieveDataBlock(TsdbQueryHandleT *pQueryHandle, SArray *pColumnIdL
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
  */
-int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T *tsdb, uint64_t uid, const char *pTagCond, size_t len,
+int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T *tsdb, uint64_t uid, TSKEY key, const char *pTagCond, size_t len,
                                  int16_t tagNameRelType, const char *tbnameCond, STableGroupInfo *pGroupList,
                                  SColIndex *pColIndex, int32_t numOfCols);
 
@@ -278,7 +283,7 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
  * @param pGroupInfo  the generated result
  * @return
  */
-int32_t tsdbGetOneTableGroup(TSDB_REPO_T *tsdb, uint64_t uid, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetOneTableGroup(TSDB_REPO_T *tsdb, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 
 /**
  *

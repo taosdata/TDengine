@@ -14,13 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
+
+#define TAOS_RANDOM_FILE_FAIL_TEST
+
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tcoding.h"
 #include "tscompression.h"
 #include "tsdbMain.h"
-#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 #define TSDB_KEY_COL_OFFSET 0
@@ -573,14 +575,14 @@ int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target) {
   }
 
   if (taosTRead(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
-    tsdbError("vgId:%d failed to read %zu bytes from file %s since %s", REPO_ID(pHelper->pRepo), tsize, pFile->fname,
+    tsdbError("vgId:%d failed to read %" PRIzu " bytes from file %s since %s", REPO_ID(pHelper->pRepo), tsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)pHelper->pCompData, (uint32_t)tsize)) {
-    tsdbError("vgId:%d file %s is broken, offset %" PRId64 " size %zu", REPO_ID(pHelper->pRepo), pFile->fname,
+    tsdbError("vgId:%d file %s is broken, offset %" PRId64 " size %" PRIzu "", REPO_ID(pHelper->pRepo), pFile->fname,
               (int64_t)pCompBlock->offset, tsize);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return -1;

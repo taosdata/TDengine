@@ -50,7 +50,7 @@ void tsSetTimeZone() {
 #endif
 #endif
 
-  int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
+  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   tz += daylight;
 
   /*

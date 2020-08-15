@@ -293,7 +293,7 @@ static void tscProcessCurrentDB(SSqlObj *pSql) {
   char db[TSDB_DB_NAME_LEN] = {0};
   extractDBName(pSql->pTscObj->db, db);
   
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
   SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   pExpr->resType = TSDB_DATA_TYPE_BINARY;
@@ -314,7 +314,7 @@ static void tscProcessCurrentDB(SSqlObj *pSql) {
 
 static void tscProcessServerVer(SSqlObj *pSql) {
   const char* v = pSql->pTscObj->sversion;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
   SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   pExpr->resType = TSDB_DATA_TYPE_BINARY;

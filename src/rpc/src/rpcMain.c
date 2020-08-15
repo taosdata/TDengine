@@ -260,7 +260,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   }
 
   if (pRpc->connType == TAOS_CONN_SERVER) {
-    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
+    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
     if (pRpc->hash == NULL) {
       tError("%s failed to init string hash", pRpc->label);
       rpcClose(pRpc);
@@ -541,7 +541,7 @@ void rpcCancelRequest(void *handle) {
   if (pContext->signature != pContext) return;
 
   if (pContext->pConn) {
-    tDebug("%s, app trys to cancel request", pContext->pConn->info);
+    tDebug("%s, app tries to cancel request", pContext->pConn->info);
     pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
     pContext->pConn = NULL;

@@ -33,7 +33,7 @@ typedef struct SSubscriptionProgress {
 typedef struct SSub {
   void *                  signature;
   char                    topic[32];
-  sem_t                   sem;
+  tsem_t                  sem;
   int64_t                 lastSyncTime;
   int64_t                 lastConsumeTime;
   TAOS *                  taos;
@@ -85,7 +85,7 @@ static void asyncCallback(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSub *pSub = ((SSub *)param);
   pSub->pSql->res.code = code;
-  sem_post(&pSub->sem);
+  tsem_post(&pSub->sem);
 }
 
 
@@ -154,7 +154,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 
   code = tsParseSql(pSql, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    sem_wait(&pSub->sem);
+    tsem_wait(&pSub->sem);
     code = pSql->res.code;
   }
   if (code != TSDB_CODE_SUCCESS) {
@@ -339,7 +339,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   fclose(fp);
 
   taosArraySort(progress, tscCompareSubscriptionProgress);
-  tscDebug("subscription progress loaded, %zu tables: %s", taosArrayGetSize(progress), pSub->topic);
+  tscDebug("subscription progress loaded, %" PRIzu " tables: %s", taosArrayGetSize(progress), pSub->topic);
   return 1;
 }
 
@@ -405,16 +405,20 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
   return pSub;
 }
 
-void taos_free_result_imp(SSqlObj* pSql, int keepCmd);
-
 TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSub *pSub = (SSub *)tsub;
   if (pSub == NULL) return NULL;
 
   tscSaveSubscriptionProgress(pSub);
 
-  SSqlObj* pSql = pSub->pSql;
+  SSqlObj *pSql = pSub->pSql;
   SSqlRes *pRes = &pSql->res;
+  SSqlCmd *pCmd = &pSql->cmd;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single tabel subscription
+    pQueryInfo->window.skey = ((SSubscriptionProgress*)taosArrayGet(pSub->progress, 0))->key;
+  }
 
   if (pSub->pTimer == NULL) {
     int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
@@ -436,8 +440,6 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       tscDebug("table synchronization completed");
     }
 
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-    
     uint32_t type = pQueryInfo->type;
     tscFreeSqlResult(pSql);
     pRes->numOfRows = 1;
@@ -445,13 +447,13 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->cmd.command = TSDB_SQL_SELECT;
     pQueryInfo->type = type;
 
-    tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->vgroupIndex = 0;
+    pTableMetaInfo->vgroupIndex = 0;
 
     pSql->fp = asyncCallback;
     pSql->fetchFp = asyncCallback;
     pSql->param = pSub;
     tscDoQuery(pSql);
-    sem_wait(&pSub->sem);
+    tsem_wait(&pSub->sem);
 
     if (pRes->code != TSDB_CODE_SUCCESS) {
       continue;

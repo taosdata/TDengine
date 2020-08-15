@@ -1,6 +1,13 @@
 sleep 3000
 sql connect
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $dbPrefix = m_le_db
 $tbPrefix = m_le_tb
 $mtPrefix = m_le_mt
@@ -62,12 +69,14 @@ if $data00 != @{slop:1.000000, intercept:1.000000}@ then
 endi
 
 print =============== step5
+print select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1m)
 print ===> $data01 
 if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
+print select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 print ===> $data01
 if $data01 != @{slop:1.000000, intercept:1.000000}@ then

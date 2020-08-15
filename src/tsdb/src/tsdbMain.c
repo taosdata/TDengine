@@ -71,6 +71,8 @@ static void        tsdbStopStream(STsdbRepo *pRepo);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
+  taosRemoveDir(rootDir);
+
   if (mkdir(rootDir, 0755) < 0) {
     tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -94,6 +96,8 @@ int32_t tsdbDropRepo(char *rootDir) { return tsdbUnsetRepoEnv(rootDir); }
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
   STsdbCfg   config = {0};
   STsdbRepo *pRepo = NULL;
+
+  terrno = TSDB_CODE_SUCCESS;
 
   if (tsdbLoadConfig(rootDir, &config) < 0) {
     tsdbError("failed to open repo in rootDir %s since %s", rootDir, tstrerror(terrno));
@@ -212,9 +216,9 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   char *sdup = strdup(pRepo->rootDir);
   char *prefix = dirname(sdup);
   int   prefixLen = (int)strlen(prefix);
-  taosTFree(sdup);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
+    taosTFree(sdup);
     int fid = (*index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
@@ -244,18 +248,19 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     strcpy(name, fname + prefixLen);
   } else {                                 // get the named file at the specified index. If not there, return 0
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
-      fname = tsdbGetMetaFileName(pRepo->rootDir);
-      magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
+      fname = malloc(prefixLen + strlen(name) + 2);
+      sprintf(fname, "%s/%s", prefix, name);
+      tsdbGetStoreInfo(fname, &magic, size);
+      taosFree(fname);
+      taosFree(sdup);
+      return magic;
     } else {
-      int         fid = (*index) / TSDB_FILE_TYPE_MAX;
-      SFileGroup *pFGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
-      if (pFGroup == NULL) {  // not found
-        return 0;
-      }
-
-      SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
-      fname = strdup(pFile->fname);
-      magic = pFile->info.magic;
+      fname = malloc(prefixLen + strlen(name) + 2);
+      sprintf(fname, "%s/%s", prefix, name);
+      tsdbGetFileInfoImpl(fname, &magic, size);
+      taosFree(fname);
+      taosFree(sdup);
+      return magic;
     }
   }
 
@@ -799,6 +804,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
 
   tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_DESC);
   while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
+    if (pFGroup->state) continue;
     if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
     if (tsdbLoadCompIdx(&rhelper, NULL) < 0) goto _err;
     for (int i = 1; i < pMeta->maxTables; i++) {

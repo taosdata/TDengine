@@ -210,7 +210,7 @@ void tscTagCondRelease(STagCond* pCond);
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
 void tscSetFreeHeatBeat(STscObj* pObj);
-bool tscShouldFreeHeatBeat(SSqlObj* pHb);
+bool tscShouldFreeHeartBeat(SSqlObj* pHb);
 bool tscShouldBeFreed(SSqlObj* pSql);
 
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
@@ -276,6 +276,9 @@ void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
 int  tscSetMgmtEpSetFromCfg(const char *first, const char *second);
+
+bool tscSetSqlOwner(SSqlObj* pSql);
+void tscClearSqlOwner(SSqlObj* pSql);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

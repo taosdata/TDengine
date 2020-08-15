@@ -135,6 +135,14 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
       etime = pStream->stime + (etime - pStream->stime) / pStream->interval * pStream->interval;
     }
     pQueryInfo->window.ekey = etime;
+    if (pQueryInfo->window.skey >= pQueryInfo->window.ekey) {
+      int64_t timer = pStream->slidingTime;
+      if (pStream->precision == TSDB_TIME_PRECISION_MICRO) {
+        timer /= 1000l;
+      }
+      tscSetRetryTimer(pStream, pSql, timer);
+      return;
+    }
   }
 
   // launch stream computing in a new thread

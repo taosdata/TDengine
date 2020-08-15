@@ -35,8 +35,8 @@
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 
-#define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
-#define CONN_CHECK_TIME (tsShellActivityTimer * 2)
+#define CONN_KEEP_TIME  (tsShellActivityTimer * 3000)
+#define CONN_CHECK_TIME (tsShellActivityTimer * 2000)
 #define QUERY_ID_SIZE   20
 #define QUERY_STREAM_SAVE_SIZE 20
 
@@ -73,13 +73,13 @@ int32_t mnodeInitProfile() {
 
 void mnodeCleanupProfile() {
   if (tsMnodeConnCache != NULL) {
-    mInfo("conn cache is cleanup");
     taosCacheCleanup(tsMnodeConnCache);
     tsMnodeConnCache = NULL;
   }
 }
 
 SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
+#if 0
   int32_t connSize = taosHashGetSize(tsMnodeConnCache->pHashTable);
   if (connSize > tsMaxShellConns) {
     mError("failed to create conn for user:%s ip:%s:%u, conns:%d larger than maxShellConns:%d, ", user, taosIpStr(ip),
@@ -87,6 +87,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
     terrno = TSDB_CODE_MND_TOO_MANY_SHELL_CONNS;
     return NULL;
   }
+#endif  
 
   int32_t connId = atomic_add_fetch_32(&tsConnIndex, 1);
   if (connId == 0) atomic_add_fetch_32(&tsConnIndex, 1);
@@ -100,7 +101,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
   tstrncpy(connObj.user, user, sizeof(connObj.user));
   
   SConnObj *pConn = taosCachePut(tsMnodeConnCache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), CONN_KEEP_TIME);
-  
+
   mDebug("connId:%d, is created, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
   return pConn;
 }
@@ -112,7 +113,7 @@ void mnodeReleaseConn(SConnObj *pConn) {
 
 SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t port) {
   uint64_t expireTime = CONN_KEEP_TIME * 1000 + (uint64_t)taosGetTimestampMs();
-  SConnObj *pConn = taosCacheUpdateExpireTimeByName(tsMnodeConnCache, &connId, sizeof(int32_t), expireTime);
+  SConnObj *pConn = taosCacheAcquireByKey(tsMnodeConnCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
     mDebug("connId:%d, is already destroyed, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
     return NULL;
