@@ -35,7 +35,7 @@ plugs:
   systemfiles:
     interface: system-files
     read:
-      - /etc
+      - /etc/taos
       - /var/lib/taos
       - /tmp
     write:
@@ -110,3 +110,4 @@ layout:
 hooks:
   install:
     plugs: [systemfiles]
+
