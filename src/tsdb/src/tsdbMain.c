@@ -251,7 +251,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     sprintf(fname, "%s/%s", prefix, name);
     if (access(fname, F_OK) != 0) {
       taosFree(fname);
-      taosFree(sdup)
+      taosFree(sdup);
       return 0;
     }
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
