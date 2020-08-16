@@ -246,22 +246,18 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       }
     }
     strcpy(name, fname + prefixLen);
-  } else {                                 // get the named file at the specified index. If not there, return 0
+  } else {  // get the named file at the specified index. If not there, return 0
+    fname = malloc(prefixLen + strlen(name) + 2);
+    sprintf(fname, "%s/%s", prefix, name);
+    if (access(fname, F_OK) != 0) return 0;
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
-      fname = malloc(prefixLen + strlen(name) + 2);
-      sprintf(fname, "%s/%s", prefix, name);
       tsdbGetStoreInfo(fname, &magic, size);
-      taosFree(fname);
-      taosFree(sdup);
-      return magic;
     } else {
-      fname = malloc(prefixLen + strlen(name) + 2);
-      sprintf(fname, "%s/%s", prefix, name);
       tsdbGetFileInfoImpl(fname, &magic, size);
-      taosFree(fname);
-      taosFree(sdup);
-      return magic;
     }
+    taosFree(fname);
+    taosFree(sdup);
+    return magic;
   }
 
   if (stat(fname, &fState) < 0) {
