@@ -58,4 +58,3 @@ select spread(temperature) from devices where devgroup=~/[1-7][0-9]/;
 select spread(temperature) from devices where devgroup=~/[1-8][0-9]/;
 select spread(temperature) from devices where devgroup=~/[1-9][0-9]/;
 select spread(temperature) from devices;
-
