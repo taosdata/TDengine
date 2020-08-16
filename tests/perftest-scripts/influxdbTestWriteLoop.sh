@@ -21,7 +21,6 @@ function runTest {
     done
   done
 
-
   for r in ${!rowsPerRequest[@]}; do
     if [ "$r" == "1" ] || [ "$r" == "100" ] || [ "$r" == "1000" ]; then
       NUM_OF_FILES=$clients
@@ -29,7 +28,6 @@ function runTest {
       NUM_OF_FILES=100
     fi
 
-    printf "$r, "
     for c in `seq 1 $clients`; do
       totalRPR=0
       OUTPUT_FILE=influxdbTestWrite-RPR${rowsPerRequest[$r]}-clients$c.out

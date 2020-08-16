@@ -14,6 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+
+#define TAOS_RANDOM_FILE_FAIL_TEST
+
 #include "os.h"
 #include "hash.h"
 #include "taoserror.h"
@@ -21,7 +24,6 @@
 #include "tcoding.h"
 #include "tkvstore.h"
 #include "tulog.h"
-#define TAOS_RANDOM_FILE_FAIL_TEST
 
 #define TD_KVSTORE_HEADER_SIZE 512
 #define TD_KVSTORE_MAJOR_VERSION 1
@@ -330,6 +332,31 @@ int tdKVStoreEndCommit(SKVStore *pStore) {
   return 0;
 }
 
+void tsdbGetStoreInfo(char *fname, uint32_t *magic, int32_t *size) {
+  char       buf[TD_KVSTORE_HEADER_SIZE] = "\0";
+  SStoreInfo info = {0};
+
+  int fd = open(fname, O_RDONLY);
+  if (fd < 0) goto _err;
+
+  if (taosTRead(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) goto _err;
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TD_KVSTORE_HEADER_SIZE)) goto _err;
+
+  void *pBuf = (void *)buf;
+  pBuf = tdDecodeStoreInfo(pBuf, &info);
+  off_t offset = lseek(fd, 0, SEEK_END);
+  if (offset < 0) goto _err;
+  close(fd);
+
+  *magic = info.magic;
+  *size = (int32_t)offset;
+
+_err:
+  if (fd >= 0) close(fd);
+  *magic = TD_KVSTORE_INIT_MAGIC;
+  *size = 0;
+}
+
 static int tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo, uint32_t *version) {
   char buf[TD_KVSTORE_HEADER_SIZE] = "\0";
 
@@ -433,7 +460,7 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
   pStore->iFunc = iFunc;
   pStore->aFunc = aFunc;
   pStore->appH = appH;
-  pStore->map = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  pStore->map = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   if (pStore->map == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     goto _err;
@@ -509,7 +536,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     ssize_t tsize = taosTRead(pStore->fd, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
     if (tsize < sizeof(SKVRecord)) {
-      uError("failed to read %zu bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
+      uError("failed to read %" PRIzu " bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,
              pStore->info.size, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;

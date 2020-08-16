@@ -222,6 +222,6 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void get_history_path(char *history) { sprintf(history, "%s/%s", ".", HISTORY_FILE); }
+void get_history_path(char *history) { sprintf(history, "C:/TDengine/%s", HISTORY_FILE); }
 
 void exitShell() { exit(EXIT_SUCCESS); }

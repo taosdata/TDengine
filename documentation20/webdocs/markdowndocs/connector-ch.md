@@ -45,11 +45,11 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
 
-  - ip：TDengine管理主节点的IP地址
-  - user：用户名
-  - pass：密码
-  - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
-  - port：端口号
+    - ip：TDengine管理主节点的IP地址
+    - user：用户名
+    - pass：密码
+    - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
+    - port：端口号
   
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续API调用。
 
@@ -157,25 +157,25 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   异步执行SQL语句。
   
-  * taos：调用taos_connect返回的数据库连接
-  * sql：需要执行的SQL语句
-  * fp：用户定义的回调函数，其第三个参数`code`用于指示操作是否成功，`0`表示成功，负数表示失败(调用`taos_errstr`获取失败原因)。应用在定义回调函数的时候，主要处理第二个参数`TAOS_RES *`，该参数是查询返回的结果集
-  * param：应用提供一个用于回调的参数
+    * taos：调用taos_connect返回的数据库连接
+    * sql：需要执行的SQL语句
+    * fp：用户定义的回调函数，其第三个参数`code`用于指示操作是否成功，`0`表示成功，负数表示失败(调用`taos_errstr`获取失败原因)。应用在定义回调函数的时候，主要处理第二个参数`TAOS_RES *`，该参数是查询返回的结果集
+    * param：应用提供一个用于回调的参数
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
 
   批量获取异步查询的结果集，只能与`taos_query_a`配合使用。其中：
   
-  * res：`taos_query_a`回调时返回的结果集
-  * fp：回调函数。其参数`param`是用户可定义的传递给回调函数的参数结构体；`numOfRows`是获取到的数据的行数（不是整个查询结果集的函数）。 在回调函数中，应用可以通过调用`taos_fetch_row`前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用`taos_fetch_rows_a`获取下一批记录进行处理，直到返回的记录数（numOfRows）为零（结果返回完成）或记录数为负值（查询出错）。
+    * res：`taos_query_a`回调时返回的结果集
+    * fp：回调函数。其参数`param`是用户可定义的传递给回调函数的参数结构体；`numOfRows`是获取到的数据的行数（不是整个查询结果集的函数）。 在回调函数中，应用可以通过调用`taos_fetch_row`前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用`taos_fetch_rows_a`获取下一批记录进行处理，直到返回的记录数（numOfRows）为零（结果返回完成）或记录数为负值（查询出错）。
 
 
 - `void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);`
 
   异步获取一条记录。其中：
 
-  * res：`taos_query_a`回调时返回的结果集
-  * fp：回调函数。其参数`param`是应用提供的一个用于回调的参数。回调时，第三个参数`row`指向一行记录。不同于`taos_fetch_rows_a`，应用无需调用`taos_fetch_row`来获取一行数据，更加简单，但数据提取性能不及批量获取的API。
+    * res：`taos_query_a`回调时返回的结果集
+    * fp：回调函数。其参数`param`是应用提供的一个用于回调的参数。回调时，第三个参数`row`指向一行记录。不同于`taos_fetch_rows_a`，应用无需调用`taos_fetch_row`来获取一行数据，更加简单，但数据提取性能不及批量获取的API。
 
 TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
@@ -232,12 +232,12 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 - `TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), int64_t stime, void *param, void (*callback)(void *))`
 
   该API用来创建数据流，其中：
-  * taos：已经建立好的数据库连接
-  * sql：SQL查询语句（仅能使用查询语句）
-  * fp：用户定义的回调函数指针，每次流式计算完成后，TDengine将查询的结果（TAOS_ROW）、查询状态（TAOS_RES）、用户定义参数（PARAM）传递给回调函数，在回调函数内，用户可以使用taos_num_fields获取结果集列数，taos_fetch_fields获取结果集每列数据的类型。
-  * stime：是流式计算开始的时间，如果是0，表示从现在开始，如果不为零，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）
-  * param：是应用提供的用于回调的一个参数，回调时，提供给应用
-  * callback: 第二个回调函数，会在连续查询自动停止时被调用。
+    * taos：已经建立好的数据库连接
+    * sql：SQL查询语句（仅能使用查询语句）
+    * fp：用户定义的回调函数指针，每次流式计算完成后，TDengine将查询的结果（TAOS_ROW）、查询状态（TAOS_RES）、用户定义参数（PARAM）传递给回调函数，在回调函数内，用户可以使用taos_num_fields获取结果集列数，taos_fetch_fields获取结果集每列数据的类型。
+    * stime：是流式计算开始的时间，如果是0，表示从现在开始，如果不为零，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）
+    * param：是应用提供的用于回调的一个参数，回调时，提供给应用
+    * callback: 第二个回调函数，会在连续查询自动停止时被调用。
   
   返回值为NULL，表示创建成功，返回值不为空，表示成功。
 
@@ -254,21 +254,21 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 * `TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)`
 
   该函数负责启动订阅服务，成功时返回订阅对象，失败时返回 `NULL`，其参数为：
-  * taos：已经建立好的数据库连接
-  * restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
-  * topic：订阅的主题（即名称），此参数是订阅的唯一标识
-  * sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
-  * fp：收到查询结果时的回调函数（稍后介绍函数原型），只在异步调用时使用，同步调用时此参数应该传 `NULL`
-  * param：调用回调函数时的附加参数，系统API将其原样传递到回调函数，不进行任何处理
-  * interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用`taos_consume`的间隔小于此周期，API将会阻塞，直到时间间隔超过此周期。
+    * taos：已经建立好的数据库连接
+    * restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
+    * topic：订阅的主题（即名称），此参数是订阅的唯一标识
+    * sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
+    * fp：收到查询结果时的回调函数（稍后介绍函数原型），只在异步调用时使用，同步调用时此参数应该传 `NULL`
+    * param：调用回调函数时的附加参数，系统API将其原样传递到回调函数，不进行任何处理
+    * interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用`taos_consume`的间隔小于此周期，API将会阻塞，直到时间间隔超过此周期。
 
 * `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
   异步模式下，回调函数的原型，其参数为：
-  * tsub：订阅对象
-  * res：查询结果集，注意结果集中可能没有记录
-  * param：调用 `taos_subscribe`时客户程序提供的附加参数
-  * code：错误码
+    * tsub：订阅对象
+    * res：查询结果集，注意结果集中可能没有记录
+    * param：调用 `taos_subscribe`时客户程序提供的附加参数
+    * code：错误码
 
 
 * `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
@@ -306,7 +306,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 |
 | --- | --- | --- |
-| 2.0.0 | 2.0.0.x 及以上 | 1.8.x |
+| 2.0.2 | 2.0.0.x 及以上 | 1.8.x |
 | 1.0.3 | 1.6.1.x 及以上 | 1.8.x |
 | 1.0.2 | 1.6.1.x 及以上 | 1.8.x |
 | 1.0.1 | 1.6.1.x 及以上 | 1.8.x |
@@ -341,7 +341,7 @@ maven 项目中使用如下 pom.xml 配置即可：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.1</version>
+  <version>2.0.2</version>
 </dependency>
 ```
 
@@ -363,7 +363,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 > 端口 6030 为默认连接端口，JDBC URL 中的 log 为系统本身的监控数据库。
 
 TDengine 的 JDBC URL 规范格式为：
-`jdbc:TSDB://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+`jdbc:TAOS://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
 其中，`{}` 中的内容必须，`[]` 中为可选。配置参数说明如下：
 
@@ -458,6 +458,49 @@ while(resultSet.next()){
 }
 ```
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
+
+
+### 订阅
+
+#### 创建
+
+```java
+TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
+```
+
+`subscribe` 方法的三个参数含义如下：
+
+* topic：订阅的主题（即名称），此参数是订阅的唯一标识
+* sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
+* restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
+
+如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic' 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
+
+#### 消费数据
+
+```java
+int total = 0;
+while(true) {
+    TSDBResultSet rs = sub.consume();
+    int count = 0;
+    while(rs.next()) {
+        count++;
+    }
+    total += count;
+    System.out.printf("%d rows consumed, total %d\n", count, total);
+    Thread.sleep(1000);
+}
+```
+
+`consume` 方法返回一个结果集，其中包含从上次 `consume` 到目前为止的所有新数据。请务必按需选择合理的调用 `consume` 的频率（如例子中的`Thread.sleep(1000)`），否则会给服务端造成不必要的压力。
+
+#### 关闭订阅
+
+```java
+sub.close(true);
+```
+
+`close` 方法关闭一个订阅。如果其参数为 `true` 表示保留订阅进度信息，后续可以创建同名订阅继续消费数据；如为 `false` 则不保留订阅进度。
 
 
 ### 关闭资源
@@ -603,7 +646,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 #### Linux
 
-用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
+用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到python2和python3的connector安装包。用户可以通过pip命令安装： 
 
 ​		`pip install src/connector/python/linux/python2/`
 
@@ -931,12 +974,12 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 ## Go Connector
 
-TDengine提供了GO驱动程序`taosSql`. `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengin, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`
+TDengine提供了GO驱动程序`taosSql`. `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`
 
 ```Go
 import (
     "database/sql"
-    _ "github.com/taosdata/driver-go/taoSql"
+    _ "github.com/taosdata/driver-go/taosSql"
 )
 ```
 ### 常用API
@@ -982,7 +1025,7 @@ npm install td2.0-connector
 
 - Xcode
 
-  - 然后通过Xcode安装
+    - 然后通过Xcode安装
 
     ```
     Command Line Tools

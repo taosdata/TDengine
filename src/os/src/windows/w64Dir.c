@@ -23,7 +23,7 @@ void taosRemoveDir(char *rootDir) {
 
 int taosMkDir(const char *path, mode_t mode) {
   uError("%s not implemented yet", __FUNCTION__);
-  return -1;
+  return 0;
 }
 
 void taosMvDir(char* destDir, char *srcDir) {

@@ -26,7 +26,12 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
+#include "qSqlparser.h"
+#include "tcmdtype.h"
+#include "tstoken.h"
+#include "ttokendef.h"
 #include "tutil.h"
+#include "tvariant.h"
 }
 
 %syntax_error {
@@ -254,7 +259,7 @@ alter_db_optr(Y) ::= alter_db_optr(Z) keep(X).        { Y = Z; Y.keep = X; }
 alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtod(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X). { 
@@ -422,8 +427,35 @@ as(X) ::= .             { X.n = 0;  }
 from(A) ::= FROM tablelist(X).                 {A = X;}
 
 %type tablelist {tVariantList*}
-tablelist(A) ::= ids(X) cpxName(Y).                     { toTSDBType(X.type); X.n += Y.n; A = tVariantListAppendToken(NULL, &X, -1);}
-tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  { toTSDBType(X.type); X.n += Z.n; A = tVariantListAppendToken(Y, &X, -1);   }
+tablelist(A) ::= ids(X) cpxName(Y).                     {
+  toTSDBType(X.type);
+  X.n += Y.n;
+  A = tVariantListAppendToken(NULL, &X, -1);
+  A = tVariantListAppendToken(A, &X, -1);  // table alias name
+}
+
+tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
+   toTSDBType(X.type);
+   toTSDBType(Z.type);
+   X.n += Y.n;
+   A = tVariantListAppendToken(NULL, &X, -1);
+   A = tVariantListAppendToken(A, &Z, -1);
+}
+
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
+  toTSDBType(X.type);
+  X.n += Z.n;
+  A = tVariantListAppendToken(Y, &X, -1);
+  A = tVariantListAppendToken(A, &X, -1);
+}
+
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
+   toTSDBType(X.type);
+   toTSDBType(F.type);
+   X.n += Z.n;
+   A = tVariantListAppendToken(Y, &X, -1);
+   A = tVariantListAppendToken(A, &F, -1);
+}
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
 %type tmvar {SSQLToken}

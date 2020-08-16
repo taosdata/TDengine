@@ -232,7 +232,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
-#define TSDB_TABLE_ID_LEN         (TSDB_ACCT_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
+#define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -242,6 +242,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_BYTES_PER_ROW    16384
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
+#define TSDB_MAX_TAG_CONDITIONS   1024
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16
@@ -393,6 +394,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_PORT_DNODESHELL 0 
 #define TSDB_PORT_DNODEDNODE 5 
 #define TSDB_PORT_SYNC       10 
+#define TSDB_PORT_HTTP       11 
 
 #define TAOS_QTYPE_RPC      0
 #define TAOS_QTYPE_FWD      1
@@ -415,6 +417,19 @@ typedef enum {
   TSDB_MOD_MQTT,
   TSDB_MOD_MAX
 } EModuleType;
+
+  typedef enum {
+    TSDB_CHECK_ITEM_NETWORK,
+    TSDB_CHECK_ITEM_MEM,
+    TSDB_CHECK_ITEM_CPU,
+    TSDB_CHECK_ITEM_DISK,
+    TSDB_CHECK_ITEM_OS,    
+    TSDB_CHECK_ITEM_ACCESS,    
+    TSDB_CHECK_ITEM_VERSION,
+    TSDB_CHECK_ITEM_DATAFILE,
+    TSDB_CHECK_ITEM_MAX
+  } ECheckItemType;
+
 
 #ifdef __cplusplus
 }

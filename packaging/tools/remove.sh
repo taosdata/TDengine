@@ -18,11 +18,12 @@ log_link_dir="/usr/local/taos/log"
 cfg_link_dir="/usr/local/taos/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
+lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 install_nginxd_dir="/usr/local/nginxd"
 
 # v1.5 jar dir
-v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/taos"
 
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
@@ -78,7 +79,8 @@ function clean_bin() {
 function clean_lib() {
     # Remove link
     ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
-    ${csudo} rm -rf ${v15_java_app_dir}                      || :
+    ${csudo} rm -f ${lib64_link_dir}/libtaos.*    || :
+    #${csudo} rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {

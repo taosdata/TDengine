@@ -35,7 +35,7 @@
 
 #define SQL_LENGTH     1024
 #define LOG_LEN_STR    100
-#define IP_LEN_STR     18
+#define IP_LEN_STR     TSDB_EP_LEN
 #define CHECK_INTERVAL 1000
 
 typedef enum {
@@ -192,7 +192,7 @@ static void dnodeBuildMonitorSql(char *sql, int32_t cmd) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.slowquery(ts timestamp, username "
              "binary(%d), created_time timestamp, time bigint, sql binary(%d))",
-             tsMonitorDbName, TSDB_TABLE_ID_LEN - 1, TSDB_SLOW_QUERY_SQL_LEN);
+             tsMonitorDbName, TSDB_TABLE_FNAME_LEN - 1, TSDB_SLOW_QUERY_SQL_LEN);
   } else if (cmd == MONITOR_CMD_CREATE_TB_LOG) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.log(ts timestamp, level tinyint, "
@@ -234,17 +234,22 @@ static void monitorInitDatabaseCb(void *param, TAOS_RES *result, int32_t code) {
 }
 
 void monitorStopSystem() {
-  monitorInfo("monitor module is stopped");
-  monitorExecuteSQLFp = NULL;
+  if (tsMonitorConn.state == MONITOR_STATE_STOPPED) return;
   tsMonitorConn.state = MONITOR_STATE_STOPPED;
+  monitorExecuteSQLFp = NULL;
+
+  monitorInfo("monitor module is stopped");
+
   if (tsMonitorConn.initTimer != NULL) {
     taosTmrStopA(&(tsMonitorConn.initTimer));
   }
   if (tsMonitorConn.timer != NULL) {
     taosTmrStopA(&(tsMonitorConn.timer));
   }
-
-  taos_close(tsMonitorConn.conn);
+  if (tsMonitorConn.conn != NULL) {
+    taos_close(tsMonitorConn.conn);
+    tsMonitorConn.conn = NULL;
+  }
 }
 
 void monitorCleanUpSystem() {

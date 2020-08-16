@@ -27,8 +27,8 @@ typedef struct {
   int       num;
   int       numOfReqs;
   int       msgSize;
-  sem_t     rspSem; 
-  sem_t    *pOverSem; 
+  tsem_t    rspSem; 
+  tsem_t   *pOverSem; 
   pthread_t thread;
   void     *pRpc;
 } SInfo;
@@ -171,7 +171,7 @@ int main(int argc, char *argv[]) {
     pInfo->epSet = epSet;
     pInfo->numOfReqs = numOfReqs;
     pInfo->msgSize = msgSize;
-    sem_init(&pInfo->rspSem, 0, 0);
+    tsem_init(&pInfo->rspSem, 0, 0);
     pInfo->pRpc = pRpc;
     pthread_create(&pInfo->thread, &thattr, sendRequest, pInfo);
     pInfo++;

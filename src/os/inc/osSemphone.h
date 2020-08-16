@@ -32,6 +32,7 @@ extern "C" {
 bool taosCheckPthreadValid(pthread_t thread);
 int64_t taosGetPthreadId();
 void taosResetPthread(pthread_t *thread);
+bool taosComparePthread(pthread_t first, pthread_t second);
 
 #ifdef __cplusplus
 }

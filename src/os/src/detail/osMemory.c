@@ -42,7 +42,7 @@ static bool random_alloc_fail(size_t size, const char* file, uint32_t line) {
   }
 
   if (fpAllocLog != NULL) {
-    fprintf(fpAllocLog, "%s:%d: memory allocation of %zu bytes will fail.\n", file, line, size);
+    fprintf(fpAllocLog, "%s:%d: memory allocation of %" PRIzu " bytes will fail.\n", file, line, size);
   }
 
   return true;
@@ -159,7 +159,7 @@ static void* malloc_detect_leak(size_t size, const char* file, uint32_t line) {
   }
 
   if (size > UINT32_MAX && fpAllocLog != NULL) {
-    fprintf(fpAllocLog, "%s:%d: size too large: %zu.\n", file, line, size);
+    fprintf(fpAllocLog, "%s:%d: size too large: %" PRIzu ".\n", file, line, size);
   }
 
   blk->file = file;
@@ -207,7 +207,7 @@ static void* realloc_detect_leak(void* ptr, size_t size, const char* file, uint3
   }
 
   if (size > UINT32_MAX && fpAllocLog != NULL) {
-    fprintf(fpAllocLog, "%s:%d: size too large: %zu.\n", file, line, size);
+    fprintf(fpAllocLog, "%s:%d: size too large: %" PRIzu ".\n", file, line, size);
   }
 
   blk = (SMemBlock*)p;
@@ -295,7 +295,7 @@ static void dump_memory_leak() {
 
   atomic_store_ptr(&lock, 0);
 
-  fprintf(fpAllocLog, "\nnumber of blocks: %zu, total bytes: %zu\n", numOfBlk, totalSize);
+  fprintf(fpAllocLog, "\nnumber of blocks: %" PRIzu ", total bytes: %" PRIzu "\n", numOfBlk, totalSize);
   fflush(fpAllocLog);
 }
 

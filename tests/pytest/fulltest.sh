@@ -158,6 +158,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 
 # client
 python3 ./test.py -f client/client.py
+python3 ./test.py -f client/version.py
 
 # Misc
 python3 testCompress.py
@@ -182,3 +183,6 @@ python3 ./test.py -f functions/function_stddev.py
 python3 ./test.py -f functions/function_sum.py
 python3 ./test.py -f functions/function_top.py
 python3 ./test.py -f functions/function_twa.py
+
+# tools
+python3 test.py -f tools/taosdemo.py

@@ -748,11 +748,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               sprintf(value, "%d", *((int *)row[i]));
               break;
             case TSDB_DATA_TYPE_BIGINT:
-#ifdef _TD_ARM_32_
-              sprintf(value, "%lld", *((int64_t *)row[i]));
-#else
-              sprintf(value, "%ld", *((int64_t *)row[i]));
-#endif
+              sprintf(value, "%" PRId64, *((int64_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_FLOAT:{
 #ifdef _TD_ARM_32_
@@ -783,10 +779,23 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_TIMESTAMP:
               tt = *(int64_t *)row[i] / 1000;
+              /* comment out as it make testcases like select_with_tags.sim fail.
+                but in windows, this may cause the call to localtime crash if tt < 0,
+                need to find a better solution.
+              if (tt < 0) {
+                tt = 0;
+              }
+              */
+
+#ifdef WINDOWS
+              if (tt < 0) tt = 0;
+#endif
+
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
               sprintf(value, "%s.%03d", timeStr,
-                      (int)(*((int64_t *)row[i]) % 1000));
+                (int)(*((int64_t *)row[i]) % 1000));
+              
               break;
             default:
               break;

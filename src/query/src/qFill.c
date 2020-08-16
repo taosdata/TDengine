@@ -42,19 +42,38 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
   pFillInfo->slidingUnit = slidingUnit;
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
-  
-  int32_t rowsize = 0;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t bytes = pFillInfo->pFillCol[i].col.bytes;
-    pFillInfo->pData[i] = calloc(1, bytes * capacity);
-    
-    rowsize += bytes;
-  }
-  
   if (numOfTags > 0) {
-    pFillInfo->pTags = calloc(1, pFillInfo->numOfTags * POINTER_BYTES + rowsize);
+    pFillInfo->pTags = calloc(pFillInfo->numOfTags, sizeof(SFillTagColInfo));
+    for(int32_t i = 0; i < numOfTags; ++i) {
+      pFillInfo->pTags[i].col.colId = -2;
+    }
   }
-  
+
+  int32_t rowsize = 0;
+  int32_t k = 0;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SFillColInfo* pColInfo = &pFillInfo->pFillCol[i];
+    pFillInfo->pData[i] = calloc(1, pColInfo->col.bytes * capacity);
+
+    if (pColInfo->flag == TSDB_COL_TAG) {
+      bool exists = false;
+      for(int32_t j = 0; j < k; ++j) {
+        if (pFillInfo->pTags[j].col.colId == pColInfo->col.colId) {
+          exists = true;
+          break;
+        }
+      }
+
+      if (!exists) {
+        pFillInfo->pTags[k].col.colId = pColInfo->col.colId;
+        pFillInfo->pTags[k].tagVal = calloc(1, pColInfo->col.bytes);
+
+        k += 1;
+      }
+    }
+    rowsize += pColInfo->col.bytes;
+  }
+
   pFillInfo->rowSize = rowsize;
   pFillInfo->capacityInRows = capacity;
   
@@ -129,16 +148,21 @@ void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, tFilePage** pInput)
 
 void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInput) {
   assert(pFillInfo->numOfRows == pInput->num);
-  int32_t t = 0;
-  
+
   for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-    
-    char* s = pInput->data + pCol->col.offset * pInput->num;
-    memcpy(pFillInfo->pData[i], s, pInput->num * pCol->col.bytes);
-    
-    if (pCol->flag == TSDB_COL_TAG) {  // copy the tag value
-      memcpy(pFillInfo->pTags[t++], pFillInfo->pData[i], pCol->col.bytes);
+
+    char* data = pInput->data + pCol->col.offset * pInput->num;
+    memcpy(pFillInfo->pData[i], data, pInput->num * pCol->col.bytes);
+
+    if (pCol->flag == TSDB_COL_TAG) {  // copy the tag value to tag value buffer
+      for (int32_t j = 0; j < pFillInfo->numOfTags; ++j) {
+        SFillTagColInfo* pTag = &pFillInfo->pTags[j];
+        if (pTag->col.colId == pCol->col.colId) {
+          memcpy(pTag->tagVal, data, pCol->col.bytes);
+          break;
+        }
+      }
     }
   }
 }
@@ -224,22 +248,31 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
   return 0;
 }
 
-static void setTagsValue(SFillInfo* pColInfo, tFilePage** data, char** pTags, int32_t start, int32_t num) {
-  for (int32_t j = 0, i = start; i < pColInfo->numOfCols; ++i, ++j) {
-    SFillColInfo* pCol = &pColInfo->pFillCol[i];
-    
-    char* val1 = elePtrAt(data[i]->data, pCol->col.bytes, num);
-    assignVal(val1, pTags[j], pCol->col.bytes, pCol->col.type);
+static void setTagsValue(SFillInfo* pFillInfo, tFilePage** data, int32_t num) {
+  for(int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
+    SFillColInfo* pCol = &pFillInfo->pFillCol[j];
+    if (pCol->flag == TSDB_COL_NORMAL) {
+      continue;
+    }
+
+    char* val1 = elePtrAt(data[j]->data, pCol->col.bytes, num);
+
+    for(int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
+      SFillTagColInfo* pTag = &pFillInfo->pTags[i];
+      if (pTag->col.colId == pCol->col.colId) {
+        assignVal(val1, pTag->tagVal, pCol->col.bytes, pCol->col.type);
+        break;
+      }
+    }
   }
 }
 
-static void doInterpoResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* num, char** srcData,
-                                int64_t ts, char** pTags, bool outOfBound) {
+static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* num, char** srcData, int64_t ts,
+                             bool outOfBound) {
   char* prevValues = pFillInfo->prevValues;
   char* nextValues = pFillInfo->nextValues;
 
   SPoint point1, point2, point;
-
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
 
   char* val = elePtrAt(data[0]->data, TSDB_KEYSIZE, *num);
@@ -279,7 +312,7 @@ static void doInterpoResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t*
       }
     }
 
-    setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+    setTagsValue(pFillInfo, data, *num);
   } else if (pFillInfo->fillType == TSDB_FILL_LINEAR) {
     // TODO : linear interpolation supports NULL value
     if (prevValues != NULL && !outOfBound) {
@@ -304,7 +337,7 @@ static void doInterpoResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t*
         taosDoLinearInterpolation(type, &point1, &point2, &point);
       }
 
-      setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+      setTagsValue(pFillInfo, data, *num);
 
     } else {
       for (int32_t i = 1; i < numOfValCols; ++i) {
@@ -319,7 +352,7 @@ static void doInterpoResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t*
         }
       }
 
-      setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+      setTagsValue(pFillInfo, data, *num);
   
     }
   } else { /* fill the default value */
@@ -330,7 +363,7 @@ static void doInterpoResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t*
       assignVal(val1, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
     }
 
-    setTagsValue(pFillInfo, data, pTags, numOfValCols, *num);
+    setTagsValue(pFillInfo, data, *num);
   }
 
   pFillInfo->start += (pFillInfo->slidingTime * step);
@@ -364,17 +397,14 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
   char** nextValues = &pFillInfo->nextValues;
 
   int32_t numOfTags = pFillInfo->numOfTags;
-  char**  pTags = pFillInfo->pTags;
-
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
-
   if (numOfRows == 0) {
     /*
      * These data are generated according to fill strategy, since the current timestamp is out of time window of
      * real result set. Note that we need to keep the direct previous result rows, to generated the filled data.
      */
     while (num < outputRows) {
-      doInterpoResultImpl(pFillInfo, data, &num, srcData, pFillInfo->start, pTags, true);
+      doFillResultImpl(pFillInfo, data, &num, srcData, pFillInfo->start, true);
     }
     
     pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
@@ -401,12 +431,11 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         
         while (((pFillInfo->start < ts && FILL_IS_ASC_FILL(pFillInfo)) ||
                 (pFillInfo->start > ts && !FILL_IS_ASC_FILL(pFillInfo))) && num < outputRows) {
-          doInterpoResultImpl(pFillInfo, data, &num, srcData, ts, pTags, false);
+          doFillResultImpl(pFillInfo, data, &num, srcData, ts, false);
         }
 
         /* output buffer is full, abort */
-        if ((num == outputRows && FILL_IS_ASC_FILL(pFillInfo)) ||
-            (num < 0 && !FILL_IS_ASC_FILL(pFillInfo))) {
+        if ((num == outputRows && FILL_IS_ASC_FILL(pFillInfo)) || (num < 0 && !FILL_IS_ASC_FILL(pFillInfo))) {
           pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
           return outputRows;
         }
@@ -415,10 +444,12 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         initBeforeAfterDataBuf(pFillInfo, prevValues);
         
         // assign rows to dst buffer
-        int32_t i = 0;
-        for (; i < pFillInfo->numOfCols - numOfTags; ++i) {
+        for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
           SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-          
+          if (pCol->flag == TSDB_COL_TAG) {
+            continue;
+          }
+
           char* val1 = elePtrAt(data[i]->data, pCol->col.bytes, num);
           char* src  = elePtrAt(srcData[i], pCol->col.bytes, pFillInfo->rowIdx);
           
@@ -440,10 +471,12 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         }
 
         // set the tag value for final result
-        setTagsValue(pFillInfo, data, pTags, pFillInfo->numOfCols - numOfTags, num);
+        setTagsValue(pFillInfo, data, num);
 
         pFillInfo->start += (pFillInfo->slidingTime * step);
         pFillInfo->rowIdx += 1;
+
+        pFillInfo->numOfCurrent +=1;
         num += 1;
       }
 

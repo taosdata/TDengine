@@ -31,7 +31,7 @@ static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp);
 static void arbProcessBrokenLink(void *param);
 static int  arbProcessPeerMsg(void *param, void *buffer);
-static sem_t    tsArbSem;
+static tsem_t   tsArbSem;
 static ttpool_h tsArbTcpPool;
 
 typedef struct {
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     }
   }
   
- if (sem_init(&tsArbSem, 0, 0) != 0) {
+ if (tsem_init(&tsArbSem, 0, 0) != 0) {
     printf("failed to create exit semphore\n");
     exit(EXIT_FAILURE);
   }
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
 
   sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
 
-  for (int res = sem_wait(&tsArbSem); res != 0; res = sem_wait(&tsArbSem)) {
+  for (int res = tsem_wait(&tsArbSem); res != 0; res = tsem_wait(&tsArbSem)) {
     if (res != EINTR) break;
   }
 
@@ -185,6 +185,6 @@ static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) 
   sInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
 
   // inform main thread to exit
-  sem_post(&tsArbSem);
+  tsem_post(&tsArbSem);
 }
 

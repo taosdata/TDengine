@@ -84,12 +84,17 @@ public class TSDBConnection implements Connection {
 		}
 	}
 
-	public TSDBSubscribe createSubscribe() throws SQLException {
-		if (!this.connector.isClosed()) {
-			return new TSDBSubscribe(this.connector);
-		} else {
+	public TSDBSubscribe subscribe(String topic, String sql, boolean restart) throws SQLException {
+		if (this.connector.isClosed()) {
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 		}
+
+		long id = this.connector.subscribe(topic, sql, restart, 0);
+		if (id == 0) {
+			throw new SQLException(TSDBConstants.WrapErrMsg("failed to create subscription"));
+		}
+
+		return new TSDBSubscribe(this.connector, id);
 	}
 
 	public PreparedStatement prepareStatement(String sql) throws SQLException {

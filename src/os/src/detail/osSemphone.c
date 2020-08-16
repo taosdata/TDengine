@@ -21,5 +21,6 @@
 bool    taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
 int64_t taosGetPthreadId() { return (int64_t)pthread_self(); }
 void    taosResetPthread(pthread_t *thread) { *thread = 0; }
+bool    taosComparePthread(pthread_t first, pthread_t second) { return first == second; }
 
 #endif

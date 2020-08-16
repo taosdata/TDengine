@@ -54,7 +54,7 @@ int8_t  tsDaylight = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
-int32_t tsEnableCoreFile = 0;
+int32_t tsEnableCoreFile = 1;
 int32_t tsMaxBinaryDisplayWidth = 30;
 
 /*
@@ -1315,6 +1315,7 @@ bool taosCheckGlobalCfg() {
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
   tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
+  tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
   return true;
 }

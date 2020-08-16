@@ -27,13 +27,7 @@ class TDTestCase:
 
         ret = tdSql.query('select database()')
         tdSql.checkData(0, 0, "db")        
-
-        ret = tdSql.query('select server_version()')
-        tdSql.checkData(0, 0, "2.0.0.0")
-
-        ret = tdSql.query('select client_version()')
-        tdSql.checkData(0, 0, "2.0.0.0")
-
+        
         ret = tdSql.query('select server_status()')
         tdSql.checkData(0, 0, 1)
 

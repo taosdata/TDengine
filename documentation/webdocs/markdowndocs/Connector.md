@@ -286,7 +286,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 > `6030` is the default port and `log` is the default database for system monitor.
 
 A normal JDBC URL looks as follows:
-`jdbc:TSDB://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+`jdbc:TAOS://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
 values in `{}` are necessary while values in `[]` are optional。Each option in the above URL denotes:
 

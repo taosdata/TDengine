@@ -250,7 +250,7 @@ typedef struct DemoArguments {
   static struct argp argp = {options, parse_opt, 0, 0};
 
   void parse_args(int argc, char *argv[], SDemoArguments *arguments) {
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    argp_parse(&argp, argc, argv, 0, 0, arguments);
     if (arguments->abort) {
       #ifndef _ALPINE
         error(10, 0, "ABORTED");
@@ -306,7 +306,7 @@ typedef struct DemoArguments {
     printf("%s%s\n", indent, "-R");
     printf("%s%s%s\n", indent, indent, "rate, Out of order data's rate--if order=1 Default 10, min: 0, max: 50.");
     printf("%s%s\n", indent, "-D");
-    printf("%s%s%s\n", indent, indent, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database.");
+    printf("%s%s%s\n", indent, indent, "Delete data methods 0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database.");
   }
 
   void parse_args(int argc, char *argv[], SDemoArguments *arguments) {
@@ -440,9 +440,9 @@ typedef struct {
   char* cols;  
   bool  use_metric;
 
-  sem_t mutex_sem;
+  tsem_t mutex_sem;
   int notFinished;
-  sem_t lock_sem;
+  tsem_t lock_sem;
 } info;
 
 typedef struct {
@@ -459,9 +459,9 @@ typedef struct {
   int data_of_order;
   int data_of_rate;
 
-  sem_t *mutex_sem;
-  int   *notFinished;
-  sem_t *lock_sem;
+  tsem_t *mutex_sem;
+  int    *notFinished;
+  tsem_t *lock_sem;
 } sTable;
 
 /* ******************************* Global
@@ -729,9 +729,9 @@ int main(int argc, char *argv[]) {
     t_info->end_table_id = i < b ? last + a : last + a - 1;
     last = t_info->end_table_id + 1;
 
-    sem_init(&(t_info->mutex_sem), 0, 1);
+    tsem_init(&(t_info->mutex_sem), 0, 1);
     t_info->notFinished = t_info->end_table_id - t_info->start_table_id + 1;
-    sem_init(&(t_info->lock_sem), 0, 0);
+    tsem_init(&(t_info->lock_sem), 0, 0);
 
     if (query_mode == SYNC) {
       pthread_create(pids + i, NULL, syncWrite, t_info);
@@ -762,8 +762,8 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
     taos_close(t_info->taos);
-    sem_destroy(&(t_info->mutex_sem));
-    sem_destroy(&(t_info->lock_sem));
+    tsem_destroy(&(t_info->mutex_sem));
+    tsem_destroy(&(t_info->lock_sem));
   }
 
   free(pids);
@@ -1021,8 +1021,8 @@ void multiThreadCreateTable(char* cols, bool use_metric, int threads, int ntable
 
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
-    sem_destroy(&(t_info->mutex_sem));
-    sem_destroy(&(t_info->lock_sem));
+    tsem_destroy(&(t_info->mutex_sem));
+    tsem_destroy(&(t_info->lock_sem));
   }
 
   free(pids);
@@ -1272,7 +1272,7 @@ void *asyncWrite(void *sarg) {
     taos_query_a(winfo->taos, "show databases", callBack, tb_info);
   }
 
-  sem_wait(&(winfo->lock_sem));
+  tsem_wait(&(winfo->lock_sem));
   free(tb_infos);
 
   return NULL;
@@ -1292,10 +1292,10 @@ void callBack(void *param, TAOS_RES *res, int code) {
 
   // If finished;
   if (tb_info->counter >= tb_info->target) {
-    sem_wait(tb_info->mutex_sem);
+    tsem_wait(tb_info->mutex_sem);
     (*(tb_info->notFinished))--;
-    if (*(tb_info->notFinished) == 0) sem_post(tb_info->lock_sem);
-    sem_post(tb_info->mutex_sem);
+    if (*(tb_info->notFinished) == 0) tsem_post(tb_info->lock_sem);
+    tsem_post(tb_info->mutex_sem);
     return;
   }
 

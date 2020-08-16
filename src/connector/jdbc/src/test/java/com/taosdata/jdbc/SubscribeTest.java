@@ -49,20 +49,16 @@ public class SubscribeTest extends BaseTest {
     @Test
     public void subscribe() throws Exception {
         TSDBSubscribe subscribe = null;
-        long subscribId = 0;
         try {
 
             String rawSql = "select * from " + dbName + "." + tName + ";";
             System.out.println(rawSql);
-            subscribe = ((TSDBConnection) connection).createSubscribe();
-            subscribId = subscribe.subscribe(topic, rawSql, false, 1000);
-
-            assertTrue(subscribId > 0);
+            subscribe = ((TSDBConnection) connection).subscribe(topic, rawSql, false);
 
             int a = 0;
             while (true) {
                 Thread.sleep(900);
-                TSDBResultSet resSet = subscribe.consume(subscribId);
+                TSDBResultSet resSet = subscribe.consume();
 
                 while (resSet.next()) {
                     for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
@@ -79,8 +75,8 @@ public class SubscribeTest extends BaseTest {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (null != subscribe && 0 != subscribId) {
-                subscribe.unsubscribe(subscribId, true);
+            if (null != subscribe) {
+                subscribe.close(true);
             }
         }
     }
