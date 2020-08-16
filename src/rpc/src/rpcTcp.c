@@ -174,6 +174,7 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     if (fd == -1) {
       // failed to create eventfd, call pthread_cancel instead, which may result in data corruption:
       tError("%s, failed to create eventfd(%s)", pThreadObj->label, strerror(errno));
+      pThreadObj->stop = true;
       pthread_cancel(pThreadObj->thread);
     } else if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
       // failed to call epoll_ctl, call pthread_cancel instead, which may result in data corruption:
@@ -253,11 +254,11 @@ static void *taosAcceptTcpConnection(void *arg) {
       pFdObj->ip = caddr.sin_addr.s_addr;
       pFdObj->port = htons(caddr.sin_port);
       tDebug("%s new TCP connection from %s:%hu, fd:%d FD:%p numOfFds:%d", pServerObj->label, 
-              inet_ntoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
+              taosInetNtoa(caddr.sin_addr), pFdObj->port, connFd, pFdObj, pThreadObj->numOfFds);
     } else {
       taosCloseSocket(connFd);
       tError("%s failed to malloc FdObj(%s) for connection from:%s:%hu", pServerObj->label, strerror(errno),
-             inet_ntoa(caddr.sin_addr), htons(caddr.sin_port));
+             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
     }  
 
     // pick up next thread for next connection
@@ -464,7 +465,7 @@ static void *taosProcessTcpData(void *param) {
   SRecvInfo          recvInfo;
  
   while (1) {
-    int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, -1);
+    int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThreadObj->stop) {
       tDebug("%s TCP thread get stop event, exiting...", pThreadObj->label);
       break;

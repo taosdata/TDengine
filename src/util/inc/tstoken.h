@@ -24,8 +24,6 @@ extern "C" {
 #include "tutil.h"
 #include "ttokendef.h"
 
-
-
 #define TSQL_TBNAME   "TBNAME"
 #define TSQL_TBNAME_L "tbname"
 
@@ -181,6 +179,8 @@ static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
   _end:
   return (i < pToken->n)? TK_ILLEGAL:type;
 }
+
+void taosCleanupKeywordsTable();
 
 #ifdef __cplusplus
 }

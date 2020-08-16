@@ -260,7 +260,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   }
 
   if (pRpc->connType == TAOS_CONN_SERVER) {
-    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true);
+    pRpc->hash = taosHashInit(pRpc->sessions, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
     if (pRpc->hash == NULL) {
       tError("%s failed to init string hash", pRpc->label);
       rpcClose(pRpc);
@@ -322,6 +322,8 @@ void *rpcMallocCont(int contLen) {
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
+  } else {
+    tDebug("malloc mem: %p", start);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
@@ -331,7 +333,7 @@ void rpcFreeCont(void *cont) {
   if ( cont ) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     free(temp);
-    // tTrace("free mem: %p", temp);
+    tDebug("free mem: %p", temp);
   }
 }
 
@@ -539,7 +541,7 @@ void rpcCancelRequest(void *handle) {
   if (pContext->signature != pContext) return;
 
   if (pContext->pConn) {
-    tDebug("%s, app trys to cancel request", pContext->pConn->info);
+    tDebug("%s, app tries to cancel request", pContext->pConn->info);
     pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
     pContext->pConn = NULL;
@@ -551,7 +553,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     free(temp);
-    // tTrace("free mem: %p", temp);
+    tDebug("free mem: %p", temp);
   }
 }
 
@@ -1098,10 +1100,15 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     }
 
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
-      pContext->redirect++;
-      if (pContext->redirect > TSDB_MAX_REPLICA) {
-        pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
-        tWarn("%s, too many redirects, quit", pConn->info);
+      if (rpcMsg.contLen < sizeof(SRpcEpSet)) {
+        // if EpSet is not included in the msg, treat it as NOT_READY
+        pHead->code = TSDB_CODE_RPC_NOT_READY; 
+      } else {
+        pContext->redirect++;
+        if (pContext->redirect > TSDB_MAX_REPLICA) {
+          pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+          tWarn("%s, too many redirects, quit", pConn->info);
+        }
       }
     }
 

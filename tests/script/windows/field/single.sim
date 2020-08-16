@@ -2,6 +2,13 @@ sql connect
 sleep 3000
 print ======================== dnode1 start
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $dbPrefix = fi_si_db
 $tbPrefix = fi_si_tb
 $mtPrefix = fi_si_mt

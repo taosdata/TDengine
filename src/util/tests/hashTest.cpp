@@ -10,7 +10,7 @@
 namespace {
 // the simple test code for basic operations
 void simpleTest() {
-  auto* hashTable = (SHashObj*) taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  SHashObj* hashTable = (SHashObj*) taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   ASSERT_EQ(taosHashGetSize(hashTable), 0);
   
   // put 400 elements in the hash table
@@ -47,7 +47,7 @@ void simpleTest() {
 }
 
 void stringKeyTest() {
-  auto* hashTable = (SHashObj*) taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false);
+  auto* hashTable = (SHashObj*) taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   ASSERT_EQ(taosHashGetSize(hashTable), 0);
   
   char key[128] = {0};
@@ -97,7 +97,7 @@ void functionTest() {
  * a single threads situation
  */
 void noLockPerformanceTest() {
-  auto* hashTable = (SHashObj*) taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false);
+  auto* hashTable = (SHashObj*) taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   ASSERT_EQ(taosHashGetSize(hashTable), 0);
   
   char key[128] = {0};

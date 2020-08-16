@@ -1,5 +1,13 @@
-sql connect
 sleep 3000
+sql connect
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 print ============================ dnode1 start
 
 $i = 0
@@ -9,7 +17,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
-sql create database $db replica 1 days 20 keep 2000
+sql create database $db replica 1 days 20 keep 2000 cache 16
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data00 != $db then 
@@ -24,10 +32,10 @@ endi
 if $data04 != 1 then 
   return -1
 endi
-if $data05 != 20 then 
+if $data06 != 20 then 
   return -1
 endi
-if $data07 != 1000 then 
+if $data08 != 16 then 
   return -1
 endi
  
@@ -46,7 +54,7 @@ if $rows != 0 then
 endi 
 
 print =============== step4
-sql drop database $db
+sql_error drop database $db
 
 print =============== step5
 sql create database $db replica 1 days 15 keep 1500
@@ -64,13 +72,9 @@ endi
 if $data04 != 1 then 
   return -1
 endi
-if $data05 != 15 then 
+if $data06 != 15 then 
   return -1
 endi
-
-if $data07 != 1000 then 
-  return -1
-endi 
 
 print =============== step6
 sql use $db
@@ -95,9 +99,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 sql create database $db
 sql use $db
-sql create table $tb (ts timestamp, speed int) -x step6
-	return -1
-step6:
+sql create table $tb (ts timestamp, speed int)
 
 print =============== step7
 $i = 0

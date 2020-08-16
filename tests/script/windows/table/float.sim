@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $i = 0
 $dbPrefix = lm_fl_db
 $tbPrefix = lm_fl_tb
@@ -31,7 +38,7 @@ sql select * from $tb order by ts desc
 if $rows != 1 then 
   return -1
 endi
-if $data01 != 2.8500 then 
+if $data01 != 2.85000 then
   return -1
 endi
 
@@ -41,7 +48,7 @@ sql select * from $tb order by ts desc
 if $rows != 2 then 
   return -1
 endi
-if $data01 != 3.4000 then 
+if $data01 != 3.40000 then
   return -1
 endi
 
@@ -54,7 +61,7 @@ sql select * from $tb order by ts desc
 if $rows != 3 then 
   return -1
 endi
-if $data01 != 0.0000 then 
+if $data01 != 0.00000 then
   return -1
 endi
 
@@ -67,7 +74,7 @@ sql select * from $tb order by ts desc
 if $rows != 4 then 
   return -1
 endi
-if $data01 != 2.0000 then 
+if $data01 != 2.00000 then
   return -1
 endi
 
@@ -80,7 +87,7 @@ sql select * from $tb order by ts desc
 if $rows != 5 then 
   return -1
 endi
-if $data01 != 2.0000 then 
+if $data01 != 2.00000 then
   return -1
 endi
 

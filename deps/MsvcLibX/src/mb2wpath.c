@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename	    mb2wpath.c						      *
 *									      *
@@ -10,14 +10,14 @@
 *   History:								      *
 *    2014-07-01 JFL Created this module.				      *
 *                                                                             *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
 #define _UTF8_SOURCE /* Generate the UTF-8 version of printf routines */
 
 #include "msvclibx.h"
-#include "debugm.h"
+#include "msvcDebugm.h"
 
 #if defined(_WIN32)
 

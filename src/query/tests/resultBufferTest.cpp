@@ -130,7 +130,6 @@ void recyclePageTest() {
   ASSERT_TRUE(t4 == pBufPage4);
   ASSERT_TRUE(pageId == 4);
   releaseResBufPage(pResultBuf, t4);
-  releaseResBufPage(pResultBuf, t4);
 
   tFilePage* pBufPage5 = getNewDataBuf(pResultBuf, groupId, &pageId);
   tFilePage* t5 = getResBufPage(pResultBuf, pageId);

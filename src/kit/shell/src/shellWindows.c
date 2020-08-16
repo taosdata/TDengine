@@ -9,11 +9,15 @@
 *
 * ****************************************************************/
 
-#include "shell.h"
 #include <assert.h>
 #include <regex.h>
 #include <stdio.h>
+#include "os.h"
+#include "shell.h"
+#include "taos.h"
 #include "shellCommand.h"
+
+extern char configDir[];
 
 void printHelp() {
   char indent[10] = "        ";
@@ -43,7 +47,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
+void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   for (int i = 1; i < argc; i++) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
@@ -81,7 +85,7 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
         }
-        strcpy(configDir, argv[i]);
+        strcpy(configDir, argv[++i]);
       } else {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);
@@ -218,6 +222,6 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void get_history_path(char *history) { sprintf(history, "%s/%s", ".", HISTORY_FILE); }
+void get_history_path(char *history) { sprintf(history, "C:/TDengine/%s", HISTORY_FILE); }
 
 void exitShell() { exit(EXIT_SUCCESS); }

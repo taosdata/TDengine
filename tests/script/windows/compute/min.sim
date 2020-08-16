@@ -1,5 +1,12 @@
-sql connect
 sleep 3000
+sql connect
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
 
 $dbPrefix = m_mi_db
 $tbPrefix = m_mi_tb

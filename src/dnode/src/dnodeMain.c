@@ -24,6 +24,7 @@
 #include "dnodeMgmt.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
+#include "dnodeCheck.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeMRead.h"
@@ -48,6 +49,7 @@ typedef struct {
 } SDnodeComponent;
 
 static const SDnodeComponent tsDnodeComponents[] = {
+  {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be first component !!!
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},

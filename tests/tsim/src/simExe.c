@@ -313,7 +313,9 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d",
         script->fileName, buf, code, errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
+#ifdef LINUX    
     signal(SIGCHLD, SIG_DFL);
+#endif
     if (repeatTimes++ >= 10) {
       exit(0);
     }
@@ -418,14 +420,14 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
     var = strchr(src, '$');
     if (var == NULL) break;
     if (var && ((var - src - 1) > 0) && *(var - 1) == '\\') {
-      srcLen = var - src - 1;
+      srcLen = (int)(var - src - 1);
       memcpy(dst + dstLen, src, srcLen);
       dstLen += srcLen;
       src = var;
       break;
     }
 
-    srcLen = var - src;
+    srcLen = (int)(var - src);
     memcpy(dst + dstLen, src, srcLen);
     dstLen += srcLen;
 
@@ -433,7 +435,7 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
     value = simGetVariable(script, token, tokenLen);
 
     strcpy(dst + dstLen, value);
-    dstLen += strlen(value);
+    dstLen += (int)strlen(value);
   }
 
   strcpy(dst + dstLen, src);
@@ -455,9 +457,9 @@ void simCloseNativeConnect(SScript *script) {
 
 void simCloseTaosdConnect(SScript *script) {
   if (simAsyncQuery) {
-    return simCloseRestFulConnect(script);
+    simCloseRestFulConnect(script);
   } else {
-    return simCloseNativeConnect(script);
+    simCloseNativeConnect(script);
   }
 }
 //  {"status":"succ","code":0,"desc":"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"}
@@ -575,7 +577,7 @@ int simExecuteRestFulCommand(SScript *script, char *command) {
 
   while (!feof(fp)) {
     int availSize = mallocSize - alreadyReadSize;
-    int len = fread(content + alreadyReadSize, 1, availSize, fp);
+    int len = (int)fread(content + alreadyReadSize, 1, availSize, fp);
     if (len >= availSize) {
       alreadyReadSize += len;
       mallocSize *= 2;
@@ -746,11 +748,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               sprintf(value, "%d", *((int *)row[i]));
               break;
             case TSDB_DATA_TYPE_BIGINT:
-#ifdef _TD_ARM_32_
-              sprintf(value, "%lld", *((int64_t *)row[i]));
-#else
-              sprintf(value, "%ld", *((int64_t *)row[i]));
-#endif
+              sprintf(value, "%" PRId64, *((int64_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_FLOAT:{
 #ifdef _TD_ARM_32_
@@ -781,10 +779,23 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_TIMESTAMP:
               tt = *(int64_t *)row[i] / 1000;
+              /* comment out as it make testcases like select_with_tags.sim fail.
+                but in windows, this may cause the call to localtime crash if tt < 0,
+                need to find a better solution.
+              if (tt < 0) {
+                tt = 0;
+              }
+              */
+
+#ifdef WINDOWS
+              if (tt < 0) tt = 0;
+#endif
+
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
               sprintf(value, "%s.%03d", timeStr,
-                      (int)(*((int64_t *)row[i]) % 1000));
+                (int)(*((int64_t *)row[i]) % 1000));
+              
               break;
             default:
               break;

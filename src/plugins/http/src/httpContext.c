@@ -70,7 +70,7 @@ bool httpInitContexts() {
 void httpCleanupContexts() {
   if (tsHttpServer.contextCache != NULL) {
     SCacheObj *cache = tsHttpServer.contextCache;
-    httpInfo("context cache is cleanuping, size:%zu", taosHashGetSize(cache->pHashTable));
+    httpInfo("context cache is cleanuping, size:%" PRIzu "", taosHashGetSize(cache->pHashTable));
     taosCacheCleanup(tsHttpServer.contextCache);
     tsHttpServer.contextCache = NULL;
   }
@@ -108,7 +108,8 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
 
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &pContext, sizeof(int64_t), &pContext, sizeof(int64_t), 3);
+  uint64_t handleVal = (uint64_t)pContext;
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(int64_t), &pContext, sizeof(int64_t), 3000);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
@@ -119,7 +120,8 @@ HttpContext *httpCreateContext(int32_t fd) {
 }
 
 HttpContext *httpGetContext(void *ptr) {
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &ptr, sizeof(HttpContext *));
+  uint64_t handleVal = (uint64_t)ptr;
+  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;
@@ -167,8 +169,8 @@ bool httpInitContext(HttpContext *pContext) {
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
 
-  httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, parsed:%d",
-          pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, pContext->parsed);
+  httpDebug("context:%p, fd:%d, ip:%s, accessTimes:%d, parsed:%d", pContext, pContext->fd, pContext->ipstr,
+            pContext->accessTimes, pContext->parsed);
   return true;
 }
 

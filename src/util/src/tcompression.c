@@ -591,6 +591,7 @@ int tsDecompressTimestampImp(const char *const input, const int nelements, char 
 
   } else {
     assert(0);
+    return -1;
   }
 }
 /* --------------------------------------------Double Compression

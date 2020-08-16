@@ -57,13 +57,14 @@ static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name)
     }
   }
 
-  *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY);
+  *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_DELETE);
   if (*wd == -1) {
     sError("%s, failed to add %s(%s)", pPeer->id, name, strerror(errno));
     return -1;
+  } else {
+    sDebug("%s, monitor %s, wd:%d watchNum:%d", pPeer->id, name, *wd, pPeer->watchNum);
   }
 
-  pPeer->watchNum++;
   pPeer->watchNum = (pPeer->watchNum +1) % tsMaxWatchFiles;
 
   return 0;
@@ -75,16 +76,24 @@ static int syncAreFilesModified(SSyncPeer *pPeer)
 
   char buf[2048]; 
   int len = read(pPeer->notifyFd, buf, sizeof(buf));
-  if (len <0 && errno != EAGAIN) {
+  if (len < 0 && errno != EAGAIN) {
     sError("%s, failed to read notify FD(%s)", pPeer->id, strerror(errno));    
     return -1;
   }
     
   int code = 0; 
-  if (len >0) { 
-    sDebug("%s, processed file is changed", pPeer->id);    
-    pPeer->fileChanged = 1;
-    code = 1;
+  if (len > 0) { 
+    const struct inotify_event *event;
+    char *ptr;
+    for (ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
+      event = (const struct inotify_event *) ptr; 
+      if ((event->mask & IN_MODIFY) || (event->mask & IN_DELETE)) { 
+        sDebug("%s, processed file is changed", pPeer->id);
+        pPeer->fileChanged = 1;
+        code = 1;
+        break;
+      }
+    }
   }
 
   return code;  

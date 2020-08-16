@@ -193,7 +193,7 @@ void mnodeDecDbRef(SDbObj *pDb) {
 }
 
 SDbObj *mnodeGetDbByTableId(char *tableId) {
-  char db[TSDB_TABLE_ID_LEN], *pos;
+  char db[TSDB_TABLE_FNAME_LEN], *pos;
  
   // tableId format should be :  acct.db.table
   pos = strstr(tableId, TS_PATH_DELIMITER);
@@ -1046,7 +1046,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pDrop->db);
   if (pMsg->pDb == NULL) {
     if (pDrop->ignoreNotExists) {
-      mDebug("db:%s, db is not exist, think drop success", pDrop->db);
+      mDebug("db:%s, db is not exist, treat as success", pDrop->db);
       return TSDB_CODE_SUCCESS;
     } else {
       mError("db:%s, failed to drop, invalid db", pDrop->db);

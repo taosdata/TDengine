@@ -51,3 +51,80 @@ if $data09 != NCHAR then
   return -1
 endi
 
+# regression test case 1
+sql select count(*) from lr_tb1 where ts>'2018-09-18 08:45:00.1' and ts<'2018-09-18 08:45:00.2'
+if $row != 0 then
+  return -1
+endi
+
+# regression test case 2
+sql select count(*) from lr_db0.lr_stb0 where ts>'2018-9-18 8:00:00' and ts<'2018-9-18 14:00:00' interval(1s) fill(NULL);
+if $row != 21600 then
+  return -1
+endi
+
+#regression test case 3
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 1
+if $row != 2 then
+  return -1
+endi
+
+if $data01 != 7 then
+  return -1
+endi
+
+if $data02 != 7 then
+  return -1
+endi
+
+if $data03 != 59 then
+  print expect 59, actual: $data03
+  return -1
+endi
+
+if $data04 != 7 then
+  return -1
+endi
+
+if $data11 != 8 then
+  return -1
+endi
+
+if $data12 != 8 then
+  return -1
+endi
+
+if  $data13 != NULL then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 9
+if $rows != 18 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 12
+if $rows != 24 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 25
+if $rows != 48 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 25 offset 1
+if $rows != 46 then
+  return -1
+endi
+
+sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1s) fill(NULL) group by tbname, t1 slimit 2 soffset 0 limit 250000 offset 1
+if $rows != 172798 then
+  return -1
+endi
+
+sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1s) fill(NULL) group by tbname, t1 slimit 1 soffset 1 limit 250000 offset 1
+if $rows != 86399 then
+  return -1
+endi
+

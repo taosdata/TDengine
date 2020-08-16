@@ -1,4 +1,4 @@
-/*****************************************************************************\
+﻿/*****************************************************************************\
 *                                                                             *
 *   Filename	    fstat.c						      *
 *									      *
@@ -9,7 +9,7 @@
 *   History:								      *
 *    2014-06-24 JFL Created this module.				      *
 *                                                                             *
-*         ?Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -21,10 +21,10 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-/* MsvcLibX library extensions */
-#include <sys/stat.h>
-#include "debugm.h"
 #include <stdint.h>
+/* MsvcLibX library extensions */
+#include "sys/msvcStat.h"
+#include "msvcDebugm.h"
 
 
 #if defined(_MSDOS)

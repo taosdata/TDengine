@@ -184,7 +184,7 @@ static void *taosProcessTcpData(void *param) {
 
   while (1) {
     if (pThread->stop) break; 
-    int fdNum = epoll_wait(pThread->pollFd, events, maxEvents, -1);
+    int fdNum = epoll_wait(pThread->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThread->stop) {
       uDebug("%p TCP epoll thread is exiting...", pThread);
       break;
@@ -313,6 +313,7 @@ static void taosStopPoolThread(SThreadObj* pThread) {
     // failed to create eventfd, call pthread_cancel instead, which may result in data corruption
     uError("failed to create eventfd(%s)", strerror(errno));
     pthread_cancel(pThread->thread);
+    pThread->stop = true;
   } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     // failed to call epoll_ctl, call pthread_cancel instead, which may result in data corruption
     uError("failed to call epoll_ctl(%s)", strerror(errno));

@@ -210,6 +210,7 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
     }
   }
 
+  // todo refactor
   if (tscResultsetFetchCompleted(result)) {
     isContinue = false;
   }

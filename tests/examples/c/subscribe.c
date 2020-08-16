@@ -7,28 +7,31 @@
 #include <taos.h>  // include TDengine header file
 #include <unistd.h>
 
+int nTotalRows;
+
 void print_result(TAOS_RES* res, int blockFetch) {
   TAOS_ROW    row = NULL;
   int         num_fields = taos_num_fields(res);
   TAOS_FIELD* fields = taos_fetch_fields(res);
   int         nRows = 0;
+  char        buf[4096];
 
+  
   if (blockFetch) {
     nRows = taos_fetch_block(res, &row);
     for (int i = 0; i < nRows; i++) {
-      char temp[256];
-      taos_print_row(temp, row + i, fields, num_fields);
-      puts(temp);
+      taos_print_row(buf, row + i, fields, num_fields);
+      puts(buf);
     }
   } else {
     while ((row = taos_fetch_row(res))) {
-      char temp[256];
-      taos_print_row(temp, row, fields, num_fields);
-      puts(temp);
+      taos_print_row(buf, row, fields, num_fields);
+      puts(buf);
       nRows++;
     }
   }
 
+  nTotalRows += nRows;
   printf("%d rows consumed.\n", nRows);
 }
 
@@ -52,47 +55,52 @@ void check_row_count(int line, TAOS_RES* res, int expected) {
 }
 
 
+void do_query(TAOS* taos, const char* sql) {
+  TAOS_RES* res = taos_query(taos, sql);
+  taos_free_result(res);
+}
+
+
 void run_test(TAOS* taos) {
-  taos_query(taos, "drop database if exists test;");
+  do_query(taos, "drop database if exists test;");
   
   usleep(100000);
-  //taos_query(taos, "create database test tables 5;");
-  taos_query(taos, "create database test;");
+  do_query(taos, "create database test;");
   usleep(100000);
-  taos_query(taos, "use test;");
+  do_query(taos, "use test;");
 
   usleep(100000);
-  taos_query(taos, "create table meters(ts timestamp, a int) tags(area int);");
+  do_query(taos, "create table meters(ts timestamp, a int) tags(area int);");
 
-  taos_query(taos, "create table t0 using meters tags(0);");
-  taos_query(taos, "create table t1 using meters tags(1);");
-  taos_query(taos, "create table t2 using meters tags(2);");
-  taos_query(taos, "create table t3 using meters tags(3);");
-  taos_query(taos, "create table t4 using meters tags(4);");
-  taos_query(taos, "create table t5 using meters tags(5);");
-  taos_query(taos, "create table t6 using meters tags(6);");
-  taos_query(taos, "create table t7 using meters tags(7);");
-  taos_query(taos, "create table t8 using meters tags(8);");
-  taos_query(taos, "create table t9 using meters tags(9);");
+  do_query(taos, "create table t0 using meters tags(0);");
+  do_query(taos, "create table t1 using meters tags(1);");
+  do_query(taos, "create table t2 using meters tags(2);");
+  do_query(taos, "create table t3 using meters tags(3);");
+  do_query(taos, "create table t4 using meters tags(4);");
+  do_query(taos, "create table t5 using meters tags(5);");
+  do_query(taos, "create table t6 using meters tags(6);");
+  do_query(taos, "create table t7 using meters tags(7);");
+  do_query(taos, "create table t8 using meters tags(8);");
+  do_query(taos, "create table t9 using meters tags(9);");
 
-  taos_query(taos, "insert into t0 values('2020-01-01 00:00:00.000', 0);");
-  taos_query(taos, "insert into t0 values('2020-01-01 00:01:00.000', 0);");
-  taos_query(taos, "insert into t0 values('2020-01-01 00:02:00.000', 0);");
-  taos_query(taos, "insert into t1 values('2020-01-01 00:00:00.000', 0);");
-  taos_query(taos, "insert into t1 values('2020-01-01 00:01:00.000', 0);");
-  taos_query(taos, "insert into t1 values('2020-01-01 00:02:00.000', 0);");
-  taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.000', 0);");
-  taos_query(taos, "insert into t2 values('2020-01-01 00:00:00.000', 0);");
-  taos_query(taos, "insert into t2 values('2020-01-01 00:01:00.000', 0);");
-  taos_query(taos, "insert into t2 values('2020-01-01 00:01:01.000', 0);");
-  taos_query(taos, "insert into t2 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t3 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t4 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t5 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t6 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t7 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t8 values('2020-01-01 00:01:02.000', 0);");
-  taos_query(taos, "insert into t9 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t0 values('2020-01-01 00:00:00.000', 0);");
+  do_query(taos, "insert into t0 values('2020-01-01 00:01:00.000', 0);");
+  do_query(taos, "insert into t0 values('2020-01-01 00:02:00.000', 0);");
+  do_query(taos, "insert into t1 values('2020-01-01 00:00:00.000', 0);");
+  do_query(taos, "insert into t1 values('2020-01-01 00:01:00.000', 0);");
+  do_query(taos, "insert into t1 values('2020-01-01 00:02:00.000', 0);");
+  do_query(taos, "insert into t1 values('2020-01-01 00:03:00.000', 0);");
+  do_query(taos, "insert into t2 values('2020-01-01 00:00:00.000', 0);");
+  do_query(taos, "insert into t2 values('2020-01-01 00:01:00.000', 0);");
+  do_query(taos, "insert into t2 values('2020-01-01 00:01:01.000', 0);");
+  do_query(taos, "insert into t2 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t3 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t4 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t5 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t6 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t7 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t8 values('2020-01-01 00:01:02.000', 0);");
+  do_query(taos, "insert into t9 values('2020-01-01 00:01:02.000', 0);");
 
   // super tables subscription
   usleep(1000000);
@@ -104,23 +112,23 @@ void run_test(TAOS* taos) {
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 0);
 
-  taos_query(taos, "insert into t0 values('2020-01-01 00:02:00.001', 0);");
-  taos_query(taos, "insert into t8 values('2020-01-01 00:01:03.000', 0);");
+  do_query(taos, "insert into t0 values('2020-01-01 00:02:00.001', 0);");
+  do_query(taos, "insert into t8 values('2020-01-01 00:01:03.000', 0);");
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 2);
 
-  taos_query(taos, "insert into t2 values('2020-01-01 00:01:02.001', 0);");
-  taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.001', 0);");
+  do_query(taos, "insert into t2 values('2020-01-01 00:01:02.001', 0);");
+  do_query(taos, "insert into t1 values('2020-01-01 00:03:00.001', 0);");
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 2);
 
-  taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.002', 0);");
+  do_query(taos, "insert into t1 values('2020-01-01 00:03:00.002', 0);");
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 1);
 
   // keep progress information and restart subscription
   taos_unsubscribe(tsub, 1);
-  taos_query(taos, "insert into t0 values('2020-01-01 00:04:00.000', 0);");
+  do_query(taos, "insert into t0 values('2020-01-01 00:04:00.000', 0);");
   tsub = taos_subscribe(taos, 1, "test", "select * from meters;", NULL, NULL, 0);
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 24);
@@ -147,7 +155,7 @@ void run_test(TAOS* taos) {
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 0);
 
-  taos_query(taos, "insert into t0 values('2020-01-01 00:04:00.001', 0);");
+  do_query(taos, "insert into t0 values('2020-01-01 00:04:00.001', 0);");
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 1);
 
@@ -223,7 +231,7 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 
-  taos_query(taos, "use test;");
+  taos_select_db(taos, "test");
   TAOS_SUB* tsub = NULL;
   if (async) {
     // create an asynchronized subscription, the callback function will be called every 1s
@@ -251,6 +259,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  printf("total rows consumed: %d\n", nTotalRows);
   taos_unsubscribe(tsub, keep);
   taos_close(taos);
 

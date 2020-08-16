@@ -2,6 +2,13 @@ sql connect
 sleep 3000
 print ============================ dnode1 start
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $i = 0
 $dbPrefix = ob_tb_db
 $tbPrefix = ob_tb_tb
@@ -58,7 +65,7 @@ sql create table $tb (ts timestamp, val float, val2 float)
 sql insert into $tb values(now, 5, 5)
 sql select * from $tb
 print ==> $data01 $data02
-if $data01 != 5.0000 then 
+if $data01 != 5.00000 then
   return -1
 endi
 
@@ -162,7 +169,7 @@ endi
 sql insert into $tb values(now, 5, 5)
 sql select * from $tb
 print ==> $data01 $data02
-if $data01 != 5.0000 then 
+if $data01 != 5.00000 then
   return -1
 endi
 

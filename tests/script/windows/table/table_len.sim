@@ -1,6 +1,13 @@
 sql connect
 sleep 3000
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $i = 0
 $dbPrefix = lm_tb_db
 $tbPrefix = lm_tb_tb
@@ -51,7 +58,7 @@ if $rows != 0 then
 endi
 
 print =============== step4
-sql create table ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789 (ts timestamp, speed int)  -x step4
+sql create table ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789 (ts timestamp, speed int)  -x step4
 	return -1
 step4:
 sql show tables

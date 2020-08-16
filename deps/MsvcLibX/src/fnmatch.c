@@ -1,4 +1,4 @@
-/*****************************************************************************\
+ï»¿/*****************************************************************************\
 *                                                                             *
 *   Filename:	    fnmatch.c						      *
 *                                                                             *
@@ -16,7 +16,7 @@
 *    2014-02-28 JFL Added support for UTF-8 pathnames.                 	      *
 *    2014-03-05 JFL In debug mode, hide recursive calls.               	      *
 *									      *
-*         © Copyright 2016 Hewlett Packard Enterprise Development LP          *
+*         Copyright 2016 Hewlett Packard Enterprise Development LP          *
 * Licensed under the Apache 2.0 license - www.apache.org/licenses/LICENSE-2.0 *
 \*****************************************************************************/
 
@@ -26,8 +26,8 @@
 #include <string.h>
 #include <malloc.h>
 
-#include "fnmatch.h" /* Include our associated .h, in the same dir as this .c. Do not use <>. */
-#include "debugm.h"
+#include "msvcFnmatch.h" /* Include our associated .h, in the same dir as this .c. Do not use <>. */
+#include "msvcDebugm.h"
 
 #ifndef TRUE
 #define TRUE 1

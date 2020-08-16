@@ -427,8 +427,9 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         if (ret != 0) {
           break;
         }
-        
-        taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+
+        STableKeyInfo info = {.pTable = *(void**)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
       }
     } else if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL) { // greater equal
       bool comp = true;
@@ -445,7 +446,8 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         if (ret == 0 && optr == TSDB_RELATION_GREATER) {
           continue;
         } else {
-          taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+          STableKeyInfo info = {.pTable = *(void**)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
           comp = false;
         }
       }
@@ -458,8 +460,9 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         if (comp) {
           continue;
         }
-        
-        taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+
+        STableKeyInfo info = {.pTable = *(void**)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
       }
       
       tSkipListDestroyIter(iter);
@@ -472,8 +475,9 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         if (comp) {
           continue;
         }
-  
-        taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+
+        STableKeyInfo info = {.pTable = *(void**)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
       }
   
     } else {
@@ -496,12 +500,14 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
         if (ret == 0 && optr == TSDB_RELATION_LESS) {
           continue;
         } else {
-          taosArrayPush(result, SL_GET_NODE_DATA(pNode));
+          STableKeyInfo info = {.pTable = *(void**)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
           comp = false;  // no need to compare anymore
         }
       }
     }
   }
+
   free(cond.start); 
   free(cond.end);
   tSkipListDestroyIter(iter);
@@ -689,7 +695,8 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     }
 
     if (addToResult) {
-      taosArrayPush(res, pData);
+      STableKeyInfo info = {.pTable = *(void**)pData, .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(res, &info);
     }
   }
 
@@ -716,7 +723,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
     }
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
-    if (pQueryInfo->sch.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX && pQueryInfo->optr != TSDB_RELATION_LIKE) {
+    if (pQueryInfo->indexed && pQueryInfo->optr != TSDB_RELATION_LIKE) {
       tQueryIndexColumn(pSkipList, pQueryInfo, result);
     } else {
       tQueryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);

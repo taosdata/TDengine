@@ -31,7 +31,7 @@ taos> DESCRIBE meters;
 
 - 时间格式为```YYYY-MM-DD HH:mm:ss.MS```, 默认时间分辨率为毫秒。比如：```2017-08-12 18:25:58.128```
 - 内部函数now是服务器的当前时间
-- 插入记录时，如果时间戳为0，插入数据时使用服务器当前时间
+- 插入记录时，如果时间戳为now，插入数据时使用服务器当前时间
 - Epoch Time: 时间戳也可以是一个长整数，表示从1970-01-01 08:00:00.000开始的毫秒数
 - 时间可以加减，比如 now-2h，表明查询时刻向前推2个小时(最近2小时)。数字后面的时间单位：a(毫秒), s(秒), m(分), h(小时), d(天)，w(周), n(月), y(年)。比如select * from t1 where ts > now-2w and ts <= now-1w, 表示查询两周前整整一周的数据
 - TDengine暂不支持时间窗口按照自然年和自然月切分。Where条件中的时间窗口单位的换算关系如下：interval(1y) 等效于 interval(365d), interval(1n) 等效于 interval(30d), interval(1w) 等效于 interval(7d)
@@ -157,7 +157,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     DROP TABLE [IF EXISTS] stb_name;
     ```
-    删除STable会自动删除通过STable创建的字表。
+    删除STable会自动删除通过STable创建的子表。
 
 - **显示当前数据库下的所有超级表信息**
 
@@ -206,7 +206,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
 
-- **修改字表标签值**
+- **修改子表标签值**
 
     ```mysql
     ALTER TABLE tb_name SET TAG tag_name=new_tag_value;

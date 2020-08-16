@@ -33,7 +33,11 @@ extern "C" {
       }                      \
     }
   typedef int SOCKET;
-#endif    
+#endif
+
+#ifndef TAOS_OS_DEF_EPOLL
+  #define TAOS_EPOLL_WAIT_TIME -1
+#endif  
 
 #define taosClose(x) taosCloseSocket(x)
 
@@ -60,6 +64,10 @@ void taosBlockSIGPIPE();
 
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen);
+
+// TAOS_OS_FUNC_SOCKET_INET
+uint32_t taosInetAddr(char *ipAddr);
+const char *taosInetNtoa(struct in_addr ipInt);
 
 #ifdef __cplusplus
 }

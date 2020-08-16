@@ -1,5 +1,12 @@
-sql connect
 sleep 3000
+sql connect
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
 
 $dbPrefix = m_le_db
 $tbPrefix = m_le_tb
@@ -15,7 +22,7 @@ $mt = $mtPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db
+sql create database $db keep 36500
 sql use $db
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
@@ -43,41 +50,43 @@ $tb = $tbPrefix . $i
 
 sql select leastsquares(tbcol, 1, 1) from $tb
 print ===> $data00
-if $data00 != @(1.000000, 1.000000)@ then 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step3
 sql select leastsquares(tbcol, 1, 1) from $tb where ts < now + 4m
 print ===> $data00
-if $data00 != @(1.000000, 1.000000)@ then 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step4
 sql select leastsquares(tbcol, 1, 1) as b from $tb
 print ===> $data00
-if $data00 != @(1.000000, 1.000000)@ then 
+if $data00 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step5
+print select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1m)
 print ===> $data01 
-if $data01 != @(1.000000, 1.000000)@ then 
+if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
+print select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 sql select leastsquares(tbcol, 1, 1) as b from $tb interval(1d)
 print ===> $data01
-if $data01 != @(1.000000, 1.000000)@ then 
+if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 
 print =============== step6
 sql select leastsquares(tbcol, 1, 1) as b from $tb where ts < now + 4m interval(1m)
 print ===> $data01
-if $data01 != @(1.000000, 1.000000)@ then 
+if $data01 != @{slop:1.000000, intercept:1.000000}@ then
   return -1
 endi
 print ===> $rows

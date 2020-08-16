@@ -2,6 +2,13 @@ sql connect
 sleep 3000
 print ======================== dnode1 start
 
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
 $dbPrefix = ta_ch_db
 $tbPrefix = ta_ch_tb
 $mtPrefix = ta_ch_mt
@@ -30,7 +37,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -43,9 +50,9 @@ step21:
 sql alter table $mt change tag tgcol1 tgcol2 -x step22
   return -1
 step22:
-sql alter table $mt change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
-  return -1
-step20:
+#sql alter table $mt change tag tgcol1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx -x step20
+#  return -1
+#step20:
 
 sql alter table $mt change tag tgcol1 tgcol3
 sql alter table $mt change tag tgcol2 tgcol4
@@ -94,7 +101,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
 
@@ -191,7 +198,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -206,7 +213,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -278,22 +285,22 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = 2
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
   
@@ -386,7 +393,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -413,7 +420,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -440,7 +447,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -467,7 +474,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 
@@ -494,7 +501,7 @@ endi
 if $data06 != 6 then 
   return -1
 endi
-if $data07 != NULL then 
+if $data07 != null then 
   return -1
 endi
 

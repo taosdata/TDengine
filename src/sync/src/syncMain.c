@@ -32,7 +32,7 @@
 // global configurable
 int       tsMaxSyncNum = 2;
 int       tsSyncTcpThreads = 2;
-int       tsMaxWatchFiles = 100;
+int       tsMaxWatchFiles = 500;
 int       tsMaxFwdInfo = 200;
 int       tsSyncTimer = 1;
 //int       sDebugFlag = 135;
@@ -96,7 +96,7 @@ static void syncModuleInitFunc() {
     return;
   }
     
-  vgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true); 
+  vgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
   if (vgIdHash == NULL) {
     taosTmrCleanUp(syncTmrCtrl);
     taosCloseTcpThreadPool(tsTcpPool);
@@ -516,7 +516,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo)
   int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, start to check peer connection", pPeer->id);
-    taosTmrReset(syncCheckPeerConnection, 100, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncCheckPeerConnection, 100 + (pNode->vgId*10)%100, pPeer, syncTmrCtrl, &pPeer->timer);
   }
   
   syncAddNodeRef(pNode);
@@ -815,7 +815,7 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer)
   taosTmrStopA(&pPeer->timer);
   if (tsSyncNum >= tsMaxSyncNum) {
     sInfo("%s, %d syncs are in process, try later", pPeer->id, tsSyncNum);
-    taosTmrReset(syncTryRecoverFromMaster, 500, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncTryRecoverFromMaster, 500 + (pNode->vgId*10)%200, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
 

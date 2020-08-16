@@ -62,7 +62,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
+void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   wordexp_t full_path;
   for (int i = 1; i < argc; i++) {
     // for host

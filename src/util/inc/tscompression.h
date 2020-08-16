@@ -56,6 +56,7 @@ static FORCE_INLINE int tsCompressTinyint(const char *const input, int inputSize
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -68,6 +69,7 @@ static FORCE_INLINE int tsDecompressTinyint(const char *const input, int compres
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_TINYINT);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -80,6 +82,7 @@ static FORCE_INLINE int tsCompressSmallint(const char *const input, int inputSiz
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -92,6 +95,7 @@ static FORCE_INLINE int tsDecompressSmallint(const char *const input, int compre
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_SMALLINT);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -104,6 +108,7 @@ static FORCE_INLINE int tsCompressInt(const char *const input, int inputSize, co
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -116,6 +121,7 @@ static FORCE_INLINE int tsDecompressInt(const char *const input, int compressedS
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_INT);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -128,6 +134,7 @@ static FORCE_INLINE int tsCompressBigint(const char *const input, int inputSize,
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -140,6 +147,7 @@ static FORCE_INLINE int tsDecompressBigint(const char *const input, int compress
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_BIGINT);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -152,6 +160,7 @@ static FORCE_INLINE int tsCompressBool(const char *const input, int inputSize, c
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -164,6 +173,7 @@ static FORCE_INLINE int tsDecompressBool(const char *const input, int compressed
     return tsDecompressBoolImp(buffer, nelements, output);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -186,6 +196,7 @@ static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, 
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -198,6 +209,7 @@ static FORCE_INLINE int tsDecompressFloat(const char *const input, int compresse
     return tsDecompressFloatImp(buffer, nelements, output);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -210,6 +222,7 @@ static FORCE_INLINE int tsCompressDouble(const char *const input, int inputSize,
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -222,6 +235,7 @@ static FORCE_INLINE int tsDecompressDouble(const char *const input, int compress
     return tsDecompressDoubleImp(buffer, nelements, output);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -234,6 +248,7 @@ static FORCE_INLINE int tsCompressTimestamp(const char *const input, int inputSi
     return tsCompressStringImp(buffer, len, output, outputSize);
   } else {
     assert(0);
+    return -1;
   }
 }
 
@@ -246,6 +261,7 @@ static FORCE_INLINE int tsDecompressTimestamp(const char *const input, int compr
     return tsDecompressTimestampImp(buffer, nelements, output);
   } else {
     assert(0);
+    return -1;
   }
 }
 
