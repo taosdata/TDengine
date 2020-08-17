@@ -347,6 +347,21 @@ int taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
+  // set up send buf
+  int sendbuf = 16 * 1024; 
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_SNDBUF, (void *)&sendbuf, sizeof(sendbuf)) < 0) {
+    uError("fd:%d setsockopt TCP_SNDBUF failed %d (%s)", sockFd, errno, strerror(errno));
+    taosCloseSocket(sockFd);
+    return -1;
+  } 
+   
+  int recvbuf = 8 * 1024;
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_RCVBUF, (void *)&recvbuf, sizeof(recvbuf)) < 0) {
+    uError("fd:%d setsockopt TCP_RCVBUF failed %d (%s)", sockFd, errno, strerror(errno));
+    taosCloseSocket(sockFd);
+    return -1;
+  } 
+
   struct linger linger = {0};
   linger.l_onoff = 1;
   linger.l_linger = 3;
@@ -397,7 +412,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
     return -1;
   }
 
-  if (listen(sockFd, 10) < 0) {
+  if (listen(sockFd, 512) < 0) {
     uError("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
