@@ -70,14 +70,27 @@ int32_t mqttInitSystem() {
     recntStatus.port = strbetween("'1883'", "'", "'");
   }
 
-  topicPath = strbetween(strstr(url, strstr(_begin_hostname, ":") != NULL ? recntStatus.port : recntStatus.hostname),
-                         "/", "/");
-  char* _topic = "+/+/+/";
-  int   _tpsize = strlen(topicPath) + strlen(_topic) + 1;
-  recntStatus.topic = calloc(1, _tpsize);
-  sprintf(recntStatus.topic, "/%s/%s", topicPath, _topic);
-  recntStatus.client_id = strlen(tsMqttBrokerClientId) < 3 ? tsMqttBrokerClientId : "taos_mqtt";
-  mqttConnect = NULL;
+  char* portStr = recntStatus.hostname;
+  if (_begin_hostname != NULL) {
+    char* colonStr = strstr(_begin_hostname, ":");
+    if (colonStr != NULL) {
+      portStr = recntStatus.port;
+    }
+  }
+
+  char* topicStr = strstr(url, portStr);
+  if (topicStr != NULL) {
+    topicPath = strbetween(topicStr, "/", "/");
+    char* _topic = "+/+/+/";
+    int   _tpsize = strlen(topicPath) + strlen(_topic) + 1;
+    recntStatus.topic = calloc(1, _tpsize);
+    sprintf(recntStatus.topic, "/%s/%s", topicPath, _topic);
+    recntStatus.client_id = strlen(tsMqttBrokerClientId) < 3 ? tsMqttBrokerClientId : "taos_mqtt";
+    mqttConnect = NULL;
+  } else {
+    topicPath = NULL;
+  }
+  
   return rc;
 }
 

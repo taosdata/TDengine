@@ -73,9 +73,9 @@ static int32_t mnodeDbActionInsert(SSdbOper *pOper) {
   pthread_mutex_lock(&pDb->mutex);
   pDb->vgListSize = VG_LIST_SIZE;
   pDb->vgList = calloc(pDb->vgListSize, sizeof(SVgObj *));
+  pDb->numOfVgroups = 0;
   pthread_mutex_unlock(&pDb->mutex);
 
-  pDb->numOfVgroups = 0;
   pDb->numOfTables = 0;
   pDb->numOfSuperTables = 0;
 
@@ -927,7 +927,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
 
   if (quorum >= 0 && quorum != pDb->cfg.quorum) {
     mDebug("db:%s, quorum:%d change to %d", pDb->name, pDb->cfg.quorum, quorum);
-    newCfg.compression = quorum;
+    newCfg.quorum = quorum;
   }
 
   return newCfg;

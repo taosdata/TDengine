@@ -710,10 +710,10 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->clusterCfg.statusInterval     = htonl(tsStatusInterval);
   pStatus->clusterCfg.maxtablesPerVnode  = htonl(tsMaxTablePerVnode);
   pStatus->clusterCfg.maxVgroupsPerDb    = htonl(tsMaxVgroupsPerDb);
-  strcpy(pStatus->clusterCfg.arbitrator, tsArbitrator);
-  strcpy(pStatus->clusterCfg.timezone, tsTimezone);
-  strcpy(pStatus->clusterCfg.locale, tsLocale);
-  strcpy(pStatus->clusterCfg.charset, tsCharset);  
+  tstrncpy(pStatus->clusterCfg.arbitrator, tsArbitrator, TSDB_EP_LEN);
+  tstrncpy(pStatus->clusterCfg.timezone, tsTimezone, 64);
+  tstrncpy(pStatus->clusterCfg.locale, tsLocale, TSDB_LOCALE_LEN);
+  tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);  
   
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
