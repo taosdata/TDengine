@@ -17,7 +17,7 @@ function runTest {
 
   for r in ${!rowsPerRequest[@]}; do
     for c in `seq 1 $clients`; do
-      avgRPR[$r, $c]=0
+      avgRPR[$r,$c]=0
     done
   done
 
@@ -33,19 +33,19 @@ function runTest {
 	      -dataDir $DATA_DIR \
 	      -numOfFiles $NUM_OF_FILES \
 	      -w -clients $c \
-	      -rowsPerRequest $r"
+	      -rowsPerRequest ${rowsPerRequest[$r]}"
         $TDTEST_DIR/tdengineTest \
           -dataDir $DATA_DIR \
           -numOfFiles 1 \
           -w -clients $c \
-          -rowsPerRequest $r \
+          -rowsPerRequest ${rowsPerRequest[$r]} \
 	  | tee $OUTPUT_FILE
         RPR=`cat $OUTPUT_FILE  | grep speed | awk '{print $(NF-1)}'`
         totalRPR=`echo "scale=4; $totalRPR + $RPR" | bc`
-        printTo "rows:$r, clients:$c, i:$i RPR:$RPR"
+        printTo "rows:${rowsPerRequest[$r]}, clients:$c, i:$i RPR:$RPR"
       done
       avgRPR[$r,$c]=`echo "scale=4; $totalRPR / $NUM_LOOP" | bc`
-      printTo "r:$r c:$c avgRPR:${avgRPR[$r, $c]}"
+      printTo "r:${rowsPerRequest[$r]} c:$c avgRPR:${avgRPR[$r,$c]}"
     done
   done
 
