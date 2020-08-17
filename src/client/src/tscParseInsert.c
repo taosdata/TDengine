@@ -904,6 +904,11 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       sToken = tStrGetToken(sql, &index, true, numOfIgnoreToken, &ignoreTokenTypes);
       sql += index;
 
+      if (TK_ILLEGAL == sToken.type) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
+
       if (sToken.n == 0 || sToken.type == TK_RP) {
         break;
       }

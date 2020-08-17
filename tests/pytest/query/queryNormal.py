@@ -36,7 +36,8 @@ class TDTestCase:
             "insert into tb2 using stb1 tags(2,'tb2', '表2') values ('2020-04-18 15:00:02.000', 3, 2.1), ('2020-04-18 15:00:03.000', 4, 2.2)")
 
         # inner join --- bug
-        tdSql.error("select * from tb1 a, tb2 b where a.ts = b.ts")        
+        tdSql.query("select * from tb1 a, tb2 b where a.ts = b.ts")
+        tdSql.checkRows(0)
 
         # join 3 tables -- bug exists
         tdSql.error("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
