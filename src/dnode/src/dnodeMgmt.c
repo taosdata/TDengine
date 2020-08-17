@@ -449,7 +449,12 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 }
 
 void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
-  dInfo("mnode EP list for is changed, numOfEps:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
+  if (pEpSet->numOfEps <= 0) {
+    dError("mnode EP list for peer is changed, but content is invalid, discard it");
+    return;
+  }
+
+  dInfo("mnode EP list for peer is changed, numOfEps:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
   for (int i = 0; i < pEpSet->numOfEps; ++i) {
     pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i])
