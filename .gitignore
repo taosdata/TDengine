@@ -97,7 +97,7 @@ kit/taoshtc/temp
 kit/taoshtc/output
 kit/taoshtc/cfg
 *.pdf
-
+*.exe
 target/
 .idea/
 *.iml
@@ -144,6 +144,12 @@ temp.sql
 *.lib
 debug/
 release/
+sln/
+sln2013/
+sln2019/
+debug2013/
+debug2019/
+2019/
 mac/
 debs/
 rpms/
