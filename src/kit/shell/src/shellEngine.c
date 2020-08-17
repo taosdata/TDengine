@@ -38,6 +38,7 @@ SShellHistory   history;
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
 extern int32_t tsMaxBinaryDisplayWidth;
+extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 
 /*
  * FUNCTION: Initialize the shell.
@@ -70,7 +71,13 @@ TAOS *shellInit(SShellArguments *args) {
   tsTableMetaKeepTimer = 3000;
 
   // Connect to the database.
-  TAOS *con = taos_connect(args->host, args->user, args->password, args->database, args->port);
+  TAOS *con = NULL;
+  if (args->auth == NULL) {
+    con = taos_connect(args->host, args->user, args->password, args->database, args->port);
+  } else {
+    con = taos_connect_auth(args->host, args->user, args->auth, args->database, args->port);
+  }
+
   if (con == NULL) {
     printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
     fflush(stdout);

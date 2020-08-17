@@ -146,6 +146,7 @@ char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
 // internal
+int32_t tsPrintAuth = 0;
 int32_t tscEmbedded = 0;
 char    configDir[TSDB_FILENAME_LEN] = {0};
 char    tsVnodeDir[TSDB_FILENAME_LEN] = {0};
