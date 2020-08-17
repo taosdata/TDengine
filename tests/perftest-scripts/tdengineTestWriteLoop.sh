@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATA_DIR=/mnt/root/testdata
-NUM_LOOP=1
+NUM_LOOP=5
 NUM_OF_FILES=100
 
 rowsPerRequest=(1 100 500 1000 2000)
@@ -13,6 +13,42 @@ function printTo {
 }
 
 function runTest {
+  declare -A avgRPR
+
+  for r in ${!rowsPerRequest[@]}; do
+    for c in `seq 1 $clients`; do
+      avgRPR[$r, $c]=0
+    done
+  done
+
+  for r in ${!rowsPerRequest[@]}; do
+    for c in `seq 1 $clients`; do
+      totalRPR=0
+      OUTPUT_FILE=tdengineTestWrite-RPR${rowsPerRequest[$r]}-clients$c.out
+
+      for i in `seq 1 $NUM_LOOP`; do
+	restartTaosd
+        $TAOSD_DIR/taos -s "drop database db" > /dev/null 2>&1
+        printTo "loop i:$i, $TDTEST_DIR/tdengineTest \
+	      -dataDir $DATA_DIR \
+	      -numOfFiles $NUM_OF_FILES \
+	      -w -clients $c \
+	      -rowsPerRequest $r"
+        $TDTEST_DIR/tdengineTest \
+          -dataDir $DATA_DIR \
+          -numOfFiles 1 \
+          -w -clients $c \
+          -rowsPerRequest $r \
+	  | tee $OUTPUT_FILE
+        RPR=`cat $OUTPUT_FILE  | grep speed | awk '{print $(NF-1)}'`
+        totalRPR=`echo "scale=4; $totalRPR + $RPR" | bc`
+        printTo "rows:$r, clients:$c, i:$i RPR:$RPR"
+      done
+      avgRPR[$r,$c]=`echo "scale=4; $totalRPR / $NUM_LOOP" | bc`
+      printTo "r:$r c:$c avgRPR:${avgRPR[$r, $c]}"
+    done
+  done
+
   printf "R/R, "
   for c in `seq 1 $clients`; do
     if [ "$c" == "1" ]; then
@@ -23,29 +59,10 @@ function runTest {
   done
   printf "\n"
 
-  for r in ${rowsPerRequest[@]}; do
-    printf "$r, "
+  for r in ${!rowsPerRequest[@]}; do
+    printf "${rowsPerRequest[$r]}, "
     for c in `seq 1 $clients`; do
-      totalRPR=0
-      for i in `seq 1 $NUM_LOOP`; do
-	restartTaosd
-        $TAOSD_DIR/taos -s "drop database db" > /dev/null 2>&1
-        printTo "loop i:$i, $TDTEST_DIR/tdengineTest \
-	      -dataDir $DATA_DIR \
-	      -numOfFiles $NUM_OF_FILES \
-	      -w -clients $c \
-	      -rowsPerRequest $r"
-        RPR=`$TDTEST_DIR/tdengineTest \
-          -dataDir $DATA_DIR \
-          -numOfFiles $NUM_OF_FILES \
-          -w -clients $c \
-          -rowsPerRequest $r \
-          | grep speed | awk '{print $(NF-1)}'`
-        totalRPR=`echo "scale=4; $totalRPR + $RPR" | bc`
-        printTo "rows:$r, clients:$c, i:$i RPR:$RPR"
-      done
-      avgRPR=`echo "scale=4; $totalRPR / $NUM_LOOP" | bc`
-      printf "$avgRPR, "
+      printf "${avgRPR[$r,$c]}, "
     done
     printf "\n"
   done
@@ -80,10 +97,6 @@ while : ; do
       verbose=true
       shift ;;
 
-    -n)
-      NUM_LOOP=$2
-      shift 2;;
-
     master)
       master=true
       develop=false
@@ -98,18 +111,22 @@ while : ; do
       clients=$2
       shift 2;;
 
+    -n)
+      NUM_LOOP=$2
+      shift 2;;
+
     *)
       break ;;
   esac
 done
 
 if $master ; then
-  printTo "Test master branch.."
+  echo "Test master branch.."
   cp /mnt/root/cfg/master/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine.master
 else
-  printTo "Test develop branch.."
-  cp /mnt/root/cfg/perftest/taos.cfg /etc/taos/taos.cfg
+  echo "Test develop branch.."
+  cp /mnt/root/cfg/10billion/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine
 fi
 
@@ -118,4 +135,4 @@ TDTEST_DIR=$WORK_DIR/tests/comparisonTest/tdengine
 
 runTest
 
-printTo "Test done!"
+echo "Test done!"
