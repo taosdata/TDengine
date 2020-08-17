@@ -210,10 +210,14 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
     }
   }
 
+#if 0
   // todo refactor
   if (tscResultsetFetchCompleted(result)) {
+    httpDebug("context:%p, fd:%d, ip:%s, user:%s, resultset fetch completed", pContext, pContext->fd, pContext->ipstr,
+              pContext->user);
     isContinue = false;
   }
+#endif
 
   if (isContinue) {
     // retrieve next batch of rows
