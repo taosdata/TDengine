@@ -351,6 +351,8 @@ void tsdbGetStoreInfo(char *fname, uint32_t *magic, int32_t *size) {
   *magic = info.magic;
   *size = (int32_t)offset;
 
+  return;
+
 _err:
   if (fd >= 0) close(fd);
   *magic = TD_KVSTORE_INIT_MAGIC;

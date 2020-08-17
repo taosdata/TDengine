@@ -132,7 +132,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
         char *fname = malloc(strlen(tDataDir) + strlen(dp->d_name) + 2);
         if (fname == NULL) goto _err;
         sprintf(fname, "%s/%s", tDataDir, dp->d_name);
-        remove(fname);
+        (void)remove(fname);
         free(fname);
       } else if (code == REG_NOMATCH) {
         tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
@@ -446,6 +446,8 @@ void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int32_t *size) {
 
   *magic = info.magic;
   *size = (int32_t)offset;
+
+  return;
 
 _err:
   if (fd >= 0) close(fd);
