@@ -67,7 +67,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     taosEncryptPass((uint8_t *)pass, strlen(pass), secretEncrypt);
   } else {
     int   outlen = 0;
-    int   len = strlen(auth);
+    int   len = (int)strlen(auth);
     char *base64 = (char *)base64_decode(auth, len, &outlen);
     if (base64 == NULL || outlen == 0) {
       tscError("invalid auth info:%s", auth);
