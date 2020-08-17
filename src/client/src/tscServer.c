@@ -622,7 +622,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for query msg", pSql);
-    return -1;  // todo add test for this
+    return TSDB_CODE_TSC_INVALID_SQL;  // todo add test for this
   }
   
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -631,17 +631,17 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   if (taosArrayGetSize(pQueryInfo->colList) <= 0 && !tscQueryTags(pQueryInfo)) {
     tscError("%p illegal value of numOfCols in query msg: %d", pSql, tscGetNumOfColumns(pTableMeta));
-    return -1;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   if (pQueryInfo->intervalTime < 0) {
     tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
-    return -1;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   if (pQueryInfo->groupbyExpr.numOfGroupCols < 0) {
     tscError("%p illegal value of numOfGroupCols in query msg: %d", pSql, pQueryInfo->groupbyExpr.numOfGroupCols);
-    return -1;
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pCmd->payload;
@@ -719,7 +719,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       if (pColFilter->lowerRelOptr == TSDB_RELATION_INVALID && pColFilter->upperRelOptr == TSDB_RELATION_INVALID) {
         tscError("invalid filter info");
-        return -1;
+        return TSDB_CODE_TSC_INVALID_SQL;
       }
     }
   }
@@ -731,7 +731,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId)) {
       /* column id is not valid according to the cached table meta, the table meta is expired */
       tscError("%p table schema is not matched with parsed sql", pSql);
-      return -1;
+      return TSDB_CODE_TSC_INVALID_SQL;
     }
 
     pSqlFuncExpr->colInfo.colId    = htons(pExpr->colInfo.colId);
@@ -1279,7 +1279,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int size = tscEstimateAlterTableMsgLength(pCmd);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for alter table msg", pSql);
-    return -1;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   
   SCMAlterTableMsg *pAlterTableMsg = (SCMAlterTableMsg *)pCmd->payload;
@@ -1631,7 +1631,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
     tscError("%p failed to malloc for heartbeat msg", pSql);
-    return -1;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;

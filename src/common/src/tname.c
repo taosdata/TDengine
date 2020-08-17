@@ -43,7 +43,24 @@ SSchema tGetTableNameColumnSchema() {
   s.bytes = TSDB_TABLE_NAME_LEN - 1 + VARSTR_HEADER_SIZE;
   s.type  = TSDB_DATA_TYPE_BINARY;
   s.colId = TSDB_TBNAME_COLUMN_INDEX;
-  strncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
+  tstrncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
+  return s;
+}
+
+SSchema tGetUserSpecifiedColumnSchema(const char* v, int16_t type, const char* name) {
+  SSchema s = {0};
+
+  s.type  = type;
+  if (s.type == TSDB_DATA_TYPE_BINARY || s.type == TSDB_DATA_TYPE_NCHAR) {
+    size_t len = strlen(v);
+    s.bytes = len + VARSTR_HEADER_SIZE;
+  } else {
+    s.bytes = tDataTypeDesc[type].nSize;
+  }
+
+  s.colId = TSDB_UD_COLUMN_INDEX;
+  tstrncpy(s.name, name, sizeof(s.name));
+
   return s;
 }
 

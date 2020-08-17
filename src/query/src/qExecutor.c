@@ -35,6 +35,9 @@
  */
 #define Q_STATUS_EQUAL(p, s)  (((p) & (s)) != 0)
 #define TSDB_COL_IS_TAG(f)    (((f)&TSDB_COL_TAG) != 0)
+#define TSDB_COL_IS_NORMAL_COL(f)    ((f) == TSDB_COL_NORMAL)
+#define TSDB_COL_IS_UD_COL(f)   ((f) == TSDB_COL_UDC)
+
 #define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
@@ -371,14 +374,14 @@ static bool hasTagValOutput(SQuery* pQuery) {
  * @return
  */
 static bool hasNullValue(SColIndex* pColIndex, SDataStatis *pStatis, SDataStatis **pColStatis) {
-  if (pStatis != NULL && !TSDB_COL_IS_TAG(pColIndex->flag)) {
+  if (pStatis != NULL && TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
     *pColStatis = &pStatis[pColIndex->colIndex];
     assert((*pColStatis)->colId == pColIndex->colId);
   } else {
     *pColStatis = NULL;
   }
 
-  if (TSDB_COL_IS_TAG(pColIndex->flag) || pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (TSDB_COL_IS_TAG(pColIndex->flag) || TSDB_COL_IS_UD_COL(pColIndex->flag) || pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     return false;
   }
 
@@ -884,14 +887,14 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
 
   } else {  // other type of query function
     SColIndex *pCol = &pQuery->pSelectExpr[col].base.colInfo;
-    if (TSDB_COL_IS_TAG(pCol->flag)) {
-      dataBlock = NULL;
-    } else {
+    if (TSDB_COL_IS_NORMAL_COL(pCol->flag)) {
       SColIndex* pColIndex = &pQuery->pSelectExpr[col].base.colInfo;
       SColumnInfoData *p = taosArrayGet(pDataBlock, pColIndex->colIndex);
       assert(p->info.colId == pColIndex->colId);
 
       dataBlock = p->pData;
+    } else {
+      dataBlock = NULL;
     }
   }
 
@@ -1536,7 +1539,9 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
         pCtx->inputBytes = pQuery->tagColList[index].bytes;
         pCtx->inputType = pQuery->tagColList[index].type;
       }
-      
+    } else if (TSDB_COL_IS_UD_COL(pIndex->flag)) {
+      pCtx->inputBytes = pSqlFuncMsg->arg[0].argBytes;
+      pCtx->inputType = pSqlFuncMsg->arg[0].argType;
     } else {
       pCtx->inputBytes = pQuery->colList[index].bytes;
       pCtx->inputType = pQuery->colList[index].type;
@@ -5231,6 +5236,8 @@ static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pE
       j += 1;
     }
 
+  } else if (pExprMsg->colInfo.flag == TSDB_COL_UDC) {  // user specified column data
+    return TSDB_UD_COLUMN_INDEX;
   } else {
     while (j < pQueryMsg->numOfCols) {
       if (pExprMsg->colInfo.colId == pQueryMsg->colList[j].colId) {
@@ -5590,9 +5597,18 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
       bytes = tDataTypeDesc[type].nSize;
     } else if (pExprs[i].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX && pExprs[i].base.functionId == TSDB_FUNC_TAGPRJ) {  // parse the normal column
       SSchema s = tGetTableNameColumnSchema();
-      type  = s.type;
+      type = s.type;
       bytes = s.bytes;
-    } else{
+    } else if (pExprs[i].base.colInfo.colId == TSDB_UD_COLUMN_INDEX) {
+      assert(pExprs[i].base.functionId == TSDB_FUNC_PRJ);
+
+      type = pExprs[i].base.arg[0].argType;
+      bytes = pExprs[i].base.arg[0].argBytes;
+
+      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+        bytes += VARSTR_HEADER_SIZE;
+      }
+    } else {
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
       assert(j < pQueryMsg->numOfCols || j < pQueryMsg->numOfTags);
 
@@ -5765,7 +5781,7 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
 
     // todo opt performance
     SColIndex *pColIndex = &pSqlExprMsg->colInfo;
-    if (!TSDB_COL_IS_TAG(pColIndex->flag)) {
+    if (TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
       int32_t f = 0;
       for (f = 0; f < pQuery->numOfCols; ++f) {
         if (pColIndex->colId == pQuery->colList[f].colId) {
@@ -5773,8 +5789,10 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
           break;
         }
       }
-      
-      assert (f < pQuery->numOfCols);
+
+      assert(f < pQuery->numOfCols);
+    } else if (pColIndex->colId == TSDB_UD_COLUMN_INDEX) {
+      // do nothing
     } else {
       int32_t f = 0;
       for (f = 0; f < pQuery->numOfTags; ++f) {

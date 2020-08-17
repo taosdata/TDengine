@@ -138,8 +138,8 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 
-void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
-                                  SSchema* pColSchema, int16_t colType);
+SSqlExpr* tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
+                                       SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);

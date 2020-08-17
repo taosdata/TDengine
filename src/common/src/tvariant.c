@@ -167,7 +167,11 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
+
+    return;
   }
+
+  pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
 }
 
 int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {

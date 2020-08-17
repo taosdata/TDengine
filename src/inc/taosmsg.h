@@ -167,9 +167,9 @@ enum _mgmt_table {
 #define TSDB_VN_WRITE_ACCCESS ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
 
-#define TSDB_COL_NORMAL 0x0u
-#define TSDB_COL_TAG    0x1u
-#define TSDB_COL_JOIN   0x2u
+#define TSDB_COL_NORMAL          0x0u    // the normal column of the table
+#define TSDB_COL_TAG             0x1u    // the tag column type
+#define TSDB_COL_UDC   0x2u    // the user specified normal string column, it is a dummy column
 
 extern char *taosMsg[];
 

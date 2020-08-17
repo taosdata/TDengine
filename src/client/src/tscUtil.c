@@ -926,7 +926,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
 }
 
 static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t interSize, bool isTagCol) {
+    int16_t size, int16_t interSize, int32_t colType) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   
   SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
@@ -935,8 +935,10 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
+  } else if (pColIndex->columnIndex == TSDB_UD_COLUMN_INDEX) {
+    pExpr->colInfo.colId = TSDB_UD_COLUMN_INDEX;
   } else {
-    if (isTagCol) {
+    if (TSDB_COL_IS_TAG(colType)) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
       tstrncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, sizeof(pExpr->colInfo.name));
@@ -948,9 +950,9 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
     }
   }
   
-  pExpr->colInfo.flag = isTagCol? TSDB_COL_TAG:TSDB_COL_NORMAL;
-  
+  pExpr->colInfo.flag     = colType;
   pExpr->colInfo.colIndex = pColIndex->columnIndex;
+
   pExpr->resType       = type;
   pExpr->resBytes      = size;
   pExpr->interBytes    = interSize;
@@ -1291,7 +1293,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId == TSDB_UD_COLUMN_INDEX) {
     return true;
   }
 

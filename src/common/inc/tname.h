@@ -28,6 +28,8 @@ void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 
 SSchema tGetTableNameColumnSchema();
 
+SSchema tGetUserSpecifiedColumnSchema(const char* v, int16_t type, const char* name);
+
 bool tscValidateTableNameLength(size_t len);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);

@@ -2906,18 +2906,30 @@ static FORCE_INLINE void date_col_output_function_f(SQLFunctionCtx *pCtx, int32_
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  INC_INIT_VAL(pCtx, pCtx->size);
-  
-  char *pData = GET_INPUT_CHAR(pCtx);
-  if (pCtx->order == TSDB_ORDER_ASC) {
-    memcpy(pCtx->aOutputBuf, pData, (size_t)pCtx->size * pCtx->inputBytes);
-  } else {
+  if (pCtx->numOfParams == 1) {  // the number of output rows should not affect the final number of rows, so set it to be 1
+    INC_INIT_VAL(pCtx, 1);
+
+    char* output = pCtx->aOutputBuf;
     for(int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(pCtx->aOutputBuf + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
-             pCtx->inputBytes);
+      tVariantDump(&pCtx->param[0], output, pCtx->outputType, true);
+      output += pCtx->outputBytes;
+    }
+
+  } else {
+
+    INC_INIT_VAL(pCtx, pCtx->size);
+
+    char *pData = GET_INPUT_CHAR(pCtx);
+    if (pCtx->order == TSDB_ORDER_ASC) {
+      memcpy(pCtx->aOutputBuf, pData, (size_t) pCtx->size * pCtx->inputBytes);
+    } else {
+      for(int32_t i = 0; i < pCtx->size; ++i) {
+        memcpy(pCtx->aOutputBuf + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
+               pCtx->inputBytes);
+      }
     }
   }
-  
+
   pCtx->aOutputBuf += pCtx->size * pCtx->outputBytes;
 }
 
