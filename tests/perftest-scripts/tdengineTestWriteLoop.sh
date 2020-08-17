@@ -36,7 +36,7 @@ function runTest {
 	      -rowsPerRequest ${rowsPerRequest[$r]}"
         $TDTEST_DIR/tdengineTest \
           -dataDir $DATA_DIR \
-          -numOfFiles 1 \
+          -numOfFiles $NUM_OF_FILES \
           -w -clients $c \
           -rowsPerRequest ${rowsPerRequest[$r]} \
 	  | tee $OUTPUT_FILE
@@ -126,7 +126,7 @@ if $master ; then
   WORK_DIR=/mnt/root/TDengine.master
 else
   echo "Test develop branch.."
-  cp /mnt/root/cfg/10billion/taos.cfg /etc/taos/taos.cfg
+  cp /mnt/root/cfg/develop/taos.cfg /etc/taos/taos.cfg
   WORK_DIR=/mnt/root/TDengine
 fi
 
