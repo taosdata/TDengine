@@ -371,7 +371,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   serverAdd.sin_addr.s_addr = ip;
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+  if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 2) {
     uError("failed to open TCP socket: %d (%s)", errno, strerror(errno));
     return -1;
   }
@@ -382,7 +382,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
     uError("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
-  };
+  }
 
   /* bind socket to server address */
   if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {

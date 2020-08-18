@@ -16,6 +16,7 @@
 #include "hash.h"
 #include "os.h"
 #include "qAst.h"
+#include "tkey.h"
 #include "tcache.h"
 #include "tnote.h"
 #include "trpc.h"
@@ -47,18 +48,37 @@ static bool validPassword(const char* passwd) {
   return validImpl(passwd, TSDB_PASSWORD_LEN - 1);
 }
 
-SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
-                       void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
+SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
+                         uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
   taos_init();
-  
+
   if (!validUserName(user)) {
     terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
     return NULL;
   }
 
-  if (!validPassword(pass)) {
-    terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
-    return NULL;
+  char secretEncrypt[32] = {0};
+  int  secretEncryptLen = 0;
+  if (auth == NULL) {
+    if (!validPassword(pass)) {
+      terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
+      return NULL;
+    }
+    taosEncryptPass((uint8_t *)pass, strlen(pass), secretEncrypt);
+  } else {
+    int   outlen = 0;
+    int   len = (int)strlen(auth);
+    char *base64 = (char *)base64_decode(auth, len, &outlen);
+    if (base64 == NULL || outlen == 0) {
+      tscError("invalid auth info:%s", auth);
+      free(base64);
+      terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
+      return NULL;
+    } else {
+      memcpy(secretEncrypt, base64, outlen);
+      free(base64);
+    }
+    secretEncryptLen = outlen;
   }
 
   if (ip) {
@@ -67,7 +87,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   } 
  
   void *pDnodeConn = NULL;
-  if (tscInitRpc(user, pass, &pDnodeConn) != 0) {
+  if (tscInitRpc(user, secretEncrypt, &pDnodeConn) != 0) {
     terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -82,7 +102,8 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   pObj->signature = pObj;
 
   tstrncpy(pObj->user, user, sizeof(pObj->user));
-  taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
+  secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
+  memcpy(pObj->pass, secretEncrypt, secretEncryptLen);
 
   if (db) {
     int32_t len = (int32_t)strlen(db);
@@ -144,20 +165,17 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
   tsem_post(&pSql->rspSem);
 }
 
-TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
-  if (user == NULL) user = TSDB_DEFAULT_USER;
-  if (pass == NULL) pass = TSDB_DEFAULT_PASS;
-
-  STscObj* pObj = NULL;
-  SSqlObj *pSql = taosConnectImpl(ip, user, pass, db, port, syncConnCallback, NULL, (void**) &pObj);
+TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
+                            uint16_t port) {
+  STscObj *pObj = NULL;
+  SSqlObj *pSql = taosConnectImpl(ip, user, pass, auth, db, port, syncConnCallback, NULL, (void **)&pObj);
   if (pSql != NULL) {
     pSql->fp = syncConnCallback;
     pSql->param = pSql;
-    
+
     tscProcessSql(pSql);
     tsem_wait(&pSql->rspSem);
-    
+
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
       taos_free_result(pSql);
@@ -182,23 +200,38 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
-TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t userLen, 
-    const char *pass, uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
-    char ipBuf[TSDB_EP_LEN] = {0};
-    char userBuf[TSDB_USER_LEN] = {0};
-    char passBuf[TSDB_PASSWORD_LEN] = {0};
-    char dbBuf[TSDB_DB_NAME_LEN] = {0};
-    strncpy(ipBuf,   ip,   MIN(TSDB_EP_LEN - 1,     ipLen)); 
-    strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1,    userLen)); 
-    strncpy(passBuf, pass, MIN(TSDB_PASSWORD_LEN - 1,passLen)); 
-    strncpy(dbBuf,   db,   MIN(TSDB_DB_NAME_LEN - 1, dbLen)); 
-    return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);  
+TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
+  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
+  if (user == NULL) user = TSDB_DEFAULT_USER;
+  if (pass == NULL) pass = TSDB_DEFAULT_PASS;
+
+  return taos_connect_internal(ip, user, pass, NULL, db, port);
 }
 
+TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
+  tscDebug("try to create a connection to %s:%u by auth, user:%s db:%s", ip, port, user, db);
+  if (user == NULL) user = TSDB_DEFAULT_USER;
+  if (auth == NULL) return NULL;
+
+  return taos_connect_internal(ip, user, NULL, auth, db, port);
+}
+
+TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t userLen, const char *pass,
+                     uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
+  char ipBuf[TSDB_EP_LEN] = {0};
+  char userBuf[TSDB_USER_LEN] = {0};
+  char passBuf[TSDB_PASSWORD_LEN] = {0};
+  char dbBuf[TSDB_DB_NAME_LEN] = {0};
+  strncpy(ipBuf, ip, MIN(TSDB_EP_LEN - 1, ipLen));
+  strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1, userLen));
+  strncpy(passBuf, pass, MIN(TSDB_PASSWORD_LEN - 1, passLen));
+  strncpy(dbBuf, db, MIN(TSDB_DB_NAME_LEN - 1, dbLen));
+  return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
+}
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-  SSqlObj* pSql = taosConnectImpl(ip, user, pass, db, port, fp, param, taos);
+  SSqlObj* pSql = taosConnectImpl(ip, user, pass, NULL, db, port, fp, param, taos);
   if (pSql == NULL) {
     return NULL;
   }

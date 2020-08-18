@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tdataformat.h"
+#include "tkey.h"
 #include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
@@ -100,6 +101,32 @@ static int32_t mnodeUserActionDecode(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void mnodePrintUserAuth() {
+  FILE *fp = fopen("auth.txt", "w");
+  if (!fp) {
+    mDebug("failed to auth.txt for write");
+    return;
+  }
+  
+  void *    pIter = NULL;
+  SUserObj *pUser = NULL;
+
+  while (1) {
+    pIter = mnodeGetNextUser(pIter, &pUser);
+    if (pUser == NULL) break;
+
+    char *base64 = base64_encode((const unsigned char *)pUser->pass, TSDB_KEY_LEN * 2);
+    fprintf(fp, "user:%24s auth:%s\n", pUser->user, base64);
+    free(base64);
+
+    mnodeDecUserRef(pUser);
+  }
+
+  fflush(fp);
+  sdbFreeIter(pIter);
+  fclose(fp);
+}
+
 static int32_t mnodeUserActionRestored() {
   int32_t numOfRows = sdbGetNumOfRows(tsUserSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
@@ -109,6 +136,11 @@ static int32_t mnodeUserActionRestored() {
     mnodeCreateUser(pAcct, "monitor", tsInternalPass, NULL);
     mnodeCreateUser(pAcct, "_"TSDB_DEFAULT_USER, tsInternalPass, NULL);
     mnodeDecAcctRef(pAcct);
+  }
+
+  if (tsPrintAuth != 0) {
+    mInfo("print user auth, for -A parameter is set");
+    mnodePrintUserAuth();
   }
 
   return TSDB_CODE_SUCCESS;

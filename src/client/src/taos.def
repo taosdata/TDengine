@@ -3,6 +3,7 @@ taos_init
 taos_cleanup
 taos_options
 taos_connect
+taos_connect_auth
 taos_close
 taos_stmt_init
 taos_stmt_prepare

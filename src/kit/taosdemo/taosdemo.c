@@ -85,9 +85,9 @@ typedef struct DemoArguments {
 #ifdef LINUX
   /* The options we understand. */
   static struct argp_option options[] = {
-    {0, 'h', "host",                     0, "The host to connect to TDEngine. Default is localhost.",                                                           0},
+    {0, 'h', "host",                     0, "The host to connect to TDengine. Default is localhost.",                                                           0},
     {0, 'p', "port",                     0, "The TCP/IP port number to use for the connection. Default is 0.",                                                  1},
-    {0, 'u', "user",                     0, "The TDEngine user name to use when connecting to the server. Default is 'root'.",                                  2},
+    {0, 'u', "user",                     0, "The TDengine user name to use when connecting to the server. Default is 'root'.",                                  2},
     {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
     {0, 'd', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
     {0, 'm', "table_prefix",             0, "Table prefix name. Default is 't'.",                                                                               3},
@@ -264,11 +264,11 @@ typedef struct DemoArguments {
   void printHelp() {
     char indent[10] = "        ";
     printf("%s%s\n", indent, "-h");
-    printf("%s%s%s\n", indent, indent, "host, The host to connect to TDEngine. Default is localhost.");
+    printf("%s%s%s\n", indent, indent, "host, The host to connect to TDengine. Default is localhost.");
     printf("%s%s\n", indent, "-p");
     printf("%s%s%s\n", indent, indent, "port, The TCP/IP port number to use for the connection. Default is 0.");
     printf("%s%s\n", indent, "-u");
-    printf("%s%s%s\n", indent, indent, "user, The TDEngine user name to use when connecting to the server. Default is 'root'.");
+    printf("%s%s%s\n", indent, indent, "user, The user name to use when connecting to the server. Default is 'root'.");
     printf("%s%s\n", indent, "-p");
     printf("%s%s%s\n", indent, indent, "password, The password to use when connecting to the server. Default is 'taosdata'.");
     printf("%s%s\n", indent, "-d");
