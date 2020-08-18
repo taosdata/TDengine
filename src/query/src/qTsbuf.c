@@ -75,7 +75,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL;
   }
   
-  if ((int32_t)header.numOfVnode > pTSBuf->numOfAlloc) {
+  if (header.numOfVnode > pTSBuf->numOfAlloc) {
     pTSBuf->numOfAlloc = header.numOfVnode;
     STSVnodeBlockInfoEx* tmp = realloc(pTSBuf->pData, sizeof(STSVnodeBlockInfoEx) * pTSBuf->numOfAlloc);
     if (tmp == NULL) {

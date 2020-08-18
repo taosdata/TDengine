@@ -1166,7 +1166,8 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     size_t numOfNode = taosArrayGetSize(colList);
     for(int32_t k = 0; k < numOfNode; ++k) {
       SColIndex* pIndex = taosArrayGet(colList, k);
-      if (pIndex->flag == 1) {
+      if (TSDB_COL_IS_TAG(pIndex->flag)) {
+        tExprTreeDestroy(&pNode, NULL);
         taosTFree(arithmeticExprStr);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
@@ -1366,7 +1367,8 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
   ids.num = 1;
   ids.ids[0] = *pIndex;
 
-  if (pIndex->columnIndex >= tscGetNumOfColumns(pTableMeta) || pIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+  if (pIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX || pIndex->columnIndex == TSDB_UD_COLUMN_INDEX ||
+      pIndex->columnIndex >= tscGetNumOfColumns(pTableMeta)) {
     ids.num = 0;
   }
 

@@ -685,6 +685,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     freeJoinSubqueryObj(pParentSql);
     pParentSql->res.code = code;
     tscQueueAsyncRes(pParentSql);
+
+    taosArrayDestroy(s1);
+    taosArrayDestroy(s2);
     return;
   }
 
@@ -1284,8 +1287,14 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
-  
+
+  // todo add test
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
+  if (pState == NULL) {
+    pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pSql->res.code;
+  }
+
   pState->numOfTotal = pQueryInfo->numOfTables;
   pState->numOfRemain = pState->numOfTotal;
 
@@ -1297,7 +1306,8 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
       tscError("%p tableIndex:%d, failed to allocate join support object, abort further query", pSql, i);
       pState->numOfRemain = i;
       pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      
+      taosTFree(pState);
+
       return pSql->res.code;
     }
     
@@ -1511,7 +1521,6 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
            tstrerror(code), subqueryIndex, trsupport->numOfRetry);
 
   SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSql, trsupport, pSql);
-
   if (pNew == NULL) {
     tscError("%p sub:%p failed to create new subquery due to error:%s, abort retry, vgId:%d, orderOfSub:%d",
              trsupport->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, trsupport->subqueryIndex);
@@ -1522,8 +1531,14 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
     return pParentSql->res.code;
   }
 
-  taos_free_result(pSql);
-  return tscProcessSql(pNew);
+  int32_t ret = tscProcessSql(pNew);
+
+  // if failed to process sql, let following code handle the pSql
+  if (ret == TSDB_CODE_SUCCESS) {
+    taos_free_result(pSql);
+  }
+
+  return code;
 }
 
 void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numOfRows) {
@@ -2063,39 +2078,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 
     doBuildResFromSubqueries(pSql);
     tsem_post(&pSql->rspSem);
-
     return;
-
-    // continue retrieve data from vnode
-//    if (!tscHasRemainDataInSubqueryResultSet(pSql)) {
-//      tscDebug("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
-//      SSubqueryState* pState = NULL;
-//
-//      // free all sub sqlobj
-//      for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-//        SSqlObj* pChildObj = pSql->pSubs[i];
-//        if (pChildObj == NULL) {
-//          continue;
-//        }
-//
-//        SJoinSupporter* pSupporter = (SJoinSupporter*)pChildObj->param;
-//        pState = pSupporter->pState;
-//
-//        tscDestroyJoinSupporter(pChildObj->param);
-//        taos_free_result(pChildObj);
-//      }
-//
-//      free(pState);
-//
-//      pRes->completed = true;  // set query completed
-//      tsem_post(&pSql->rspSem);
-//      return;
-//    }
-
-    tscFetchDatablockFromSubquery(pSql);
-    if (pRes->code != TSDB_CODE_SUCCESS) {
-      return;
-    }
   }
 
   if (pSql->res.code == TSDB_CODE_SUCCESS) {

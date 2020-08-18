@@ -85,8 +85,8 @@ typedef struct STSBuf {
   uint32_t fileSize;
 
   STSVnodeBlockInfoEx* pData;
-  int32_t              numOfAlloc;
-  int32_t              numOfVnodes;
+  uint32_t             numOfAlloc;
+  uint32_t             numOfVnodes;
 
   char*     assistBuf;
   int32_t   bufSize;

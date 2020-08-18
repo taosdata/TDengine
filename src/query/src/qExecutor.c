@@ -967,6 +967,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
 
     int32_t     index = pWindowResInfo->curIndex;
     STimeWindow nextWin = win;
+    assert(tsCols != NULL);
 
     while (1) {
       int32_t prevEndPos = (forwardStep - 1) * step + startPos;
@@ -2730,7 +2731,8 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
       char *  pDest = pQuery->sdata[i]->data;
-      memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num, bytes * pData->num);
+
+      memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num, (size_t)(bytes * pData->num));
     }
 
     offset += (int32_t)pData->num;
@@ -3298,7 +3300,8 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
   pStatus->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);  // save the cursor
   if (pRuntimeEnv->pTSBuf) {
     SWITCH_ORDER(pRuntimeEnv->pTSBuf->cur.order);
-    tsBufNextPos(pRuntimeEnv->pTSBuf);
+    bool ret = tsBufNextPos(pRuntimeEnv->pTSBuf);
+    assert(ret);
   }
 
   // reverse order time range
@@ -5225,7 +5228,7 @@ static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pE
 
   if (TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {
     if (pExprMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
-      return -1;
+      return TSDB_TBNAME_COLUMN_INDEX;
     }
 
     while(j < pQueryMsg->numOfTags) {
@@ -5644,18 +5647,19 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
 
     if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM) {
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
-      assert(j < pQueryMsg->numOfCols);
-
-      SColumnInfo *pCol = &pQueryMsg->colList[j];
-
-      int32_t ret =
-        getResultDataInfo(pCol->type, pCol->bytes, functId, (int32_t)pExprs[i].base.arg[0].argValue.i64,
-                            &pExprs[i].type, &pExprs[i].bytes, &pExprs[i].interBytes, tagLen, isSuperTable);
-      assert(ret == TSDB_CODE_SUCCESS);
+      if (j < 0 || j >= pQueryMsg->numOfCols) {
+        assert(0);
+      } else {
+        SColumnInfo *pCol = &pQueryMsg->colList[j];
+        int32_t ret =
+            getResultDataInfo(pCol->type, pCol->bytes, functId, (int32_t)pExprs[i].base.arg[0].argValue.i64,
+                              &pExprs[i].type, &pExprs[i].bytes, &pExprs[i].interBytes, tagLen, isSuperTable);
+        assert(ret == TSDB_CODE_SUCCESS);
+      }
     }
   }
-  *pExprInfo = pExprs;
 
+  *pExprInfo = pExprs;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6194,14 +6198,16 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
     // make sure file exist
     if (FD_VALID(fd)) {
-      int32_t s = lseek(fd, 0, SEEK_END);
-      UNUSED(s);
-      qDebug("QInfo:%p ts comp data return, file:%s, size:%d", pQInfo, pQuery->sdata[0]->data, s);
+      uint64_t s = lseek(fd, 0, SEEK_END);
+
+      qDebug("QInfo:%p ts comp data return, file:%s, size:%"PRId64, pQInfo, pQuery->sdata[0]->data, s);
       if (lseek(fd, 0, SEEK_SET) >= 0) {
         size_t sz = read(fd, data, s);
-        UNUSED(sz);
+        if(sz < s) {  // todo handle error
+          assert(0);
+        }
       } else {
-        // todo handle error
+        UNUSED(s);
       }
 
       close(fd);
