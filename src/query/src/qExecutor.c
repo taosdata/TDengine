@@ -28,7 +28,7 @@
 #include "queryLog.h"
 #include "tlosertree.h"
 
-#define MAX_ROWS_PER_RESBUF_PAGE  ((1u<<12) - 1);
+#define MAX_ROWS_PER_RESBUF_PAGE  ((1u<<12) - 1)
 
 /**
  * check if the primary column is load by default, otherwise, the program will
