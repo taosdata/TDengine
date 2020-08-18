@@ -47,7 +47,11 @@ int32_t mqttInitSystem() {
   recntStatus.recvbufsz = sizeof(recvbuf);
   char* url = tsMqttBrokerAddress;
   recntStatus.user_name = strstr(url, "@") != NULL ? strbetween(url, "//", ":") : NULL;
-  recntStatus.password = strstr(url, "@") != NULL ? strbetween(strstr(url, recntStatus.user_name), ":", "@") : NULL;
+  
+  char * passStr = strstr(url, recntStatus.user_name);
+  if (passStr != NULL) {
+    recntStatus.password = strstr(url, "@") != NULL ? strbetween(passStr, ":", "@") : NULL;
+  }
 
   if (strlen(url) == 0) {
     mqttDebug("mqtt module not init, url is null");
