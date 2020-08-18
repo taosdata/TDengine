@@ -232,7 +232,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
           TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
   
   int64_t r = fseek(pTSBuf->f, pTSBuf->fileSize, SEEK_SET);
-  UNUSED(r);
+  assert(r == 0);
   
   /*
    * format for output data:
@@ -241,13 +241,14 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    *
    * both side has the compressed length is used to support load data forwards/backwords.
    */
-  fwrite(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
-  fwrite(&pBlock->tag.nLen,  sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  int32_t metaLen = 0;
+  metaLen += fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
+  metaLen += fwrite(&pBlock->tag.nLen,  1, sizeof(pBlock->tag.nLen), pTSBuf->f);
 
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    fwrite(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+    metaLen += fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    fwrite(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+    metaLen += fwrite(&pBlock->tag.i64Key, 1, sizeof(int64_t), pTSBuf->f);
   }
 
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
@@ -255,7 +256,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
   
-  int32_t blockSize = sizeof(pBlock->tag) + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
+  int32_t blockSize = metaLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
   pTSBuf->fileSize += blockSize;
   
   pTSBuf->tsData.len = 0;

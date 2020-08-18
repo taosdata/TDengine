@@ -118,7 +118,7 @@ typedef struct SQueryCostInfo {
   uint32_t loadBlockStatis;
   uint32_t discardBlocks;
   uint64_t elapsedTime;
-  uint64_t computTime;
+  uint64_t firstStageMergeTime;
   uint64_t internalSupSize;
   uint64_t numOfTimeWindows;
 } SQueryCostInfo;

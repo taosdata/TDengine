@@ -138,11 +138,11 @@ typedef struct SInterpInfoDetail {
 
 typedef struct SResultInfo {
   int8_t   hasResult;       // result generated, not NULL value
-  bool     initialized:1;   // output buffer has been initialized
-  bool     complete:1;      // query has completed
-  bool     superTableQ:1;   // is super table query
-  int16_t  numOfRes;        // num of output result in current buffer
-  uint32_t bufLen;          // buffer size
+  bool     initialized;   // output buffer has been initialized
+  bool     complete;      // query has completed
+  bool     superTableQ;   // is super table query
+  uint32_t bufLen;       // buffer size
+  uint64_t numOfRes;        // num of output result in current buffer
   void*    interResultBuf;  // output result buffer
 } SResultInfo;
 

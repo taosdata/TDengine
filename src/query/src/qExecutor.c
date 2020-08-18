@@ -970,7 +970,6 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
 
     int32_t     index = pWindowResInfo->curIndex;
     STimeWindow nextWin = win;
-    assert(tsCols != NULL);
 
     while (1) {
       int32_t prevEndPos = (forwardStep - 1) * step + startPos;
@@ -2668,7 +2667,7 @@ int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *param) 
 }
 
 int32_t mergeIntoGroupResult(SQInfo *pQInfo) {
-  int64_t st = taosGetTimestampMs();
+  int64_t st = taosGetTimestampUs();
   int32_t ret = TSDB_CODE_SUCCESS;
 
   int32_t numOfGroups = (int32_t)(GET_NUM_OF_TABLEGROUP(pQInfo));
@@ -2695,9 +2694,11 @@ int32_t mergeIntoGroupResult(SQInfo *pQInfo) {
     SET_STABLE_QUERY_OVER(pQInfo);
   }
 
-  qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "ms", pQInfo,
-         pQInfo->groupIndex - 1, numOfGroups, taosGetTimestampMs() - st);
+  int64_t elapsedTime = taosGetTimestampUs() - st;
+  qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pQInfo,
+         pQInfo->groupIndex - 1, numOfGroups, elapsedTime);
 
+  pQInfo->runtimeEnv.summary.firstStageMergeTime += elapsedTime;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2830,6 +2831,13 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
   while (1) {
     if (IS_QUERY_KILLED(pQInfo)) {
       qDebug("QInfo:%p it is already killed, abort", pQInfo);
+
+      taosTFree(pTableList);
+      taosTFree(posList);
+      taosTFree(pTree);
+      taosTFree(pResultInfo);
+      taosTFree(buf);
+
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
@@ -3996,9 +4004,9 @@ static void queryCostStatis(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryCostInfo *pSummary = &pRuntimeEnv->summary;
 
-  qDebug("QInfo:%p :cost summary: elapsed time:%"PRId64" us, total blocks:%d, load block statis:%d,"
-         " load data block:%d, total rows:%"PRId64 ", check rows:%"PRId64,
-         pQInfo, pSummary->elapsedTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
+  qDebug("QInfo:%p :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
+         "load block statis:%d, load data block:%d, total rows:%"PRId64 ", check rows:%"PRId64,
+         pQInfo, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
          pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
 
   qDebug("QInfo:%p :cost summary: internal size:%"PRId64", numOfWin:%"PRId64, pQInfo, pSummary->internalSupSize,

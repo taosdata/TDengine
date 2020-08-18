@@ -175,7 +175,17 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
 }
 
 int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
-  assert((p1->nType != TSDB_DATA_TYPE_NULL) || (p2->nType != TSDB_DATA_TYPE_NULL));
+  if (p1->nType == TSDB_DATA_TYPE_NULL && p2->nType == TSDB_DATA_TYPE_NULL) {
+    return 0;
+  }
+
+  if (p1->nType == TSDB_DATA_TYPE_NULL) {
+    return -1;
+  }
+
+  if (p2->nType == TSDB_DATA_TYPE_NULL) {
+    return 1;
+  }
 
   switch (p1->nType) {
     case TSDB_DATA_TYPE_BINARY:
