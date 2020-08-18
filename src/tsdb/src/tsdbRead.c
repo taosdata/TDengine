@@ -1072,8 +1072,8 @@ static void moveDataToFront(STsdbQueryHandle* pQueryHandle, int32_t numOfRows, i
   }
 }
 
-static void getQualifiedRowsPos(STsdbQueryHandle* pQueryHandle, int32_t startPos, int32_t endPos,
-    int32_t numOfExisted, int32_t *start, int32_t *end) {
+static void getQualifiedRowsPos(STsdbQueryHandle* pQueryHandle, int32_t startPos, int32_t endPos, int32_t numOfExisted,
+                                int32_t* start, int32_t* end) {
   *start = -1;
 
   if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
@@ -1233,6 +1233,8 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         }
 
         int32_t end = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, key, order);
+        assert(end != -1);
+
         if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
           moveToNextRowInMem(pCheckInfo);
         }
