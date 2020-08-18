@@ -233,6 +233,7 @@ SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
 
   if ((sockFd = (int)socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
     uError("failed to open udp socket: %d (%s)", errno, strerror(errno));
+    close(sockFd);
     return -1;
   }
 
@@ -267,6 +268,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
 
   if (sockFd <= 2) {
     uError("failed to open the socket: %d (%s)", errno, strerror(errno));
+    close(sockFd);
     return -1;
   }
 
@@ -373,6 +375,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
 
   if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
     uError("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+    close(sockFd);
     return -1;
   }
 
