@@ -42,20 +42,16 @@ typedef struct SSqlGroupbyExpr {
 } SSqlGroupbyExpr;
 
 typedef struct SPosInfo {
-  int32_t pageId;
-  int32_t rowId;
+  int32_t pageId:20;
+  int32_t rowId:12;
 } SPosInfo;
 
-typedef struct SWindowStatus {
-  bool closed;
-} SWindowStatus;
-
 typedef struct SWindowResult {
-  uint16_t      numOfRows;   // number of rows of current  time window
-  SWindowStatus status;      // this result status: closed or opened
   SPosInfo      pos;         // Position of current result in disk-based output buffer
+  uint16_t      numOfRows;   // number of rows of current time window
+  bool          closed;      // this result status: closed or opened
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
-  STimeWindow   window;      // The time window that current result covers.
+  TSKEY         skey;        // start key of current time window
 } SWindowResult;
 
 /**
@@ -79,6 +75,7 @@ typedef struct SWindowResInfo {
   int64_t        startTime;  // start time of the first time window for sliding query
   int64_t        prevSKey;   // previous (not completed) sliding window start key
   int64_t        threshold;  // threshold to halt query and return the generated results.
+  int64_t        interval;   // time window interval
 } SWindowResInfo;
 
 typedef struct SColumnFilterElem {
@@ -123,6 +120,7 @@ typedef struct SQueryCostInfo {
   uint64_t elapsedTime;
   uint64_t computTime;
   uint64_t internalSupSize;
+  uint64_t numOfTimeWindows;
 } SQueryCostInfo;
 
 typedef struct SQuery {
