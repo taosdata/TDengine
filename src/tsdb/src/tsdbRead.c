@@ -2430,7 +2430,7 @@ int32_t tsdbQuerySTableByTagCond(TSDB_REPO_T* tsdb, uint64_t uid, TSKEY skey, co
   } CATCH( code ) {
     CLEANUP_EXECUTE();
     terrno = code;
-    tsdbUnlockRepoMeta(tsdb);     // unlock tsdb in any cases
+    //tsdbUnlockRepoMeta(tsdb);     // unlock tsdb in any cases
 
     goto _error;
     // TODO: more error handling
