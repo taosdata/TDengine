@@ -47,10 +47,8 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
+int32_t tscInitRpc(const char *user, const char *secretEncrypt, void **pDnodeConn) {
   SRpcInit rpcInit;
-  char secretEncrypt[32] = {0};
-  taosEncryptPass((uint8_t *)secret, strlen(secret), secretEncrypt);
 
   if (*pDnodeConn == NULL) {
     memset(&rpcInit, 0, sizeof(rpcInit));
@@ -60,11 +58,11 @@ int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn) {
     rpcInit.cfp = tscProcessMsgFromServer;
     rpcInit.sessions = tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
-    rpcInit.user = (char*)user;
+    rpcInit.user = (char *)user;
     rpcInit.idleTime = 2000;
     rpcInit.ckey = "key";
     rpcInit.spi = 1;
-    rpcInit.secret = secretEncrypt;
+    rpcInit.secret = (char *)secretEncrypt;
 
     *pDnodeConn = rpcOpen(&rpcInit);
     if (*pDnodeConn == NULL) {

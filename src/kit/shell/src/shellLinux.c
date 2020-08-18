@@ -33,10 +33,11 @@ const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
 static char args_doc[] = "";
 static struct argp_option options[] = {
-  {"host",       'h', "HOST",       0,                   "TDEngine server IP address to connect. The default host is localhost."},
+  {"host",       'h', "HOST",       0,                   "TDengine server IP address to connect. The default host is localhost."},
   {"password",   'p', "PASSWORD",   OPTION_ARG_OPTIONAL, "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
-  {"user",       'u', "USER",       0,                   "The TDEngine user name to use when connecting to the server."},
+  {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
+  {"user",       'A', "Auth",       0,                   "The user auth to use when connecting to the server."},
   {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
   {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
@@ -76,11 +77,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'u':
       arguments->user = arg;
       break;
+    case 'A':
+      arguments->auth = arg;
+      break;
     case 'c':
       if (wordexp(arg, &full_path, 0) != 0) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
-      }       
+      }
       if (strlen(full_path.we_wordv[0]) >= TSDB_FILENAME_LEN) {
         fprintf(stderr, "config file path: %s overflow max len %d\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
         wordfree(&full_path);

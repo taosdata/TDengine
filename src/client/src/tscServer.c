@@ -158,6 +158,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
+      return;
     } else {
       if (pRsp->queryId) tscKillQuery(pObj, htonl(pRsp->queryId));
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));

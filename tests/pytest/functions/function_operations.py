@@ -49,11 +49,7 @@ class TDTestCase:
 
         tdSql.query("select col1 + col2 from test1")
         tdSql.checkRows(10)
-        tdSql.checkData(0, 0, 2.0)
-        
-        tdSql.query("select col1 + col2 * col3 from test1")
-        tdSql.checkRows(10)
-        tdSql.checkData(1, 0, 6.0)
+        tdSql.checkData(0, 0, 2.0)        
 
         tdSql.query("select col1 + col2 * col3 + col3 / col4 + col5 + col6 from test1")
         tdSql.checkRows(10)

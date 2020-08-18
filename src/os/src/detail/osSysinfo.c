@@ -170,6 +170,7 @@ static void taosGetSystemTimezone() {
     
     fclose(f);
 
+    buf[sizeof(buf) - 1] = 0;
     char *lineEnd = strstr(buf, "\n");
     if (lineEnd != NULL) {
       *lineEnd = 0;

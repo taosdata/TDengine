@@ -113,6 +113,7 @@ extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
 
 // internal
+extern int32_t tsPrintAuth;
 extern int32_t tscEmbedded;
 extern char    configDir[];
 extern char    tsVnodeDir[];

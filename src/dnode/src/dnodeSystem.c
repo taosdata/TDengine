@@ -52,6 +52,8 @@ int32_t main(int32_t argc, char *argv[]) {
     } else if (strcmp(argv[i], "-k") == 0) {
       grantParseParameter();
       exit(EXIT_SUCCESS);
+    } else if (strcmp(argv[i], "-A") == 0) {
+      tsPrintAuth = 1;
     }
 #ifdef TAOS_MEM_CHECK
     else if (strcmp(argv[i], "--alloc-random-fail") == 0) {

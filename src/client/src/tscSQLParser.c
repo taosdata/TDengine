@@ -1158,8 +1158,9 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
 
     int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
     if (ret != TSDB_CODE_SUCCESS) {
-      tExprTreeDestroy(&pNode, NULL);
       taosTFree(arithmeticExprStr);
+      taosArrayDestroy(colList);
+      tExprTreeDestroy(&pNode, NULL);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
@@ -1168,6 +1169,8 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       SColIndex* pIndex = taosArrayGet(colList, k);
       if (pIndex->flag == 1) {
         taosTFree(arithmeticExprStr);
+        taosArrayDestroy(colList);
+        tExprTreeDestroy(&pNode, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }

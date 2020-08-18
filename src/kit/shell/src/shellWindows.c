@@ -21,16 +21,18 @@ extern char configDir[];
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("taos shell is used to test the TDEngine database\n");
+  printf("taos shell is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDEngine server IP address to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");
   printf("%s%s%s\n", indent, indent, "The TCP/IP port number to use for the connection");
   printf("%s%s\n", indent, "-u");
-  printf("%s%s%s\n", indent, indent, "The TDEngine user name to use when connecting to the server.");
+  printf("%s%s%s\n", indent, indent, "The user name to use when connecting to the server.");
+  printf("%s%s\n", indent, "-A");
+  printf("%s%s%s\n", indent, indent, "The user auth to use when connecting to the server.");
   printf("%s%s\n", indent, "-c");
   printf("%s%s%s\n", indent, indent, "Configuration directory.");
   printf("%s%s\n", indent, "-s");
@@ -77,6 +79,13 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         arguments->user = argv[++i];
       } else {
         fprintf(stderr, "option -u requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    } else if (strcmp(argv[i], "-A") == 0) {
+      if (i < argc - 1) {
+        arguments->auth = argv[++i];
+      } else {
+        fprintf(stderr, "option -A requires an argument\n");
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-c") == 0) {
