@@ -340,9 +340,9 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
-  strcpy(pSchema[cols].name, "UDisk");
+  pShow->bytes[cols] = 6 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "state");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -357,6 +357,20 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 
   mnodeDecUserRef(pUser);
   return 0;
+}
+
+char *mnodeGetAcctStateStr(int32_t accessState) {
+  if (accessState == 0) {
+    return "no";
+  } else if (accessState == TSDB_VN_ALL_ACCCESS) {
+    return "all";
+  } else if (accessState == TSDB_VN_WRITE_ACCCESS) {
+    return "write";
+  } else if (accessState == TSDB_VN_READ_ACCCESS) {
+    return "read";
+  }
+
+  return "null";
 }
 
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
@@ -408,6 +422,11 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
               pAcct->cfg.maxStorage / (1024. * 1024. * 1024));
     }
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+    cols++;
+  
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    char *role = mnodeGetAcctStateStr(pAcct->cfg.accessState);
+    STR_TO_VARSTR(pWrite, role);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
