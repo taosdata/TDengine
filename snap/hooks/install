@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ ! -d /var/lib/taos ]; then
+  mkdir -p /var/lib/taos
+fi
+
+if [ ! -d /var/log/taos ]; then
+  mkdir -p -m777 /var/log/taos
+fi
+
+if [ ! -d /etc/taos ]; then
+  mkdir -p /etc/taos
+fi
+
+if [ ! -f /etc/taos/taos.cfg ]; then
+  cp $SNAP/etc/taos/taos.cfg /etc/taos/taos.cfg
+fi

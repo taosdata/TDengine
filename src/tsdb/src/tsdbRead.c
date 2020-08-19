@@ -1801,7 +1801,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     int32_t code = getDataBlocksInFiles(pQueryHandle, &exists);
     if (code != TSDB_CODE_SUCCESS) {
       pQueryHandle->activeIndex = 0;
-      pQueryHandle->checkFiles  = false;
+      pQueryHandle->checkFiles = false;
 
       return false;
     }
@@ -1812,7 +1812,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     }
 
     pQueryHandle->activeIndex = 0;
-    pQueryHandle->checkFiles  = false;
+    pQueryHandle->checkFiles = false;
   }
 
   // TODO: opt by consider the scan order

@@ -8,4 +8,3 @@ select count(temperature), sum(temperature), mean(temperature) from devices wher
 select count(temperature), sum(temperature), mean(temperature) from devices where devgroup=~/[1-8][0-9]/ group by devgroup;
 select count(temperature), sum(temperature), mean(temperature) from devices where devgroup=~/[1-9][0-9]/ group by devgroup;
 select count(temperature), sum(temperature), mean(temperature) from devices group by devgroup;
-

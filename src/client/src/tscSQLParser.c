@@ -1158,8 +1158,9 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
 
     int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
     if (ret != TSDB_CODE_SUCCESS) {
-      tExprTreeDestroy(&pNode, NULL);
       taosTFree(arithmeticExprStr);
+      taosArrayDestroy(colList);
+      tExprTreeDestroy(&pNode, NULL);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
@@ -1169,6 +1170,8 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       if (TSDB_COL_IS_TAG(pIndex->flag)) {
         tExprTreeDestroy(&pNode, NULL);
         taosTFree(arithmeticExprStr);
+        taosArrayDestroy(colList);
+        tExprTreeDestroy(&pNode, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
@@ -1673,9 +1676,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) ||
-          index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
       // 2. check if sql function can be applied on this column data type
@@ -1885,7 +1890,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
-
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+      
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
@@ -2414,7 +2422,7 @@ bool validateIpAddress(const char* ip, size_t size) {
 
   strncpy(tmp, ip, size);
 
-  in_addr_t epAddr = inet_addr(tmp);
+  in_addr_t epAddr = taosInetAddr(tmp);
 
   return epAddr != INADDR_NONE;
 }

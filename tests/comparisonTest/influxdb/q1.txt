@@ -8,4 +8,3 @@ select * from devices where devgroup='60';
 select * from devices where devgroup='70';
 select * from devices where devgroup='80';
 select * from devices where devgroup='90';
-

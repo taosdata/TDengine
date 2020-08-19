@@ -100,7 +100,7 @@ static void tscDumpEpSetFromVgroupInfo(SCMCorVgroupInfo *pVgroupInfo, SRpcEpSet 
   pEpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
   pEpSet->numOfEps = pVgroupInfo->numOfEps;  
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    strncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    tstrncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, sizeof(pEpSet->fqdn[i]));
     pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
   }
   taosCorEndRead(&pVgroupInfo->version);
@@ -117,7 +117,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    strncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], sizeof(pEpSet->fqdn[i]));
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
@@ -158,6 +158,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
+      return;
     } else {
       if (pRsp->queryId) tscKillQuery(pObj, htonl(pRsp->queryId));
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));

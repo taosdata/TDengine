@@ -58,7 +58,8 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("%p, msg:%s in mpeer queue, will be redireced inUse:%d", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], epSet->inUse);
+    mDebug("%p, msg:%s in mpeer queue, will be redireced, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
     for (int32_t i = 0; i < epSet->numOfEps; ++i) {
       mDebug("mnode index:%d ep:%s:%d", i, epSet->fqdn[i], htons(epSet->port[i]));
     }

@@ -136,7 +136,11 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
     }
     pQueryInfo->window.ekey = etime;
     if (pQueryInfo->window.skey >= pQueryInfo->window.ekey) {
-      tscSetRetryTimer(pStream, pSql, pStream->slidingTime);
+      int64_t timer = pStream->slidingTime;
+      if (pStream->precision == TSDB_TIME_PRECISION_MICRO) {
+        timer /= 1000l;
+      }
+      tscSetRetryTimer(pStream, pSql, timer);
       return;
     }
   }

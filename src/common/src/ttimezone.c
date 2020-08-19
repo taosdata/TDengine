@@ -23,7 +23,9 @@
 // TODO refactor to set the tz value through parameter
 void tsSetTimeZone() {
   SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-  uInfo("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
+  if (cfg_timezone != NULL) {
+    uInfo("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
+  }
 
 #ifdef WINDOWS
   char winStr[TSDB_LOCALE_LEN * 2];
@@ -50,7 +52,7 @@ void tsSetTimeZone() {
 #endif
 #endif
 
-  int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
+  int32_t tz = (int32_t)((-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR);
   tz += daylight;
 
   /*
