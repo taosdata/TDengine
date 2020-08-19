@@ -71,7 +71,18 @@ static void        tsdbStopStream(STsdbRepo *pRepo);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
-  taosRemoveDir(rootDir);
+  DIR *dir = opendir(rootDir);
+  if (dir) {
+    tsdbDebug("repository %s already exists", rootDir);
+    closedir(dir);
+    return 0;
+  } else {
+    if (ENOENT != errno) {
+      tsdbError("failed to open directory %s since %s", rootDir, strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+  }
 
   if (mkdir(rootDir, 0755) < 0) {
     tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, strerror(errno));
