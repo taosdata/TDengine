@@ -131,6 +131,8 @@ static int dnodeCheckCpu() {
 }
 
 static int dnodeCheckDisk() {
+  taosGetDisk();
+
   if (tsAvailDataDirGB < tsMinimalDataDirGB) {
     dError("free disk size: %f GB, too little, quit", tsAvailDataDirGB);
     return -1;
