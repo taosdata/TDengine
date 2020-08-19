@@ -12,7 +12,7 @@ TDengine 采用 SQL 作为查询语言。应用程序可以通过 C/C++, Java, G
 - 标签和数值的多种过滤条件：\>, \<,  =, \<>, like 等
 - 聚合结果的分组（Group by）、排序（Order by）、约束输出（Limit/Offset）
 - 数值列及聚合结果的四则运算
-- 时间戳对齐的连接查询（Join Query）操作
+- 时间戳对齐的连接查询（Join Query: 隐式连接）操作
 - 多种聚合/计算函数: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff等
 
 例如：在TAOS Shell中，从表d1001中查询出vlotage > 215的记录，按时间降序排列，仅仅输出2条。
