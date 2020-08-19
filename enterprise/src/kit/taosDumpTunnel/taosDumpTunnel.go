@@ -1,0 +1,514 @@
+package main
+
+import (
+	"bytes"
+	"database/sql"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"sort"
+	"strings"
+	"sync"
+
+	_ "github.com/taosdata/driver-go/taosSql"
+)
+
+var (
+	token string
+	url   string
+)
+
+/*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+ * Tools for 1.6 dump usage
+ *$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
+
+// Table column information
+type TableColInfo struct {
+	Name   string
+	Type   string
+	Length int
+	Note   string
+}
+
+// Talbe information
+type TableInfo struct {
+	STable string
+	SCols  []TableColInfo
+	Cols   []TableColInfo
+}
+
+func taosGetTabInfo(db *sql.DB, table string) (*TableInfo, error) {
+	var info TableInfo
+
+	// Get super table information if has
+	_, rows, err := taosProcessQuery(db, fmt.Sprintf("show tables like '%s'", table))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		log.Panicf("table %s not exists, skip", table)
+		return nil, nil
+	}
+
+	info.STable = strings.Trim((*rows[0][3].(*interface{})).(string), string(0))
+
+	// Get super table information
+	if info.STable != "" {
+		_, rows, err = taosProcessQuery(db, fmt.Sprintf("describe '%s'", info.STable))
+		for _, row := range rows {
+			var colInfo TableColInfo
+			colInfo.Name = strings.Trim((*row[0].(*interface{})).(string), string(0))
+			colInfo.Type = strings.Trim((*row[1].(*interface{})).(string), string(0))
+			colInfo.Length = (*row[2].(*interface{})).(int)
+			colInfo.Note = strings.Trim((*row[3].(*interface{})).(string), string(0))
+
+			info.SCols = append(info.SCols, colInfo)
+		}
+	}
+
+	// Get columns information
+	_, rows, err = taosProcessQuery(db, fmt.Sprintf("describe %s", table))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, val := range rows {
+		var colInfo TableColInfo
+		// fmt.Println(*val[0].(*interface{}))
+		colInfo.Name = strings.Trim((*val[0].(*interface{})).(string), string(0))
+		colInfo.Type = strings.Trim((*val[1].(*interface{})).(string), string(0))
+		colInfo.Length = (*val[2].(*interface{})).(int)
+		colInfo.Note = strings.Trim((*val[3].(*interface{})).(string), string(0))
+
+		info.Cols = append(info.Cols, colInfo)
+	}
+
+	return &info, nil
+}
+
+func taosProcessQuery(db *sql.DB, sql string) ([]*sql.ColumnType, [][]interface{}, error) {
+	rows, err := db.Query(sql)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer rows.Close()
+
+	cols, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	vals := make([][]interface{}, 0)
+	i := 0
+	for rows.Next() {
+		vals = append(vals, make([]interface{}, 0, len(cols)))
+		for range cols {
+			var v interface{}
+			vals[i] = append(vals[i], &v)
+		}
+
+		rows.Scan(vals[i]...)
+		i++
+	}
+
+	return cols, vals, nil
+}
+
+func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname string, stime int64, batch int) (string, int64, bool, error) {
+	sql := fmt.Sprintf("select * from %s.%s where %s > %d limit %d;", dbname, tbname, tsname, stime, batch)
+
+	_, rows, err := taosProcessQuery(db, sql)
+	if err != nil {
+		return "", 0, true, err
+	}
+
+	var command bytes.Buffer
+	var newStime int64
+	command.Reset()
+
+	command.WriteString("insert into ")
+	command.WriteString(fmt.Sprintf("%s.%s", dbname, tbname))
+	command.WriteString(" values ")
+	for rowCount, row := range rows {
+		command.WriteString("(")
+		for i, val := range row {
+			val = *val.(*interface{})
+
+			if val == nil {
+				command.WriteString("NULL")
+			} else {
+				switch val.(type) {
+				case int8:
+					command.WriteString(fmt.Sprintf("'%v'", val))
+				case int16:
+					command.WriteString(fmt.Sprintf("%v", val))
+				case int32:
+					command.WriteString(fmt.Sprintf("%v", val))
+				case int64:
+					command.WriteString(fmt.Sprintf("%v", val))
+				case int:
+					command.WriteString(fmt.Sprintf("%v", val))
+				case string:
+					command.WriteString(fmt.Sprintf("'%v'", val))
+				case float32:
+					command.WriteString(fmt.Sprintf("%v", val))
+				case float64:
+					command.WriteString(fmt.Sprintf("%v", val))
+				}
+			}
+
+			if i != len(row)-1 {
+				command.WriteString(",")
+			}
+
+			if (rowCount == len(rows)-1) && (i == 0) {
+				newStime = val.(int64)
+			}
+		}
+		command.WriteString(")")
+	}
+
+	return command.String(), newStime, (len(rows) == 0), nil
+}
+
+func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int) error {
+	tInfo, err := taosGetTabInfo(db, tbname)
+	if err != nil {
+		return err
+	}
+
+	if tInfo.STable != "" { // try to create super table and table
+		cmd := fmt.Sprintf("create table if not exists %s.%s (", dbname, tInfo.STable)
+		for colID, colInfo := range tInfo.SCols {
+			if colInfo.Note == "" {
+				if colID != 0 {
+					cmd = fmt.Sprintf("%s, ", cmd)
+				}
+				if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
+					cmd = fmt.Sprintf("%s%s %s(%d)", cmd, colInfo.Name, strings.ToLower(colInfo.Type), colInfo.Length)
+				} else {
+					cmd = fmt.Sprintf("%s%s %s", cmd, colInfo.Name, strings.ToLower(colInfo.Type))
+				}
+			} else {
+				cmd = fmt.Sprintf("%s) tags (", cmd)
+				break
+			}
+		}
+
+		isFirstTag := true
+		for _, colInfo := range tInfo.SCols {
+			if colInfo.Note != "" {
+				if !isFirstTag {
+					cmd = cmd + ","
+				} else {
+					isFirstTag = false
+				}
+				if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
+					cmd = fmt.Sprintf("%s%s %s(%d)", cmd, colInfo.Name, strings.ToLower(colInfo.Type), colInfo.Length)
+				} else {
+					cmd = fmt.Sprintf("%s%s %s", cmd, colInfo.Name, strings.ToLower(colInfo.Type))
+				}
+			}
+		}
+
+		cmd = cmd + ")"
+		taosSendSQLWithRest(client, cmd)
+
+		cmd = fmt.Sprintf("create table if not exists %s.%s using %s.%s tags (", dbname, tbname, dbname, tInfo.STable)
+		for j, colInfo := range tInfo.Cols {
+			if colInfo.Note != "" {
+
+				if colInfo.Note == "NULL" {
+					cmd = fmt.Sprintf("%sNULL", cmd)
+				} else {
+					if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
+						cmd = fmt.Sprintf("%s'%s'", cmd, colInfo.Note)
+					} else {
+						cmd = fmt.Sprintf("%s%s", cmd, colInfo.Note)
+					}
+				}
+				if j != len(tInfo.Cols)-1 {
+					cmd = fmt.Sprintf("%s, ", cmd)
+				}
+			}
+		}
+		cmd = cmd + ")"
+		taosSendSQLWithRest(client, cmd)
+	} else { // try to create table
+		cmd := fmt.Sprintf("create table if not exists %s (", tbname)
+		for _, colInfo := range tInfo.Cols {
+			if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
+				cmd = fmt.Sprintf("%s,%s(%d)", cmd, strings.ToLower(colInfo.Type), colInfo.Length)
+			} else {
+				cmd = fmt.Sprintf("%s, %s", cmd, strings.ToLower(colInfo.Type))
+			}
+
+		}
+		cmd = cmd + ")"
+		taosSendSQLWithRest(client, cmd)
+	}
+
+	stime := int64(1)
+	for {
+		cmd, nstime, isEnd, err := taosDumpTableBatchData(db, dbname, tbname, (tInfo.Cols)[0].Name, stime, batch)
+		if err != nil {
+			return err
+		}
+
+		if isEnd {
+			break
+		}
+
+		stime = nstime
+
+		taosSendSQLWithRest(client, cmd)
+	}
+
+	return nil
+}
+
+/*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+ * Tools for 2.0 dump usage
+ *$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
+type JsonResult struct {
+	Status string `json:"status"`
+	Code   int    `json:"code"`
+}
+
+type TokenResult struct {
+	Status string `json:"status"`
+	Code   int    `json:"code"`
+	Desc   string `json:"desc"`
+}
+
+func taosSendSQLWithRest(client *http.Client, sql string) {
+	var times int
+	maxTryTime := 20
+	for times = 0; times < maxTryTime; times++ {
+		req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))
+		if err != nil {
+			continue
+		}
+
+		req.Header.Add("Authorization", "Taosd "+token)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			resp.Body.Close()
+			continue
+		}
+
+		var jsonResult JsonResult
+		err = json.Unmarshal(data, &jsonResult)
+		if err != nil {
+			resp.Body.Close()
+			continue
+		}
+
+		if jsonResult.Status != "succ" {
+			resp.Body.Close()
+			continue
+		}
+
+		return
+	}
+
+	if times >= maxTryTime {
+		fmt.Println("Failed to run SQL:", sql)
+	}
+}
+
+func getToken(host string, port int, user string, pass string) (string, error) {
+	url = fmt.Sprintf("http://%s:%d/rest/login/%s/%s", host, port, user, pass)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	var tokenResult TokenResult
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	err = json.Unmarshal(data, &tokenResult)
+	if err != nil {
+		return "", err
+	}
+
+	if tokenResult.Status != "succ" {
+		fmt.Println("get http token failed")
+		fmt.Println(tokenResult)
+		return "", err
+	}
+
+	return tokenResult.Desc, nil
+
+}
+
+type DumpCfg struct {
+	// Connection configuration
+	srcHost  *string
+	srcPort  *int
+	srcUser  *string
+	srcPass  *string
+	destHost *string
+	destPort *int
+	destUser *string
+	destPass *string
+	// Dump configuration
+	dbname *string
+	// Performance configuration
+	threads *int
+	batch   *int
+}
+
+func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
+	_, rows, err := taosProcessQuery(db, "show tables")
+	if err != nil {
+		return nil, err
+	}
+
+	tableList := []string{}
+
+	for _, row := range rows {
+		tbname := strings.Trim((*row[0].(*interface{})).(string), string(0))
+		tableList = append(tableList, tbname)
+	}
+
+	return &tableList, nil
+}
+
+func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	log.Printf("thread %d is dumping tables %s", id, tables)
+
+	// Connect to source engine
+	db, err := sql.Open("taosSql", fmt.Sprintf("%s:%s@/tcp(%s:%d)/%s", *cfg.srcUser, *cfg.srcPass, *cfg.srcHost, *cfg.srcPort, *cfg.dbname))
+	if err != nil {
+		log.Println("Failed to connect to source engine ", err)
+		return
+	}
+
+	defer db.Close()
+
+	// Create an HTTP client
+	client := &http.Client{}
+
+	for i, table := range tables {
+		log.Printf("thread %d is dumping #%d table %s data...\n", id, i, table)
+		err = taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch)
+		if err != nil {
+			log.Panicf("thread %d failed while dumping %s data\n", id, table)
+		}
+	}
+}
+
+func taosDumpData(cfg *DumpCfg, tables []string) {
+	// Connect to source engine
+	db, err := sql.Open("taosSql", fmt.Sprintf("%s:%s@/tcp(%s:%d)/%s", *cfg.srcUser, *cfg.srcPass, *cfg.srcHost, *cfg.srcPort, *cfg.dbname))
+	if err != nil {
+		log.Fatal("Failed to connect to source engine ", err)
+	}
+
+	defer db.Close()
+
+	// Get token and url of dest engine
+	token, err = getToken(*cfg.destHost, *cfg.destPort, *cfg.destUser, *cfg.destPass)
+	if err != nil {
+		log.Fatal("Failed to get dest engine token ", err)
+	}
+
+	url = fmt.Sprintf("http://%s:%d/rest/sql", *cfg.destHost, *cfg.destPort)
+
+	// Get the list of table names to dump
+	var tableList *[]string
+	if len(tables) == 0 {
+		tableList, err = taosGetTableNamesOfDB(db)
+		if err != nil {
+			log.Fatal("Failed to get the table names from database ", err)
+		}
+	} else {
+		tableList = &tables
+	}
+
+	if len(*tableList) == 0 {
+		log.Println("No table data to dump, just exit!")
+		return
+	} else {
+
+		sort.Strings(*tableList)
+		var threads int
+		if *cfg.threads < len(*tableList) {
+			threads = *cfg.threads
+		} else {
+			threads = len(*tableList)
+		}
+
+		meanTables := len(*tableList) / threads
+		remainTables := len(*tableList) % threads
+
+		// Launch workers to dump data
+		var wg sync.WaitGroup
+		sindex := 0
+
+		for i := 0; i < threads; i++ {
+			wg.Add(1)
+
+			var ntables int
+			if i < remainTables {
+				ntables = meanTables + 1
+			} else {
+				ntables = meanTables
+			}
+			tbs := (*tableList)[sindex : sindex+ntables]
+			sindex = sindex + ntables
+			go taosDumpWorker(i, cfg, tbs, &wg)
+		}
+
+		wg.Wait()
+	}
+}
+
+//  Main function
+func main() {
+	var dumpCfg DumpCfg
+
+	dumpCfg.srcHost = flag.String("src-host", "127.0.0.1", "data source TDengine host")
+	dumpCfg.srcPort = flag.Int("src-port", 0, "data source TDengine port")
+	dumpCfg.srcUser = flag.String("src-user", "root", "data source TDengine user")
+	dumpCfg.srcPass = flag.String("src-pass", "taosdata", "data source TDengine password")
+
+	dumpCfg.destHost = flag.String("dest-host", "127.0.0.1", "data dest TDengine host")
+	dumpCfg.destPort = flag.Int("dest-port", 7011, "data dest TDengine port")
+	dumpCfg.destUser = flag.String("dest-user", "root", "data dest TDengine user")
+	dumpCfg.destPass = flag.String("dest-pass", "taosdata", "data dest TDengine password")
+
+	dumpCfg.dbname = flag.String("db", "", "database name to dump")
+
+	dumpCfg.threads = flag.Int("threads", 5, "threads to do dump job")
+	dumpCfg.batch = flag.Int("batch", 100, "batch size per dump insert")
+
+	flag.Parse()
+
+	if *dumpCfg.dbname == "" {
+		log.Fatal("Please assign the database name you want to dump")
+	}
+
+	args := flag.Args()
+
+	taosDumpData(&dumpCfg, args)
+}
