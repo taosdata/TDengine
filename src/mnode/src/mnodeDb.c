@@ -636,6 +636,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextDb(pShow->pIter, &pDb);
     if (pDb == NULL) break;
+    if (pDb->pAcct != pUser->pAcct) continue;
 
     cols = 0;
 
@@ -687,8 +688,8 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
     char tmp[128] = {0};
-    size_t n = sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep);
-    STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, n);
+    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep);
+    STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
     cols++;
 
 #ifndef __CLOUD_VERSION__
