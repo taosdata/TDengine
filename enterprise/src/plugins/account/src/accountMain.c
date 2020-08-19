@@ -346,6 +346,12 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
+  strcpy(pSchema[cols].name, "UDisk");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
