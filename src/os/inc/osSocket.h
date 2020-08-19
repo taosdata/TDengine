@@ -25,6 +25,7 @@ extern "C" {
   #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, buf, len, flags, dest_addr, addrlen)
   #define taosReadSocket(fd, buf, len) read(fd, buf, len)
   #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
+  #define taosCloseSocketNoCheck(x) close(x)
   #define taosCloseSocket(x) \
     {                        \
       if (FD_VALID(x)) {     \
