@@ -170,6 +170,8 @@ public class TSDBJNIConnector {
     }
 
     private native long getResultSetImp(long connection, long pSql);
+    
+    private native long isUpdateQueryImp(long connection, long pSql);
 
     /**
      * Free resultset operation from C to release resultset pointer by JNI
