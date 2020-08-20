@@ -708,7 +708,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       if (pColFilter->filterstr) {
         pFilterMsg->len = htobe64(pColFilter->len);
-        memcpy(pMsg, (void *)pColFilter->pz, pColFilter->len + 1);
+        memcpy(pMsg, (void *)pColFilter->pz, (size_t)(pColFilter->len + 1));
         pMsg += (pColFilter->len + 1);  // append the additional filter binary info
       } else {
         pFilterMsg->lowerBndi = htobe64(pColFilter->lowerBndi);

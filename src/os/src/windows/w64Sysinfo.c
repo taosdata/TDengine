@@ -154,13 +154,15 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 
 bool taosGetProcMemory(float *memoryUsedMB) {
   unsigned bytes_used = 0;
+#if 0
 #if defined(_WIN32) && defined(_MSC_VER)
-  PROCESS_MEMORY_COUNTERS pmc;
-  HANDLE                  cur_proc = GetCurrentProcess();
+   PROCESS_MEMORY_COUNTERS pmc;
+   HANDLE                  cur_proc = GetCurrentProcess();
 
-  if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
-    bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
-  }
+   if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
+     bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
+   }
+#endif
 #endif
 
   *memoryUsedMB = (float)bytes_used / 1024 / 1024;

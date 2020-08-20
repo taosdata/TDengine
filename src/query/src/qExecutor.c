@@ -410,7 +410,7 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
         newCap = (int64_t)(pWindowResInfo->capacity * 1.5);
       }
 
-      char *t = realloc(pWindowResInfo->pResult, newCap * sizeof(SWindowResult));
+      char *t = realloc(pWindowResInfo->pResult, (size_t)(newCap * sizeof(SWindowResult)));
       pRuntimeEnv->summary.internalSupSize += (newCap - pWindowResInfo->capacity) * sizeof(SWindowResult);
 
       if (t == NULL) {
@@ -2257,7 +2257,7 @@ static void ensureOutputBuffer(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pB
         if (tmp == NULL) {  // todo handle the oom
           assert(0);
         } else {
-          memset(tmp + sizeof(tFilePage) + bytes * pRec->rows, 0, (newSize - pRec->rows) * bytes);
+          memset(tmp + sizeof(tFilePage) + bytes * pRec->rows, 0, (size_t)((newSize - pRec->rows) * bytes));
           pQuery->sdata[i] = (tFilePage *)tmp;
         }
         
@@ -2725,7 +2725,7 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
       char *  pDest = pQuery->sdata[i]->data;
-      memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num, bytes * pData->num);
+      memcpy(pDest + offset * bytes, pData->data + pRuntimeEnv->offset[i] * pData->num, (size_t)(bytes * pData->num));
     }
 
     offset += (int32_t)pData->num;
@@ -2946,7 +2946,7 @@ int32_t flushFromResultBuf(SQInfo *pQInfo) {
       buf->num = r;
 
       memcpy(buf->data + pRuntimeEnv->offset[i] * buf->num, ((char *)pQuery->sdata[i]->data) + offset * bytes,
-             buf->num * bytes);
+            (size_t)(buf->num * bytes));
     }
 
     offset += r;
@@ -3119,7 +3119,7 @@ void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv) {
       pCtx->ptsOutputBuf = pRuntimeEnv->pCtx[0].aOutputBuf;
     }
 
-    memset(pQuery->sdata[i]->data, 0, (size_t)pQuery->pSelectExpr[i].bytes * pQuery->rec.capacity);
+    memset(pQuery->sdata[i]->data, 0, (size_t)(pQuery->pSelectExpr[i].bytes * pQuery->rec.capacity));
   }
 
   initCtxOutputBuf(pRuntimeEnv);
@@ -3198,7 +3198,7 @@ void skipResults(SQueryRuntimeEnv *pRuntimeEnv) {
       int32_t functionId = pQuery->pSelectExpr[i].base.functionId;
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
       
-      memmove(pQuery->sdata[i]->data, (char*) pQuery->sdata[i]->data + bytes * numOfSkip, pQuery->rec.rows * bytes);
+      memmove(pQuery->sdata[i]->data, (char*)pQuery->sdata[i]->data + bytes * numOfSkip, (size_t)(pQuery->rec.rows * bytes));
       pRuntimeEnv->pCtx[i].aOutputBuf = ((char*) pQuery->sdata[i]->data) + pQuery->rec.rows * bytes;
 
       if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
@@ -5384,8 +5384,8 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
       if (pColFilter->filterstr) {
         pColFilter->len = htobe64(pFilterMsg->len);
 
-        pColFilter->pz = (int64_t) calloc(1, pColFilter->len + 1 * TSDB_NCHAR_SIZE); // note: null-terminator
-        memcpy((void *)pColFilter->pz, pMsg, pColFilter->len);
+        pColFilter->pz = (int64_t)calloc(1, (size_t)(pColFilter->len + 1 * TSDB_NCHAR_SIZE)); // note: null-terminator
+        memcpy((void *)pColFilter->pz, pMsg, (size_t)pColFilter->len);
         pMsg += (pColFilter->len + 1);
       } else {
         pColFilter->lowerBndi = htobe64(pFilterMsg->lowerBndi);
@@ -5889,7 +5889,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
     assert(pExprs[col].interBytes >= pExprs[col].bytes);
 
     // allocate additional memory for interResults that are usually larger then final results
-    size_t size = (pQuery->rec.capacity + 1) * pExprs[col].bytes + pExprs[col].interBytes + sizeof(tFilePage);
+    size_t size = (size_t)((pQuery->rec.capacity + 1) * pExprs[col].bytes + pExprs[col].interBytes + sizeof(tFilePage));
     pQuery->sdata[col] = (tFilePage *)calloc(1, size);
     if (pQuery->sdata[col] == NULL) {
       goto _cleanup;
@@ -6162,7 +6162,7 @@ static size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows) {
       return 0;
     }
   } else {
-    return pQuery->rowSize * (*numOfRows);
+    return (size_t)(pQuery->rowSize * (*numOfRows));
   }
 }
 
