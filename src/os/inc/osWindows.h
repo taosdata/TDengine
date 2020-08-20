@@ -230,7 +230,7 @@ void wordfree(wordexp_t *pwordexp);
   #define atomic_exchange_16(ptr, val) _InterlockedExchange16((short volatile*)(ptr), (short)(val))
   #define atomic_exchange_32(ptr, val) _InterlockedExchange((long volatile*)(ptr), (long)(val))
   #define atomic_exchange_64(ptr, val) _InterlockedExchange64((__int64 volatile*)(ptr), (__int64)(val))
-  #ifdef _InterlockedExchangePointer 
+  #ifdef _WIN64 
     #define atomic_exchange_ptr(ptr, val) _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val)) 
   #else
     #define atomic_exchange_ptr(ptr, val) _InlineInterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
