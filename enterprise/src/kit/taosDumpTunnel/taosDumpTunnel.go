@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/taosdata/driver-go/taosSql"
 )
@@ -119,12 +122,12 @@ func taosProcessQuery(db *sql.DB, sql string) ([]*sql.ColumnType, [][]interface{
 	return cols, vals, nil
 }
 
-func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname string, stime int64, batch int) (string, int64, bool, error) {
+func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname string, stime int64, batch int) (string, int64, int, error) {
 	sql := fmt.Sprintf("select * from %s.%s where %s > %d limit %d;", dbname, tbname, tsname, stime, batch)
 
 	_, rows, err := taosProcessQuery(db, sql)
 	if err != nil {
-		return "", 0, true, err
+		return "", 0, 0, err
 	}
 
 	var command bytes.Buffer
@@ -173,13 +176,15 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 		command.WriteString(")")
 	}
 
-	return command.String(), newStime, (len(rows) == 0), nil
+	return command.String(), newStime, len(rows), nil
 }
 
-func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int) error {
+func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int) (int, error) {
+	totalRows := 0
+
 	tInfo, err := taosGetTabInfo(db, tbname)
 	if err != nil {
-		return err
+		return totalRows, err
 	}
 
 	if tInfo.STable != "" { // try to create super table and table
@@ -255,21 +260,22 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 
 	stime := int64(1)
 	for {
-		cmd, nstime, isEnd, err := taosDumpTableBatchData(db, dbname, tbname, (tInfo.Cols)[0].Name, stime, batch)
+		cmd, nstime, fetchRows, err := taosDumpTableBatchData(db, dbname, tbname, (tInfo.Cols)[0].Name, stime, batch)
 		if err != nil {
-			return err
+			return totalRows, err
 		}
 
-		if isEnd {
+		if fetchRows == 0 {
 			break
 		}
 
+		totalRows += fetchRows
 		stime = nstime
 
 		taosSendSQLWithRest(client, cmd)
 	}
 
-	return nil
+	return totalRows, nil
 }
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -374,6 +380,8 @@ type DumpCfg struct {
 	// Performance configuration
 	threads *int
 	batch   *int
+	// Other options
+	logOnConsole *bool
 }
 
 func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
@@ -392,14 +400,15 @@ func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
 	return &tableList, nil
 }
 
-func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup) {
+func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *log.Logger) {
 	defer wg.Done()
-	log.Printf("thread %d is dumping tables %s", id, tables)
+	tRows := 0
+	logger.Printf("Start to dump %d tables:%s\n", len(tables), tables)
 
 	// Connect to source engine
 	db, err := sql.Open("taosSql", fmt.Sprintf("%s:%s@/tcp(%s:%d)/%s", *cfg.srcUser, *cfg.srcPass, *cfg.srcHost, *cfg.srcPort, *cfg.dbname))
 	if err != nil {
-		log.Println("Failed to connect to source engine ", err)
+		logger.Println("ERROR Failed to connect to source engine ", err)
 		return
 	}
 
@@ -408,13 +417,22 @@ func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup) {
 	// Create an HTTP client
 	client := &http.Client{}
 
+	stime := time.Now()
+
 	for i, table := range tables {
-		log.Printf("thread %d is dumping #%d table %s data...\n", id, i, table)
-		err = taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch)
+		logger.Printf("Start to dump #%d table %s data...\n", i, table)
+		start := time.Now()
+		totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch)
+		tRows += totalRows
 		if err != nil {
-			log.Panicf("thread %d failed while dumping %s data\n", id, table)
+			logger.Printf("ERROR Failed while dumping #%d table %s data\n", i, table)
+			continue
 		}
+		seconds := (time.Now().Sub(start)).Seconds()
+		logger.Printf("End to dump #%d table %s data, total rows: %d spent time: %f second speed: %f rows/second", i, table, totalRows, seconds, float64(totalRows)/seconds)
 	}
+
+	logger.Printf("Finished to dump %d rows from %d tables, use %f seconds\n", tRows, len(tables), (time.Now().Sub(stime)).Seconds())
 }
 
 func taosDumpData(cfg *DumpCfg, tables []string) {
@@ -447,9 +465,7 @@ func taosDumpData(cfg *DumpCfg, tables []string) {
 
 	if len(*tableList) == 0 {
 		log.Println("No table data to dump, just exit!")
-		return
 	} else {
-
 		sort.Strings(*tableList)
 		var threads int
 		if *cfg.threads < len(*tableList) {
@@ -461,9 +477,29 @@ func taosDumpData(cfg *DumpCfg, tables []string) {
 		meanTables := len(*tableList) / threads
 		remainTables := len(*tableList) % threads
 
+		logFName := "taosDumpTunnel.log"
+
+		f, err := os.OpenFile(logFName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Println("Failed to open file ", logFName, err)
+			return
+		}
+
+		defer f.Close()
+
+		var mw io.Writer
+		if *cfg.logOnConsole {
+			mw = io.MultiWriter(os.Stdout, f)
+		} else {
+			mw = io.MultiWriter(f)
+		}
+
 		// Launch workers to dump data
 		var wg sync.WaitGroup
 		sindex := 0
+
+		log.Println("Start to dump data")
+		start := time.Now()
 
 		for i := 0; i < threads; i++ {
 			wg.Add(1)
@@ -476,10 +512,17 @@ func taosDumpData(cfg *DumpCfg, tables []string) {
 			}
 			tbs := (*tableList)[sindex : sindex+ntables]
 			sindex = sindex + ntables
-			go taosDumpWorker(i, cfg, tbs, &wg)
+
+			logger := log.New(mw, fmt.Sprintf("routine #%d ", i), log.LstdFlags)
+
+			go taosDumpWorker(i, cfg, tbs, &wg, logger)
 		}
 
 		wg.Wait()
+
+		seconds := (time.Now().Sub(start)).Seconds()
+
+		log.Printf("Spent %f seconds to dump data\n", seconds)
 	}
 }
 
@@ -501,6 +544,8 @@ func main() {
 
 	dumpCfg.threads = flag.Int("threads", 5, "threads to do dump job")
 	dumpCfg.batch = flag.Int("batch", 100, "batch size per dump insert")
+
+	dumpCfg.logOnConsole = flag.Bool("log-on-console", true, "if print log on console")
 
 	flag.Parse()
 
