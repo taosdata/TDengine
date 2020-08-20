@@ -1,6 +1,6 @@
 ## Introduction
 The tool _**taosDumpTunnel**_ is used to dump data from a TDengine server to
-another, regardless of the version of two servers. For example, you can use the
+another, regardless the version of two servers. For example, you can use the
 tool to dump data from version 1.6.X to 2.0.X. The tool uses go driver to read 
 data from source server, and use HTTP interface to dump data into the destination
 server.
@@ -37,5 +37,5 @@ Users can use _-h_ option to check the usage of tool.
     ```
 
 ## Note
-1. Destination server must create the database before doing dump work.
-2. Do _**NOT**_ super table as argument of the tool.
+1. Destination server must create database before doing dump work.
+2. Do _**NOT**_ use super table names as the argument of the tool.

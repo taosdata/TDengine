@@ -148,21 +148,9 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 				command.WriteString("NULL")
 			} else {
 				switch val.(type) {
-				case int8:
-					command.WriteString(fmt.Sprintf("'%v'", val))
-				case int16:
-					command.WriteString(fmt.Sprintf("%v", val))
-				case int32:
-					command.WriteString(fmt.Sprintf("%v", val))
-				case int64:
-					command.WriteString(fmt.Sprintf("%v", val))
-				case int:
-					command.WriteString(fmt.Sprintf("%v", val))
 				case string:
-					command.WriteString(fmt.Sprintf("'%v'", val))
-				case float32:
-					command.WriteString(fmt.Sprintf("%v", val))
-				case float64:
+					command.WriteString(fmt.Sprintf("'%s'", strings.Trim(val.(string), string(0))))
+				default:
 					command.WriteString(fmt.Sprintf("%v", val))
 				}
 			}
@@ -181,7 +169,7 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 	return command.String(), newStime, len(rows), nil
 }
 
-func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int) (int, error) {
+func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int, logger *log.Logger) (int, error) {
 	totalRows := 0
 
 	tInfo, err := taosGetTabInfo(db, tbname)
@@ -224,7 +212,7 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 		}
 
 		cmd = cmd + ")"
-		taosSendSQLWithRest(client, cmd)
+		taosSendSQLWithRest(client, cmd, logger)
 
 		cmd = fmt.Sprintf("create table if not exists %s.%s using %s.%s tags (", dbname, tbname, dbname, tInfo.STable)
 		for j, colInfo := range tInfo.Cols {
@@ -245,7 +233,7 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 			}
 		}
 		cmd = cmd + ")"
-		taosSendSQLWithRest(client, cmd)
+		taosSendSQLWithRest(client, cmd, logger)
 	} else { // try to create table
 		cmd := fmt.Sprintf("create table if not exists %s (", tbname)
 		for _, colInfo := range tInfo.Cols {
@@ -257,7 +245,7 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 
 		}
 		cmd = cmd + ")"
-		taosSendSQLWithRest(client, cmd)
+		taosSendSQLWithRest(client, cmd, logger)
 	}
 
 	stime := int64(1)
@@ -274,7 +262,7 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 		totalRows += fetchRows
 		stime = nstime
 
-		taosSendSQLWithRest(client, cmd)
+		taosSendSQLWithRest(client, cmd, logger)
 	}
 
 	return totalRows, nil
@@ -294,8 +282,9 @@ type TokenResult struct {
 	Desc   string `json:"desc"`
 }
 
-func taosSendSQLWithRest(client *http.Client, sql string) {
+func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 	var times int
+	var code int
 	maxTryTime := 20
 	for times = 0; times < maxTryTime; times++ {
 		req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))
@@ -324,6 +313,7 @@ func taosSendSQLWithRest(client *http.Client, sql string) {
 		}
 
 		if jsonResult.Status != "succ" {
+			code = jsonResult.Code
 			resp.Body.Close()
 			continue
 		}
@@ -332,7 +322,7 @@ func taosSendSQLWithRest(client *http.Client, sql string) {
 	}
 
 	if times >= maxTryTime {
-		fmt.Println("Failed to run SQL:", sql)
+		logger.Printf("ERROR Failed to run command, code : %d SQL: %s\n", code, sql)
 	}
 }
 
@@ -427,7 +417,7 @@ func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup, l
 	for i, table := range tables {
 		logger.Printf("Start to dump #%d table %s data...\n", i, table)
 		start := time.Now()
-		totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch)
+		totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch, logger)
 		tRows += uint64(totalRows)
 		if err != nil {
 			logger.Printf("ERROR Failed while dumping #%d table %s data\n", i, table)
