@@ -165,6 +165,13 @@ int32_t dnodeInitMgmtTimer() {
   return TSDB_CODE_SUCCESS;
 }
 
+void dnodeSendStatusMsgToMnode() {
+  if (tsDnodeTmr != NULL && tsStatusTimer != NULL) {
+    dInfo("force send status msg to mnode");
+    taosTmrReset(dnodeSendStatusMsg, 3, NULL, tsDnodeTmr, &tsStatusTimer);
+  }
+}
+
 void dnodeCleanupMgmtTimer() {
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);

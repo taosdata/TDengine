@@ -65,6 +65,8 @@ void    dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code);
 void    dnodeReprocessMnodeWriteMsg(void *pMsg);
 void    dnodeDelayReprocessMnodeWriteMsg(void *pMsg);
 
+void    dnodeSendStatusMsgToMnode();
+
 #ifdef __cplusplus
 }
 #endif
