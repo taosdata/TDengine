@@ -22,6 +22,11 @@ IF (${PAGMODE} MATCHES "lite")
   MESSAGE(STATUS "Build with pagmode lite")
 ENDIF ()
 
+IF (${SOMODE} MATCHES "static")
+  SET(TD_SOMODE_STATIC TRUE)
+  MESSAGE(STATUS "Link so using static mode")
+ENDIF ()
+
 IF (${DLLTYPE} MATCHES "go")
   SET(TD_GODLL TRUE)
   MESSAGE(STATUS "input dll type: " ${DLLTYPE})

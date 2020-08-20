@@ -327,13 +327,30 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
   STscObj *pObj = pSql->pTscObj;
 
   if (tscIsUpdateQuery(pSql)) {
-    // taos_free_result(pSql);  // free result here
-    jniDebug("jobj:%p, conn:%p, no resultset, %p", jobj, pObj, (void *)tres);
-    return 0;
+    jniDebug("jobj:%p, conn:%p, update query, no resultset, %p", jobj, pObj, (void *)tres);
   } else {
     jniDebug("jobj:%p, conn:%p, get resultset, %p", jobj, pObj, (void *)tres);
-    return tres;
   }
+
+  return tres;
+}
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_isUpdateQueryImp(JNIEnv *env, jobject jobj, jlong con,
+                                                                                jlong tres) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection is closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  if ((void *)tres == NULL) {
+    jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
+    return JNI_RESULT_SET_NULL;
+  }
+
+  SSqlObj *pSql = (TAOS_RES *)tres;
+
+  return (tscIsUpdateQuery(pSql)? 1:0);
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(JNIEnv *env, jobject jobj, jlong con,
