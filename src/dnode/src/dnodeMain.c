@@ -50,7 +50,7 @@ typedef struct {
 
 static const SDnodeComponent tsDnodeComponents[] = {
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
-  {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeInitStorage component !!!
+  {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
   {"mread",     dnodeInitMnodeRead,  dnodeCleanupMnodeRead},

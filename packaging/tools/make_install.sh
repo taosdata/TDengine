@@ -237,7 +237,7 @@ function install_data() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${source_dir}/src/connector/grafana ${install_main_dir}/connector
+    ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin ${install_main_dir}/connector
     ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
     ${csudo} cp -rf ${source_dir}/src/connector/go ${install_main_dir}/connector
         

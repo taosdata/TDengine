@@ -90,6 +90,7 @@ extern "C" {
   #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto((SOCKET)sockfd, buf, len, flags, dest_addr, addrlen)
   #define taosWriteSocket(fd, buf, len) send((SOCKET)fd, buf, len, 0)
   #define taosReadSocket(fd, buf, len) recv((SOCKET)fd, buf, len, 0)
+  #define taosCloseSocketNoCheck(fd) closesocket((SOCKET)fd)
   #define taosCloseSocket(fd) closesocket((SOCKET)fd)
 typedef SOCKET eventfd_t; 
 #define eventfd(a, b) -1
