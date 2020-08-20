@@ -33,6 +33,7 @@ public class TSDBStatement implements Statement {
      * Status of current statement
      */
 	private boolean isClosed = true;
+	private int affectedRows = 0;
 
 	TSDBStatement(TSDBJNIConnector connecter) {
 		this.connecter = connecter;
@@ -60,13 +61,21 @@ public class TSDBStatement implements Statement {
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
 			this.connecter.freeResultSet(pSql);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-		} else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
-//			create/insert/update/del/alter
+		}
+
+        // create/insert/update/delete/alter
+		if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
 			this.connecter.freeResultSet(pSql);
 			return null;
-		} else {
-			return new TSDBResultSet(this.connecter, resultSetPointer);
 		}
+		
+		if (!this.connecter.isUpdateQuery(pSql)) {
+			return new TSDBResultSet(this.connecter, resultSetPointer);
+		} else {
+			this.connecter.freeResultSet(pSql);
+			return null;
+		}
+		
 	}
 
 	public int executeUpdate(String sql) throws SQLException {
@@ -81,11 +90,12 @@ public class TSDBStatement implements Statement {
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
 			this.connecter.freeResultSet(pSql);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-		}	
+		}
 
-		int num = this.connecter.getAffectedRows(pSql);
+		this.affectedRows = this.connecter.getAffectedRows(pSql);
 		this.connecter.freeResultSet(pSql);
-		return num;
+		
+		return this.affectedRows;
 	}
 
 	public String getErrorMsg(long pSql) {
@@ -182,7 +192,8 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		return this.connecter.getAffectedRows(this.pSql);
+        
+		return this.affectedRows;
 	}
 
 	public boolean getMoreResults() throws SQLException {

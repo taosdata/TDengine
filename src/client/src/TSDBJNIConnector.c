@@ -335,6 +335,24 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
   return tres;
 }
 
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_isUpdateQueryImp(JNIEnv *env, jobject jobj, jlong con,
+                                                                                jlong tres) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection is closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  if ((void *)tres == NULL) {
+    jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
+    return JNI_RESULT_SET_NULL;
+  }
+
+  SSqlObj *pSql = (TAOS_RES *)tres;
+
+  return (tscIsUpdateQuery(pSql)? 1:0);
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(JNIEnv *env, jobject jobj, jlong con,
                                                                                 jlong res) {
   TAOS *tscon = (TAOS *)con;
