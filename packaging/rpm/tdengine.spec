@@ -61,7 +61,7 @@ cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
-cp -r %{_compiledir}/../src/connector/grafana       %{buildroot}%{homepath}/connector
+cp -r %{_compiledir}/../src/connector/grafanaplugin %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp %{_compiledir}/build/lib/taos-jdbcdriver*dist.*  %{buildroot}%{homepath}/connector
