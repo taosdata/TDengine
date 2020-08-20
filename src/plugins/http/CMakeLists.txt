@@ -11,7 +11,12 @@ AUX_SOURCE_DIRECTORY(src SRC)
   
 IF (TD_LINUX)
   ADD_LIBRARY(http ${SRC})
-  TARGET_LINK_LIBRARIES(http taos z)
+
+  IF (TD_SOMODE_STATIC)
+    TARGET_LINK_LIBRARIES(http taos_static z)
+  ELSE ()  
+    TARGET_LINK_LIBRARIES(http taos z)
+  ENDIF ()
 
   IF (TD_ADMIN)
     TARGET_LINK_LIBRARIES(http admin)
