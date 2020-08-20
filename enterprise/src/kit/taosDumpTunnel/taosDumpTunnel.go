@@ -284,6 +284,7 @@ type TokenResult struct {
 
 func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 	var times int
+	var code int
 	maxTryTime := 20
 	for times = 0; times < maxTryTime; times++ {
 		req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))
@@ -312,6 +313,7 @@ func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 		}
 
 		if jsonResult.Status != "succ" {
+			code = jsonResult.Code
 			resp.Body.Close()
 			continue
 		}
@@ -320,7 +322,7 @@ func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 	}
 
 	if times >= maxTryTime {
-		logger.Printf("ERROR Failed to run SQL: %s\n", sql)
+		logger.Printf("ERROR Failed to run command, code : %d SQL: %s\n", code, sql)
 	}
 }
 
