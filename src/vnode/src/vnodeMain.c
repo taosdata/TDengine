@@ -30,6 +30,7 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "query.h"
+#include "dnode.h"
 
 #define TSDB_VNODE_VERSION_CONTENT_LEN 31
 
@@ -361,6 +362,7 @@ void vnodeRelease(void *pVnodeRaw) {
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
     taosMvDir(tsVnodeBakDir, rootDir);
     taosRemoveDir(rootDir);
+    dnodeSendStatusMsgToMnode();
   }
 
   tsem_destroy(&pVnode->sem);
@@ -390,7 +392,7 @@ void *vnodeAcquireRqueue(int32_t vgId) {
   if (pVnode == NULL) return NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_RESET) {           
-    terrno = TSDB_CODE_VND_INVALID_STATUS;
+    terrno = TSDB_CODE_APP_NOT_READY;
     vInfo("vgId:%d, status is in reset", vgId);
     vnodeRelease(pVnode);
     return NULL;
@@ -404,7 +406,7 @@ void *vnodeAcquireWqueue(int32_t vgId) {
   if (pVnode == NULL) return NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_RESET) {           
-    terrno = TSDB_CODE_VND_INVALID_STATUS;
+    terrno = TSDB_CODE_APP_NOT_READY;
     vInfo("vgId:%d, status is in reset", vgId);
     vnodeRelease(pVnode);
     return NULL;
@@ -547,6 +549,7 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
   vInfo("vgId:%d, sync role changed from %d to %d", pVnode->vgId, pVnode->role, role);
   pVnode->role = role;
+  dnodeSendStatusMsgToMnode();
 
   if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
     cqStart(pVnode->cq);
