@@ -1702,7 +1702,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   assert(pTableMetaInfo->pTableMeta == NULL);
 
   pTableMetaInfo->pTableMeta = (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name,
-      strlen(pTableMetaInfo->name), pTableMeta, size, tsTableMetaKeepTimer);
+      strlen(pTableMetaInfo->name), pTableMeta, size, tsTableMetaKeepTimer * 1000);
   
   // todo handle out of memory case
   if (pTableMetaInfo->pTableMeta == NULL) {
@@ -1906,7 +1906,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
   
   pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, strlen(key), (char *)pTableMeta, size,
-      tsTableMetaKeepTimer);
+      tsTableMetaKeepTimer * 1000);
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   if (pQueryInfo->colList == NULL) {
