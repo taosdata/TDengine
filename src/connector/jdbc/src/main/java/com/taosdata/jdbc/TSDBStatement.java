@@ -33,6 +33,7 @@ public class TSDBStatement implements Statement {
      * Status of current statement
      */
 	private boolean isClosed = true;
+	private int affectedRows = 0;
 
 	TSDBStatement(TSDBJNIConnector connecter) {
 		this.connecter = connecter;
@@ -91,9 +92,10 @@ public class TSDBStatement implements Statement {
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 		}
 
-		int num = this.connecter.getAffectedRows(pSql);
+		this.affectedRows = this.connecter.getAffectedRows(pSql);
 		this.connecter.freeResultSet(pSql);
-		return num;
+		
+		return this.affectedRows;
 	}
 
 	public String getErrorMsg(long pSql) {
@@ -190,7 +192,8 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-		return this.connecter.getAffectedRows(this.pSql);
+        
+		return this.affectedRows;
 	}
 
 	public boolean getMoreResults() throws SQLException {
