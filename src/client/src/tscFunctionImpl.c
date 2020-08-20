@@ -1811,23 +1811,23 @@ static void last_dist_func_second_merge(SQLFunctionCtx *pCtx) {
  * NOTE: last_row does not use the interResultBuf to keep the result
  */
 static void last_row_function(SQLFunctionCtx *pCtx) {
-  assert(pCtx->size == 1);
-  
+  assert(pCtx->size >= 1);
   char *pData = GET_INPUT_CHAR(pCtx);
-  assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
+
+  // assign the last element in current data block
+  assignVal(pCtx->aOutputBuf, pData + (pCtx->size - 1) * pCtx->inputBytes, pCtx->inputBytes, pCtx->inputType);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   
   SLastrowInfo *pInfo = (SLastrowInfo *)pResInfo->interResultBuf;
-  pInfo->ts = pCtx->ptsList[0];
-  
+  pInfo->ts = pCtx->ptsList[pCtx->size - 1];
   pInfo->hasResult = DATA_SET_FLAG;
   
-  // set the result to final result buffer
+  // set the result to final result buffer in case of super table query
   if (pResInfo->superTableQ) {
     SLastrowInfo *pInfo1 = (SLastrowInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
-    pInfo1->ts = pCtx->ptsList[0];
+    pInfo1->ts = pCtx->ptsList[pCtx->size - 1];
     pInfo1->hasResult = DATA_SET_FLAG;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
