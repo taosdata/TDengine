@@ -1820,10 +1820,6 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   
-  SLastrowInfo *pInfo = (SLastrowInfo *)pResInfo->interResultBuf;
-  pInfo->ts = pCtx->ptsList[pCtx->size - 1];
-  pInfo->hasResult = DATA_SET_FLAG;
-  
   // set the result to final result buffer in case of super table query
   if (pResInfo->superTableQ) {
     SLastrowInfo *pInfo1 = (SLastrowInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
