@@ -623,7 +623,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   // keep the results in memory
   if (numOfRows > 0) {
-    size_t validLen = pSupporter->tagSize * pRes->numOfRows;
+    size_t validLen = (size_t)(pSupporter->tagSize * pRes->numOfRows);
     size_t length = pSupporter->totalLen + validLen;
 
     // todo handle memory error
@@ -748,7 +748,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   if (numOfRows > 0) {  // write the compressed timestamp to disk file
-    fwrite(pRes->data, pRes->numOfRows, 1, pSupporter->f);
+    fwrite(pRes->data, (size_t)pRes->numOfRows, 1, pSupporter->f);
     fclose(pSupporter->f);
     pSupporter->f = NULL;
 
