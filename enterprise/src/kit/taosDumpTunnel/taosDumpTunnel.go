@@ -169,7 +169,7 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 	return command.String(), newStime, len(rows), nil
 }
 
-func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int, logger *log.Logger) (int, error) {
+func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int, schemaOnly bool, logger *log.Logger) (int, error) {
 	totalRows := 0
 
 	tInfo, err := taosGetTabInfo(db, tbname)
@@ -246,6 +246,10 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 		}
 		cmd = cmd + ")"
 		taosSendSQLWithRest(client, cmd, logger)
+	}
+
+	if schemaOnly {
+		return totalRows, nil
 	}
 
 	stime := int64(1)
@@ -374,6 +378,7 @@ type DumpCfg struct {
 	batch   *int
 	// Other options
 	logOnConsole *bool
+	schemaOnly   *bool
 }
 
 func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
@@ -392,7 +397,7 @@ func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
 	return &tableList, nil
 }
 
-func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *log.Logger) {
+func taosDumpWorker(cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *log.Logger) {
 	tRows := uint64(0)
 	logger.Printf("Start to dump %d tables:%s\n", len(tables), tables)
 	defer func() {
@@ -417,7 +422,7 @@ func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup, l
 	for i, table := range tables {
 		logger.Printf("Start to dump #%d table %s data...\n", i, table)
 		start := time.Now()
-		totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch, logger)
+		totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch, *cfg.schemaOnly, logger)
 		tRows += uint64(totalRows)
 		if err != nil {
 			logger.Printf("ERROR Failed while dumping #%d table %s data\n", i, table)
@@ -510,7 +515,7 @@ func taosDumpData(cfg *DumpCfg, tables []string) {
 
 			logger := log.New(mw, fmt.Sprintf("routine #%d ", i), log.LstdFlags)
 
-			go taosDumpWorker(i, cfg, tbs, &wg, logger)
+			go taosDumpWorker(cfg, tbs, &wg, logger)
 		}
 
 		wg.Wait()
@@ -541,6 +546,7 @@ func main() {
 	dumpCfg.batch = flag.Int("batch", 100, "batch size per dump insert")
 
 	dumpCfg.logOnConsole = flag.Bool("log-on-console", true, "if print log on console")
+	dumpCfg.schemaOnly = flag.Bool("schema-only", false, "only dump schema")
 
 	flag.Parse()
 
