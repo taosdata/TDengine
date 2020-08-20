@@ -14,14 +14,16 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/taosdata/driver-go/taosSql"
 )
 
 var (
-	token string
-	url   string
+	token      string
+	url        string
+	rowsDumped uint64
 )
 
 /*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -401,9 +403,12 @@ func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
 }
 
 func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *log.Logger) {
-	defer wg.Done()
-	tRows := 0
+	tRows := uint64(0)
 	logger.Printf("Start to dump %d tables:%s\n", len(tables), tables)
+	defer func() {
+		atomic.AddUint64(&rowsDumped, tRows)
+		wg.Done()
+	}()
 
 	// Connect to source engine
 	db, err := sql.Open("taosSql", fmt.Sprintf("%s:%s@/tcp(%s:%d)/%s", *cfg.srcUser, *cfg.srcPass, *cfg.srcHost, *cfg.srcPort, *cfg.dbname))
@@ -423,7 +428,7 @@ func taosDumpWorker(id int, cfg *DumpCfg, tables []string, wg *sync.WaitGroup, l
 		logger.Printf("Start to dump #%d table %s data...\n", i, table)
 		start := time.Now()
 		totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, table, *cfg.batch)
-		tRows += totalRows
+		tRows += uint64(totalRows)
 		if err != nil {
 			logger.Printf("ERROR Failed while dumping #%d table %s data\n", i, table)
 			continue
@@ -522,7 +527,7 @@ func taosDumpData(cfg *DumpCfg, tables []string) {
 
 		seconds := (time.Now().Sub(start)).Seconds()
 
-		log.Printf("Spent %f seconds to dump data\n", seconds)
+		log.Printf("Spent %f seconds to dump %d rows of data\n", seconds, rowsDumped)
 	}
 }
 
