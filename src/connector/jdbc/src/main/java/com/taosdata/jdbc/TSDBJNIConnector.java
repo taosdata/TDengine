@@ -111,6 +111,8 @@ public class TSDBJNIConnector {
      * @throws SQLException
      */
     public long executeQuery(String sql) throws SQLException {
+    	// close previous result set if the user forgets to invoke the 
+    	// free method to close previous result set.
         if (!this.isResultsetClosed) {
             freeResultSet(taosResultSetPointer);
         }
@@ -123,21 +125,20 @@ public class TSDBJNIConnector {
             this.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.WrapErrMsg("Unsupported encoding"));
         }
+        
         int code = this.getErrCode(pSql);
         if (code != 0) {
             affectedRows = -1;
-            String err_msg = this.getErrMsg(pSql);
+            String msg = this.getErrMsg(pSql);
+            
             this.freeResultSet(pSql);
-            throw new SQLException(TSDBConstants.WrapErrMsg(err_msg), "", code);
+            throw new SQLException(TSDBConstants.WrapErrMsg(msg), "", code);
         }
 
-        // Try retrieving result set for the executed SQL using the current connection pointer. If the executed
-        // SQL is a DML/DDL which doesn't return a result set, then taosResultSetPointer should be 0L. Otherwise,
-        // taosResultSetPointer should be a non-zero value.
+        // Try retrieving result set for the executed SQL using the current connection pointer. 
         taosResultSetPointer = this.getResultSetImp(this.taos, pSql);
-        if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-            isResultsetClosed = false;
-        }
+        isResultsetClosed = (taosResultSetPointer == TSDBConstants.JNI_NULL_POINTER);
+        
         return pSql;
     }
 
@@ -178,13 +179,14 @@ public class TSDBJNIConnector {
         int res = TSDBConstants.JNI_SUCCESS;
         if (result != taosResultSetPointer && taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
             throw new RuntimeException("Invalid result set pointer");
-        } else if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-            res = this.freeResultSetImp(this.taos, result);
-            isResultsetClosed = true; // reset resultSetPointer to 0 after freeResultSetImp() return
-            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
-        } else {
-            isResultsetClosed = true;
         }
+
+        if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
+            res = this.freeResultSetImp(this.taos, result);
+            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
+        }
+        
+        isResultsetClosed = true;
         return res;
     }
 
