@@ -390,7 +390,7 @@ void *vnodeAcquireRqueue(int32_t vgId) {
   if (pVnode == NULL) return NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_RESET) {           
-    terrno = TSDB_CODE_VND_INVALID_STATUS;
+    terrno = TSDB_CODE_APP_NOT_READY;
     vInfo("vgId:%d, status is in reset", vgId);
     vnodeRelease(pVnode);
     return NULL;
@@ -404,7 +404,7 @@ void *vnodeAcquireWqueue(int32_t vgId) {
   if (pVnode == NULL) return NULL;
 
   if (pVnode->status == TAOS_VN_STATUS_RESET) {           
-    terrno = TSDB_CODE_VND_INVALID_STATUS;
+    terrno = TSDB_CODE_APP_NOT_READY;
     vInfo("vgId:%d, status is in reset", vgId);
     vnodeRelease(pVnode);
     return NULL;

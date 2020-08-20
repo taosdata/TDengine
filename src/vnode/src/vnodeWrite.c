@@ -60,19 +60,19 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   }
 
   // tsdb may be in reset state 
-  if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
+  if (pVnode->tsdb == NULL) return TSDB_CODE_APP_NOT_READY;
   if (pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_RPC_NOT_READY;
+    return TSDB_CODE_APP_NOT_READY;
   
   if (pHead->version == 0) { // from client or CQ 
     if (pVnode->status != TAOS_VN_STATUS_READY) {
       vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->status);
-      return TSDB_CODE_VND_INVALID_STATUS;  // it may be in deleting or closing state
+      return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
     }
 
     if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
       vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->syncCfg.replica, pVnode->role);
-      return TSDB_CODE_RPC_NOT_READY;
+      return TSDB_CODE_APP_NOT_READY;
     }
 
     // assign version

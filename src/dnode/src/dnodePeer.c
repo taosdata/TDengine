@@ -93,7 +93,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   if (pMsg->pCont == NULL) return;
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
-    rspMsg.code = TSDB_CODE_RPC_NOT_READY;
+    rspMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
     dDebug("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);

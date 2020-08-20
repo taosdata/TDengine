@@ -275,6 +275,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+       rpcMsg->code == TSDB_CODE_APP_NOT_READY ||
        rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
     tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
 
