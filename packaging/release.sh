@@ -232,7 +232,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
     if [ "$verMode" != "cluster" ]; then
       cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DSOMODE=${soMode}
     else
-      cmake ../../ -DCPUTYPE=${cpuType}
+      cmake ../../ -DCPUTYPE=${cpuType} -DSOMODE=${soMode}
     fi
 else
     echo "input cpuType=${cpuType} error!!!"
