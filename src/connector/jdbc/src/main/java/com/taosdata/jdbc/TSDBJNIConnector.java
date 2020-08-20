@@ -171,6 +171,12 @@ public class TSDBJNIConnector {
     }
 
     private native long getResultSetImp(long connection, long pSql);
+    
+    public boolean isUpdateQuery(long pSql) {
+    	return isUpdateQueryImp(this.taos, pSql) == 1? true:false;
+    }
+    
+    private native long isUpdateQueryImp(long connection, long pSql);
 
     /**
      * Free resultset operation from C to release resultset pointer by JNI
