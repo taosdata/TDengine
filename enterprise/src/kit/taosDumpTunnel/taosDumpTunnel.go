@@ -149,7 +149,7 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 			} else {
 				switch val.(type) {
 				case string:
-					command.WriteString(strings.Trim(val.(string), string(0)))
+					command.WriteString(fmt.Sprintf("'%s'", strings.Trim(val.(string), string(0))))
 				default:
 					command.WriteString(fmt.Sprintf("%v", val))
 				}
