@@ -178,6 +178,8 @@ public class TSDBLoadDataTest {
 		ResultSet reSet = null;
 		try {
 			stmt = (Statement) conn.createStatement();
+			reSet = stmt.executeQuery("use test");
+			
 			reSet = stmt.executeQuery("select * from tm1");
 			
 			while(reSet.next()) {
