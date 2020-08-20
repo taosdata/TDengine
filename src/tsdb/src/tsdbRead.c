@@ -2564,7 +2564,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tsdbDestroyHelper(&pQueryHandle->rhelper);
 
   SIOCostSummary* pCost = &pQueryHandle->cost;
-  tsdbDebug("%p :io-cost summary: statis-info:%"PRId64"us, datablock:%" PRId64"us, check data:%"PRId64"us, %p",
+  tsdbDebug("%p :io-cost summary: statis-info:%"PRId64" us, datablock:%" PRId64" us, check data:%"PRId64" us, %p",
       pQueryHandle, pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qinfo);
 
   taosTFree(pQueryHandle);

@@ -51,6 +51,8 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
+        
+        // TODO make sure it is not a update query
 		pSql = this.connecter.executeQuery(sql);
 
 		long resultSetPointer = this.connecter.getResultSet();
@@ -58,33 +60,40 @@ public class TSDBStatement implements Statement {
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
 			this.connecter.freeResultSet(pSql);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-		} else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
-//			create/insert/update/del/alter
+		}
+
+        // create/insert/update/delete/alter
+		if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
 			this.connecter.freeResultSet(pSql);
 			return null;
-		} else {
-			return new TSDBResultSet(this.connecter, resultSetPointer);
 		}
+		
+		if (!this.connecter.isUpdateQuery(pSql)) {
+			return new TSDBResultSet(this.connecter, resultSetPointer);
+		} else {
+			this.connecter.freeResultSet(pSql);
+			return null;
+		}
+		
 	}
 
 	public int executeUpdate(String sql) throws SQLException {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
+        
+        // TODO check if current query is update query
 		pSql = this.connecter.executeQuery(sql);
 		long resultSetPointer = this.connecter.getResultSet();
 
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
 			this.connecter.freeResultSet(pSql);
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-		} else if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-			this.connecter.freeResultSet();
-			throw new SQLException("The executed SQL is not a DML or a DDL");
-		} else {
-			int num = this.connecter.getAffectedRows(pSql);
-			this.connecter.freeResultSet(pSql);
-			return num;
 		}
+
+		int num = this.connecter.getAffectedRows(pSql);
+		this.connecter.freeResultSet(pSql);
+		return num;
 	}
 
 	public String getErrorMsg(long pSql) {

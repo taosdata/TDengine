@@ -133,12 +133,18 @@ endi
 if $data74 != -4.000000000 then
   return -1
 endi
+
 ## fill(value) + group by
 sql select max(c1), max(c2), max(c3), max(c4), max(c5) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1, -2, -3, -4, -5, -6, -7, -8) group by t1
 $val = $rowNum * 2
+print $rowNum, $val
+
 $val = $val - 1
 $val = $val * $tbNum
-if $rows != $val then
+print ==================== $val
+
+if $rows != 190 then
+  print expect 190, actual:$rows
   return -1
 endi
 if $data06 != 0 then
