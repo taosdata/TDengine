@@ -169,6 +169,27 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 	return command.String(), newStime, len(rows), nil
 }
 
+func taosGetSchemaString(tableCols []TableColInfo) string {
+	schemaString := "("
+
+	for i, colInfo := range tableCols {
+		if i != 0 {
+			schemaString += ", "
+		}
+
+		if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
+			schemaString = fmt.Sprintf("%s%s %s(%d)", schemaString, colInfo.Name, strings.ToLower(colInfo.Type), colInfo.Length)
+		} else {
+			schemaString = fmt.Sprintf("%s%s %s", schemaString, colInfo.Name, strings.ToLower(colInfo.Type))
+		}
+
+	}
+
+	schemaString += ")"
+
+	return schemaString
+}
+
 func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname string, batch int, schemaOnly bool, logger *log.Logger) (int, error) {
 	totalRows := 0
 
@@ -177,43 +198,20 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 		return totalRows, err
 	}
 
-	if tInfo.STable != "" { // try to create super table and table
-		cmd := fmt.Sprintf("create table if not exists %s.%s (", dbname, tInfo.STable)
-		for colID, colInfo := range tInfo.SCols {
-			if colInfo.Note == "" {
-				if colID != 0 {
-					cmd = fmt.Sprintf("%s, ", cmd)
-				}
-				if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
-					cmd = fmt.Sprintf("%s%s %s(%d)", cmd, colInfo.Name, strings.ToLower(colInfo.Type), colInfo.Length)
-				} else {
-					cmd = fmt.Sprintf("%s%s %s", cmd, colInfo.Name, strings.ToLower(colInfo.Type))
-				}
-			} else {
-				cmd = fmt.Sprintf("%s) tags (", cmd)
+	if tInfo.STable != "" {
+		// Create super table at first
+		tagColIdx := 0
+		for _, colInfo := range tInfo.SCols {
+			if colInfo.Name != "" {
 				break
 			}
+			tagColIdx++
 		}
 
-		isFirstTag := true
-		for _, colInfo := range tInfo.SCols {
-			if colInfo.Note != "" {
-				if !isFirstTag {
-					cmd = cmd + ","
-				} else {
-					isFirstTag = false
-				}
-				if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
-					cmd = fmt.Sprintf("%s%s %s(%d)", cmd, colInfo.Name, strings.ToLower(colInfo.Type), colInfo.Length)
-				} else {
-					cmd = fmt.Sprintf("%s%s %s", cmd, colInfo.Name, strings.ToLower(colInfo.Type))
-				}
-			}
-		}
-
-		cmd = cmd + ")"
+		cmd := fmt.Sprintf("create table if not exists %s.%s %s tags %s", dbname, tInfo.STable, taosGetSchemaString(tInfo.SCols[:tagColIdx]), taosGetSchemaString(tInfo.SCols[tagColIdx:]))
 		taosSendSQLWithRest(client, cmd, logger)
 
+		// Create normal table then
 		cmd = fmt.Sprintf("create table if not exists %s.%s using %s.%s tags (", dbname, tbname, dbname, tInfo.STable)
 		for j, colInfo := range tInfo.Cols {
 			if colInfo.Note != "" {
@@ -234,17 +232,8 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 		}
 		cmd = cmd + ")"
 		taosSendSQLWithRest(client, cmd, logger)
-	} else { // try to create table
-		cmd := fmt.Sprintf("create table if not exists %s (", tbname)
-		for _, colInfo := range tInfo.Cols {
-			if colInfo.Type == "BINARY" || colInfo.Type == "NCHAR" {
-				cmd = fmt.Sprintf("%s,%s(%d)", cmd, strings.ToLower(colInfo.Type), colInfo.Length)
-			} else {
-				cmd = fmt.Sprintf("%s, %s", cmd, strings.ToLower(colInfo.Type))
-			}
-
-		}
-		cmd = cmd + ")"
+	} else { // try to create normal tables
+		cmd := fmt.Sprintf("create table if not exists %s.%s %s", dbname, tbname, taosGetSchemaString(tInfo.Cols))
 		taosSendSQLWithRest(client, cmd, logger)
 	}
 
@@ -288,7 +277,7 @@ type TokenResult struct {
 
 func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 	var times int
-	var code int
+	var jsonResult JsonResult
 	maxTryTime := 20
 	for times = 0; times < maxTryTime; times++ {
 		req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))
@@ -309,7 +298,6 @@ func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 			continue
 		}
 
-		var jsonResult JsonResult
 		err = json.Unmarshal(data, &jsonResult)
 		if err != nil {
 			resp.Body.Close()
@@ -317,7 +305,6 @@ func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 		}
 
 		if jsonResult.Status != "succ" {
-			code = jsonResult.Code
 			resp.Body.Close()
 			continue
 		}
@@ -326,7 +313,7 @@ func taosSendSQLWithRest(client *http.Client, sql string, logger *log.Logger) {
 	}
 
 	if times >= maxTryTime {
-		logger.Printf("ERROR Failed to run command, code : %d SQL: %s\n", code, sql)
+		logger.Printf("ERROR Failed to run command, code : %d SQL: %s\n", jsonResult.Code, sql)
 	}
 }
 
