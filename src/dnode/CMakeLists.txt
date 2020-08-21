@@ -11,7 +11,11 @@ AUX_SOURCE_DIRECTORY(src SRC)
 
 IF (TD_LINUX)
   ADD_EXECUTABLE(taosd ${SRC})
-  TARGET_LINK_LIBRARIES(taosd mnode taos monitor http mqtt tsdb twal vnode cJson lz4 balance sync)
+  IF (TD_SOMODE_STATIC)
+    TARGET_LINK_LIBRARIES(taosd mnode taos_static monitor http mqtt tsdb twal vnode cJson lz4 balance sync)
+  ELSE ()
+    TARGET_LINK_LIBRARIES(taosd mnode taos monitor http mqtt tsdb twal vnode cJson lz4 balance sync)
+  ENDIF ()
 
   IF (TD_ACCOUNT)
     TARGET_LINK_LIBRARIES(taosd account)

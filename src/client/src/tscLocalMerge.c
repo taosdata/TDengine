@@ -885,7 +885,7 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
     savePrevRecordAndSetupFillInfo(pLocalReducer, pQueryInfo, pLocalReducer->pFillInfo);
   }
 
-  memcpy(pRes->data, pBeforeFillData->data, pRes->numOfRows * pLocalReducer->finalRowSize);
+  memcpy(pRes->data, pBeforeFillData->data, (size_t)(pRes->numOfRows * pLocalReducer->finalRowSize));
 
   pRes->numOfClauseTotal += pRes->numOfRows;
   pBeforeFillData->num = 0;
@@ -922,7 +922,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
         for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
           TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
           memmove(pResPages[i]->data, pResPages[i]->data + pField->bytes * pQueryInfo->limit.offset,
-                  newRows * pField->bytes);
+                  (size_t)(newRows * pField->bytes));
         }
       }
 
@@ -1223,7 +1223,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   printf("final result before interpo:\n");
 //  tColModelDisplay(pLocalReducer->resColModel, pLocalReducer->pBufForInterpo, pResBuf->num, pResBuf->num);
 #endif
-  
+
   // no interval query, no fill operation
   if (pQueryInfo->intervalTime == 0 || pQueryInfo->fillType == TSDB_FILL_NONE) {
     genFinalResWithoutFill(pRes, pLocalReducer, pQueryInfo);
