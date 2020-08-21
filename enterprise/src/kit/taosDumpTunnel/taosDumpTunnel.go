@@ -202,7 +202,7 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tbname
 		// Create super table at first
 		tagColIdx := 0
 		for _, colInfo := range tInfo.SCols {
-			if colInfo.Name != "" {
+			if colInfo.Note != "" {
 				break
 			}
 			tagColIdx++
