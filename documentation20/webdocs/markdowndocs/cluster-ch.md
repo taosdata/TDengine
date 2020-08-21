@@ -27,13 +27,13 @@ TDengine的集群管理极其简单，除添加和删除节点需要人工干预
 firstEp               h1.taosdata.com:6030
 
 // 配置本节点的FQDN，如果本机只有一个hostname, 无需配置
-// fqdn                  h1.taosdata.com
+fqdn                  h1.taosdata.com
 
 // 配置本节点的端口号，缺省是6030
-// serverPort            6030
+serverPort            6030
 
 // 副本数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
-// arbitrator            ha.taosdata.com:6030
+arbitrator            ha.taosdata.com:6030
 ```
 
 一定要修改的参数是firstEp, 其他参数可不做任何修改，除非你很清楚为什么要修改。
@@ -59,9 +59,9 @@ taos>
 
 将后续的节点添加到现有集群，具体有以下几步：
 
-3. 按照["立即开始“](https://www.taosdata.com/cn/getting-started/)一章的方法在每个节点启动taosd。
+1. 按照["立即开始“](https://www.taosdata.com/cn/getting-started/)一章的方法在每个节点启动taosd。
 
-5. 在第一个节点，使用CLI程序taos, 登录进TDengine系统, 执行命令:
+2. 在第一个节点，使用CLI程序taos, 登录进TDengine系统, 执行命令:
 
     ```
     CREATE DNODE "h2.taos.com:6030"； 
@@ -69,7 +69,7 @@ taos>
 
     将新节点的End Point (准备工作中第四步获知的) 添加进集群的EP列表。**"fqdn:port"需要用双引号引起来**，否则出错。请注意将示例的“h2.taos.com:6030" 替换为这个新节点的End Point。
 
-6. 然后执行命令
+3. 然后执行命令
 
     ```
     SHOW DNODES；
