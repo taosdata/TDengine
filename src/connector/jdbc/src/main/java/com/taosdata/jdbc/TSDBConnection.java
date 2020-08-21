@@ -34,8 +34,6 @@ import java.sql.Struct;
 import java.util.*;
 import java.util.concurrent.Executor;
 
-import static com.sun.deploy.cache.Cache.exists;
-
 public class TSDBConnection implements Connection {
 
     private TSDBJNIConnector connector = null;
