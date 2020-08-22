@@ -257,10 +257,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
     for (int32_t j = 0; j < gsize; ++j) {
       STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
 
-      STableCheckInfo info = {
-          .lastKey = pKeyInfo->lastKey,
-          .pTableObj = pKeyInfo->pTable,
-      };
+      STableCheckInfo info = { .lastKey = pKeyInfo->lastKey, .pTableObj = pKeyInfo->pTable };
       info.tableId = ((STable*)(pKeyInfo->pTable))->tableId;
 
       assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
@@ -432,7 +429,7 @@ static void destroyTableMemIterator(STableCheckInfo* pCheckInfo) {
   tSkipListDestroyIter(pCheckInfo->iiter);
 }
 
-SDataRow getSDataRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order) {
+static SDataRow getSDataRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order) {
   SDataRow rmem = NULL, rimem = NULL;
   if (pCheckInfo->iter) {
     SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
@@ -448,47 +445,46 @@ SDataRow getSDataRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order) {
     }
   }
 
-  if (rmem != NULL && rimem != NULL) {
-    TSKEY r1 = dataRowKey(rmem);
-    TSKEY r2 = dataRowKey(rimem);
-
-    if (r1 == r2) { // data ts are duplicated, ignore the data in mem
-      tSkipListIterNext(pCheckInfo->iter);
-      pCheckInfo->chosen = 1;
-      return rimem;
-    } else {
-      if (ASCENDING_TRAVERSE(order)) {
-        if (r1 < r2) {
-          pCheckInfo->chosen = 0;
-          return rmem;
-        } else {
-          pCheckInfo->chosen = 1;
-          return rimem;
-        }
-      } else {
-        if (r1 < r2) {
-          pCheckInfo->chosen = 1;
-          return rimem;
-        } else {
-          pCheckInfo->chosen = 0;
-          return rmem;
-        }
-      }
-    }
+  if (rmem == NULL && rimem == NULL) {
+    return NULL;
   }
 
-  // at least one (rmem or rimem) is absent here
-  if (rmem != NULL) {
+  if (rmem != NULL && rimem == NULL) {
     pCheckInfo->chosen = 0;
     return rmem;
   }
 
-  if (rimem != NULL) {
+  if (rmem == NULL && rimem != NULL) {
     pCheckInfo->chosen = 1;
     return rimem;
   }
 
-  return NULL;
+  TSKEY r1 = dataRowKey(rmem);
+  TSKEY r2 = dataRowKey(rimem);
+
+  if (r1 == r2) { // data ts are duplicated, ignore the data in mem
+    tSkipListIterNext(pCheckInfo->iter);
+    pCheckInfo->chosen = 1;
+    return rimem;
+  } else {
+    if (ASCENDING_TRAVERSE(order)) {
+      if (r1 < r2) {
+        pCheckInfo->chosen = 0;
+        return rmem;
+      } else {
+        pCheckInfo->chosen = 1;
+        return rimem;
+      }
+    } else {
+      if (r1 < r2) {
+        pCheckInfo->chosen = 1;
+        return rimem;
+      } else {
+        pCheckInfo->chosen = 0;
+        return rmem;
+      }
+    }
+  }
 }
 
 static bool moveToNextRowInMem(STableCheckInfo* pCheckInfo) {
