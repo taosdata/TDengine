@@ -1840,6 +1840,11 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       return true;
     } else {
       STsdbQueryHandle* pSecQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
+      if (pSecQueryHandle == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return false;
+      }
+
       pSecQueryHandle->order       = TSDB_ORDER_ASC;
       pSecQueryHandle->window      = (STimeWindow) {pQueryHandle->window.skey, INT64_MAX};
       pSecQueryHandle->pTsdb       = pQueryHandle->pTsdb;
@@ -1851,6 +1856,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pSecQueryHandle->outputCapacity = ((STsdbRepo*)pSecQueryHandle->pTsdb)->config.maxRowsPerFileBlock;
 
       if (tsdbInitReadHelper(&pSecQueryHandle->rhelper, (STsdbRepo*) pSecQueryHandle->pTsdb) != 0) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         free(pSecQueryHandle);
         return false;
       }
@@ -1862,6 +1868,11 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
 
       pSecQueryHandle->statis = calloc(numOfCols, sizeof(SDataStatis));
       pSecQueryHandle->pColumns = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+      if (pSecQueryHandle->statis == NULL || pSecQueryHandle->pColumns == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbCleanupQueryHandle(pSecQueryHandle);
+        return false;
+      }
 
       for (int32_t i = 0; i < numOfCols; ++i) {
         SColumnInfoData colInfo = {{0}, 0};
@@ -1869,6 +1880,12 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
 
         colInfo.info = pCol->info;
         colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCol->info.bytes);
+        if (colInfo.pData == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbCleanupQueryHandle(pSecQueryHandle);
+          return false;
+        }
+
         taosArrayPush(pSecQueryHandle->pColumns, &colInfo);
       }
 
@@ -2280,6 +2297,10 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
 
   if (numOfOrderCols == 0 || size == 1) { // no group by tags clause or only one table
     SArray* sa = taosArrayInit(size, sizeof(STableKeyInfo));
+    if (sa == NULL) {
+      taosArrayDestroy(pTableGroup);
+      return NULL;
+    }
 
     for(int32_t i = 0; i < size; ++i) {
       STableKeyInfo *pKeyInfo = taosArrayGet(pTableList, i);
@@ -2294,14 +2315,13 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
     taosArrayPush(pTableGroup, &sa);
     tsdbDebug("all %" PRIzu " tables belong to one group", size);
   } else {
-    STableGroupSupporter *pSupp = (STableGroupSupporter *) calloc(1, sizeof(STableGroupSupporter));
-    pSupp->numOfCols = numOfOrderCols;
-    pSupp->pTagSchema = pTagSchema;
-    pSupp->pCols = pCols;
+    STableGroupSupporter sup = {0};
+    sup.numOfCols = numOfOrderCols;
+    sup.pTagSchema = pTagSchema;
+    sup.pCols = pCols;
 
-    taosqsort(pTableList->pData, size, sizeof(STableKeyInfo), pSupp, tableGroupComparFn);
-    createTableGroupImpl(pTableGroup, pTableList, size, skey, pSupp, tableGroupComparFn);
-    taosTFree(pSupp);
+    taosqsort(pTableList->pData, size, sizeof(STableKeyInfo), &sup, tableGroupComparFn);
+    createTableGroupImpl(pTableGroup, pTableList, size, skey, &sup, tableGroupComparFn);
   }
 
   return pTableGroup;

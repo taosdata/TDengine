@@ -295,6 +295,11 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
+  if (pVnode->qMgmt == NULL) {
+    vnodeCleanUp(pVnode);
+    return terrno;
+  }
+
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
