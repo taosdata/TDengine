@@ -669,15 +669,19 @@ void taos_stop_query(TAOS_RES *res) {
   // It may have been released by the other thread already.
   // The ref count may fix this problem.
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    tscKillSTableQuery(pSql);
-  }
 
-  if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-    rpcCancelRequest(pSql->pRpcCtx);
-  }
-
+  // set the error code for master pSqlObj firstly
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
+  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    assert(pSql->pRpcCtx == NULL);
+    tscKillSTableQuery(pSql);
+  } else {
+    if (pSql->cmd.command < TSDB_SQL_LOCAL) {
+      rpcCancelRequest(pSql->pRpcCtx);
+    }
+  }
+
   tscDebug("%p query is cancelled", res);
 }
 

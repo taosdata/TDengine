@@ -1462,10 +1462,15 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
 static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   tscDebug("%p start to free subquery result", pSql);
-  
+
+  int32_t  index = trsupport->subqueryIndex;
+  SSqlObj *pParentSql = trsupport->pParentSql;
+
+  assert(pSql == pParentSql->pSubs[index]);
+  pParentSql->pSubs[index] = NULL;
+
   taos_free_result(pSql);
   taosTFree(trsupport->localBuffer);
-  
   taosTFree(trsupport);
 }
 
@@ -1474,17 +1479,7 @@ static void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, i
 
 static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES *tres, int32_t code) {
 // set no disk space error info
-#ifdef WINDOWS
-  LPVOID lpMsgBuf;
-  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
-                GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
-                (LPTSTR)&lpMsgBuf, 0, NULL);
-  tscError("sub:%p failed to flush data to disk:reason:%s", tres, lpMsgBuf);
-  LocalFree(lpMsgBuf);
-#else
   tscError("sub:%p failed to flush data to disk, reason:%s", tres, tstrerror(code));
-#endif
-
   SSqlObj* pParentSql = trsupport->pParentSql;
 
   pParentSql->res.code = code;
@@ -1548,14 +1543,14 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
      */
     pSql->res.numOfRows = 0;
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;  // disable retry efforts
-    tscDebug("%p query is cancelled, sub:%p, orderOfSub:%d abort retrieve, code:%d", pParentSql, pSql,
-             subqueryIndex, pParentSql->res.code);
+    tscDebug("%p query is cancelled, sub:%p, orderOfSub:%d abort retrieve, code:%s", pParentSql, pSql,
+             subqueryIndex, tstrerror(pParentSql->res.code));
   }
 
   if (numOfRows >= 0) {  // current query is successful, but other sub query failed, still abort current query.
     tscDebug("%p sub:%p retrieve numOfRows:%d,orderOfSub:%d", pParentSql, pSql, numOfRows, subqueryIndex);
-    tscError("%p sub:%p abort further retrieval due to other queries failure,orderOfSub:%d,code:%d", pParentSql, pSql,
-             subqueryIndex, pParentSql->res.code);
+    tscError("%p sub:%p abort further retrieval due to other queries failure,orderOfSub:%d,code:%s", pParentSql, pSql,
+             subqueryIndex, tstrerror(pParentSql->res.code));
   } else {
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && pParentSql->res.code == TSDB_CODE_SUCCESS) {
       if (tscReissueSubquery(trsupport, pSql, numOfRows) == TSDB_CODE_SUCCESS) {

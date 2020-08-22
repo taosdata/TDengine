@@ -455,33 +455,18 @@ void tscKillSTableQuery(SSqlObj *pSql) {
   }
 
   for (int i = 0; i < pSql->numOfSubs; ++i) {
+    // NOTE: pSub may have been released already here
     SSqlObj *pSub = pSql->pSubs[i];
     if (pSub == NULL) {
       continue;
     }
 
+    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     if (pSub->pRpcCtx != NULL) {
       rpcCancelRequest(pSub->pRpcCtx);
     }
 
-    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     tscQueueAsyncRes(pSub);
-  }
-
-  /*
-   * 1. if the subqueries are not launched or partially launched, we need to waiting the launched
-   * query return to successfully free allocated resources.
-   * 2. if no any subqueries are launched yet, which means the super table query only in parse sql stage,
-   * set the res.code, and return.
-   */
-  const int64_t MAX_WAITING_TIME = 10000;  // 10 Sec.
-  int64_t       stime = taosGetTimestampMs();
-
-  while (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    taosMsleep(100);
-    if (taosGetTimestampMs() - stime > MAX_WAITING_TIME) {
-      break;
-    }
   }
 
   tscDebug("%p super table query cancelled", pSql);
