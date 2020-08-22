@@ -295,6 +295,8 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
   }
   
   tsem_init(&pSql->rspSem, 0, 0);
+  tsem_init(&pSql->subReadySem, 0, 0);
+
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   tsem_wait(&pSql->rspSem);
@@ -655,16 +657,13 @@ int* taos_fetch_lengths(TAOS_RES *res) {
 char *taos_get_client_info() { return version; }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  if (pSql == NULL || pSql->signature != pSql) {
     return;
   }
 
-  SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
-
-  if (pSql->signature != pSql) return;
   tscDebug("%p start to cancel query", res);
-
+  SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
@@ -674,9 +673,8 @@ void taos_stop_query(TAOS_RES *res) {
   if (pSql->cmd.command < TSDB_SQL_LOCAL) {
     rpcCancelRequest(pSql->pRpcCtx);
   }
-  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-  tscQueueAsyncRes(pSql);
 
+  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
   tscDebug("%p query is cancelled", res);
 }
 

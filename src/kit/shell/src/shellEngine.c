@@ -25,6 +25,8 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tglobal.h"
+#include "tsclient.h"
+
 #include <regex.h>
 
 /**************** Global variables ****************/
@@ -64,11 +66,6 @@ TAOS *shellInit(SShellArguments *args) {
   }
 
   taos_init();
-  /*
-   * set tsTableMetaKeepTimer = 3000ms
-   * means not save cache in shell
-   */
-  tsTableMetaKeepTimer = 3000;
 
   // Connect to the database.
   TAOS *con = NULL;
@@ -303,8 +300,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     return;
   }
 
-  int num_fields = taos_field_count(pSql);
-  if (num_fields != 0) {  // select and show kinds of commands
+  if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
     int error_no = 0;
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {

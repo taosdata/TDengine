@@ -388,6 +388,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   
   taosTFree(pSql->sqlstr);
   tsem_destroy(&pSql->rspSem);
+  tsem_destroy(&pSql->subReadySem);
+
   free(pSql);
 }
 

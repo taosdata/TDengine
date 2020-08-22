@@ -1338,10 +1338,6 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs, SSubqueryState
     SRetrieveSupport* pSupport = pSub->param;
     
     taosTFree(pSupport->localBuffer);
-    
-    pthread_mutex_unlock(&pSupport->queryMutex);
-    pthread_mutex_destroy(&pSupport->queryMutex);
-    
     taosTFree(pSupport);
     
     tscFreeSqlObj(pSub);
@@ -1414,13 +1410,6 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->pParentSql = pSql;
     trs->pFinalColModel = pModel;
     
-    pthread_mutexattr_t mutexattr;
-    memset(&mutexattr, 0, sizeof(pthread_mutexattr_t));
-
-    pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE_NP);
-    pthread_mutex_init(&trs->queryMutex, &mutexattr);
-    pthread_mutexattr_destroy(&mutexattr);
-    
     SSqlObj *pNew = tscCreateSqlObjForSubquery(pSql, trs, NULL);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
@@ -1461,6 +1450,12 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     tscDebug("%p sub:%p launch subquery, orderOfSub:%d.", pSql, pSub, pSupport->subqueryIndex);
     tscProcessSql(pSub);
   }
+
+  // set the command flag must be after the semaphore been correctly set.
+  pSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, 0);
+  }
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1469,11 +1464,7 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   tscDebug("%p start to free subquery result", pSql);
   
   taos_free_result(pSql);
-  
   taosTFree(trsupport->localBuffer);
-  
-  pthread_mutex_unlock(&trsupport->queryMutex);
-  pthread_mutex_destroy(&trsupport->queryMutex);
   
   taosTFree(trsupport);
 }
@@ -1498,8 +1489,6 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
 
   pParentSql->res.code = code;
   trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
-  
-  pthread_mutex_unlock(&trsupport->queryMutex);
   tscHandleSubqueryError(trsupport, tres, pParentSql->res.code);
 }
 
@@ -1518,8 +1507,6 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
 
   // clear local saved number of results
   trsupport->localBuffer->num = 0;
-  pthread_mutex_unlock(&trsupport->queryMutex);
-
   tscTrace("%p sub:%p retrieve failed, code:%s, orderOfSub:%d, retry:%d", trsupport->pParentSql, pSql,
            tstrerror(code), subqueryIndex, trsupport->numOfRetry);
 
@@ -1602,15 +1589,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   tscFreeSubSqlObj(trsupport, pSql);
   
   // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, 0);
-  
-  if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
-    (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.code);
-  } else {  // regular super table query
-    if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
-      tscQueueAsyncRes(pParentSql);
-    }
-  }
+  tsem_post(&pParentSql->subReadySem);
 }
 
 static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* pSql) {
@@ -1682,14 +1661,9 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   // only free once
   taosTFree(trsupport->pState);
   tscFreeSubSqlObj(trsupport, pSql);
-  
-  // set the command flag must be after the semaphore been correctly set.
-  pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
-  if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
-    (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
-  } else {
-    tscQueueAsyncRes(pParentSql);
-  }
+
+  // all subqueries are completed, retrieve from local can be proceeded.
+  tsem_post(&pParentSql->subReadySem);
 }
 
 static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
@@ -1707,9 +1681,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SSubqueryState* pState = trsupport->pState;
   assert(pState->numOfRemain <= pState->numOfTotal && pState->numOfRemain >= 0 && pParentSql->numOfSubs == pState->numOfTotal);
   
-  // query process and cancel query process may execute at the same time
-  pthread_mutex_lock(&trsupport->queryMutex);
-
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   SCMVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[0];
 
@@ -1783,7 +1754,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
       return;
       
     } else { // continue fetch data from dnode
-      pthread_mutex_unlock(&trsupport->queryMutex);
       taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
     }
     
@@ -2083,12 +2053,6 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     tsem_post(&pSql->rspSem);
     return;
   }
-
-//  if (pSql->res.code == TSDB_CODE_SUCCESS) {
-//    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
-//  } else {
-//    tscQueueAsyncRes(pSql);
-//  }
 }
 
 static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {

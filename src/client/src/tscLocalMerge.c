@@ -1377,13 +1377,12 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   tscResetForNextRetrieve(pRes);
 
   if (pSql->signature != pSql || pRes == NULL || pRes->pLocalReducer == NULL) {  // all data has been processed
-    tscDebug("%p %s call the drop local reducer", pSql, __FUNCTION__);
-    tscDestroyLocalReducer(pSql);
-    return 0;
+    tscError("%p local merge abort due to error occurs, code:%s", pSql, tstrerror(pRes->code));
+    return pRes->code;
   }
 
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
-  SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo    *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   // set the data merge in progress
   int32_t prevStatus =
@@ -1478,8 +1477,8 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
          * so the processing of previous group is completed.
          */
         int32_t numOfRes = finalizeRes(pQueryInfo, pLocalReducer);
+        bool   sameGroup = isSameGroup(pCmd, pLocalReducer, pLocalReducer->prevRowOfInput, tmpBuffer);
 
-        bool       sameGroup = isSameGroup(pCmd, pLocalReducer, pLocalReducer->prevRowOfInput, tmpBuffer);
         tFilePage *pResBuf = pLocalReducer->pResultBuf;
 
         /*

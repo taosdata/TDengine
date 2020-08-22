@@ -314,10 +314,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   pRes->rspLen = 0;
   
-  if (pRes->code != TSDB_CODE_TSC_QUERY_CANCELLED) {
-    pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  } else {
+  if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
     tscDebug("%p query is cancelled, code:%s", pSql, tstrerror(pRes->code));
+  } else {
+    pRes->code = rpcMsg->code;
   }
 
   if (pRes->code == TSDB_CODE_SUCCESS) {
@@ -460,11 +460,10 @@ void tscKillSTableQuery(SSqlObj *pSql) {
       continue;
     }
 
-    /*
-     * here, we cannot set the command = TSDB_SQL_KILL_QUERY. Otherwise, it may cause
-     * sub-queries not correctly released and master sql object of super table query reaches an abnormal state.
-     */
-    rpcCancelRequest(pSub->pRpcCtx);
+    if (pSub->pRpcCtx != NULL) {
+      rpcCancelRequest(pSub->pRpcCtx);
+    }
+
     pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     tscQueueAsyncRes(pSub);
   }
@@ -1443,6 +1442,17 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
+  int32_t code = pRes->code;
+  if (pRes->code != TSDB_CODE_SUCCESS) {
+    tscQueueAsyncRes(pSql);
+    return code;
+  }
+
+  // all subquery have completed already
+  if (pRes->pLocalReducer == NULL) {
+    sem_wait(&pSql->subReadySem);
+  }
+
   pRes->code = tscDoLocalMerge(pSql);
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
@@ -1453,7 +1463,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   pRes->row = 0;
   pRes->completed = (pRes->numOfRows == 0);
 
-  int32_t code = pRes->code;
+  code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
