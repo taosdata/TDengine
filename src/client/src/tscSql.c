@@ -667,6 +667,7 @@ void taos_stop_query(TAOS_RES *res) {
 
   // TODO there are multi-thread problem.
   // It may have been released by the other thread already.
+  // The ref count may fix this problem.
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     tscKillSTableQuery(pSql);
