@@ -295,12 +295,8 @@ out_of_memory:
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
-  pCond->order = TSDB_ORDER_DESC;
+  pCond->order = TSDB_ORDER_ASC;
   pCond->twindow = changeTableGroupByLastrow(groupList);
-
-  //descending order query, skey >= ekey
-  SWAP(pCond->twindow.skey, pCond->twindow.ekey, TSKEY);
-
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
   return pQueryHandle;
 }

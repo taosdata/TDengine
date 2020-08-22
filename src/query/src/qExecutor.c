@@ -97,7 +97,8 @@ typedef struct {
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
   uint32_t v = rand();
-  if (v % 5 <= 1) {
+
+  if (v % 1000 <= 0) {
     return NULL;
   } else {
     return malloc(__size);
@@ -106,7 +107,7 @@ static UNUSED_FUNC void *u_malloc (size_t __size) {
 
 static UNUSED_FUNC void* u_calloc(size_t num, size_t __size) {
   uint32_t v = rand();
-  if (v % 5 <= 1) {
+  if (v % 1000 <= 0) {
     return NULL;
   } else {
     return calloc(num, __size);
@@ -1887,16 +1888,12 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, bool stableQuery) {
   // descending order query for last_row query
   if (isFirstLastRowQuery(pQuery)) {
     qDebug("QInfo:%p scan order changed for last_row query, old:%d, new:%d", GET_QINFO_ADDR(pQuery),
-           pQuery->order.order, TSDB_ORDER_DESC);
+           pQuery->order.order, TSDB_ORDER_ASC);
 
-    pQuery->order.order = TSDB_ORDER_DESC;
-
-    int64_t skey = MIN(pQuery->window.skey, pQuery->window.ekey);
-    int64_t ekey = MAX(pQuery->window.skey, pQuery->window.ekey);
-
-    pQuery->window.skey = ekey;
-    pQuery->window.ekey = skey;
-
+    pQuery->order.order = TSDB_ORDER_ASC;
+    if (pQuery->window.skey > pQuery->window.ekey) {
+      SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
+    }
     return;
   }
 
@@ -4316,30 +4313,18 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
     // update the query time window
     pQuery->window = cond.twindow;
 
-    int32_t numOfGroups = (int32_t)(GET_NUM_OF_TABLEGROUP(pQInfo));
-
+    size_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
     for(int32_t i = 0; i < numOfGroups; ++i) {
       SArray *group = GET_TABLEGROUP(pQInfo, i);
-      SArray *tableKeyGroup = taosArrayGetP(pQInfo->tableGroupInfo.pGroupList, i);
 
       size_t t = taosArrayGetSize(group);
       for (int32_t j = 0; j < t; ++j) {
         STableQueryInfo *pCheckInfo = taosArrayGetP(group, j);
-        updateTableQueryInfoForReverseScan(pQuery, pCheckInfo);
 
-        // update the last key in tableKeyInfo list, the tableKeyInfo is used to build the tsdbQueryHandle and decide
-        // the start check timestamp of tsdbQueryHandle
-        STableKeyInfo *pTableKeyInfo = taosArrayGet(tableKeyGroup, j);
-        pCheckInfo->win.skey = pTableKeyInfo->lastKey;
-        pCheckInfo->win.ekey = pTableKeyInfo->lastKey;
-
-        pCheckInfo->lastKey = pTableKeyInfo->lastKey;
-
-        assert(pCheckInfo->pTable == pTableKeyInfo->pTable);
+        pCheckInfo->win = pQuery->window;
+        pCheckInfo->lastKey = pCheckInfo->win.skey;
       }
     }
-
-
   } else if (isPointInterpoQuery(pQuery)) {
     pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
   } else {
