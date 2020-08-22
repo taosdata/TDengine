@@ -341,8 +341,8 @@ void generatedData(TAOS* taos) {
 
 int main(int argc, char** argv) {
 
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -376,8 +376,8 @@ int main(int argc, char** argv) {
 
 //  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  return 0;
-  executeSQL(conn, "use test1", NULL);
-  executeSQL(conn, "select last_row(*) from m1 group by tbname", NULL);
+  executeSQL(conn, "use join_db0", NULL);
+  executeSQL(conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
   return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
