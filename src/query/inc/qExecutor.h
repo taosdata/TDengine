@@ -193,7 +193,7 @@ typedef struct SQInfo {
   int64_t          owner; // if it is in execution
   void*            tsdb;
   int32_t          vgId;
-  STableGroupInfo  tableGroupInfo;       // table id list < only includes the STable list>
+  STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   SQueryRuntimeEnv runtimeEnv;
   SArray*          arrTableIdInfo;
