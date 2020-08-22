@@ -665,6 +665,8 @@ void taos_stop_query(TAOS_RES *res) {
   tscDebug("%p start to cancel query", res);
   SSqlCmd *pCmd = &pSql->cmd;
 
+  // TODO there are multi-thread problem.
+  // It may have been released by the other thread already.
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     tscKillSTableQuery(pSql);
