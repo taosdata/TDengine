@@ -40,6 +40,10 @@ extern "C" {
 #include "osAlpine.h"
 #endif
 
+#ifdef _TD_NINGSI_60_
+#include "osNingsi.h"
+#endif
+
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 #include "osWindows.h"
 #endif

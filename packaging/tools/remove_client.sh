@@ -37,7 +37,7 @@ function kill_client() {
 function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/taos      || :
-    ${csudo} rm -f ${bin_link_dir}/taosump  || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
 }
 

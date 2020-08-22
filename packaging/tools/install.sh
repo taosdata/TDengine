@@ -76,7 +76,11 @@ fi
 # get the operating system type for using the corresponding init file
 # ubuntu/debian(deb), centos/fedora(rpm), others: opensuse, redhat, ..., no verification
 #osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
-osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
+if [[ -d /etc/os-release ]]; then
+  osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)   ||:
+else
+  osinfo=""
+fi
 #echo "osinfo: ${osinfo}"
 os_type=0
 if echo $osinfo | grep -qwi "ubuntu" ; then
@@ -95,8 +99,10 @@ elif echo $osinfo | grep -qwi "fedora" ; then
 #  echo "This is fedora system"
   os_type=2
 else
-  echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
-  echo "please feel free to contact taosdata.com for support."
+  echo " osinfo: ${osinfo}"
+  echo " This is an officially unverified linux system," 
+  echo " if there are any problems with the installation and operation, "
+  echo " please feel free to contact taosdata.com for support."
   os_type=1
 fi
 
@@ -192,13 +198,12 @@ function install_lib() {
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
     #${csudo} rm -rf ${v15_java_app_dir}              || :
-
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*  
     
     ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
-    if [ -d ${lib64_link_dir} ]; then
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
       ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
     fi
@@ -306,14 +311,27 @@ function clean_service_on_sysvinit() {
     fi
 
     if ((${initd_mod}==1)); then
+      if [ -e ${service_config_dir}/taosd ]; then 
         ${csudo} chkconfig --del taosd || :
+      fi
+
+      if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} chkconfig --del tarbitratord || :
+      fi
     elif ((${initd_mod}==2)); then
+      if [ -e ${service_config_dir}/taosd ]; then 
         ${csudo} insserv -r taosd || :
+      fi
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} insserv -r tarbitratord || :
+      fi
     elif ((${initd_mod}==3)); then
+      if [ -e ${service_config_dir}/taosd ]; then
         ${csudo} update-rc.d -f taosd remove || :
+      fi
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} update-rc.d -f tarbitratord remove || :
+      fi
     fi
     
     ${csudo} rm -f ${service_config_dir}/taosd || :
@@ -326,7 +344,6 @@ function clean_service_on_sysvinit() {
 
 function install_service_on_sysvinit() {
     clean_service_on_sysvinit
-
     sleep 1
 
     # Install taosd service
@@ -446,7 +463,7 @@ function install_service_on_systemd() {
         ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
         ${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
         ${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
-        # ${csudo} systemctl enable tarbitratord  
+        #${csudo} systemctl enable tarbitratord  
     
         nginx_service_config="${service_config_dir}/nginxd.service"
         ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
