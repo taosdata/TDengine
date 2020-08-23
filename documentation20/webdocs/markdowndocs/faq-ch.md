@@ -1,4 +1,4 @@
-#常见问题
+# 常见问题
 
 #### 1. TDengine2.0之前的版本升级到2.0及以上的版本应该注意什么？☆☆☆
 
@@ -25,8 +25,8 @@
 
 1. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
 2. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
-3. 确认客户端连接时指定了正确的服务器Fully Qualified Domain Name(FQDN，通常情况下是服务器的hostname)
-4. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，hosts 文件
+3. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
+4. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
 5. 检查防火墙设置，确认TCP/UDP 端口6030-6039 是打开的
 6. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
 7. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
