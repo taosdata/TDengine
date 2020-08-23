@@ -82,7 +82,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 
 - firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 默认值为localhost:6030。
 - secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 默认值为空。
-- fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 默认值为空。
+- fqdn：数据节点的FQDN，缺省为操作系统配置的第一个hostname。如果习惯IP地址访问，可设置为该节点的IP地址。
 - serverPort：taosd启动后，对外服务的端口号，默认值为6030。
 - httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求, 默认值为6041。
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
