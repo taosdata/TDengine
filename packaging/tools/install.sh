@@ -446,7 +446,7 @@ function install_service_on_systemd() {
         ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
         ${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
         ${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
-        ${csudo} systemctl enable tarbitratord  
+        # ${csudo} systemctl enable tarbitratord  
     
         nginx_service_config="${service_config_dir}/nginxd.service"
         ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"

@@ -39,6 +39,7 @@ int                      mttIsRuning = 1;
 
 int32_t mqttInitSystem() {
   int   rc = 0;
+#if 0
   uint8_t sendbuf[2048];
   uint8_t recvbuf[1024];
   recntStatus.sendbuf = sendbuf;
@@ -47,7 +48,11 @@ int32_t mqttInitSystem() {
   recntStatus.recvbufsz = sizeof(recvbuf);
   char* url = tsMqttBrokerAddress;
   recntStatus.user_name = strstr(url, "@") != NULL ? strbetween(url, "//", ":") : NULL;
-  recntStatus.password = strstr(url, "@") != NULL ? strbetween(strstr(url, recntStatus.user_name), ":", "@") : NULL;
+  
+  char * passStr = strstr(url, recntStatus.user_name);
+  if (passStr != NULL) {
+    recntStatus.password = strstr(url, "@") != NULL ? strbetween(passStr, ":", "@") : NULL;
+  }
 
   if (strlen(url) == 0) {
     mqttDebug("mqtt module not init, url is null");
@@ -91,11 +96,13 @@ int32_t mqttInitSystem() {
     topicPath = NULL;
   }
   
+#endif  
   return rc;
 }
 
 int32_t mqttStartSystem() {
   int rc = 0;
+#if 0  
   if (recntStatus.user_name != NULL && recntStatus.password != NULL) {
     mqttInfo("connecting to  mqtt://%s:%s@%s:%s/%s/", recntStatus.user_name, recntStatus.password,
               recntStatus.hostname, recntStatus.port, topicPath);
@@ -112,18 +119,22 @@ int32_t mqttStartSystem() {
   } else {
     mqttInfo("listening for '%s' messages.", recntStatus.topic);
   }
+#endif
   return rc;
 }
 
 void mqttStopSystem() {
+#if 0  
   mqttClient.error = MQTT_ERROR_SOCKET_ERROR;
   mttIsRuning = 0;
   usleep(300000U);
   mqttCleanup(EXIT_SUCCESS, mqttClient.socketfd, &clientDaemonThread);
   mqttInfo("mqtt is stoped");
+#endif  
 }
 
 void mqttCleanUpSystem() {
+#if 0
   mqttInfo("starting to cleanup mqtt");
   free(recntStatus.user_name);
   free(recntStatus.password);
@@ -132,6 +143,7 @@ void mqttCleanUpSystem() {
   free(recntStatus.topic);
   free(topicPath);
   mqttInfo("mqtt is cleaned up");
+#endif  
 }
 
 void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published) {
@@ -183,9 +195,11 @@ void* mqttClientRefresher(void* client) {
 }
 
 void mqttCleanup(int status, int sockfd, pthread_t* client_daemon) {
+#if 0 
   mqttInfo("clean up mqtt module");
   if (sockfd != -1) close(sockfd);
   if (client_daemon != NULL) pthread_cancel(*client_daemon);
+#endif
 }
 
 void mqttInitConnCb(void* param, TAOS_RES* result, int32_t code) {

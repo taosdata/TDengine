@@ -43,6 +43,14 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
+static int32_t getWaitingTimeInterval(int32_t count) {
+  int32_t initial = 100; // 100 ms by default
+  if (count <= 1) {
+    return 0;
+  }
+
+  return initial * (2<<(count - 2));
+}
 
 static void tscSetDnodeEpSet(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
   assert(pSql != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
@@ -100,7 +108,7 @@ static void tscDumpEpSetFromVgroupInfo(SCMCorVgroupInfo *pVgroupInfo, SRpcEpSet 
   pEpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
   pEpSet->numOfEps = pVgroupInfo->numOfEps;  
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    strncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    tstrncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, sizeof(pEpSet->fqdn[i]));
     pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
   }
   taosCorEndRead(&pVgroupInfo->version);
@@ -117,7 +125,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    strncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], sizeof(pEpSet->fqdn[i]));
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
@@ -275,6 +283,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+       rpcMsg->code == TSDB_CODE_APP_NOT_READY ||
        rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
     tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
 
@@ -287,6 +296,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     if (pSql->retry > pSql->maxRetry) {
       tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
     } else {
+      // wait for a little bit moment and then retry
+      if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+        int32_t duration = getWaitingTimeInterval(pSql->retry);
+        taosMsleep(duration);
+      }
+
       rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
 
       // if there is an error occurring, proceed to the following error handling procedure.
@@ -708,7 +723,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       if (pColFilter->filterstr) {
         pFilterMsg->len = htobe64(pColFilter->len);
-        memcpy(pMsg, (void *)pColFilter->pz, pColFilter->len + 1);
+        memcpy(pMsg, (void *)pColFilter->pz, (size_t)(pColFilter->len + 1));
         pMsg += (pColFilter->len + 1);  // append the additional filter binary info
       } else {
         pFilterMsg->lowerBndi = htobe64(pColFilter->lowerBndi);

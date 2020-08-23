@@ -547,12 +547,12 @@ int taosSystem(const char *cmd) {
   int   res;
   char  buf[1024];
   if (cmd == NULL) {
-    uError("taosSystem cmd is NULL!\n");
+    uError("taosSystem cmd is NULL!");
     return -1;
   }
 
   if ((fp = popen(cmd, "r")) == NULL) {
-    uError("popen cmd:%s error: %s/n", cmd, strerror(errno));
+    uError("popen cmd:%s error: %s", cmd, strerror(errno));
     return -1;
   } else {
     while (fgets(buf, sizeof(buf), fp)) {
@@ -560,9 +560,9 @@ int taosSystem(const char *cmd) {
     }
 
     if ((res = pclose(fp)) == -1) {
-      uError("close popen file pointer fp error!\n");
+      uError("close popen file pointer fp error!");
     } else {
-      uDebug("popen res is :%d\n", res);
+      uDebug("popen res is :%d", res);
     }
 
     return res;

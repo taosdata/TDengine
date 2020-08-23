@@ -231,8 +231,9 @@ SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   localAddr.sin_addr.s_addr = ip;
   localAddr.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int)socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+  if ((sockFd = (int)socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
     uError("failed to open udp socket: %d (%s)", errno, strerror(errno));
+    taosCloseSocketNoCheck(sockFd);
     return -1;
   }
 
@@ -265,8 +266,9 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
 
   sockFd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-  if (sockFd < 0) {
+  if (sockFd <= 2) {
     uError("failed to open the socket: %d (%s)", errno, strerror(errno));
+    taosCloseSocketNoCheck(sockFd);
     return -1;
   }
 
@@ -276,7 +278,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
     uError("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
-  };
+  }
 
   if (clientIp != 0) {
     memset((char *)&clientAddr, 0, sizeof(clientAddr));
@@ -371,8 +373,9 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   serverAdd.sin_addr.s_addr = ip;
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 2) {
+  if ((sockFd = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
     uError("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+    taosCloseSocketNoCheck(sockFd);
     return -1;
   }
 

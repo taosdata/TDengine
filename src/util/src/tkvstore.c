@@ -575,7 +575,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     }
   }
 
-  buf = malloc(maxBufSize);
+  buf = malloc((size_t)maxBufSize);
   if (buf == NULL) {
     uError("failed to allocate %" PRId64 " bytes in KV store %s", maxBufSize, pStore->fname);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -598,7 +598,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
       goto _err;
     }
 
-    if (taosTRead(pStore->fd, buf, pRecord->size) < pRecord->size) {
+    if (taosTRead(pStore->fd, buf, (size_t)pRecord->size) < pRecord->size) {
       uError("failed to read %" PRId64 " bytes from file %s since %s, offset %" PRId64, pRecord->size, pStore->fname,
              strerror(errno), pRecord->offset);
       terrno = TAOS_SYSTEM_ERROR(errno);

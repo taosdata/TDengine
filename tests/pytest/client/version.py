@@ -25,11 +25,23 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        ret = tdSql.query('select server_version()')
-        tdSql.checkData(0, 0, "2.0.0.6")
+        sql = "select server_version()"
+        ret = tdSql.query(sql)
+        version = tdSql.getData(0, 0)[0:3]        
+        expectedVersion = "2.0"
+        if(version == expectedVersion):
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" % (sql, 0, 0, version, expectedVersion))
+        else:
+            tdLog.exit("sql:%s, row:%d col:%d data:%s != expect:%s" % (sql, 0, 0, version, expectedVersion))
 
-        ret = tdSql.query('select client_version()')
-        tdSql.checkData(0, 0, "2.0.0.6")
+        sql = "select client_version()"
+        ret = tdSql.query(sql)
+        version = tdSql.getData(0, 0)[0:3]        
+        expectedVersion = "2.0"
+        if(version == expectedVersion):
+            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" % (sql, 0, 0, version, expectedVersion))
+        else:
+            tdLog.exit("sql:%s, row:%d col:%d data:%s != expect:%s" % (sql, 0, 0, version, expectedVersion))
       
 
     def stop(self):

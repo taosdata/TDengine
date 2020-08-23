@@ -49,18 +49,18 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
 
   if (pVnode->status != TAOS_VN_STATUS_READY) {
     vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[msgType], pVnode->status);
-    return TSDB_CODE_VND_INVALID_STATUS; 
+    return TSDB_CODE_APP_NOT_READY; 
   }
 
   // tsdb may be in reset state  
-  if (pVnode->tsdb == NULL) return TSDB_CODE_RPC_NOT_READY;
+  if (pVnode->tsdb == NULL) return TSDB_CODE_APP_NOT_READY;
   if (pVnode->status == TAOS_VN_STATUS_CLOSING)
-    return TSDB_CODE_RPC_NOT_READY;
+    return TSDB_CODE_APP_NOT_READY;
 
   // TODO: Later, let slave to support query
   if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
     vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
-    return TSDB_CODE_RPC_NOT_READY;
+    return TSDB_CODE_APP_NOT_READY;
   }
 
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);

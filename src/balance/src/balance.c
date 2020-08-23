@@ -165,7 +165,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
       balanceSwapVnodeGid(pVgroup->vnodeGid, pVgroup->vnodeGid + 1);
     }
   } else {
-    int32_t randVal = rand() % 6;
+    int32_t randVal = randIndex++ % 6;
     if (randVal == 1) {  // 1, 0, 2
       balanceSwapVnodeGid(pVgroup->vnodeGid + 0, pVgroup->vnodeGid + 1);
     } else if (randVal == 2) {  // 1, 2, 0
