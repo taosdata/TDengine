@@ -538,7 +538,7 @@ void rpcCancelRequest(void *handle) {
 
   // signature is used to check if pContext is freed. 
   // pContext may have been released just before app calls the rpcCancelRequest 
-  if (pContext->signature != pContext) return;
+  if (pContext == NULL || pContext->signature != pContext) return;
 
   if (pContext->pConn) {
     tDebug("%s, app tries to cancel request", pContext->pConn->info);
