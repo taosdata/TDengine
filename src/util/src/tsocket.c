@@ -19,26 +19,25 @@
 #include "tutil.h"
 
 int taosGetFqdn(char *fqdn) {
-  int  code = 0;
   char hostname[1024];
   hostname[1023] = '\0';
-  gethostname(hostname, 1023);
+  if (gethostname(hostname, 1023) == -1) {
+    uError("failed to get hostname, reason:%s", strerror(errno));
+    return -1;
+  }
 
   struct addrinfo hints = {0};
   struct addrinfo *result = NULL;
-
   hints.ai_flags = AI_CANONNAME;
-
-  int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
-  if (result) {
-    strcpy(fqdn, result->ai_canonname);
-    freeaddrinfo(result);
-  } else {
+  int ret = getaddrinfo(hostname, NULL, &hints, &result);
+  if (!result) {
     uError("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
-    code = -1;
+    return -1;
   }
 
-  return code;
+  strcpy(fqdn, result->ai_canonname);
+  freeaddrinfo(result);
+  return 0;
 }
 
 uint32_t taosGetIpFromFqdn(const char *fqdn) {
