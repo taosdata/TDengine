@@ -10,23 +10,46 @@ WORKDIR /root/build
 # build enterprise version
 RUN cmake .. && cmake --build .
 # # build community version
-# RUN cmake .. -DVERSION=lite && cmake --build .
+# RUN cmake ../community && cmake --build .
 
 ## Target image
-FROM centos:7
+FROM centos:8
 
 WORKDIR /root
 
 # COPY --from=builder /root/build/build/lib/libtaos.so /usr/lib/libtaos.so.1
 # RUN ln -s /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
-COPY --from=builder /root/build/build/bin/taosd .
+COPY --from=builder /root/build/build/bin/taosd /usr/bin
+COPY --from=builder /root/build/build/bin/taos /usr/bin
+COPY --from=builder /root/build/build/lib/libtaos.so.1 /usr/lib/
 COPY community/packaging/cfg/taos.cfg /etc/taos/
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib"
-ENV LANG=en_US.UTF-8  
-ENV LANGUAGE=en_US:en  
-ENV LC_ALL=en_US.UTF-8
 
-VOLUME [ "/var/lib/taos", "/var/log/taos" ]
+EXPOSE 6030/tcp
+EXPOSE 6030/udp
+EXPOSE 6031/tcp
+EXPOSE 6031/udp
+EXPOSE 6032/tcp
+EXPOSE 6032/udp
+EXPOSE 6033/tcp
+EXPOSE 6033/udp
+EXPOSE 6034/tcp
+EXPOSE 6034/udp
+EXPOSE 6035/tcp
+EXPOSE 6035/udp
+EXPOSE 6036/tcp
+EXPOSE 6036/udp
+EXPOSE 6037/tcp
+EXPOSE 6037/udp
+EXPOSE 6038/tcp
+EXPOSE 6038/udp
+EXPOSE 6039/tcp
+EXPOSE 6039/udp
+EXPOSE 6040/tcp
+EXPOSE 6041/tcp
+EXPOSE 6060/tcp
 
-CMD [ "/root/taosd" ]
+VOLUME [ "/var/lib/taos", "/var/log/taos", "/etc/taos" ]
+
+CMD [ "taosd" ]
