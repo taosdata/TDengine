@@ -581,6 +581,7 @@ int main(int argc, char *argv[]) {
   int count_data_type = 0;
   char dataString[STRING_LEN];
   bool do_aggreFunc = true;
+  int replica = arguments.replica;
 
   if (NULL != arguments.sqlFile) {
     TAOS* qtaos = taos_connect(ip_addr, user, pass, db_name, port);
@@ -678,7 +679,7 @@ int main(int argc, char *argv[]) {
   TAOS_RES* res = taos_query(taos, command);
   taos_free_result(res);
 
-  sprintf(command, "create database %s;", db_name);
+  sprintf(command, "create database %s replica %d;", db_name, replica);
   res = taos_query(taos, command);
   taos_free_result(res);
 
