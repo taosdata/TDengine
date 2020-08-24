@@ -855,7 +855,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     str = nextStr + 1;
     len = (int32_t)strtrim(tblName);
 
-    SSQLToken sToken = {.n = len, .type = TK_ID, .z = tblName};
+    SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
     tSQLGetToken(tblName, &sToken.type);
 
     // Check if the table name available or not

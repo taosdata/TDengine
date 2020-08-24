@@ -931,8 +931,8 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMCreateAcctMsg *pAlterMsg = (SCMCreateAcctMsg *)pCmd->payload;
 
-  SSQLToken *pName = &pInfo->pDCLInfo->user.user;
-  SSQLToken *pPwd = &pInfo->pDCLInfo->user.passwd;
+  SStrToken *pName = &pInfo->pDCLInfo->user.user;
+  SStrToken *pPwd = &pInfo->pDCLInfo->user.passwd;
 
   strncpy(pAlterMsg->user, pName->z, pName->n);
   strncpy(pAlterMsg->pass, pPwd->z, pPwd->n);
@@ -1134,13 +1134,13 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pShowMsg->type = pShowInfo->showType;
 
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
-    SSQLToken *pPattern = &pShowInfo->pattern;
+    SStrToken *pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query
       strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
       pShowMsg->payloadLen = htons(pPattern->n);
     }
   } else {
-    SSQLToken *pEpAddr = &pShowInfo->prefix;
+    SStrToken *pEpAddr = &pShowInfo->prefix;
     assert(pEpAddr->n > 0 && pEpAddr->type > 0);
 
     strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);

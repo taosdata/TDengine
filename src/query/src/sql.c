@@ -99,7 +99,7 @@
 #define YYCODETYPE unsigned short int
 #define YYNOCODE 274
 #define YYACTIONTYPE unsigned short int
-#define ParseTOKENTYPE SSQLToken
+#define ParseTOKENTYPE SStrToken
 typedef union {
   int yyinit;
   ParseTOKENTYPE yy0;
@@ -2074,21 +2074,21 @@ static void yy_reduce(
         break;
       case 22: /* cmd ::= SHOW dbPrefix STABLES LIKE ids */
 {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &yymsp[-3].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &yymsp[0].minor.yy0);
 }
         break;
       case 23: /* cmd ::= SHOW dbPrefix VGROUPS */
 {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &yymsp[-1].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
         break;
       case 24: /* cmd ::= SHOW dbPrefix VGROUPS ids */
 {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &yymsp[-2].minor.yy0);    
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &yymsp[0].minor.yy0);
 }
@@ -2139,7 +2139,7 @@ static void yy_reduce(
 { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);          }
         break;
       case 38: /* cmd ::= ALTER DATABASE ids alter_db_optr */
-{ SSQLToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy268, &t);}
+{ SStrToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy268, &t);}
         break;
       case 39: /* cmd ::= ALTER ACCOUNT ids acct_optr */
 { setCreateAcctSQL(pInfo, TSDB_SQL_ALTER_ACCT, &yymsp[-1].minor.yy0, NULL, &yymsp[0].minor.yy149);}

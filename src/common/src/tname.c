@@ -48,7 +48,7 @@ SSchema tGetTableNameColumnSchema() {
   return s;
 }
 
-SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, const char* name) {
+SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
   SSchema s = {0};
 
   s.type  = pVal->nType;
@@ -62,8 +62,8 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, const char* name) {
   if (name != NULL) {
     tstrncpy(s.name, name, sizeof(s.name));
   } else {
-    tVariantToString(pVal, s.name);
-    strdequote(s.name);
+    size_t len = MIN(sizeof(s.name), exprStr->n + 1);
+    tstrncpy(s.name, exprStr->z, len);
   }
 
   return s;
@@ -132,7 +132,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
  * tablePrefix.columnName
  * extract table name and save it in pTable, with only column name in pToken
  */
-void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
+void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
   const char sep = TS_PATH_DELIMITER[0];
 
   if (pToken == pTable || pToken == NULL || pTable == NULL) {

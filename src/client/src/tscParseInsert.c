@@ -40,7 +40,7 @@ enum {
 
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 
-static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
+static int32_t tscToInteger(SStrToken *pToken, int64_t *value, char **endPtr) {
   if (pToken->n == 0) {
     return TK_ILLEGAL;
   }
@@ -73,7 +73,7 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
   return pToken->type;
 }
 
-static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
+static int32_t tscToDouble(SStrToken *pToken, double *value, char **endPtr) {
   if (pToken->n == 0) {
     return TK_ILLEGAL;
   }
@@ -89,9 +89,9 @@ static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
   return pToken->type;
 }
 
-int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
+int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
   int32_t   index = 0;
-  SSQLToken sToken;
+  SStrToken sToken;
   int64_t   interval;
   int64_t   useconds = 0;
   char *    pTokenEnd = *next;
@@ -128,7 +128,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
    * time expression:
    * e.g., now+12a, now-5h
    */
-  SSQLToken valueToken;
+  SStrToken valueToken;
   index = 0;
   sToken = tStrGetToken(pTokenEnd, &index, false, 0, NULL);
   pTokenEnd += index;
@@ -163,7 +163,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload, char *msg, char **str, bool primaryKey,
+int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload, char *msg, char **str, bool primaryKey,
                              int16_t timePrec) {
   int64_t iv;
   int32_t numType;
@@ -409,7 +409,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, char *error,
                       int16_t timePrec, int32_t *code, char *tmpTokenBuf) {
   int32_t index = 0;
-  SSQLToken sToken = {0};
+  SStrToken sToken = {0};
   char *    payload = pDataBlocks->pData + pDataBlocks->size;
 
   // 1. set the parsed value from sql string
@@ -524,7 +524,7 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
 int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMeta, int maxRows,
                   SParsedDataColInfo *spd, char *error, int32_t *code, char *tmpTokenBuf) {
   int32_t   index = 0;
-  SSQLToken sToken;
+  SStrToken sToken;
 
   int16_t numOfRows = 0;
 
@@ -734,8 +734,8 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
 
 static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   int32_t   index = 0;
-  SSQLToken sToken = {0};
-  SSQLToken tableToken = {0};
+  SStrToken sToken = {0};
+  SStrToken tableToken = {0};
   int32_t   code = TSDB_CODE_SUCCESS;
   
   const int32_t TABLE_INDEX = 0;
@@ -993,7 +993,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   return code;
 }
 
-int validateTableName(char *tblName, int len, SSQLToken* psTblToken) {
+int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
   tstrncpy(psTblToken->z, tblName, TSDB_TABLE_FNAME_LEN);
 
   psTblToken->n    = len;
@@ -1057,7 +1057,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
   while (1) {
     int32_t   index = 0;
-    SSQLToken sToken = tStrGetToken(str, &index, false, 0, NULL);
+    SStrToken sToken = tStrGetToken(str, &index, false, 0, NULL);
 
     // no data in the sql string anymore.
     if (sToken.n == 0) {
@@ -1083,7 +1083,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
     pCmd->curSql = sToken.z;
     char buf[TSDB_TABLE_FNAME_LEN];
-    SSQLToken sTblToken;
+    SStrToken sTblToken;
     sTblToken.z = buf;
     // Check if the table name available or not
     if (validateTableName(sToken.z, sToken.n, &sTblToken) != TSDB_CODE_SUCCESS) {
@@ -1285,7 +1285,7 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   int32_t  index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SSQLToken sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);
+  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);
   assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
 
   pCmd->count = 0;

@@ -2,8 +2,8 @@
 //usage: lemon sql.y
 %token_prefix TK_
 
-%token_type {SSQLToken}
-%default_type {SSQLToken}
+%token_type {SStrToken}
+%default_type {SStrToken}
 %extra_argument {SSqlInfo* pInfo}
 
 %fallback ID BOOL TINYINT SMALLINT INTEGER BIGINT FLOAT DOUBLE STRING TIMESTAMP BINARY NCHAR.
@@ -80,11 +80,11 @@ cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0); 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
 cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
-%type dbPrefix {SSQLToken}
+%type dbPrefix {SStrToken}
 dbPrefix(A) ::=.                   {A.n = 0; A.type = 0;}
 dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 
-%type cpxName {SSQLToken}
+%type cpxName {SStrToken}
 cpxName(A) ::= .             {A.n = 0;  }
 cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 
@@ -101,19 +101,19 @@ cmd ::= SHOW dbPrefix(X) STABLES.      {
 }
 
 cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
 }
 
 cmd ::= SHOW dbPrefix(X) VGROUPS.    {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
 
 cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &X);    
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &Y);
 }
@@ -145,7 +145,7 @@ cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL
 cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
-cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
+cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SStrToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
 
 cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { setCreateAcctSQL(pInfo, TSDB_SQL_ALTER_ACCT, &X, NULL, &Z);}
 cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSQL(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
@@ -153,15 +153,15 @@ cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSQL(p
 // An IDENTIFIER can be a generic identifier, or one of several keywords.
 // Any non-standard keyword can also be an identifier.
 // And "ids" is an identifer-or-string.
-%type ids {SSQLToken}
+%type ids {SStrToken}
 ids(A) ::= ID(X).        {A = X; }
 ids(A) ::= STRING(X).    {A = X; }
 
-%type ifexists {SSQLToken}
+%type ifexists {SStrToken}
 ifexists(X) ::= IF EXISTS.          {X.n = 1;}
 ifexists(X) ::= .                   {X.n = 0;}
 
-%type ifnotexists {SSQLToken}
+%type ifnotexists {SStrToken}
 ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 ifnotexists(X) ::= .                {X.n = 0;}
 
@@ -416,7 +416,7 @@ selcollist(A) ::= sclp(P) STAR. {
 // An option "AS <id>" phrase that can follow one of the expressions that
 // define the result set, or one of the tables in the FROM clause.
 //
-%type as {SSQLToken}
+%type as {SStrToken}
 as(X) ::= AS ids(Y).    { X = Y;    }
 as(X) ::= ids(Y).       { X = Y;    }
 as(X) ::= .             { X.n = 0;  }
@@ -458,10 +458,10 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 }
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
-%type tmvar {SSQLToken}
+%type tmvar {SStrToken}
 tmvar(A) ::= VARIABLE(X).   {A = X;}
 
-%type interval_opt {SSQLToken}
+%type interval_opt {SStrToken}
 interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
 interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
 
@@ -482,7 +482,7 @@ fill_opt(N) ::= FILL LP ID(Y) RP.               {
     N = tVariantListAppendToken(NULL, &Y, -1);
 }
 
-%type sliding_opt {SSQLToken}
+%type sliding_opt {SStrToken}
 sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
 sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 

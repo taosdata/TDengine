@@ -25,11 +25,11 @@ void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
 
-void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
+void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
 
 SSchema tGetTableNameColumnSchema();
 
-SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, const char* name);
+SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name);
 
 bool tscValidateTableNameLength(size_t len);
 

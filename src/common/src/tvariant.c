@@ -23,7 +23,7 @@
 #include "tutil.h"
 
 // todo support scientific expression number and oct number
-void tVariantCreate(tVariant *pVar, SSQLToken *token) { tVariantCreateFromString(pVar, token->z, token->n, token->type); }
+void tVariantCreate(tVariant *pVar, SStrToken *token) { tVariantCreateFromString(pVar, token->z, token->n, token->type); }
 
 void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
   memset(pVar, 0, sizeof(tVariant));
@@ -270,7 +270,7 @@ static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type,
     errno = 0;
     char *endPtr = NULL;
 
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
 
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -319,7 +319,7 @@ static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type,
     errno = 0;
     wchar_t *endPtr = NULL;
 
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
 
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -478,7 +478,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
 }
 
 static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *value) {
-  SSQLToken stoken = {.z = pStr, .n = len};
+  SStrToken stoken = {.z = pStr, .n = len};
   
   if (TK_ILLEGAL == isValidNumber(&stoken)) {
     return -1;
@@ -504,7 +504,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     errno = 0;
     char *endPtr = NULL;
     
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
     
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -521,7 +521,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
       return 0;
     }
     
-    SSQLToken sToken = {.z = pVariant->pz, .n = pVariant->nLen};
+    SStrToken sToken = {.z = pVariant->pz, .n = pVariant->nLen};
     if (TK_ILLEGAL == isValidNumber(&sToken)) {
       return -1;
     }
@@ -557,7 +557,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     errno = 0;
     wchar_t *endPtr = NULL;
     
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
     
     if (token.type == TK_MINUS || token.type == TK_PLUS) {

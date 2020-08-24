@@ -141,7 +141,7 @@ bool tscQueryTags(SQueryInfo* pQueryInfo);
 SSqlExpr* tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
                                        SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);
 
-int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
+int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
@@ -194,7 +194,7 @@ SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
 SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);
 
-int32_t tscValidateName(SSQLToken* pToken);
+int32_t tscValidateName(SStrToken* pToken);
 
 void tscIncStreamExecutionCount(void* pStream);
 

@@ -744,7 +744,7 @@ bool tscIsInsertData(char* sqlstr) {
   int32_t index = 0;
 
   do {
-    SSQLToken t0 = tStrGetToken(sqlstr, &index, false, 0, NULL);
+    SStrToken t0 = tStrGetToken(sqlstr, &index, false, 0, NULL);
     if (t0.type != TK_LP) {
       return t0.type == TK_INSERT || t0.type == TK_IMPORT;
     }
@@ -1187,7 +1187,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  * 'first_part.second_part'
  *
  */
-static int32_t validateQuoteToken(SSQLToken* pToken) {
+static int32_t validateQuoteToken(SStrToken* pToken) {
   strdequote(pToken->z);
   pToken->n = (uint32_t)strtrim(pToken->z);
 
@@ -1203,7 +1203,7 @@ static int32_t validateQuoteToken(SSQLToken* pToken) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscValidateName(SSQLToken* pToken) {
+int32_t tscValidateName(SStrToken* pToken) {
   if (pToken->type != TK_STRING && pToken->type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }

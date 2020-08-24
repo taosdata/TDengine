@@ -36,7 +36,7 @@ typedef struct tVariant {
   };
 } tVariant;
 
-void tVariantCreate(tVariant *pVar, SSQLToken *token);
+void tVariantCreate(tVariant *pVar, SStrToken *token);
 
 void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
 
