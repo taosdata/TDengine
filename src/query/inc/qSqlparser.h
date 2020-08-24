@@ -210,6 +210,7 @@ typedef struct tSQLExprItem {
   char *    aliasName;  // alias name, null-terminated string
 } tSQLExprItem;
 
+// todo refactor by using SArray
 typedef struct tSQLExprList {
   int32_t       nExpr;  /* Number of expressions on the list */
   int32_t       nAlloc; /* Number of entries allocated below */

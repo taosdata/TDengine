@@ -78,7 +78,7 @@ tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SSQLToken
     pList = calloc(1, sizeof(tSQLExprList));
   }
 
-  if (pList->nAlloc <= pList->nExpr) {  //
+  if (pList->nAlloc <= pList->nExpr) {
     pList->nAlloc = (pList->nAlloc << 1) + 4;
     pList->a = realloc(pList->a, pList->nAlloc * sizeof(pList->a[0]));
     if (pList->a == 0) {

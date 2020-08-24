@@ -198,7 +198,7 @@ int32_t tscValidateName(SSQLToken* pToken);
 
 void tscIncStreamExecutionCount(void* pStream);
 
-bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
+bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t numOfParams);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
 SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);

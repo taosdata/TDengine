@@ -1094,18 +1094,6 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
   return (totalLen < TSDB_TABLE_FNAME_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_TSC_INVALID_SQL;
 }
 
-static void extractColumnNameFromString(tSQLExprItem* pItem) {
-  if (pItem->pNode->nSQLOptr == TK_STRING) {
-    pItem->pNode->val.nLen = strdequote(pItem->pNode->val.pz);
-    pItem->pNode->nSQLOptr = TK_ID;
-
-    SSQLToken* pIdToken = &pItem->pNode->colInfo;
-    pIdToken->type = TK_ID;
-    pIdToken->z = pItem->pNode->val.pz;
-    pIdToken->n = pItem->pNode->val.nLen;
-  }
-}
-
 static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSQLExprItem* pItem) {
   const char* msg1 = "invalid column name, or illegal column type";
   const char* msg2 = "invalid arithmetic expression in select clause";
@@ -1234,6 +1222,11 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static void tscInsertPrimaryTSSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+  SColumnIndex tsCol = {.tableIndex = pIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+  tscColumnListInsert(pQueryInfo->colList, &tsCol);
+}
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable) {
   assert(pSelection != NULL && pCmd != NULL);
 
@@ -1254,14 +1247,11 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     // project on all fields
     int32_t optr = pItem->pNode->nSQLOptr;
 
-    if (optr == TK_ALL || optr == TK_ID || optr == TK_STRING || (optr == TK_INTEGER || optr == TK_FLOAT)) {
+    if (optr == TK_ALL || optr == TK_ID || optr == TK_STRING || optr == TK_INTEGER || optr == TK_FLOAT) {
       // it is actually a function, but the function name is invalid
       if (pItem->pNode->nSQLOptr == TK_ID && (pItem->pNode->colInfo.z == NULL && pItem->pNode->colInfo.n == 0)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
-
-      // if the name of column is quoted, remove it and set the right information for later process
-      extractColumnNameFromString(pItem);
 
       // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
       if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
@@ -1290,6 +1280,13 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     if (pQueryInfo->fieldsInfo.numOfOutput > TSDB_MAX_COLUMNS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
+  }
+
+  // there is only one user-defined column in the final result field, add the timestamp column.
+  size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
+  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
+    SColumnIndex index = {0};
+    tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
   }
 
   if (!functionCompatibleCheck(pQueryInfo)) {
@@ -1431,17 +1428,11 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   return numOfTotalColumns;
 }
 
-static void tscInsertPrimaryTSSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
-  SColumnIndex tsCol = {.tableIndex = pIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tscColumnListInsert(pQueryInfo->colList, &tsCol);
-}
-
 int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExprItem* pItem) {
   const char* msg0 = "invalid column name";
   const char* msg1 = "tag for normal table query is not allowed";
-  
-  int32_t startPos = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
 
+  int32_t startPos = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   int32_t optr = pItem->pNode->nSQLOptr;
 
   if (optr == TK_ALL) {  // project on all fields
@@ -1465,40 +1456,43 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 
     // add the primary timestamp column even though it is not required by user
     tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
-  } else if (optr == TK_ID || optr == TK_INTEGER || optr == TK_FLOAT) {  // simple column projection query
+  } else if (optr == TK_STRING || optr == TK_INTEGER || optr == TK_FLOAT) {  // simple column projection query
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
     // user-specified constant value as a new result column
-    if ((optr == TK_INTEGER || optr == TK_FLOAT) || (getColumnIndexByName(pCmd, &pItem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
-      index.columnIndex = TSDB_UD_COLUMN_INDEX;
-      index.tableIndex = 0;
+    index.columnIndex = (pQueryInfo->udColumnId--);
+    index.tableIndex = 0;
 
-      SSchema colSchema = tGetUserSpecifiedColumnSchema(pItem->pNode->val.pz, pItem->pNode->val.nType, pItem->aliasName);
-      SSqlExpr* pExpr = tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_UDC);
-      pExpr->numOfParams = 1;
-      tVariantAssign(&pExpr->param[0], &pItem->pNode->val);
+    SSchema colSchema = tGetUserSpecifiedColumnSchema(&pItem->pNode->val, pItem->aliasName);
+    SSqlExpr* pExpr =
+        tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_UDC);
 
-    } else { // columns from the queried table
-      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY);
+    // NOTE: the first parameter is reserved for the tag column id during join query process.
+    pExpr->numOfParams = 2;
+    tVariantAssign(&pExpr->param[1], &pItem->pNode->val);
+  } else if (optr == TK_ID) {
+    SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
-      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-        SSchema colSchema = tGetTableNameColumnSchema();
-        tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, TSDB_COL_TAG);
-      } else {
-        STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-        STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
-
-        if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-        }
-
-        addProjectQueryCol(pQueryInfo, startPos, &index, pItem);
-      }
-
-      // add the primary timestamp column even though it is not required by user
-      tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
+    if (getColumnIndexByName(pCmd, &pItem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
+    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      SSchema colSchema = tGetTableNameColumnSchema();
+      tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, TSDB_COL_TAG);
+    } else {
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
+
+      if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
+      addProjectQueryCol(pQueryInfo, startPos, &index, pItem);
+    }
+
+    // add the primary timestamp column even though it is not required by user
+    tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -2069,7 +2063,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
 // todo refactor
 static SColumnList getColumnList(int32_t num, int16_t tableIndex, int32_t columnIndex) {
-  assert(num == 1 && columnIndex >= -2 && tableIndex >= 0);
+  assert(num == 1 && tableIndex >= 0);
 
   SColumnList columnList = {0};
   columnList.num = num;
@@ -4706,7 +4700,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
       }
     }
 
-    if (pExpr->functionId == TSDB_FUNC_PRJ || pExpr->functionId == TSDB_FUNC_DIFF ||
+    if ((pExpr->functionId == TSDB_FUNC_PRJ && pExpr->numOfParams == 0) || pExpr->functionId == TSDB_FUNC_DIFF ||
         pExpr->functionId == TSDB_FUNC_ARITHM) {
       isProjectionFunction = true;
     }

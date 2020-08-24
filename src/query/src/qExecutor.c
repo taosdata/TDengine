@@ -168,7 +168,7 @@ static void buildTagQueryResult(SQInfo *pQInfo);
 static int32_t setAdditionalInfo(SQInfo *pQInfo, void *pTable, STableQueryInfo *pTableQueryInfo);
 static int32_t flushFromResultBuf(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo);
 
-  bool doFilterData(SQuery *pQuery, int32_t elemPos) {
+bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
     SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[k];
 
@@ -899,7 +899,7 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
       }
 
       assert(dataBlock != NULL);
-      sas->data[i] = dataBlock/* + pQuery->colList[i].bytes*/;  // start from the offset
+      sas->data[i] = dataBlock;  // start from the offset
     }
 
   } else {  // other type of query function
@@ -1583,7 +1583,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
       int16_t type = pSqlFuncMsg->arg[j].argType;
       int16_t bytes = pSqlFuncMsg->arg[j].argBytes;
       if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        tVariantCreateFromBinary(&pCtx->param[j], pSqlFuncMsg->arg->argValue.pz, bytes, type);
+        tVariantCreateFromBinary(&pCtx->param[j], pSqlFuncMsg->arg[j].argValue.pz, bytes, type);
       } else {
         tVariantCreateFromBinary(&pCtx->param[j], (char *)&pSqlFuncMsg->arg[j].argValue.i64, bytes, type);
       }
@@ -5728,11 +5728,12 @@ static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SExprInfo *
       SSchema s = tGetTableNameColumnSchema();
       type = s.type;
       bytes = s.bytes;
-    } else if (pExprs[i].base.colInfo.colId == TSDB_UD_COLUMN_INDEX) {
+    } else if (pExprs[i].base.colInfo.colId <= TSDB_UD_COLUMN_INDEX) {
+      // it is a user-defined constant value column
       assert(pExprs[i].base.functionId == TSDB_FUNC_PRJ);
 
-      type = pExprs[i].base.arg[0].argType;
-      bytes = pExprs[i].base.arg[0].argBytes;
+      type = pExprs[i].base.arg[1].argType;
+      bytes = pExprs[i].base.arg[1].argBytes;
 
       if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
         bytes += VARSTR_HEADER_SIZE;
@@ -5927,8 +5928,8 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
       }
 
       assert(f < pQuery->numOfCols);
-    } else if (pColIndex->colId == TSDB_UD_COLUMN_INDEX) {
-      // do nothing
+    } else if (pColIndex->colId <= TSDB_UD_COLUMN_INDEX) {
+      // do nothing for user-defined constant value result columns
     } else {
       int32_t f = 0;
       for (f = 0; f < pQuery->numOfTags; ++f) {

@@ -195,9 +195,9 @@ typedef struct STableDataBlocks {
 
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
-  uint32_t         type;          // query/insert/import type
+  uint32_t         type;          // query/insert type
   char             slidingTimeUnit;
-  STimeWindow      window;
+  STimeWindow      window;        // query time window
   int64_t          intervalTime;  // aggregation time interval
   int64_t          slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
@@ -216,6 +216,7 @@ typedef struct SQueryInfo {
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
   int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
+  int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
 } SQueryInfo;
 
 typedef struct {

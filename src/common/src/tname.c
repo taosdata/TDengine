@@ -4,6 +4,7 @@
 #include "tname.h"
 #include "tstoken.h"
 #include "ttokendef.h"
+#include "tvariant.h"
 
 // todo refactor
 UNUSED_FUNC static FORCE_INLINE const char* skipSegments(const char* input, char delim, int32_t num) {
@@ -47,19 +48,23 @@ SSchema tGetTableNameColumnSchema() {
   return s;
 }
 
-SSchema tGetUserSpecifiedColumnSchema(const char* v, int16_t type, const char* name) {
+SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, const char* name) {
   SSchema s = {0};
 
-  s.type  = type;
+  s.type  = pVal->nType;
   if (s.type == TSDB_DATA_TYPE_BINARY || s.type == TSDB_DATA_TYPE_NCHAR) {
-    size_t len = strlen(v);
-    s.bytes = len + VARSTR_HEADER_SIZE;
+    s.bytes = pVal->nLen + VARSTR_HEADER_SIZE;
   } else {
-    s.bytes = tDataTypeDesc[type].nSize;
+    s.bytes = tDataTypeDesc[pVal->nType].nSize;
   }
 
   s.colId = TSDB_UD_COLUMN_INDEX;
-  tstrncpy(s.name, name, sizeof(s.name));
+  if (name != NULL) {
+    tstrncpy(s.name, name, sizeof(s.name));
+  } else {
+    tVariantToString(pVal, s.name);
+    strdequote(s.name);
+  }
 
   return s;
 }

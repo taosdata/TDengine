@@ -2902,12 +2902,12 @@ static FORCE_INLINE void date_col_output_function_f(SQLFunctionCtx *pCtx, int32_
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->numOfParams == 1) {  // the number of output rows should not affect the final number of rows, so set it to be 1
-    INC_INIT_VAL(pCtx, 1);
+  if (pCtx->numOfParams == 2) {  // the number of output rows should not affect the final number of rows, so set it to be 0
+    SET_VAL(pCtx, pCtx->size, 1);
 
     char* output = pCtx->aOutputBuf;
     for(int32_t i = 0; i < pCtx->size; ++i) {
-      tVariantDump(&pCtx->param[0], output, pCtx->outputType, true);
+      tVariantDump(&pCtx->param[1], output, pCtx->outputType, true);
       output += pCtx->outputBytes;
     }
 
@@ -2936,11 +2936,16 @@ static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pCtx->param[0].i64Key == 1 && pResInfo->numOfRes >= 1) {
     return;
   }
-  
-  INC_INIT_VAL(pCtx, 1);
-  char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
-  memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  
+
+  if (pCtx->numOfParams == 2) {  // the number of output rows should not affect the final number of rows, so set it to be 0
+    SET_VAL(pCtx, pCtx->size, 1);
+    tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->outputType, true);
+  } else {
+    INC_INIT_VAL(pCtx, 1);
+    char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
+    memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
+  }
+
   pCtx->aOutputBuf += pCtx->inputBytes;
 }
 

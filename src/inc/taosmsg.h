@@ -169,7 +169,7 @@ enum _mgmt_table {
 
 #define TSDB_COL_NORMAL          0x0u    // the normal column of the table
 #define TSDB_COL_TAG             0x1u    // the tag column type
-#define TSDB_COL_UDC   0x2u    // the user specified normal string column, it is a dummy column
+#define TSDB_COL_UDC             0x2u    // the user specified normal string column, it is a dummy column
 
 extern char *taosMsg[];
 

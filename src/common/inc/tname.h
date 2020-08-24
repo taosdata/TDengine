@@ -4,6 +4,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tstoken.h"
+#include "tvariant.h"
 
 typedef struct SDataStatis {
   int16_t colId;
@@ -28,7 +29,7 @@ void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 
 SSchema tGetTableNameColumnSchema();
 
-SSchema tGetUserSpecifiedColumnSchema(const char* v, int16_t type, const char* name);
+SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, const char* name);
 
 bool tscValidateTableNameLength(size_t len);
 

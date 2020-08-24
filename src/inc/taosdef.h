@@ -287,7 +287,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_REPLICA          5
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
-#define TSDB_UD_COLUMN_INDEX           (-2)
+#define TSDB_UD_COLUMN_INDEX            (-100)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1

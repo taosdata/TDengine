@@ -937,8 +937,8 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
   // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (pColIndex->columnIndex == TSDB_UD_COLUMN_INDEX) {
-    pExpr->colInfo.colId = TSDB_UD_COLUMN_INDEX;
+  } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
+    pExpr->colInfo.colId = pColIndex->columnIndex;
   } else {
     if (TSDB_COL_IS_TAG(colType)) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
@@ -1290,12 +1290,12 @@ void tscIncStreamExecutionCount(void* pStream) {
   ps->num += 1;
 }
 
-bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
+bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t numOfParams) {
   if (pTableMetaInfo->pTableMeta == NULL) {
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId == TSDB_UD_COLUMN_INDEX) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX || (colId <= TSDB_UD_COLUMN_INDEX && numOfParams == 2)) {
     return true;
   }
 
@@ -1511,6 +1511,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   assert(pQueryInfo->exprList == NULL);
   pQueryInfo->exprList = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->colList  = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {

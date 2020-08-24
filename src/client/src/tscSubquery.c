@@ -353,11 +353,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       pExpr = tscSqlExprGet(pQueryInfo, 0);
     }
 
-    // set the join condition tag column info, to do extract method
+    // set the join condition tag column info, todo extract method
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       assert(pQueryInfo->tagCond.joinInfo.hasJoin);
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
+      // set the tag column id for executor to extract correct tag value
       pExpr->param[0].i64Key = colId;
       pExpr->numOfParams = 1;
     }
