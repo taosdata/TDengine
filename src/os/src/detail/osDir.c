@@ -50,18 +50,17 @@ int taosMkDir(const char *path, mode_t mode) {
   return code;
 }
 
-void taosMvDir(char* destDir, char *srcDir) {
+void taosRename(char* oldName, char *newName) {
   if (0 == tsEnableVnodeBak) {
     uInfo("vnode backup not enabled");
     return;
   }
 
-  char shellCmd[1024+1] = {0}; 
-  
-  //(void)snprintf(shellCmd, 1024, "cp -rf %s %s", srcDir, destDir);
-  (void)snprintf(shellCmd, 1024, "mv %s %s", srcDir, destDir);
-  taosSystem(shellCmd);
-  uInfo("shell cmd:%s is executed", shellCmd);
+  if (rename(oldName, newName)) {
+    uError("%s is modify to %s fail, reason:%s", oldName, newName, strerror(errno));
+  } else {
+    uInfo("%s is modify to %s success!", oldName, newName);
+  }
 }
 
 #endif
