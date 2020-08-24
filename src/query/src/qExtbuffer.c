@@ -990,7 +990,7 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
     SSchemaEx* pSchemaEx = &pModel->pFields[i];
     memmove(inputBuffer->data + pSchemaEx->offset * inputBuffer->num,
             inputBuffer->data + pSchemaEx->offset * maxElemsCapacity,
-            pSchemaEx->field.bytes * inputBuffer->num);
+            (size_t)(pSchemaEx->field.bytes * inputBuffer->num));
   }
 }
 

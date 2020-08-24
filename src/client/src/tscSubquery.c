@@ -625,7 +625,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   // keep the results in memory
   if (numOfRows > 0) {
-    size_t validLen = pSupporter->tagSize * pRes->numOfRows;
+    size_t validLen = (size_t)(pSupporter->tagSize * pRes->numOfRows);
     size_t length = pSupporter->totalLen + validLen;
 
     // todo handle memory error
@@ -686,6 +686,8 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     freeJoinSubqueryObj(pParentSql);
     pParentSql->res.code = code;
     tscQueueAsyncRes(pParentSql);
+    taosArrayDestroy(s1);
+    taosArrayDestroy(s2);
     return;
   }
 
@@ -748,7 +750,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   if (numOfRows > 0) {  // write the compressed timestamp to disk file
-    fwrite(pRes->data, pRes->numOfRows, 1, pSupporter->f);
+    fwrite(pRes->data, (size_t)pRes->numOfRows, 1, pSupporter->f);
     fclose(pSupporter->f);
     pSupporter->f = NULL;
 
@@ -1298,7 +1300,9 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
       tscError("%p tableIndex:%d, failed to allocate join support object, abort further query", pSql, i);
       pState->numOfRemain = i;
       pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      
+      if (0 == i) {
+        taosTFree(pState);
+      } 
       return pSql->res.code;
     }
     
@@ -1306,7 +1310,9 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
     if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
       tscDestroyJoinSupporter(pSupporter);
       pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      
+      if (0 == i) {
+        taosTFree(pState);
+      }
       break;
     }
   }
@@ -2093,17 +2099,17 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 //      return;
 //    }
 
-    tscFetchDatablockFromSubquery(pSql);
-    if (pRes->code != TSDB_CODE_SUCCESS) {
-      return;
-    }
+//    tscFetchDatablockFromSubquery(pSql);
+//    if (pRes->code != TSDB_CODE_SUCCESS) {
+//      return;
+//    }
   }
 
-  if (pSql->res.code == TSDB_CODE_SUCCESS) {
-    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
-  } else {
-    tscQueueAsyncRes(pSql);
-  }
+//  if (pSql->res.code == TSDB_CODE_SUCCESS) {
+//    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
+//  } else {
+//    tscQueueAsyncRes(pSql);
+//  }
 }
 
 static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {

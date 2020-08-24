@@ -538,7 +538,7 @@ void rpcCancelRequest(void *handle) {
 
   // signature is used to check if pContext is freed. 
   // pContext may have been released just before app calls the rpcCancelRequest 
-  if (pContext->signature != pContext) return;
+  if (pContext == NULL || pContext->signature != pContext) return;
 
   if (pContext->pConn) {
     tDebug("%s, app tries to cancel request", pContext->pConn->info);
@@ -1114,13 +1114,16 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
 
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) {
       pContext->numOfTry = 0;
-      memcpy(&pContext->epSet, pHead->content, sizeof(pContext->epSet));
-      tDebug("%s, redirect is received, numOfEps:%d", pConn->info, pContext->epSet.numOfEps);
-      for (int i=0; i<pContext->epSet.numOfEps; ++i) 
-        pContext->epSet.port[i] = htons(pContext->epSet.port[i]);
+      SRpcEpSet *pEpSet = (SRpcEpSet*)pHead->content;
+      if (pEpSet->numOfEps > 0) {
+        memcpy(&pContext->epSet, pHead->content, sizeof(pContext->epSet));
+        tDebug("%s, redirect is received, numOfEps:%d", pConn->info, pContext->epSet.numOfEps);
+        for (int i=0; i<pContext->epSet.numOfEps; ++i) 
+          pContext->epSet.port[i] = htons(pContext->epSet.port[i]);
+      }
       rpcSendReqToServer(pRpc, pContext);
       rpcFreeCont(rpcMsg.pCont);
-    } else if (pHead->code == TSDB_CODE_RPC_NOT_READY) {
+    } else if (pHead->code == TSDB_CODE_RPC_NOT_READY || pHead->code == TSDB_CODE_APP_NOT_READY) {
       pContext->code = pHead->code;
       rpcProcessConnError(pContext, NULL);
       rpcFreeCont(rpcMsg.pCont);
