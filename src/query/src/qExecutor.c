@@ -455,6 +455,11 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
     taosHashPut(pWindowResInfo->hashList, pData, bytes, (char *)&pWindowResInfo->curIndex, sizeof(int32_t));
   }
 
+  // too many time window in query
+  if (pWindowResInfo->size > MAX_INTERVAL_TIME_WINDOW) {
+    longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
+  }
+
   return getWindowResult(pWindowResInfo, pWindowResInfo->curIndex);
 }
 
