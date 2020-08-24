@@ -1714,7 +1714,8 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
                   (sdbGetVersion() & ((1ul << 16) - 1ul));
     pTable->superTable = pMsg->pSTable;
   } else {
-    pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
+    pTable->uid = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
+                  (sdbGetVersion() & ((1ul << 16) - 1ul));
     pTable->sversion     = 0;
     pTable->numOfColumns = htons(pCreate->numOfColumns);
     pTable->sqlLen       = htons(pCreate->sqlLen);
@@ -1744,7 +1745,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
       }
       memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pTable->sqlLen);
       pTable->sql[pTable->sqlLen - 1] = 0;
-      mDebug("app:%p:%p, table:%s, stream sql len:%d sql:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
+      mInfo("app:%p:%p, table:%s, stream sql len:%d sql:%s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
              pTable->sqlLen, pTable->sql);
     }
   }
