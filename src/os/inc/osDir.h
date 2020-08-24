@@ -23,7 +23,7 @@ extern "C" {
 // TAOS_OS_FUNC_DIR
 void taosRemoveDir(char *rootDir);
 int  taosMkDir(const char *pathname, mode_t mode); 
-void taosMvDir(char* destDir, char *srcDir);
+void taosRename(char* oldName, char *newName);
 
 #ifdef __cplusplus
 }
