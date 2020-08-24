@@ -125,7 +125,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], sizeof(pEpSet->fqdn[i]));
+    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
