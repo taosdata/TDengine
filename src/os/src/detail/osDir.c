@@ -56,6 +56,8 @@ void taosRename(char* oldName, char *newName) {
     return;
   }
 
+  // if newName in not empty, rename return fail. 
+  // the newName must be empty or does not exist
   if (rename(oldName, newName)) {
     uError("%s is modify to %s fail, reason:%s", oldName, newName, strerror(errno));
   } else {
