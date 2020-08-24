@@ -2,9 +2,9 @@
 #include <gtest/gtest.h>
 #include <limits.h>
 
+#include "os.h"
 #include "taos.h"
 #include "hash.h"
-#include "ttime.h"
 
 namespace {
 // the simple test code for basic operations

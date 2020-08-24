@@ -10,7 +10,6 @@
 #include "taos.h"
 #include "taosmsg.h"
 #include "tutil.h"
-#include "ttypes.h"
 #include "testCommon.h"
 
 static void SQLParseTest(TAOS *conn, bool insertData);

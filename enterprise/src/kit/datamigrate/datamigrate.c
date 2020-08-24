@@ -321,7 +321,7 @@ int main(int argc, char *argv[])
                 offset = lseek(ofd, 0, SEEK_CUR);
             }
 
-            tclose(ofd);
+            taosClose(ofd);
         }
     }
 

@@ -223,17 +223,18 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   table_cmd->cmdType = HTTP_CMD_TYPE_INSERT;
 
   // order by tag name
-  cJSON *orderedTags[6] = {0};
+  cJSON *orderedTags[12] = {0};
   int    orderTagsLen = 0;
-  for (int i = 0; i < tagsSize; ++i) {
-    cJSON *tag = cJSON_GetArrayItem(tags, i);
+  tagsSize = MIN(tagsSize, 12);
+  for (int t1 = 0; t1 < tagsSize; ++t1) {
+    cJSON *tag = cJSON_GetArrayItem(tags, t1);
     orderedTags[orderTagsLen++] = tag;
-    for (int j = orderTagsLen - 1; j >= 1; --j) {
-      cJSON *tag1 = orderedTags[j];
-      cJSON *tag2 = orderedTags[j - 1];
+    for (int t2 = orderTagsLen - 1; t2 >= 1; --t2) {
+      cJSON *tag1 = orderedTags[t2];
+      cJSON *tag2 = orderedTags[t2 - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
-        orderedTags[j] = tag2;
-        orderedTags[j - 1] = tag1;
+        orderedTags[t2] = tag2;
+        orderedTags[t2 - 1] = tag1;
       }
     }
   }

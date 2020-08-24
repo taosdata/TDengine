@@ -131,7 +131,7 @@ void testMMapRead(char* filePath) {
         k = 0;
     }
     munmap(starMem, mapSize);
-    tclose(handle);
+    taosClose(handle);
 }
 
 int main(int32_t argc, char** argv) {

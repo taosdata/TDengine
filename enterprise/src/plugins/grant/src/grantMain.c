@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tulog.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "trpc.h"
 #include "tutil.h"
@@ -46,6 +45,7 @@ static char   *grantSecondsToString(uint32_t seconds);
 static void    grantCheckGrantInfo();
 static void    grantSendMsgToMgmt();
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg);
+static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -78,9 +78,10 @@ int32_t grantInit() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
+  dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_GRANT_RSP, grantProcessRspInDnode);
   taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMnodeTmr, &grantSendTimer);
 
-  uTrace("grant data is initialized");
+  uDebug("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -277,6 +278,7 @@ static void grantResetMaster() {
 
   grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
   grantStatus.expireTimeSec = grantStatus.expireTimeSec > curTime ? grantStatus.expireTimeSec : curTime;
+  grantStatus.expireTimeSec += GRANT_TOLERENCE;
   grantStatus.lastReceived = grantStatus.expireTimeSec;
   grantStatus.expired = false;
 
@@ -285,7 +287,7 @@ static void grantResetMaster() {
   grantStatus.curQueryTime = grantGetCulsterCurQueryTime();
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
-  uInfo("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
+  uDebug("grant expire time reset to %s %u, current timeseries %u", ts, grantStatus.expireTimeSec,
          grantStatus.curTimeSeries);
   free(ts);
 
@@ -479,6 +481,13 @@ int32_t grantCheck(EGrantType grant) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void grantProcessRspInDnode(SRpcMsg *rpcMsg) {
+  uDebug("grant rsp received from mnode, result:%s", tstrerror(rpcMsg->code));
+  if (rpcMsg->code != TSDB_CODE_SUCCESS && tsMnodeTmr != NULL) {
+    taosTmrReset(grantSendMsgToMgmt, 3000, NULL, tsMnodeTmr, &grantSendTimer);
+  }
+}
+
 static void grantSendMsgToMgmt() {
   taosTmrReset(grantSendMsgToMgmt, GRANT_HEART_BEAT_MSG * 1000, NULL, tsMnodeTmr, &grantSendTimer);
 
@@ -503,11 +512,8 @@ static void grantSendMsgToMgmt() {
   pGrant->reserveKey2 = htonl(grantObj.reserveKey2);
 
   char *ts = grantSecondsToString(grantObj.expireTimeSec);
-  uTrace(
-      "grant send message to mnode, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, "
-      "expire: %s %u",
-      grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts,
-      grantObj.expireTimeSec);
+  uDebug("grant send message to mnode, storage:%uGB, timeseries:%u, database:%u, users:%u, expire:%s %u",
+        grantObj.limitStorage, grantObj.limitTimeSeries, grantObj.limitDbs, grantObj.limitUsers, ts, grantObj.expireTimeSec);
   free(ts);
 
   SRpcMsg rpcMsg = {
@@ -516,9 +522,9 @@ static void grantSendMsgToMgmt() {
     .msgType = TSDB_MSG_TYPE_DM_GRANT
   };
 
-  SRpcIpSet ipSet = {0};
-  dnodeGetMnodeIpSetForPeer(&ipSet);
-  dnodeSendMsgToDnode(&ipSet, &rpcMsg);
+  SRpcEpSet epSet = {0};
+  dnodeGetMnodeEpSetForPeer(&epSet);
+  dnodeSendMsgToDnode(&epSet, &rpcMsg);
 }
 
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
@@ -564,7 +570,7 @@ static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
 
   if (grantStatus.expireTimeSec > curTime) {
-    uTrace("grant message received, storage limits:%uGB, timeseries limits:%u, database limits:%u, user limits:%u, expire: %s %u, curtime: %u, set to grant state"
+    uDebug("grant message received from dnode, storage:%uGB, timeseries:%u, database:%u, user:%u, expire:%s %u, curtime:%u, set to grant state"
       , htonl(pGrant->limitStorage), grantStatus.limitTimeSeries, grantStatus.limitDbs, grantStatus.limitUsers, ts, grantStatus.expireTimeSec, curTime);
     grantStatus.expired = false;
   }
@@ -621,7 +627,7 @@ static void grantCheckGrantInfo() {
     uint32_t curTime = taosGetTimestampSec();
     char *ts1 = grantSecondsToString(grantStatus.expireTimeSec);
     char *ts2 = grantSecondsToString(grantStatus.lastReceived);
-    uTrace("grant expire at %s, last received at %s, expired %d seconds, tolerance %d seconds", ts1, ts2, curTime - grantStatus.lastReceived, GRANT_TOLERENCE);
+    uDebug("grant expire at %s, last received at %s, expired %d seconds, tolerance %d seconds", ts1, ts2, curTime - grantStatus.lastReceived, GRANT_TOLERENCE);
     free(ts1);
     free(ts2);
   }

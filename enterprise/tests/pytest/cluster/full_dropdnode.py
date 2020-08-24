@@ -27,7 +27,6 @@ class TDTestCase:
     tdDnodes.deploy(1)
     tdDnodes.cfg(1, "numOfMPeers", "1")
     tdDnodes.cfg(1, "tables", "5")
-    tdDnodes.cfg(1, "numOfTotalVnodes", "2")
     tdDnodes.start(1)
     
     self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
@@ -37,13 +36,11 @@ class TDTestCase:
     tdDnodes.deploy(2)
     tdDnodes.cfg(2, "numOfMPeers", "1")
     tdDnodes.cfg(2, "tables", "5")
-    tdDnodes.cfg(2, "numOfTotalVnodes", "2")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.cfg(3, "numOfMPeers", "1")
     tdDnodes.cfg(3, "tables", "5")
-    tdDnodes.cfg(3, "numOfTotalVnodes", "2")
     tdDnodes.start(3)
     tdLog.sleep(10)
     

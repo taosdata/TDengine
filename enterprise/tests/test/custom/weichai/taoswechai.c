@@ -23,7 +23,6 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tutil.h"
-#include "ttime.h"
 #include "taos.h"
 #include <error.h>
 
@@ -548,7 +547,7 @@ void tdParseCsvFile(char *csvfile, int threadIndex) {
   int lineNum = 0;
 
   do {
-    tfree(line);
+    taosTFree(line);
     int ret = getline(&line, &len, fp);
     if (line == NULL || ret == -1 || len == 0) {
       tdPrint("file:%s read finished, totalRows:%d", csvfile, lineNum);

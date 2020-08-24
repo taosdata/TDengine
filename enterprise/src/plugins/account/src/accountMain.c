@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tgrant.h"
@@ -239,8 +238,9 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   
   int32_t code = sdbInsertRow(&oper);
 
-  if (code != TSDB_CODE_SUCCESS) {
-    tfree(pAcct);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("acct:%s, failed to create by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
+    taosTFree(pAcct);
   } else {
     mLInfo("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
 
@@ -249,8 +249,6 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
     sprintf(suser, "_%s", name);
     mnodeCreateUser(pAcct, name, pass, NULL);
     mnodeCreateUser(pAcct, suser, tsInternalPass, NULL);  // create stream user
-
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   return code;
@@ -271,9 +269,10 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
   };
 
   int32_t code = sdbDeleteRow(&oper);
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
+  } else {
     mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mnodeDecAcctRef(pAcct);
@@ -341,6 +340,12 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 6 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "state");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
   strcpy(pSchema[cols].name, "UDisk");
@@ -358,6 +363,20 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 
   mnodeDecUserRef(pUser);
   return 0;
+}
+
+char *mnodeGetAcctStateStr(int32_t accessState) {
+  if (accessState == 0) {
+    return "no";
+  } else if (accessState == TSDB_VN_ALL_ACCCESS) {
+    return "all";
+  } else if (accessState == TSDB_VN_WRITE_ACCCESS) {
+    return "write";
+  } else if (accessState == TSDB_VN_READ_ACCCESS) {
+    return "read";
+  }
+
+  return "null";
 }
 
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
@@ -409,6 +428,11 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
               pAcct->cfg.maxStorage / (1024. * 1024. * 1024));
     }
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tmp, pShow->bytes[cols]);
+    cols++;
+  
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    char *role = mnodeGetAcctStateStr(pAcct->cfg.accessState);
+    STR_TO_VARSTR(pWrite, role);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -553,11 +577,11 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
   };
 
   int32_t code = sdbUpdateRow(&oper);
-  if (code != TSDB_CODE_SUCCESS) {
-    tfree(pAcct);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
+    taosTFree(pAcct);
   } else {
     mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
-    if (pMsg != NULL) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mnodeDecAcctRef(pAcct);

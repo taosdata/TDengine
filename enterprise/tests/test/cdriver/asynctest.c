@@ -38,8 +38,8 @@ int main(int argc, char *argv[])
   TAOS   *taos;
   struct  timeval systemTime;
   char    qstr[128];
-  int     i, code;
-  char    name[30], payload[128], prefix[20], db[128];
+  int     i;
+  char    payload[128], prefix[20], db[128];
   STable *tableList;
 
   if ( argc == 1 ) {
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 
   taos_init();
 
-  taos = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, NULL, 0);
+  taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if ( taos == NULL)
     taos_error(taos);
 
@@ -160,7 +160,7 @@ void tscInsertsCallBack(void *param, TAOS_RES *tres, int code)
     if ( tablesProcessed >= numOfTables ) {
       gettimeofday(&systemTime, NULL);
       et = systemTime.tv_sec*1000000 + systemTime.tv_usec;
-      printf("%lld mseconds to insert %d data points\n", (et-st)/1000, points*numOfTables);
+      printf("%"PRId64" mseconds to insert %d data points\n", (et-st)/1000, points*numOfTables);
     }
   }
 }
@@ -168,13 +168,12 @@ void tscInsertsCallBack(void *param, TAOS_RES *tres, int code)
 void tscRetrieveCallBack(void *param, TAOS_RES *tres, int numOfRows)
 {
   STable   *pTable = (STable *)param;
-  TAOS_ROW  row;
   struct timeval systemTime;
 
   if ( numOfRows > 0 ) {
 
     for (int i=0; i<numOfRows; ++i) {
-      row = taos_fetch_row(tres);
+      /*TAOS_ROW row = */taos_fetch_row(tres);
       //printf("%lld %lld\n", *((int64_t *)row[0]), *((int64_t *)row[1]));
     }
 

@@ -13,7 +13,7 @@
 	"metricsName": "mt",
 	"tagNum": 10,
 	"dataNum": 100000000,
-	"dataBegin": 1594310400000,
+	"dataBegin": 1494310400000,
 	"dataInterval": 1000,
 	"dataBatch": 1000,
 	"dataInsert": true,

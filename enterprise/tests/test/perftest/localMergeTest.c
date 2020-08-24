@@ -3,9 +3,9 @@
 #include <assert.h>
 #include <textbuffer.h>
 
-#include "tsclient.h"
+#include "tscLocalMerge.h"
 #include "tscUtil.h"
-#include "tscSecondaryMerge.h"
+#include "tsclient.h"
 
 const int32_t PAGE_SIZE = 4096;
 const int32_t NUM_OF_COLS = 2;
@@ -315,16 +315,16 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     tscLocalDoReduce(pObj);
     tColModelDisplay(model, pRes->data, pRes->numOfRows, pRes->numOfRows);
 
-    tfree(pData);
-    tfree(inputBuffer);
-    tfree(pCmd->pGroupbyExpr);
+    taosTFree(pData);
+    taosTFree(inputBuffer);
+    taosTFree(pCmd->pGroupbyExpr);
 
 //    destoryExtMemBuffer(pMemoryBuf);
-    tfree(*pMemoryBuf);
+    taosTFree(*pMemoryBuf);
 
     tOrderDescDestroy(pOrderDesc);
 
-    tfree(pObj);
+    taosTFree(pObj);
 }
 
 int32_t main(int argc, char **argv) {

@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
-#  ADD_SUBDIRECTORY(datamigrate)
-#  ADD_SUBDIRECTORY(datascanandrepair)
+ADD_SUBDIRECTORY(taosdump)
+ADD_SUBDIRECTORY(taosmigrate)
