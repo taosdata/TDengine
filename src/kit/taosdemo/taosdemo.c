@@ -57,29 +57,30 @@ extern char configDir[];
 
 /* Used by main to communicate with parse_opt. */
 typedef struct DemoArguments {
-  char  *host;
-  uint16_t    port;
-  char  *user;
-  char  *password;
-  char  *database;
-  char  *tb_prefix;
-  char  *sqlFile;
-  bool   use_metric;
-  bool   insert_only;
-  char  *output_file;
-  int    mode;
-  char  *datatype[MAX_NUM_DATATYPE+1];
-  int    len_of_binary;
-  int    num_of_CPR;
-  int    num_of_threads;
-  int    num_of_RPR;
-  int    num_of_tables;
-  int    num_of_DPT;
-  int    abort;
-  int    order;
-  int    rate;
-  int    method_of_delete;
-  char **arg_list;
+  char *   host;
+  uint16_t port;
+  char *   user;
+  char *   password;
+  char *   database;
+  int      replica;
+  char *   tb_prefix;
+  char *   sqlFile;
+  bool     use_metric;
+  bool     insert_only;
+  char *   output_file;
+  int      mode;
+  char *   datatype[MAX_NUM_DATATYPE + 1];
+  int      len_of_binary;
+  int      num_of_CPR;
+  int      num_of_threads;
+  int      num_of_RPR;
+  int      num_of_tables;
+  int      num_of_DPT;
+  int      abort;
+  int      order;
+  int      rate;
+  int      method_of_delete;
+  char **  arg_list;
 } SDemoArguments;
 
 #ifdef LINUX
@@ -90,6 +91,7 @@ typedef struct DemoArguments {
     {0, 'u', "user",                     0, "The TDengine user name to use when connecting to the server. Default is 'root'.",                                  2},
     {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
     {0, 'd', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
+    {0, 'a', "replica",                  0, "Set the replica parameters of the database, Default 1, min: 1, max: 3.",                                              3},
     {0, 'm', "table_prefix",             0, "Table prefix name. Default is 't'.",                                                                               3},
     {0, 's', "sql file",                 0, "The select sql file.",                                                                                             3},
     {0, 'M', 0,                          0, "Use metric flag.",                                                                                                 13},
@@ -225,6 +227,13 @@ typedef struct DemoArguments {
           arguments->rate = 10;
         }
         break;
+      case 'a':
+        arguments->replica = atoi(arg);
+        if (arguments->replica > 3 || arguments->replica < 1)
+        {
+          arguments->replica = 1;
+        }
+        break;
       case 'D':
         arguments->method_of_delete = atoi(arg);
         if (arguments->method_of_delete < 0 || arguments->method_of_delete > 3)
@@ -273,6 +282,8 @@ typedef struct DemoArguments {
     printf("%s%s%s\n", indent, indent, "password, The password to use when connecting to the server. Default is 'taosdata'.");
     printf("%s%s\n", indent, "-d");
     printf("%s%s%s\n", indent, indent, "database, Destination database. Default is 'test'.");
+    printf("%s%s\n", indent, "-a");
+    printf("%s%s%s\n", indent, indent, "replica, Set the replica parameters of the database, Default 1, min: 1, max: 3.");
     printf("%s%s\n", indent, "-m");
     printf("%s%s%s\n", indent, indent, "table_prefix, Table prefix name. Default is 't'.");
     printf("%s%s\n", indent, "-s");
@@ -396,6 +407,11 @@ typedef struct DemoArguments {
         if (arguments->order == 1 && (arguments->rate > 50 || arguments->rate <= 0)) {
           arguments->rate = 10;
         }
+      } else if (strcmp(argv[i], "-a") == 0) {
+        arguments->replica = atoi(argv[++i]);
+        if (arguments->rate > 3 || arguments->rate < 1) {
+          arguments->rate = 1;
+        }
       } else if (strcmp(argv[i], "-D") == 0) {
         arguments->method_of_delete = atoi(argv[++i]);
         if (arguments->method_of_delete < 0 || arguments->method_of_delete > 3) {
@@ -499,6 +515,7 @@ int main(int argc, char *argv[]) {
                                 "root",          // user
                                 "taosdata",      // password
                                 "test",          // database
+                                1,               // replica
                                 "t",             // tb_prefix
                                 NULL,
                                 false,           // use_metric
@@ -564,6 +581,7 @@ int main(int argc, char *argv[]) {
   int count_data_type = 0;
   char dataString[STRING_LEN];
   bool do_aggreFunc = true;
+  int replica = arguments.replica;
 
   if (NULL != arguments.sqlFile) {
     TAOS* qtaos = taos_connect(ip_addr, user, pass, db_name, port);
@@ -661,7 +679,7 @@ int main(int argc, char *argv[]) {
   TAOS_RES* res = taos_query(taos, command);
   taos_free_result(res);
 
-  sprintf(command, "create database %s;", db_name);
+  sprintf(command, "create database %s replica %d;", db_name, replica);
   res = taos_query(taos, command);
   taos_free_result(res);
 
