@@ -12,7 +12,7 @@ GREEN='\033[1;32m'
 NC='\033[0m'
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/tarbitrator"
 bin_link_dir="/usr/bin"
 #inc_link_dir="/usr/include"
 

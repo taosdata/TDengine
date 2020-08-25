@@ -13,10 +13,10 @@ bin_link_dir="/usr/bin"
 #inc_link_dir="/usr/include"
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/tarbitrator"
 
 # old bin dir
-bin_dir="/usr/local/taos/bin"
+bin_dir="/usr/local/tarbitrator/bin"
 
 service_config_dir="/etc/systemd/system"
 
