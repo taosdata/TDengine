@@ -433,31 +433,36 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t bytes = pInfo->pSqlExpr->resBytes;
 
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-    int32_t realLen = varDataLen(pData);
-    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
+  // user defined constant value output columns
+  if (pInfo->pSqlExpr->colInfo.flag == TSDB_COL_UDC) {
+    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+      pData = pInfo->pSqlExpr->param[1].pz;
+      pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
+      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : pData;
     } else {
-      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
-    }
+      assert(bytes == tDataTypeDesc[type].nSize);
 
-    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : &pInfo->pSqlExpr->param[1].i64Key;
+      pRes->length[columnIndex] = bytes;
     }
-
-    pRes->length[columnIndex] = realLen;
   } else {
-    assert(bytes == tDataTypeDesc[type].nSize);
+    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+      int32_t realLen = varDataLen(pData);
+      assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
+      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : ((tstr *)pData)->data;
+      if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
+        *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
+      }
+
+      pRes->length[columnIndex] = realLen;
     } else {
-      pRes->tsrow[columnIndex] = pData;
-    }
+      assert(bytes == tDataTypeDesc[type].nSize);
 
-    pRes->length[columnIndex] = bytes;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : pData;
+      pRes->length[columnIndex] = bytes;
+    }
   }
 }
 
