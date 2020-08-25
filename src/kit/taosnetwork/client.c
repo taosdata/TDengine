@@ -105,6 +105,18 @@ int checkTcpPort(info_s *info) {
     printf("socket() fail: %s\n", strerror(errno));
     return -1;
   }
+
+  // set send and recv overtime
+  struct timeval timeout;  
+  timeout.tv_sec = 2;  //s
+  timeout.tv_usec = 0; //us  
+  if (setsockopt(clientSocket, SOL_SOCKET,SO_SNDTIMEO, (char *)&timeout, sizeof(struct timeval)) == -1) {
+    perror("setsockopt send timer failed:");
+  }
+  if (setsockopt(clientSocket, SOL_SOCKET,SO_RCVTIMEO, (char *)&timeout, sizeof(struct timeval)) == -1) {
+    perror("setsockopt recv timer failed:");
+  }
+
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(info->port);
 
@@ -112,7 +124,7 @@ int checkTcpPort(info_s *info) {
 
   //printf("=================================\n");
   if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-    printf("connect() fail: %s\n", strerror(errno));
+    printf("connect() fail: %s\t", strerror(errno));
     return -1;
   }
   //printf("Connect to: %s:%d...success\n", host, port);
@@ -171,6 +183,17 @@ int checkUdpPort(info_s *info) {
     perror("socket");
     return -1;
   }
+
+  // set overtime 
+  struct timeval timeout;
+  timeout.tv_sec = 2;  //s
+  timeout.tv_usec = 0; //us
+  if (setsockopt(clientSocket, SOL_SOCKET,SO_SNDTIMEO, (char *)&timeout, sizeof(struct timeval)) == -1) {
+    perror("setsockopt send timer failed:");
+  }
+  if (setsockopt(clientSocket, SOL_SOCKET,SO_RCVTIMEO, (char *)&timeout, sizeof(struct timeval)) == -1) {
+    perror("setsockopt recv timer failed:");
+  }
   
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(info->port);
@@ -195,7 +218,7 @@ int checkUdpPort(info_s *info) {
   iDataNum = recvfrom(clientSocket, recvbuf, BUFFER_SIZE, 0, (struct sockaddr *)&serverAddr, &sin_size);
 
   if (iDataNum < info->pktLen) {
-    printf("Read ack pkg len: %d, less than req pkg len: %d from udp port: %d\n", iDataNum, info->pktLen, info->port);
+    printf("Read ack pkg len: %d, less than req pkg len: %d from udp port: %d\t\t", iDataNum, info->pktLen, info->port);
     return -1;
   }
   
@@ -239,14 +262,14 @@ void checkPort(uint32_t hostIp, uint16_t startPort, uint16_t maxPort, uint16_t p
     info.port = port;
     ret = checkTcpPort(&info);
     if (ret != 0) {
-      printf("tcp port:%d test fail.\t\t", port);
+      printf("tcp port:%d test fail.\t\n", port);
     } else {
       printf("tcp port:%d test ok.\t\t", port);
     }
     
     ret = checkUdpPort(&info);
     if (ret != 0) {
-      printf("udp port:%d test fail.\t\t", port);
+      printf("udp port:%d test fail.\t\n", port);
     } else {
       printf("udp port:%d test ok.\t\t", port);
     }
