@@ -98,9 +98,9 @@ struct _script_t;
 typedef struct _cmd_t {
   int16_t cmdno;
   int16_t nlen;
-  char name[MAX_SIM_CMD_NAME_LEN];
-  bool (*parseCmd)(char *, struct _cmd_t *, int);
-  bool (*executeCmd)(struct _script_t *script, char *option);
+  char    name[MAX_SIM_CMD_NAME_LEN];
+  bool  (*parseCmd)(char *, struct _cmd_t *, int);
+  bool  (*executeCmd)(struct _script_t *script, char *option);
   struct _cmd_t *next;
 } SCommand;
 
@@ -120,7 +120,7 @@ typedef struct _var_t {
 } SVariable;
 
 typedef struct _script_t {
-  int type;
+  int  type;
   bool killed;
 
   void *taos;
@@ -130,10 +130,10 @@ typedef struct _script_t {
   char system_exit_code[12];
   char system_ret_content[MAX_SYSTEM_RESULT_LEN];
 
-  int varLen;
-  int linePos;     // current cmd position
-  int numOfLines;  // number of lines in the script
-  int bgScriptLen;
+  int  varLen;
+  int  linePos;     // current cmd position
+  int  numOfLines;  // number of lines in the script
+  int  bgScriptLen;
   char fileName[MAX_FILE_NAME_LEN];  // script file name
   char error[MAX_ERROR_LEN];
   char *optionBuffer;
