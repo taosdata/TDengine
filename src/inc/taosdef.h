@@ -63,7 +63,7 @@ typedef struct tstr {
 extern const int32_t TYPE_BYTES[11];
 // TODO: replace and remove code below
 #define CHAR_BYTES   sizeof(char)
-#define SHORT_BYTES  sizeof(short)
+#define SHORT_BYTES  sizeof(int16_t)
 #define INT_BYTES    sizeof(int)
 #define LONG_BYTES   sizeof(int64_t)
 #define FLOAT_BYTES  sizeof(float)

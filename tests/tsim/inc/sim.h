@@ -96,8 +96,8 @@ enum {
 
 struct _script_t;
 typedef struct _cmd_t {
-  short cmdno;
-  short nlen;
+  int16_t cmdno;
+  int16_t nlen;
   char name[MAX_SIM_CMD_NAME_LEN];
   bool (*parseCmd)(char *, struct _cmd_t *, int);
   bool (*executeCmd)(struct _script_t *script, char *option);
@@ -105,11 +105,11 @@ typedef struct _cmd_t {
 } SCommand;
 
 typedef struct {
-  short cmdno;
-  short jump;        // jump position
-  short errorJump;   // sql jump flag, while '-x' exist in sql cmd, this flag
-                     // will be SQL_JUMP_TRUE, otherwise is SQL_JUMP_FALSE */
-  short lineNum;     // correspodning line number in original file
+  int16_t cmdno;
+  int16_t jump;        // jump position
+  int16_t errorJump;   // sql jump flag, while '-x' exist in sql cmd, this flag
+                       // will be SQL_JUMP_TRUE, otherwise is SQL_JUMP_FALSE */
+  int16_t lineNum;     // correspodning line number in original file
   int optionOffset;  // relative option offset
 } SCmdLine;
 

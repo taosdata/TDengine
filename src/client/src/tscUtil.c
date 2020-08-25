@@ -404,7 +404,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
   taosTFree(pDataBlock);
 }
 
-SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
+SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset) {
   uint32_t needed = pDataBlock->numOfParams + 1;
   if (needed > pDataBlock->numOfAllocedParams) {
