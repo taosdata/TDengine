@@ -34,7 +34,7 @@ var (
 type TableColInfo struct {
 	Name   string
 	Type   string
-	Length int
+	Length int32
 	Note   string
 }
 
@@ -68,7 +68,7 @@ func taosGetTabInfo(db *sql.DB, table string) (*TableInfo, error) {
 			var colInfo TableColInfo
 			colInfo.Name = strings.Trim((*row[0].(*interface{})).(string), string(0))
 			colInfo.Type = strings.Trim((*row[1].(*interface{})).(string), string(0))
-			colInfo.Length = (*row[2].(*interface{})).(int)
+			colInfo.Length = (*row[2].(*interface{})).(int32)
 			colInfo.Note = strings.Trim((*row[3].(*interface{})).(string), string(0))
 
 			info.SCols = append(info.SCols, colInfo)
@@ -86,7 +86,7 @@ func taosGetTabInfo(db *sql.DB, table string) (*TableInfo, error) {
 		// fmt.Println(*val[0].(*interface{}))
 		colInfo.Name = strings.Trim((*val[0].(*interface{})).(string), string(0))
 		colInfo.Type = strings.Trim((*val[1].(*interface{})).(string), string(0))
-		colInfo.Length = (*val[2].(*interface{})).(int)
+		colInfo.Length = (*val[2].(*interface{})).(int32)
 		colInfo.Note = strings.Trim((*val[3].(*interface{})).(string), string(0))
 
 		info.Cols = append(info.Cols, colInfo)
