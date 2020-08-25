@@ -40,12 +40,16 @@ typedef struct {
   void *pConn;
 } SNodeConn;
 
+uint16_t tsArbitratorPort = 0;
+
 int main(int argc, char *argv[]) {
   char     arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
 
+  tsArbitratorPort = tsServerPort + TSDB_PORT_ARBITRATOR;
+
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
-      tsServerPort = atoi(argv[++i]);
+      tsArbitratorPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       debugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-g")==0 && i < argc-1) {
@@ -53,13 +57,15 @@ int main(int argc, char *argv[]) {
       tstrncpy(arbLogPath, argv[i], sizeof(arbLogPath));
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-p port]: server port number, default is:%d\n", tsServerPort);
-      printf("  [-d debugFlag]: debug flag, default:%d\n", debugFlag);
-      printf("  [-g logFilePath]: log file pathe, default:%s\n", arbLogPath);
+      printf("  [-p port]: arbitrator server port number, default is:%d\n", tsServerPort + TSDB_PORT_ARBITRATOR);
+      printf("  [-d debugFlag]: debug flag, option 131 | 135 | 143, default:0\n");
+      printf("  [-g logFilePath]: log file pathe, default:/arbitrator.log\n");
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
   }
+
+  sDebugFlag = debugFlag;
   
  if (tsem_init(&tsArbSem, 0, 0) != 0) {
     printf("failed to create exit semphore\n");
@@ -79,12 +85,11 @@ int main(int argc, char *argv[]) {
   taosInitLog(arbLogPath, 1000000, 10);
 
   taosGetFqdn(tsNodeFqdn);
-  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
 
   SPoolInfo info;
   info.numOfThreads = 1;
   info.serverIp = 0;
-  info.port = tsSyncPort;
+  info.port = tsArbitratorPort;
   info.bufferSize = 640000;
   info.processBrokenLink = arbProcessBrokenLink;
   info.processIncomingMsg = arbProcessPeerMsg;
@@ -96,7 +101,7 @@ int main(int argc, char *argv[]) {
    return -1;
   }
 
-  sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsServerPort);
+  sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsArbitratorPort);
 
   for (int res = tsem_wait(&tsArbSem); res != 0; res = tsem_wait(&tsArbSem)) {
     if (res != EINTR) break;

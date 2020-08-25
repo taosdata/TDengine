@@ -76,7 +76,7 @@ fi
 # get the operating system type for using the corresponding init file
 # ubuntu/debian(deb), centos/fedora(rpm), others: opensuse, redhat, ..., no verification
 #osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
-if [[ -d /etc/os-release ]]; then
+if [[ -e /etc/os-release ]]; then
   osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)   ||:
 else
   osinfo=""
@@ -381,34 +381,29 @@ function install_service_on_sysvinit() {
 
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/taosd.service"
-
     if systemctl is-active --quiet taosd; then
         echo "TDengine is running, stopping it..."
         ${csudo} systemctl stop taosd &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable taosd &> /dev/null || echo &> /dev/null
-
     ${csudo} rm -f ${taosd_service_config}
-
+    
+    tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
+    if systemctl is-active --quiet tarbitratord; then
+        echo "tarbitrator is running, stopping it..."
+        ${csudo} systemctl stop tarbitratord &> /dev/null || echo &> /dev/null
+    fi
+    ${csudo} systemctl disable tarbitratord &> /dev/null || echo &> /dev/null
+    ${csudo} rm -f ${tarbitratord_service_config}
+        
     if [ "$verMode" == "cluster" ]; then
         nginx_service_config="${service_config_dir}/nginxd.service"
-	
         if systemctl is-active --quiet nginxd; then
             echo "Nginx for TDengine is running, stopping it..."
             ${csudo} systemctl stop nginxd &> /dev/null || echo &> /dev/null
         fi
         ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
-	
         ${csudo} rm -f ${nginx_service_config}              
-
-        tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
-        if systemctl is-active --quiet tarbitratord; then
-            echo "tarbitrator is running, stopping it..."
-            ${csudo} systemctl stop tarbitratord &> /dev/null || echo &> /dev/null
-        fi
-        ${csudo} systemctl disable tarbitratord &> /dev/null || echo &> /dev/null
-
-        ${csudo} rm -f ${tarbitratord_service_config}
 	  fi
 }
 
@@ -418,7 +413,6 @@ function install_service_on_systemd() {
     clean_service_on_systemd
 
     taosd_service_config="${service_config_dir}/taosd.service"
-
     ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
@@ -439,32 +433,30 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
     ${csudo} systemctl enable taosd
-
+    
+    tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
+    ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStartSec=0'                       >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'StandardOutput=null'                     >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Restart=always'                          >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'StartLimitBurst=3'                       >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'StartLimitInterval=60s'                  >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
+    #${csudo} systemctl enable tarbitratord  
+        
     if [ "$verMode" == "cluster" ]; then		
-    
-        tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
-
-        ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'TimeoutStartSec=0'                       >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'StandardOutput=null'                     >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'Restart=always'                          >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'StartLimitBurst=3'                       >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'StartLimitInterval=60s'                  >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
-        ${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
-        #${csudo} systemctl enable tarbitratord  
-    
         nginx_service_config="${service_config_dir}/nginxd.service"
         ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'Description=Nginx For TDengine Service'             >> ${nginx_service_config}"
