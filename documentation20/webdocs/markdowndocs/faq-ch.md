@@ -68,5 +68,13 @@ Connection = DriverManager.getConnection(url, properties);
 ## 12.TDengine GO windows驱动的如何编译？
 请看为此问题撰写的<a href='blog/2020/01/06/tdengine-go-windows驱动的编译/'>技术博客 
 
-
+## 13.JDBC报错： the excuted SQL is not a DML or a DDL？
+请更新至最新的JDBC驱动
+```JAVA
+<dependency>
+  <groupId>com.taosdata.jdbc</groupId>
+  <artifactId>taos-jdbcdriver</artifactId>
+  <version>2.0.4</version>
+</dependency>
+```
 
