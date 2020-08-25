@@ -1111,25 +1111,14 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
   }
 
   int32_t tableIndex = columnList.ids[0].tableIndex;
-
-  // todo potential data overflow
-  char* arithmeticExprStr = malloc(1024*1024);
-  char* p = arithmeticExprStr;
-
   if (arithmeticType == NORMAL_ARITHMETIC) {
     pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 
     // all columns in arithmetic expression must belong to the same table
     for (int32_t f = 1; f < columnList.num; ++f) {
       if (columnList.ids[f].tableIndex != tableIndex) {
-        taosTFree(arithmeticExprStr);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
-    }
-
-    if (arithmeticExprToString(pItem->pNode, &p) != TSDB_CODE_SUCCESS) {
-      taosTFree(arithmeticExprStr);
-      return TSDB_CODE_TSC_INVALID_SQL;
     }
 
     // expr string is set as the parameter of function
@@ -1138,15 +1127,15 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE, sizeof(double),
                                        sizeof(double), false);
 
-    char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
-    tstrncpy(pExpr->aliasName, name, sizeof(pExpr->aliasName));
+    char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->token.z;
+    size_t len = MIN(sizeof(pExpr->aliasName), pItem->pNode->token.n + 1);
+    tstrncpy(pExpr->aliasName, name, len);
 
     tExprNode* pNode = NULL;
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
 
     int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
     if (ret != TSDB_CODE_SUCCESS) {
-      taosTFree(arithmeticExprStr);
       taosArrayDestroy(colList);
       tExprTreeDestroy(&pNode, NULL);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -1157,7 +1146,6 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       SColIndex* pIndex = taosArrayGet(colList, k);
       if (TSDB_COL_IS_TAG(pIndex->flag)) {
         tExprTreeDestroy(&pNode, NULL);
-        taosTFree(arithmeticExprStr);
         taosArrayDestroy(colList);
         tExprTreeDestroy(&pNode, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -1174,7 +1162,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
         // TODO: other error handling
       } END_TRY
 
-    size_t len = tbufTell(&bw);
+    len = tbufTell(&bw);
     char* c = tbufGetData(&bw, true);
 
     // set the serialized binary string as the parameter of arithmetic expression
@@ -1185,16 +1173,14 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     taosArrayDestroy(colList);
     tExprTreeDestroy(&pNode, NULL);
   } else {
-    if (arithmeticExprToString(pItem->pNode, &p) != TSDB_CODE_SUCCESS) {
-      taosTFree(arithmeticExprStr);
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
-
     columnList.num = 0;
     columnList.ids[0] = (SColumnIndex) {0, 0};
 
-    char* name = (pItem->aliasName != NULL)? pItem->aliasName:arithmeticExprStr;
-    insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, name, NULL);
+    char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->token.z;
+    size_t len = MIN(sizeof(pItem->aliasName), pItem->pNode->token.n + 1);
+    tstrncpy(pItem->aliasName, name, len);
+
+    insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pItem->aliasName, NULL);
 
     int32_t slot = tscNumOfFields(pQueryInfo) - 1;
     SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, slot);
@@ -1210,7 +1196,6 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
       if (ret != TSDB_CODE_SUCCESS) {
         tExprTreeDestroy(&pArithExprInfo->pExpr, NULL);
-        taosTFree(arithmeticExprStr);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
       }
 
@@ -1218,7 +1203,6 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     }
   }
 
-  taosTFree(arithmeticExprStr);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3170,7 +3154,7 @@ int32_t doArithmeticExprToString(tSQLExpr* pExpr, char** exprString) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t arithmeticExprToString(tSQLExpr* pExpr, char** str) {
+static UNUSED_FUNC int32_t arithmeticExprToString(tSQLExpr* pExpr, char** str) {
   char* start = *str;
 
   int32_t code = doArithmeticExprToString(pExpr, str);
