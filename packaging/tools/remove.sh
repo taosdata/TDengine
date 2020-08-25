@@ -69,10 +69,12 @@ function kill_tarbitrator() {
 }
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/taos      || :
-    ${csudo} rm -f ${bin_link_dir}/taosd     || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
+    ${csudo} rm -f ${bin_link_dir}/taos        || :
+    ${csudo} rm -f ${bin_link_dir}/taosd       || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo    || :
+    ${csudo} rm -f ${bin_link_dir}/rmtaos      || :
+    ${csudo} rm -f ${bin_link_dir}/tarbitrator || :
+    ${csudo} rm -f ${bin_link_dir}/set_core    || :
 }
 
 function clean_lib() {
@@ -207,7 +209,7 @@ ${csudo} rm -rf ${data_link_dir}    || :
 
 ${csudo} rm -rf ${install_main_dir}
 ${csudo} rm -rf ${install_nginxd_dir}
-if [[ -d /etc/os-release ]]; then
+if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
   osinfo=""
