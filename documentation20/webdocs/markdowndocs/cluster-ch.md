@@ -10,7 +10,7 @@ TDengine的集群管理极其简单，除添加和删除节点需要人工干预
 
 **第一步**：如果搭建集群的节点中，存有之前的测试数据、装过1.X的版本，或者装过其他版本的TDengine，请先将其删除，并清空所有数据，具体步骤请参考博客[《TDengine多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html ) 
 
-**第二步**：建议关闭防火墙，至少保证端口：6030 - 6041的TCP和UDP端口都是开放的。**强烈建议**先关闭防火墙，集群搭建完毕之后，再来配置端口；
+**第二步**：建议关闭防火墙，至少保证端口：6030 - 6042的TCP和UDP端口都是开放的。**强烈建议**先关闭防火墙，集群搭建完毕之后，再来配置端口；
 
 **第三步**：在所有节点安装TDengine，且版本必须是一致的，**但不要启动taosd**；
 
@@ -33,7 +33,7 @@ fqdn                  h1.taosdata.com
 serverPort            6030
 
 // 副本数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
-arbitrator            ha.taosdata.com:6030
+arbitrator            ha.taosdata.com:6042
 ```
 
 一定要修改的参数是firstEp, 其他参数可不做任何修改，除非你很清楚为什么要修改。
@@ -169,5 +169,5 @@ SHOW MNODES;
 
 如果副本数为偶数，当一个vnode group里一半或超过一半的vnode不工作时，是无法从中选出master的。同理，一半或超过一半的mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
 
-TDengine安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6030。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。
+TDengine安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。
 
