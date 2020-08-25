@@ -80,9 +80,9 @@ fi
 versioninfo="${top_dir}/src/util/src/version.c"
 
 csudo=""
-if command -v sudo > /dev/null; then
-    csudo="sudo"
-fi
+#if command -v sudo > /dev/null; then
+#    csudo="sudo"
+#fi
 
 function is_valid_version() {
     [ -z $1 ] && return 1 || :
@@ -267,6 +267,7 @@ if [ "$osType" != "Darwin" ]; then
     
 	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+	${csudo} ./makearbi.sh   ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 else
     cd ${script_dir}/tools
     ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
