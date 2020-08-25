@@ -31,19 +31,19 @@
 
 #define    MAX_PKG_LEN          (64*1000)
 #define    BUFFER_SIZE          (MAX_PKG_LEN + 1024)
-#define    TSDB_FQDN_LEN        128
-#define    TSDB_IPv4ADDR_LEN    16
+#define    TEST_FQDN_LEN        128
+#define    TEST_IPv4ADDR_LEN    16
 
 typedef struct {
   uint16_t port;
   uint32_t hostIp;
-  char     fqdn[TSDB_FQDN_LEN];
+  char     fqdn[TEST_FQDN_LEN];
   uint16_t pktLen;
 } info_s;
 
 typedef struct Arguments {
-  char     host[TSDB_IPv4ADDR_LEN];
-  char     fqdn[TSDB_FQDN_LEN];
+  char     host[TEST_IPv4ADDR_LEN];
+  char     fqdn[TEST_FQDN_LEN];
   uint16_t port;
   uint16_t max_port;
   uint16_t pktLen;
