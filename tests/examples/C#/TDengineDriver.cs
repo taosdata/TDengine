@@ -20,16 +20,17 @@ using System.Runtime.InteropServices;
 namespace TDengineDriver
 {
   enum TDengineDataType {
-    TSDB_DATA_TYPE_BOOL = 1,
-    TSDB_DATA_TYPE_TINYINT = 2,
-    TSDB_DATA_TYPE_SMALLINT = 3,
-    TSDB_DATA_TYPE_INT = 4,
-    TSDB_DATA_TYPE_BIGINT = 5,
-    TSDB_DATA_TYPE_FLOAT = 6,
-    TSDB_DATA_TYPE_DOUBLE = 7,
-    TSDB_DATA_TYPE_BINARY = 8,
-    TSDB_DATA_TYPE_TIMESTAMP = 9,
-    TSDB_DATA_TYPE_NCHAR = 10
+    TSDB_DATA_TYPE_NULL = 0,     // 1 bytes
+    TSDB_DATA_TYPE_BOOL = 1,     // 1 bytes
+    TSDB_DATA_TYPE_TINYINT = 2,  // 1 bytes
+    TSDB_DATA_TYPE_SMALLINT = 3, // 2 bytes
+    TSDB_DATA_TYPE_INT = 4,      // 4 bytes
+    TSDB_DATA_TYPE_BIGINT = 5,   // 8 bytes
+    TSDB_DATA_TYPE_FLOAT = 6,    // 4 bytes
+    TSDB_DATA_TYPE_DOUBLE = 7,   // 8 bytes
+    TSDB_DATA_TYPE_BINARY = 8,   // string
+    TSDB_DATA_TYPE_TIMESTAMP = 9,// 8 bytes
+    TSDB_DATA_TYPE_NCHAR = 10    // unicode string
   }
 
   enum TDengineInitOption
@@ -83,50 +84,49 @@ namespace TDengineDriver
     [DllImport("taos.dll", EntryPoint = "taos_init", CallingConvention = CallingConvention.StdCall)]
     static extern public void Init();
 
+    [DllImport("taos.dll", EntryPoint = "taos_cleanup", CallingConvention = CallingConvention.StdCall)]
+    static extern public void Cleanup();
+
     [DllImport("taos.dll", EntryPoint = "taos_options", CallingConvention = CallingConvention.StdCall)]
     static extern public void Options(int option, string value);
 
     [DllImport("taos.dll", EntryPoint = "taos_connect", CallingConvention = CallingConvention.StdCall)]
-    static extern public long Connect(string ip, string user, string password, string db, int port);
+    static extern public long Connect(string ip, string user, string password, string db, short port);
 
     [DllImport("taos.dll", EntryPoint = "taos_errstr", CallingConvention = CallingConvention.StdCall)]
-    static extern private IntPtr taos_errstr(long taos);
-    static public string Error(long conn)
+    static extern private IntPtr taos_errstr(long res);
+    static public string Error(long res)
     {
-      IntPtr errPtr = taos_errstr(conn);
+      IntPtr errPtr = taos_errstr(res);
       return Marshal.PtrToStringAnsi(errPtr);
     }
 
     [DllImport("taos.dll", EntryPoint = "taos_errno", CallingConvention = CallingConvention.StdCall)]
-    static extern public int ErrorNo(long taos);
+    static extern public int ErrorNo(long res);
 
     [DllImport("taos.dll", EntryPoint = "taos_query", CallingConvention = CallingConvention.StdCall)]
-    static extern public int Query(long taos, string sqlstr);
+    static extern public long Query(long conn, string sqlstr);
 
     [DllImport("taos.dll", EntryPoint = "taos_affected_rows", CallingConvention = CallingConvention.StdCall)]
-    static extern public int AffectRows(long taos);
-
-    [DllImport("taos.dll", EntryPoint = "taos_use_result", CallingConvention = CallingConvention.StdCall)]
-    static extern public long UseResult(long taos);
+    static extern public int AffectRows(long res);
 
     [DllImport("taos.dll", EntryPoint = "taos_field_count", CallingConvention = CallingConvention.StdCall)]
-    static extern public int FieldCount(long taos);
+    static extern public int FieldCount(long res);
 
     [DllImport("taos.dll", EntryPoint = "taos_fetch_fields", CallingConvention = CallingConvention.StdCall)]
     static extern private IntPtr taos_fetch_fields(long res);
-    static public List<TDengineMeta> FetchFields(long taos)
+    static public List<TDengineMeta> FetchFields(long res)
     {
       const int fieldSize = 68;
 
       List<TDengineMeta> metas = new List<TDengineMeta>();
-      long result = TDengine.UseResult(taos);
-      if (result == 0)
+      if (res == 0)
       {
         return metas;
       }
 
-      int fieldCount = FieldCount(taos);
-      IntPtr fieldsPtr = taos_fetch_fields(result);
+      int fieldCount = FieldCount(res);
+      IntPtr fieldsPtr = taos_fetch_fields(res);
   
       for (int i = 0; i < fieldCount; ++i)
       {
@@ -134,8 +134,8 @@ namespace TDengineDriver
         
         TDengineMeta meta = new TDengineMeta();
         meta.name = Marshal.PtrToStringAnsi(fieldsPtr + offset);
-        meta.size = Marshal.ReadInt16(fieldsPtr + offset + 64);
-        meta.type = Marshal.ReadByte(fieldsPtr + offset + 66);
+        meta.type = Marshal.ReadByte(fieldsPtr + offset + 65);
+        meta.size = Marshal.ReadInt16(fieldsPtr + offset + 66);
         metas.Add(meta);
       }
 
