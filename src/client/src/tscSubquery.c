@@ -1912,6 +1912,10 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   assert(size > 0);
 
   pSql->pSubs = calloc(size, POINTER_BYTES);
+  if (pSql->pSubs == NULL) {
+    goto _error;
+  }
+
   pSql->numOfSubs = (uint16_t)size;
 
   tscDebug("%p submit data to %" PRIzu " vnode(s)", pSql, size);
@@ -1925,6 +1929,10 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   while(numOfSub < pSql->numOfSubs) {
     SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
+    if (pSupporter == NULL) {
+      goto _error;
+    }
+
     pSupporter->pSql   = pSql;
     pSupporter->pState = pState;
     pSupporter->index  = numOfSub;
@@ -1957,7 +1965,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   if (numOfSub < pSql->numOfSubs) {
     tscError("%p failed to prepare subObj structure and launch sub-insertion", pSql);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return pRes->code;  // free all allocated resource
+    goto _error;
   }
 
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);

@@ -1526,8 +1526,11 @@ int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
   pCmd->pQueryInfo = (SQueryInfo**)tmp;
 
   SQueryInfo* pQueryInfo = calloc(1, sizeof(SQueryInfo));
+  if (pQueryInfo == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
   tscInitQueryInfo(pQueryInfo);
-  
   pQueryInfo->msg = pCmd->payload;  // pointer to the parent error message buffer
 
   pCmd->pQueryInfo[pCmd->numOfClause++] = pQueryInfo;
