@@ -66,7 +66,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_MSG_TYPE,         0, 0x0011, "Invalid me
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_RESPONSE_TYPE,    0, 0x0012, "Invalid response type")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       0, 0x0013, "Invalid timestamp")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                0, 0x0014, "Database not ready")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               0, 0x000C, "Unable to resolve FQDN")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               0, 0x0015, "Unable to resolve FQDN")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          0, 0x0100, "Operation not supported")
