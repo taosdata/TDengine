@@ -126,8 +126,13 @@ func taosProcessQuery(db *sql.DB, sql string) ([]*sql.ColumnType, [][]interface{
 	return cols, vals, nil
 }
 
-func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname string, stime int64, batch int) (string, int64, int, error) {
-	sql := fmt.Sprintf("select * from %s.%s where %s > %d limit %d;", dbname, tbname, tsname, stime, batch)
+func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname string, stime int64, etime int64, batch int) (string, int64, int, error) {
+	var sql string
+	if etime == 0 {
+		sql = fmt.Sprintf("select * from %s.%s where %s > %d limit %d;", dbname, tbname, tsname, stime, batch)
+	} else {
+		sql = fmt.Sprintf("select * from %s.%s where %s > %d and %s <= %d limit %d;", dbname, tbname, tsname, stime, tsname, etime, batch)
+	}
 
 	_, rows, err := taosProcessQuery(db, sql)
 	if err != nil {
@@ -249,12 +254,13 @@ func taosDumpCreateTable(db *sql.DB, client *http.Client, dbname string, tbname 
 	return tInfo, nil
 }
 
-func taosDumpOneTableData(db *sql.DB, client *http.Client, dbname string, tInfo *TableInfo, batch int, logger *log.Logger) (int, error) {
+func taosDumpOneTableData(db *sql.DB, client *http.Client, tInfo *TableInfo, cfg *DumpCfg, logger *log.Logger) (int, error) {
 	totalRows := 0
 
-	stime := int64(1)
+	stime := *cfg.stime
+	etime := *cfg.etime
 	for {
-		cmd, nstime, fetchRows, err := taosDumpTableBatchData(db, dbname, tInfo.Table, (tInfo.Cols)[0].Name, stime, batch)
+		cmd, nstime, fetchRows, err := taosDumpTableBatchData(db, *cfg.dbname, tInfo.Table, (tInfo.Cols)[0].Name, stime, etime, *cfg.batch)
 		if err != nil {
 			return totalRows, err
 		}
@@ -375,6 +381,8 @@ type DumpCfg struct {
 	// Dump configuration
 	dbname     *string
 	superTable *string
+	stime      *int64
+	etime      *int64
 	// Performance configuration
 	threads *int
 	batch   *int
@@ -449,7 +457,7 @@ func taosDumpWorker(cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *l
 
 			logger.Printf("Start to dump #%d table %s data...\n", i, tInfo.Table)
 			start := time.Now()
-			totalRows, err := taosDumpOneTableData(db, client, *cfg.dbname, tInfo, *cfg.batch, logger)
+			totalRows, err := taosDumpOneTableData(db, client, tInfo, cfg, logger)
 			tRows += uint64(totalRows)
 			if err != nil {
 				logger.Printf("ERROR Failed while dumping #%d table %s data\n", i, tInfo.Table)
@@ -570,6 +578,8 @@ func main() {
 
 	dumpCfg.dbname = flag.String("db", "", "database name to dump")
 	dumpCfg.superTable = flag.String("super-table", "", "super table name to dump")
+	dumpCfg.stime = flag.Int64("stime", 1, "start time to dump (not included)")
+	dumpCfg.etime = flag.Int64("etime", 0, "end time to dump (included)")
 
 	dumpCfg.threads = flag.Int("threads", 5, "threads to do dump job")
 	dumpCfg.batch = flag.Int("batch", 100, "batch size per dump insert")
