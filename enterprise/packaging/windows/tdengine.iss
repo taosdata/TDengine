@@ -33,7 +33,7 @@ SetupIconFile={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
 DisableDirPage=yes
-ArchitecturesInstallIn64BitMode=x64
+; ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
