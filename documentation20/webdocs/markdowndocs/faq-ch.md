@@ -81,6 +81,7 @@ Connection = DriverManager.getConnection(url, properties);
 如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包:
 1. /var/log/taos
 2. /etc/taos 
+
 附上必要的问题描述，以及发生该问题的执行操作，出现问题的表征及大概的时间，在<a href='https://github.com/taosdata/TDengine'> GitHub</a>提交Issue。
 
 为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。
