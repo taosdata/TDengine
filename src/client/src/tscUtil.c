@@ -373,7 +373,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
   }
-  
+
   tscDebug("%p start to free sql object", pSql);
   tscPartiallyFreeSqlObj(pSql);
 
@@ -388,7 +388,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   
   taosTFree(pSql->sqlstr);
   tsem_destroy(&pSql->rspSem);
-  tsem_destroy(&pSql->subReadySem);
 
   free(pSql);
 }
@@ -1759,6 +1758,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* p
 
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
+
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
     tscError("%p new subquery failed, tableIndex:%d", pSql, tableIndex);

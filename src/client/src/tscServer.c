@@ -454,6 +454,8 @@ void tscKillSTableQuery(SSqlObj *pSql) {
     return;
   }
 
+  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
   for (int i = 0; i < pSql->numOfSubs; ++i) {
     // NOTE: pSub may have been released already here
     SSqlObj *pSub = pSql->pSubs[i];
@@ -466,7 +468,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
       rpcCancelRequest(pSub->pRpcCtx);
     }
 
-    tscQueueAsyncRes(pSub);
+    tscQueueAsyncRes(pSub); // async res? not other functions?
   }
 
   tscDebug("%p super table query cancelled", pSql);
@@ -1434,11 +1436,6 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscQueueAsyncRes(pSql);
     return code;
-  }
-
-  // all subquery have completed already
-  if (pRes->pLocalReducer == NULL) {
-    sem_wait(&pSql->subReadySem);
   }
 
   pRes->code = tscDoLocalMerge(pSql);

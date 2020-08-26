@@ -295,8 +295,6 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
   }
   
   tsem_init(&pSql->rspSem, 0, 0);
-  tsem_init(&pSql->subReadySem, 0, 0);
-
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   tsem_wait(&pSql->rspSem);

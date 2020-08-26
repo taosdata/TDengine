@@ -36,6 +36,14 @@ typedef void (*_ref_fn_t)(const void* pObj);
     _ref_fn_t end;                \
   } _ref_func = {.begin = (s), .end = (e)};
 
+// set the initial reference count value
+#define T_REF_INIT_VAL(x, _v)                \
+  do {                                       \
+    assert(_v >= 0);                         \
+    atomic_store_32(&((x)->_ref.val), (_v)); \
+  } while (0)
+
+// increase the reference count by 1
 #define T_REF_INC(x) (atomic_add_fetch_32(&((x)->_ref.val), 1))
 
 #define T_REF_INC_WITH_CB(x, p)                           \

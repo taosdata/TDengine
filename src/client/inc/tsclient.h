@@ -324,7 +324,6 @@ typedef struct SSqlObj {
   SSqlRes          res;
   uint16_t         numOfSubs;
   struct SSqlObj **pSubs;
-  tsem_t           subReadySem;
   struct SSqlObj * prev, *next;
 } SSqlObj;
 
