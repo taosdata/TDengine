@@ -359,7 +359,8 @@ type DumpCfg struct {
 	destUser *string
 	destPass *string
 	// Dump configuration
-	dbname *string
+	dbname     *string
+	superTable *string
 	// Performance configuration
 	threads *int
 	batch   *int
@@ -368,8 +369,16 @@ type DumpCfg struct {
 	schemaOnly   *bool
 }
 
-func taosGetTableNamesOfDB(db *sql.DB) (*[]string, error) {
-	_, rows, err := taosProcessQuery(db, "show tables")
+func taosGetTableNamesOfDB(db *sql.DB, superTable *string) (*[]string, error) {
+	var sqlCmd string
+
+	if *superTable == "" {
+		sqlCmd = "show tables"
+	} else {
+		sqlCmd = fmt.Sprintf("select tbname from %s", *superTable)
+	}
+
+	_, rows, err := taosProcessQuery(db, sqlCmd)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +451,7 @@ func taosDumpData(cfg *DumpCfg, tables []string) {
 	// Get the list of table names to dump
 	var tableList *[]string
 	if len(tables) == 0 {
-		tableList, err = taosGetTableNamesOfDB(db)
+		tableList, err = taosGetTableNamesOfDB(db, cfg.superTable)
 		if err != nil {
 			log.Fatal("Failed to get the table names from database ", err)
 		}
@@ -528,6 +537,7 @@ func main() {
 	dumpCfg.destPass = flag.String("dest-pass", "taosdata", "data dest TDengine password")
 
 	dumpCfg.dbname = flag.String("db", "", "database name to dump")
+	dumpCfg.superTable = flag.String("super-table", "", "super table name to dump")
 
 	dumpCfg.threads = flag.Int("threads", 5, "threads to do dump job")
 	dumpCfg.batch = flag.Int("batch", 100, "batch size per dump insert")
