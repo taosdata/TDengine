@@ -43,7 +43,7 @@ namespace TDengineDriver
     private long batchRows;
     private long beginTimestamp = 1551369600000L;
 
-    private long conn = 0;
+    private IntPtr conn = IntPtr.Zero;
     private long rowsInserted = 0;
 
     static void Main(string[] args)
@@ -191,7 +191,7 @@ namespace TDengineDriver
     {
       string db = "";
       this.conn = TDengine.Connect(this.host, this.user, this.password, db, this.port);
-      if (this.conn == 0)
+      if (this.conn == IntPtr.Zero)
       {
         Console.WriteLine("Connect to TDengine failed");
         ExitProgram();
@@ -211,8 +211,8 @@ namespace TDengineDriver
 
       StringBuilder sql = new StringBuilder();
       sql.Append("create database if not exists ").Append(this.dbName);
-      long res = TDengine.Query(this.conn, sql.ToString());
-      if (res != 0)
+      IntPtr res = TDengine.Query(this.conn, sql.ToString());
+      if (res != IntPtr.Zero)
       {
         Console.WriteLine(sql.ToString() + " success");
       }
@@ -226,7 +226,7 @@ namespace TDengineDriver
       sql.Clear();
       sql.Append("use ").Append(this.dbName);
       res = TDengine.Query(this.conn, sql.ToString());
-      if (res != 0)
+      if (res != IntPtr.Zero)
       {
         Console.WriteLine(sql.ToString() + " success");
       }
@@ -240,7 +240,7 @@ namespace TDengineDriver
       sql.Clear();
       sql.Append("create table if not exists ").Append(this.stableName).Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10)) tags(t1 int)");
       res = TDengine.Query(this.conn, sql.ToString());
-      if (res != 0)
+      if (res != IntPtr.Zero)
       {
         Console.WriteLine(sql.ToString() + " success");
       }
@@ -257,7 +257,7 @@ namespace TDengineDriver
         sql = sql.Append("create table if not exists ").Append(this.tablePrefix).Append(i)
           .Append(" using ").Append(this.stableName).Append(" tags(").Append(i).Append(")");
         res = TDengine.Query(this.conn, sql.ToString());
-        if (res != 0)
+        if (res != IntPtr.Zero)
         {
           Console.WriteLine(sql.ToString() + " success");
         }
@@ -297,8 +297,8 @@ namespace TDengineDriver
                .Append(rows)
                .Append(", 5, 6, 7, 'abc', 'def')");
           }
-          long res = TDengine.Query(conn, sql.ToString());
-          if (res == 0)
+          IntPtr res = TDengine.Query(this.conn, sql.ToString());
+          if (res == IntPtr.Zero)
           {
             Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
           }
@@ -326,14 +326,14 @@ namespace TDengineDriver
 
       System.DateTime start = new System.DateTime();
       long queryRows = 0;
-
-      for (int i = 0; i < this.tableCount; ++i)
+      
+      for (int i = 0; i < 1/*this.tableCount*/; ++i)
       {
         String sql = "select * from " + this.dbName + "." + tablePrefix + i;
         Console.WriteLine(sql);
 
-        long res = TDengine.Query(conn, sql);
-        if (res == 0)
+        IntPtr res = TDengine.Query(conn, sql);
+        if (res == IntPtr.Zero)
         {
           Console.WriteLine(sql + " failure, reason: " + TDengine.Error(res));
           ExitProgram();
@@ -350,20 +350,21 @@ namespace TDengineDriver
         }
 
         IntPtr rowdata;
+        StringBuilder builder = new StringBuilder();
         while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
         {
           queryRows++;
           for (int fields = 0; fields < fieldCount; ++fields)
           {
             TDengineMeta meta = metas[fields];
-            int offset = 8 * fields;
+            int offset = IntPtr.Size * fields;
             IntPtr data = Marshal.ReadIntPtr(rowdata, offset);
 
-            //Console.Write("---");
+            builder.Append("---");
 
             if (data == IntPtr.Zero)
             {
-              //Console.Write("NULL");
+              builder.Append("NULL");
               continue;
             }
 
@@ -371,47 +372,53 @@ namespace TDengineDriver
             {
               case TDengineDataType.TSDB_DATA_TYPE_BOOL:
                 bool v1 = Marshal.ReadByte(data) == 0 ? false : true;
-                //Console.Write(v1);
+                builder.Append(v1);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
                 byte v2 = Marshal.ReadByte(data);
-                //Console.Write(v2);
+                builder.Append(v2);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
                 short v3 = Marshal.ReadInt16(data);
-                //Console.Write(v3);
+                builder.Append(v3);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_INT:
                 int v4 = Marshal.ReadInt32(data);
-                //Console.Write(v4);
+                builder.Append(v4);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
                 long v5 = Marshal.ReadInt64(data);
-                //Console.Write(v5);
+                builder.Append(v5);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
                 float v6 = (float)Marshal.PtrToStructure(data, typeof(float));
-                //Console.Write(v6);
+                builder.Append(v6);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
                 double v7 = (double)Marshal.PtrToStructure(data, typeof(double));
-                //Console.Write(v7);
+                builder.Append(v7);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_BINARY:
                 string v8 = Marshal.PtrToStringAnsi(data);
-                //Console.Write(v8);
+                builder.Append(v8);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
                 long v9 = Marshal.ReadInt64(data);
-                //Console.Write(v9);
+                builder.Append(v9);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                 string v10 = Marshal.PtrToStringAnsi(data);
-                //Console.Write(v10);
+                builder.Append(v10);
                 break;
             }
           }
-          //Console.WriteLine("---");
+          builder.Append("---");
+
+          if (queryRows <= 10)
+          {
+            Console.WriteLine(builder.ToString());
+          }
+          builder.Clear();
         }
 
         if (TDengine.ErrorNo(res) != 0)
@@ -431,9 +438,9 @@ namespace TDengineDriver
 
     public void CloseConnection()
     {
-      if (conn != 0)
+      if (this.conn != IntPtr.Zero)
       {
-        TDengine.Close(conn);
+        TDengine.Close(this.conn);
       }
     }
 
