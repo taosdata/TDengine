@@ -62,8 +62,10 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
   if (name != NULL) {
     tstrncpy(s.name, name, sizeof(s.name));
   } else {
-    size_t len = MIN(sizeof(s.name), exprStr->n + 1);
-    tstrncpy(s.name, exprStr->z, len);
+    size_t len = strdequote(exprStr->z);
+    size_t tlen = MIN(sizeof(s.name), len + 1);
+
+    tstrncpy(s.name, exprStr->z, tlen);
   }
 
   return s;

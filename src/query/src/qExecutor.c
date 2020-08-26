@@ -1770,13 +1770,20 @@ static bool needReverseScan(SQuery *pQuery) {
   return false;
 }
 
+/**
+ * The following 4 kinds of query are treated as the tags query
+ * tagprj, tid_tag query, count(tbname), 'abc' (user defined constant value column) query
+ */
 static bool onlyQueryTags(SQuery* pQuery) {
   for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     SExprInfo* pExprInfo = &pQuery->pSelectExpr[i];
 
     int32_t functionId = pExprInfo->base.functionId;
-    if (functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TID_TAG &&
-        (!(functionId == TSDB_FUNC_COUNT && pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX))) {
+
+    if (functionId != TSDB_FUNC_TAGPRJ &&
+        functionId != TSDB_FUNC_TID_TAG &&
+        (!(functionId == TSDB_FUNC_COUNT && pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX)) &&
+        (!(functionId == TSDB_FUNC_PRJ && pExprInfo->base.colInfo.flag == TSDB_COL_UDC))) {
       return false;
     }
   }
@@ -6835,6 +6842,10 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       char *data = NULL, *dst = NULL;
       int16_t type = 0, bytes = 0;
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
+        // not assign value in case of user defined constant output column
+        if (pExprInfo[j].base.colInfo.flag == TSDB_COL_UDC) {
+          continue;
+        }
 
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           bytes = tbnameSchema.bytes;

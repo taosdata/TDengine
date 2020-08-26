@@ -34,6 +34,9 @@ sql create table t1 using st1 tags(1);
 sql create table t2 using st2 tags(1);
 
 sql insert into t1 values(1575880055000, 1);
+sql insert into t1 values(1575880059000, 1);
+sql insert into t1 values(1575880069000, 1);
+
 sql insert into t2 values(1575880055000, 2);
 
 sql select st1.ts, st1.f1, st2.f2 from db.st1, db.st2 where st1.t1=st2.t2 and st1.ts=st2.ts
@@ -42,7 +45,7 @@ system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl
 
 print ==============select with user-defined columns
 sql select 'abc' as f, ts,f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -59,7 +62,7 @@ if $data02 != 1 then
 endi
 
 sql select 'abc', ts, f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -71,8 +74,12 @@ if $data02 != 1 then
   return -1
 endi
 
+if $data10 != @abc@ then
+  return -1
+endi
+
 sql select 'abc' from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -81,7 +88,7 @@ if $data00 != @abc@ then
 endi
 
 sql select 'abc' as f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -90,7 +97,7 @@ if $data00 != @abc@ then
 endi
 
 sql select 1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -98,8 +105,16 @@ if $data00 != 1 then
   return -1
 endi
 
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != 1 then
+  return -1
+endi
+
 sql select 1 as f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -108,7 +123,7 @@ if $data00 != 1 then
 endi
 
 sql select 1 as f, f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -121,7 +136,7 @@ if $data01 != 1 then
 endi
 
 sql select 1.123 as f, f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -130,8 +145,13 @@ if $data00 != 1.123000000 then
   return -1
 endi
 
+if $data10 != 1.123000000 then
+  print expect 1.123000000 , actual:$data10
+  return -1
+endi
+
 sql select 1, f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -143,12 +163,21 @@ if $data01 != 1 then
   return -1
 endi
 
+if $data10 != 1 then
+  return -1
+endi
+
 sql select 1.2391, f1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
 if $data00 != 1.239100000 then
+  print expect 1.239100000 actual: $data00
+  return -1
+endi
+
+if $data10 != 1.239100000 then
   print expect 1.239100000 actual: $data00
   return -1
 endi
@@ -167,7 +196,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != 1 then
+if $data01 != 3 then
   return -1
 endi
 
@@ -180,7 +209,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != 1 then
+if $data01 != 3 then
   return -1
 endi
 
@@ -201,8 +230,8 @@ if $data02 != 3 then
   return -1
 endi
 
-if $data03 != 99.000000000  then
-  print expect 99.000000000, actual:$data03
+if $data03 != 297.000000000  then
+  print expect 297.000000000, actual:$data03
   return -1
 endi
 
@@ -211,8 +240,8 @@ if $rows != 1 then
  return -1
 endi
 
-if $data00 != 13.000000000 then
-  print expect 13.000000000 actual:$data00
+if $data00 != 15.000000000 then
+  print expect 15.000000000 actual:$data00
   return -1
 endi
 
@@ -225,7 +254,7 @@ if $data02 != 2 then
 endi
 
 sql select 1.2987, f1, 'k' from t1 where f1=1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -244,7 +273,7 @@ endi
 
 print ====================user-defined columns with union
 sql select f1, 'f1' from t1 union all select f1, 'f1' from t1;
-if $rows != 2 then
+if $rows != 6 then
   return -1
 endi
 
@@ -294,7 +323,7 @@ endi
 
 print ======================udc with interval
 sql select count(*), 'uuu' from t1 interval(1s) order by ts desc;
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 
@@ -304,9 +333,17 @@ if $rows != 1 then
   return -1
 endi
 
+if $data01 != @abc@ then
+  return -1
+endi
+
+if $data02 != @t1@ then
+  return -1
+endi
+
 print ======================udc with arithmetic
 sql select 1+1 from t1
-if $rows != 1 then
+if $rows != 3 then
   return -1
 endi
 

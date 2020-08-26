@@ -167,6 +167,8 @@ tSQLExpr *tSQLExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SSt
 
   pExpr->operand.n = len;  // raw field name
   pExpr->operand.type = pFuncToken->type;
+
+  pExpr->token = pExpr->operand;
   return pExpr;
 }
 
