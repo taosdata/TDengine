@@ -201,7 +201,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
+  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port != 0 ? port : tsServerPort , user, db);
   if (user == NULL) user = TSDB_DEFAULT_USER;
   if (pass == NULL) pass = TSDB_DEFAULT_PASS;
 
