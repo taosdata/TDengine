@@ -363,9 +363,11 @@ void vnodeRelease(void *pVnodeRaw) {
   taosTFree(pVnode->rootDir);
 
   if (pVnode->dropped) {
-    char rootDir[TSDB_FILENAME_LEN] = {0};
+    char rootDir[TSDB_FILENAME_LEN] = {0};    
+    char newDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
-    taosMvDir(tsVnodeBakDir, rootDir);
+    sprintf(newDir, "%s/vnode%d", tsVnodeBakDir, vgId);
+    taosRename(rootDir, newDir);
     taosRemoveDir(rootDir);
     dnodeSendStatusMsgToMnode();
   }

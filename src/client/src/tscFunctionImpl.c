@@ -56,7 +56,8 @@
     for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) {                  \
       SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[i];                     \
       if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {                             \
-        __ctx->tag = (tVariant){.i64Key = (ts), .nType = TSDB_DATA_TYPE_BIGINT}; \
+        __ctx->tag.i64Key = (ts); \
+        __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT; \
       }                                                                          \
       aAggs[TSDB_FUNC_TAG].xFunction(__ctx);                                     \
     }                                                                            \
@@ -963,7 +964,8 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
           for (int32_t i = 0; i < (pCtx)->tagInfo.numOfTagCols; ++i) {
             SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[i];
             if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {
-              __ctx->tag = (tVariant){.i64Key = key, .nType = TSDB_DATA_TYPE_BIGINT};
+              __ctx->tag.i64Key = key;
+              __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
             }
             
             aAggs[TSDB_FUNC_TAG].xFunction(__ctx);
@@ -1863,7 +1865,8 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     for (int32_t i = 0; i < pTagInfo->numOfTagCols; ++i) {
       SQLFunctionCtx* ctx = pTagInfo->pTagCtxList[i];
       if (ctx->functionId == TSDB_FUNC_TS_DUMMY) {
-        ctx->tag = (tVariant) {.nType = TSDB_DATA_TYPE_BIGINT, .i64Key = tsKey};
+        ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+        ctx->tag.i64Key = tsKey;
       }
       
       tVariantDump(&ctx->tag, dst->pTags + size, ctx->tag.nType, true);

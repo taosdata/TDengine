@@ -7,22 +7,20 @@ set -e
 
 # releash.sh  -v [cluster | edge]  
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] 
-#             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  
+#             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]
 #             -l [full | lite]
-#             -s [static | dynamic]
 #             -n [2.0.0.3]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
 verType=stable   # [stable, beta]
 cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
-osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]
+osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
-soMode=dynamic   # [static | dynamic]
 verNumber=""
 
-while getopts "hv:V:c:o:l:s:n:" arg
+while getopts "hv:V:c:o:l:n:" arg
 do
   case $arg in
     v)
@@ -41,10 +39,6 @@ do
       #echo "pagMode=$OPTARG"
       pagMode=$(echo $OPTARG)
       ;;
-    s)
-      #echo "soMode=$OPTARG"
-      soMode=$(echo $OPTARG)
-      ;;
     n)
       #echo "verNumber=$OPTARG"
       verNumber=$(echo $OPTARG)
@@ -56,10 +50,9 @@ do
     h)
       echo "Usage: `basename $0` -v [cluster | edge] "
       echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
-      echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...] "
+      echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
       echo "                  -V [stable | beta] "
       echo "                  -l [full | lite] "
-      echo "                  -s [static | dynamic] "
       echo "                  -n [version number] "
       exit 0
       ;;
@@ -70,7 +63,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} verNumber=${verNumber}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} verNumber=${verNumber}"
 
 curr_dir=$(pwd)
 
@@ -87,9 +80,9 @@ fi
 versioninfo="${top_dir}/src/util/src/version.c"
 
 csudo=""
-if command -v sudo > /dev/null; then
-    csudo="sudo"
-fi
+#if command -v sudo > /dev/null; then
+#    csudo="sudo"
+#fi
 
 function is_valid_version() {
     [ -z $1 ] && return 1 || :
@@ -230,9 +223,9 @@ cd ${compile_dir}
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
     if [ "$verMode" != "cluster" ]; then
-      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DSOMODE=${soMode}
+      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DOSTYPE=${osType}
     else
-      cmake ../../ -DCPUTYPE=${cpuType} -DSOMODE=${soMode}
+      cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} 
     fi
 else
     echo "input cpuType=${cpuType} error!!!"
@@ -274,6 +267,7 @@ if [ "$osType" != "Darwin" ]; then
     
 	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+	${csudo} ./makearbi.sh   ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 else
     cd ${script_dir}/tools
     ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}

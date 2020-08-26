@@ -363,10 +363,15 @@ static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     mError("\"arbitrator\"[%s - %s]  cfg parameters inconsistent", clusterCfg->arbitrator, tsArbitrator);
     return false;
   }
-  if (0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) {
-    mError("\"timezone\"[%s - %s]  cfg parameters inconsistent", clusterCfg->timezone, tsTimezone);
+
+  int64_t checkTime = 0;
+  char timestr[32] = "1970-01-01 00:00:00.00";
+  (void)taosParseTime(timestr, &checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  if ((0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) && (checkTime != clusterCfg->checkTime)) {
+    mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64"] cfg parameters inconsistent", clusterCfg->timezone, tsTimezone, clusterCfg->checkTime, checkTime);
     return false;
   }
+
   if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
     mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
     return false;
