@@ -371,13 +371,12 @@ int main(int argc, char** argv) {
     }
   }
   return 0;
-
 #endif
 
 //  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  return 0;
-//  executeSQL(conn, "use db", NULL);
-  executeSQL(conn, "select 1 / 9 + 3 from test.tm1", NULL);
+  executeSQL(conn, "use test", NULL);
+  executeSQL(conn,"select last_row(*) from tm1,tm2 where tm1.ts=tm2.ts", NULL);
 //  executeSQL( conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and
 //  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
 //  return 0;
