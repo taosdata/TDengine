@@ -142,9 +142,9 @@ static void *bindTcpPort(void *sarg) {
     printf("recv Client: %s pkg from TCP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
     if (iDataNum > 0) {
       send(client, buffer, iDataNum, 0);
-      break;
     }
   }
+  
   close(serverSocket);
   return NULL;
 }
@@ -201,7 +201,7 @@ static void *bindUdpPort(void *sarg) {
 
 
 int main(int argc, char *argv[]) {
-  SArguments arguments = {"127.0.0.1", 6030, 6060, 1000};
+  SArguments arguments = {"127.0.0.1", 6030, 6042, 1000};
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
   if (arguments.pktLen > MAX_PKG_LEN) {
     printf("test pkg len overflow: %d, max len not greater than %d bytes\n", arguments.pktLen, MAX_PKG_LEN);
