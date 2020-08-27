@@ -166,7 +166,7 @@ class WorkerThread:
                 self.useDb() # might encounter exceptions. TODO: catch
             except taos.error.ProgrammingError as err:
                 errno = Helper.convertErrno(err.errno)
-                if errno == 0x383 : # invalid database
+                if errno in [0x383, 0x386, 0x00B, 0x014]  : # invalid database, dropping, Unable to establish connection, Database not ready
                     # ignore
                     dummy = 0
                 else:
@@ -2442,7 +2442,11 @@ class ServiceManagerThread:
         for line in iter(out.readline, b''):
             # print("Finished reading a line: {}".format(line))
             # print("Adding item to queue...")
-            line = line.decode("utf-8").rstrip()
+            try:
+                line = line.decode("utf-8").rstrip()
+            except UnicodeError:
+                print("\nNon-UTF8 server output: {}\n".format(line))
+
             # This might block, and then causing "out" buffer to block
             queue.put(line)
             self._printProgress("_i")
