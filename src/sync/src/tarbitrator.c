@@ -156,9 +156,8 @@ static void arbProcessBrokenLink(void *param) {
   taosTFree(pNode);
 }
 
-static int arbProcessPeerMsg(void *param, void *buffer)
-{
-  SNodeConn  *pNode = param;
+static int arbProcessPeerMsg(void *param, void *buffer) {
+  SNodeConn * pNode = param;
   SSyncHead   head;
   int         bytes = 0;
   char       *cont = (char *)buffer;
@@ -180,7 +179,6 @@ static int arbProcessPeerMsg(void *param, void *buffer)
 }
 
 static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
-
   struct sigaction act = {{0}};
   act.sa_handler = SIG_IGN;
   sigaction(SIGTERM, &act, NULL);
@@ -192,4 +190,3 @@ static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) 
   // inform main thread to exit
   tsem_post(&tsArbSem);
 }
-

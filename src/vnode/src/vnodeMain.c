@@ -290,6 +290,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->sync = syncStart(&syncInfo);
 
   if (pVnode->sync == NULL) {
+    vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
+           tstrerror(terrno));
     vnodeCleanUp(pVnode);
     return terrno;
   }
