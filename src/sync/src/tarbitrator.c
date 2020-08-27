@@ -40,12 +40,8 @@ typedef struct {
   void *pConn;
 } SNodeConn;
 
-uint16_t tsArbitratorPort = 0;
-
 int main(int argc, char *argv[]) {
   char     arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
-
-  tsArbitratorPort = tsServerPort + TSDB_PORT_ARBITRATOR;
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {

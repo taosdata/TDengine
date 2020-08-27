@@ -413,9 +413,11 @@ static void syncAddArbitrator(SSyncNode *pNode)
 
   SNodeInfo nodeInfo;
   nodeInfo.nodeId = 0;
-  taosGetFqdnPortFromEp(tsArbitrator, nodeInfo.nodeFqdn, &nodeInfo.nodePort);
-  nodeInfo.nodePort += TSDB_PORT_SYNC;
-  
+  int ret = taosGetFqdnPortFromEp(tsArbitrator, nodeInfo.nodeFqdn, &nodeInfo.nodePort);
+  if (-1 == ret) {
+    nodeInfo.nodePort = tsArbitratorPort;
+  }
+ 
   if (pPeer) {
     if ((strcmp(nodeInfo.nodeFqdn, pPeer->fqdn) == 0) && (nodeInfo.nodePort == pPeer->port)) {
       return;
