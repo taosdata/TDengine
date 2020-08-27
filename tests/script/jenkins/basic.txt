@@ -294,6 +294,7 @@ cd ../../../debug; make
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
 
+./test.sh -f unique/mnode/mgmt21.sim
 ./test.sh -f unique/mnode/mgmt22.sim
 ./test.sh -f unique/mnode/mgmt23.sim
 ./test.sh -f unique/mnode/mgmt24.sim
