@@ -586,22 +586,21 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   }
 
   // interval is not null
-  SStrToken* t = &pQuerySql->interval;
-  if (getTimestampInUsFromStr(t->z, t->n, &pQueryInfo->intervalTime) != TSDB_CODE_SUCCESS) {
+  SSQLToken* t = &pQuerySql->interval;
+  if (parseDuration(t->z, t->n, &pQueryInfo->intervalTime, &pQueryInfo->intervalTimeUnit) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  // if the unit of time window value is millisecond, change the value from microsecond
-  if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
-    pQueryInfo->intervalTime = pQueryInfo->intervalTime / 1000;
-  }
+  if (pQueryInfo->intervalTimeUnit != 'n' && pQueryInfo->intervalTimeUnit != 'y') {
+    // if the unit of time window value is millisecond, change the value from microsecond
+    if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
+      pQueryInfo->intervalTime = pQueryInfo->intervalTime / 1000;
+    }
 
-  /* parser has filter the illegal type, no need to check here */
-  pQueryInfo->slidingTimeUnit = pQuerySql->interval.z[pQuerySql->interval.n - 1];
-
-  // interval cannot be less than 10 milliseconds
-  if (pQueryInfo->intervalTime < tsMinIntervalTime) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    // interval cannot be less than 10 milliseconds
+    if (pQueryInfo->intervalTime < tsMinIntervalTime) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
   }
 
   // for top/bottom + interval query, we do not add additional timestamp column in the front
@@ -666,28 +665,35 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
   const char* msg0 = "sliding value too small";
   const char* msg1 = "sliding value no larger than the interval value";
   const char* msg2 = "sliding value can not less than 1% of interval value";
+  const char* msg3 = "does not support sliding when interval is natual month/year";
 
   const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
-  SStrToken* pSliding = &pQuerySql->sliding;
-  if (pSliding->n != 0) {
-    getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->slidingTime);
-    if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
-      pQueryInfo->slidingTime /= 1000;
-    }
-
-    if (pQueryInfo->slidingTime < tsMinSlidingTime) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
-    }
-
-    if (pQueryInfo->slidingTime > pQueryInfo->intervalTime) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
-  } else {
+  SSQLToken* pSliding = &pQuerySql->sliding;
+  if (pSliding->n == 0) {
+    pQueryInfo->slidingTimeUnit = pQueryInfo->intervalTimeUnit;
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pQueryInfo->intervalTimeUnit == 'n' || pQueryInfo->intervalTimeUnit == 'y') {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  }
+
+  getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->slidingTime);
+  if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
+    pQueryInfo->slidingTime /= 1000;
+  }
+
+  if (pQueryInfo->slidingTime < tsMinSlidingTime) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
+  }
+
+  if (pQueryInfo->slidingTime > pQueryInfo->intervalTime) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   if ((pQueryInfo->intervalTime != 0) && (pQueryInfo->intervalTime/pQueryInfo->slidingTime > INTERVAL_SLIDING_FACTOR)) {

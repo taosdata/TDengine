@@ -319,6 +319,8 @@ int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
   *time = factor * seconds + fraction;
   return 0;
 }
+
+
 static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* result) {
   *result = val;
 
@@ -382,6 +384,23 @@ int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts) {
   }
 
   return getTimestampInUsFromStrImpl(timestamp, token[tokenlen - 1], ts);
+}
+
+int32_t parseDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit) {
+  errno = 0;
+
+  /* get the basic numeric value */
+  *duration = strtoll(token, NULL, 10);
+  if (errno != 0) {
+    return -1;
+  }
+
+  *unit = token[tokenLen - 1];
+  if (*unit == 'n' || *unit == 'y') {
+    return 0;
+  }
+
+  return getTimestampInUsFromStrImpl(*duration, *unit, duration);
 }
 
 // internal function, when program is paused in debugger,
