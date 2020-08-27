@@ -1911,12 +1911,11 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   size_t size = taosArrayGetSize(pCmd->pDataBlocks);
   assert(size > 0);
 
+  pSql->numOfSubs = (uint16_t)size;
   pSql->pSubs = calloc(size, POINTER_BYTES);
   if (pSql->pSubs == NULL) {
     goto _error;
   }
-
-  pSql->numOfSubs = (uint16_t)size;
 
   tscDebug("%p submit data to %" PRIzu " vnode(s)", pSql, size);
 
