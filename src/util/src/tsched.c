@@ -123,11 +123,6 @@ void *taosProcessSchedQueue(void *param) {
 
   while (1) {
     if (tsem_wait(&pSched->fullSem) != 0) {
-      if (errno == EINTR) {
-        /* sem_wait is interrupted by interrupt, ignore and continue */
-        uDebug("wait %s fullSem was interrupted", pSched->label);
-        continue;
-      }
       uError("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
     }
     if (pSched->stop) {
@@ -163,12 +158,8 @@ int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
     return 0;
   }
 
-  while (tsem_wait(&pSched->emptySem) != 0) {
-    if (errno != EINTR) {
-      uError("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
-      break;
-    }
-    uDebug("wait %s emptySem was interrupted", pSched->label);
+  if (tsem_wait(&pSched->emptySem) != 0) {
+    uError("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
   }
 
   if (pthread_mutex_lock(&pSched->queueMutex) != 0)
