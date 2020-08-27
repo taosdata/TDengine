@@ -58,7 +58,7 @@ int       tdKVStoreStartCommit(SKVStore *pStore);
 int       tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLen);
 int       tdDropKVStoreRecord(SKVStore *pStore, uint64_t uid);
 int       tdKVStoreEndCommit(SKVStore *pStore);
-void      tsdbGetStoreInfo(char *fname, uint32_t *magic, int32_t *size);
+void      tsdbGetStoreInfo(char *fname, uint32_t *magic, int64_t *size);
 
 #ifdef __cplusplus
 }
