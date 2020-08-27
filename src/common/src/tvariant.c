@@ -100,10 +100,9 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
     }
     case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
+
       pVar->wpz = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
-      
-      wcsncpy(pVar->wpz, (wchar_t *)pz, lenInwchar);
-      pVar->wpz[lenInwchar] = 0;
+      memcpy(pVar->wpz, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
       
       break;
