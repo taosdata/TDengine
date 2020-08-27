@@ -1911,6 +1911,9 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   size_t size = taosArrayGetSize(pCmd->pDataBlocks);
   assert(size > 0);
 
+  // the number of already initialized subqueries
+  int32_t numOfSub = 0;
+
   pSql->numOfSubs = (uint16_t)size;
   pSql->pSubs = calloc(size, POINTER_BYTES);
   if (pSql->pSubs == NULL) {
@@ -1924,7 +1927,6 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   pState->numOfRemain = pSql->numOfSubs;
  
   pRes->code = TSDB_CODE_SUCCESS;
-  int32_t numOfSub = 0;
 
   while(numOfSub < pSql->numOfSubs) {
     SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
