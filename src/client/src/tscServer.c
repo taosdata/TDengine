@@ -226,13 +226,17 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = &pSql->pRpcCtx,
       .code    = 0
   };
-
   // NOTE: the rpc context should be acquired before sending data to server.
   // Otherwise, the pSql object may have been released already during the response function, which is
   // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
   // cause crash.
-  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
-  return TSDB_CODE_SUCCESS;
+  if (pObj != NULL && pObj->signature == pObj) {
+    rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    //pObj->signature has been reset by other thread, ignore concurrency problem
+    return TSDB_CODE_TSC_CONN_KILLED; 
+  }
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
