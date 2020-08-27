@@ -163,6 +163,9 @@ class WorkerThread:
 
             # Before we fetch the task and run it, let's ensure we properly "use" the database
             try:
+                if (gConfig.per_thread_db_connection):  # most likely TRUE
+                    if not self._dbConn.isOpen:  # might have been closed during server auto-restart
+                        self._dbConn.open()
                 self.useDb() # might encounter exceptions. TODO: catch
             except taos.error.ProgrammingError as err:
                 errno = Helper.convertErrno(err.errno)
@@ -861,8 +864,7 @@ class DbConnNative(DbConn):
 
     def execute(self, sql):
         if (not self.isOpen):
-            raise RuntimeError(
-                "Cannot execute database commands until connection is open")
+            raise RuntimeError("Cannot execute database commands until connection is open")
         logger.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
         nRows = self._tdSql.execute(sql)
@@ -2454,7 +2456,7 @@ class ServiceManagerThread:
             if self._status == MainExec.STATUS_STARTING:  # we are starting, let's see if we have started
                 if line.find(self.TD_READY_MSG) != -1:  # found
                     logger.info("Waiting for the service to become FULLY READY")
-                    time.sleep(5.0) # wait for the server to truly start. TODO: remove this
+                    time.sleep(1.0) # wait for the server to truly start. TODO: remove this
                     logger.info("Service is now FULLY READY")   
                     self._status = MainExec.STATUS_RUNNING                 
 
