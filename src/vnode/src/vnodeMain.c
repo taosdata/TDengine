@@ -41,7 +41,7 @@ static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static int32_t  vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
@@ -536,7 +536,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   return 0; 
 }
 
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion) {
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
   SVnodeObj *pVnode = ahandle;
   *fversion = pVnode->fversion;
   return tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);

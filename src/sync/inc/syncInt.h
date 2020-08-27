@@ -74,7 +74,7 @@ typedef struct {
   uint32_t  magic;
   uint32_t  index;
   uint64_t  fversion;
-  int32_t   size;
+  int64_t   size;
 } SFileInfo;
 
 typedef struct {

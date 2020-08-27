@@ -154,7 +154,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     close(sfd); 
     if (ret <0) break;
 
-    sDebug("%s, %s is sent, size:%d", pPeer->id, name, fileInfo.size);    
+    sDebug("%s, %s is sent, size:%" PRId64, pPeer->id, name, fileInfo.size);    
     fileInfo.index++; 
 
     // check if processed files are modified 

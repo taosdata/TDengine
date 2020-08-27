@@ -28,7 +28,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
   char       fname[TSDB_FILENAME_LEN*3] = {0};
   uint32_t   magic; 
   uint64_t   fversion;
-  int32_t    size;
+  int64_t    size;
   uint32_t   index = sindex;
   SSyncNode *pNode = pPeer->pSyncNode;
 
@@ -113,7 +113,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
     close(dfd);
     if (ret<0) break;
 
-    sDebug("%s, %s is received, size:%d", pPeer->id, minfo.name, minfo.size);
+    sDebug("%s, %s is received, size:%" PRId64, pPeer->id, minfo.name, minfo.size);
 
   }
 
