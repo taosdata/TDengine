@@ -1956,8 +1956,12 @@ static void createHBObj(STscObj* pObj) {
 
   pSql->fp = tscProcessHeartBeatRsp;
 
-  SQueryInfo *pQueryInfo = NULL;
-  tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(&pSql->cmd, 0);
+  if (pQueryInfo == NULL) {
+    pSql->res.code = terrno;
+    return;
+  }
+
   pQueryInfo->command = TSDB_SQL_HB;
 
   pSql->cmd.command = pQueryInfo->command;
@@ -2142,8 +2146,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
 
   tscAddSubqueryInfo(&pNew->cmd);
 
-  SQueryInfo *pNewQueryInfo = NULL;
-  tscGetQueryInfoDetailSafely(&pNew->cmd, 0, &pNewQueryInfo);
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
 
   pNew->cmd.autoCreated = pSql->cmd.autoCreated;  // create table if not exists
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
@@ -2246,8 +2249,8 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 
   pNew->cmd.command = TSDB_SQL_STABLEVGROUP;
   
-  SQueryInfo *pNewQueryInfo = NULL;
-  if ((code = tscGetQueryInfoDetailSafely(&pNew->cmd, 0, &pNewQueryInfo)) != TSDB_CODE_SUCCESS) {
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
+  if (pNewQueryInfo == NULL) {
     tscFreeSqlObj(pNew);
     return code;
   }

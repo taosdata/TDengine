@@ -330,8 +330,8 @@ sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.ts != join_tb0.ts an
 sql_error select join_tb1.* from $tb1 , $tb1 where join_tb1.ts = join_tb1.ts and join_tb1.ts >= 100000;
 sql_error select join_tb1.* from $tb1 , $tb1 where join_tb1.ts = join_tb1.ts order by ts;
 sql_error select join_tb1.* from $tb1 , $tb1 where join_tb1.ts = join_tb1.ts order by join_tb1.c7;
-sql_error select * from $tb1, $tb2;
-sql_error select last_row(*) from $tb1, $tb2
+sql_error select * from join_tb0, join_tb1
+sql_error select last_row(*) from join_tb0, join_tb1
 sql_error select last_row(*) from $tb1, $tb2 where join_tb1.ts < now
 sql_error select last_row(*) from $tb1, $tb2 where join_tb1.ts = join_tb2.ts
 

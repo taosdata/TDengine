@@ -35,6 +35,40 @@ extern "C" {
 #include "qTsbuf.h"
 #include "tcmdtype.h"
 
+#if 0
+static UNUSED_FUNC void *u_malloc (size_t __size) {
+  uint32_t v = rand();
+
+  if (v % 5000 <= 0) {
+    return NULL;
+  } else {
+    return malloc(__size);
+  }
+}
+
+static UNUSED_FUNC void* u_calloc(size_t num, size_t __size) {
+  uint32_t v = rand();
+  if (v % 5000 <= 0) {
+    return NULL;
+  } else {
+    return calloc(num, __size);
+  }
+}
+
+static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
+  uint32_t v = rand();
+  if (v % 5000 <= 0) {
+    return NULL;
+  } else {
+    return realloc(p, __size);
+  }
+}
+
+#define calloc  u_calloc
+#define malloc  u_malloc
+#define realloc u_realloc
+#endif
+
 // forward declaration
 struct SSqlInfo;
 struct SLocalReducer;

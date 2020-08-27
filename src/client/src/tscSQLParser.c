@@ -179,20 +179,24 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  SSqlCmd*    pCmd = &(pSql->cmd);
-  SQueryInfo* pQueryInfo = NULL;
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
 
+  int32_t code = TSDB_CODE_SUCCESS;
   if (!pInfo->valid) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), pInfo->pzErrMsg);
   }
 
-  int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
+  if (pQueryInfo == NULL) {
+    pRes->code = terrno;
+    return pRes->code;
+  }
 
-  STableMetaInfo* pTableMetaInfo = NULL;
-  if (pQueryInfo->numOfTables == 0) {
-    pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
-  } else {
-    pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
+  STableMetaInfo* pTableMetaInfo = (pQueryInfo->numOfTables == 0)? tscAddEmptyMetaInfo(pQueryInfo) : pQueryInfo->pTableMetaInfo[0];
+  if (pTableMetaInfo == NULL) {
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pRes->code;
   }
 
   pCmd->command = pInfo->type;
@@ -487,9 +491,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg1 = "columns in select clause not identical";
 
       for (int32_t i = pCmd->numOfClause; i < pInfo->subclauseInfo.numOfClause; ++i) {
-        SQueryInfo* pqi = NULL;
-        if ((code = tscGetQueryInfoDetailSafely(pCmd, i, &pqi)) != TSDB_CODE_SUCCESS) {
-          return code;
+        SQueryInfo* pqi = tscGetQueryInfoDetailSafely(pCmd, i);
+        if (pqi == NULL) {
+          pRes->code = terrno;
+          return pRes->code;
         }
       }
 
@@ -2678,9 +2683,12 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
   }
 
   int32_t size = pColumn->numOfFilters + 1;
-  char*   tmp = (char*)realloc((void*)(pColumn->filterInfo), sizeof(SColumnFilterInfo) * (size));
+
+  char* tmp = (char*) realloc((void*)(pColumn->filterInfo), sizeof(SColumnFilterInfo) * (size));
   if (tmp != NULL) {
     pColumn->filterInfo = (SColumnFilterInfo*)tmp;
+  } else {
+    return NULL;
   }
 
   pColumn->numOfFilters++;
@@ -2964,9 +2972,16 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
     } else {  // update the existed column filter information, find the filter info here
       pColFilter = &pColumn->filterInfo[0];
     }
+
+    if (pColFilter == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
   } else if (sqlOptr == TK_OR) {
     // TODO fixme: failed to invalid the filter expression: "col1 = 1 OR col2 = 2"
     pColFilter = addColumnFilterInfo(pColumn);
+    if (pColFilter == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
   } else {  // error;
     return TSDB_CODE_TSC_INVALID_SQL;
   }

@@ -1031,11 +1031,11 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   assert(pQueryInfo != NULL);
 
-  STableMetaInfo *pTableMetaInfo = NULL;
-  if (pQueryInfo->numOfTables == 0) {
-    pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
-  } else {
-    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = (pQueryInfo->numOfTables == 0)? tscAddEmptyMetaInfo(pQueryInfo):tscGetMetaInfo(pQueryInfo, 0);
+  if (pTableMetaInfo == NULL) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = terrno;
+    return code;
   }
 
   if ((code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
@@ -1292,8 +1292,7 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   pCmd->command = TSDB_SQL_INSERT;
   pSql->res.numOfRows = 0;
 
-  SQueryInfo *pQueryInfo = NULL;
-  tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
 
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT | pCmd->insertType);
 

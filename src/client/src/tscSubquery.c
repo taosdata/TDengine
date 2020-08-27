@@ -437,6 +437,7 @@ int32_t tscCompareTidTags(const void* p1, const void* p2) {
   if (t1->vgId != t2->vgId) {
     return (t1->vgId > t2->vgId) ? 1 : -1;
   }
+
   if (t1->tid != t2->tid) {
     return (t1->tid > t2->tid) ? 1 : -1;
   }
@@ -543,6 +544,7 @@ static bool checkForDuplicateTagVal(SQueryInfo* pQueryInfo, SJoinSupporter* p1, 
   for(int32_t i = 1; i < p1->num; ++i) {
     STidTags* prev = (STidTags*) varDataVal(p1->pIdTagList + (i - 1) * p1->tagSize);
     STidTags* p = (STidTags*) varDataVal(p1->pIdTagList + i * p1->tagSize);
+    assert(prev->vgId >= 1 && p->vgId >= 1);
 
     if (doCompare(prev->tag, p->tag, pColSchema->type, pColSchema->bytes) == 0) {
       tscError("%p join tags have same value for different table, free all sub SqlObj and quit", pPSqlObj);
@@ -579,6 +581,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   while(i < p1->num && j < p2->num) {
     STidTags* pp1 = (STidTags*) varDataVal(p1->pIdTagList + i * p1->tagSize);
     STidTags* pp2 = (STidTags*) varDataVal(p2->pIdTagList + j * p2->tagSize);
+    assert(pp1->tid != 0 && pp2->tid != 0);
 
     int32_t ret = doCompare(pp1->tag, pp2->tag, pColSchema->type, pColSchema->bytes);
     if (ret == 0) {
@@ -1220,6 +1223,16 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       int32_t tagColId = tscGetJoinTagColIdByUid(pTagCond, pTableMetaInfo->pTableMeta->id.uid);
       SSchema* s = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
+
+      // get the tag colId column index
+      int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
+      SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+      for(int32_t i = 0; i < numOfTags; ++i) {
+        if (pSchema[i].colId == tagColId) {
+          index.columnIndex = i;
+          break;
+        }
+      }
 
       int16_t bytes = 0;
       int16_t type  = 0;
