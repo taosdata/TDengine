@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
   sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsArbitratorPort);
 
   for (int res = tsem_wait(&tsArbSem); res != 0; res = tsem_wait(&tsArbSem)) {
-    if (res != EINTR) break;
+    if (errno != EINTR) break;
   }
 
   taosCloseTcpThreadPool(tsArbTcpPool);

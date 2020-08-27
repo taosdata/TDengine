@@ -120,8 +120,8 @@ int32_t main(int32_t argc, char *argv[]) {
   syslog(LOG_INFO, "Started TDengine service successfully.");
 
   for (int res = tsem_wait(&exitSem); res != 0; res = tsem_wait(&exitSem)) {
-    if (res != EINTR) {
-      syslog(LOG_ERR, "failed to wait exit semphore: %d", res);
+    if (errno != EINTR) {
+      syslog(LOG_ERR, "failed to wait exit semphore: %s", strerror(errno));
       break;
     }
   }
