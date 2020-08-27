@@ -563,7 +563,7 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
   uint32_t peerIp = taosGetIpFromFqdn(peerFqdn);
   if (peerIp == 0xFFFFFFFF) {
     tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn); 
-    terrno = TSDB_CODE_RPC_APP_ERROR; 
+    terrno = TSDB_CODE_RPC_FQDN_ERROR; 
     return NULL;
   }
 

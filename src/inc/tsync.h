@@ -64,7 +64,7 @@ typedef struct {
   if name is provided(name[0] is not zero), get the named file at the specified index. If not there, return
   zero. If it is there, set the size to file size, and return file magic number. Index shall not be updated.
 */
-typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion); 
+typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion); 
 
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file

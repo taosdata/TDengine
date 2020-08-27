@@ -332,7 +332,7 @@ int tdKVStoreEndCommit(SKVStore *pStore) {
   return 0;
 }
 
-void tsdbGetStoreInfo(char *fname, uint32_t *magic, int32_t *size) {
+void tsdbGetStoreInfo(char *fname, uint32_t *magic, int64_t *size) {
   char       buf[TD_KVSTORE_HEADER_SIZE] = "\0";
   SStoreInfo info = {0};
 
@@ -349,7 +349,7 @@ void tsdbGetStoreInfo(char *fname, uint32_t *magic, int32_t *size) {
   close(fd);
 
   *magic = info.magic;
-  *size = (int32_t)offset;
+  *size = offset;
 
   return;
 

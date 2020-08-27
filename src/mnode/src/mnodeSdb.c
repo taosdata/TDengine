@@ -224,7 +224,7 @@ void sdbUpdateMnodeRoles() {
   mnodeUpdateMnodeEpSet();
 }
 
-static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion) {
+static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
   sdbUpdateMnodeRoles();
   return 0;
 }

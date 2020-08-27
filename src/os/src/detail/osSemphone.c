@@ -16,6 +16,18 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+#ifndef TAOS_OS_FUNC_SEMPHONE
+
+int tsem_wait(tsem_t* sem) {
+  int ret = 0;
+  do {
+    ret = sem_wait(sem);
+  } while (ret != 0 && errno == EINTR);
+  return ret;
+}
+
+#endif
+
 #ifndef TAOS_OS_FUNC_SEMPHONE_PTHREAD
 
 bool    taosCheckPthreadValid(pthread_t thread) { return thread != 0; }

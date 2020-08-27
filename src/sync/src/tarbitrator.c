@@ -40,12 +40,8 @@ typedef struct {
   void *pConn;
 } SNodeConn;
 
-uint16_t tsArbitratorPort = 0;
-
 int main(int argc, char *argv[]) {
   char     arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
-
-  tsArbitratorPort = tsServerPort + TSDB_PORT_ARBITRATOR;
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
@@ -103,9 +99,7 @@ int main(int argc, char *argv[]) {
 
   sInfo("TAOS arbitrator: %s:%d is running", tsNodeFqdn, tsArbitratorPort);
 
-  for (int res = tsem_wait(&tsArbSem); res != 0; res = tsem_wait(&tsArbSem)) {
-    if (res != EINTR) break;
-  }
+  tsem_wait(&tsArbSem);
 
   taosCloseTcpThreadPool(tsArbTcpPool);
   sInfo("TAOS arbitrator is shut down\n");
@@ -156,9 +150,8 @@ static void arbProcessBrokenLink(void *param) {
   taosTFree(pNode);
 }
 
-static int arbProcessPeerMsg(void *param, void *buffer)
-{
-  SNodeConn  *pNode = param;
+static int arbProcessPeerMsg(void *param, void *buffer) {
+  SNodeConn * pNode = param;
   SSyncHead   head;
   int         bytes = 0;
   char       *cont = (char *)buffer;
@@ -180,7 +173,6 @@ static int arbProcessPeerMsg(void *param, void *buffer)
 }
 
 static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
-
   struct sigaction act = {{0}};
   act.sa_handler = SIG_IGN;
   sigaction(SIGTERM, &act, NULL);
@@ -192,4 +184,3 @@ static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) 
   // inform main thread to exit
   tsem_post(&tsArbSem);
 }
-

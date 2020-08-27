@@ -10,6 +10,7 @@ set -e
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]
 #             -l [full | lite]
+#             -s [static | dynamic]
 #             -n [2.0.0.3]
 
 # set parameters by default value
@@ -18,9 +19,10 @@ verType=stable   # [stable, beta]
 cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
+soMode=dynamic   # [static | dynamic]
 verNumber=""
 
-while getopts "hv:V:c:o:l:n:" arg
+while getopts "hv:V:c:o:l:s:n:" arg
 do
   case $arg in
     v)
@@ -39,6 +41,10 @@ do
       #echo "pagMode=$OPTARG"
       pagMode=$(echo $OPTARG)
       ;;
+    s)
+      #echo "soMode=$OPTARG"
+      soMode=$(echo $OPTARG)
+      ;;
     n)
       #echo "verNumber=$OPTARG"
       verNumber=$(echo $OPTARG)
@@ -53,6 +59,7 @@ do
       echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
       echo "                  -V [stable | beta] "
       echo "                  -l [full | lite] "
+      echo "                  -s [static | dynamic] "
       echo "                  -n [version number] "
       exit 0
       ;;
@@ -63,7 +70,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} verNumber=${verNumber}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} verNumber=${verNumber}"
 
 curr_dir=$(pwd)
 
@@ -223,9 +230,9 @@ cd ${compile_dir}
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
     if [ "$verMode" != "cluster" ]; then
-      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DOSTYPE=${osType}
+      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DOSTYPE=${osType} -DSOMODE=${soMode}
     else
-      cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} 
+      cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} 
     fi
 else
     echo "input cpuType=${cpuType} error!!!"
