@@ -28,7 +28,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
   char       fname[TSDB_FILENAME_LEN*3] = {0};
   uint32_t   magic; 
   uint64_t   fversion;
-  int32_t    size;
+  int64_t    size;
   uint32_t   index = sindex;
   SSyncNode *pNode = pPeer->pSyncNode;
 
@@ -48,8 +48,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
   }        
 }
 
-static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) 
-{
+static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  minfo; memset(&minfo, 0, sizeof(minfo)); /* = {0}; */  // master file info
   SFileInfo  sinfo; memset(&sinfo, 0, sizeof(sinfo)); /* = {0}; */  // slave file info
@@ -113,7 +112,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
     close(dfd);
     if (ret<0) break;
 
-    sDebug("%s, %s is received, size:%d", pPeer->id, minfo.name, minfo.size);
+    sDebug("%s, %s is received, size:%" PRId64, pPeer->id, minfo.name, minfo.size);
 
   }
 
@@ -130,8 +129,7 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion)
   return code;
 }
 
-static int syncRestoreWal(SSyncPeer *pPeer)
-{
+static int syncRestoreWal(SSyncPeer *pPeer) {
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         ret, code = -1;
 
@@ -172,8 +170,7 @@ static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset)
   return offset;
 }
 
-static int syncProcessBufferedFwd(SSyncPeer *pPeer)
-{
+static int syncProcessBufferedFwd(SSyncPeer *pPeer) {
   SSyncNode   *pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
   int          forwards = 0;
@@ -201,8 +198,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer)
   return pRecv->code;
 }
 
-int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
-{ 
+int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
   SSyncNode   *pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
 
@@ -222,8 +218,7 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
   return pRecv->code;
 }
 
-static void syncCloseRecvBuffer(SSyncNode *pNode)
-{
+static void syncCloseRecvBuffer(SSyncNode *pNode) {
   if (pNode->pRecv) {
     taosTFree(pNode->pRecv->buffer);
   }
@@ -231,8 +226,7 @@ static void syncCloseRecvBuffer(SSyncNode *pNode)
   taosTFree(pNode->pRecv);
 }
 
-static int syncOpenRecvBuffer(SSyncNode *pNode) 
-{
+static int syncOpenRecvBuffer(SSyncNode *pNode) {
   syncCloseRecvBuffer(pNode);
 
   SRecvBuffer *pRecv = calloc(sizeof(SRecvBuffer), 1);
@@ -253,8 +247,7 @@ static int syncOpenRecvBuffer(SSyncNode *pNode)
   return 0;
 }
 
-static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
-{
+static int syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
   uint64_t fversion = 0;
@@ -292,10 +285,9 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
   return 0;
 }
 
-void *syncRestoreData(void *param)
-{
-  SSyncPeer  *pPeer = (SSyncPeer *)param;
-  SSyncNode  *pNode = pPeer->pSyncNode;
+void *syncRestoreData(void *param) {
+  SSyncPeer *pPeer = (SSyncPeer *)param;
+  SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
   __sync_fetch_and_add(&tsSyncNum, 1);
@@ -326,4 +318,3 @@ void *syncRestoreData(void *param)
 
   return NULL;
 }
-

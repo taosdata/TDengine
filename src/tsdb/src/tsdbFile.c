@@ -424,7 +424,7 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   }
 }
 
-void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int32_t *size) {
+void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) {
   char          buf[TSDB_FILE_HEAD_SIZE] = "\0";
   uint32_t      version = 0;
   STsdbFileInfo info = {0};
@@ -445,7 +445,7 @@ void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int32_t *size) {
   close(fd);
 
   *magic = info.magic;
-  *size = (int32_t)offset;
+  *size = offset;
 
   return;
 
