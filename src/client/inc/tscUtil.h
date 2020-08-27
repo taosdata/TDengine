@@ -108,7 +108,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
-SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
+SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset);
 
 void*   tscDestroyBlockArrayList(SArray* pDataBlockList);

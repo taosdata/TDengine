@@ -28,6 +28,7 @@ INCLUDE(cmake/input.inc)
 INCLUDE(cmake/platform.inc)
 INCLUDE(cmake/define.inc)
 INCLUDE(cmake/env.inc)
+INCLUDE(cmake/version.inc)
 INCLUDE(cmake/install.inc)
 
 ADD_SUBDIRECTORY(deps)

@@ -549,7 +549,7 @@ static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 
 static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
-  vInfo("vgId:%d, sync role changed from %d to %d", pVnode->vgId, pVnode->role, role);
+  vInfo("vgId:%d, sync role changed from %s to %s", pVnode->vgId, syncRole[pVnode->role], syncRole[role]);
   pVnode->role = role;
   dnodeSendStatusMsgToMnode();
 
