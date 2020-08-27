@@ -424,7 +424,10 @@ typedef struct SColumnInfo {
   int16_t            type;
   int16_t            bytes;
   int16_t            numOfFilters;
-  SColumnFilterInfo *filters;
+  union{
+    int64_t placeholder;
+    SColumnFilterInfo *filters;
+  };
 } SColumnInfo;
 
 typedef struct STableIdInfo {

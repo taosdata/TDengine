@@ -518,7 +518,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode != NULL) {
     mnodeDecDnodeRef(pDnode);
-    mError("dnode:%d is already exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
+    mError("dnode:%d, already exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
     return TSDB_CODE_MND_DNODE_ALREADY_EXIST;
   }
 

@@ -234,7 +234,7 @@ typedef struct {
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
 
-  short        numOfCols;
+  int16_t      numOfCols;
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;

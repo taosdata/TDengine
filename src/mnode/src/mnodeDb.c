@@ -354,7 +354,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, SMnodeMsg
       mDebug("db:%s, already exist, ignore exist is set", pCreate->db);
       return TSDB_CODE_SUCCESS;
     } else {
-      mError("db:%s, is already exist, ignore exist not set", pCreate->db);
+      mError("db:%s, already exist, ignore exist not set", pCreate->db);
       return TSDB_CODE_MND_DB_ALREADY_EXIST;
     }
   }
