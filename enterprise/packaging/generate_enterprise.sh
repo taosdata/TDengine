@@ -3,6 +3,7 @@
 version=$1
 versionComp=$2
 branchName=$3
+verType=$4
 
 scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
@@ -27,7 +28,7 @@ git checkout -- .
 git pull
 
 cd $communityDir
-sudo ./packaging/release.sh -v cluster -n $version -m $versionComp -V beta
+sudo ./packaging/release.sh -v cluster -n $version -m $versionComp -V $verType
 
 if [ ! -d  "$archiveDir/v$version" ]; then
   mkdir -p "$archiveDir/v$version"

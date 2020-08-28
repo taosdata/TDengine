@@ -3,6 +3,7 @@
 version=$1
 versionComp=$2
 branchName=$3
+verType=$4
 
 scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
@@ -21,7 +22,7 @@ git pull
 sudo rm -rf release/*
 sudo rm -rf debs/*
 sudo rm -rf rpms/*
-sudo ./packaging/release.sh -n $version -m $versionComp -V beta
+sudo ./packaging/release.sh -n $version -m $versionComp -V $verType
 cd $archiveDir
 rm -rf v$version
 mkdir v$version
