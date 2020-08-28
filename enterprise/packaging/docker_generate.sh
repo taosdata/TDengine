@@ -8,7 +8,6 @@ scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 archiveDir=$scriptDir/../release
-#dockerinput=TDengine-server-${version}-Linux-x64-beta.tar.gz
 
 echo "make docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir/packaging/docker
