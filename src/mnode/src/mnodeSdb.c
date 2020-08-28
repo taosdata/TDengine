@@ -291,6 +291,11 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
 }
 
 void sdbUpdateSync() {
+  if (!mnodeIsRunning()) {
+    mDebug("mnode not start yet, update sync info later");
+    return;
+  }
+
   SSyncCfg syncCfg = {0};
   int32_t  index = 0;
 
