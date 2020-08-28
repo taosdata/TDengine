@@ -166,7 +166,7 @@ static void mnodeCleanupTimer() {
 static bool mnodeNeedStart() {
   struct stat dirstat;
   char mnodeFileName[TSDB_FILENAME_LEN * 2] = {0};
-  sprintf(mnodeFileName, "%s/wal0", tsMnodeDir);
+  sprintf(mnodeFileName, "%s/wal/wal0", tsMnodeDir);
 
   bool fileExist = (stat(mnodeFileName, &dirstat) == 0);
   bool asMaster = (strcmp(tsFirst, tsLocalEp) == 0);
