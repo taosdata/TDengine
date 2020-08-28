@@ -36,7 +36,7 @@ typedef struct tVariant {
   };
 } tVariant;
 
-void tVariantCreate(tVariant *pVar, SSQLToken *token);
+void tVariantCreate(tVariant *pVar, SStrToken *token);
 
 void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
 
@@ -45,6 +45,8 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
 void tVariantDestroy(tVariant *pV);
 
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc);
+
+int32_t tVariantCompare(const tVariant* p1, const tVariant* p2);
 
 int32_t tVariantToString(tVariant *pVar, char *dst);
 

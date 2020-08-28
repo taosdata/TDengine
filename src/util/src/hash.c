@@ -657,7 +657,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   }
 
   int64_t st = taosGetTimestampUs();
-  void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void*) * newSize);
+  void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newSize);
   if (pNewEntryList == NULL) {  // todo handle error
     //    uDebug("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
     return;

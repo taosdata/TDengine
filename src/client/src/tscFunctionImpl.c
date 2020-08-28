@@ -1813,23 +1813,19 @@ static void last_dist_func_second_merge(SQLFunctionCtx *pCtx) {
  * NOTE: last_row does not use the interResultBuf to keep the result
  */
 static void last_row_function(SQLFunctionCtx *pCtx) {
-  assert(pCtx->size == 1);
-  
+  assert(pCtx->size >= 1);
   char *pData = GET_INPUT_CHAR(pCtx);
-  assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
+
+  // assign the last element in current data block
+  assignVal(pCtx->aOutputBuf, pData + (pCtx->size - 1) * pCtx->inputBytes, pCtx->inputBytes, pCtx->inputType);
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   
-  SLastrowInfo *pInfo = (SLastrowInfo *)pResInfo->interResultBuf;
-  pInfo->ts = pCtx->ptsList[0];
-  
-  pInfo->hasResult = DATA_SET_FLAG;
-  
-  // set the result to final result buffer
+  // set the result to final result buffer in case of super table query
   if (pResInfo->superTableQ) {
     SLastrowInfo *pInfo1 = (SLastrowInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
-    pInfo1->ts = pCtx->ptsList[0];
+    pInfo1->ts = pCtx->ptsList[pCtx->size - 1];
     pInfo1->hasResult = DATA_SET_FLAG;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
@@ -2038,7 +2034,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   tValuePair **tvp = pRes->res;
   
   int32_t step = QUERY_ASC_FORWARD_STEP;
-  int32_t len = GET_RES_INFO(pCtx)->numOfRes;
+  int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
   
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
@@ -2412,10 +2408,10 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   // user specify the order of output by sort the result according to timestamp
   if (pCtx->param[1].i64Key == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64Key == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
-    qsort(tvp, pResInfo->numOfRes, POINTER_BYTES, comparator);
+    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   } else if (pCtx->param[1].i64Key > PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64Key == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
-    qsort(tvp, pResInfo->numOfRes, POINTER_BYTES, comparator);
+    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
   
   GET_TRUE_DATA_TYPE();
@@ -2909,33 +2905,41 @@ static FORCE_INLINE void date_col_output_function_f(SQLFunctionCtx *pCtx, int32_
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
+  // the number of output rows should not affect the final number of rows, so set it to be 0
+  if (pCtx->numOfParams == 2) {
+    return;
+  }
+
   INC_INIT_VAL(pCtx, pCtx->size);
-  
+
   char *pData = GET_INPUT_CHAR(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
-    memcpy(pCtx->aOutputBuf, pData, (size_t)pCtx->size * pCtx->inputBytes);
+    memcpy(pCtx->aOutputBuf, pData, (size_t) pCtx->size * pCtx->inputBytes);
   } else {
     for(int32_t i = 0; i < pCtx->size; ++i) {
       memcpy(pCtx->aOutputBuf + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
              pCtx->inputBytes);
     }
   }
-  
+
   pCtx->aOutputBuf += pCtx->size * pCtx->outputBytes;
 }
 
 static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+  if (pCtx->numOfParams == 2) {  // the number of output rows should not affect the final number of rows, so set it to be 0
+    return;
+  }
+
   // only one output
   if (pCtx->param[0].i64Key == 1 && pResInfo->numOfRes >= 1) {
     return;
   }
-  
+
   INC_INIT_VAL(pCtx, 1);
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  
+
   pCtx->aOutputBuf += pCtx->inputBytes;
 }
 
@@ -3903,11 +3907,11 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   
   // primary ts must be existed, so no need to check its existance
   if (pCtx->order == TSDB_ORDER_ASC) {
-    tsBufAppend(pTSbuf, 0, pCtx->tag.i64Key, input, pCtx->size * TSDB_KEYSIZE);
+    tsBufAppend(pTSbuf, 0, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
   } else {
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *d = GET_INPUT_CHAR_INDEX(pCtx, i);
-      tsBufAppend(pTSbuf, 0, pCtx->tag.i64Key, d, TSDB_KEYSIZE);
+      tsBufAppend(pTSbuf, 0, &pCtx->tag, d, TSDB_KEYSIZE);
     }
   }
   
@@ -3926,7 +3930,7 @@ static void ts_comp_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   STSBuf *pTSbuf = pInfo->pTSBuf;
   
-  tsBufAppend(pTSbuf, 0, pCtx->tag.i64Key, pData, TSDB_KEYSIZE);
+  tsBufAppend(pTSbuf, 0, &pCtx->tag, pData, TSDB_KEYSIZE);
   SET_VAL(pCtx, pCtx->size, 1);
   
   pResInfo->hasResult = DATA_SET_FLAG;

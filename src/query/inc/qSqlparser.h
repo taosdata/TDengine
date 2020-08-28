@@ -26,7 +26,7 @@ extern "C" {
 #include "tstoken.h"
 #include "tvariant.h"
 
-#define ParseTOKENTYPE SSQLToken
+#define ParseTOKENTYPE SStrToken
 extern char tTokenTypeSwitcher[13];
 
 #define toTSDBType(x)                          \
@@ -71,16 +71,16 @@ typedef struct SQuerySQL {
   struct tSQLExpr *    pWhere;       // where clause [optional]
   tVariantList *       pGroupby;     // groupby clause, only for tags[optional]
   tVariantList *       pSortOrder;   // orderby [optional]
-  SSQLToken            interval;     // interval [optional]
-  SSQLToken            sliding;      // sliding window [optional]
+  SStrToken            interval;     // interval [optional]
+  SStrToken            sliding;      // sliding window [optional]
   SLimitVal            limit;        // limit offset [optional]
   SLimitVal            slimit;       // group limit offset [optional]
   tVariantList *       fillType;     // fill type[optional]
-  SSQLToken            selectToken;  // sql string
+  SStrToken            selectToken;  // sql string
 } SQuerySQL;
 
 typedef struct SCreateTableSQL {
-  struct SSQLToken name;  // meter name, create table [meterName] xxx
+  struct SStrToken name;  // meter name, create table [meterName] xxx
   bool             existCheck;
   
   int8_t           type; // create normal table/from super table/ stream
@@ -90,7 +90,7 @@ typedef struct SCreateTableSQL {
   } colInfo;
   
   struct {
-    SSQLToken     stableName;  // super table name, for using clause
+    SStrToken     stableName;  // super table name, for using clause
     tVariantList *pTagVals;    // create by using metric, tag value
     STagData      tagdata;
   } usingInfo;
@@ -99,7 +99,7 @@ typedef struct SCreateTableSQL {
 } SCreateTableSQL;
 
 typedef struct SAlterTableSQL {
-  SSQLToken     name;
+  SStrToken     name;
   int16_t       type;
   STagData      tagData;
   
@@ -108,7 +108,7 @@ typedef struct SAlterTableSQL {
 } SAlterTableSQL;
 
 typedef struct SCreateDBInfo {
-  SSQLToken dbname;
+  SStrToken dbname;
   int32_t   replica;
   int32_t   cacheBlockSize;
   int32_t   maxTablesPerVnode;
@@ -121,7 +121,7 @@ typedef struct SCreateDBInfo {
   int32_t   walLevel;
   int32_t   quorum;
   int32_t   compressionLevel;
-  SSQLToken precision;
+  SStrToken precision;
   bool      ignoreExists;
   
   tVariantList *keep;
@@ -136,33 +136,33 @@ typedef struct SCreateAcctSQL {
   int64_t   maxStorage;
   int64_t   maxQueryTime;
   int32_t   maxConnections;
-  SSQLToken stat;
+  SStrToken stat;
 } SCreateAcctSQL;
 
 typedef struct SShowInfo {
   uint8_t showType;
-  SSQLToken prefix;
-  SSQLToken pattern;
+  SStrToken prefix;
+  SStrToken pattern;
 } SShowInfo;
 
 typedef struct SUserInfo {
-  SSQLToken user;
-  SSQLToken passwd;
-  SSQLToken privilege;
+  SStrToken user;
+  SStrToken passwd;
+  SStrToken privilege;
   int16_t   type;
 } SUserInfo;
 
 typedef struct tDCLSQL {
   int32_t    nTokens; /* Number of expressions on the list */
   int32_t    nAlloc;  /* Number of entries allocated below */
-  SSQLToken *a;       /* one entry for element */
+  SStrToken *a;       /* one entry for element */
   bool  existsCheck;
   
   union {
     SCreateDBInfo  dbOpt;
     SCreateAcctSQL acctOpt;
     SShowInfo      showOpt;
-    SSQLToken ip;
+    SStrToken ip;
   };
   
   SUserInfo user;
@@ -194,14 +194,14 @@ typedef struct tSQLExpr {
   
   // the full sql string of function(col, param), which is actually the raw
   // field name, since the function name is kept in nSQLOptr already
-  SSQLToken operand;
-  SSQLToken colInfo;            // field id
+  SStrToken operand;
+  SStrToken colInfo;            // field id
   tVariant  val;                // value only for string, float, int
   
   struct tSQLExpr *pLeft;       // left child
   struct tSQLExpr *pRight;      // right child
-  
   struct tSQLExprList *pParam;  // function parameters
+  SStrToken token;              // original sql expr string
 } tSQLExpr;
 
 // used in select clause. select <tSQLExprList> from xxx
@@ -210,6 +210,7 @@ typedef struct tSQLExprItem {
   char *    aliasName;  // alias name, null-terminated string
 } tSQLExprItem;
 
+// todo refactor by using SArray
 typedef struct tSQLExprList {
   int32_t       nExpr;  /* Number of expressions on the list */
   int32_t       nAlloc; /* Number of entries allocated below */
@@ -242,7 +243,7 @@ tVariantList *tVariantListAppend(tVariantList *pList, tVariant *pVar, uint8_t so
 
 tVariantList *tVariantListInsert(tVariantList *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 
-tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder);
+tVariantList *tVariantListAppendToken(tVariantList *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 void          tVariantListDestroy(tVariantList *pList);
 
 tFieldList *tFieldListAppend(tFieldList *pList, TAOS_FIELD *pField);
@@ -253,61 +254,61 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optType);
 
 void tSQLExprDestroy(tSQLExpr *);
 
-tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SSQLToken *pToken);
+tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pToken);
 
 void tSQLExprListDestroy(tSQLExprList *pList);
 
-SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
-                             tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
-                             SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
+SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
+                             tVariantList *pGroupby, tVariantList *pSortOrder, SStrToken *pInterval,
+                             SStrToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
-SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pMetricName,
+SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SStrToken *pMetricName,
                                     tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type);
 
 void      tSQLExprNodeDestroy(tSQLExpr *pExpr);
 tSQLExpr *tSQLExprNodeClone(tSQLExpr *pExpr);
 
-SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type);
+SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type);
 
 tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExprList);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
 void doDestroyQuerySql(SQuerySQL *pSql);
 
-SSqlInfo *      setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type);
+SSqlInfo *      setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pMeterName, int32_t type);
 SSubclauseInfo *setSubclause(SSubclauseInfo *pClause, void *pSqlExprInfo);
 
 SSubclauseInfo *appendSelectClause(SSubclauseInfo *pInfo, void *pSubclause);
 
-void setCreatedTableName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists);
+void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pMeterName, SStrToken *pIfNotExists);
 
 void SQLInfoDestroy(SSqlInfo *pInfo);
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
-void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SSQLToken* pToken, SSQLToken* existsCheck);
-void setShowOptions(SSqlInfo *pInfo, int32_t type, SSQLToken* prefix, SSQLToken* pPatterns);
+void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck);
+void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns);
 
-tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SSQLToken *pToken);
+tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SStrToken *pToken);
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists);
+void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDBInfo *pDB, SStrToken *pIgExists);
 
-void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo);
-void setCreateUserSQL(SSqlInfo *pInfo, SSQLToken *pName, SSQLToken *pPasswd);
-void setKillSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *ip);
-void setAlterUserSQL(SSqlInfo *pInfo, int16_t type, SSQLToken *pName, SSQLToken* pPwd, SSQLToken *pPrivilege);
+void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctSQL *pAcctInfo);
+void setCreateUserSQL(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);
+void setKillSQL(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
+void setAlterUserSQL(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
 
 void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo);
 
 // prefix show db.tables;
-void setDBName(SSQLToken *pCpxName, SSQLToken *pDB);
+void setDBName(SStrToken *pCpxName, SStrToken *pDB);
 
-tSQLExpr *tSQLExprIdValueCreate(SSQLToken *pToken, int32_t optType);
+tSQLExpr *tSQLExprIdValueCreate(SStrToken *pToken, int32_t optType);
 
-tSQLExpr *tSQLExprCreateFunction(tSQLExprList *pList, SSQLToken *pFuncToken, SSQLToken *endToken, int32_t optType);
+tSQLExpr *tSQLExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
 
-void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType);
+void tSQLSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType);
 
-void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *pToken);
+void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *pToken);
 
 void *ParseAlloc(void *(*mallocProc)(size_t));
 

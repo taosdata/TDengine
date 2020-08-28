@@ -705,6 +705,7 @@ function install_TDengine() {
         echo
         echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
     fi
+    touch ~/.taos_history
 
     rm -rf $(tar -tf taos.tar.gz)
 }
