@@ -58,9 +58,9 @@ FIND_FILE(mysql.h /usr/include /usr/include/mysql)
 IF (HEADER_MYSQL_INCLUDE_DIR AND LIB_MYSQL_STATIC_DIR)
     message(STATUS "Found mysql include header")
     include_directories(${HEADER_MYSQL_INCLUDE_DIR})
-#    link_directories(/usr/lib/x86_64-linux-gnu)
+    link_directories(/usr/lib/x86_64-linux-gnu)
 
-    #add_executable(mysqltest ./perftest/mysqlperf.c ./perftest/perftestcommon.c)
-    #target_link_libraries(mysqltest mysqlclient pthread)
+    add_executable(mysqltest ./perftest/mysqlperf.c ./perftest/perftestcommon.c)
+    target_link_libraries(mysqltest mysqlclient pthread)
 ENDIF()
 
