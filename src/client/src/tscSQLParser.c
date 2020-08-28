@@ -1303,7 +1303,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
     // add the timestamp column into the output columns
-    int32_t numOfCols = tscSqlExprNumOfExprs(pQueryInfo);
+    int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
     tscAddSpecialColumnForSelect(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL);
 
     SFieldSupInfo* pSupInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, numOfCols);

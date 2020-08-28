@@ -53,7 +53,7 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
 
   s.type  = pVal->nType;
   if (s.type == TSDB_DATA_TYPE_BINARY || s.type == TSDB_DATA_TYPE_NCHAR) {
-    s.bytes = pVal->nLen + VARSTR_HEADER_SIZE;
+    s.bytes = (int16_t)(pVal->nLen + VARSTR_HEADER_SIZE);
   } else {
     s.bytes = tDataTypeDesc[pVal->nType].nSize;
   }
