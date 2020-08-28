@@ -128,3 +128,27 @@ if $rows != 86399 then
   return -1
 endi
 
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts DESC limit 30
+if $rows != 48 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts DESC limit 2
+if $rows != 4 then
+  return -1
+endi
+
+sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1s) fill(NULL) group by tbname, t1 order by ts desc slimit 1 soffset 1 limit 250000 offset 1
+if $rows != 86399 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts desc limit 1
+if $rows != 2 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts desc limit 25 offset 1
+if $rows != 46 then
+  return -1
+endi

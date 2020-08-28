@@ -91,16 +91,16 @@ extern "C" {
 #define QUERY_COND_REL_PREFIX_IN "IN|"
 #define QUERY_COND_REL_PREFIX_LIKE "LIKE|"
 
-#define QUERY_COND_REL_PREFIX_IN_LEN 3
+#define QUERY_COND_REL_PREFIX_IN_LEN   3
 #define QUERY_COND_REL_PREFIX_LIKE_LEN 5
 
-#define QUERY_ASC_FORWARD_STEP 1
+#define QUERY_ASC_FORWARD_STEP   1
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
-#define MAX_RETRIEVE_ROWS_IN_INTERVAL_QUERY 10000000
-#define TOP_BOTTOM_QUERY_LIMIT 100
+#define MAX_INTERVAL_TIME_WINDOW 10000000
+#define TOP_BOTTOM_QUERY_LIMIT   100
 
 enum {
   MASTER_SCAN           = 0x0u,
@@ -137,13 +137,13 @@ typedef struct SInterpInfoDetail {
 } SInterpInfoDetail;
 
 typedef struct SResultInfo {
-  int8_t  hasResult;       // result generated, not NULL value
-  bool    initialized;     // output buffer has been initialized
-  bool    complete;        // query has completed
-  bool    superTableQ;     // is super table query
-  int32_t numOfRes;        // num of output result in current buffer
-  int32_t bufLen;          // buffer size
-  void*   interResultBuf;  // output result buffer
+  int8_t   hasResult;       // result generated, not NULL value
+  bool     initialized;   // output buffer has been initialized
+  bool     complete;      // query has completed
+  bool     superTableQ;   // is super table query
+  uint32_t bufLen;       // buffer size
+  uint64_t numOfRes;        // num of output result in current buffer
+  void*    interResultBuf;  // output result buffer
 } SResultInfo;
 
 struct SQLFunctionCtx;

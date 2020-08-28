@@ -370,7 +370,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
-  TSKEY stime = MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
+  TSKEY stime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.skey : pQueryInfo->window.ekey;
   int64_t revisedSTime =
       taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
   
@@ -843,28 +843,6 @@ void savePrevRecordAndSetupFillInfo(SLocalReducer *pLocalReducer, SQueryInfo *pQ
   tColModelAppend(pModel, pLocalReducer->discardData, pLocalReducer->prevRowOfInput, 0, 1, 1);
 }
 
-static void reversedCopyFromInterpolationToDstBuf(SQueryInfo *pQueryInfo, SSqlRes *pRes, tFilePage **pResPages,
-                                                  SLocalReducer *pLocalReducer) {
-  assert(0);
-  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
-  
-  for (int32_t i = 0; i < size; ++i) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-
-    int32_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
-    assert(offset == getColumnModelOffset(pLocalReducer->resColModel, i));
-
-    char *src = pResPages[i]->data + (pRes->numOfRows - 1) * pField->bytes;
-    char *dst = pRes->data + pRes->numOfRows * offset;
-
-    for (int32_t j = 0; j < pRes->numOfRows; ++j) {
-      memcpy(dst, src, (size_t)pField->bytes);
-      dst += pField->bytes;
-      src -= pField->bytes;
-    }
-  }
-}
-
 static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, SQueryInfo* pQueryInfo) {
   assert(pQueryInfo->intervalTime == 0 || pQueryInfo->fillType == TSDB_FILL_NONE);
 
@@ -925,7 +903,8 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SFillInfo  *pFillInfo = pLocalReducer->pFillInfo;
 
-  int64_t actualETime = MAX(pQueryInfo->window.skey, pQueryInfo->window.ekey);
+  // todo extract function
+  int64_t actualETime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.ekey: pQueryInfo->window.skey;
 
   tFilePage **pResPages = malloc(POINTER_BYTES * pQueryInfo->fieldsInfo.numOfOutput);
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
@@ -984,14 +963,10 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
       savePrevRecordAndSetupFillInfo(pLocalReducer, pQueryInfo, pFillInfo);
     }
 
-    if (pQueryInfo->order.order == TSDB_ORDER_ASC) {
-      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-        TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-        int16_t     offset = getColumnModelOffset(pLocalReducer->resColModel, i);
-        memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, (size_t)(pField->bytes * pRes->numOfRows));
-      }
-    } else {  // todo bug??
-      reversedCopyFromInterpolationToDstBuf(pQueryInfo, pRes, pResPages, pLocalReducer);
+    for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+      TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
+      int16_t     offset = getColumnModelOffset(pLocalReducer->resColModel, i);
+      memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, pField->bytes * pRes->numOfRows);
     }
 
     pRes->numOfRowsGroup += pRes->numOfRows;
@@ -1248,8 +1223,6 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   printf("final result before interpo:\n");
 //  tColModelDisplay(pLocalReducer->resColModel, pLocalReducer->pBufForInterpo, pResBuf->num, pResBuf->num);
 #endif
-  
-  
 
   // no interval query, no fill operation
   if (pQueryInfo->intervalTime == 0 || pQueryInfo->fillType == TSDB_FILL_NONE) {
@@ -1257,7 +1230,9 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   } else {
     SFillInfo* pFillInfo = pLocalReducer->pFillInfo;
     if (pFillInfo != NULL) {
-      taosFillSetStartInfo(pFillInfo, (int32_t)pResBuf->num, pQueryInfo->window.ekey);
+      TSKEY ekey = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.ekey: pQueryInfo->window.skey;
+
+      taosFillSetStartInfo(pFillInfo, (int32_t)pResBuf->num, ekey);
       taosFillCopyInputDataFromOneFilePage(pFillInfo, pResBuf);
     }
     
@@ -1292,7 +1267,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
 
   // for group result interpolation, do not return if not data is generated
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
-    TSKEY skey = MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
+    TSKEY skey = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.skey:pQueryInfo->window.ekey;//MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
     int64_t newTime =
         taosGetIntervalStartTimestamp(skey, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
     taosResetFillInfo(pLocalReducer->pFillInfo, newTime);
@@ -1345,7 +1320,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
     // if fillType == TSDB_FILL_NONE, return directly
     if (pQueryInfo->fillType != TSDB_FILL_NONE &&
       ((pRes->numOfRowsGroup < pQueryInfo->limit.limit && pQueryInfo->limit.limit > 0) || (pQueryInfo->limit.limit < 0))) {
-      int64_t etime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.ekey : pQueryInfo->window.skey;
+      int64_t etime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
       int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {
@@ -1402,13 +1377,12 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   tscResetForNextRetrieve(pRes);
 
   if (pSql->signature != pSql || pRes == NULL || pRes->pLocalReducer == NULL) {  // all data has been processed
-    tscDebug("%p %s call the drop local reducer", pSql, __FUNCTION__);
-    tscDestroyLocalReducer(pSql);
-    return 0;
+    tscError("%p local merge abort due to error occurs, code:%s", pSql, tstrerror(pRes->code));
+    return pRes->code;
   }
 
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
-  SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo    *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   // set the data merge in progress
   int32_t prevStatus =
@@ -1503,8 +1477,8 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
          * so the processing of previous group is completed.
          */
         int32_t numOfRes = finalizeRes(pQueryInfo, pLocalReducer);
+        bool   sameGroup = isSameGroup(pCmd, pLocalReducer, pLocalReducer->prevRowOfInput, tmpBuffer);
 
-        bool       sameGroup = isSameGroup(pCmd, pLocalReducer, pLocalReducer->prevRowOfInput, tmpBuffer);
         tFilePage *pResBuf = pLocalReducer->pResultBuf;
 
         /*
