@@ -137,8 +137,15 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
     }
 
     //3. write to disk.
-    fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-    fwrite(t, size, 1, pResultBuf->file);
+    int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
+    if (ret != 0) {  // todo handle the error case
+
+    }
+
+    ret = (int32_t)fwrite(t, size, 1, pResultBuf->file);
+    if (ret != size) {  // todo handle the error case
+
+    }
 
     if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
       pResultBuf->fileSize = pg->info.offset + pg->info.length;

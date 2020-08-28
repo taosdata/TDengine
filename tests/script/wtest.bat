@@ -6,8 +6,8 @@ echo Start TDengine Testing Case ...
 set "SCRIPT_DIR=%~dp0"
 echo SCRIPT_DIR: %SCRIPT_DIR%
 
-set "BUILD_DIR=%~dp0..\..\debug\build\bin"
-set "TSIM=%~dp0..\..\debug\build\bin\tsim"
+set "BUILD_DIR=%~dp0..\..\debug\32\build\bin"
+set "TSIM=%~dp0..\..\debug\32\build\bin\tsim"
 echo BUILD_DIR:  %BUILD_DIR%
 
 set "SIM_DIR=%~dp0..\..\sim"
@@ -47,7 +47,7 @@ echo qdebugFlag    143           >> %TAOS_CFG%
 echo udebugFlag    143           >> %TAOS_CFG%
 
 set "FILE_NAME=windows\testSuite.sim"
-set "FIRSTEP=localhost"
+set "FIRSTEP=192.168.1.182"
 if "%1" == "-f" set "FILE_NAME=%2"
 if "%1" == "-h" set "FIRSTEP=%2"
 if "%3" == "-f" set "FILE_NAME=%4"

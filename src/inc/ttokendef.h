@@ -69,7 +69,7 @@
 #define TK_QUERIES                         51
 #define TK_CONNECTIONS                     52
 #define TK_STREAMS                         53
-#define TK_CONFIGS                         54
+#define TK_VARIABLES                       54
 #define TK_SCORES                          55
 #define TK_GRANTS                          56
 #define TK_VNODES                          57

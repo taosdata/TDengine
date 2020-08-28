@@ -103,7 +103,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
  * @param keepTime      survival time in second
  * @return              cached element
  */
-void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int keepTimeInSeconds);
+void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int durationMS);
 
 /**
  * get data from cache
@@ -112,16 +112,6 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
  * @return              cached data or NULL
  */
 void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen);
-
-/**
- * update the expire time of data in cache 
- * @param pCacheObj     cache object
- * @param key           key
- * @param keyLen        keyLen
- * @param expireTime    new expire time of data
- * @return
- */ 
-//void* taosCacheUpdateExpireTimeByName(SCacheObj *pCacheObj, void *key, size_t keyLen, uint64_t expireTime);
 
 /**
  * Add one reference count for the exist data, and assign this data for a new owner.

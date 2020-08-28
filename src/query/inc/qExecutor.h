@@ -33,6 +33,17 @@ struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
+typedef struct SPosInfo {
+  int32_t pageId:20;
+  int32_t rowId:12;
+} SPosInfo;
+
+typedef struct SGroupResInfo {
+  int32_t  groupId;
+  int32_t  numOfDataPages;
+  SPosInfo pos;
+} SGroupResInfo;
+
 typedef struct SSqlGroupbyExpr {
   int16_t tableIndex;
   SArray* columnInfo;  // SArray<SColIndex>, group by columns information
@@ -41,21 +52,12 @@ typedef struct SSqlGroupbyExpr {
   int16_t orderType;   // order by type: asc/desc
 } SSqlGroupbyExpr;
 
-typedef struct SPosInfo {
-  int32_t pageId;
-  int32_t rowId;
-} SPosInfo;
-
-typedef struct SWindowStatus {
-  bool closed;
-} SWindowStatus;
-
 typedef struct SWindowResult {
-  uint16_t      numOfRows;   // number of rows of current  time window
-  SWindowStatus status;      // this result status: closed or opened
   SPosInfo      pos;         // Position of current result in disk-based output buffer
+  uint16_t      numOfRows;   // number of rows of current time window
+  bool          closed;      // this result status: closed or opened
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
-  STimeWindow   window;      // The time window that current result covers.
+  TSKEY         skey;        // start key of current time window
 } SWindowResult;
 
 /**
@@ -79,6 +81,7 @@ typedef struct SWindowResInfo {
   int64_t        startTime;  // start time of the first time window for sliding query
   int64_t        prevSKey;   // previous (not completed) sliding window start key
   int64_t        threshold;  // threshold to halt query and return the generated results.
+  int64_t        interval;   // time window interval
 } SWindowResInfo;
 
 typedef struct SColumnFilterElem {
@@ -98,7 +101,7 @@ typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
   TSKEY       lastKey;
   int32_t     groupIndex;     // group id in table list
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
-  int64_t     tag;
+  tVariant    tag;
   STimeWindow win;
   STSCursor   cur;
   void*       pTable;         // for retrieve the page id list
@@ -121,8 +124,9 @@ typedef struct SQueryCostInfo {
   uint32_t loadBlockStatis;
   uint32_t discardBlocks;
   uint64_t elapsedTime;
-  uint64_t computTime;
+  uint64_t firstStageMergeTime;
   uint64_t internalSupSize;
+  uint64_t numOfTimeWindows;
 } SQueryCostInfo;
 
 typedef struct SQuery {
@@ -189,21 +193,18 @@ typedef struct SQInfo {
   int64_t          owner; // if it is in execution
   void*            tsdb;
   int32_t          vgId;
-  STableGroupInfo  tableGroupInfo;       // table id list < only includes the STable list>
+  STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   SQueryRuntimeEnv runtimeEnv;
-  int32_t          groupIndex;
-  int32_t          offset;  // offset in group result set of subgroup, todo refactor
   SArray*          arrTableIdInfo;
+  int32_t          groupIndex;
 
   /*
    * the query is executed position on which meter of the whole list.
    * when the index reaches the last one of the list, it means the query is completed.
-   * We later may refactor to remove this attribution by using another flag to denote
-   * whether a multimeter query is completed or not.
    */
   int32_t          tableIndex;
-  int32_t          numOfGroupResultPages;
+  SGroupResInfo    groupResInfo;
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
   pthread_mutex_t  lock;        // used to synchronize the rsp/query threads

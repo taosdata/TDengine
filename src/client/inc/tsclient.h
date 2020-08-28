@@ -35,6 +35,40 @@ extern "C" {
 #include "qTsbuf.h"
 #include "tcmdtype.h"
 
+#if 0
+static UNUSED_FUNC void *u_malloc (size_t __size) {
+  uint32_t v = rand();
+
+  if (v % 5000 <= 0) {
+    return NULL;
+  } else {
+    return malloc(__size);
+  }
+}
+
+static UNUSED_FUNC void* u_calloc(size_t num, size_t __size) {
+  uint32_t v = rand();
+  if (v % 5000 <= 0) {
+    return NULL;
+  } else {
+    return calloc(num, __size);
+  }
+}
+
+static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
+  uint32_t v = rand();
+  if (v % 5000 <= 0) {
+    return NULL;
+  } else {
+    return realloc(p, __size);
+  }
+}
+
+#define calloc  u_calloc
+#define malloc  u_malloc
+#define realloc u_realloc
+#endif
+
 // forward declaration
 struct SSqlInfo;
 struct SLocalReducer;
@@ -195,9 +229,9 @@ typedef struct STableDataBlocks {
 
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
-  uint32_t         type;          // query/insert/import type
+  uint32_t         type;          // query/insert type
   char             slidingTimeUnit;
-  STimeWindow      window;
+  STimeWindow      window;        // query time window
   int64_t          intervalTime;  // aggregation time interval
   int64_t          slidingTime;   // sliding window in mseconds
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
@@ -216,6 +250,7 @@ typedef struct SQueryInfo {
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
   int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
+  int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
 } SQueryInfo;
 
 typedef struct {
@@ -431,31 +466,36 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t bytes = pInfo->pSqlExpr->resBytes;
 
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
-  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-    int32_t realLen = varDataLen(pData);
-    assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
+  // user defined constant value output columns
+  if (pInfo->pSqlExpr->colInfo.flag == TSDB_COL_UDC) {
+    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+      pData = pInfo->pSqlExpr->param[1].pz;
+      pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
+      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : pData;
     } else {
-      pRes->tsrow[columnIndex] = ((tstr*)pData)->data;
-    }
+      assert(bytes == tDataTypeDesc[type].nSize);
 
-    if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) { // todo refactor
-      *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : &pInfo->pSqlExpr->param[1].i64Key;
+      pRes->length[columnIndex] = bytes;
     }
-
-    pRes->length[columnIndex] = realLen;
   } else {
-    assert(bytes == tDataTypeDesc[type].nSize);
+    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+      int32_t realLen = varDataLen(pData);
+      assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
-    if (isNull(pData, type)) {
-      pRes->tsrow[columnIndex] = NULL;
+      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : ((tstr *)pData)->data;
+      if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
+        *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
+      }
+
+      pRes->length[columnIndex] = realLen;
     } else {
-      pRes->tsrow[columnIndex] = pData;
-    }
+      assert(bytes == tDataTypeDesc[type].nSize);
 
-    pRes->length[columnIndex] = bytes;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : pData;
+      pRes->length[columnIndex] = bytes;
+    }
   }
 }
 

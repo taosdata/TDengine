@@ -4,6 +4,7 @@
 #include "tname.h"
 #include "tstoken.h"
 #include "ttokendef.h"
+#include "tvariant.h"
 
 // todo refactor
 UNUSED_FUNC static FORCE_INLINE const char* skipSegments(const char* input, char delim, int32_t num) {
@@ -43,7 +44,30 @@ SSchema tGetTableNameColumnSchema() {
   s.bytes = TSDB_TABLE_NAME_LEN - 1 + VARSTR_HEADER_SIZE;
   s.type  = TSDB_DATA_TYPE_BINARY;
   s.colId = TSDB_TBNAME_COLUMN_INDEX;
-  strncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
+  tstrncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
+  return s;
+}
+
+SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
+  SSchema s = {0};
+
+  s.type  = pVal->nType;
+  if (s.type == TSDB_DATA_TYPE_BINARY || s.type == TSDB_DATA_TYPE_NCHAR) {
+    s.bytes = (int16_t)(pVal->nLen + VARSTR_HEADER_SIZE);
+  } else {
+    s.bytes = tDataTypeDesc[pVal->nType].nSize;
+  }
+
+  s.colId = TSDB_UD_COLUMN_INDEX;
+  if (name != NULL) {
+    tstrncpy(s.name, name, sizeof(s.name));
+  } else {
+    size_t len = strdequote(exprStr->z);
+    size_t tlen = MIN(sizeof(s.name), len + 1);
+
+    tstrncpy(s.name, exprStr->z, tlen);
+  }
+
   return s;
 }
 
@@ -110,7 +134,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
  * tablePrefix.columnName
  * extract table name and save it in pTable, with only column name in pToken
  */
-void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
+void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
   const char sep = TS_PATH_DELIMITER[0];
 
   if (pToken == pTable || pToken == NULL || pTable == NULL) {
