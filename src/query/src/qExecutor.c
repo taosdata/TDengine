@@ -2771,14 +2771,14 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
     tFilePage* pData = getResBufPage(pResultBuf, pi->pageId);
 
     assert(pData->num > 0 && pData->num <= pRuntimeEnv->numOfRowsPerPage && pGroupResInfo->pos.rowId < pData->num);
-    int32_t numOfRes = pData->num - pGroupResInfo->pos.rowId;
+    int32_t numOfRes = (int32_t)(pData->num - pGroupResInfo->pos.rowId);
 
     if (numOfRes > pQuery->rec.capacity - offset) {
-      numOfCopiedRows = pQuery->rec.capacity - offset;
+      numOfCopiedRows = (int32_t)(pQuery->rec.capacity - offset);
       pGroupResInfo->pos.rowId += numOfCopiedRows;
       done = true;
     } else {
-      numOfCopiedRows = pData->num;
+      numOfCopiedRows = (int32_t)pData->num;
 
       pGroupResInfo->pos.pageId += 1;
       pGroupResInfo->pos.rowId = 0;
@@ -2871,7 +2871,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
 
     SGroupResInfo* pGroupResInfo = &pQInfo->groupResInfo;
 
-    pGroupResInfo->numOfDataPages = taosArrayGetSize(pageList);
+    pGroupResInfo->numOfDataPages = (int32_t)taosArrayGetSize(pageList);
     pGroupResInfo->groupId = tid;
     pGroupResInfo->pos.pageId = 0;
     pGroupResInfo->pos.rowId = 0;
@@ -3036,7 +3036,7 @@ int32_t flushFromResultBuf(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupR
 
       char* output = buf->data + pRuntimeEnv->offset[i] * pRuntimeEnv->numOfRowsPerPage;
       char* src = ((char *) pQuery->sdata[i]->data) + offset * bytes;
-      memcpy(output, src, buf->num * bytes);
+      memcpy(output, src, (size_t)(buf->num * bytes));
     }
 
     offset += rows;
@@ -3211,7 +3211,7 @@ void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv) {
       pCtx->ptsOutputBuf = pRuntimeEnv->pCtx[0].aOutputBuf;
     }
 
-    memset(pQuery->sdata[i]->data, 0, (size_t)pQuery->pSelectExpr[i].bytes * pQuery->rec.capacity);
+    memset(pQuery->sdata[i]->data, 0, (size_t)(pQuery->pSelectExpr[i].bytes * pQuery->rec.capacity));
   }
 
   initCtxOutputBuf(pRuntimeEnv);
@@ -3926,7 +3926,7 @@ static void updateWindowResNumOfRes(SQueryRuntimeEnv *pRuntimeEnv) {
         continue;
       }
 
-      pResult->numOfRows = MAX(pResult->numOfRows, pResult->resultInfo[j].numOfRes);
+      pResult->numOfRows = (uint16_t)(MAX(pResult->numOfRows, pResult->resultInfo[j].numOfRes));
     }
   }
 }
@@ -4789,7 +4789,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
         SWindowResult *pResult = &pWindowResInfo->pResult[i];
         for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-          pResult->numOfRows = MAX(pResult->numOfRows, pResult->resultInfo[j].numOfRes);
+          pResult->numOfRows = (uint16_t)(MAX(pResult->numOfRows, pResult->resultInfo[j].numOfRes));
         }
       }
 
@@ -6356,7 +6356,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
       qDebug("QInfo:%p ts comp data return, file:%s, size:%"PRId64, pQInfo, pQuery->sdata[0]->data, s);
       if (lseek(fd, 0, SEEK_SET) >= 0) {
-        size_t sz = read(fd, data, s);
+        size_t sz = read(fd, data, (uint32_t)s);
         if(sz < s) {  // todo handle error
           assert(0);
         }

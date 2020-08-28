@@ -2034,7 +2034,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   tValuePair **tvp = pRes->res;
   
   int32_t step = QUERY_ASC_FORWARD_STEP;
-  int32_t len = GET_RES_INFO(pCtx)->numOfRes;
+  int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
   
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
@@ -2408,10 +2408,10 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   // user specify the order of output by sort the result according to timestamp
   if (pCtx->param[1].i64Key == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64Key == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
-    qsort(tvp, pResInfo->numOfRes, POINTER_BYTES, comparator);
+    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   } else if (pCtx->param[1].i64Key > PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64Key == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
-    qsort(tvp, pResInfo->numOfRes, POINTER_BYTES, comparator);
+    qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
   
   GET_TRUE_DATA_TYPE();
