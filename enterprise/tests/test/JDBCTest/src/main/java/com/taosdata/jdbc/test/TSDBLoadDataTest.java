@@ -6,13 +6,12 @@ import java.sql.*;
 import java.util.Properties;
 
 public class TSDBLoadDataTest {
-
-	private String host = "192.168.0.1";
-	private String configDir = "/etc/taos";
+	private String host = "localhost";
+	private String configDir = "~/sec/cfg";
 	private String user = "root";
 	private String password = "taosdata";
 	private String jdbcUrl = "";
-	private String dbName = "evidev";
+	private String dbName = "test";
 	private String tablePrefix = "device";
 
 	private String startTime = "2018-5-1 0:0:0";
@@ -44,9 +43,8 @@ public class TSDBLoadDataTest {
 	}
 
 	public void ConnectTbase() {
-//		TSDBJNIConnector.init(this.configDir, "", "");
 		Properties info = new Properties();
-		info.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, this.configDir);
+		info.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, "~/sec/cfg");
 
 		String TSDB_DRIVER = "com.taosdata.jdbc.TSDBDriver";
 		try {
@@ -171,47 +169,51 @@ public class TSDBLoadDataTest {
 			}
 		}
 	}
+	
+	void insertTest() {
+		this.MakeJdbcUrl();
+		this.ConnectTbase();
+		
+		Statement stmt = null;
+		ResultSet reSet = null;
+		try {
+			stmt = (Statement) conn.createStatement();
+			reSet = stmt.executeQuery("use test");
+			
+			reSet = stmt.executeQuery("select * from tm1");
+			
+			while(reSet.next()) {
+				System.out.println(reSet.getString(1));
+			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("insert failed");
+			System.exit(4);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.out.println("insert failed");
+			System.exit(4);
+		} finally {
+			try {
+				if (reSet != null)
+					reSet.close();
+				if (stmt != null)
+					stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+		System.out.println("insert table finished");
+		try {
+			this.conn.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
 
 	public static void main(String[] args) {
-		if (args.length < 6) {
-			System.out.println(
-					"Usage:\nloaddata [ip address] [db] [numOfThead] [numOfTable] [startime] [endtime] [idletime]");
-			System.exit(-1);
-		}
-
-		String IPAddr = args[0];
-		String db = args[1];
-
-		int numOfThreads = Integer.parseInt(args[2]);
-		if (numOfThreads > 100) {
-			numOfThreads = 100;
-			System.out.println("maximum threads to load data is set to 100");
-		}
-
-		int numOfMeters = Integer.parseInt(args[3]);
-		if (numOfMeters > 50000) {
-			numOfMeters = 50000;
-			System.out.println("maximum number of meters is no larger than 50000");
-		}
-
-		String startTime = args[4];
-		String endTime = args[5];
-
-		int idleTime = Integer.parseInt(args[6]);
-		int metersPerThread = numOfMeters / numOfThreads;
-
-		System.out.println("Meters Per Thread: " + String.valueOf(metersPerThread));
-
-		for (int i = 0; i < numOfThreads; i++) {
-			Tasks t = new Tasks();
-			t.setQueryRange(i * metersPerThread + 1, (i + 1) * metersPerThread + 1);
-			t.setHost(IPAddr);
-			t.setDB(db);
-
-			t.setTimeRange(startTime, endTime);
-			t.setIdleTime(idleTime);
-			new Thread(t).start();
-		}
-
+		TSDBLoadDataTest test = new TSDBLoadDataTest();
+		test.insertTest();
 	}
 }

@@ -63,7 +63,7 @@ public class TSDBSyncSample {
 		tester.doConnectToTaosd();
 		tester.doCreateDbAndTable();
 		tester.doExecuteInsert();
-		tester.doExecuteQuery();
+//		tester.doExecuteQuery();
 		tester.doCloseConnection();
 
 		System.out.println("---------------------------------------------------------------");
