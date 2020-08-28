@@ -112,21 +112,22 @@ print =============== step4
 sql insert into d1.t1 values(now + 1s, 1)
 sql insert into d1.t1 values(now + 2s, 2)
 
-# no write auth
-sleep 3000
+sleep 10000
+print no write auth
 sql_error insert into d1.t1 values(now + 3s, 2)
 sql_error insert into d1.t1 values(now + 4s, 2)
 
 sql alter account root pass "taosdata" tseries 10 storage 36 streams 10 dbs 5 users 5
-sleep 3000
+sleep 10000
+print has write auth
 sql insert into d1.t1 values(now + 5s, 1)
 sql insert into d1.t1 values(now + 6s, 2)
 
 # no write auth
-sleep 3000
+sleep 10000
+print no write auth
 sql_error insert into d1.t1 values(now + 7s, 2)
 sql_error insert into d1.t1 values(now + 8s, 2)
-
 
 print =============== check grant
 sql_error create database d6
