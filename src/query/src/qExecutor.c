@@ -35,9 +35,7 @@
  * forced to load primary column explicitly.
  */
 #define Q_STATUS_EQUAL(p, s)  (((p) & (s)) != 0)
-#define TSDB_COL_IS_TAG(f)    (((f)&TSDB_COL_TAG) != 0)
-#define TSDB_COL_IS_NORMAL_COL(f)    ((f) == TSDB_COL_NORMAL)
-#define TSDB_COL_IS_UD_COL(f)   ((f) == TSDB_COL_UDC)
+
 
 #define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
 
@@ -254,7 +252,7 @@ bool isGroupbyNormalCol(SSqlGroupbyExpr *pGroupbyExpr) {
 
   for (int32_t i = 0; i < pGroupbyExpr->numOfGroupCols; ++i) {
     SColIndex *pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, i);
-    if (pColIndex->flag == TSDB_COL_NORMAL) {
+    if (TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
       //make sure the normal column locates at the second position if tbname exists in group by clause
       if (pGroupbyExpr->numOfGroupCols > 1) {
         assert(pColIndex->colIndex > 0);
@@ -275,7 +273,7 @@ int16_t getGroupbyColumnType(SQuery *pQuery, SSqlGroupbyExpr *pGroupbyExpr) {
 
   for (int32_t i = 0; i < pGroupbyExpr->numOfGroupCols; ++i) {
     SColIndex *pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, i);
-    if (pColIndex->flag == TSDB_COL_NORMAL) {
+    if (TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
       colId = pColIndex->colId;
       break;
     }
@@ -1085,7 +1083,7 @@ static char *getGroupbyColumnData(SQuery *pQuery, int16_t *type, int16_t *bytes,
 
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
-    if (pColIndex->flag == TSDB_COL_TAG) {
+    if (TSDB_COL_IS_TAG(pColIndex->flag)) {
       continue;
     }
 
@@ -1555,6 +1553,13 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
     SColIndex* pIndex = &pSqlFuncMsg->colInfo;
 
+    if (TSDB_COL_REQ_NULL(pIndex->flag)) {
+      pCtx->requireNull = true; 
+      pIndex->flag &= ~(TSDB_COL_NULL); 
+    } else {
+      pCtx->requireNull = false; 
+    } 
+
     int32_t index = pSqlFuncMsg->colInfo.colIndex;
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
       if (pIndex->colId == TSDB_TBNAME_COLUMN_INDEX) {  // todo refactor
@@ -1573,6 +1578,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
       pCtx->inputBytes = pQuery->colList[index].bytes;
       pCtx->inputType = pQuery->colList[index].type;
     }
+
 
     assert(isValidDataType(pCtx->inputType));
     pCtx->ptsOutputBuf = NULL;
@@ -1783,7 +1789,7 @@ static bool onlyQueryTags(SQuery* pQuery) {
     if (functionId != TSDB_FUNC_TAGPRJ &&
         functionId != TSDB_FUNC_TID_TAG &&
         (!(functionId == TSDB_FUNC_COUNT && pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX)) &&
-        (!(functionId == TSDB_FUNC_PRJ && pExprInfo->base.colInfo.flag == TSDB_COL_UDC))) {
+        (!(functionId == TSDB_FUNC_PRJ && TSDB_COL_IS_UD_COL(pExprInfo->base.colInfo.flag)))) {
       return false;
     }
   }
@@ -5353,7 +5359,7 @@ static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pE
       j += 1;
     }
 
-  } else if (pExprMsg->colInfo.flag == TSDB_COL_UDC) {  // user specified column data
+  } else if (TSDB_COL_IS_UD_COL(pExprMsg->colInfo.flag)) {  // user specified column data
     return TSDB_UD_COLUMN_INDEX;
   } else {
     while (j < pQueryMsg->numOfCols) {
@@ -5561,7 +5567,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
 
     int16_t functionId = pExprMsg->functionId;
     if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG_DUMMY) {
-      if (pExprMsg->colInfo.flag != TSDB_COL_TAG) {  // ignore the column  index check for arithmetic expression.
+      if (!TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {  // ignore the column  index check for arithmetic expression.
         code = TSDB_CODE_QRY_INVALID_MSG;
         goto _cleanup;
       }
@@ -6843,7 +6849,7 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
       int16_t type = 0, bytes = 0;
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
         // not assign value in case of user defined constant output column
-        if (pExprInfo[j].base.colInfo.flag == TSDB_COL_UDC) {
+        if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.colInfo.flag)) {
           continue;
         }
 
