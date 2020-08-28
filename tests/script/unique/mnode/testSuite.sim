@@ -1,3 +1,4 @@
+run unique/mnode/mgmt21.sim
 run unique/mnode/mgmt22.sim
 run unique/mnode/mgmt23.sim
 run unique/mnode/mgmt24.sim

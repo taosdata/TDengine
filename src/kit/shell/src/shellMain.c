@@ -18,11 +18,10 @@
 
 pthread_t pid;
 
-// TODO: IMPLEMENT INTERRUPT HANDLER.
-void interruptHandler(int signum) {
+void shellQueryInterruptHandler(int signum) {
 #ifdef LINUX
-  taos_stop_query(result);
-  result = NULL;
+  void* pResHandle = atomic_val_compare_exchange_64(&result, result, 0);
+  taos_stop_query(pResHandle);
 #else
   printf("\nReceive ctrl+c or other signal, quit shell.\n");
   exit(0);
@@ -86,7 +85,7 @@ int main(int argc, char* argv[]) {
   struct sigaction act;
   memset(&act, 0, sizeof(struct sigaction));
   
-  act.sa_handler = interruptHandler;
+  act.sa_handler = shellQueryInterruptHandler;
   sigaction(SIGTERM, &act, NULL);
   sigaction(SIGINT, &act, NULL);
 

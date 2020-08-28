@@ -147,7 +147,6 @@ cd ../../../debug; make
 ./test.sh -f general/parser/join.sim
 ./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
-./test.sh -f general/parser/bug.sim
 ./test.sh -f general/parser/repeatAlter.sim
 ./test.sh -f general/parser/union.sim
 ./test.sh -f general/parser/topbot.sim
@@ -294,6 +293,7 @@ cd ../../../debug; make
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
 
+./test.sh -f unique/mnode/mgmt21.sim
 ./test.sh -f unique/mnode/mgmt22.sim
 ./test.sh -f unique/mnode/mgmt23.sim
 ./test.sh -f unique/mnode/mgmt24.sim

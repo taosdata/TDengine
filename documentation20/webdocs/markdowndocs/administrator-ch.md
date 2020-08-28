@@ -153,10 +153,10 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
 
 ```
-CREATE USER <user_name> PASS <‘password’>;
+CREATE USER <user_name> PASS <'password'>;
 ```
 
-创建用户，并指定用户名和密码，密码需要用单引号引起来
+创建用户，并指定用户名和密码，密码需要用单引号引起来,单引号为英文半角
 
 ```
 DROP USER <user_name>;
@@ -165,10 +165,10 @@ DROP USER <user_name>;
 删除用户，限root用户使用
 
 ```
-ALTER USER <user_name> PASS <‘password’>;
+ALTER USER <user_name> PASS <'password'>;
 ```
 
-修改用户密码, 为避免被转换为小写，密码需要用单引号引用
+修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
 
 ```
 SHOW USERS;

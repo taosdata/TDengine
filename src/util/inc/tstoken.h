@@ -28,11 +28,11 @@ extern "C" {
 #define TSQL_TBNAME_L "tbname"
 
 // used to denote the minimum unite in sql parsing
-typedef struct SSQLToken {
+typedef struct SStrToken {
   uint32_t n;
   uint32_t type;
   char *   z;
-} SSQLToken;
+} SStrToken;
 
 /**
  * tokenizer for sql string
@@ -52,7 +52,7 @@ uint32_t tSQLGetToken(char *z, uint32_t *tokenType);
  * @param ignoreTokenTypes
  * @return
  */
-SSQLToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t *ignoreTokenTypes);
+SStrToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t *ignoreTokenTypes);
 
 /**
  * check if it is a keyword or not
@@ -76,7 +76,7 @@ bool isKeyWord(const char *z, int32_t len);
  * @param pToken
  * @return        token type, if it is not a number, TK_ILLEGAL will return
  */
-static FORCE_INLINE int32_t isValidNumber(const SSQLToken* pToken) {
+static FORCE_INLINE int32_t isValidNumber(const SStrToken* pToken) {
   const char* z = pToken->z;
   int32_t type = TK_ILLEGAL;
 
