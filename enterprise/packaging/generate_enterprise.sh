@@ -18,13 +18,13 @@ fi
 echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir
 git checkout $branchName
-git checkout -- .
+###git checkout -- .
 git pull
 sudo rm -rf release/*
 
 cd $enterpriseDir
 git checkout $branchName
-git checkout -- .
+###git checkout -- .
 git pull
 
 cd $communityDir
