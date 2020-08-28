@@ -13,7 +13,7 @@
 
 namespace {
 int32_t testValidateName(char* name) {
-  SSQLToken token = {0};
+  SStrToken token = {0};
   token.z = name;
   token.n = strlen(name);
   token.type = 0;
@@ -886,8 +886,8 @@ TEST(testCase, tGetToken_Test) {
   EXPECT_FALSE(type == TK_HEX);
 }
 
-static SSQLToken createStrToken(char* s) {
-  SSQLToken t = {0};//.type = TK_STRING, .z = s, .n = strlen(s)};
+static SStrToken createStrToken(char* s) {
+  SStrToken t = {0};//.type = TK_STRING, .z = s, .n = strlen(s)};
   t.type = TK_STRING;
   t.z = s;
   t.n = strlen(s);
@@ -896,7 +896,7 @@ static SSQLToken createStrToken(char* s) {
 }
 
 TEST(testCase, isValidNumber_test) {
-  SSQLToken t1 = createStrToken("123abc");
+  SStrToken t1 = createStrToken("123abc");
 
   EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
 

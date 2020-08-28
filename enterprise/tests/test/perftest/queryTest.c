@@ -5,6 +5,9 @@
 
 #include <pthread.h>
 #include <sys/time.h>
+#include <assert.h>
+#include <unistd.h>
+
 #include "taos.h"
 #include "testCommon.h"
 
@@ -214,7 +217,7 @@ int load_one_table(TAOS* conn, char* dbname, int32_t startId, int32_t numOfTable
 }
 
 typedef struct {
-  int   threadid;
+  int     threadid;
   char*   sql;
 } MultiThreadQueryInfo;
 
@@ -254,11 +257,92 @@ int multiThreadQuery(int32_t numOfThreads, char* sql) {
   return 0;
 }
 
-int main(int argc, char** argv) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
-  taos_options(TSDB_OPTION_CHARSET, "cp11936");
+static int64_t getTime() {
+  struct timeval s1;
+  gettimeofday(&s1, NULL);
+  int64_t es1 = s1.tv_sec * 1000 + s1.tv_usec/1000;
 
+  return es1;
+}
+
+void generatedData(TAOS* taos) {
+  srand(time(NULL));
+
+  FILE* f = fopen("./devid", "r");
+  char* line = NULL;
+  size_t length = 0;
+
+  struct timeval tv ;
+  gettimeofday(&tv, NULL);
+  int64_t start = tv.tv_sec * 1000 + tv.tv_usec/1000;
+
+  int32_t alloc = 10000;
+  char** pTableNameList = calloc(alloc, sizeof(void*));
+
+  int32_t i = 0;
+  while(getline(&line, &length, f) > 0) {
+    pTableNameList[i++] = strdup(line);
+  }
+
+  int32_t numOfTables = i;
+
+  free(line);
+  line = NULL;
+
+  printf("total devid:%d\n", i);
+  fclose(f);
+
+  f = fopen("./sample_data", "r");
+
+  int32_t numOfData = 0;
+  char** dd = calloc(1, 1000* sizeof(void*));
+  while(getline(&line, &length, f) > 0) {
+    dd[numOfData] = strdup(line);
+    printf("%s\n", dd[numOfData]);
+
+    numOfData += 1;
+  }
+  fclose(f);
+
+  // start to insert data to db
+  char sql[1024] = {0};
+
+  while(1) {
+    int64_t cs1 = getTime();
+
+    for(int32_t j = 0; j < numOfTables; ++j) {
+      char* name = pTableNameList[j];
+      int32_t index = (rand()%numOfData);
+
+      sprintf(sql, "insert into %s values(%"PRId64", %s)", name, start, dd[index]);
+
+      int64_t begin = getTime();
+#if 0
+      int32_t code = taos_query(taos, sql);
+      if (code != 0) {
+        printf("error:%s\n", taos_errstr(taos));
+      }
+#endif
+      int64_t end = getTime();
+      if (end - begin > 1200) {
+        printf("elapsed time too long:%ldms\n abort\n", end - begin);
+        assert(0);
+      }
+    }
+
+    int64_t es1 = getTime();
+
+    printf("insert completed, total elapsed time:%ldms, ts:%ld\n", es1 - cs1, es1);
+
+    sleep(23);
+    start += 23*1000;
+  }
+}
+
+int main(int argc, char** argv) {
+
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -266,54 +350,77 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
+#if 0
+  executeSQL(conn, "use netmonitortaos", NULL);
+  if (atoi(argv[1]) == 1) {
+    generatedData(conn);
+  } else {
+    while(1) {
+      int64_t st = getTime();
+      executeSQL(conn, "select last_row(*) from warninginfomt group by tbname", NULL);
+      int64_t et = getTime();
+
+      if (et - st > 1200) {
+        printf("too long, elapsed time:%ld\n", et - st);
+        assert(0);
+      } else {
+        printf("exec completed, elapsed time:%ldms, time:%ld\n", et - st, st);
+      }
+
+      sleep(15);
+    }
+  }
+  return 0;
+#endif
+
 //  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  return 0;
+  executeSQL(conn, "drop database test", NULL);
+  executeSQL(conn, "create database test", NULL);
   executeSQL(conn, "use test", NULL);
-  executeSQL(conn, "select k.* from tm0 k", NULL);
+//  executeSQL(conn,"select last_row(*) from tm1,tm2 where tm1.ts=tm2.ts", NULL);
+//  executeSQL( conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and
+//  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
+//  return 0;
 
-  return 0;
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-//    createEnvironment(conn, 100, 100, 100000, 30);
+//    createEnvironment(conn, 1, 1, 1000000, 30);
+    return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
 //  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
   //    database TU1", NULL);
   // selectivity + tags/ts + group by normal columns
-  //    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
-  //                     "(select count(*) from test where ts<'1970-1-1 8:1:40.9')", NULL);
-  //    executeSQL(conn, "select count(*) from test where ts<'1970-1-1 8:1:40.9' union "
-  //                   "select count(*) from test where ts<'1970-1-1 8:1:40.9'", NULL);
+//    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
+//                     "(select count(*) from test where ts<'1970-1-1 8:1:40.9')", NULL);
+//    executeSQL(conn, "select count(*) from test where ts<'1970-1-1 8:1:40.9' union "
+//                   "select count(*) from test where ts<'1970-1-1 8:1:40.9'", NULL);
 
-  //    createEnvironment(conn, 5000, 5000, 100, 30);
-  //    executeSQL(conn, "select last_row(ts) from m1 where tbname in ('tm0', 'tm1') group by tbname", NULL);
-  //    executeSQL(conn, "select top(k, 5) from tm0", NULL);
-  //    createEnvironment(conn, 50, 50, 100, 30);
-  //    executeSQL(conn, "select m1.* from m1,m2 where m1.a=m2.a1 and m1.ts=m2.ts;", NULL);
-  //    executeSQL(conn, "select * from m1,m2 where m1.a=m2.a1 and m1.ts=m2.ts;", NULL);//crash!!!!
-  //  executeSQL(conn, "select join_tb1.*, join_tb0.* from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and "
-  //                   "join_tb1.ts >= 100000 and join_tb0.c7 = false limit 10", NULL);
+//    createEnvironment(conn, 5000, 5000, 100, 30);
+//    executeSQL(conn, "select last_row(ts) from m1 where tbname in ('tm0', 'tm1') group by tbname", NULL);
+//    executeSQL(conn, "select top(k, 5) from tm0", NULL);
+//    createEnvironment(conn, 50, 50, 100, 30);
+//    executeSQL(conn, "select m1.* from m1,m2 where m1.a=m2.a1 and m1.ts=m2.ts;", NULL);
+//    executeSQL(conn, "select * from m1,m2 where m1.a=m2.a1 and m1.ts=m2.ts;", NULL);//crash!!!!
+//  executeSQL(conn, "select join_tb1.*, join_tb0.* from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and "
+//                   "join_tb1.ts >= 100000 and join_tb0.c7 = false limit 10", NULL);
 
-  //    executeSQL(conn, "create table t1 (ts timestamp,t2 binary(30),\u2028mrn int,\u2028ptname binary(20)) tags(type
-  //    int);", NULL);
+//    executeSQL(conn, "create table t1 (ts timestamp,t2 binary(30),\u2028mrn int,\u2028ptname binary(20)) tags(type int);", NULL);
 
-  //    executeSQL(conn, "select count(*) from m1 group by tbname,K", NULL);
-  //    executeSQL(conn, "select m2.b,m1.a,m1.ts from m1,m2 where m1.ts=m2.ts and m1.a=m2.b;", NULL);
-  //    executeSQL(conn, "select count(*) from ac_stb group by t1 order by t1 asc slimit 2 soffset 1;", NULL);
-  //    executeSQL(conn, "select join_mt1.t1,join_mt0.t1,join_mt1.c1,join_mt1.ts from join_mt0, join_mt1 "
-  //                     "where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;", NULL);
-  //    executeSQL(conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and
-  //    join_mt0.t2=join_mt1.t2;", NULL);
-  //     executeSQL(conn, "select count(join_mt0.c2),last(join_tb0.c2),first(join_mt0.c7) from join_mt0, join_tb0 where
-  //     join_mt0.t1=join_tb0.t1 and join_mt0.ts=join_tb0.ts and join_mt0.t1=1 interval(500a)
-  //                      order by join_mt0.ts asc;", NULL);
-  //    return 0;
-  //    executeSQL(conn, "select count(join_tb3.*) from join_tb1, join_tb0 where join_tb1.ts = join_tb0.ts and
-  //    join_tb1.ts <= 100002 and join_tb0.c7 = true;", NULL); executeSQL(conn, "select join_tb1.*, join_tb0.ts from
-  //    join_tb0 where join_tb1.ts = join_tb0.ts", NULL); executeSQL(conn, "select count(join_mt0.k), sum(join_mt1.k),
-  //    first(join_mt0.c5)"
-  //                     " from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and
-  //                     join_mt0.t1=1 interval(10a)", NULL);
+//    executeSQL(conn, "select count(*) from m1 group by tbname,K", NULL);
+//    executeSQL(conn, "select m2.b,m1.a,m1.ts from m1,m2 where m1.ts=m2.ts and m1.a=m2.b;", NULL);
+//    executeSQL(conn, "select count(*) from ac_stb group by t1 order by t1 asc slimit 2 soffset 1;", NULL);
+//    executeSQL(conn, "select join_mt1.t1,join_mt0.t1,join_mt1.c1,join_mt1.ts from join_mt0, join_mt1 "
+//                     "where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;", NULL);
+//    executeSQL(conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t2=join_mt1.t2;", NULL);
+//     executeSQL(conn, "select count(join_mt0.c2),last(join_tb0.c2),first(join_mt0.c7) from join_mt0, join_tb0 where join_mt0.t1=join_tb0.t1"
+//                      "                     and join_mt0.ts=join_tb0.ts and join_mt0.t1=1 interval(500a) order by join_mt0.ts asc;", NULL);
+//    return 0;
+//    executeSQL(conn, "select count(join_tb3.*) from join_tb1, join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true;", NULL);
+//    executeSQL(conn, "select join_tb1.*, join_tb0.ts from join_tb0 where join_tb1.ts = join_tb0.ts", NULL);
+//    executeSQL(conn, "select count(join_mt0.k), sum(join_mt1.k), first(join_mt0.c5)"
+//                     " from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a)", NULL);
 
   //    executeSQL(conn, "select count(m1.k), sum(sm1.k), first(m1.h)"
   //                     " from m1,sm1 where m1.a=sm1.a and (m1.a=1 or m1.a=2) and m1.ts=sm1.ts interval(10a) group by
