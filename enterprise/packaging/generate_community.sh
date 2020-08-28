@@ -16,7 +16,7 @@ fi
 
 echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir
-git checkout $branchName
+###git checkout $branchName
 git checkout -- .
 git pull
 sudo rm -rf release/*
