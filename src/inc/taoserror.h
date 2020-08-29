@@ -140,6 +140,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_READY,                0, 0x033C, "Cluster no
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "Account already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "Invalid account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT_OPTION,      0, 0x0342, "Invalid account options")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_EXPIRED,             0, 0x0343, "Account authorization has expired")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_ALREADY_EXIST,       0, 0x0350, "User already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_USER,             0, 0x0351, "Invalid user")

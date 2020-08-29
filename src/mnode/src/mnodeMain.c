@@ -21,6 +21,7 @@
 #include "tgrant.h"
 #include "ttimer.h"
 #include "tglobal.h"
+#include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
@@ -107,13 +108,18 @@ int32_t mnodeStartSystem() {
   tsMgmtIsRunning = true;
 
   mInfo("mnode is initialized successfully");
+
+  sdbUpdateSync();
+
   return 0;
 }
 
 int32_t mnodeInitSystem() {
   mnodeInitTimer();
-  if (!mnodeNeedStart()) return 0;
-  return mnodeStartSystem();
+  if (mnodeNeedStart()) {
+    return mnodeStartSystem();
+  }
+  return 0;
 }
 
 void mnodeCleanupSystem() {
@@ -159,14 +165,19 @@ static void mnodeCleanupTimer() {
 
 static bool mnodeNeedStart() {
   struct stat dirstat;
-  bool fileExist = (stat(tsMnodeDir, &dirstat) == 0);
+  char mnodeFileName[TSDB_FILENAME_LEN * 2] = {0};
+  sprintf(mnodeFileName, "%s/wal/wal0", tsMnodeDir);
+
+  bool fileExist = (stat(mnodeFileName, &dirstat) == 0);
   bool asMaster = (strcmp(tsFirst, tsLocalEp) == 0);
 
   if (asMaster || fileExist) {
+    mDebug("mnode module start, asMaster:%d fileExist:%d", asMaster, fileExist);
     return true;
+  } else {
+    mDebug("mnode module won't start, asMaster:%d fileExist:%d", asMaster, fileExist);
+    return false;
   }
-
-  return false;
 }
 
 bool mnodeIsRunning() {
