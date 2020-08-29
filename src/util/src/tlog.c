@@ -66,7 +66,11 @@ int32_t tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 0.1f;
+#ifdef _TD_OEM_POWER_
+char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
+#else
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
+#endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
 static void *    taosAsyncOutputLog(void *param);

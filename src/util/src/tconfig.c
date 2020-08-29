@@ -260,8 +260,13 @@ void taosReadGlobalLogCfg() {
     }
     strcpy(configDir, full_path.we_wordv[0]);
   } else {
+    #ifdef _TD_OEM_POWER_
+    printf("configDir:%s not there, use default value: /etc/power", configDir);
+    strcpy(configDir, "/etc/power");
+    #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");
+    #endif
   }
   wordfree(&full_path);
 

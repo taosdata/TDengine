@@ -102,36 +102,31 @@ function clean_log() {
 
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
-
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
-
     ${csudo} rm -f ${taosd_service_config}
-
+    
+    tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
+    if systemctl is-active --quiet ${tarbitrator_service_name}; then
+        echo "TDengine tarbitrator is running, stopping it..."
+        ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
+    fi
+    ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} rm -f ${tarbitratord_service_config}
+  
     if [ "$verMode" == "cluster" ]; then
-        tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
-
-        if systemctl is-active --quiet ${tarbitrator_service_name}; then
-            echo "TDengine tarbitrator is running, stopping it..."
-            ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
-        fi
-        ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
-
-        ${csudo} rm -f ${tarbitratord_service_config}
-        
-		    nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
-   	 	  if [ -d ${bin_dir}/web ]; then
-   	        if systemctl is-active --quiet ${nginx_service_name}; then
-   	            echo "Nginx for TDengine is running, stopping it..."
-   	            ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
-   	        fi
-   	        ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
-        
-   	        ${csudo} rm -f ${nginx_service_config}
+		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
+   	 	if [ -d ${bin_dir}/web ]; then
+   	    if systemctl is-active --quiet ${nginx_service_name}; then
+   	      echo "Nginx for TDengine is running, stopping it..."
+   	      ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	    fi
+   	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+   	    ${csudo} rm -f ${nginx_service_config}
+   	  fi
     fi 
 }
 
@@ -227,3 +222,4 @@ elif  echo $osinfo | grep -qwi "centos" ; then
 fi
 
 echo -e "${GREEN}TDengine is removed successfully!${NC}"
+echo 
