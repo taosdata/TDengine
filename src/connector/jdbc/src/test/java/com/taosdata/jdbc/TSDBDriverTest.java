@@ -12,7 +12,7 @@ public class TSDBDriverTest {
     @Test
     public void urlParserTest() throws SQLException {
         TSDBDriver driver = new TSDBDriver();
-        String url = "jdbc:TSDB://127.0.0.1:0/db?user=root&password=your_password";
+        String url = "jdbc:TSDB://127.0.0.1:0/db";
 
         Properties properties = new Properties(); 
         driver.parseURL(url, properties);
