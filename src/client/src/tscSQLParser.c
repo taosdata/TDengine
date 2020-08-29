@@ -4681,7 +4681,9 @@ int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg0 = "sample interval can not be less than 10ms.";
   const char* msg1 = "functions not allowed in select clause";
 
-  if (pQueryInfo->intervalTime != 0 && pQueryInfo->intervalTime < 10) {
+  if (pQueryInfo->intervalTime != 0 && pQueryInfo->intervalTime < 10 &&
+     pQueryInfo->intervalTimeUnit != 'n' &&
+     pQueryInfo->intervalTimeUnit != 'y') {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
   }
   
@@ -6167,7 +6169,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
 
-    if (pQueryInfo->intervalTime > 0) {
+    if (pQueryInfo->intervalTime > 0 && pQueryInfo->intervalTimeUnit != 'n' && pQueryInfo->intervalTimeUnit != 'y') {
       int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
       // number of result is not greater than 10,000,000
       if ((timeRange == 0) || (timeRange / pQueryInfo->intervalTime) > MAX_INTERVAL_TIME_WINDOW) {

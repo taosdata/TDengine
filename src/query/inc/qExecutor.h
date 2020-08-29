@@ -132,11 +132,12 @@ typedef struct SQueryCostInfo {
 typedef struct SQuery {
   int16_t          numOfCols;
   int16_t          numOfTags;
+  char             intervalTimeUnit;
+  char             slidingTimeUnit;  // interval data type, used for daytime revise
   SOrderVal        order;
   STimeWindow      window;
   int64_t          intervalTime;
   int64_t          slidingTime;      // sliding time for sliding window query
-  char             slidingTimeUnit;  // interval data type, used for daytime revise
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
