@@ -30,7 +30,7 @@
 #include <regex.h>
 
 /**************** Global variables ****************/
-#ifdef _TD_OEM_POWER_
+#ifdef _TD_POWER_
 char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
                              "Copyright (c) 2017 by PowerDB, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "power> ";

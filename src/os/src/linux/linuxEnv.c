@@ -19,7 +19,7 @@
 
 void osInit() {
 
-#ifdef _TD_OEM_POWER_
+#ifdef _TD_POWER_
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/power");
   }

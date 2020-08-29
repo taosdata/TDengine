@@ -89,7 +89,7 @@ typedef struct DemoArguments {
     {0, 'h', "host",                     0, "The host to connect to TDengine. Default is localhost.",                                                           0},
     {0, 'p', "port",                     0, "The TCP/IP port number to use for the connection. Default is 0.",                                                  1},
     {0, 'u', "user",                     0, "The TDengine user name to use when connecting to the server. Default is 'root'.",                                  2},
-    #ifdef _TD_OEM_POWER_    
+    #ifdef _TD_POWER_    
     {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'powerdb'.",                                         3},
     #else
     {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
@@ -108,7 +108,7 @@ typedef struct DemoArguments {
     {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                              10},
     {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                          11},
     {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
-    #ifdef _TD_OEM_POWER_
+    #ifdef _TD_POWER_
     {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/power/'.",                                                               14},
     #else
     {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
@@ -287,7 +287,7 @@ typedef struct DemoArguments {
     printf("%s%s\n", indent, "-u");
     printf("%s%s%s\n", indent, indent, "user, The user name to use when connecting to the server. Default is 'root'.");
     printf("%s%s\n", indent, "-p");
-    #ifdef _TD_OEM_POWER_    
+    #ifdef _TD_POWER_    
     printf("%s%s%s\n", indent, indent, "password, The password to use when connecting to the server. Default is 'powerdb'.");
     #else
     printf("%s%s%s\n", indent, indent, "password, The password to use when connecting to the server. Default is 'taosdata'.");
@@ -321,7 +321,7 @@ typedef struct DemoArguments {
     printf("%s%s\n", indent, "-n");
     printf("%s%s%s\n", indent, indent, "num_of_records_per_table, The number of records per table. Default is 100000.");
     printf("%s%s\n", indent, "-c");
-    #ifdef _TD_OEM_POWER_
+    #ifdef _TD_POWER_
     printf("%s%s%s\n", indent, indent, "config_directory, Configuration directory. Default is '/etc/power/'.");
     #else
     printf("%s%s%s\n", indent, indent, "config_directory, Configuration directory. Default is '/etc/taos/'.");
@@ -529,7 +529,7 @@ int main(int argc, char *argv[]) {
   SDemoArguments arguments = {  NULL,            // host
                                 0,               // port
                                 "root",          // user
-                                #ifdef _TD_OEM_POWER_ 
+                                #ifdef _TD_POWER_ 
                                 "powerdb",      // password
                                 #else
                                 "taosdata",      // password

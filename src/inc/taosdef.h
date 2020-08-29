@@ -85,7 +85,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_NULL_STR_L            "null"
 
 #define TSDB_DEFAULT_USER               "root"
-#ifdef _TD_OEM_POWER_
+#ifdef _TD_POWER_
 #define TSDB_DEFAULT_PASS               "powerdb"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
