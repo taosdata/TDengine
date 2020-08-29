@@ -11,9 +11,9 @@ sleep 3000
 sql connect
 
 print ========== step2
-sql drop database log -x step21
-  return -1
-step21:
+#sql drop database log -x step21
+#  return -1
+#step21:
 sql drop table log.dn -x step22
   return -1
 step22:

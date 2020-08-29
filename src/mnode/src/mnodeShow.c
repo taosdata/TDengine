@@ -98,7 +98,7 @@ static char *mnodeGetShowType(int32_t showType) {
     case TSDB_MGMT_TABLE_MODULE:  return "show modules";
     case TSDB_MGMT_TABLE_QUERIES: return "show queries";
     case TSDB_MGMT_TABLE_STREAMS: return "show streams";
-    case TSDB_MGMT_TABLE_CONFIGS: return "show configs";
+    case TSDB_MGMT_TABLE_VARIABLES: return "show configs";
     case TSDB_MGMT_TABLE_CONNS:   return "show connections";
     case TSDB_MGMT_TABLE_SCORES:  return "show scores";
     case TSDB_MGMT_TABLE_GRANTS:  return "show grants";
@@ -313,6 +313,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     if (pDb->status != TSDB_DB_STATUS_READY) {
       mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
       code = TSDB_CODE_MND_DB_IN_DROPPING;
+      mnodeDecDbRef(pDb);
       goto connect_over;
     }
     mnodeDecDbRef(pDb);

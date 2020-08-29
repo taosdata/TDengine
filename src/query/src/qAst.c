@@ -44,7 +44,7 @@
  * ver 0.3, pipeline filter in the form of: (a+2)/9 > 14
  *
  */
-static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
+static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SStrToken *pToken);
 
 static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
 static void       destroySyntaxTree(tExprNode *);
@@ -103,7 +103,7 @@ static void reviseBinaryExprIfNecessary(tExprNode **pLeft, tExprNode **pRight, u
   }
 }
 
-static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken) {
+static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SStrToken *pToken) {
   /* if the token is not a value, return false */
   if (pToken->type == TK_RP || (pToken->type != TK_INTEGER && pToken->type != TK_FLOAT && pToken->type != TK_ID &&
                                 pToken->type != TK_TBNAME && pToken->type != TK_STRING && pToken->type != TK_BOOL)) {
@@ -117,7 +117,7 @@ static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken
     int32_t i = 0;
     if (pToken->type == TK_ID) {
       do {
-        SSQLToken tableToken = {0};
+        SStrToken tableToken = {0};
         extractTableNameFromToken(pToken, &tableToken);
 
         size_t len = strlen(pSchema[i].name);
@@ -157,7 +157,7 @@ static tExprNode *tExprNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken
   return pNode;
 }
 
-uint8_t getBinaryExprOptr(SSQLToken *pToken) {
+uint8_t getBinaryExprOptr(SStrToken *pToken) {
   switch (pToken->type) {
     case TK_LT:
       return TSDB_RELATION_LESS;
@@ -234,7 +234,7 @@ uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLef
 }
 
 static tExprNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
-  SSQLToken t0 = tStrGetToken(str, i, false, 0, NULL);
+  SStrToken t0 = tStrGetToken(str, i, false, 0, NULL);
   if (t0.n == 0) {
     return NULL;
   }

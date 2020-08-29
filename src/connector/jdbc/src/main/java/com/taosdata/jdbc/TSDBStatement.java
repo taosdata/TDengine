@@ -52,7 +52,7 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-        
+
         // TODO make sure it is not a update query
 		pSql = this.connecter.executeQuery(sql);
 
@@ -68,21 +68,21 @@ public class TSDBStatement implements Statement {
 			this.connecter.freeResultSet(pSql);
 			return null;
 		}
-		
+
 		if (!this.connecter.isUpdateQuery(pSql)) {
 			return new TSDBResultSet(this.connecter, resultSetPointer);
 		} else {
 			this.connecter.freeResultSet(pSql);
 			return null;
 		}
-		
+
 	}
 
 	public int executeUpdate(String sql) throws SQLException {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-        
+
         // TODO check if current query is update query
 		pSql = this.connecter.executeQuery(sql);
 		long resultSetPointer = this.connecter.getResultSet();
@@ -94,7 +94,7 @@ public class TSDBStatement implements Statement {
 
 		this.affectedRows = this.connecter.getAffectedRows(pSql);
 		this.connecter.freeResultSet(pSql);
-		
+
 		return this.affectedRows;
 	}
 
@@ -192,7 +192,7 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-        
+
 		return this.affectedRows;
 	}
 

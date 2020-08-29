@@ -82,7 +82,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 
 - firstEp: taosd启动时，主动连接的集群中第一个dnode的end point, 默认值为localhost:6030。
 - secondEp: taosd启动时，如果first连接不上，尝试连接集群中第二个dnode的end point, 默认值为空。
-- fqdn：数据节点的FQDN。如果为空，将自动获取操作系统配置的第一个, 默认值为空。
+- fqdn：数据节点的FQDN，缺省为操作系统配置的第一个hostname。如果习惯IP地址访问，可设置为该节点的IP地址。
 - serverPort：taosd启动后，对外服务的端口号，默认值为6030。
 - httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求, 默认值为6041。
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
@@ -94,7 +94,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
 - telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
 
-**注意：**对于端口，TDengine会使用从serverPort起12个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6041共12个端口，而且必须TCP和UDP都打开。
+**注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6042共13个端口，而且必须TCP和UDP都打开。
 
 不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
 
@@ -153,10 +153,10 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
 
 ```
-CREATE USER <user_name> PASS <‘password’>;
+CREATE USER <user_name> PASS <'password'>;
 ```
 
-创建用户，并指定用户名和密码，密码需要用单引号引起来
+创建用户，并指定用户名和密码，密码需要用单引号引起来,单引号为英文半角
 
 ```
 DROP USER <user_name>;
@@ -165,10 +165,10 @@ DROP USER <user_name>;
 删除用户，限root用户使用
 
 ```
-ALTER USER <user_name> PASS <‘password’>;
+ALTER USER <user_name> PASS <'password'>;
 ```
 
-修改用户密码, 为避免被转换为小写，密码需要用单引号引用
+修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
 
 ```
 SHOW USERS;

@@ -133,7 +133,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_MODULE,
   TSDB_MGMT_TABLE_QUERIES,
   TSDB_MGMT_TABLE_STREAMS,
-  TSDB_MGMT_TABLE_CONFIGS,
+  TSDB_MGMT_TABLE_VARIABLES,
   TSDB_MGMT_TABLE_CONNS,
   TSDB_MGMT_TABLE_SCORES,
   TSDB_MGMT_TABLE_GRANTS,
@@ -167,9 +167,9 @@ enum _mgmt_table {
 #define TSDB_VN_WRITE_ACCCESS ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
 
-#define TSDB_COL_NORMAL 0x0u
-#define TSDB_COL_TAG    0x1u
-#define TSDB_COL_JOIN   0x2u
+#define TSDB_COL_NORMAL          0x0u    // the normal column of the table
+#define TSDB_COL_TAG             0x1u    // the tag column type
+#define TSDB_COL_UDC             0x2u    // the user specified normal string column, it is a dummy column
 
 extern char *taosMsg[];
 
@@ -424,7 +424,10 @@ typedef struct SColumnInfo {
   int16_t            type;
   int16_t            bytes;
   int16_t            numOfFilters;
-  SColumnFilterInfo *filters;
+  union{
+    int64_t placeholder;
+    SColumnFilterInfo *filters;
+  };
 } SColumnInfo;
 
 typedef struct STableIdInfo {
@@ -575,6 +578,7 @@ typedef struct {
   int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
   char     timezone[64];              // tsTimezone
+  int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
 } SClusterCfg;

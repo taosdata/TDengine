@@ -25,6 +25,8 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tglobal.h"
+#include "tsclient.h"
+
 #include <regex.h>
 
 /**************** Global variables ****************/
@@ -64,11 +66,6 @@ TAOS *shellInit(SShellArguments *args) {
   }
 
   taos_init();
-  /*
-   * set tsTableMetaKeepTimer = 3000ms
-   * means not save cache in shell
-   */
-  tsTableMetaKeepTimer = 3000;
 
   // Connect to the database.
   TAOS *con = NULL;
@@ -287,7 +284,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   st = taosGetTimestampUs();
 
   TAOS_RES* pSql = taos_query(con, command);
-  result = pSql;  // set it into the global variable
+  atomic_store_ptr(&result, pSql);  // set the global TAOS_RES pointer
 
   if (taos_errno(pSql)) {
     taos_error(pSql);
@@ -298,17 +295,16 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
-    result = NULL;
+    atomic_store_ptr(&result, 0);
     taos_free_result(pSql);
     return;
   }
 
-  int num_fields = taos_field_count(pSql);
-  if (num_fields != 0) {  // select and show kinds of commands
+  if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
     int error_no = 0;
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
-      result = NULL;
+      atomic_store_ptr(&result, 0);
       taos_free_result(pSql);
       return;
     }
@@ -331,7 +327,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     wordfree(&full_path);
   }
 
-  result = NULL;
+  atomic_store_ptr(&result, 0);
   taos_free_result(pSql);
 }
 
@@ -497,7 +493,6 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
   } while( row != NULL);
 
   result = NULL;
-  //taos_free_result(tres);
   fclose(fp);
 
   return numOfRows;
@@ -802,8 +797,8 @@ void write_history() {
 }
 
 void taos_error(TAOS_RES *tres) {
+  atomic_store_ptr(&result, 0);
   fprintf(stderr, "\nDB error: %s\n", taos_errstr(tres));
-  result = NULL;
   taos_free_result(tres);
 }
 

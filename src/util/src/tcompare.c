@@ -220,8 +220,14 @@ static int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   char pattern[128] = {0};
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
   assert(varDataLen(pRight) < 128);
-  
-  int32_t ret = patternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft), &pInfo);
+
+  size_t sz = varDataLen(pLeft);
+  char *buf = malloc(sz + 1); 
+  memcpy(buf, varDataVal(pLeft), sz); 
+  buf[sz] = 0;
+
+  int32_t ret = patternMatch(pattern, buf, sz, &pInfo);
+  free(buf);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 

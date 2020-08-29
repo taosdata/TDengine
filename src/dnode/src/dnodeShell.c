@@ -119,7 +119,7 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     dError("RPC %p, shell msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
-    rpcMsg.code = TSDB_CODE_RPC_NOT_READY;
+    rpcMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rpcMsg);
     rpcFreeCont(pMsg->pCont);
     return;
@@ -144,7 +144,7 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   int code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
-  if (code != TSDB_CODE_RPC_NOT_READY) return code;
+  if (code != TSDB_CODE_APP_NOT_READY) return code;
 
   SDMAuthMsg *pMsg = rpcMallocCont(sizeof(SDMAuthMsg));
   tstrncpy(pMsg->user, user, sizeof(pMsg->user));

@@ -201,7 +201,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port, user, db);
+  tscDebug("try to create a connection to %s:%u, user:%s db:%s", ip, port != 0 ? port : tsServerPort , user, db);
   if (user == NULL) user = TSDB_DEFAULT_USER;
   if (pass == NULL) pass = TSDB_DEFAULT_PASS;
 
@@ -655,27 +655,30 @@ int* taos_fetch_lengths(TAOS_RES *res) {
 char *taos_get_client_info() { return version; }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  if (pSql == NULL || pSql->signature != pSql) {
     return;
   }
 
-  SSqlObj *pSql = (SSqlObj *)res;
+  tscDebug("%p start to cancel query", res);
   SSqlCmd *pCmd = &pSql->cmd;
 
-  if (pSql->signature != pSql) return;
-  tscDebug("%p start to cancel query", res);
-
-
+  // TODO there are multi-thread problem.
+  // It may have been released by the other thread already.
+  // The ref count may fix this problem.
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    tscKillSTableQuery(pSql);
-  }
 
-  if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-    rpcCancelRequest(pSql->pRpcCtx);
-  }
+  // set the error code for master pSqlObj firstly
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-  tscQueueAsyncRes(pSql);
+
+  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    assert(pSql->pRpcCtx == NULL);
+    tscKillSTableQuery(pSql);
+  } else {
+    if (pSql->cmd.command < TSDB_SQL_LOCAL) {
+      rpcCancelRequest(pSql->pRpcCtx);
+    }
+  }
 
   tscDebug("%p query is cancelled", res);
 }
@@ -824,8 +827,11 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)tblNameList;
 
-  SQueryInfo *pQueryInfo = NULL;
-  tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
+  if (pQueryInfo == NULL) {
+    pSql->res.code = terrno;
+    return terrno;
+  }
 
   STableMetaInfo *pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
 
@@ -850,7 +856,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     str = nextStr + 1;
     len = (int32_t)strtrim(tblName);
 
-    SSQLToken sToken = {.n = len, .type = TK_ID, .z = tblName};
+    SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
     tSQLGetToken(tblName, &sToken.type);
 
     // Check if the table name available or not

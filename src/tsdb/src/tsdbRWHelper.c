@@ -908,7 +908,7 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
 
   // Add the sub-block
   if (pSCompBlock->numOfSubBlocks > 1) {
-    size_t tsize = pIdx->len - (pSCompBlock->offset + pSCompBlock->len);
+    size_t tsize = (size_t)(pIdx->len - (pSCompBlock->offset + pSCompBlock->len));
     if (tsize > 0) {
       memmove((void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len + sizeof(SCompBlock)),
               (void *)((char *)(pHelper->pCompInfo) + pSCompBlock->offset + pSCompBlock->len), tsize);
@@ -988,7 +988,7 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   // Delete the sub blocks it has
   if (pSCompBlock->numOfSubBlocks > 1) {
-    size_t tsize = pIdx->len - (pSCompBlock->offset + pSCompBlock->len);
+    size_t tsize = (size_t)(pIdx->len - (pSCompBlock->offset + pSCompBlock->len));
     if (tsize > 0) {
       memmove(POINTER_SHIFT(pHelper->pCompInfo, pSCompBlock->offset),
               POINTER_SHIFT(pHelper->pCompInfo, pSCompBlock->offset + pSCompBlock->len), tsize);

@@ -35,6 +35,8 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(1, 1, '涛思数据')
 
+        tdSql.error("insert into tb values (now, 'taosdata001')")
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

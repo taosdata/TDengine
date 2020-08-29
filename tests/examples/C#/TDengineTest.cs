@@ -28,7 +28,7 @@ namespace TDengineDriver
     private string configDir;
     private string user;
     private string password;
-    private int port = 0;
+    private short  port = 0;
 
     //sql parameters
     private string dbName;
@@ -43,7 +43,7 @@ namespace TDengineDriver
     private long batchRows;
     private long beginTimestamp = 1551369600000L;
 
-    private long conn = 0;
+    private IntPtr conn = IntPtr.Zero;
     private long rowsInserted = 0;
 
     static void Main(string[] args)
@@ -191,7 +191,7 @@ namespace TDengineDriver
     {
       string db = "";
       this.conn = TDengine.Connect(this.host, this.user, this.password, db, this.port);
-      if (this.conn == 0)
+      if (this.conn == IntPtr.Zero)
       {
         Console.WriteLine("Connect to TDengine failed");
         ExitProgram();
@@ -211,58 +211,62 @@ namespace TDengineDriver
 
       StringBuilder sql = new StringBuilder();
       sql.Append("create database if not exists ").Append(this.dbName);
-      int code = TDengine.Query(this.conn, sql.ToString());
-      if (code == TDengine.TSDB_CODE_SUCCESS)
+      IntPtr res = TDengine.Query(this.conn, sql.ToString());
+      if (res != IntPtr.Zero)
       {
         Console.WriteLine(sql.ToString() + " success");
       }
       else
       {
-        Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(conn));
+        Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
         ExitProgram();
       }
+      TDengine.FreeResult(res);
 
       sql.Clear();
       sql.Append("use ").Append(this.dbName);
-      code = TDengine.Query(this.conn, sql.ToString());
-      if (code == TDengine.TSDB_CODE_SUCCESS)
+      res = TDengine.Query(this.conn, sql.ToString());
+      if (res != IntPtr.Zero)
       {
         Console.WriteLine(sql.ToString() + " success");
       }
       else
       {
-        Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(this.conn));
+        Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
         ExitProgram();
       }
+      TDengine.FreeResult(res);
 
       sql.Clear();
-      sql.Append("create table if not exists ").Append(this.stableName).Append("(ts timestamp, v1 int) tags(t1 int)");
-      code = TDengine.Query(this.conn, sql.ToString());
-      if (code == TDengine.TSDB_CODE_SUCCESS)
+      sql.Append("create table if not exists ").Append(this.stableName).Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10)) tags(t1 int)");
+      res = TDengine.Query(this.conn, sql.ToString());
+      if (res != IntPtr.Zero)
       {
         Console.WriteLine(sql.ToString() + " success");
       }
       else
       {
-        Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(this.conn));
+        Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
         ExitProgram();
       }
+      TDengine.FreeResult(res);
 
       for (int i = 0; i < this.tableCount; i++)
       {
         sql.Clear();
         sql = sql.Append("create table if not exists ").Append(this.tablePrefix).Append(i)
           .Append(" using ").Append(this.stableName).Append(" tags(").Append(i).Append(")");
-        code = TDengine.Query(this.conn, sql.ToString());
-        if (code == TDengine.TSDB_CODE_SUCCESS)
+        res = TDengine.Query(this.conn, sql.ToString());
+        if (res != IntPtr.Zero)
         {
           Console.WriteLine(sql.ToString() + " success");
         }
         else
         {
-          Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(this.conn));
+          Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
           ExitProgram();
         }
+        TDengine.FreeResult(res);
       }
 
       Console.WriteLine("create db and table success");
@@ -287,16 +291,22 @@ namespace TDengineDriver
           for (int batch = 0; batch < this.batchRows; ++batch)
           {
             long rows = loop * this.batchRows + batch;
-            sql.Append("(").Append(this.beginTimestamp + rows).Append(",").Append(rows).Append(")");
+            sql.Append("(")
+               .Append(this.beginTimestamp + rows)
+               .Append(", 1, 2, 3,")
+               .Append(rows)
+               .Append(", 5, 6, 7, 'abc', 'def')");
           }
-          int code = TDengine.Query(conn, sql.ToString());
-          if (code != TDengine.TSDB_CODE_SUCCESS)
+          IntPtr res = TDengine.Query(this.conn, sql.ToString());
+          if (res == IntPtr.Zero)
           {
-            Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(conn));
+            Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
           }
 
-          int affectRows = TDengine.AffectRows(conn);
+          int affectRows = TDengine.AffectRows(res);
           this.rowsInserted += affectRows;
+
+          TDengine.FreeResult(res);
         }
       }
 
@@ -316,51 +326,45 @@ namespace TDengineDriver
 
       System.DateTime start = new System.DateTime();
       long queryRows = 0;
-
-      for (int i = 0; i < this.tableCount; ++i)
+      
+      for (int i = 0; i < 1/*this.tableCount*/; ++i)
       {
         String sql = "select * from " + this.dbName + "." + tablePrefix + i;
         Console.WriteLine(sql);
 
-        int code = TDengine.Query(conn, sql);
-        if (code != TDengine.TSDB_CODE_SUCCESS)
+        IntPtr res = TDengine.Query(conn, sql);
+        if (res == IntPtr.Zero)
         {
-          Console.WriteLine(sql + " failure, reason: " + TDengine.Error(conn));
+          Console.WriteLine(sql + " failure, reason: " + TDengine.Error(res));
           ExitProgram();
         }
 
-        int fieldCount = TDengine.FieldCount(conn);
-        //Console.WriteLine("field count: " + fieldCount);
+        int fieldCount = TDengine.FieldCount(res);
+        Console.WriteLine("field count: " + fieldCount);
 
-        List<TDengineMeta> metas = TDengine.FetchFields(conn);
+        List<TDengineMeta> metas = TDengine.FetchFields(res);
         for (int j = 0; j < metas.Count; j++)
         {
           TDengineMeta meta = (TDengineMeta)metas[j];
-          //Console.WriteLine("index:" + j + ", type:" + meta.type + ", typename:" + meta.TypeName() + ", name:" + meta.name + ", size:" + meta.size);
-        }
-
-        long result = TDengine.UseResult(conn);
-        if (result == 0)
-        {
-          Console.WriteLine(sql + " result set is null");
-          return;
+          Console.WriteLine("index:" + j + ", type:" + meta.type + ", typename:" + meta.TypeName() + ", name:" + meta.name + ", size:" + meta.size);
         }
 
         IntPtr rowdata;
-        while ((rowdata = TDengine.FetchRows(result)) != IntPtr.Zero)
+        StringBuilder builder = new StringBuilder();
+        while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
         {
           queryRows++;
           for (int fields = 0; fields < fieldCount; ++fields)
           {
             TDengineMeta meta = metas[fields];
-            int offset = 8 * fields;
+            int offset = IntPtr.Size * fields;
             IntPtr data = Marshal.ReadIntPtr(rowdata, offset);
 
-            //Console.Write("---");
+            builder.Append("---");
 
             if (data == IntPtr.Zero)
             {
-              //Console.Write("NULL");
+              builder.Append("NULL");
               continue;
             }
 
@@ -368,55 +372,61 @@ namespace TDengineDriver
             {
               case TDengineDataType.TSDB_DATA_TYPE_BOOL:
                 bool v1 = Marshal.ReadByte(data) == 0 ? false : true;
-                //Console.Write(v1);
+                builder.Append(v1);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
                 byte v2 = Marshal.ReadByte(data);
-                //Console.Write(v2);
+                builder.Append(v2);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
                 short v3 = Marshal.ReadInt16(data);
-                //Console.Write(v3);
+                builder.Append(v3);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_INT:
                 int v4 = Marshal.ReadInt32(data);
-                //Console.Write(v4);
+                builder.Append(v4);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
                 long v5 = Marshal.ReadInt64(data);
-                //Console.Write(v5);
+                builder.Append(v5);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
                 float v6 = (float)Marshal.PtrToStructure(data, typeof(float));
-                //Console.Write(v6);
+                builder.Append(v6);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
                 double v7 = (double)Marshal.PtrToStructure(data, typeof(double));
-                //Console.Write(v7);
+                builder.Append(v7);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_BINARY:
                 string v8 = Marshal.PtrToStringAnsi(data);
-                //Console.Write(v8);
+                builder.Append(v8);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
                 long v9 = Marshal.ReadInt64(data);
-                //Console.Write(v9);
+                builder.Append(v9);
                 break;
               case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                 string v10 = Marshal.PtrToStringAnsi(data);
-                //Console.Write(v10);
+                builder.Append(v10);
                 break;
             }
           }
-          //Console.WriteLine("---");
+          builder.Append("---");
+
+          if (queryRows <= 10)
+          {
+            Console.WriteLine(builder.ToString());
+          }
+          builder.Clear();
         }
 
-        if (TDengine.ErrorNo(conn) != 0)
+        if (TDengine.ErrorNo(res) != 0)
         {
-          Console.Write("Query is not complete， Error {0:G}", TDengine.ErrorNo(conn), TDengine.Error(conn));
+          Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
         }
 
-        TDengine.FreeResult(result);
+        TDengine.FreeResult(res);
       }
 
       System.DateTime end = new System.DateTime();
@@ -428,14 +438,15 @@ namespace TDengineDriver
 
     public void CloseConnection()
     {
-      if (conn != 0)
+      if (this.conn != IntPtr.Zero)
       {
-        TDengine.Close(conn);
+        TDengine.Close(this.conn);
       }
     }
 
     static void ExitProgram()
     {
+      TDengine.Cleanup();
       System.Environment.Exit(0);
     }
   }
