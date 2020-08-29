@@ -32,8 +32,10 @@ public class SubscribeTest extends BaseTest {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/" + "?user=root&password=taosdata"
-                , properties);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER,"root");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD,"taosdata");
+
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
         statement = connection.createStatement();
         statement.executeUpdate("create database if not exists " + dbName);

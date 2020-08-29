@@ -16,12 +16,12 @@ public class TestTSDBSubscribe {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER,"root");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD,"taosdata");
 
-        String cs = String.format("jdbc:TAOS://%s:0/%s?user=root&password=taosdata", host, database);
+        String cs = String.format("jdbc:TAOS://%s:0/%s", host, database);
         return (TSDBConnection)DriverManager.getConnection(cs, properties);
     }
-
-
 
     public static void main(String[] args) throws Exception {
         String usage = "java -Djava.ext.dirs=../ TestTSDBSubscribe [-host host] <-db database> <-topic topic> <-sql sql>";

@@ -12,7 +12,10 @@ public class TestPreparedStatement {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, "localhost");
-            connection = DriverManager.getConnection("jdbc:TAOS://localhost:0/?user=root&password=taosdata", properties);
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER,"root");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD,"taosdata");
+
+            connection = DriverManager.getConnection("jdbc:TAOS://localhost:0/", properties);
             String rawSql = "select * from test.log0601";
 //            String[] params = new String[]{"ts", "c1"};
             PreparedStatement pstmt = (TSDBPreparedStatement) connection.prepareStatement(rawSql);
