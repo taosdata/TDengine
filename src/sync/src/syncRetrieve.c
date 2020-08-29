@@ -27,11 +27,10 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name) 
-{
+static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name) {
   sDebug("%s, start to monitor:%s", pPeer->id, name);
 
-  if (pPeer->notifyFd <=0) {
+  if (pPeer->notifyFd <= 0) {
     pPeer->watchNum = 0;
     pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
     if (pPeer->notifyFd < 0) {
@@ -70,9 +69,8 @@ static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name)
   return 0;
 }
 
-static int syncAreFilesModified(SSyncPeer *pPeer) 
-{
-  if (pPeer->notifyFd <=0) return 0;
+static int syncAreFilesModified(SSyncPeer *pPeer) {
+  if (pPeer->notifyFd <= 0) return 0;
 
   char buf[2048]; 
   int len = read(pPeer->notifyFd, buf, sizeof(buf));
@@ -96,12 +94,11 @@ static int syncAreFilesModified(SSyncPeer *pPeer)
     }
   }
 
-  return code;  
+  return code;
 }
 
-static int syncRetrieveFile(SSyncPeer *pPeer)
-{
-  SSyncNode  *pNode = pPeer->pSyncNode;
+static int syncRetrieveFile(SSyncPeer *pPeer) {
+  SSyncNode * pNode = pPeer->pSyncNode;
   SFileInfo   fileInfo;
   SFileAck    fileAck;
   int         code = -1;
@@ -128,7 +125,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
 
     // wait for the ack from peer
     ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
-    if (ret <0)  break;
+    if (ret < 0) break;
 
     // set the peer sync version
     pPeer->sversion = fileInfo.fversion;
@@ -148,13 +145,13 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
 
     // send the file to peer
     int sfd = open(name, O_RDONLY);
-    if ( sfd < 0 ) break;
+    if (sfd < 0) break;
 
     ret = taosTSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size); 
-    close(sfd); 
-    if (ret <0) break;
+    close(sfd);
+    if (ret < 0) break;
 
-    sDebug("%s, %s is sent, size:%d", pPeer->id, name, fileInfo.size);    
+    sDebug("%s, %s is sent, size:%" PRId64, pPeer->id, name, fileInfo.size);    
     fileInfo.index++; 
 
     // check if processed files are modified 
@@ -170,8 +167,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
 
 /* if only a partial record is read out, set the IN_MODIFY flag in event,
    so upper layer will reload the file to get a complete record */
-static int syncReadOneWalRecord(int sfd, SWalHead *pHead, uint32_t *pEvent) 
-{ 
+static int syncReadOneWalRecord(int sfd, SWalHead *pHead, uint32_t *pEvent) {
   int ret;
 
   ret = read(sfd, pHead, sizeof(SWalHead));
@@ -185,7 +181,7 @@ static int syncReadOneWalRecord(int sfd, SWalHead *pHead, uint32_t *pEvent)
   }
 
   ret = read(sfd, pHead->cont, pHead->len);
-  if (ret <0) return -1;
+  if (ret < 0) return -1;
 
   if (ret != pHead->len) {
     // file is not at end yet, it shall be reloaded
@@ -194,10 +190,9 @@ static int syncReadOneWalRecord(int sfd, SWalHead *pHead, uint32_t *pEvent)
   }
 
   return sizeof(SWalHead) + pHead->len;
-}    
+}
 
-static int syncMonitorLastWal(SSyncPeer *pPeer, char *name) 
-{ 
+static int syncMonitorLastWal(SSyncPeer *pPeer, char *name) {
   pPeer->watchNum = 0;
   taosClose(pPeer->notifyFd);
   pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
@@ -221,18 +216,17 @@ static int syncMonitorLastWal(SSyncPeer *pPeer, char *name)
     return -1;
   }
 
-  return 0; 
+  return 0;
 }
 
-static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent) 
-{
+static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent) {
   char       buf[2048]; 
   int  len = read(pPeer->notifyFd, buf, sizeof(buf));
-  if (len <0 && errno != EAGAIN) {
-    sError("%s, failed to read notify FD(%s)", pPeer->id, strerror(errno));    
+  if (len < 0 && errno != EAGAIN) {
+    sError("%s, failed to read notify FD(%s)", pPeer->id, strerror(errno));
     return -1;
   }
-    
+
   if (len == 0) return 0;
 
   struct inotify_event *event;
@@ -248,8 +242,7 @@ static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent)
   return 0;
 }
 
-static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, int64_t offset, uint32_t *pEvent) 
-{
+static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, int64_t offset, uint32_t *pEvent) {
   SWalHead  *pHead = (SWalHead *) malloc(640000);
   int        code = -1;
   int32_t    bytes = 0;
@@ -261,9 +254,12 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   sDebug("%s, retrieve last wal, offset:%" PRId64 " fversion:%" PRIu64, pPeer->id, offset, fversion);
 
   while (1) {
-    int wsize = syncReadOneWalRecord(sfd, pHead, pEvent); 
-    if (wsize <0) break;
-    if (wsize == 0) { code = 0; break; }
+    int wsize = syncReadOneWalRecord(sfd, pHead, pEvent);
+    if (wsize < 0) break;
+    if (wsize == 0) {
+      code = 0;
+      break;
+    }
 
     sDebug("%s, last wal is forwarded, ver:%" PRIu64, pPeer->id, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
@@ -286,8 +282,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   return -1;
 }
 
-static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index) 
-{
+static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index) {
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         code = -1;
   char        fname[TSDB_FILENAME_LEN * 2];  // full path to wal file
@@ -350,12 +345,16 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
     }
 
     if (code < 0) break;
-    if (pPeer->sversion >= fversion && fversion > 0) break;  
+    if (pPeer->sversion >= fversion && fversion > 0) break;
 
-    index++;  wname[0] = 0;
+    index++;
+    wname[0] = 0;
     code = (*pNode->getWalInfo)(pNode->ahandle, wname, &index);
-    if ( code < 0) break;  
-    if ( wname[0] == 0 ) {code = 0; break;}
+    if (code < 0) break;
+    if (wname[0] == 0) {
+      code = 0;
+      break;
+    }
 
     // current last wal is closed, there is a new one 
     sDebug("%s, last wal is closed, try new one", pPeer->id);
@@ -366,9 +365,8 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index)
   return code;
 }
 
-static int syncRetrieveWal(SSyncPeer *pPeer)
-{
-  SSyncNode  *pNode = pPeer->pSyncNode;
+static int syncRetrieveWal(SSyncPeer *pPeer) {
+  SSyncNode * pNode = pPeer->pSyncNode;
   char        fname[TSDB_FILENAME_LEN * 3];
   char        wname[TSDB_FILENAME_LEN * 2];
   int32_t     size;
@@ -396,7 +394,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
 
     // send wal file, 
     // inotify is not required, old wal file won't be modified, even remove is ok
-    if ( stat(fname, &fstat) < 0 ) break;
+    if (stat(fname, &fstat) < 0) break;
     size = fstat.st_size;
 
     sDebug("%s, retrieve wal:%s size:%d", pPeer->id, fname, size);    
@@ -425,9 +423,8 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
   return code;
 }
 
-static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
-{
-  SSyncNode  *pNode = pPeer->pSyncNode;
+static int syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
+  SSyncNode *pNode = pPeer->pSyncNode;
 
   SFirstPkt firstPkt;
   memset(&firstPkt, 0, sizeof(firstPkt));
@@ -462,9 +459,8 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
   return 0;
 }
 
-void *syncRetrieveData(void *param)
-{
-  SSyncPeer  *pPeer = (SSyncPeer *)param;
+void *syncRetrieveData(void *param) {
+  SSyncPeer * pPeer = (SSyncPeer *)param;
   SSyncNode  *pNode = pPeer->pSyncNode;
   taosBlockSIGPIPE();
 

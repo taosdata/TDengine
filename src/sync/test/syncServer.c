@@ -234,7 +234,7 @@ void processRequestMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
-uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion) 
+uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) 
 {
   uint32_t     magic;
   struct stat  fstat;

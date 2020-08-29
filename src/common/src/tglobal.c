@@ -37,6 +37,7 @@ uint16_t tsServerPort = 6030;
 uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
 uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
 uint16_t tsSyncPort = 6040;
+uint16_t tsArbitratorPort = 6042;
 int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfMnodes = 3;
 int32_t  tsEnableVnodeBak = 1;
@@ -54,7 +55,7 @@ int8_t  tsDaylight = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
-int32_t tsEnableCoreFile = 1;
+int32_t tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 
 /*
@@ -1331,7 +1332,10 @@ int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
     *port = atoi(temp+1);
   } 
   
-  if (*port == 0) *port = tsServerPort;
+  if (*port == 0) {
+    *port = tsServerPort;
+    return -1;
+  }
 
   return 0; 
 }

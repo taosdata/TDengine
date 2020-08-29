@@ -35,7 +35,7 @@ sleep 1000
 
 print ======== step1 
 $x = 1 	
-while $x < 20
+while $x < 15
 
     print drop table times $x
 	sql drop table db.tb -x step1

@@ -80,7 +80,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, const char*, int32_t));
 
-uint8_t getBinaryExprOptr(SSQLToken *pToken);
+uint8_t getBinaryExprOptr(SStrToken *pToken);
 
 void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);

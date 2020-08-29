@@ -285,9 +285,9 @@ void tscKillConnection(STscObj *pObj) {
 
   SSqlObj *pSql = pObj->sqlList;
   while (pSql) {
-    //taosStopRpcConn(pSql->thandle);
     pSql = pSql->next;
   }
+  
 
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {

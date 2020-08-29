@@ -32,9 +32,16 @@ system sh/cfg.sh -n dnode2 -c http -v 1
 system sh/cfg.sh -n dnode3 -c http -v 1
 system sh/cfg.sh -n dnode4 -c http -v 1
 
-
+return
+# for crash_gen
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
+system sh/cfg.sh -n dnode1 -c rpcMaxTime -v 101
+system sh/cfg.sh -n dnode1 -c cache -v 2
+system sh/cfg.sh -n dnode1 -c keep -v 36500
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 
+
+# for windows
 
 system sh/cfg.sh -n dnode1 -c firstEp      -v 152.136.17.116:6030
 system sh/cfg.sh -n dnode1 -c secondEp     -v 152.136.17.116:6030

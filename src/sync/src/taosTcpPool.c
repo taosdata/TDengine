@@ -48,8 +48,7 @@ static void *taosProcessTcpData(void *param);
 static SThreadObj *taosGetTcpThread(SPoolObj *pPool);
 static void taosStopPoolThread(SThreadObj* pThread);
 
-void *taosOpenTcpThreadPool(SPoolInfo *pInfo)
-{
+void *taosOpenTcpThreadPool(SPoolInfo *pInfo) {
   pthread_attr_t thattr;
 
   SPoolObj *pPool = calloc(sizeof(SPoolObj), 1);
@@ -89,8 +88,7 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo)
   return pPool;
 }
 
-void taosCloseTcpThreadPool(void *param)
-{
+void taosCloseTcpThreadPool(void *param) {
   SPoolObj    *pPool = (SPoolObj *)param;
   SThreadObj  *pThread;
 
@@ -107,8 +105,7 @@ void taosCloseTcpThreadPool(void *param)
   uDebug("%p TCP pool is closed", pPool);
 }
 
-void *taosAllocateTcpConn(void *param, void *pPeer, int connFd)
-{
+void *taosAllocateTcpConn(void *param, void *pPeer, int connFd) {
   struct epoll_event event;
   SPoolObj *pPool = (SPoolObj *)param;
 
@@ -145,9 +142,8 @@ void *taosAllocateTcpConn(void *param, void *pPeer, int connFd)
   return pConn;
 }
 
-void taosFreeTcpConn(void *param)
-{
-  SConnObj *pConn = (SConnObj *)param;
+void taosFreeTcpConn(void *param) {
+  SConnObj *    pConn = (SConnObj *)param;
   SThreadObj   *pThread = pConn->pThread;
 
   uDebug("%p TCP connection will be closed, fd:%d", pThread, pConn->fd);

@@ -85,7 +85,7 @@ static SKeyword keywordTable[] = {
     {"QUERIES",      TK_QUERIES},
     {"CONNECTIONS",  TK_CONNECTIONS},
     {"STREAMS",      TK_STREAMS},
-    {"CONFIGS",      TK_CONFIGS},
+    {"VARIABLES",    TK_VARIABLES},
     {"SCORES",       TK_SCORES},
     {"GRANTS",       TK_GRANTS},
     {"DOT",          TK_DOT},
@@ -580,8 +580,8 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
   return 0;
 }
 
-SSQLToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t* ignoreTokenTypes) {
-  SSQLToken t0 = {0};
+SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t* ignoreTokenTypes) {
+  SStrToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
   if (str[*i] == 0) {

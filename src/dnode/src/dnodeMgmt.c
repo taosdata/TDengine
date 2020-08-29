@@ -724,6 +724,9 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->clusterCfg.maxVgroupsPerDb    = htonl(tsMaxVgroupsPerDb);
   tstrncpy(pStatus->clusterCfg.arbitrator, tsArbitrator, TSDB_EP_LEN);
   tstrncpy(pStatus->clusterCfg.timezone, tsTimezone, 64);
+  pStatus->clusterCfg.checkTime = 0;
+  char timestr[32] = "1970-01-01 00:00:00.00";
+  (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   tstrncpy(pStatus->clusterCfg.locale, tsLocale, TSDB_LOCALE_LEN);
   tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);  
   

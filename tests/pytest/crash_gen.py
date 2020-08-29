@@ -1492,6 +1492,7 @@ class Task():
                 0x386,  # DB is being dropped?!
                 0x503,
                 0x510,  # vnode not in ready state
+                0x14,   # db not ready, errno changed
                 0x600,
                 1000  # REST catch-all error
             ]: 

@@ -91,6 +91,14 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    isUpdateQueryImp
+ * Signature: (J)J
+ */
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_isUpdateQueryImp
+  (JNIEnv *env, jobject jobj, jlong con, jlong tres);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    freeResultSetImp
  * Signature: (JJ)I
  */

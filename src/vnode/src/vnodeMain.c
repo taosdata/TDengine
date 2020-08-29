@@ -41,7 +41,7 @@ static int32_t  vnodeReadCfg(SVnodeObj *pVnode);
 static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static int32_t  vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion);
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
@@ -290,11 +290,18 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->sync = syncStart(&syncInfo);
 
   if (pVnode->sync == NULL) {
+    vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
+           tstrerror(terrno));
     vnodeCleanUp(pVnode);
     return terrno;
   }
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
+  if (pVnode->qMgmt == NULL) {
+    vnodeCleanUp(pVnode);
+    return terrno;
+  }
+
   pVnode->events = NULL;
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
@@ -358,9 +365,11 @@ void vnodeRelease(void *pVnodeRaw) {
   taosTFree(pVnode->rootDir);
 
   if (pVnode->dropped) {
-    char rootDir[TSDB_FILENAME_LEN] = {0};
+    char rootDir[TSDB_FILENAME_LEN] = {0};    
+    char newDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
-    taosMvDir(tsVnodeBakDir, rootDir);
+    sprintf(newDir, "%s/vnode%d", tsVnodeBakDir, vgId);
+    taosRename(rootDir, newDir);
     taosRemoveDir(rootDir);
     dnodeSendStatusMsgToMnode();
   }
@@ -534,7 +543,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   return 0; 
 }
 
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int32_t *size, uint64_t *fversion) {
+static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
   SVnodeObj *pVnode = ahandle;
   *fversion = pVnode->fversion;
   return tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);
@@ -547,7 +556,7 @@ static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
 
 static void vnodeNotifyRole(void *ahandle, int8_t role) {
   SVnodeObj *pVnode = ahandle;
-  vInfo("vgId:%d, sync role changed from %d to %d", pVnode->vgId, pVnode->role, role);
+  vInfo("vgId:%d, sync role changed from %s to %s", pVnode->vgId, syncRole[pVnode->role], syncRole[role]);
   pVnode->role = role;
   dnodeSendStatusMsgToMnode();
 

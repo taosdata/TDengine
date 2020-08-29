@@ -223,6 +223,7 @@ if $rows != 2 then
 endi
 print data00 = $data00
 if $data00 != 5 then
+  print expect 5, actual: $data00
   return -1
 endi
 if $data10 != 5 then

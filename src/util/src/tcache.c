@@ -189,12 +189,12 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
   return pCacheObj;
 }
 
-void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int duration) {
+void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const void *pData, size_t dataSize, int durationMS) {
   if (pCacheObj == NULL || pCacheObj->pHashTable == NULL || pCacheObj->deleting == 1) {
     return NULL;
   }
 
-  SCacheDataNode *pNode1 = taosCreateCacheNode(key, keyLen, pData, dataSize, duration);
+  SCacheDataNode *pNode1 = taosCreateCacheNode(key, keyLen, pData, dataSize, durationMS);
   if (pNode1 == NULL) {
     uError("cache:%s, key:%p, failed to added into cache, out of memory", pCacheObj->name, key);
     return NULL;

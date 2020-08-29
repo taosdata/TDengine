@@ -475,7 +475,7 @@ int         tsdbUpdateFileHeader(SFile* pFile);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
-void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int32_t* size);
+void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
 void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 
 // ------------------ tsdbRWHelper.c
