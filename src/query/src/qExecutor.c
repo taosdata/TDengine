@@ -172,28 +172,24 @@ static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
     return;
   }
 
-  int64_t key = tw->skey;
-  key /= 1000;
+  int64_t key = tw->skey / 1000, interval = pQuery->intervalTime;
   if (pQuery->precision == TSDB_TIME_PRECISION_MICRO) {
     key /= 1000;
+  }
+  if (pQuery->intervalTimeUnit == 'y') {
+    interval *= 12;
   }
 
   struct tm tm;
   time_t t = (time_t)key;
   localtime_r(&t, &tm);
 
-  if (pQuery->intervalTimeUnit == 'y') {
-    factor *= 12;
-  }
-
-  int mon = tm.tm_year * 12 + tm.tm_mon;
-  mon += pQuery->intervalTime * factor;
+  int mon = tm.tm_year * 12 + tm.tm_mon + interval * factor;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-
   tw->skey = mktime(&tm) * 1000L;
 
-  mon += pQuery->intervalTime * factor;
+  mon += interval;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
   tw->ekey = mktime(&tm) * 1000L;

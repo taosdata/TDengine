@@ -586,7 +586,7 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   }
 
   // interval is not null
-  SSQLToken* t = &pQuerySql->interval;
+  SStrToken* t = &pQuerySql->interval;
   if (parseDuration(t->z, t->n, &pQueryInfo->intervalTime, &pQueryInfo->intervalTimeUnit) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -672,7 +672,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
-  SSQLToken* pSliding = &pQuerySql->sliding;
+  SStrToken* pSliding = &pQuerySql->sliding;
   if (pSliding->n == 0) {
     pQueryInfo->slidingTimeUnit = pQueryInfo->intervalTimeUnit;
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
