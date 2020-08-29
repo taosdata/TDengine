@@ -89,7 +89,11 @@ typedef struct DemoArguments {
     {0, 'h', "host",                     0, "The host to connect to TDengine. Default is localhost.",                                                           0},
     {0, 'p', "port",                     0, "The TCP/IP port number to use for the connection. Default is 0.",                                                  1},
     {0, 'u', "user",                     0, "The TDengine user name to use when connecting to the server. Default is 'root'.",                                  2},
+    #ifdef _TD_POWER_    
+    {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'powerdb'.",                                         3},
+    #else
     {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
+    #endif
     {0, 'd', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
     {0, 'a', "replica",                  0, "Set the replica parameters of the database, Default 1, min: 1, max: 3.",                                              3},
     {0, 'm', "table_prefix",             0, "Table prefix name. Default is 't'.",                                                                               3},
@@ -104,7 +108,11 @@ typedef struct DemoArguments {
     {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                              10},
     {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                          11},
     {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
+    #ifdef _TD_POWER_
+    {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/power/'.",                                                               14},
+    #else
     {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
+    #endif
     {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
     {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order.",                                                  14},
     {0, 'R', "rate",                     0, "Out of order data's rate--if order=1 Default 10, min: 0, max: 50.",                                                14},
@@ -279,7 +287,11 @@ typedef struct DemoArguments {
     printf("%s%s\n", indent, "-u");
     printf("%s%s%s\n", indent, indent, "user, The user name to use when connecting to the server. Default is 'root'.");
     printf("%s%s\n", indent, "-p");
+    #ifdef _TD_POWER_    
+    printf("%s%s%s\n", indent, indent, "password, The password to use when connecting to the server. Default is 'powerdb'.");
+    #else
     printf("%s%s%s\n", indent, indent, "password, The password to use when connecting to the server. Default is 'taosdata'.");
+    #endif
     printf("%s%s\n", indent, "-d");
     printf("%s%s%s\n", indent, indent, "database, Destination database. Default is 'test'.");
     printf("%s%s\n", indent, "-a");
@@ -309,7 +321,11 @@ typedef struct DemoArguments {
     printf("%s%s\n", indent, "-n");
     printf("%s%s%s\n", indent, indent, "num_of_records_per_table, The number of records per table. Default is 100000.");
     printf("%s%s\n", indent, "-c");
+    #ifdef _TD_POWER_
+    printf("%s%s%s\n", indent, indent, "config_directory, Configuration directory. Default is '/etc/power/'.");
+    #else
     printf("%s%s%s\n", indent, indent, "config_directory, Configuration directory. Default is '/etc/taos/'.");
+    #endif
     printf("%s%s\n", indent, "-x");
     printf("%s%s%s\n", indent, indent, "flag, Insert only flag.");
     printf("%s%s\n", indent, "-O");
@@ -513,7 +529,11 @@ int main(int argc, char *argv[]) {
   SDemoArguments arguments = {  NULL,            // host
                                 0,               // port
                                 "root",          // user
+                                #ifdef _TD_POWER_ 
+                                "powerdb",      // password
+                                #else
                                 "taosdata",      // password
+                                #endif
                                 "test",          // database
                                 1,               // replica
                                 "t",             // tb_prefix

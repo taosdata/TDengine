@@ -1,0 +1,145 @@
+#!/bin/bash
+#
+# power      This shell script takes care of starting and stopping PowerDB.
+#
+# chkconfig: 2345 99 01
+# description: PowerDB is a districuted, scalable, high-performance Time Series Database
+#              (TSDB). More than just a pure database, PowerDB also provides the ability
+#              to do stream computing, aggregation etc.
+#
+#
+### BEGIN INIT INFO
+# Provides: powerd
+# Required-Start: $network $local_fs $remote_fs
+# Required-Stop: $network $local_fs $remote_fs
+# Short-Description: start and stop powerd
+# Description: PowerDB is a districuted, scalable, high-performance Time Series Database
+#              (TSDB). More than just a pure database, PowerDB also provides the ability
+#              to do stream computing, aggregation etc.
+### END INIT INFO
+
+# Source init functions
+. /etc/init.d/functions
+
+# Maximum number of open files
+MAX_OPEN_FILES=65535
+
+# Default program options
+NAME=powerd
+PROG=/usr/local/power/bin/powerd
+USER=root
+GROUP=root
+
+# Default directories
+LOCK_DIR=/var/lock/subsys
+PID_DIR=/var/run/$NAME
+
+# Set file names
+LOCK_FILE=$LOCK_DIR/$NAME
+PID_FILE=$PID_DIR/$NAME.pid
+
+[ -e $PID_DIR ] || mkdir -p $PID_DIR
+
+PROG_OPTS=""
+
+start() {
+    echo -n "Starting ${NAME}: "
+    # check identity
+    curid="`id -u -n`"
+    if [ "$curid" != root ] && [ "$curid" != "$USER" ] ; then
+        echo "Must be run as root or $USER, but was run as $curid"
+        return 1
+    fi
+    # Sets the maximum number of open file descriptors allowed.
+    ulimit -n $MAX_OPEN_FILES
+    curulimit="`ulimit -n`"
+    if [ "$curulimit" -lt $MAX_OPEN_FILES ] ; then
+        echo "'ulimit -n' must be greater than or equal to $MAX_OPEN_FILES, is $curulimit"
+        return 1
+    fi
+
+    if [ "`id -u -n`" == root ] ; then
+        # Changes the owner of the lock, and the pid files to allow
+        # non-root OpenTSDB daemons to run /usr/share/opentsdb/bin/opentsdb_restart.py.
+        touch $LOCK_FILE && chown $USER:$GROUP $LOCK_FILE
+        touch $PID_FILE && chown $USER:$GROUP $PID_FILE
+        daemon --user $USER --pidfile $PID_FILE "$PROG $PROG_OPTS &> /dev/null &"
+    else
+        # Don't have to change user.
+        daemon --pidfile $PID_FILE "$PROG $PROG_OPTS &> /dev/null &"
+    fi
+    retval=$?
+    sleep 2
+    echo
+    [ $retval -eq 0 ] && (findproc > $PID_FILE && touch $LOCK_FILE)
+    return $retval
+}
+
+stop() {
+    echo -n "Stopping ${NAME}: "
+    killproc -p $PID_FILE $NAME
+    retval=$?
+    echo
+    # Non-root users don't have enough permission to remove pid and lock files.
+    # So, the opentsdb_restart.py cannot get rid of the files, and the command
+    # "service opentsdb status" will complain about the existing pid file.
+    # Makes the pid file empty.
+    echo > $PID_FILE
+    [ $retval -eq 0 ] && (rm -f $PID_FILE && rm -f $LOCK_FILE)
+    return $retval
+}
+
+restart() {
+    stop
+    start
+}
+
+reload() {
+    restart
+}
+
+force_reload() {
+    restart
+}
+
+rh_status() {
+    # run checks to determine if the service is running or use generic status
+    status -p $PID_FILE -l $LOCK_FILE $NAME
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+case "$1" in
+    start)
+        rh_status_q && exit 0
+        $1
+        ;;
+    stop)
+        rh_status_q || exit 0
+        $1
+        ;;
+    restart)
+        $1
+        ;;
+    reload)
+        rh_status_q || exit 7
+        $1
+        ;;
+    force-reload)
+        force_reload
+        ;;
+    status)
+        rh_status
+        ;;
+    condrestart|try-restart)
+        rh_status_q || exit 0
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
+        exit 2
+esac
+
+exit $?

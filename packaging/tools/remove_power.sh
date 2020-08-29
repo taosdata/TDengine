@@ -12,10 +12,10 @@ GREEN='\033[1;32m'
 NC='\033[0m'
 
 #install main path
-install_main_dir="/usr/local/taos"
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
-cfg_link_dir="/usr/local/taos/cfg"
+install_main_dir="/usr/local/power"
+data_link_dir="/usr/local/power/data"
+log_link_dir="/usr/local/power/log"
+cfg_link_dir="/usr/local/power/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
@@ -23,10 +23,10 @@ inc_link_dir="/usr/include"
 install_nginxd_dir="/usr/local/nginxd"
 
 # v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/power"
 
 service_config_dir="/etc/systemd/system"
-taos_service_name="taosd"
+power_service_name="powerd"
 tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
 csudo=""
@@ -54,8 +54,8 @@ else
     service_mod=2
 fi
 
-function kill_taosd() {
-  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+function kill_powerd() {
+  pid=$(ps -ef | grep "powerd" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -69,12 +69,12 @@ function kill_tarbitrator() {
 }
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/taos        || :
-    ${csudo} rm -f ${bin_link_dir}/taosd       || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo    || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos      || :
-    ${csudo} rm -f ${bin_link_dir}/tarbitrator || :
-    ${csudo} rm -f ${bin_link_dir}/set_core    || :
+    ${csudo} rm -f ${bin_link_dir}/power        || :
+    ${csudo} rm -f ${bin_link_dir}/powerd       || :
+    ${csudo} rm -f ${bin_link_dir}/powerdemo    || :
+    ${csudo} rm -f ${bin_link_dir}/rmpower      || :
+    ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
+    ${csudo} rm -f ${bin_link_dir}/set_core     || :
 }
 
 function clean_lib() {
@@ -101,13 +101,13 @@ function clean_log() {
 }
 
 function clean_service_on_systemd() {
-    taosd_service_config="${service_config_dir}/${taos_service_name}.service"
-    if systemctl is-active --quiet ${taos_service_name}; then
-        echo "TDengine taosd is running, stopping it..."
-        ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
+    power_service_config="${service_config_dir}/${power_service_name}.service"
+    if systemctl is-active --quiet ${power_service_name}; then
+        echo "PowerDB powerd is running, stopping it..."
+        ${csudo} systemctl stop ${power_service_name} &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
-    ${csudo} rm -f ${taosd_service_config}
+    ${csudo} systemctl disable ${power_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} rm -f ${power_service_config}
     
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
@@ -116,58 +116,59 @@ function clean_service_on_systemd() {
     fi
     ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${tarbitratord_service_config}
-  
+    
     if [ "$verMode" == "cluster" ]; then
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
    	 	if [ -d ${bin_dir}/web ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	      echo "Nginx for TDengine is running, stopping it..."
-   	      ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
+   	        echo "Nginx for TDengine is running, stopping it..."
+   	        ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	    fi
    	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+      
    	    ${csudo} rm -f ${nginx_service_config}
    	  fi
     fi 
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="power:2345:respawn:${service_config_dir}/powerd start"
     #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
     
-    if pidof taosd &> /dev/null; then
-        echo "TDengine taosd is running, stopping it..."
-        ${csudo} service taosd stop || :
+    if pidof powerd &> /dev/null; then
+        echo "PowerDB powerd is running, stopping it..."
+        ${csudo} service powerd stop || :
     fi
     
     if pidof tarbitrator &> /dev/null; then
-        echo "TDengine tarbitrator is running, stopping it..."
+        echo "PowerDB tarbitrator is running, stopping it..."
         ${csudo} service tarbitratord stop || :
     fi
     
     if ((${initd_mod}==1)); then    
-      if [ -e ${service_config_dir}/taosd ]; then 
-        ${csudo} chkconfig --del taosd || :
+      if [ -e ${service_config_dir}/powerd ]; then 
+        ${csudo} chkconfig --del powerd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then   
-      if [ -e ${service_config_dir}/taosd ]; then 
-        ${csudo} insserv -r taosd || :
+      if [ -e ${service_config_dir}/powerd ]; then 
+        ${csudo} insserv -r powerd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} insserv -r tarbitratord || :
       fi
     elif ((${initd_mod}==3)); then  
-      if [ -e ${service_config_dir}/taosd ]; then 
-        ${csudo} update-rc.d -f taosd remove || :
+      if [ -e ${service_config_dir}/powerd ]; then 
+        ${csudo} update-rc.d -f powerd remove || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} update-rc.d -f tarbitratord remove || :
       fi
     fi
     
-    ${csudo} rm -f ${service_config_dir}/taosd || :
+    ${csudo} rm -f ${service_config_dir}/powerd || :
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
    
     if $(which init &> /dev/null); then
@@ -182,7 +183,7 @@ function clean_service() {
         clean_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_taosd
+        kill_powerd
         kill_tarbitrator
     fi
 }
@@ -210,16 +211,16 @@ else
   osinfo=""
 fi
 
-if echo $osinfo | grep -qwi "ubuntu" ; then
-#  echo "this is ubuntu system"
-   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
-elif echo $osinfo | grep -qwi "debian" ; then
-#  echo "this is debian system"
-   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
-elif  echo $osinfo | grep -qwi "centos" ; then
-#  echo "this is centos system"
-  ${csudo} rpm -e --noscripts tdengine || :
-fi
+#if echo $osinfo | grep -qwi "ubuntu" ; then
+##  echo "this is ubuntu system"
+#   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
+#elif echo $osinfo | grep -qwi "debian" ; then
+##  echo "this is debian system"
+#   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
+#elif  echo $osinfo | grep -qwi "centos" ; then
+##  echo "this is centos system"
+#  ${csudo} rpm -e --noscripts tdengine || :
+#fi
 
-echo -e "${GREEN}TDengine is removed successfully!${NC}"
+echo -e "${GREEN}PowerDB is removed successfully!${NC}"
 echo 
