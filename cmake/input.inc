@@ -28,8 +28,8 @@ IF (${SOMODE} MATCHES "static")
 ENDIF ()
 
 IF (${DBNAME} MATCHES "power")
-  SET(TD_OEM_POWER TRUE)
-  MESSAGE(STATUS "OEM power is true")
+  SET(TD_POWER TRUE)
+  MESSAGE(STATUS "power is true")
 ENDIF ()
 
 IF (${DLLTYPE} MATCHES "go")
