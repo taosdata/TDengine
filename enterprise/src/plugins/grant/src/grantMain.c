@@ -74,7 +74,7 @@ static SGrantStatus grantStatus = {
 };
 
 int32_t grantInit() {
-  #ifdef _TD_OEM_POWER_
+  #ifdef _TD_POWER_
     grantActiveSystem("/etc/power/taos.cfg");
   #else
     grantActiveSystem("/etc/taos/taos.cfg");
@@ -638,7 +638,7 @@ static void grantCheckGrantInfo() {
 }
 
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-#ifdef _TD_OEM_POWER_
+#ifdef _TD_POWER_
   grantActiveSystem("/etc/power/taos.cfg");
 #else
   grantActiveSystem("/etc/taos/taos.cfg");

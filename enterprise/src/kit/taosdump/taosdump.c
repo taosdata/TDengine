@@ -162,7 +162,7 @@ static struct argp_option options[] = {
   // connection option
   {"host",          'h', "HOST",        0,  "Server host dumping data from. Default is localhost.",        0},
   {"user",          'u', "USER",        0,  "User name used to connect to server. Default is root.",       0},
-  #ifdef _TD_OEM_POWER_
+  #ifdef _TD_POWER_
   {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is powerdb.",     0},
   #else
   {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is taosdata.",    0},
@@ -173,7 +173,7 @@ static struct argp_option options[] = {
   // input/output file
   {"outpath",       'o', "OUTPATH",     0,  "Output file path.",                                          1},
   {"inpath",        'i', "INPATH",      0,  "Input file path.",                                           1},
-  #ifdef _TD_OEM_POWER_
+  #ifdef _TD_POWER_
   {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.",       1},
   #else
   {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.",        1},
@@ -354,7 +354,7 @@ struct arguments tsArguments = {
   // connection option
   NULL, 
   "root", 
-  #ifdef _TD_OEM_POWER_
+  #ifdef _TD_POWER_
   "powerdb", 
   #else
   "taosdata", 
