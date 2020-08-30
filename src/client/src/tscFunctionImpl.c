@@ -1648,10 +1648,10 @@ static void last_function(SQLFunctionCtx *pCtx) {
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+      if (!pCtx->requireNull) {
         continue; 
+      }
     }
-   
-    
     memcpy(pCtx->aOutputBuf, data, pCtx->inputBytes);
     
     TSKEY ts = pCtx->ptsList[i];
