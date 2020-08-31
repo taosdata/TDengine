@@ -29,24 +29,73 @@ For user manual, system design and architecture, engineering blogs, refer to [TD
 # Building
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
-To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the project directory. Install CMake for example on Ubuntu:
-```
-sudo apt-get install -y cmake build-essential
+To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the project directory. 
+
+## Install tools
+
+### Ubuntu & Debian:
+```bash
+sudo apt-get install -y gcc cmake build-essential git
 ```
 
 To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 
-To install openjdk-8 on Ubuntu:
-```
-sudo apt-get install openjdk-8-jdk
-```
-To install Apache Maven on Ubuntu:
-```
-sudo apt-get install maven
+To install openjdk-8:
+```bash
+sudo apt-get install -y openjdk-8-jdk
 ```
 
-Build TDengine:
-
+To install Apache Maven:
+```bash
+sudo apt-get install -y  maven
 ```
+
+### Centos 7:
+```bash
+sudo yum install -y gcc gcc-c++ make cmake3 epel-release git
+sudo yum remove -y cmake
+sudo ln -s /usr/bin/cmake3 /usr/bin/cmake
+```
+
+To install openjdk-8:
+```bash
+sudo yum install -y java-1.8.0-openjdk
+```
+
+To install Apache Maven:
+```bash
+sudo yum install -y maven
+```
+
+### Centos 8 & Fedora:
+```bash
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git
+```
+
+To install openjdk-8:
+```bash
+sudo dnf install -y java-1.8.0-openjdk
+```
+
+To install Apache Maven:
+```bash
+sudo dnf install -y maven
+```
+
+## Get the source codes
+
+- github:
+```bash
+git clone https://github.com/taosdata/TDengine.git
+```
+
+- gitee:
+```bash
+git clone https://gitee.com/mirrors/taosdata-TDengine.git
+```
+
+## Build TDengine
+
+```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
@@ -54,12 +103,12 @@ cmake .. && cmake --build .
 To compile on an ARM processor (aarch64 or aarch32), please add option CPUTYPE as below:
 
 aarch64:
-```cmd
+```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
 aarch32:
-```cmd
+```bashapt
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
