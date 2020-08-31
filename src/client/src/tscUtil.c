@@ -2058,8 +2058,8 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
 }
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {
   const char* msgFormat1 = "invalid SQL: %s";
-  const char* msgFormat2 = "invalid SQL: \"%s\" (%s)";
-  const char* msgFormat3 = "invalid SQL: \"%s\"";
+  const char* msgFormat2 = "invalid SQL: \'%s\' (%s)";
+  const char* msgFormat3 = "invalid SQL: \'%s\'";
 
   const int32_t BACKWARD_CHAR_STEP = 0;
 
