@@ -186,7 +186,7 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 size_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
-void      tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
+int32_t   tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
@@ -204,7 +204,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t 
 SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
 void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw);
 
-void tscTagCondCopy(STagCond* dest, const STagCond* src);
+int32_t tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
 
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);

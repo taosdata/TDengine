@@ -570,8 +570,9 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 
   SSchema* pColSchema = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
-  *s1 = taosArrayInit(p1->num, p1->tagSize);
-  *s2 = taosArrayInit(p2->num, p2->tagSize);
+  // int16_t for padding
+  *s1 = taosArrayInit(p1->num, p1->tagSize - sizeof(int16_t));
+  *s2 = taosArrayInit(p2->num, p2->tagSize - sizeof(int16_t));
 
   if (!(checkForDuplicateTagVal(pQueryInfo, p1, pParentSql) && checkForDuplicateTagVal(pQueryInfo, p2, pParentSql))) {
     return TSDB_CODE_QRY_DUP_JOIN_KEY;
@@ -1039,6 +1040,10 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
   int32_t numOfExprs = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * numOfExprs);
+  if (pRes->pColumnIndex == NULL) {
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return;
+  }
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -1153,6 +1158,7 @@ static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
 
 static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
 
+// TODO
 int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -1199,7 +1205,9 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   
     // this data needs to be transfer to support struct
     memset(&pNewQueryInfo->fieldsInfo, 0, sizeof(SFieldInfo));
-    tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond);//pNewQueryInfo->tagCond;
+    if (tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond) != 0) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
 
     pNew->cmd.numOfCols = 0;
     pNewQueryInfo->intervalTime = 0;
@@ -1380,7 +1388,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   const uint32_t nBufferSize = (1u << 16);  // 64KB
   
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
   pSql->numOfSubs = pTableMetaInfo->vgroupList->numOfVgroups;
@@ -1395,9 +1403,20 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   }
   
   pSql->pSubs = calloc(pSql->numOfSubs, POINTER_BYTES);
-  
+
   tscDebug("%p retrieved query data from %d vnode(s)", pSql, pSql->numOfSubs);
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
+
+  if (pSql->pSubs == NULL || pState == NULL) {
+    taosTFree(pState);
+    taosTFree(pSql->pSubs);
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->numOfSubs);
+
+    tscQueueAsyncRes(pSql);
+    return ret;
+  }
+
   pState->numOfTotal = pSql->numOfSubs;
   pState->numOfRemain = pSql->numOfSubs;
 
@@ -2029,8 +2048,21 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     numOfRes = (int32_t)(MIN(numOfRes, pSql->pSubs[i]->res.numOfRows));
   }
 
+  if (numOfRes == 0) {
+    return;
+  }
+
   int32_t totalSize = tscGetResRowLength(pQueryInfo->exprList);
-  pRes->pRsp = realloc(pRes->pRsp, numOfRes * totalSize);
+
+  assert(numOfRes * totalSize > 0);
+  char* tmp = realloc(pRes->pRsp, numOfRes * totalSize);
+  if (tmp == NULL) {
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return;
+  } else {
+    pRes->pRsp = tmp;
+  }
+
   pRes->data = pRes->pRsp;
 
   char* data = pRes->data;
@@ -2068,6 +2100,12 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
     pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
     pRes->length = calloc(numOfExprs, sizeof(int32_t));
+
+    if (pRes->tsrow == NULL || pRes->buffer == NULL || pRes->length == NULL) {
+      pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      tscQueueAsyncRes(pSql);
+      return;
+    }
 
     tscRestoreSQLFuncForSTableQuery(pQueryInfo);
   }
