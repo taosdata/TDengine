@@ -180,7 +180,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
         } else if (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0) {
           *(uint8_t *)payload = TSDB_DATA_BOOL_NULL;
         } else {
-          return tscInvalidSQLErrMsg(msg, "invalid bool data", pToken->z);
+          return tscSQLSyntaxErrMsg(msg, "invalid bool data", pToken->z);
         }
       } else if (pToken->type == TK_INTEGER) {
         iv = strtoll(pToken->z, NULL, 10);
@@ -439,8 +439,8 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     int16_t type = sToken.type;
     if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
          type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
-      tscInvalidSQLErrMsg(error, "invalid data or symbol", sToken.z);
-      *code = TSDB_CODE_TSC_INVALID_SQL;
+      tscSQLSyntaxErrMsg(error, "invalid data or symbol", sToken.z);
+      *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       return -1;
     }
 
@@ -472,7 +472,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, error, str, isPrimaryKey, timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
-      *code = TSDB_CODE_TSC_INVALID_SQL;
+      *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       return -1;  // NOTE: here 0 mean error!
     }
 
@@ -568,8 +568,8 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
     sToken = tStrGetToken(*str, &index, false, 0, NULL);
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      tscInvalidSQLErrMsg(error, ") expected", *str);
-      *code = TSDB_CODE_TSC_INVALID_SQL;
+      tscSQLSyntaxErrMsg(error, ") expected", *str);
+      *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       return -1;
     }
 
@@ -578,7 +578,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
 
   if (numOfRows <= 0) {
     strcpy(error, "no any data points");
-    *code = TSDB_CODE_TSC_INVALID_SQL;
+    *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     return -1;
   } else {
     return numOfRows;
@@ -943,7 +943,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
     sql += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      return tscInvalidSQLErrMsg(pCmd->payload, ") expected", sToken.z);
+      return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
     pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen) + pTag->dataLen;

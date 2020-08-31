@@ -98,6 +98,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ACTION_IN_PROGRESS,       0, 0x0212, "Action in 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DISCONNECTED,             0, 0x0213, "Disconnected from service")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_WRITE_AUTH,            0, 0x0214, "No write permission")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_CONN_KILLED,            0, 0x0215, "Connection killed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,            0, 0x0216, "Syntax errr in SQL")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        0, 0x0300, "Message not processed")

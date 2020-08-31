@@ -458,6 +458,7 @@ bool tscResultsetFetchCompleted(TAOS_RES *result);
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
+int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql);
 
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
