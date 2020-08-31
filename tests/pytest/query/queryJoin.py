@@ -114,6 +114,32 @@ class TDTestCase:
 
         tdSql.error("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.pid, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
 
+        # test case for https://jira.taosdata.com:18080/browse/TD-1250
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table meters(ts timestamp, voltage int) tags(tag1 binary(20), tag2 nchar(20))")
+        tdSql.execute("create table t1 using meters tags('beijing', 'chaoyang')")
+        tdSql.execute("create table t2 using meters tags('beijing', 'haidian')")
+        tdSql.execute("create table t3 using meters tags('shanghai', 'haidian')")
+        tdSql.execute("create table t4 using meters tags('shanghai', 'chaoyang')")
+        tdSql.execute("insert into t1 values(1538548685000, 1)")
+        tdSql.execute("insert into t2 values(1538548685000, 2)")
+        tdSql.execute("insert into t3 values(1538548685000, 3)")
+        tdSql.execute("insert into t4 values(1538548685000, 4)")
+
+        tdSql.query("select * from t1, t2 where t1.ts = t2.ts and t1.tag1 = t2.tag1")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from t1, t2 where t1.ts = t2.ts and t1.tag2 = t2.tag2")
+        tdSql.checkRows(0)
+
+        tdSql.query("select * from t2, t3 where t2.ts = t3.ts and t2.tag2 = t3.tag2")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from t2, t3 where t2.ts = t3.ts and t2.tag1 = t3.tag1")
+        tdSql.checkRows(0)
+                
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
