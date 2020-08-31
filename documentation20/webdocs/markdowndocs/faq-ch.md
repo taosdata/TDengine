@@ -23,14 +23,18 @@
 
 客户端遇到链接故障，请按照下面的步骤进行检查：
 
-1. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
-2. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
-3. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
-4. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
-5. 检查防火墙设置，确认TCP/UDP 端口6030-6039 是打开的
-6. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
-7. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
-8. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
+1. 检查网络环境
+    * 云服务器：检查云服务器的安全组是否打开TCP/UDP 端口6030-6039的访问权限
+    * 本地虚拟机：检查网络能否ping通，尽量避免使用`localhost` 作为hostname
+    * 公司服务器：如果为NAT网络环境，请务必检查服务器能否将消息返回值客户端
+2. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
+3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
+5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
+6. 检查防火墙设置，确认TCP/UDP 端口6030-6039 是打开的
+7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
+8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
+9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
    检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
    检查服务器侧TCP端口连接是否工作：`nc -l {port}`
    检查客户端侧TCP端口链接是否工作：`nc {hostIP} {port}`
