@@ -2422,24 +2422,14 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
-  const int32_t MAX_AVAILABLE_BUFFER_SIZE = 1 << 20;  // 1MB
-  const int32_t NUMOFCOLS = 1;
-  
   if (!function_setup(pCtx)) {
     return false;
   }
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSchema      field[1] = { { (uint8_t)pCtx->inputType, "dummyCol", 0, pCtx->inputBytes } };
-  
-  SColumnModel *pModel = createColumnModel(field, 1, 1000);
-  int32_t    orderIdx = 0;
-  
-  // tOrderDesc object
-  tOrderDescriptor *pDesc = tOrderDesCreate(&orderIdx, NUMOFCOLS, pModel, TSDB_ORDER_DESC);
-  
+
   ((SPercentileInfo *)(pResInfo->interResultBuf))->pMemBucket =
-      tMemBucketCreate(1024, MAX_AVAILABLE_BUFFER_SIZE, pCtx->inputBytes, pCtx->inputType, pDesc);
+      tMemBucketCreate(pCtx->inputBytes, pCtx->inputType);
   
   return true;
 }
@@ -2485,15 +2475,13 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   tMemBucket * pMemBucket = ((SPercentileInfo *)pResInfo->interResultBuf)->pMemBucket;
   
-  if (pMemBucket->numOfElems > 0) {  // check for null
+  if (pMemBucket->total > 0) {  // check for null
     *(double *)pCtx->aOutputBuf = getPercentile(pMemBucket, v);
   } else {
     setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
   }
   
-  tOrderDescDestroy(pMemBucket->pOrderDesc);
   tMemBucketDestroy(pMemBucket);
-  
   doFinalizer(pCtx);
 }
 
