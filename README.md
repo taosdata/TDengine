@@ -86,11 +86,7 @@ sudo dnf install -y maven
 - github:
 ```bash
 git clone https://github.com/taosdata/TDengine.git
-```
-
-- gitee:
-```bash
-git clone https://gitee.com/mirrors/taosdata-TDengine.git
+cd TDengine
 ```
 
 ## Build TDengine
@@ -108,7 +104,7 @@ cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
 aarch32:
-```bashapt
+```bash
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
