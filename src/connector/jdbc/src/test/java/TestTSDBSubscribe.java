@@ -3,7 +3,6 @@ import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBResultSet;
 import com.taosdata.jdbc.TSDBSubscribe;
 
-import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.Properties;
 

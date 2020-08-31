@@ -13,7 +13,6 @@ public class TestTSDBDatabaseMetaData {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, "localhost");
-
             connection = DriverManager.getConnection("jdbc:TAOS://localhost:0/", properties);
             dbMetaData = connection.getMetaData();
             resSet = dbMetaData.getCatalogs();
