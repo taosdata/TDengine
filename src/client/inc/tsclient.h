@@ -367,6 +367,8 @@ typedef struct SSqlStream {
   uint32_t streamId;
   char     listed;
   bool     isProject;
+  char     intervalTimeUnit;
+  char     slidingTimeUnit;
   int16_t  precision;
   int64_t  num;  // number of computing count
 
@@ -380,7 +382,7 @@ typedef struct SSqlStream {
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
   int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
-  int64_t interval;
+  int64_t intervalTime;
   int64_t slidingTime;
   void *  pTimer;
 

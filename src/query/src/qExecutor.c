@@ -137,33 +137,6 @@ static void finalizeQueryResult(SQueryRuntimeEnv *pRuntimeEnv);
 
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->intervalTime > 0)
 
-static int64_t addNatualInterval(int64_t key, int64_t intervalTime, char intervalTimeUnit, int precision) {
-  key /= 1000;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    key /= 1000;
-  }
-
-  struct tm tm;
-  time_t t = (time_t)key;
-  localtime_r(&t, &tm);
-
-  if (intervalTimeUnit == 'y') {
-    intervalTime *= 12;
-  }
-
-  int mon = tm.tm_year * 12 + tm.tm_mon + intervalTime;
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-
-  key = mktime(&tm) * 1000L;
-
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    key *= 1000L;
-  }
-
-  return key;
-}
-
 static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
   if (pQuery->intervalTimeUnit != 'n' && pQuery->intervalTimeUnit != 'y') {
@@ -528,7 +501,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
  if (pWindowResInfo->curIndex == -1) {  // the first window, from the previous stored value
     w.skey = pWindowResInfo->prevSKey;
     if (pQuery->intervalTimeUnit == 'n' || pQuery->intervalTimeUnit == 'y') {
-      w.ekey = addNatualInterval(w.skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
+      w.ekey = taosAddNatualInterval(w.skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
     } else {
       w.ekey = w.skey + pQuery->intervalTime - 1;
     }
@@ -541,7 +514,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
   if (w.skey > ts || w.ekey < ts) {
     if (pQuery->intervalTimeUnit == 'n' || pQuery->intervalTimeUnit == 'y') {
       w.skey = taosGetIntervalStartTimestamp(ts, pQuery->slidingTime, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision);
-      w.ekey = addNatualInterval(w.skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
+      w.ekey = taosAddNatualInterval(w.skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
     } else {
       int64_t st = w.skey;
 
@@ -883,7 +856,7 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
     TSKEY next = primaryKeys[startPos];
     if (pQuery->intervalTimeUnit == 'n' || pQuery->intervalTimeUnit == 'y') {
       pNext->skey = taosGetIntervalStartTimestamp(next, pQuery->slidingTime, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision);
-      pNext->ekey = addNatualInterval(pNext->skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
+      pNext->ekey = taosAddNatualInterval(pNext->skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
     } else {
       pNext->ekey += ((next - pNext->ekey + pQuery->slidingTime - 1)/pQuery->slidingTime) * pQuery->slidingTime;
       pNext->skey = pNext->ekey - pQuery->intervalTime + 1;
@@ -892,7 +865,7 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
     TSKEY next = primaryKeys[startPos];
     if (pQuery->intervalTimeUnit == 'n' || pQuery->intervalTimeUnit == 'y') {
       pNext->skey = taosGetIntervalStartTimestamp(next, pQuery->slidingTime, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision);
-      pNext->ekey = addNatualInterval(pNext->skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
+      pNext->ekey = taosAddNatualInterval(pNext->skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
     } else {
       pNext->skey -= ((pNext->skey - next + pQuery->slidingTime - 1) / pQuery->slidingTime) * pQuery->slidingTime;
       pNext->ekey = pNext->skey + pQuery->intervalTime - 1;
@@ -1880,7 +1853,7 @@ void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int6
     assert(keyLast - keyFirst < pQuery->intervalTime);
     win->ekey = INT64_MAX;
   } else if (pQuery->intervalTimeUnit == 'n' || pQuery->intervalTimeUnit == 'y') {
-    win->ekey = addNatualInterval(win->skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
+    win->ekey = taosAddNatualInterval(win->skey, pQuery->intervalTime, pQuery->intervalTimeUnit, pQuery->precision) - 1;
   } else {
     win->ekey = win->skey + pQuery->intervalTime - 1;
   }

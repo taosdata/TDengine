@@ -100,6 +100,62 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
   return pFilter;
 }
 
+int64_t taosAddNatualInterval(int64_t key, int64_t intervalTime, char timeUnit, int16_t precision) {
+  key /= 1000;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    key /= 1000;
+  }
+
+  struct tm tm;
+  time_t t = (time_t)key;
+  localtime_r(&t, &tm);
+
+  if (timeUnit == 'y') {
+    intervalTime *= 12;
+  }
+
+  int mon = tm.tm_year * 12 + tm.tm_mon + intervalTime;
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+
+  key = mktime(&tm) * 1000L;
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    key *= 1000L;
+  }
+
+  return key;
+}
+
+int32_t taosCountNatualInterval(int64_t skey, int64_t ekey, int64_t intervalTime, char timeUnit, int16_t precision) {
+  skey /= 1000;
+  ekey /= 1000;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    skey /= 1000;
+    ekey /= 1000;
+  }
+  if (ekey < skey) {
+    int64_t tmp = ekey;
+    ekey = skey;
+    skey = tmp;
+  }
+
+  struct tm tm;
+  time_t t = (time_t)skey;
+  localtime_r(&t, &tm);
+  int smon = tm.tm_year * 12 + tm.tm_mon;
+
+  t = (time_t)ekey;
+  localtime_r(&t, &tm);
+  int emon = tm.tm_year * 12 + tm.tm_mon;
+
+  if (timeUnit == 'y') {
+    intervalTime *= 12;
+  }
+
+  return (emon - smon) / (int32_t)intervalTime;
+}
+
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
   if (slidingTime == 0) {
     return startTime;
