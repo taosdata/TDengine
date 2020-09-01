@@ -66,6 +66,8 @@ CMakeError.log
 /test/cfg
 /src/.vs
 *.o
+version.c
+taos.rc
 src/connector/jdbc/.settings/
 tests/comparisonTest/cassandra/cassandratest/.classpath
 tests/comparisonTest/cassandra/cassandratest/.project

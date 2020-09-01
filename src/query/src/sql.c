@@ -99,7 +99,7 @@
 #define YYCODETYPE unsigned short int
 #define YYNOCODE 274
 #define YYACTIONTYPE unsigned short int
-#define ParseTOKENTYPE SSQLToken
+#define ParseTOKENTYPE SStrToken
 typedef union {
   int yyinit;
   ParseTOKENTYPE yy0;
@@ -488,7 +488,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /*    QUERIES => nothing */
     0,  /* CONNECTIONS => nothing */
     0,  /*    STREAMS => nothing */
-    0,  /*    CONFIGS => nothing */
+    0,  /*  VARIABLES => nothing */
     0,  /*     SCORES => nothing */
     0,  /*     GRANTS => nothing */
     0,  /*     VNODES => nothing */
@@ -781,7 +781,7 @@ static const char *const yyTokenName[] = {
   /*   51 */ "QUERIES",
   /*   52 */ "CONNECTIONS",
   /*   53 */ "STREAMS",
-  /*   54 */ "CONFIGS",
+  /*   54 */ "VARIABLES",
   /*   55 */ "SCORES",
   /*   56 */ "GRANTS",
   /*   57 */ "VNODES",
@@ -1017,7 +1017,7 @@ static const char *const yyRuleName[] = {
  /*   7 */ "cmd ::= SHOW QUERIES",
  /*   8 */ "cmd ::= SHOW CONNECTIONS",
  /*   9 */ "cmd ::= SHOW STREAMS",
- /*  10 */ "cmd ::= SHOW CONFIGS",
+ /*  10 */ "cmd ::= SHOW VARIABLES",
  /*  11 */ "cmd ::= SHOW SCORES",
  /*  12 */ "cmd ::= SHOW GRANTS",
  /*  13 */ "cmd ::= SHOW VNODES",
@@ -1702,7 +1702,7 @@ static const struct {
   {  209,   -2 }, /* (7) cmd ::= SHOW QUERIES */
   {  209,   -2 }, /* (8) cmd ::= SHOW CONNECTIONS */
   {  209,   -2 }, /* (9) cmd ::= SHOW STREAMS */
-  {  209,   -2 }, /* (10) cmd ::= SHOW CONFIGS */
+  {  209,   -2 }, /* (10) cmd ::= SHOW VARIABLES */
   {  209,   -2 }, /* (11) cmd ::= SHOW SCORES */
   {  209,   -2 }, /* (12) cmd ::= SHOW GRANTS */
   {  209,   -2 }, /* (13) cmd ::= SHOW VNODES */
@@ -2029,8 +2029,8 @@ static void yy_reduce(
       case 9: /* cmd ::= SHOW STREAMS */
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_STREAMS, 0, 0);  }
         break;
-      case 10: /* cmd ::= SHOW CONFIGS */
-{ setShowOptions(pInfo, TSDB_MGMT_TABLE_CONFIGS, 0, 0);  }
+      case 10: /* cmd ::= SHOW VARIABLES */
+{ setShowOptions(pInfo, TSDB_MGMT_TABLE_VARIABLES, 0, 0);  }
         break;
       case 11: /* cmd ::= SHOW SCORES */
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0);   }
@@ -2074,21 +2074,21 @@ static void yy_reduce(
         break;
       case 22: /* cmd ::= SHOW dbPrefix STABLES LIKE ids */
 {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &yymsp[-3].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &yymsp[0].minor.yy0);
 }
         break;
       case 23: /* cmd ::= SHOW dbPrefix VGROUPS */
 {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &yymsp[-1].minor.yy0);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
         break;
       case 24: /* cmd ::= SHOW dbPrefix VGROUPS ids */
 {
-    SSQLToken token;
+    SStrToken token;
     setDBName(&token, &yymsp[-2].minor.yy0);    
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &yymsp[0].minor.yy0);
 }
@@ -2139,7 +2139,7 @@ static void yy_reduce(
 { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0);          }
         break;
       case 38: /* cmd ::= ALTER DATABASE ids alter_db_optr */
-{ SSQLToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy268, &t);}
+{ SStrToken t = {0};  setCreateDBSQL(pInfo, TSDB_SQL_ALTER_DB, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy268, &t);}
         break;
       case 39: /* cmd ::= ALTER ACCOUNT ids acct_optr */
 { setCreateAcctSQL(pInfo, TSDB_SQL_ALTER_ACCT, &yymsp[-1].minor.yy0, NULL, &yymsp[0].minor.yy149);}
@@ -2277,6 +2277,7 @@ static void yy_reduce(
   yymsp[-1].minor.yy268 = yylhsminor.yy268;
         break;
       case 95: /* db_optr ::= db_optr fsync */
+      case 107: /* alter_db_optr ::= alter_db_optr fsync */ yytestcase(yyruleno==107);
 { yylhsminor.yy268 = yymsp[-1].minor.yy268; yylhsminor.yy268.fsyncPeriod = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
   yymsp[-1].minor.yy268 = yylhsminor.yy268;
         break;
@@ -2296,10 +2297,6 @@ static void yy_reduce(
         break;
       case 99: /* alter_db_optr ::= */
 { setDefaultCreateDbOption(&yymsp[1].minor.yy268);}
-        break;
-      case 107: /* alter_db_optr ::= alter_db_optr fsync */
-{ yylhsminor.yy268 = yymsp[-1].minor.yy268; yylhsminor.yy268.fsyncPeriod = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
-  yymsp[-1].minor.yy268 = yylhsminor.yy268;
         break;
       case 108: /* typename ::= ids */
 { 

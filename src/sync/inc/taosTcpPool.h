@@ -26,7 +26,7 @@ typedef void* tthread_h;
 typedef struct {
   int       numOfThreads;
   uint32_t  serverIp;
-  short     port;
+  int16_t   port;
   int       bufferSize;
   void     (*processBrokenLink)(void *ahandle);
   int      (*processIncomingMsg)(void *ahandle, void *buffer);

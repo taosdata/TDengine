@@ -12,11 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
 #include "tvariant.h"
-#include "hash.h"
-#include "hashfunc.h"
-#include "os.h"
 #include "hash.h"
 #include "taos.h"
 #include "taosdef.h"
@@ -25,7 +23,7 @@
 #include "tutil.h"
 
 // todo support scientific expression number and oct number
-void tVariantCreate(tVariant *pVar, SSQLToken *token) { tVariantCreateFromString(pVar, token->z, token->n, token->type); }
+void tVariantCreate(tVariant *pVar, SStrToken *token) { tVariantCreateFromString(pVar, token->z, token->n, token->type); }
 
 void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
   memset(pVar, 0, sizeof(tVariant));
@@ -102,10 +100,9 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
     }
     case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
       size_t lenInwchar = len / TSDB_NCHAR_SIZE;
+
       pVar->wpz = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
-      
-      wcsncpy(pVar->wpz, (wchar_t *)pz, lenInwchar);
-      pVar->wpz[lenInwchar] = 0;
+      memcpy(pVar->wpz, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
       
       break;
@@ -169,6 +166,50 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
+
+    return;
+  }
+
+  pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+}
+
+int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
+  if (p1->nType == TSDB_DATA_TYPE_NULL && p2->nType == TSDB_DATA_TYPE_NULL) {
+    return 0;
+  }
+
+  if (p1->nType == TSDB_DATA_TYPE_NULL) {
+    return -1;
+  }
+
+  if (p2->nType == TSDB_DATA_TYPE_NULL) {
+    return 1;
+  }
+
+  switch (p1->nType) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      if (p1->nLen == p2->nLen) {
+        return memcmp(p1->pz, p2->pz, p1->nLen);
+      } else {
+        return p1->nLen > p2->nLen? 1:-1;
+      }
+    };
+
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      if (p1->dKey == p2->dKey) {
+        return 0;
+      } else {
+        return p1->dKey > p2->dKey? 1:-1;
+      }
+
+    default:
+      if (p1->i64Key == p2->i64Key) {
+        return 0;
+      } else {
+        return p1->i64Key > p2->i64Key? 1:-1;
+      }
   }
 }
 
@@ -228,7 +269,7 @@ static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type,
     errno = 0;
     char *endPtr = NULL;
 
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
 
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -277,7 +318,7 @@ static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type,
     errno = 0;
     wchar_t *endPtr = NULL;
 
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
 
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -436,7 +477,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
 }
 
 static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *value) {
-  SSQLToken stoken = {.z = pStr, .n = len};
+  SStrToken stoken = {.z = pStr, .n = len};
   
   if (TK_ILLEGAL == isValidNumber(&stoken)) {
     return -1;
@@ -462,7 +503,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     errno = 0;
     char *endPtr = NULL;
     
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
     
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
@@ -479,7 +520,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
       return 0;
     }
     
-    SSQLToken sToken = {.z = pVariant->pz, .n = pVariant->nLen};
+    SStrToken sToken = {.z = pVariant->pz, .n = pVariant->nLen};
     if (TK_ILLEGAL == isValidNumber(&sToken)) {
       return -1;
     }
@@ -515,7 +556,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     errno = 0;
     wchar_t *endPtr = NULL;
     
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(pVariant->pz, &token.type);
     
     if (token.type == TK_MINUS || token.type == TK_PLUS) {

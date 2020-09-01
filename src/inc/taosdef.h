@@ -63,7 +63,7 @@ typedef struct tstr {
 extern const int32_t TYPE_BYTES[11];
 // TODO: replace and remove code below
 #define CHAR_BYTES   sizeof(char)
-#define SHORT_BYTES  sizeof(short)
+#define SHORT_BYTES  sizeof(int16_t)
 #define INT_BYTES    sizeof(int)
 #define LONG_BYTES   sizeof(int64_t)
 #define FLOAT_BYTES  sizeof(float)
@@ -286,7 +286,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_MAX_REPLICA          5
 
-#define TSDB_TBNAME_COLUMN_INDEX       (-1)
+#define TSDB_TBNAME_COLUMN_INDEX        (-1)
+#define TSDB_UD_COLUMN_INDEX            (-100)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
@@ -395,6 +396,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_PORT_DNODEDNODE 5 
 #define TSDB_PORT_SYNC       10 
 #define TSDB_PORT_HTTP       11 
+#define TSDB_PORT_ARBITRATOR 12 
 
 #define TAOS_QTYPE_RPC      0
 #define TAOS_QTYPE_FWD      1

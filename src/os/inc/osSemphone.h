@@ -23,7 +23,7 @@ extern "C" {
 #ifndef TAOS_OS_FUNC_SEMPHONE
   #define tsem_t sem_t
   #define tsem_init sem_init
-  #define tsem_wait sem_wait
+  int tsem_wait(tsem_t* sem);
   #define tsem_post sem_post
   #define tsem_destroy sem_destroy
 #endif

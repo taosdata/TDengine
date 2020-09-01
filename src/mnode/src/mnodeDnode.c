@@ -49,7 +49,7 @@ static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
-static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *rpcMsg);
+static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg);
 static int32_t mnodeGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -161,8 +161,8 @@ int32_t mnodeInitDnodes() {
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mnodeProcessDnodeStatusMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mnodeGetModuleMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mnodeRetrieveModules);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mnodeGetConfigMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mnodeRetrieveConfigs);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VARIABLES, mnodeGetConfigMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VARIABLES, mnodeRetrieveConfigs);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mnodeGetVnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mnodeRetrieveVnodes);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mnodeGetDnodeMeta);
@@ -518,7 +518,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode != NULL) {
     mnodeDecDnodeRef(pDnode);
-    mError("dnode:%d is already exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
+    mError("dnode:%d, already exist, %s:%d", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodePort);
     return TSDB_CODE_MND_DNODE_ALREADY_EXIST;
   }
 
@@ -733,7 +733,7 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
 }
 
 static bool mnodeCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
-  uint32_t status = pDnode->moduleStatus & (1 << moduleType);
+  uint32_t status = pDnode->moduleStatus & (1u << moduleType);
   return status > 0;
 }
 
@@ -758,7 +758,7 @@ static int32_t mnodeGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "end point");
+  strcpy(pSchema[cols].name, "end_point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -792,7 +792,9 @@ static int32_t mnodeGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
 int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
-  char *  pWrite;
+
+  char* pWrite;
+  char* moduleName[5] = { "MNODE", "HTTP", "MONITOR", "MQTT", "UNKNOWN" };
 
   while (numOfRows < rows) {
     SDnodeObj *pDnode = NULL;
@@ -807,28 +809,18 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strncpy(pWrite, pDnode->dnodeEp, pShow->bytes[cols]-1);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDnode->dnodeEp, pShow->bytes[cols] - 1);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      switch (moduleType) {
-        case TSDB_MOD_MNODE:
-          strcpy(pWrite, "mnode");
-          break;
-        case TSDB_MOD_HTTP:
-          strcpy(pWrite, "http");
-          break;
-        case TSDB_MOD_MONITOR:
-          strcpy(pWrite, "monitor");
-          break;
-        default:
-          strcpy(pWrite, "unknown");
-      }
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, moduleName[moduleType], pShow->bytes[cols]);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       bool enable = mnodeCheckModuleInDnode(pDnode, moduleType);
-      strcpy(pWrite, enable ? "enable" : "disable");
+
+      char* v = enable? "enable":"disable";
+      STR_TO_VARSTR(pWrite, v);
       cols++;
 
       numOfRows++;
@@ -862,13 +854,13 @@ static int32_t mnodeGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   pShow->bytes[cols] = TSDB_CFG_OPTION_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "config name");
+  tstrncpy(pSchema[cols].name, "name", sizeof(pSchema[cols].name));
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_CFG_VALUE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "config value");
+  tstrncpy(pSchema[cols].name, "value", sizeof(pSchema[cols].name));
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -903,27 +895,32 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
     int32_t   cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    snprintf(pWrite, TSDB_CFG_OPTION_LEN, "%s", cfg->option);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, cfg->option, TSDB_CFG_OPTION_LEN);
+
     cols++;
+    int32_t t = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
       case TAOS_CFG_VTYPE_INT16:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_INT32:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int32_t *)cfg->ptr));
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int32_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_FLOAT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
+        varDataSetLen(pWrite, t);
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_STRING:
       case TAOS_CFG_VTYPE_IPSTR:
       case TAOS_CFG_VTYPE_DIRECTORY:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%s", (char *)cfg->ptr);
+        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, cfg->ptr, TSDB_CFG_VALUE_LEN);
         numOfRows++;
         break;
       default:

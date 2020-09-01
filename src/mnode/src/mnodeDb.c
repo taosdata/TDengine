@@ -354,7 +354,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate, SMnodeMsg
       mDebug("db:%s, already exist, ignore exist is set", pCreate->db);
       return TSDB_CODE_SUCCESS;
     } else {
-      mError("db:%s, is already exist, ignore exist not set", pCreate->db);
+      mError("db:%s, already exist, ignore exist not set", pCreate->db);
       return TSDB_CODE_MND_DB_ALREADY_EXIST;
     }
   }
@@ -1059,10 +1059,12 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
     }
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("db:%s, can't drop monitor database", pDrop->db);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif   
 
   int32_t code = mnodeSetDbDropping(pMsg->pDb);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {

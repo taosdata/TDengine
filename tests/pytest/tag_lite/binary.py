@@ -579,6 +579,20 @@ class TDTestCase:
         # TSIM: system sh/exec.sh -n dnode1 -s stop -x SIGINT
 # convert end
 
+        tdSql.execute("create database db")
+        tdSql.execute("use db")
+        tdSql.execute(
+            "create table if not exists st (ts timestamp, tagtype int) tags(dev binary(5))")
+        tdSql.error(
+            'CREATE TABLE if not exists dev_001 using st tags("dev_001")')
+        
+        tdSql.execute(
+            'CREATE TABLE if not exists dev_002 using st tags("dev")')
+
+        print("==============step2")    
+        tdSql.query("show tables")
+        tdSql.checkRows(1)        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

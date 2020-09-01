@@ -23,38 +23,51 @@
 
 客户端遇到链接故障，请按照下面的步骤进行检查：
 
-1. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
-2. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
-3. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
-4. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
-5. 检查防火墙设置，确认TCP/UDP 端口6030-6039 是打开的
-6. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
-7. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
-8. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
+1. 检查网络环境
+    * 云服务器：检查云服务器的安全组是否打开TCP/UDP 端口6030-6039的访问权限
+    * 本地虚拟机：检查网络能否ping通，尽量避免使用`localhost` 作为hostname
+    * 公司服务器：如果为NAT网络环境，请务必检查服务器能否将消息返回值客户端
+2. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
+3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
+5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
+6. 检查防火墙设置，确认TCP/UDP 端口6030-6039 是打开的
+7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
+8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
+9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
    检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
    检查服务器侧TCP端口连接是否工作：`nc -l {port}`
    检查客户端侧TCP端口链接是否工作：`nc {hostIP} {port}`
 
 
-## 6. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误
+## 6. 遇到错误“Unexpected generic error in RPC”， 我怎么办？
+产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
+
+1. 请检查连接的服务器的FQDN是否正确
+2. 如果网络配置有DNS server, 请检查是否正常工作
+3. 如果网络没有配置DNS server, 请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址。
+4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法链接服务器的
+
+
+## 7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误
 
 如果你确认语法正确，2.0之前版本，请检查SQL语句长度是否超过64K。如果超过，也会返回这个错误。
 
-## 7. 是否支持validation queries?
+## 8. 是否支持validation queries?
 
 TDengine还没有一组专用的validation queries。然而建议你使用系统监测的数据库”log"来做。
 
-## 8. 我可以删除或更新一条记录吗？
+## 9. 我可以删除或更新一条记录吗？
 
 不能。因为TDengine是为联网设备采集的数据设计的，不容许修改。但TDengine提供数据保留策略，只要数据记录超过保留时长，就会被自动删除。
 
-## 10. 我怎么创建超过250列的表？
+## 10. 我怎么创建超过1024列的表？
 
 使用2.0及其以上版本，默认支持1024列；2.0之前的版本，TDengine最大允许创建250列的表。但是如果确实超过限值，建议按照数据特性，逻辑地将这个宽表分解成几个小表。
 
 ## 10. 最有效的写入数据的方法是什么？
 
-批量插入。每条写入语句可以一张表同时插入多条记录，也可以同时插入多张表的记录。
+批量插入。每条写入语句可以一张表同时插入多条记录，也可以同时插入多张表的多条记录。
 
 ## 11. 最有效的写入数据的方法是什么？windows系统下插入的nchar类数据中的汉字被解析成了乱码如何解决？
 
@@ -77,4 +90,11 @@ Connection = DriverManager.getConnection(url, properties);
   <version>2.0.4</version>
 </dependency>
 ```
+## 14. 怎么报告问题？
+如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包:
+1. /var/log/taos
+2. /etc/taos 
 
+附上必要的问题描述，以及发生该问题的执行操作，出现问题的表征及大概的时间，在<a href='https://github.com/taosdata/TDengine'> GitHub</a>提交Issue。
+
+为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。

@@ -35,12 +35,14 @@ IF (TD_LINUX)
 ELSEIF (TD_WINDOWS)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows/win32)
-  
+
+  CONFIGURE_FILE("${TD_COMMUNITY_DIR}/src/client/src/taos.rc.in" "${TD_COMMUNITY_DIR}/src/client/src/taos.rc")
+
   ADD_LIBRARY(taos_static STATIC ${SRC})
   TARGET_LINK_LIBRARIES(taos_static trpc tutil query)
 
   # generate dynamic library (*.dll)
-  ADD_LIBRARY(taos SHARED ${SRC})
+  ADD_LIBRARY(taos SHARED ${SRC} ${TD_COMMUNITY_DIR}/src/client/src/taos.rc)
   IF (NOT TD_GODLL)
     SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_COMMUNITY_DIR}/src/client/src/taos.def)
   ENDIF ()

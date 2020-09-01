@@ -433,7 +433,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscError("%p get tableMeta failed, code:%s", pSql, tstrerror(code));
     goto _error;
   } else {
-    tscDebug("%p get tableMeta successfully", pSql);
+    const char* msg = (pCmd->command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
+    tscDebug("%p get %s successfully", pSql, msg);
   }
 
   if (pSql->pStream == NULL) {
