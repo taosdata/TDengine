@@ -482,7 +482,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         if (pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_SELECT) {
           tscDebug("%p redo parse sql string and proceed", pSql);
           pCmd->parseFinished = false;
-          tscResetSqlCmdObj(pCmd);
+          tscResetSqlCmdObj(pCmd, false);
 
           code = tsParseSql(pSql, true);
 

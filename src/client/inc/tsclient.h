@@ -416,7 +416,7 @@ void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
-void tscResetSqlCmdObj(SSqlCmd *pCmd);
+void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 
 /**
  * free query result of the sql object

@@ -1328,14 +1328,30 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       pSql->fp = (void(*)())tscHandleMultivnodeInsert;
     }
     
-    if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
-      return ret;
+    for (int i = 0; true; i++) {
+      if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
+        return ret;
+      }
+
+      // make a backup as tsParseInsertSql may modify the string
+      char* sqlstr = strdup(pSql->sqlstr);
+      ret = tsParseInsertSql(pSql);
+      if (sqlstr == NULL || i >= 2 || ret != TSDB_CODE_TSC_INVALID_SQL) {
+        free(sqlstr);
+        break;
+      }
+      tscResetSqlCmdObj(pCmd, true);
+      pCmd->pQueryInfo = NULL;
+      free(pSql->sqlstr);
+      pSql->sqlstr = sqlstr;
     }
-    
-    ret = tsParseInsertSql(pSql);
   } else {
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
+    if (ret == TSDB_CODE_TSC_INVALID_SQL) {
+      tscResetSqlCmdObj(pCmd, true);
+      ret = tscToSQLCmd(pSql, &SQLInfo);
+    }
     SQLInfoDestroy(&SQLInfo);
   }
 
