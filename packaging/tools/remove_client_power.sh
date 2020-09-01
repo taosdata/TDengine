@@ -9,10 +9,10 @@ GREEN='\033[1;32m'
 NC='\033[0m'
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/power"
 
-log_link_dir="/usr/local/taos/log"
-cfg_link_dir="/usr/local/taos/cfg"
+log_link_dir="/usr/local/power/log"
+cfg_link_dir="/usr/local/power/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
@@ -20,7 +20,7 @@ inc_link_dir="/usr/include"
 
 
 # v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/power"
 
 csudo=""
 if command -v sudo > /dev/null; then
@@ -28,18 +28,18 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  #pid=$(ps -ef | grep "taos" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$(pidof taos)" ]; then
+  #pid=$(ps -ef | grep "power" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$(pidof power)" ]; then
     ${csudo} kill -9 $pid   || :
   fi
 }
 
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/taos      || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
-    ${csudo} rm -f ${bin_link_dir}/set_core  || :
+    ${csudo} rm -f ${bin_link_dir}/power      || :
+    ${csudo} rm -f ${bin_link_dir}/powerdemo  || :
+    ${csudo} rm -f ${bin_link_dir}/rmpower    || :
+    ${csudo} rm -f ${bin_link_dir}/set_core   || :
 }
 
 function clean_lib() {
@@ -80,5 +80,5 @@ clean_config
 
 ${csudo} rm -rf ${install_main_dir}
 
-echo -e "${GREEN}TDengine client is removed successfully!${NC}"
+echo -e "${GREEN}PowerDB client is removed successfully!${NC}"
 echo 

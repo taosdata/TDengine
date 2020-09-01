@@ -18,15 +18,25 @@
 #include "tglobal.h"
 
 void osInit() {
+
+#ifdef _TD_POWER_
+  if (configDir[0] == 0) {
+    strcpy(configDir, "/etc/power");
+  }
+  strcpy(tsDataDir, "/var/lib/power");
+  strcpy(tsLogDir, "/var/log/power");
+  strcpy(tsScriptDir, "/etc/power");
+#else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");
   }
+  strcpy(tsDataDir, "/var/lib/taos");
+  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsScriptDir, "/etc/taos");
+#endif
 
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "/var/lib/taos");
-  strcpy(tsLogDir, "/var/log/taos");
-  strcpy(tsScriptDir, "/etc/taos");
   strcpy(tsOsName, "Linux");
 }
