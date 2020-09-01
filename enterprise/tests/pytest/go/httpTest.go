@@ -226,8 +226,8 @@ func main() {
 	totalTimeMs := float64(spend) / float64(1000000)
 	rspTime := totalTimeMs / float64(config.DataNum);
 	fmt.Println("====== threads:", config.ConnNum, "rspTime:", rspTime, "ms, use:", totalTimeMs, "ms, requests:", request)
-  
-	//requestAvg := float64(period) / float64(1000000) / float64(request)
-	//qps := float64(1000) / float64(requestAvg) * float64(config.ConnNum)
-	//fmt.Println("====== req:", request, ", error:", errorNum, ", totalTime:", float64(period) / float64(10000000), "s, qps:", int64(qps), ", avg:", requestAvg, "ms")
+
+	requestAvg := float64(period) / float64(1000000) / float64(request)
+	qps := float64(1000) / float64(requestAvg) * float64(config.ConnNum)
+	fmt.Println("====== req:", request,", totalTime:", float64(period) / float64(10000000), "s, qps:", int64(qps), ", avg:", requestAvg, "ms")
 }
