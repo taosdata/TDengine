@@ -5807,21 +5807,33 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
   int32_t ret = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < pList->nExpr; ++i) {
-    SSchema* pSchema = pTagSchema + i;
+    SSchema* pSchema = &pTagSchema[i];
+    
+    char tagVal[TSDB_MAX_TAGS_LEN];
     if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-      // validate the length of binary
-      if (pList->a[i].pVar.nLen + VARSTR_HEADER_SIZE > pSchema->bytes) {
+      if (pList->a[i].pVar.nLen > pSchema->bytes) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
-    
-    char tagVal[TSDB_MAX_TAGS_LEN];
+
     ret = tVariantDump(&(pList->a[i].pVar), tagVal, pSchema->type, true);
+
+    // check again after the convert since it may be converted from binary to nchar.
+    if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+      int16_t len = varDataTLen(tagVal);
+      if (len > pSchema->bytes) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+    }
+
     if (ret != TSDB_CODE_SUCCESS) {
       tdDestroyKVRowBuilder(&kvRowBuilder);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
+
+
 
     tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
   }
