@@ -34,26 +34,40 @@ typedef struct {
 
 void *syncTest(void *param);
 void  shellParseArgument(int argc, char *argv[]);
-void  insertData();
+void  queryData();
 
-int64_t numOfThreads = 100;
-char sql[10240] = "show dnodes";
-int32_t loopTimes = 1000; 
+int   numOfThreads = 10;
+int   useGlobalConn = 1;
+int   requestPerThread = 1000;
+char  requestSql[10240] = "show dnodes";
+TAOS *globalConn;
 
 int main(int argc, char *argv[]) {
   shellParseArgument(argc, argv);
   taos_init();
-  insertData();
+  queryData();
 }
 
-void insertData() {
+void queryData() {
   struct timeval systemTime;
   int64_t        st, et;
+  char           fqdn[TSDB_FQDN_LEN];
+  uint16_t       port;
+
+  if (useGlobalConn) {
+    taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+
+    globalConn = taos_connect(fqdn, "root", "taosdata", NULL, port);
+    if (globalConn == NULL) {
+      pError("failed to connect to DB, reason:%s", taos_errstr(globalConn));
+      exit(1);
+    }
+  }
+
+  pPrint("%d threads are spawned to query", numOfThreads);
 
   gettimeofday(&systemTime, NULL);
   st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-
-  pPrint("%" PRId64 " threads are spawned to query", numOfThreads);
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -73,16 +87,13 @@ void insertData() {
 
   gettimeofday(&systemTime, NULL);
   et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-  double mseconds = (et - st) / 1000.0;
+  double totalTimeMs = (et - st) / 1000.0;
 
-  int64_t request = loopTimes * numOfThreads;
-  float avg = mseconds / request;;
-  float qps = 1000 / avg * numOfThreads;
-  
-  pPrint(
-      "%sall threads:%ld finished, use %.1lf ms, qps:%f, avg:%f %s",
-      GREEN, numOfThreads, mseconds, qps, avg, NC);
+  int   totalReq = requestPerThread * numOfThreads;
+  float rspTime = totalTimeMs / requestPerThread;
+  // float qps = totalTimeMs / totalReq;
 
+  pPrint("%s threads:%d, rspTime:%.3fms use %.1fms, requests:%d %s", GREEN, numOfThreads, rspTime, totalTimeMs, totalReq, NC);
   pPrint("threads exit");
 
   pthread_attr_destroy(&thattr);
@@ -90,24 +101,27 @@ void insertData() {
 }
 
 void *syncTest(void *param) {
-  TAOS *         con;
-  SInfo *        pInfo = (SInfo *)param;
-  struct timeval systemTime;
-  
-  pPrint("thread:%d, start to run", pInfo->threadIndex);
+  TAOS *   con;
+  SInfo *  pInfo = (SInfo *)param;
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
-  taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+  if (useGlobalConn) {
+    pPrint("thread:%d, start to run use global connection", pInfo->threadIndex);
+    con = globalConn;
+  } else {
+    pPrint("thread:%d, start to run, and create new conn", pInfo->threadIndex);
+    taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
 
-  con = taos_connect(fqdn, "root", "taosdata", NULL, port);
-  if (con == NULL) {
-    pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
-    exit(1);
+    con = taos_connect(fqdn, "root", "taosdata", NULL, port);
+    if (con == NULL) {
+      pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
+      exit(1);
+    }
   }
 
-  for (int i = 0; i < loopTimes; ++i) {
-    void *tres = taos_query(con, sql);
+  for (int i = 0; i < requestPerThread; ++i) {
+    void *tres = taos_query(con, requestSql);
 
     TAOS_ROW row = taos_fetch_row(tres);
     if (row == NULL) {
@@ -117,13 +131,10 @@ void *syncTest(void *param) {
 
     do {
       row = taos_fetch_row(tres);
-    } while( row != NULL);
+    } while (row != NULL);
 
     taos_free_result(tres);
   }
-
-  gettimeofday(&systemTime, NULL);
-  
   return NULL;
 }
 
@@ -134,12 +145,14 @@ void printHelp() {
   printf("%s%s\n", indent, "-c");
   printf("%s%s%s%s\n", indent, indent, "Configuration directory, default is ", configDir);
   printf("%s%s\n", indent, "-s");
-  printf("%s%s%s%s\n", indent, indent, "The sql to be executed, default is %s", sql);
-  printf("%s%s\n", indent, "-l");
-  printf("%s%s%s%d\n", indent, indent, "Loop Times per thread, default is ", loopTimes);
+  printf("%s%s%s%s\n", indent, indent, "The sql to be executed, default is %s", requestSql);
+  printf("%s%s\n", indent, "-r");
+  printf("%s%s%s%d\n", indent, indent, "Request per thread, default is ", requestPerThread);
   printf("%s%s\n", indent, "-t");
-  printf("%s%s%s%" PRId64 "\n", indent, indent, "Number of threads to be used, default is ", numOfThreads);
-  
+  printf("%s%s%s%d\n", indent, indent, "Number of threads to be used, default is ", numOfThreads);
+  printf("%s%s\n", indent, "-g");
+  printf("%s%s%s%d\n", indent, indent, "Whether to share connections between threads, default is ", useGlobalConn);
+
   exit(EXIT_SUCCESS);
 }
 
@@ -151,17 +164,20 @@ void shellParseArgument(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-c") == 0) {
       strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-s") == 0) {
-      strcpy(sql, argv[++i]);
-    } else if (strcmp(argv[i], "-l") == 0) {
-      loopTimes = atoi(argv[++i]);
+      strcpy(requestSql, argv[++i]);
+    } else if (strcmp(argv[i], "-r") == 0) {
+      requestPerThread = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
       numOfThreads = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-g") == 0) {
+      useGlobalConn = atoi(argv[++i]);
     } else {
     }
   }
 
-  pPrint("%ssql:%s%s", GREEN, sql, NC);
-  pPrint("%sloopTImes:%d%s", GREEN, loopTimes, NC);
-  pPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
-   pPrint("%sstart to run%s", GREEN, NC);
+  pPrint("%s sql:%s %s", GREEN, requestSql, NC);
+  pPrint("%s requestPerThread:%d %s", GREEN, requestPerThread, NC);
+  pPrint("%s numOfThreads:%d %s", GREEN, numOfThreads, NC);
+  pPrint("%s useGlobalConn:%d %s", GREEN, useGlobalConn, NC);
+  pPrint("%s start to run %s", GREEN, NC);
 }
