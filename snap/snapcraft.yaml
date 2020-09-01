@@ -113,7 +113,6 @@ layout:
     bind: $SNAP_DATA/var/lib/taos
   /var/log/taos:
     bind: $SNAP_DATA/var/log/taos
-    mode: 1777
   /etc/taos:
     bind: $SNAP_DATA/etc/taos
 
