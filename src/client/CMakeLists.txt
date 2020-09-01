@@ -23,12 +23,8 @@ IF (TD_LINUX)
   #set version of .so
   #VERSION    so version
   #SOVERSION  api version
-  execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
-  execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
-        OUTPUT_VARIABLE
-        VERSION_INFO)
-  MESSAGE(STATUS "build version ${VERSION_INFO}")
-  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${VERSION_INFO} SOVERSION 1)
+  #MESSAGE(STATUS "build version ${TD_VER_NUMBER}")
+  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
 
   ADD_SUBDIRECTORY(tests)
 
@@ -65,11 +61,7 @@ ELSEIF (TD_DARWIN)
   #set version of .so
   #VERSION    so version
   #SOVERSION  api version
-  execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
-  execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
-      OUTPUT_VARIABLE
-      VERSION_INFO)
-  MESSAGE(STATUS "build version ${VERSION_INFO}")
-  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${VERSION_INFO} SOVERSION 1)
+  #MESSAGE(STATUS "build version ${TD_VER_NUMBER}")
+  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
 ENDIF ()
 
