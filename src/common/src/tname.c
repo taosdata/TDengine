@@ -114,7 +114,7 @@ int64_t taosAddNatualInterval(int64_t key, int64_t intervalTime, char timeUnit, 
     intervalTime *= 12;
   }
 
-  int mon = tm.tm_year * 12 + tm.tm_mon + intervalTime;
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + intervalTime);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
@@ -176,10 +176,10 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
     if (timeUnit == 'y') {
       tm.tm_mon = 0;
-      tm.tm_year = tm.tm_year / slidingTime * slidingTime;
+      tm.tm_year = (int)(tm.tm_year / slidingTime * slidingTime);
     } else {
       int mon = tm.tm_year * 12 + tm.tm_mon;
-      mon = mon / slidingTime * slidingTime;
+      mon = (int)(mon / slidingTime * slidingTime);
       tm.tm_year = mon / 12;
       tm.tm_mon = mon % 12;
     }

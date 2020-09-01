@@ -155,12 +155,12 @@ static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
   time_t t = (time_t)key;
   localtime_r(&t, &tm);
 
-  int mon = tm.tm_year * 12 + tm.tm_mon + interval * factor;
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
   tw->skey = mktime(&tm) * 1000L;
 
-  mon += interval;
+  mon = (int)(mon + interval);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
   tw->ekey = mktime(&tm) * 1000L;
