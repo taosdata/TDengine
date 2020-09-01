@@ -471,7 +471,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
 
   // user defined constant value output columns
-  if (pInfo->pSqlExpr->colInfo.flag == TSDB_COL_UDC) {
+  if (TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
       pData = pInfo->pSqlExpr->param[1].pz;
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;

@@ -55,7 +55,7 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
     SFillColInfo* pColInfo = &pFillInfo->pFillCol[i];
     pFillInfo->pData[i] = calloc(1, pColInfo->col.bytes * capacity);
 
-    if (pColInfo->flag == TSDB_COL_TAG) {
+    if (TSDB_COL_IS_TAG(pColInfo->flag)) {
       bool exists = false;
       for(int32_t j = 0; j < k; ++j) {
         if (pFillInfo->pTags[j].col.colId == pColInfo->col.colId) {
@@ -155,7 +155,7 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInpu
     char* data = pInput->data + pCol->col.offset * pInput->num;
     memcpy(pFillInfo->pData[i], data, (size_t)(pInput->num * pCol->col.bytes));
 
-    if (pCol->flag == TSDB_COL_TAG) {  // copy the tag value to tag value buffer
+    if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       for (int32_t j = 0; j < pFillInfo->numOfTags; ++j) {
         SFillTagColInfo* pTag = &pFillInfo->pTags[j];
         if (pTag->col.colId == pCol->col.colId) {
@@ -259,7 +259,7 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
 static void setTagsValue(SFillInfo* pFillInfo, tFilePage** data, int32_t num) {
   for(int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[j];
-    if (pCol->flag == TSDB_COL_NORMAL) {
+    if (TSDB_COL_IS_NORMAL_COL(pCol->flag)) {
       continue;
     }
 
@@ -459,7 +459,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         // assign rows to dst buffer
         for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
           SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-          if (pCol->flag == TSDB_COL_TAG) {
+          if (TSDB_COL_IS_TAG(pCol->flag)) {
             continue;
           }
 

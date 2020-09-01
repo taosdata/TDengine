@@ -33,6 +33,8 @@
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
+#define TSWINDOW_IS_EQUAL(t1, t2) (((t1).skey == (t2).skey) && ((t1).ekey == (t2).ekey))
+
 // -1 is tbname column index, so here use the -3 as the initial value
 #define COLUMN_INDEX_INITIAL_VAL (-3)
 #define COLUMN_INDEX_INITIALIZER \
@@ -45,6 +47,10 @@ typedef struct SColumnList {  // todo refactor
   SColumnIndex ids[TSDB_MAX_COLUMNS];
 } SColumnList;
 
+typedef struct SConvertFunc {
+  int32_t originFuncId;
+  int32_t execFuncId;
+} SConvertFunc;
 static SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t colIndex, int32_t tableIndex);
 
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
@@ -1507,13 +1513,13 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSchema* pSchema, int32_t functionID, char* aliasName,
+static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSchema* pSchema, SConvertFunc cvtFunc, char* aliasName,
                                        int32_t resColIdx, SColumnIndex* pColIndex) {
   int16_t type = 0;
   int16_t bytes = 0;
-
   char        columnName[TSDB_COL_NAME_LEN] = {0};
   const char* msg1 = "not support column types";
+  int32_t functionID = cvtFunc.execFuncId;
 
   if (functionID == TSDB_FUNC_SPREAD) {
     if (pSchema[pColIndex->columnIndex].type == TSDB_DATA_TYPE_BINARY ||
@@ -1529,15 +1535,20 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     type = pSchema[pColIndex->columnIndex].type;
     bytes = pSchema[pColIndex->columnIndex].bytes;
   }
-
+  
   if (aliasName != NULL) {
     tstrncpy(columnName, aliasName, sizeof(columnName));
   } else {
-    getRevisedName(columnName, functionID, sizeof(columnName) - 1, pSchema[pColIndex->columnIndex].name);
+    getRevisedName(columnName, cvtFunc.originFuncId, sizeof(columnName) - 1, pSchema[pColIndex->columnIndex].name);
   }
+  
   
   SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, pColIndex, type, bytes, bytes, false);
   tstrncpy(pExpr->aliasName, columnName, sizeof(pExpr->aliasName));
+
+  if (cvtFunc.originFuncId == TSDB_FUNC_LAST_ROW && cvtFunc.originFuncId != functionID) {
+    pExpr->colInfo.flag |= TSDB_COL_NULL;
+  }
 
   // set reverse order scan data blocks for last query
   if (functionID == TSDB_FUNC_LAST) {
@@ -1772,7 +1783,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (changeFunctionID(optr, &functionID) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
-
+      SConvertFunc cvtFunc = {.originFuncId = functionID, .execFuncId = functionID};
+      if (functionID == TSDB_FUNC_LAST_ROW && TSWINDOW_IS_EQUAL(pQueryInfo->window,TSWINDOW_INITIALIZER)) {
+        cvtFunc.execFuncId = TSDB_FUNC_LAST;
+      }
       if (!requireAllFields) {
         if (pItem->pNode->pParam->nExpr < 1) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -1804,7 +1818,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
               index.columnIndex = j;
-              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, functionID, pItem->aliasName, colIndex++, &index) != 0) {
+              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex++, &index) != 0) {
                 return TSDB_CODE_TSC_INVALID_SQL;
               }
             }
@@ -1821,8 +1835,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             if ((index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) || (index.columnIndex < 0)) {
               return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
             }
-
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, functionID, pItem->aliasName, colIndex + i, &index) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex + i, &index) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -1859,7 +1872,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           for (int32_t i = 0; i < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
             SColumnIndex index = {.tableIndex = j, .columnIndex = i};
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, functionID, pItem->aliasName, colIndex, &index) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex, &index) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -5246,7 +5259,7 @@ static bool tagColumnInGroupby(SSqlGroupbyExpr* pGroupbyExpr, int16_t columnId) 
   for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, j);
   
-    if (columnId == pColIndex->colId && pColIndex->flag == TSDB_COL_TAG) {
+    if (columnId == pColIndex->colId && TSDB_COL_IS_TAG(pColIndex->flag )) {
       return true;
     }
   }
@@ -5545,7 +5558,6 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     return checkUpdateTagPrjFunctions(pQueryInfo, pCmd);
   }
 }
-
 int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg1 = "only one expression allowed";
   const char* msg2 = "invalid expression in select clause";
@@ -6086,6 +6098,10 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   int32_t joinQuery = (pQuerySql->from != NULL && pQuerySql->from->nExpr > 2);
+
+  if (pQuerySql->pWhere) {
+    pQueryInfo->window = TSWINDOW_INITIALIZER;
+  }
   if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }

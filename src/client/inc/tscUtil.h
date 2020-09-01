@@ -39,7 +39,6 @@ extern "C" {
 #define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
   (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
-#define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 
 typedef struct SParsedColElem {
   int16_t colIndex;
