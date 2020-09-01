@@ -58,8 +58,10 @@ static int l_query(lua_State *L){
   int table_index = lua_gettop(L);
 
   //  printf("receive command:%s\r\n",s);
-  if(taos_query(taos, s)!=0){
-    printf("failed, reason:%s\n", taos_errstr(taos));
+    result = taos_query(taos,s);
+    int32_t code = taos_errno(result);
+  if( code != 0){
+    printf("failed, reason:%s\n", taos_errstr(result));
     lua_pushnumber(L, -1);
     lua_setfield(L, table_index, "code");    
     lua_pushstring(L, taos_errstr(taos));
@@ -69,24 +71,13 @@ static int l_query(lua_State *L){
     
   }else{
     //printf("success to query.\n");
-    result = taos_use_result(taos);
-
-    if (result == NULL) {
-      printf("failed to get result, reason:%s\n", taos_errstr(taos));
-      lua_pushnumber(L, -2);
-      lua_setfield(L, table_index, "code");    
-      lua_pushstring(L, taos_errstr(taos));
-      lua_setfield(L, table_index, "error");    
-      return 1;
-    }
-
     TAOS_ROW    row;
     int         rows = 0;
-    int         num_fields = taos_field_count(taos);
+    int         num_fields = taos_field_count(result);
     TAOS_FIELD *fields = taos_fetch_fields(result);
     char        temp[256];
 
-    int affectRows = taos_affected_rows(taos);
+    int affectRows = taos_affected_rows(result);
     //    printf(" affect rows:%d\r\n", affectRows);
     lua_pushnumber(L, 0);
     lua_setfield(L, table_index, "code");
@@ -155,14 +146,12 @@ static int l_query(lua_State *L){
 }
 
 void stream_cb(void *param, TAOS_RES *result, TAOS_ROW row){
-
   struct cb_param* p = (struct cb_param*) param;
   TAOS_FIELD *fields = taos_fetch_fields(result);
   int         numFields = taos_num_fields(result);
 
+  printf("\nnumfields:%d\n", numFields);
   printf("\n\r-----------------------------------------------------------------------------------\n");
-
-  // printf("r:%d, L:%d\n",p->callback, p->state);
 
   lua_State *L = p->state;
   lua_rawgeti(L, LUA_REGISTRYINDEX, p->callback);

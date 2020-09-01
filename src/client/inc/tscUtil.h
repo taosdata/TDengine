@@ -39,7 +39,6 @@ extern "C" {
 #define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
   (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
-#define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 
 typedef struct SParsedColElem {
   int16_t colIndex;
@@ -70,6 +69,8 @@ typedef struct SJoinSupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
+  char            intervalTimeUnit;
+  char            slidingTimeUnit;
   int64_t         intervalTime;   // interval time
   int64_t         slidingTime;    // sliding time
   SLimitVal       limit;          // limit info

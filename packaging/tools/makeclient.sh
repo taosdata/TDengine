@@ -41,7 +41,7 @@ fi
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
-    strip ${build_dir}/bin/taosd 
+    #strip ${build_dir}/bin/taosd 
     strip ${build_dir}/bin/taos
     bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
   else  

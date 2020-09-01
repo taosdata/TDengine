@@ -39,6 +39,7 @@ function clean_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos      || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
+    ${csudo} rm -f ${bin_link_dir}/set_core  || :
 }
 
 function clean_lib() {
@@ -80,3 +81,4 @@ clean_config
 ${csudo} rm -rf ${install_main_dir}
 
 echo -e "${GREEN}TDengine client is removed successfully!${NC}"
+echo 

@@ -377,6 +377,12 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
     }
   }
 
+  if (pe->num == 0) {
+    assert(pe->next == NULL);
+  } else {
+    assert(pe->next != NULL);
+  }
+
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosWUnLockLatch(&pe->latch);
   }
@@ -390,22 +396,8 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   if (pRes != NULL) {
     atomic_sub_fetch_64(&pHashObj->size, 1);
     FREE_HASH_NODE(pHashObj, pRes);
-
-    if (pe->num == 0) {
-      assert(pe->next == NULL);
-    } else {
-      assert(pe->next != NULL);
-    }
-
     return 0;
   } else {
-
-    if (pe->num == 0) {
-      assert(pe->next == NULL);
-    } else {
-      assert(pe->next != NULL);
-    }
-
     return -1;
   }
 }
