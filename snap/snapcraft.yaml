@@ -22,13 +22,11 @@ apps:
 
   taos:
     command: taoswrapper.sh
-    environment:
-      HOME: /home/$USER
     plugs:
       - network
       - system-observe
       - systemfiles
-      - home
+      - historyfile
 
   taosdemo:
     command: usr/bin/taosdemo
@@ -36,6 +34,13 @@ apps:
       - network
 
 plugs:
+  historyfile:
+    interface: personal-files
+    read:
+      - $HOME/.taos_history
+    write:
+      - $HOME/.taos_history
+
   systemfiles:
     interface: system-files
     read:
