@@ -6,6 +6,8 @@ fi
 
 if [ ! -d /var/log/taos ]; then
   mkdir -p --mode=777 /var/log/taos
+else
+  chmod 777 /var/log/taos
 fi
 
 if [ ! -d /etc/taos ]; then

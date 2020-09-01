@@ -46,6 +46,7 @@ plugs:
     read:
       - /etc/taos
       - /var/lib/taos
+      - /var/log/taos
       - /tmp
     write:
       - /var/log/taos
@@ -112,11 +113,11 @@ layout:
     bind: $SNAP_DATA/var/lib/taos
   /var/log/taos:
     bind: $SNAP_DATA/var/log/taos
+    mode: 1777
   /etc/taos:
     bind: $SNAP_DATA/etc/taos
 
 
 hooks:
   install:
-    plugs: [systemfiles]
-
+    plugs: [systemfiles, historyfile]
