@@ -13,22 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <wordexp.h>
-
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
@@ -52,8 +36,8 @@ static uint16_t g_endPort   = 6042;
 
 static void *bindUdpPort(void *sarg) {
   info_s *pinfo = (info_s *)sarg;
-  int   port = pinfo->port;
-  int   serverSocket;
+  int     port = pinfo->port;
+  SOCKET  serverSocket;
 
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
@@ -96,19 +80,19 @@ static void *bindUdpPort(void *sarg) {
     }
   }
 
-  close(serverSocket);
+  taosCloseSocket(serverSocket);
   return NULL;
 }
 
 static void *bindTcpPort(void *sarg) {
   info_s *pinfo = (info_s *)sarg;
-  int   port = pinfo->port;
-  int   serverSocket;
+  int     port = pinfo->port;
+  SOCKET  serverSocket;
 
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
   int                addr_len = sizeof(clientAddr);
-  int                client;
+  SOCKET             client;
   char               buffer[BUFFER_SIZE];
   int                iDataNum = 0;
 
@@ -155,7 +139,7 @@ static void *bindTcpPort(void *sarg) {
           continue;
         } else {
           printf("recv Client: %s pkg from TCP port: %d fail:%s.\n", inet_ntoa(clientAddr.sin_addr), port, strerror(errno));
-          close(serverSocket);
+          taosCloseSocket(serverSocket);
           return NULL;
         }
       } else {
@@ -171,14 +155,13 @@ static void *bindTcpPort(void *sarg) {
     }
   }
   
-  close(serverSocket);
+  taosCloseSocket(serverSocket);
   return NULL;
 }
 
 static int checkTcpPort(info_s *info) {
-  int   clientSocket;
-
   struct sockaddr_in serverAddr;
+  SOCKET             clientSocket;
   char               sendbuf[BUFFER_SIZE];
   char               recvbuf[BUFFER_SIZE];
   int                iDataNum = 0;
@@ -233,7 +216,7 @@ static int checkTcpPort(info_s *info) {
         continue;
       } else {
         printf("recv ack pkg from TCP port: %d fail:%s.\n", info->port, strerror(errno));
-        close(clientSocket);
+        taosCloseSocket(clientSocket);
         return -1;
       }
     } else {
@@ -249,14 +232,13 @@ static int checkTcpPort(info_s *info) {
   }
   //printf("Read ack pkg len:%d from tcp port: %d, buffer: %s  %s\n", info->pktLen, port, recvbuf, recvbuf+iDataNum-8);
 
-  close(clientSocket);
+  taosCloseSocket(clientSocket);
   return 0;
 }
 
 static int checkUdpPort(info_s *info) {
-  int   clientSocket;
-
   struct sockaddr_in serverAddr;
+  SOCKET             clientSocket;
   char               sendbuf[BUFFER_SIZE];
   char               recvbuf[BUFFER_SIZE];
   int                iDataNum = 0;
@@ -304,7 +286,7 @@ static int checkUdpPort(info_s *info) {
   }
   
   //printf("Read ack pkg len:%d from udp port: %d, buffer: %s  %s\n", info->pktLen, port, recvbuf, recvbuf+iDataNum-8);
-  close(clientSocket);
+  taosCloseSocket(clientSocket);
   return 0;
 }
 
@@ -368,7 +350,7 @@ static void taosNetTestServer(uint16_t startPort, uint16_t endPort, int pktLen) 
 
   for (size_t i = 0; i < num; i++) {
     info_s *tcpInfo = tinfos + i;
-    tcpInfo->port = port + i;
+    tcpInfo->port = (uint16_t)(port + i);
     tcpInfo->pktLen = pktLen;
 
     if (pthread_create(pids + i, NULL, bindTcpPort, tcpInfo) != 0) 
@@ -378,7 +360,7 @@ static void taosNetTestServer(uint16_t startPort, uint16_t endPort, int pktLen) 
     }
 
     info_s *udpInfo = uinfos + i;
-    udpInfo->port = port + i;
+    udpInfo->port = (uint16_t)(port + i);
     if (pthread_create(pids + num + i, NULL, bindUdpPort, udpInfo) != 0)
     {                          
       printf("create thread fail, port:%d.\n", port);
