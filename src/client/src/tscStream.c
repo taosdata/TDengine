@@ -325,7 +325,7 @@ static int64_t getLaunchTimeDelay(const SSqlStream* pStream) {
   
   int64_t delayDelta = maxDelay;
   if (pStream->intervalTimeUnit != 'n' && pStream->intervalTimeUnit != 'y') {
-    delayDelta = pStream->slidingTime * tsStreamComputDelayRatio;
+    delayDelta = (int64_t)(pStream->slidingTime * tsStreamComputDelayRatio);
     if (delayDelta > maxDelay) {
       delayDelta = maxDelay;
     }
