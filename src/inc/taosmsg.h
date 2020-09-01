@@ -456,6 +456,7 @@ typedef struct {
   int64_t     intervalTime;     // time interval for aggregation, in million second
   int64_t     intervalOffset;   // start offset for interval query
   int64_t     slidingTime;      // value for sliding window
+  char        intervalTimeUnit;
   char        slidingTimeUnit;  // time interval type, for revisement of interval(1d)
   uint16_t    tagCondLen;       // tag length in current query
   int16_t     numOfGroupCols;   // num of group by columns

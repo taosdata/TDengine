@@ -70,6 +70,8 @@ typedef struct SJoinSupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
+  char            intervalTimeUnit;
+  char            slidingTimeUnit;
   int64_t         intervalTime;   // interval time
   int64_t         slidingTime;    // sliding time
   SLimitVal       limit;          // limit info

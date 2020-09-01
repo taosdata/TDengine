@@ -64,6 +64,7 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
 }
 
 int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts);
+int32_t parseDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit);
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 void deltaToUtcInitOnce();

@@ -178,6 +178,8 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, in
   pSupporter->subqueryIndex = index;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
+  pSupporter->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
+  pSupporter->slidingTime = pQueryInfo->slidingTimeUnit;
   pSupporter->intervalTime = pQueryInfo->intervalTime;
   pSupporter->slidingTime = pQueryInfo->slidingTime;
   pSupporter->limit = pQueryInfo->limit;
@@ -309,6 +311,8 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
 
+    pQueryInfo->intervalTimeUnit = pSupporter->intervalTimeUnit;
+    pQueryInfo->slidingTimeUnit = pSupporter->slidingTimeUnit;
     pQueryInfo->intervalTime = pSupporter->intervalTime;
     pQueryInfo->slidingTime = pSupporter->slidingTime;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
