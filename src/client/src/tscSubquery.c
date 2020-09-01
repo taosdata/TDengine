@@ -1159,7 +1159,7 @@ static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
 static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
 
 // TODO
-int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
+int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
@@ -1304,23 +1304,29 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
   }
 
-  return tscProcessSql(pNew);
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
+void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
+
+  int32_t code = TSDB_CODE_SUCCESS;
 
   // todo add test
   SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
   if (pState == NULL) {
-    pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return pSql->res.code;
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
   }
 
   pState->numOfTotal = pQueryInfo->numOfTables;
   pState->numOfRemain = pState->numOfTotal;
+
+  bool hasEmptySub = false;
 
   tscDebug("%p start subquery, total:%d", pSql, pQueryInfo->numOfTables);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -1328,28 +1334,45 @@ int32_t tscHandleMasterJoinQuery(SSqlObj* pSql) {
     
     if (pSupporter == NULL) {  // failed to create support struct, abort current query
       tscError("%p tableIndex:%d, failed to allocate join support object, abort further query", pSql, i);
-      pState->numOfRemain = i;
-      pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      if (0 == i) {
-        taosTFree(pState);
-      }
-      return pSql->res.code;
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _error;
     }
     
-    int32_t code = tscLaunchJoinSubquery(pSql, i, pSupporter);
+    code = tscCreateJoinSubquery(pSql, i, pSupporter);
     if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
       tscDestroyJoinSupporter(pSupporter);
-      pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      if (0 == i) {
-        taosTFree(pState);
-      }
+      goto _error;
+    }
+
+    SSqlObj* pSub = pSql->pSubs[i];
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSub->cmd, 0, 0);
+    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) && (pTableMetaInfo->vgroupList->numOfVgroups == 0)) {
+      hasEmptySub = true;
       break;
     }
   }
 
-  pSql->cmd.command = (pSql->numOfSubs <= 0)? TSDB_SQL_RETRIEVE_EMPTY_RESULT:TSDB_SQL_TABLE_JOIN_RETRIEVE;
-  
-  return TSDB_CODE_SUCCESS;
+  if (hasEmptySub) {  // at least one subquery is empty, do nothing and return
+    freeJoinSubqueryObj(pSql);
+    pSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    (*pSql->fp)(pSql->param, pSql, 0);
+  } else {
+    for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+      SSqlObj* pSub = pSql->pSubs[i];
+      if ((code = tscProcessSql(pSub)) != TSDB_CODE_SUCCESS) {
+        pState->numOfRemain = i - 1;  // the already sent reques will continue and do not go to the error process routine
+        break;
+      }
+    }
+
+    pSql->cmd.command = TSDB_SQL_TABLE_JOIN_RETRIEVE;
+  }
+
+  return;
+
+  _error:
+  pRes->code = code;
+  tscQueueAsyncRes(pSql);
 }
 
 static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs, SSubqueryState* pState) {
