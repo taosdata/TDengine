@@ -2070,35 +2070,36 @@ static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDat
   return false;
 }
 
-#define PT_IN_WINDOW(_p, _w)  ((_p) > (_w).skey && (_p) < (_w).ekey)
-
 static bool overlapWithTimeWindow(SQuery* pQuery, SDataBlockInfo* pBlockInfo) {
   STimeWindow w = {0};
 
   TSKEY sk = MIN(pQuery->window.skey, pQuery->window.ekey);
   TSKEY ek = MAX(pQuery->window.skey, pQuery->window.ekey);
 
-
   if (QUERY_IS_ASC_QUERY(pQuery)) {
     getAlignQueryTimeWindow(pQuery, pBlockInfo->window.skey, sk, ek, &w);
+    assert(w.ekey >= pBlockInfo->window.skey);
 
-    if (PT_IN_WINDOW(w.ekey, pBlockInfo->window)) {
+    if (w.ekey < pBlockInfo->window.ekey) {
       return true;
     }
 
     while(1) {
       GET_NEXT_TIMEWINDOW(pQuery, &w);
-      if (w.skey > pBlockInfo->window.skey) {
+      if (w.skey > pBlockInfo->window.ekey) {
         break;
       }
 
-      if (PT_IN_WINDOW(w.skey, pBlockInfo->window) || PT_IN_WINDOW(w.ekey, pBlockInfo->window)) {
+      assert(w.ekey > pBlockInfo->window.ekey);
+      if (w.skey <= pBlockInfo->window.ekey && w.skey > pBlockInfo->window.skey) {
         return true;
       }
     }
   } else {
     getAlignQueryTimeWindow(pQuery, pBlockInfo->window.ekey, sk, ek, &w);
-    if (PT_IN_WINDOW(w.skey, pBlockInfo->window)) {
+    assert(w.skey <= pBlockInfo->window.ekey);
+
+    if (w.skey > pBlockInfo->window.skey) {
       return true;
     }
 
@@ -2108,7 +2109,8 @@ static bool overlapWithTimeWindow(SQuery* pQuery, SDataBlockInfo* pBlockInfo) {
         break;
       }
 
-      if (PT_IN_WINDOW(w.skey, pBlockInfo->window) || PT_IN_WINDOW(w.ekey, pBlockInfo->window)) {
+      assert(w.skey < pBlockInfo->window.skey);
+      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
         return true;
       }
     }
