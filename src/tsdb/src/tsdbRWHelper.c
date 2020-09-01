@@ -1130,8 +1130,15 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
   // Decode the data
   if (comp) {
     // // Need to decompress
-    pDataCol->len = (*(tDataTypeDesc[pDataCol->type].decompFunc))(
-        content, len - sizeof(TSCKSUM), numOfRows, pDataCol->pData, pDataCol->spaceSize, comp, buffer, bufferSize);
+    int tlen = (*(tDataTypeDesc[pDataCol->type].decompFunc))(content, len - sizeof(TSCKSUM), numOfRows, pDataCol->pData,
+                                                             pDataCol->spaceSize, comp, buffer, bufferSize);
+    if (tlen <= 0) {
+      tsdbError("Failed to decompress column, file corrupted, len:%d comp:%d numOfRows:%d maxPoints:%d bufferSize:%d",
+                len, comp, numOfRows, maxPoints, bufferSize);
+      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+      return -1;
+    }
+    pDataCol->len = tlen;
     if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
       dataColSetOffset(pDataCol, numOfRows);
     }
