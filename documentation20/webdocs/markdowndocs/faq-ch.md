@@ -78,19 +78,31 @@
     `host: ubuntu-vbox6	start port: 6030	end port: 6042	packet len: 1000`
 
     `tcp port:6030 test ok.		udp port:6030 test ok.`
+    
     `tcp port:6031 test ok.		udp port:6031 test ok.`
+    
     `tcp port:6032 test ok.		udp port:6032 test ok.`
+    
     `tcp port:6033 test ok.		udp port:6033 test ok.`
+    
     `tcp port:6034 test ok.		udp port:6034 test ok.`
+    
     `tcp port:6035 test ok.		udp port:6035 test ok.`
+    
     `tcp port:6036 test ok.		udp port:6036 test ok.`
-    `tcp port:6037 test ok.		udp port:6037 test ok.`
-    `tcp port:6038 test ok.		udp port:6038 test ok.`
-    `tcp port:6039 test ok.		udp port:6039 test ok.`
-    `tcp port:6040 test ok.		udp port:6040 test ok.`
-    `tcp port:6041 test ok.		udp port:6041 test ok.`
-    `tcp port:6042 test ok.		udp port:6042 test ok.`
 
+    `tcp port:6037 test ok.		udp port:6037 test ok.`
+    
+    `tcp port:6038 test ok.		udp port:6038 test ok.`
+    
+    `tcp port:6039 test ok.		udp port:6039 test ok.`
+    
+    `tcp port:6040 test ok.		udp port:6040 test ok.`
+    
+    `tcp port:6041 test ok.		udp port:6041 test ok.`
+    
+    `tcp port:6042 test ok.		udp port:6042 test ok.`
+    
     如果某个端口不通，会输出 `port：xxxx test fail`的信息。
 
 
