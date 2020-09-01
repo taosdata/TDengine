@@ -145,6 +145,8 @@ python3 ./test.py -f query/queryJoin.py
 python3 ./test.py -f query/select_last_crash.py
 python3 ./test.py -f query/queryNullValueTest.py
 python3 ./test.py -f query/queryInsertValue.py
+python3 ./test.py -f query/queryConnection.py
+python3 ./test.py -f query/natualInterval.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
