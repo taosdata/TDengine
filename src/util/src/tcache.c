@@ -381,10 +381,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
       if (ret == 0) {
         if (ref > 0) {
           assert(pNode->pTNodeHeader == NULL);
-
-          __cache_wr_lock(pCacheObj);
           taosAddToTrash(pCacheObj, pNode);
-          __cache_unlock(pCacheObj);
         } else {  // ref == 0
           atomic_sub_fetch_64(&pCacheObj->totalSize, pNode->size);
 
@@ -485,18 +482,21 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
 
   STrashElem *pElem = calloc(1, sizeof(STrashElem));
   pElem->pData = pNode;
+  pElem->prev  = NULL;
+
+  pNode->pTNodeHeader = pElem;
+  pNode->inTrashCan = true;
+
+  __cache_wr_lock(pCacheObj);
 
   pElem->next = pCacheObj->pTrash;
   if (pCacheObj->pTrash) {
     pCacheObj->pTrash->prev = pElem;
   }
 
-  pElem->prev = NULL;
   pCacheObj->pTrash = pElem;
-
-  pNode->inTrashCan = true;
-  pNode->pTNodeHeader = pElem;
   pCacheObj->numOfElemsInTrash++;
+  __cache_unlock(pCacheObj);
 
   uDebug("%s key:%p, %p move to trash, numOfElem in trash:%d", pCacheObj->name, pNode->key, pNode->data,
       pCacheObj->numOfElemsInTrash);
