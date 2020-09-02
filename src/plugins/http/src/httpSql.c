@@ -30,7 +30,9 @@ void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 
-void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);
+
+void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -74,6 +76,10 @@ void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numO
     multiCmds->pos++;
     httpProcessMultiSql(pContext);
   }
+}
+
+void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+  httpDispatchToResultQueue(param, result, numOfRows, httpProcessMultiSqlRetrieveCallBackImp);
 }
 
 void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code) {
