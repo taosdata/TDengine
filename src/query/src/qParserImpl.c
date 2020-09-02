@@ -182,7 +182,7 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   if (pRight != NULL && pLeft != NULL) {
     char* endPos = pRight->token.z + pRight->token.n;
     pExpr->token.z = pLeft->token.z;
-    pExpr->token.n = endPos - pExpr->token.z;
+    pExpr->token.n = (uint32_t)(endPos - pExpr->token.z);
     pExpr->token.type = pLeft->token.type;
   }
 

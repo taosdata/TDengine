@@ -65,7 +65,7 @@ static FORCE_INLINE int tsDecompressTinyint(const char *const input, int compres
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_TINYINT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_TINYINT);
   } else {
     assert(0);
@@ -91,7 +91,7 @@ static FORCE_INLINE int tsDecompressSmallint(const char *const input, int compre
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_SMALLINT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_SMALLINT);
   } else {
     assert(0);
@@ -117,7 +117,7 @@ static FORCE_INLINE int tsDecompressInt(const char *const input, int compressedS
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_INT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_INT);
   } else {
     assert(0);
@@ -143,7 +143,7 @@ static FORCE_INLINE int tsDecompressBigint(const char *const input, int compress
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_BIGINT);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_BIGINT);
   } else {
     assert(0);
@@ -169,7 +169,7 @@ static FORCE_INLINE int tsDecompressBool(const char *const input, int compressed
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressBoolImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressBoolImp(buffer, nelements, output);
   } else {
     assert(0);
@@ -205,7 +205,7 @@ static FORCE_INLINE int tsDecompressFloat(const char *const input, int compresse
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressFloatImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressFloatImp(buffer, nelements, output);
   } else {
     assert(0);
@@ -231,7 +231,7 @@ static FORCE_INLINE int tsDecompressDouble(const char *const input, int compress
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressDoubleImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressDoubleImp(buffer, nelements, output);
   } else {
     assert(0);
@@ -257,7 +257,7 @@ static FORCE_INLINE int tsDecompressTimestamp(const char *const input, int compr
   if (algorithm == ONE_STAGE_COMP) {
     return tsDecompressTimestampImp(input, nelements, output);
   } else if (algorithm == TWO_STAGE_COMP) {
-    tsDecompressStringImp(input, compressedSize, buffer, bufferSize);
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
     return tsDecompressTimestampImp(buffer, nelements, output);
   } else {
     assert(0);

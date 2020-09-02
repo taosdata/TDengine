@@ -242,13 +242,13 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    * both side has the compressed length is used to support load data forwards/backwords.
    */
   int32_t metaLen = 0;
-  metaLen += fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
-  metaLen += fwrite(&pBlock->tag.nLen,  1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+  metaLen += (int32_t)fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
+  metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
 
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    metaLen += fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
+    metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    metaLen += fwrite(&pBlock->tag.i64Key, 1, sizeof(int64_t), pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, sizeof(int64_t), pTSBuf->f);
   }
 
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);

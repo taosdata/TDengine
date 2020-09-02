@@ -294,6 +294,7 @@ static int32_t mnodeChildTableActionRestored() {
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
       mnodeDecTableRef(pTable);
+      mnodeDecDbRef(pDb);
       continue;
     }
     mnodeDecDbRef(pDb);
@@ -1259,6 +1260,7 @@ static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow,
     
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
@@ -1323,6 +1325,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
     return 0;
   }
 
@@ -2495,6 +2498,7 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
@@ -2548,6 +2552,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
     return 0;
   }
 
@@ -2716,6 +2721,7 @@ static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, vo
   
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
@@ -2768,6 +2774,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   
   if (pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
+    mnodeDecDbRef(pDb);
     return 0;
   }
   

@@ -11,7 +11,9 @@ set -e
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
+#             -d [taos | power]
 #             -n [2.0.0.3]
+#             -m [2.0.0.0]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
@@ -20,9 +22,11 @@ cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
 soMode=dynamic   # [static | dynamic]
+dbName=taos      # [taos | power]
 verNumber=""
+verNumberComp="2.0.0.0"
 
-while getopts "hv:V:c:o:l:s:n:" arg
+while getopts "hv:V:c:o:l:s:d:n:m:" arg
 do
   case $arg in
     v)
@@ -45,9 +49,17 @@ do
       #echo "soMode=$OPTARG"
       soMode=$(echo $OPTARG)
       ;;
+    d)
+      #echo "dbName=$OPTARG"
+      dbName=$(echo $OPTARG)
+      ;;
     n)
       #echo "verNumber=$OPTARG"
       verNumber=$(echo $OPTARG)
+      ;;
+    m)
+      #echo "verNumberComp=$OPTARG"
+      verNumberComp=$(echo $OPTARG)
       ;;
     o)
       #echo "osType=$OPTARG"
@@ -60,7 +72,9 @@ do
       echo "                  -V [stable | beta] "
       echo "                  -l [full | lite] "
       echo "                  -s [static | dynamic] "
+      echo "                  -d [taos | power] "
       echo "                  -n [version number] "
+      echo "                  -m [compatible version number] "
       exit 0
       ;;
     ?) #unknow option 
@@ -70,216 +84,148 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} verNumber=${verNumber}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} verNumber=${verNumber} verNumberComp=${verNumberComp}"
 
 curr_dir=$(pwd)
 
 if [ "$osType" != "Darwin" ]; then
-    script_dir="$(dirname $(readlink -f $0))"
-    top_dir="$(readlink -f ${script_dir}/..)"
+  script_dir="$(dirname $(readlink -f $0))"
+  top_dir="$(readlink -f ${script_dir}/..)"
 else
-    script_dir=`dirname $0`
-    cd ${script_dir}
-    script_dir="$(pwd)"
-    top_dir=${script_dir}/..
+  script_dir=`dirname $0`
+  cd ${script_dir}
+  script_dir="$(pwd)"
+  top_dir=${script_dir}/..
 fi
-
-versioninfo="${top_dir}/src/util/src/version.c"
 
 csudo=""
 #if command -v sudo > /dev/null; then
-#    csudo="sudo"
+#  csudo="sudo"
 #fi
 
 function is_valid_version() {
-    [ -z $1 ] && return 1 || :
+  [ -z $1 ] && return 1 || :
 
-    rx='^([0-9]+\.){3}(\*|[0-9]+)$'
-    if [[ $1 =~ $rx ]]; then
-        return 0
-    fi
-    return 1
+  rx='^([0-9]+\.){3}(\*|[0-9]+)$'
+  if [[ $1 =~ $rx ]]; then
+    return 0
+  fi
+  return 1
 }
 
 function vercomp () {
-    if [[ $1 == $2 ]]; then
-        echo 0
-        exit 0
-    fi
-    
-    local IFS=.
-    local i ver1=($1) ver2=($2)
-
-    # fill empty fields in ver1 with zeros
-    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
-        ver1[i]=0
-    done
-
-    for ((i=0; i<${#ver1[@]}; i++)); do
-        if [[ -z ${ver2[i]} ]]; then
-            # fill empty fields in ver2 with zeros
-            ver2[i]=0
-        fi
-        if ((10#${ver1[i]} > 10#${ver2[i]})); then
-            echo 1
-            exit 0
-        fi
-        if ((10#${ver1[i]} < 10#${ver2[i]})); then
-            echo 2
-            exit 0
-        fi
-    done
+  if [[ $1 == $2 ]]; then
     echo 0
-}
+    exit 0
+  fi
+  
+  local IFS=.
+  local i ver1=($1) ver2=($2)
 
-# 1. Read version information
-version=$(cat ${versioninfo} | grep " version" | cut -d '"' -f2)
-compatible_version=$(cat ${versioninfo} | grep " compatible_version" | cut -d '"' -f2)
+  # fill empty fields in ver1 with zeros
+  for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
+    ver1[i]=0
+  done
 
-if [ -z ${verNumber} ]; then
-  while true; do
-    read -p "Do you want to release a new version? [y/N]: " is_version_change
-
-    if [[ ( "${is_version_change}" == "y") || ( "${is_version_change}" == "Y") ]]; then
-      read -p "Please enter the new version: " tversion
-      while true; do
-          if (! is_valid_version $tversion) || [ "$(vercomp $tversion $version)" = '2' ]; then
-              read -p "Please enter a correct version: " tversion
-              continue
-          fi
-          version=${tversion}
-          break
-      done
-
-      echo
-
-      read -p "Enter the oldest compatible version: " tversion
-      while true; do
-
-          if [ -z $tversion ]; then
-              break
-          fi
-
-          if (! is_valid_version $tversion) || [ "$(vercomp $version $tversion)" = '2' ]; then
-              read -p "enter correct compatible version: " tversion
-          else
-              compatible_version=$tversion
-              break
-          fi
-      done
-
-      break
-    elif [[ ( "${is_version_change}" == "n") || ( "${is_version_change}" == "N") ]]; then
-      echo "Use old version: ${version} compatible version: ${compatible_version}."
-      break
-    else
-      continue
+  for ((i=0; i<${#ver1[@]}; i++)); do
+    if [[ -z ${ver2[i]} ]]; then
+      # fill empty fields in ver2 with zeros
+      ver2[i]=0
+    fi
+    if ((10#${ver1[i]} > 10#${ver2[i]})); then
+      echo 1
+      exit 0
+    fi
+    if ((10#${ver1[i]} < 10#${ver2[i]})); then
+      echo 2
+      exit 0
     fi
   done
-else 
-  echo "old version: $version, new version: $verNumber"
-  #if ( ! is_valid_version $verNumber ) || [[ "$(vercomp $version $verNumber)" == '2' ]]; then
-  #  echo "please enter correct version"
-  #  exit 0
-  #else
-    version=${verNumber}
-  #fi  
-fi  
+  echo 0
+}
 
-echo "=======================new version number: ${version}======================================"
+# 1. check version information
+if (( ! is_valid_version $verNumber ) || ( ! is_valid_version $verNumberComp ) || [[ "$(vercomp $verNumber $verNumberComp)" == '2' ]]); then
+  echo "please enter correct version"
+  exit 0
+fi
 
-# output the version info to the buildinfo file.
+echo "=======================new version number: ${verNumber}, compatible version: ${verNumberComp}======================================"
+
 build_time=$(date +"%F %R")
-echo "char version[12] = \"${version}\";"                             > ${versioninfo}
-echo "char compatible_version[12] = \"${compatible_version}\";"      >> ${versioninfo}
-echo "char gitinfo[48] = \"$(git rev-parse --verify HEAD)\";"       >> ${versioninfo}
-if [ "$verMode" != "cluster" ]; then
-  echo "char gitinfoOfInternal[48] = \"\";"                         >> ${versioninfo}
-else
-  enterprise_dir="${top_dir}/../enterprise"
-  cd ${enterprise_dir}
-  echo "char gitinfoOfInternal[48] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo}
-  cd ${curr_dir}
-fi
-echo "char buildinfo[64] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
-echo ""                                                              >> ${versioninfo}
-tmp_version=$(echo $version | tr -s "." "_")
-if [ "$verMode" == "cluster" ]; then
-  libtaos_info=${tmp_version}_${osType}_${cpuType}
-else
-  libtaos_info=edge_${tmp_version}_${osType}_${cpuType}
-fi
-if [ "$verType" == "beta" ]; then
-  libtaos_info=${libtaos_info}_${verType}
-fi
-echo "void libtaos_${libtaos_info}() {};"        >> ${versioninfo}
+
+# get commint id from git
+gitinfo=$(git rev-parse --verify HEAD)
+enterprise_dir="${top_dir}/../enterprise"
+cd ${enterprise_dir}
+gitinfoOfInternal=$(git rev-parse --verify HEAD)
+cd ${curr_dir}
 
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
-    ${csudo} rm -rf ${compile_dir}
+  ${csudo} rm -rf ${compile_dir}
 fi
 
 if [ "$osType" != "Darwin" ]; then
-    ${csudo} mkdir -p ${compile_dir}
+  ${csudo} mkdir -p ${compile_dir}
 else
-    mkdir -p ${compile_dir}
+  mkdir -p ${compile_dir}
 fi
 cd ${compile_dir}
 
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
-    if [ "$verMode" != "cluster" ]; then
-      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DOSTYPE=${osType} -DSOMODE=${soMode}
-    else
-      cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} 
-    fi
+  if [ "$verMode" != "cluster" ]; then
+    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode}
+  else
+    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp}
+  fi
 else
-    echo "input cpuType=${cpuType} error!!!"
-    exit 1
+  echo "input cpuType=${cpuType} error!!!"
+  exit 1
 fi
 
 make
 
 cd ${curr_dir}
 
-# 3. judge the operating system type, then Call the corresponding script for packaging
-#osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
-#osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
-#echo "osinfo: ${osinfo}"
-
+# 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
-    if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]]; then
-        echo "====do deb package for the ubuntu system===="
-        output_dir="${top_dir}/debs"
-        if [ -d ${output_dir} ]; then
-            ${csudo} rm -rf ${output_dir}
-        fi
-        ${csudo} mkdir -p ${output_dir}
-        cd ${script_dir}/deb
-        ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
-
-        echo "====do rpm package for the centos system===="
-        output_dir="${top_dir}/rpms"
-        if [ -d ${output_dir} ]; then
-            ${csudo} rm -rf ${output_dir}
-        fi
-        ${csudo} mkdir -p ${output_dir}
-        cd ${script_dir}/rpm
-        ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
+  if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
+    echo "====do deb package for the ubuntu system===="
+    output_dir="${top_dir}/debs"
+    if [ -d ${output_dir} ]; then
+      ${csudo} rm -rf ${output_dir}
     fi
+    ${csudo} mkdir -p ${output_dir}
+    cd ${script_dir}/deb
+    ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+
+    echo "====do rpm package for the centos system===="
+    output_dir="${top_dir}/rpms"
+    if [ -d ${output_dir} ]; then
+      ${csudo} rm -rf ${output_dir}
+    fi
+    ${csudo} mkdir -p ${output_dir}
+    cd ${script_dir}/rpm
+    ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+  fi
 	
-    echo "====do tar.gz package for all systems===="
-    cd ${script_dir}/tools
-    
-	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-	${csudo} ./makearbi.sh   ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  echo "====do tar.gz package for all systems===="
+  cd ${script_dir}/tools
+  
+  if [[ "$dbName" == "taos" ]]; then  
+    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  else
+    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makearbi_power.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  fi
 else
-    cd ${script_dir}/tools
-    ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+  cd ${script_dir}/tools
+  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${dbName}
 fi
 
-# 4. Clean up temporary compile directories
-#${csudo} rm -rf ${compile_dir}
- 

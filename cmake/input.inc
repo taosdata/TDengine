@@ -27,6 +27,11 @@ IF (${SOMODE} MATCHES "static")
   MESSAGE(STATUS "Link so using static mode")
 ENDIF ()
 
+IF (${DBNAME} MATCHES "power")
+  SET(TD_POWER TRUE)
+  MESSAGE(STATUS "power is true")
+ENDIF ()
+
 IF (${DLLTYPE} MATCHES "go")
   SET(TD_GODLL TRUE)
   MESSAGE(STATUS "input dll type: " ${DLLTYPE})

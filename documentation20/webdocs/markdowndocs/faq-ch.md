@@ -23,17 +23,87 @@
 
 客户端遇到链接故障，请按照下面的步骤进行检查：
 
-1. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
-2. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
-3. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
-4. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
-5. 检查防火墙设置，确认TCP/UDP 端口6030-6039 是打开的
-6. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
-7. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
-8. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
+1. 检查网络环境
+    * 云服务器：检查云服务器的安全组是否打开TCP/UDP 端口6030-6042的访问权限
+    * 本地虚拟机：检查网络能否ping通，尽量避免使用`localhost` 作为hostname
+    * 公司服务器：如果为NAT网络环境，请务必检查服务器能否将消息返回值客户端
+    
+2. 确保客户端与服务端版本号是完全一致的，开源社区版和企业版也不能混用
+
+3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
+
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
+
+5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
+
+6. 检查防火墙设置，确认TCP/UDP 端口6030-6042 是打开的
+
+7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
+
+8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
+
+9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
    检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
    检查服务器侧TCP端口连接是否工作：`nc -l {port}`
    检查客户端侧TCP端口链接是否工作：`nc {hostIP} {port}`
+   
+10. 可以使用taos程序内嵌的网络连通检测功能：验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）。
+
+    taos通过参数 -n 来确定运行服务端功能，还是客户端功能。-n server：表示运行检测服务端功能；-n client：表示运行检测客户端功能。
+
+    1）首先在服务器上停止taosd服务；
+
+    2）在服务器上运行taos内嵌的网络连通检测的服务端功能：taos -n server -P 6030 -e 6042 -l 1000；
+
+    3）在客户端运行taos内嵌的网络连通检测的客户端功能：taos -n client -h host -P 6030 -e 6042 -l 1000；
+
+    -n ：指示运行网络连通检测的服务端功能，或客户端功能，缺省值为空，表示不启动网络连通检测；
+
+    -h：指示服务端名称，可以是ip地址或fqdn格式。如：192.168.1.160，或 192.168.1.160:6030，或 hostname1，或hostname1:6030。缺省值是127.0.0.1。
+
+    -P ：检测的起始端口号，缺省值是6030；
+
+    -e：检测的结束端口号，必须大于等于起始端口号，缺省值是6042；
+
+    -l：指定检测端口连通的报文长度，最大64000字节，缺省值是1000字节，测试时服务端和客户端必须指定相同；
+
+    服务端设置的起始端口和结束端口号，必须包含客户端设置的起始端口和结束端口号；
+
+    对于起始端口号有三种设置方式：缺省值、-h指定、-P指定，优先级是：-P指定 > -h指定 > 缺省值。
+
+    客户端运行的输出样例：
+
+    `sum@sum-virtualBox /home/sum $ taos -n client -h ubuntu-vbox6`
+
+    `host: ubuntu-vbox6	start port: 6030	end port: 6042	packet len: 1000`
+
+    `tcp port:6030 test ok.		udp port:6030 test ok.`
+    
+    `tcp port:6031 test ok.		udp port:6031 test ok.`
+    
+    `tcp port:6032 test ok.		udp port:6032 test ok.`
+    
+    `tcp port:6033 test ok.		udp port:6033 test ok.`
+    
+    `tcp port:6034 test ok.		udp port:6034 test ok.`
+    
+    `tcp port:6035 test ok.		udp port:6035 test ok.`
+    
+    `tcp port:6036 test ok.		udp port:6036 test ok.`
+
+    `tcp port:6037 test ok.		udp port:6037 test ok.`
+    
+    `tcp port:6038 test ok.		udp port:6038 test ok.`
+    
+    `tcp port:6039 test ok.		udp port:6039 test ok.`
+    
+    `tcp port:6040 test ok.		udp port:6040 test ok.`
+    
+    `tcp port:6041 test ok.		udp port:6041 test ok.`
+    
+    `tcp port:6042 test ok.		udp port:6042 test ok.`
+    
+    如果某个端口不通，会输出 `port：xxxx test fail`的信息。
 
 
 ## 6. 遇到错误“Unexpected generic error in RPC”， 我怎么办？

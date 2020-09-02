@@ -142,7 +142,7 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 
     }
 
-    ret = fwrite(t, size, 1, pResultBuf->file);
+    ret = (int32_t)fwrite(t, size, 1, pResultBuf->file);
     if (ret != size) {  // todo handle the error case
 
     }

@@ -963,7 +963,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
     for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
       TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
       int16_t     offset = getColumnModelOffset(pLocalReducer->resColModel, i);
-      memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, pField->bytes * pRes->numOfRows);
+      memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, (size_t)(pField->bytes * pRes->numOfRows));
     }
 
     pRes->numOfRowsGroup += pRes->numOfRows;

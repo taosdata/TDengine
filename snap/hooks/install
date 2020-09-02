@@ -5,7 +5,9 @@ if [ ! -d /var/lib/taos ]; then
 fi
 
 if [ ! -d /var/log/taos ]; then
-  mkdir -p -m777 /var/log/taos
+  mkdir -p --mode=777 /var/log/taos
+else
+  chmod 777 /var/log/taos
 fi
 
 if [ ! -d /etc/taos ]; then
@@ -13,5 +15,8 @@ if [ ! -d /etc/taos ]; then
 fi
 
 if [ ! -f /etc/taos/taos.cfg ]; then
+  if [ ! -d /etc/taos ]; then
+    mkdir -p /etc/taos
+  fi
   cp $SNAP/etc/taos/taos.cfg /etc/taos/taos.cfg
 fi
