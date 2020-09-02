@@ -32,9 +32,10 @@ system sh/cfg.sh -n dnode2 -c http -v 1
 system sh/cfg.sh -n dnode3 -c http -v 1
 system sh/cfg.sh -n dnode4 -c http -v 1
 
+system sh/cfg.sh -n dnode1 -c httpMaxThreads -v 4
 
 system sh/cfg.sh -n dnode1 -c firstEp      -v 127.0.0.1:6030
 system sh/cfg.sh -n dnode1 -c secondEp     -v 127.0.0.1:6030
 system sh/cfg.sh -n dnode1 -c serverPort   -v 6030
 system sh/cfg.sh -n dnode1 -c fqdn         -v 127.0.0.1
-#system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode1 -s start

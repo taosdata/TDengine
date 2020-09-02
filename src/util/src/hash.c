@@ -327,7 +327,6 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
   // no data, return directly
   if (pe->num == 0) {
-    assert(pe->next == NULL);
     __rd_unlock(&pHashObj->lock, pHashObj->type);
     return -1;
   }
