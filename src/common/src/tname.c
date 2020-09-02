@@ -105,7 +105,10 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
     return startTime;
   }
 
-  int64_t start = ((startTime - intervalTime) / slidingTime + 1) * slidingTime;
+  int64_t delta = startTime - intervalTime;
+  int32_t factor = delta > 0? 1:-1;
+
+  int64_t start = (delta / slidingTime + factor) * slidingTime;
   if (!(timeUnit == 'u' || timeUnit == 'a' || timeUnit == 'm' || timeUnit == 's' || timeUnit == 'h')) {
     /*
      * here we revised the start time of day according to the local time zone,

@@ -1909,6 +1909,15 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, bool stableQuery) {
     return;
   }
 
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
+    pQuery->order.order = TSDB_ORDER_ASC;
+    if (pQuery->window.skey > pQuery->window.ekey) {
+      SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
+    }
+
+    return;
+  }
+
   if (isPointInterpoQuery(pQuery) && pQuery->intervalTime == 0) {
     if (!QUERY_IS_ASC_QUERY(pQuery)) {
       qDebug(msg, GET_QINFO_ADDR(pQuery), "interp", pQuery->order.order, TSDB_ORDER_ASC, pQuery->window.skey,
@@ -4387,7 +4396,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   // TODO fixme
-  changeExecuteScanOrder(pQInfo, false);
+  changeExecuteScanOrder(pQInfo, isSTableQuery);
 
   code = setupQueryHandle(tsdb, pQInfo, isSTableQuery);
   if (code != TSDB_CODE_SUCCESS) {
@@ -6094,6 +6103,9 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   if (pQInfo->pBuf == NULL) {
     goto _cleanup;
   }
+
+  // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
+  changeExecuteScanOrder(pQInfo, isSTableQuery);
 
   int32_t index = 0;
 
