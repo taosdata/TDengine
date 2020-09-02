@@ -693,7 +693,7 @@ class DbConnRest(DbConn):
     def __init__(self):
         super().__init__()
         self._type = self.TYPE_REST
-        self._url = "http://localhost:6020/rest/sql"  # fixed for now
+        self._url = "http://localhost:6041/rest/sql"  # fixed for now
         self._result = None
 
     def openByType(self):  # Open connection
@@ -2768,7 +2768,7 @@ class MainExec:
         try: 
             ret = self._clientMgr.run(self._svcMgr) # stop TAOS service inside
         except requests.exceptions.ConnectionError as err:
-            logger.warning("Failed to open REST connection to DB")
+            logger.warning("Failed to open REST connection to DB: {}".format(err.getMessage()))
             # don't raise
         return ret
 
