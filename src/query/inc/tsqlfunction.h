@@ -168,6 +168,7 @@ typedef struct SQLFunctionCtx {
   int16_t      outputType;
   int16_t      outputBytes;  // size of results, determined by function and input column data type
   bool         hasNull;      // null value exist in current block
+  bool         requireNull;    // require null in some function
   int16_t      functionId;   // function id
   void *       aInputElemBuf;
   char *       aOutputBuf;            // final result output buffer, point to sdata->data

@@ -47,10 +47,11 @@
  *
  */
 
-#include "os.h"
 #include "lz4.h"
-#include "tscompression.h"
+#include "os.h"
 #include "taosdef.h"
+#include "tscompression.h"
+#include "tulog.h"
 
 static const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)
@@ -88,7 +89,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
       word_length = CHAR_BYTES;
       break;
     default:
-      perror("Wrong integer types.\n");
+      uError("Invalid compress integer type:%d", type);
       return -1;
   }
 
@@ -209,7 +210,7 @@ int tsDecompressINTImp(const char *const input, const int nelements, char *const
       word_length = CHAR_BYTES;
       break;
     default:
-      perror("Wrong integer types.\n");
+      uError("Invalid decompress integer type:%d", type);
       return -1;
   }
 
@@ -307,7 +308,7 @@ int tsCompressBoolImp(const char *const input, const int nelements, char *const 
       /* t = (~((( uint8_t)1) << (7-i%BITS_PER_BYTE))); */
       output[pos] |= t;
     } else {
-      perror("Wrong bool value.\n");
+      uError("Invalid compress bool value:%d", output[pos]);
       return -1;
     }
   }
@@ -363,7 +364,7 @@ int tsCompressBoolRLEImp(const char *const input, const int nelements, char *con
     } else if (num == 0) {
       output[_pos++] = (counter << 1) | INT8MASK(0);
     } else {
-      perror("Wrong bool value!\n");
+      uError("Invalid compress bool value:%d", output[_pos]);
       return -1;
     }
   }
@@ -413,9 +414,7 @@ int tsDecompressStringImp(const char *const input, int compressedSize, char *con
     /* It is compressed by LZ4 algorithm */
     const int decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
     if (decompressed_size < 0) {
-      char msg[128] = {0};
-      sprintf(msg, "decomp_size:%d, Error decompress in LZ4 algorithm!\n", decompressed_size);
-      perror(msg);
+      uError("Failed to decompress string with LZ4 algorithm, decompressed size:%d", decompressed_size);
       return -1;
     }
 
@@ -425,7 +424,7 @@ int tsDecompressStringImp(const char *const input, int compressedSize, char *con
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;
   } else {
-    perror("Wrong compressed string indicator!\n");
+    uError("Invalid decompress string indicator:%d", input[0]);
     return -1;
   }
 }

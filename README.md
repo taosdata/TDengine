@@ -169,6 +169,7 @@ The TDengine community has also kindly built some of their own connectors! Follo
 
 - [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
+- [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
 
 # How to run the test cases and how to add a new test case?
   TDengine's test framework and all test cases are fully open source.

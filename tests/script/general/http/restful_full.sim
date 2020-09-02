@@ -119,7 +119,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '  used1' 127.0.0.1:7111/rest/sql
 print 17-> $system_content
-if $system_content != @{"status":"error","code":512,"desc":"invalid SQL: invalid SQL: syntax error near 'used1'"}@ then
+if $system_content != @{"status":"error","code":534,"desc":"Syntax errr in SQL"}@ then
   return -1
 endi
 

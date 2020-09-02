@@ -2350,7 +2350,7 @@ class ServiceManagerThread:
         self._thread2.start()
 
         # wait for service to start
-        for i in range(0, 10):
+        for i in range(0, 100):
             time.sleep(1.0)
             # self.procIpcBatch() # don't pump message during start up
             print("_zz_", end="", flush=True)
@@ -2358,7 +2358,7 @@ class ServiceManagerThread:
                 logger.info("[] TDengine service READY to process requests")
                 return  # now we've started
         # TODO: handle this better?
-        self.procIpcBatch(20, True) # display output before cronking out, trim to last 20 msgs, force output
+        self.procIpcBatch(100, True) # display output before cronking out, trim to last 20 msgs, force output
         raise RuntimeError("TDengine service did not start successfully")
 
     def stop(self):
