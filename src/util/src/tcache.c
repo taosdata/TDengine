@@ -272,6 +272,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
 
   void* pData = (ptNode != NULL)? (*ptNode)->data:NULL;
   assert((int64_t)pData != 0x40);
+
   if (pData != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
     uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(*ptNode));
@@ -498,7 +499,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
 
   STrashElem *pElem = calloc(1, sizeof(STrashElem));
   pElem->pData = pNode;
-  pElem->prev = NULL;
+  pElem->prev  = NULL;
   pNode->inTrashCan = true;
   pNode->pTNodeHeader = pElem;
 

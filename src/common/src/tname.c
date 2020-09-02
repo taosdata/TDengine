@@ -189,7 +189,10 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
       start *= 1000L;
     }
   } else {
-    start = ((start - intervalTime) / slidingTime + 1) * slidingTime;
+    int64_t delta = startTime - intervalTime;
+    int32_t factor = delta > 0? 1:-1;
+
+    start = (delta / slidingTime + factor) * slidingTime;
 
     if (timeUnit == 'd' || timeUnit == 'w') {
       /*

@@ -254,15 +254,12 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     pRes->numOfCols = numOfOutput;
   
     pRes->tsrow  = calloc(numOfOutput, POINTER_BYTES);
-    pRes->length = calloc(numOfOutput, sizeof(int32_t));  // todo refactor
+    pRes->length = calloc(numOfOutput, sizeof(int32_t));
     pRes->buffer = calloc(numOfOutput, POINTER_BYTES);
   
     // not enough memory
     if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
       taosTFree(pRes->tsrow);
-      taosTFree(pRes->buffer);
-      taosTFree(pRes->length);
-    
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return pRes->code;
     }
@@ -281,13 +278,14 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
   }
   
   taosTFree(pRes->pRsp);
+
   taosTFree(pRes->tsrow);
   taosTFree(pRes->length);
-  
+  taosTFree(pRes->buffer);
+
   taosTFree(pRes->pGroupRec);
   taosTFree(pRes->pColumnIndex);
-  taosTFree(pRes->buffer);
-  
+
   if (pRes->pArithSup != NULL) {
     taosTFree(pRes->pArithSup->data);
     taosTFree(pRes->pArithSup);
@@ -1052,7 +1050,7 @@ void tscSqlExprInfoDestroy(SArray* pExprInfo) {
   taosArrayDestroy(pExprInfo);
 }
 
-void tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy) {
+int32_t tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy) {
   assert(src != NULL && dst != NULL);
   
   size_t size = taosArrayGetSize(src);
@@ -1064,7 +1062,7 @@ void tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy)
       if (deepcopy) {
         SSqlExpr* p1 = calloc(1, sizeof(SSqlExpr));
         if (p1 == NULL) {
-          assert(0);
+          return -1;
         }
 
         *p1 = *pExpr;
@@ -1078,6 +1076,8 @@ void tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy)
       }
     }
   }
+
+  return 0;
 }
 
 SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
@@ -1324,11 +1324,14 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t 
   return false;
 }
 
-void tscTagCondCopy(STagCond* dest, const STagCond* src) {
+int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   memset(dest, 0, sizeof(STagCond));
 
   if (src->tbnameCond.cond != NULL) {
     dest->tbnameCond.cond = strdup(src->tbnameCond.cond);
+    if (dest->tbnameCond.cond == NULL) {
+      return -1;
+    }
   }
 
   dest->tbnameCond.uid = src->tbnameCond.uid;
@@ -1337,7 +1340,7 @@ void tscTagCondCopy(STagCond* dest, const STagCond* src) {
   dest->relType = src->relType;
   
   if (src->pCond == NULL) {
-    return;
+    return 0;
   }
   
   size_t s = taosArrayGetSize(src->pCond);
@@ -1354,7 +1357,7 @@ void tscTagCondCopy(STagCond* dest, const STagCond* src) {
       assert(pCond->cond != NULL);
       c.cond = malloc(c.len);
       if (c.cond == NULL) {
-        assert(0);
+        return -1;
       }
 
       memcpy(c.cond, pCond->cond, c.len);
@@ -1362,6 +1365,8 @@ void tscTagCondCopy(STagCond* dest, const STagCond* src) {
     
     taosArrayPush(dest->pCond, &c);
   }
+
+  return 0;
 }
 
 void tscTagCondRelease(STagCond* pTagCond) {
@@ -1855,7 +1860,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     }
   }
   
-  tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond);
+  if (tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond) != 0) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     pNewQueryInfo->fillVal = malloc(pQueryInfo->fieldsInfo.numOfOutput * sizeof(int64_t));
@@ -1884,7 +1892,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
-  tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true);
+  if (tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true) != 0) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
 
   doSetSqlExprAndResultFieldInfo(pQueryInfo, pNewQueryInfo, uid);
 
