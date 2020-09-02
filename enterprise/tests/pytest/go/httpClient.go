@@ -166,7 +166,7 @@ func exec(client *http.Client, sql string) {
 			continue
 		}
 
-		spend := (time.Since(begin).Nanoseconds())
+		end := (time.Since(begin).Nanoseconds())
 
 		var jsonResult JsonResult
 		err = json.Unmarshal(data, &jsonResult)
@@ -180,7 +180,7 @@ func exec(client *http.Client, sql string) {
 			continue
 		}
 		atomic.AddInt64(&request, 1)
-		atomic.AddInt64(&period, spend)
+		atomic.AddInt64(&period, end)
 		
 		return
 	}
@@ -223,11 +223,14 @@ func main() {
 
 	fmt.Println("\n================http test stop ======================")
 
+	totalReq := request
 	totalTimeMs := float64(spend) / float64(1000000)
-	rspTime := totalTimeMs / float64(config.DataNum);
-	fmt.Println("====== threads:", config.ConnNum, "rspTime:", rspTime, "ms, use:", totalTimeMs, "ms, requests:", request)
+	fmt.Println("====== threads:", config.ConnNum, ", totalTime:", totalTimeMs, "ms")
+	rspTime1 := totalTimeMs / float64(config.DataNum);
+	qps1 := float64(totalReq) / (totalTimeMs / float64(1000));
+	fmt.Println("====== qps1:", qps1, ", rspTime1:", rspTime1, "ms")
 
-	requestAvg := float64(period) / float64(1000000) / float64(request)
-	qps := float64(1000) / float64(requestAvg) * float64(config.ConnNum)
-	fmt.Println("====== req:", request,", totalTime:", float64(period) / float64(10000000), "s, qps:", int64(qps), ", avg:", requestAvg, "ms")
+	rspTime2 := float64(period) / float64(1000000) / float64(totalReq)
+	qps2 := float64(1000) / float64(rspTime2) * float64(config.ConnNum)
+	fmt.Println("====== qps2:", qps2, ", rspTime2:", rspTime2, "ms")
 }
