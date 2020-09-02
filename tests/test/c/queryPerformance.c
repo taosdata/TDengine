@@ -38,7 +38,7 @@ void  queryData();
 
 int   numOfThreads = 10;
 int   useGlobalConn = 1;
-int   requestPerThread = 1000;
+int   requestPerThread = 10000;
 char  requestSql[10240] = "show dnodes";
 TAOS *globalConn;
 
@@ -91,10 +91,10 @@ void queryData() {
 
   int   totalReq = requestPerThread * numOfThreads;
   float rspTime = totalTimeMs / requestPerThread;
-  // float qps = totalTimeMs / totalReq;
+  float qps = totalReq / (totalTimeMs / 1000);
 
-  pPrint("%s threads:%d, rspTime:%.3fms use %.1fms, requests:%d %s", GREEN, numOfThreads, rspTime, totalTimeMs, totalReq, NC);
-  pPrint("threads exit");
+  pPrint("%s threads:%d, totalTime %.1fms totalReq:%d qps:%.1f rspTime:%.3fms %s", GREEN, numOfThreads, totalTimeMs,
+         totalReq, qps, rspTime, NC);
 
   pthread_attr_destroy(&thattr);
   free(pInfo);
@@ -145,7 +145,7 @@ void printHelp() {
   printf("%s%s\n", indent, "-c");
   printf("%s%s%s%s\n", indent, indent, "Configuration directory, default is ", configDir);
   printf("%s%s\n", indent, "-s");
-  printf("%s%s%s%s\n", indent, indent, "The sql to be executed, default is %s", requestSql);
+  printf("%s%s%s%s\n", indent, indent, "The sql to be executed, default is ", requestSql);
   printf("%s%s\n", indent, "-r");
   printf("%s%s%s%d\n", indent, indent, "Request per thread, default is ", requestPerThread);
   printf("%s%s\n", indent, "-t");
