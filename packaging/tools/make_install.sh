@@ -10,6 +10,7 @@ set -e
 source_dir=$1
 binary_dir=$2
 osType=$3
+verNumber=$4
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -180,7 +181,7 @@ function install_lib() {
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
     
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} cp ${binary_dir}/build/lib/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${verNumber} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
         
