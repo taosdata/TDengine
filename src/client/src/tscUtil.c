@@ -2029,10 +2029,37 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
 
+int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql) {
+  const char* msgFormat1 = "syntax error near \'%s\'";
+  const char* msgFormat2 = "syntax error near \'%s\' (%s)";
+  const char* msgFormat3 = "%s";
+
+  const char* prefix = "syntax error"; 
+  const int32_t BACKWARD_CHAR_STEP = 0;
+
+  if (sql == NULL) {
+    assert(additionalInfo != NULL);
+    sprintf(msg, msgFormat1, additionalInfo);
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
+
+  char buf[64] = {0};  // only extract part of sql string
+  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
+
+  if (additionalInfo != NULL) {
+    sprintf(msg, msgFormat2, buf, additionalInfo);
+  } else {
+    const char* msgFormat = (0 == strncmp(sql, prefix, strlen(prefix))) ? msgFormat3 : msgFormat1; 
+    sprintf(msg, msgFormat, buf);
+  }
+
+  return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  
+}
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {
   const char* msgFormat1 = "invalid SQL: %s";
-  const char* msgFormat2 = "invalid SQL: syntax error near \"%s\" (%s)";
-  const char* msgFormat3 = "invalid SQL: syntax error near \"%s\"";
+  const char* msgFormat2 = "invalid SQL: \'%s\' (%s)";
+  const char* msgFormat3 = "invalid SQL: \'%s\'";
 
   const int32_t BACKWARD_CHAR_STEP = 0;
 

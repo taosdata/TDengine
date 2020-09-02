@@ -597,11 +597,12 @@ int taos_errno(TAOS_RES *tres) {
 }
 
 /*
- * In case of invalid sql error, additional information is attached to explain
+ * In case of invalid sql/sql syntax error, additional information is attached to explain
  * why the sql is invalid
  */
 static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
-  if (code != TSDB_CODE_TSC_INVALID_SQL) {
+  if (code != TSDB_CODE_TSC_INVALID_SQL
+      && code != TSDB_CODE_TSC_SQL_SYNTAX_ERROR) {
     return false;
   }
 
@@ -609,9 +610,11 @@ static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
 
   char *z = NULL;
   if (len > 0) {
-    z = strstr(pCmd->payload, "invalid SQL");
+      z = strstr(pCmd->payload, "invalid SQL");
+      if (z == NULL) {
+        z = strstr(pCmd->payload, "syntax error");
+      }
   }
-
   return z != NULL;
 }
 
