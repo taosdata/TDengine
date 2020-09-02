@@ -114,6 +114,32 @@ class TDTestCase:
 
         tdSql.error("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.pid, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
 
+        # test case for https://jira.taosdata.com:18080/browse/TD-1250
+        
+        tdSql.execute("create table meters1(ts timestamp, voltage int) tags(tag1 binary(20), tag2 nchar(20))")
+        tdSql.execute("create table t1 using meters1 tags('beijing', 'chaoyang')")
+        tdSql.execute("create table t2 using meters1 tags('shanghai', 'xuhui')") 
+        tdSql.execute("insert into t1 values(1538548685000, 1) (1538548685001, 2) (1538548685002, 3)")
+        tdSql.execute("insert into t1 values(1538548685004, 4) (1538548685004, 5) (1538548685005, 6)")
+
+        tdSql.execute("create table meters2(ts timestamp, voltage int) tags(tag1 binary(20), tag2 nchar(20))")
+        tdSql.execute("create table t3 using meters2 tags('beijing', 'chaoyang')")
+        tdSql.execute("create table t4 using meters2 tags('shenzhen', 'nanshan')")        
+        tdSql.execute("insert into t3 values(1538548685000, 7) (1538548685001, 8) (1538548685002, 9)")
+        tdSql.execute("insert into t4 values(1538548685000, 10) (1538548685001, 11) (1538548685002, 12)")
+
+        tdSql.execute("create table meters3(ts timestamp, voltage int) tags(tag1 binary(20), tag2 nchar(20))")
+        
+        tdSql.query("select * from meters1, meters2 where meters1.ts = meters2.ts and meters1.tag1 = meters2.tag1")
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from meters1, meters2 where meters1.ts = meters2.ts and meters1.tag2 = meters2.tag2")
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from meters1, meters3 where meters1.ts = meters3.ts and meters1.tag1 = meters3.tag1")
+        tdSql.checkRows(0)
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

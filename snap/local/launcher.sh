@@ -15,11 +15,12 @@ case "$SNAP_USER_COMMON" in
 	*)                             COMMON=$SNAP_USER_COMMON ;;
 esac
 
-if [ -d /etc/taos ]; then
-    CONFIG_FILE="/etc/taos"
-else
-    CONFIG_FILE="$SNAP/etc/taos"
+if [ ! -f $SNAP_DATA/etc/taos/taos.cfg ]; then
+  if [ ! -d $SNAP_DATA/etc/taos ]; then
+    mkdir -p $SNAP_DATA/etc/taos
+  fi
+  cp $SNAP/etc/taos/taos.cfg $SNAP_DATA/etc/taos
 fi
 
 # Launch the snap
-$SNAP/usr/bin/taosd -c $CONFIG_FILE $@
+$SNAP/usr/bin/taosd -c /etc/taos $@

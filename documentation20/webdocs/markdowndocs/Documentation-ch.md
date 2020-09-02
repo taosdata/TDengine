@@ -52,7 +52,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [连接器](https://www.taosdata.com/cn/documentation20/connector)
 
 - [C/C++ Connector](https://www.taosdata.com/cn/documentation20/connector/#C/C++-Connector)：通过libtaos客户端的库，连接TDengine服务器的主要方法
-- [Java Connector(JDBC)](https://www.taosdata.com/cn/documentation20/connector/#Java-Connector)：通过标准的JDBC API，给Java应用提供到TDengine的连接
+- [Java Connector(JDBC)](https://www.taosdata.com/cn/documentation20/connector-java)：通过标准的JDBC API，给Java应用提供到TDengine的连接
 - [Python Connector](https://www.taosdata.com/cn/documentation20/connector/#Python-Connector)：给Python应用提供一个连接TDengine服务器的驱动
 - [RESTful Connector](https://www.taosdata.com/cn/documentation20/connector/#RESTful-Connector)：提供一最简单的连接TDengine服务器的方式
 - [Go Connector](https://www.taosdata.com/cn/documentation20/connector/#Go-Connector)：给Go应用提供一个连接TDengine服务器的驱动

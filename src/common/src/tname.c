@@ -100,33 +100,123 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
   return pFilter;
 }
 
+int64_t taosAddNatualInterval(int64_t key, int64_t intervalTime, char timeUnit, int16_t precision) {
+  key /= 1000;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    key /= 1000;
+  }
+
+  struct tm tm;
+  time_t t = (time_t)key;
+  localtime_r(&t, &tm);
+
+  if (timeUnit == 'y') {
+    intervalTime *= 12;
+  }
+
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + intervalTime);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+
+  key = mktime(&tm) * 1000L;
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    key *= 1000L;
+  }
+
+  return key;
+}
+
+int32_t taosCountNatualInterval(int64_t skey, int64_t ekey, int64_t intervalTime, char timeUnit, int16_t precision) {
+  skey /= 1000;
+  ekey /= 1000;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    skey /= 1000;
+    ekey /= 1000;
+  }
+  if (ekey < skey) {
+    int64_t tmp = ekey;
+    ekey = skey;
+    skey = tmp;
+  }
+
+  struct tm tm;
+  time_t t = (time_t)skey;
+  localtime_r(&t, &tm);
+  int smon = tm.tm_year * 12 + tm.tm_mon;
+
+  t = (time_t)ekey;
+  localtime_r(&t, &tm);
+  int emon = tm.tm_year * 12 + tm.tm_mon;
+
+  if (timeUnit == 'y') {
+    intervalTime *= 12;
+  }
+
+  return (emon - smon) / (int32_t)intervalTime;
+}
+
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
   if (slidingTime == 0) {
     return startTime;
   }
+  int64_t start = startTime;
+  if (timeUnit == 'n' || timeUnit == 'y') {
+    start /= 1000;
+    if (precision == TSDB_TIME_PRECISION_MICRO) {
+      start /= 1000;
+    }
+    struct tm tm;
+    time_t t = (time_t)start;
+    localtime_r(&t, &tm);
+    tm.tm_sec = 0;
+    tm.tm_min = 0;
+    tm.tm_hour = 0;
+    tm.tm_mday = 1;
 
-  int64_t start = ((startTime - intervalTime) / slidingTime + 1) * slidingTime;
-  if (!(timeUnit == 'u' || timeUnit == 'a' || timeUnit == 'm' || timeUnit == 's' || timeUnit == 'h')) {
-    /*
-     * here we revised the start time of day according to the local time zone,
-     * but in case of DST, the start time of one day need to be dynamically decided.
-     */
-    // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-    int64_t timezone = _timezone;
-    int32_t daylight = _daylight;
-    char**  tzname = _tzname;
-#endif
+    if (timeUnit == 'y') {
+      tm.tm_mon = 0;
+      tm.tm_year = (int)(tm.tm_year / slidingTime * slidingTime);
+    } else {
+      int mon = tm.tm_year * 12 + tm.tm_mon;
+      mon = (int)(mon / slidingTime * slidingTime);
+      tm.tm_year = mon / 12;
+      tm.tm_mon = mon % 12;
+    }
 
-    int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
-    start += timezone * t;
+    start = mktime(&tm) * 1000L;
+    if (precision == TSDB_TIME_PRECISION_MICRO) {
+      start *= 1000L;
+    }
+  } else {
+    int64_t delta = startTime - intervalTime;
+    int32_t factor = delta > 0? 1:-1;
+
+    start = (delta / slidingTime + factor) * slidingTime;
+
+    if (timeUnit == 'd' || timeUnit == 'w') {
+      /*
+      * here we revised the start time of day according to the local time zone,
+      * but in case of DST, the start time of one day need to be dynamically decided.
+      */
+      // todo refactor to extract function that is available for Linux/Windows/Mac platform
+  #if defined(WINDOWS) && _MSC_VER >= 1900
+      // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+      int64_t timezone = _timezone;
+      int32_t daylight = _daylight;
+      char**  tzname = _tzname;
+  #endif
+
+      int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
+      start += timezone * t;
+    }
+
+    int64_t end = start + intervalTime - 1;
+    if (end < startTime) {
+      start += slidingTime;
+    }
   }
 
-  int64_t end = start + intervalTime - 1;
-  if (end < startTime) {
-    start += slidingTime;
-  }
   return start;
 }
 

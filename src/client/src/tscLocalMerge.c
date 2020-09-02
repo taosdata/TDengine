@@ -67,8 +67,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
     SQLFunctionCtx *pCtx = &pReducer->pCtx[i];
     SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    pCtx->aOutputBuf =
-        pReducer->pResultBuf->data + pExpr->offset * pReducer->resColModel->capacity;
+    pCtx->aOutputBuf = pReducer->pResultBuf->data + pExpr->offset * pReducer->resColModel->capacity;
     pCtx->order = pQueryInfo->order.order;
     pCtx->functionId = pExpr->functionId;
 
@@ -160,7 +159,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   
   if (pMemBuffer == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-  
     tscError("%p pMemBuffer is NULL", pMemBuffer);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
@@ -168,7 +166,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
  
   if (pDesc->pColumnModel == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
-
     tscError("%p no local buffer or intermediate result format model", pSql);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
@@ -188,7 +185,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   if (numOfFlush == 0 || numOfBuffer == 0) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
     tscDebug("%p retrieved no data", pSql);
-
     return;
   }
 
@@ -279,6 +275,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     taosTFree(pReducer);
     return;
   }
+
   param->pLocalData = pReducer->pLocalDataSrc;
   param->pDesc = pReducer->pDesc;
   param->num = pReducer->pLocalDataSrc[0]->pMemBuffer->numOfElemsPerPage;
