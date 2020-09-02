@@ -6161,7 +6161,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SArray* pTableIdList, 
   }
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
-  changeExecuteScanOrder(pQInfo, isSTableQuery);
+//  changeExecuteScanOrder(pQInfo, stableQuery);
 
   int32_t index = 0;
 
