@@ -221,20 +221,18 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-//typedef struct SDataBlockList {  // todo remove
-//  uint32_t           nSize;
-//  uint32_t           nAlloc;
-//  STableDataBlocks **pData;
-//} SDataBlockList;
-
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
+  uint32_t         type;          // query/insert type
+  // TODO refactor
   char             intervalTimeUnit;
   char             slidingTimeUnit;
-  uint32_t         type;          // query/insert type
   STimeWindow      window;        // query time window
-  int64_t          intervalTime;  // aggregation time interval
+  int64_t          intervalTime;  // aggregation time window range
   int64_t          slidingTime;   // sliding window in mseconds
+  int64_t          intervalOffset;// start offset of each time window
+  int32_t          tz;            // query client timezone
+
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
@@ -458,6 +456,7 @@ bool tscResultsetFetchCompleted(TAOS_RES *result);
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
+int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql);
 
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
@@ -471,7 +470,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
 
   // user defined constant value output columns
-  if (pInfo->pSqlExpr->colInfo.flag == TSDB_COL_UDC) {
+  if (TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
       pData = pInfo->pSqlExpr->param[1].pz;
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;

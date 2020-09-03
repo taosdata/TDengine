@@ -226,17 +226,13 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = &pSql->pRpcCtx,
       .code    = 0
   };
+
   // NOTE: the rpc context should be acquired before sending data to server.
   // Otherwise, the pSql object may have been released already during the response function, which is
   // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
   // cause crash.
-  if (pObj != NULL && pObj->signature == pObj) {
-    rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
-    return TSDB_CODE_SUCCESS;
-  } else {
-    //pObj->signature has been reset by other thread, ignore concurrency problem
-    return TSDB_CODE_TSC_CONN_KILLED; 
-  }
+  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
+  return TSDB_CODE_SUCCESS;
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
@@ -1494,8 +1490,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *tmpData = NULL;
   uint32_t len = pSql->cmd.payloadLen;
   if (len > 0) {
-    tmpData = calloc(1, len);
-    if (NULL == tmpData) {
+    if ((tmpData = calloc(1, len)) == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
@@ -1540,8 +1535,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // copy payload content to temp buff
   char *tmpData = 0;
   if (pCmd->payloadLen > 0) {
-    tmpData = calloc(1, pCmd->payloadLen + 1);
-    if (NULL == tmpData) return -1;
+    if ((tmpData = calloc(1, pCmd->payloadLen + 1)) == NULL) return -1;
     memcpy(tmpData, pCmd->payload, pCmd->payloadLen);
   }
 

@@ -50,7 +50,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscQueueAsyncError(pSql->fp, pSql->param, TSDB_CODE_TSC_OUT_OF_MEMORY);
+    pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tscQueueAsyncRes(pSql);
     return;
   }
 
@@ -94,7 +95,6 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
     return;
   }
@@ -191,7 +191,7 @@ void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRo
   tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscAsyncFetchSingleRowProxy);
 }
 
-void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), void *param) {
+void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
@@ -209,6 +209,8 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
+    pSql->param = param;
+
     tscQueueAsyncRes(pSql);
     return;
   }
@@ -269,7 +271,10 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_QHANDLE);
+    pSql->param = param;
+    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
+
+    tscQueueAsyncRes(pSql);
     return;
   }
 
@@ -352,36 +357,17 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
 
 void tscProcessAsyncRes(SSchedMsg *pMsg) {
   SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-//  SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-
-//  void *taosres = pSql;
-
-  // pCmd may be released, so cache pCmd->command
-//  int cmd = pCmd->command;
-//  int code = pRes->code;
-
-  // in case of async insert, restore the user specified callback function
-//  bool shouldFree = tscShouldBeFreed(pSql);
-
-//  if (pCmd->command == TSDB_SQL_INSERT) {
-//    assert(pSql->fp != NULL);
   assert(pSql->fp != NULL && pSql->fetchFp != NULL);
-//  }
 
-//  if (pSql->fp) {
   pSql->fp = pSql->fetchFp;
   (*pSql->fp)(pSql->param, pSql, pRes->code);
-//  }
-
-//  if (shouldFree) {
-//    tscDebug("%p sqlObj is automatically freed in async res", pSql);
-//    tscFreeSqlObj(pSql);
-//  }
 }
 
+// this function will be executed by queue task threads, so the terrno is not valid
 static void tscProcessAsyncError(SSchedMsg *pMsg) {
   void (*fp)() = pMsg->ahandle;
+  terrno = *(int32_t*) pMsg->msg;
   (*fp)(pMsg->thandle, NULL, *(int32_t*)pMsg->msg);
 }
 

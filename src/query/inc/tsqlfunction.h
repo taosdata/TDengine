@@ -69,6 +69,15 @@ extern "C" {
 #define TSDB_FUNC_AVG_IRATE    33
 
 #define TSDB_FUNC_TID_TAG      34
+#define TSDB_FUNC_HISTOGRAM    35
+#define TSDB_FUNC_HLL          36
+#define TSDB_FUNC_MODE         37
+#define TSDB_FUNC_SAMPLE       38
+#define TSDB_FUNC_CEIL         39
+#define TSDB_FUNC_FLOOR        40
+#define TSDB_FUNC_ROUND        41
+#define TSDB_FUNC_MAVG         42
+#define TSDB_FUNC_CSUM         43
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -168,6 +177,7 @@ typedef struct SQLFunctionCtx {
   int16_t      outputType;
   int16_t      outputBytes;  // size of results, determined by function and input column data type
   bool         hasNull;      // null value exist in current block
+  bool         requireNull;    // require null in some function
   int16_t      functionId;   // function id
   void *       aInputElemBuf;
   char *       aOutputBuf;            // final result output buffer, point to sdata->data

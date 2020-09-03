@@ -482,15 +482,31 @@ sql insert into um2 using m2 tags(9) values(1000001, 10)(2000000, 20);
 
 sql_error select count(*) from m1,m2 where m1.a=m2.a and m1.ts=m2.ts;
 
-#empty table join test, add for no result join test
+print ====> empty table/empty super-table join test, add for no result join test
 sql create database ux1;
 sql use ux1;
 sql create table m1(ts timestamp, k int) tags(a binary(12), b int);
 sql create table tm0 using m1 tags('abc', 1);
 sql create table m2(ts timestamp, k int) tags(a int, b binary(12));
+
+sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
+if $rows != 0 then
+  return -1
+endi
+
 sql create table tm2 using m2 tags(2, 'abc');
 sql select count(*) from tm0, tm2 where tm0.ts=tm2.ts;
-sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a
+if $rows != 0 then
+  return -1
+endi
+
+sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
+if $rows != 0 then
+  return -1
+endi
+
+sql drop table tm2;
+sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
 sql drop database ux1;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

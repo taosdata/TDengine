@@ -15,6 +15,7 @@
 
 #include "os.h"
 #include "shell.h"
+#include "tnettest.h"
 
 pthread_t pid;
 
@@ -60,7 +61,10 @@ SShellArguments args = {
   .file = "\0",
   .dir = "\0",
   .threadNum = 5,
-  .commands = NULL
+  .commands = NULL,  
+  .endPort = 6042,
+  .pktLen = 1000,
+  .netTestRole = NULL
 };
 
 /*
@@ -74,6 +78,11 @@ int main(int argc, char* argv[]) {
   }
 
   shellParseArgument(argc, argv, &args);
+
+  if (args.netTestRole && args.netTestRole[0] != 0) {
+    taosNetTest(args.host, (uint16_t)args.port, (uint16_t)args.endPort, args.pktLen, args.netTestRole);
+    exit(0);
+  }
 
   /* Initialize the shell */
   TAOS* con = shellInit(&args);
