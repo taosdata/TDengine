@@ -221,20 +221,18 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-//typedef struct SDataBlockList {  // todo remove
-//  uint32_t           nSize;
-//  uint32_t           nAlloc;
-//  STableDataBlocks **pData;
-//} SDataBlockList;
-
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
+  uint32_t         type;          // query/insert type
+  // TODO refactor
   char             intervalTimeUnit;
   char             slidingTimeUnit;
-  uint32_t         type;          // query/insert type
   STimeWindow      window;        // query time window
-  int64_t          intervalTime;  // aggregation time interval
+  int64_t          intervalTime;  // aggregation time window range
   int64_t          slidingTime;   // sliding window in mseconds
+  int64_t          intervalOffset;// start offset of each time window
+  int32_t          tz;            // query client timezone
+
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
