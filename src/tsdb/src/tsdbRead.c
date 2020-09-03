@@ -295,9 +295,16 @@ out_of_memory:
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
-  pCond->order = TSDB_ORDER_ASC;
   pCond->twindow = changeTableGroupByLastrow(groupList);
+
+  // no qualified table
+  if (groupList->numOfTables == 0) {
+    return NULL;
+  }
+
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
+
+  assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
   return pQueryHandle;
 }
 
@@ -1981,8 +1988,9 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
 STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
+  int32_t totalNumOfTable = 0;
+
   // NOTE: starts from the buffer in case of descending timestamp order check data blocks
-  // todo consider the query time window, current last_row does not apply the query time window
   size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
   for(int32_t j = 0; j < numOfGroups; ++j) {
     SArray* pGroup = taosArrayGetP(groupList->pGroupList, j);
@@ -1993,8 +2001,9 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
     size_t numOfTables = taosArrayGetSize(pGroup);
     for(int32_t i = 0; i < numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(pGroup, i);
-      TSKEY lastKey = ((STable*)(pKeyInfo->pTable))->lastKey;
 
+      // if the lastKey equals to INT64_MIN, there is no data in this table
+      TSKEY lastKey = ((STable*)(pKeyInfo->pTable))->lastKey;
       if (key < lastKey) {
         key = lastKey;
 
@@ -2012,13 +2021,23 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
       }
     }
 
+    // clear current group
+    taosArrayClear(pGroup);
+
     // more than one table in each group, only one table left for each group
-    if (numOfTables > 1) {
-      taosArrayClear(pGroup);
+    if (keyInfo.pTable != NULL) {
+      totalNumOfTable++;
       taosArrayPush(pGroup, &keyInfo);
     }
   }
 
+  // window does not being updated, so set the original
+  if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
+    window = TSWINDOW_INITIALIZER;
+    assert(totalNumOfTable == 0);
+  }
+
+  groupList->numOfTables = totalNumOfTable;
   return window;
 }
 

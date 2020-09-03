@@ -153,4 +153,22 @@ if $rows != 46 then
   return -1
 endi
 
+print ========>td-1317, empty table last_row query crashed
+sql create table m1(ts timestamp, k int) tags (a int);
+sql create table t1 using m1 tags(1);
+sql create table t2 using m1 tags(2);
 
+sql select last_row(*) from t1
+if $rows != 0 then
+  return -1
+endi
+
+sql select last_row(*) from m1
+if $rows != 0 then
+  return -1
+endi
+
+sql select last_row(*) from m1 where tbname in ('t1')
+if $rows != 0 then
+  return -1
+endi

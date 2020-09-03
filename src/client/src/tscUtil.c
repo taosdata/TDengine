@@ -33,7 +33,7 @@
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
 
-  SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
+SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;
   }
@@ -294,7 +294,7 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
 
-static void tscFreeQueryInfo(SSqlCmd* pCmd) {
+static void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeFromCache) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return;
   }
@@ -304,7 +304,7 @@ static void tscFreeQueryInfo(SSqlCmd* pCmd) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
     
     freeQueryInfoImpl(pQueryInfo);
-    clearAllTableMetaInfo(pQueryInfo, (const char*)addr, false);
+    clearAllTableMetaInfo(pQueryInfo, (const char*)addr, removeFromCache);
     taosTFree(pQueryInfo);
   }
   
@@ -312,7 +312,7 @@ static void tscFreeQueryInfo(SSqlCmd* pCmd) {
   taosTFree(pCmd->pQueryInfo);
 }
 
-void tscResetSqlCmdObj(SSqlCmd* pCmd) {
+void tscResetSqlCmdObj(SSqlCmd* pCmd, bool removeFromCache) {
   pCmd->command   = 0;
   pCmd->numOfCols = 0;
   pCmd->count     = 0;
@@ -326,7 +326,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd) {
   
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   
-  tscFreeQueryInfo(pCmd);
+  tscFreeQueryInfo(pCmd, removeFromCache);
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -364,7 +364,7 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   taosTFree(pSql->pSubs);
   pSql->numOfSubs = 0;
   
-  tscResetSqlCmdObj(pCmd);
+  tscResetSqlCmdObj(pCmd, false);
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
