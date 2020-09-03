@@ -162,7 +162,7 @@ Master Vnode遵循下面的写入流程：
 
 <center> 图 3 TDengine Master写入流程  </center>
 1. Master vnode收到应用的数据插入请求，验证OK，进入下一步；
-2. 如果系统配置参数walLevel打开（设置为2），vnode将把该请求的原始数据包写入数据库日志文件WAL，以保证TDengine能够在断电等因素导致的服务重启时从数据库日志文件中恢复数据，避免数据的丢失；
+2. 如果系统配置参数walLevel大于0，vnode将把该请求的原始数据包写入数据库日志文件WAL。如果walLevel设置为2，而且fsync设置为0，TDengine还将WAL数据立即落盘，以保证即使宕机，也能从数据库日志文件中恢复数据，避免数据的丢失；
 3. 如果有多个副本，vnode将把数据包转发给同一虚拟节点组内slave vnodes, 该转发包带有数据的版本号(version)；
 4. 写入内存，并加记录加入到skip list；
 5. Master vnode返回确认信息给应用，表示写入成功。
@@ -174,7 +174,7 @@ Master Vnode遵循下面的写入流程：
 
 <center> 图 4 TDengine Slave写入流程  </center>
 1. Slave vnode收到Master vnode转发了的数据插入请求。
-2. 如果系统配置参数walLevl设置为2，vnode将把该请求的原始数据包写入日志(WAL)；
+2. 如果系统配置参数walLevel大于0，vnode将把该请求的原始数据包写入数据库日志文件WAL。如果walLevel设置为2，而且fsync设置为0，TDengine还将WAL数据立即落盘，以保证即使宕机，也能从数据库日志文件中恢复数据，避免数据的丢失；
 3. 写入内存，更新内存中的skip list。
 
 与Master vnode相比，slave vnode不存在转发环节，也不存在回复确认环节，少了两步。但写内存与WAL是完全一样的。
