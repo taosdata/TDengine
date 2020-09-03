@@ -118,4 +118,23 @@ if $data21 != 2.10000 then
   return -1
 endi
 
+print =====================td-1302 case
+sql create database t1 keep 36500;
+sql use t1;
+sql create table test(ts timestamp, k int);
+sql insert into test values(29999, 1)(70000, 2)(80000, 3)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+sleep 3000
+
+sql select count(*) from t1.test where ts>10000 and ts<90000 interval(5000a)
+if $rows != 3 then
+ return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

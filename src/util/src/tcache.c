@@ -378,40 +378,43 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     } else {
       // NOTE: remove it from hash in the first place, otherwise, the pNode may have been released by other thread
       // when reaches here.
-      SCacheDataNode* p = NULL;
-      int32_t ret = taosHashRemoveWithData(pCacheObj->pHashTable, pNode->key, pNode->keySize, &p, sizeof(void*));
+      SCacheDataNode *p = NULL;
+      int32_t ret = taosHashRemoveWithData(pCacheObj->pHashTable, pNode->key, pNode->keySize, &p, sizeof(void *));
       ref = T_REF_DEC(pNode);
 
       // successfully remove from hash table, if failed, this node must have been move to trash already, do nothing.
       // note that the remove operation can be executed only once.
       if (ret == 0) {
-	if (p != pNode) {
-	uDebug("cache:%s, key:%p, successfully removed a new entry:%p, refcnt:%d, prev entry:%p has been removed by others already", pCacheObj->name, pNode->key, p->data, T_REF_VAL_GET(p), pNode->data);
-	assert(p->pTNodeHeader == NULL);
-	taosAddToTrash(pCacheObj, p);
-	} else {
+        if (p != pNode) {
+          uDebug( "cache:%s, key:%p, successfully removed a new entry:%p, refcnt:%d, prev entry:%p has been removed by "
+              "others already", pCacheObj->name, pNode->key, p->data, T_REF_VAL_GET(p), pNode->data);
 
-        uDebug("cache:%s, key:%p, %p successfully removed from hash table, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, ref);
-        if (ref > 0) {
-          assert(pNode->pTNodeHeader == NULL);
+          assert(p->pTNodeHeader == NULL);
+          taosAddToTrash(pCacheObj, p);
+        } else {
+          uDebug("cache:%s, key:%p, %p successfully removed from hash table, refcnt:%d", pCacheObj->name, pNode->key,
+                 pNode->data, ref);
+          if (ref > 0) {
+            assert(pNode->pTNodeHeader == NULL);
 
-          taosAddToTrash(pCacheObj, pNode);
-        } else {  // ref == 0
-          atomic_sub_fetch_64(&pCacheObj->totalSize, pNode->size);
+            taosAddToTrash(pCacheObj, pNode);
+          } else {  // ref == 0
+            atomic_sub_fetch_64(&pCacheObj->totalSize, pNode->size);
 
-          int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
-          uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
-                 pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
+            int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
+            uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
+                   pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
-          if (pCacheObj->freeFp) {
-            pCacheObj->freeFp(pNode->data);
+            if (pCacheObj->freeFp) {
+              pCacheObj->freeFp(pNode->data);
+            }
+
+            free(pNode);
           }
-
-          free(pNode);
         }
-	}
       } else {
-        uDebug("cache:%s, key:%p, %p has been removed from hash table by other thread already, refcnt:%d", pCacheObj->name, pNode->key, pNode->data, ref);
+        uDebug("cache:%s, key:%p, %p has been removed from hash table by other thread already, refcnt:%d",
+               pCacheObj->name, pNode->key, pNode->data, ref);
       }
     }
 
@@ -513,7 +516,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pCacheObj->numOfElemsInTrash++;
   __cache_unlock(pCacheObj);
 
-  uDebug("%s key:%p, %p move to trash, numOfElem in trash:%d", pCacheObj->name, pNode->key, pNode->data,
+  uDebug("cache:%s key:%p, %p move to trash, numOfElem in trash:%d", pCacheObj->name, pNode->key, pNode->data,
       pCacheObj->numOfElemsInTrash);
 }
 
