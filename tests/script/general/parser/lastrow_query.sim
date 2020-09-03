@@ -152,3 +152,5 @@ sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' 
 if $rows != 46 then
   return -1
 endi
+
+

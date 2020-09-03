@@ -347,6 +347,8 @@ if $rows != 3 then
   return -1
 endi
 
+print ======================udc with normal column group by
+
 sql_error select from t1
 sql_error select abc from t1
 sql_error select abc as tu from t1
