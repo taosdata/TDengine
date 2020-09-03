@@ -295,9 +295,10 @@ out_of_memory:
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
-  pCond->order = TSDB_ORDER_ASC;
   pCond->twindow = changeTableGroupByLastrow(groupList);
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
+
+  assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
   return pQueryHandle;
 }
 
@@ -1982,7 +1983,6 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
   // NOTE: starts from the buffer in case of descending timestamp order check data blocks
-  // todo consider the query time window, current last_row does not apply the query time window
   size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
   for(int32_t j = 0; j < numOfGroups; ++j) {
     SArray* pGroup = taosArrayGetP(groupList->pGroupList, j);
@@ -2017,6 +2017,11 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
       taosArrayClear(pGroup);
       taosArrayPush(pGroup, &keyInfo);
     }
+  }
+
+  // window does not being updated, so set the original
+  if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
+    window = TSWINDOW_INITIALIZER;
   }
 
   return window;

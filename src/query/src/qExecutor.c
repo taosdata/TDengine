@@ -1951,36 +1951,36 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bo
 
   // todo handle the case the the order irrelevant query type mixed up with order critical query type
   // descending order query for last_row query
-  if (isFirstLastRowQuery(pQuery)) {
+  if (isFirstLastRowQuery(pQuery) && !QUERY_IS_ASC_QUERY(pQuery)) {
     qDebug("QInfo:%p scan order changed for last_row query, old:%d, new:%d", GET_QINFO_ADDR(pQuery),
            pQuery->order.order, TSDB_ORDER_ASC);
 
+    SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
     pQuery->order.order = TSDB_ORDER_ASC;
-    if (pQuery->window.skey > pQuery->window.ekey) {
-      SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
-    }
-
-    return;
-  }
-
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) && pQuery->order.order == TSDB_ORDER_DESC) {
-    pQuery->order.order = TSDB_ORDER_ASC;
-    if (pQuery->window.skey > pQuery->window.ekey) {
-      SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
-    }
+    assert (pQuery->window.skey <= pQuery->window.ekey);
 
     doExchangeTimeWindow(pQInfo, &pQuery->window);
     return;
   }
 
-  if (isPointInterpoQuery(pQuery) && pQuery->intervalTime == 0) {
-    if (!QUERY_IS_ASC_QUERY(pQuery)) {
-      qDebug(msg, GET_QINFO_ADDR(pQuery), "interp", pQuery->order.order, TSDB_ORDER_ASC, pQuery->window.skey,
-             pQuery->window.ekey, pQuery->window.ekey, pQuery->window.skey);
-      SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
-    }
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) && !QUERY_IS_ASC_QUERY(pQuery)) {
+    pQuery->order.order = TSDB_ORDER_ASC;
+    SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
+    assert (pQuery->window.skey <= pQuery->window.ekey);
+
+    doExchangeTimeWindow(pQInfo, &pQuery->window);
+    return;
+  }
+
+  if (isPointInterpoQuery(pQuery) && (pQuery->intervalTime == 0) && !QUERY_IS_ASC_QUERY(pQuery)) {
+    qDebug(msg, GET_QINFO_ADDR(pQuery), "interp", pQuery->order.order, TSDB_ORDER_ASC, pQuery->window.skey,
+           pQuery->window.ekey, pQuery->window.ekey, pQuery->window.skey);
+    SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
 
     pQuery->order.order = TSDB_ORDER_ASC;
+
+    assert (pQuery->window.skey <= pQuery->window.ekey);
+    doExchangeTimeWindow(pQInfo, &pQuery->window);
     return;
   }
 
