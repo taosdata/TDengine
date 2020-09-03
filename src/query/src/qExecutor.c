@@ -4354,6 +4354,32 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   return true;
 }
 
+static void freeTableQueryInfo(STableGroupInfo* pTableGroupInfo) {
+  if (pTableGroupInfo->pGroupList == NULL) {
+    assert(pTableGroupInfo->numOfTables == 0);
+  } else {
+    size_t numOfGroups = taosArrayGetSize(pTableGroupInfo->pGroupList);
+    for (int32_t i = 0; i < numOfGroups; ++i) {
+      SArray *p = taosArrayGetP(pTableGroupInfo->pGroupList, i);
+
+      size_t num = taosArrayGetSize(p);
+      for(int32_t j = 0; j < num; ++j) {
+        STableQueryInfo* item = taosArrayGetP(p, j);
+        destroyTableQueryInfo(item);
+      }
+
+      taosArrayDestroy(p);
+    }
+
+    taosArrayDestroy(pTableGroupInfo->pGroupList);
+    pTableGroupInfo->pGroupList = NULL;
+    pTableGroupInfo->numOfTables = 0;
+  }
+
+  taosHashCleanup(pTableGroupInfo->map);
+  pTableGroupInfo->map = NULL;
+}
+
 static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -4389,20 +4415,22 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
   terrno = TSDB_CODE_SUCCESS;
   if (isFirstLastRowQuery(pQuery)) {
     pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo);
+    if (pRuntimeEnv->pQueryHandle == NULL) {  // no data in current stable, clear all
+      freeTableQueryInfo(&pQInfo->tableqinfoGroupInfo);
+    } else { // update the query time window
+      pQuery->window = cond.twindow;
 
-    // update the query time window
-    pQuery->window = cond.twindow;
+      size_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
+      for (int32_t i = 0; i < numOfGroups; ++i) {
+        SArray *group = GET_TABLEGROUP(pQInfo, i);
 
-    size_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
-    for(int32_t i = 0; i < numOfGroups; ++i) {
-      SArray *group = GET_TABLEGROUP(pQInfo, i);
+        size_t t = taosArrayGetSize(group);
+        for (int32_t j = 0; j < t; ++j) {
+          STableQueryInfo *pCheckInfo = taosArrayGetP(group, j);
 
-      size_t t = taosArrayGetSize(group);
-      for (int32_t j = 0; j < t; ++j) {
-        STableQueryInfo *pCheckInfo = taosArrayGetP(group, j);
-
-        pCheckInfo->win = pQuery->window;
-        pCheckInfo->lastKey = pCheckInfo->win.skey;
+          pCheckInfo->win = pQuery->window;
+          pCheckInfo->lastKey = pCheckInfo->win.skey;
+        }
       }
     }
   } else if (isPointInterpoQuery(pQuery)) {
@@ -4454,6 +4482,12 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   code = setupQueryHandle(tsdb, pQInfo, isSTableQuery);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
+  }
+
+  if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
+    qDebug("QInfo:%p no table qualified for tag filter, abort query", pQInfo);
+    setQueryStatus(pQuery, QUERY_COMPLETED);
+    return TSDB_CODE_SUCCESS;
   }
 
   pQInfo->tsdb = tsdb;
@@ -6349,28 +6383,12 @@ static void freeQInfo(SQInfo *pQInfo) {
     taosTFree(pQuery);
   }
 
-  // todo refactor, extract method to destroytableDataInfo
-  if (pQInfo->tableqinfoGroupInfo.pGroupList != NULL) {
-    int32_t numOfGroups = (int32_t)(GET_NUM_OF_TABLEGROUP(pQInfo));
-    for (int32_t i = 0; i < numOfGroups; ++i) {
-      SArray *p = GET_TABLEGROUP(pQInfo, i);
-
-      size_t num = taosArrayGetSize(p);
-      for(int32_t j = 0; j < num; ++j) {
-        STableQueryInfo* item = taosArrayGetP(p, j);
-        destroyTableQueryInfo(item);
-      }
-
-      taosArrayDestroy(p);
-    }
-  }
+  freeTableQueryInfo(&pQInfo->tableqinfoGroupInfo);
 
   taosTFree(pQInfo->pBuf);
-  taosArrayDestroy(pQInfo->tableqinfoGroupInfo.pGroupList);
-  taosHashCleanup(pQInfo->tableqinfoGroupInfo.map);
+
   tsdbDestroyTableGroup(&pQInfo->tableGroupInfo);
   taosArrayDestroy(pQInfo->arrTableIdInfo);
-
 
   pQInfo->signature = 0;
 
