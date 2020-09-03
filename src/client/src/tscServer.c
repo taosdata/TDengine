@@ -276,8 +276,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     }
   }
 
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-
   int32_t cmd = pCmd->command;
   if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_INSERT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
@@ -302,7 +300,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         taosMsleep(duration);
       }
 
-      rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
+      rpcMsg->code = tscRenewTableMeta(pSql, 0);
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -2202,14 +2200,14 @@ int tscGetMeterMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 /**
  * retrieve table meta from mnode, and update the local table meta cache.
  * @param pSql          sql object
- * @param tableId       table full name
+ * @param tableIndex    table index
  * @return              status code
  */
-int tscRenewTableMeta(SSqlObj *pSql, char *tableId) {
+int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pTableMetaInfo->pTableMeta) {
