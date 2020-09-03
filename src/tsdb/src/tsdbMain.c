@@ -354,8 +354,8 @@ char *tsdbGetMetaFileName(char *rootDir) {
   return fname;
 }
 
-void tsdbGetDataFileName(STsdbRepo *pRepo, int fid, int type, char *fname) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", pRepo->rootDir, TSDB_DATA_DIR_NAME, REPO_ID(pRepo), fid, tsdbFileSuffix[type]);
+void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, char *fname) {
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", rootDir, TSDB_DATA_DIR_NAME, vid, fid, tsdbFileSuffix[type]);
 }
 
 int tsdbLockRepo(STsdbRepo *pRepo) {
