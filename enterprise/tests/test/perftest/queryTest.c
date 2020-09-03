@@ -3,9 +3,10 @@
 #include <string.h>
 #include <wordexp.h>
 
+#include <assert.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <assert.h>
+#include <tcache.h>
 #include <unistd.h>
 
 #include "taos.h"
@@ -340,7 +341,6 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-
   taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
@@ -375,10 +375,8 @@ int main(int argc, char** argv) {
 
 //  multiThreadQuery(atoi(argv[1]), argv[2]);
 //  return 0;
-  executeSQL(conn, "drop database test", NULL);
-  executeSQL(conn, "create database test", NULL);
-  executeSQL(conn, "use test", NULL);
-//  executeSQL(conn,"select last_row(*) from tm1,tm2 where tm1.ts=tm2.ts", NULL);
+  executeSQL(conn,"use te", NULL);
+  executeSQL(conn,"select last(ts) p_time from stb where ts>='2020-09-1 0:0:0' and ts <='2020-09-31 23:59:59'  group by i order by ts desc;", NULL);
 //  executeSQL( conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and
 //  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
 //  return 0;

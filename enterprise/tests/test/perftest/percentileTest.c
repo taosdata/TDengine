@@ -236,7 +236,7 @@ void largeDataTest() {
   result = getPercentile(pBucket, 50);
   assert(result - 50000000 < DBL_EPSILON);
 
-  gettimeofday(&tv, NULL);tscDestroyResPointerInfo
+  gettimeofday(&tv, NULL);
 
   printf("total elapsed time: %"PRId64" sec.", -start + tv.tv_sec);
   printf("the result of %d is: %lf\n", 50, result);
