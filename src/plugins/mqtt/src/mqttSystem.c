@@ -74,10 +74,10 @@ void mqttPublishCallback(void** unused, struct mqtt_response_publish* published)
   if (tsMqttConnect == NULL) {
     tsMqttConnect = taos_connect(NULL, "_root", tsInternalPass, "", 0);
     if (tsMqttConnect == NULL) {
-      mqttError("failed to connect tdengine");
+      mqttError("failed to connect to tdengine");
       return;
     } else {
-      mqttInfo("successed to connect tdengine");
+      mqttInfo("successfully connected to the tdengine");
     }
   }
 
@@ -88,7 +88,9 @@ void mqttPublishCallback(void** unused, struct mqtt_response_publish* published)
     void* res = taos_query(tsMqttConnect, sql);
     int   code = taos_errno(res);
     if (code != 0) {
-      mqttError("failed to exec sql%s", sql);
+      mqttError("failed to exec sql:%s", sql);
+    } else {
+      mqttDebug("successfully to exec sql:%s", sql);
     }
     taos_free_result(res);
   } else {
@@ -136,6 +138,6 @@ void mqttReconnectClient(struct mqtt_client* client, void** unused) {
   }
 
   mqtt_reinit(client, sockfd, tsMqttStatus.sendbuf, tsMqttStatus.sendbufsz, tsMqttStatus.recvbuf, tsMqttStatus.recvbufsz);
-  mqtt_connect(client, "tsMqttClientId", NULL, NULL, 0, tsMqttUser, tsMqttPass, MQTT_CONNECT_CLEAN_SESSION, 400);
+  mqtt_connect(client, tsMqttClientId, NULL, NULL, 0, tsMqttUser, tsMqttPass, MQTT_CONNECT_CLEAN_SESSION, 400);
   mqtt_subscribe(client, tsMqttTopic, 0);
 }

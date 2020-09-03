@@ -55,6 +55,9 @@
 }
 */
 
+// send msg cmd
+// mosquitto_pub -h test.mosquitto.org  -t "/test" -m '{"timestamp": 1599121290,"gateway": {"name": "AcuLink 810 Gateway","model": "AcuLink810-868","serial": "S8P20200207"},"device": {"name": "Acuvim L V3 .221","model": "Acuvim-L-V3","serial": "221","online": true,"readings": [{"param": "Freq_Hz","value": "59.977539","unit": "Hz"},{"param": "Va_V","value": "122.002907","unit": "V"},{"param": "DI4","value": "5.000000","unit": ""}]}}'
+
 /*
  * This is an example, this function needs to be implemented in order to parse the json file into a sql statement
  * Note that you need to create a super table and database before writing data
@@ -65,6 +68,7 @@
 
 char* mqttConverJsonToSql(char* json, int maxSize) {
   // const int32_t maxSize = 10240;
+  maxSize *= 5;
   char* sql = malloc(maxSize);
 
   cJSON* root = cJSON_Parse(json);
@@ -139,10 +143,10 @@ char* mqttConverJsonToSql(char* json, int maxSize) {
       goto MQTT_PARSE_OVER;
     }
 
-    len += snprintf(sql, maxSize - len,
-                    " mqttdb.%s using mqttdb.devices tags('%s', '%s', '%s', '%s', '%s') values(%" PRId64 ", %s)",
-                    serial->valuestring, name->valuestring, model->valuestring, serial->valuestring, param->valuestring,
-                    unit->valuestring, timestamp->valueint * 1000, value->valuestring);
+    len += snprintf(sql + len, maxSize - len,
+        " mqttdb.serial_%s_%s using mqttdb.devices tags('%s', '%s', '%s', '%s', '%s') values(%" PRId64 ", %s)",
+        serial->valuestring, param->valuestring, name->valuestring, model->valuestring, serial->valuestring,
+        param->valuestring, unit->valuestring, timestamp->valueint * 1000, value->valuestring);
   }
 
   cJSON_free(root);
