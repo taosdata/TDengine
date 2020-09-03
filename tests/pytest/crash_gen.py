@@ -693,7 +693,7 @@ class DbConnRest(DbConn):
     def __init__(self):
         super().__init__()
         self._type = self.TYPE_REST
-        self._url = "http://localhost:6020/rest/sql"  # fixed for now
+        self._url = "http://localhost:6041/rest/sql"  # fixed for now
         self._result = None
 
     def openByType(self):  # Open connection
@@ -1306,6 +1306,7 @@ class DbManager():
                     "Cannot establish DB connection, please re-run script without parameter, and follow the instructions.")
                 sys.exit(2)
             else:
+                print("Failed to connect to DB, errno = {}, msg: {}".format(Helper.convertErrno(err.errno), err.msg))
                 raise
         except BaseException:
             print("[=] Unexpected exception")
@@ -1910,10 +1911,19 @@ class TaskReadData(StateTransitionTask):
                 # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
                 'sum(speed)', 
                 'stddev(speed)', 
+                # SELECTOR functions
                 'min(speed)', 
                 'max(speed)', 
                 'first(speed)', 
-                'last(speed)']) # TODO: add more from 'top'
+                'last(speed)',
+                # 'top(speed)', # TODO: not supported?
+                # 'bottom(speed)', # TODO: not supported?
+                # 'percentile(speed, 10)', # TODO: TD-1316
+                'last_row(speed)',
+                # Transformation Functions
+                # 'diff(speed)', # TODO: no supported?!
+                'spread(speed)'
+                ]) # TODO: add more from 'top'
             filterExpr = Dice.choice([ # TODO: add various kind of WHERE conditions
                 None
             ])
@@ -2350,7 +2360,7 @@ class ServiceManagerThread:
         self._thread2.start()
 
         # wait for service to start
-        for i in range(0, 10):
+        for i in range(0, 100):
             time.sleep(1.0)
             # self.procIpcBatch() # don't pump message during start up
             print("_zz_", end="", flush=True)
@@ -2358,7 +2368,7 @@ class ServiceManagerThread:
                 logger.info("[] TDengine service READY to process requests")
                 return  # now we've started
         # TODO: handle this better?
-        self.procIpcBatch(20, True) # display output before cronking out, trim to last 20 msgs, force output
+        self.procIpcBatch(100, True) # display output before cronking out, trim to last 20 msgs, force output
         raise RuntimeError("TDengine service did not start successfully")
 
     def stop(self):
@@ -2768,7 +2778,7 @@ class MainExec:
         try: 
             ret = self._clientMgr.run(self._svcMgr) # stop TAOS service inside
         except requests.exceptions.ConnectionError as err:
-            logger.warning("Failed to open REST connection to DB")
+            logger.warning("Failed to open REST connection to DB: {}".format(err.getMessage()))
             # don't raise
         return ret
 

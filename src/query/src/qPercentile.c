@@ -38,9 +38,9 @@ static tFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
     SPageInfo* pgInfo = *(SPageInfo**) taosArrayGet(list, i);
 
     tFilePage* pg = getResBufPage(pMemBucket->pBuffer, pgInfo->pageId);
-    memcpy(buffer->data + offset, pg->data, pg->num * pMemBucket->bytes);
+    memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
-    offset += pg->num * pMemBucket->bytes;
+    offset += (int32_t)(pg->num * pMemBucket->bytes);
   }
 
   qsort(buffer->data, pMemBucket->pSlots[slotIdx].info.size, pMemBucket->bytes, pMemBucket->comparFn);
@@ -142,7 +142,7 @@ int32_t tBucketBigIntHash(tMemBucket *pBucket, const void *value) {
       index = delta % pBucket->numOfSlots;
     } else {
       double slotSpan = (double)span / pBucket->numOfSlots;
-      index = (v - pBucket->range.i64MinVal) / slotSpan;
+      index = (int32_t)((v - pBucket->range.i64MinVal) / slotSpan);
       if (v == pBucket->range.i64MaxVal) {
         index -= 1;
       }
@@ -186,7 +186,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
       index = (delta % pBucket->numOfSlots);
     } else {
       double slotSpan = (double)span / pBucket->numOfSlots;
-      index = (v - pBucket->range.iMinVal) / slotSpan;
+      index = (int32_t)((v - pBucket->range.iMinVal) / slotSpan);
       if (v == pBucket->range.iMaxVal) {
         index -= 1;
       }
@@ -216,7 +216,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
       index = (delta % pBucket->numOfSlots);
     } else {
       double slotSpan = span / pBucket->numOfSlots;
-      index = (v - pBucket->range.dMinVal) / slotSpan;
+      index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
       if (v == pBucket->range.dMaxVal) {
         index -= 1;
       }
@@ -397,7 +397,7 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, char *data, int32_t dataType) {
  */
 void tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   assert(pBucket != NULL && data != NULL && size > 0);
-  pBucket->total += size;
+  pBucket->total += (int32_t)size;
 
   int32_t bytes = pBucket->bytes;
 
@@ -530,7 +530,7 @@ static double getIdenticalDataVal(tMemBucket* pMemBucket, int32_t slotIndex) {
     };
 
     case TSDB_DATA_TYPE_BIGINT: {
-      finalResult = pSlot->range.i64MinVal;
+      finalResult = (double)pSlot->range.i64MinVal;
       break;
     }
   }
