@@ -611,7 +611,7 @@ static bool dnodeReadMnodeInfos() {
   }
 
   for (int i = 0; i < size; ++i) {
-    cJSON* nodeInfo = cJSON_GetArrayItem(nodeInfos, i);
+    cJSON *nodeInfo = cJSON_GetArrayItem(nodeInfos, i);
     if (nodeInfo == NULL) continue;
 
     cJSON *nodeId = cJSON_GetObjectItem(nodeInfo, "nodeId");
@@ -627,7 +627,7 @@ static bool dnodeReadMnodeInfos() {
       goto PARSE_OVER;
     }
     strncpy(tsDMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
- }
+  }
 
   ret = true;
 
