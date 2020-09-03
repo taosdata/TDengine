@@ -154,9 +154,14 @@ int32_t tBucketBigIntHash(tMemBucket *pBucket, const void *value) {
 
 // todo refactor to more generic
 int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
-  int32_t v = *(int32_t *)value;
-  int32_t index = -1;
+  int32_t v = 0;
+  switch(pBucket->type) {
+    case TSDB_DATA_TYPE_SMALLINT: v = *(int16_t*) value; break;
+    case TSDB_DATA_TYPE_TINYINT: v = *(int8_t*) value; break;
+    default: v = *(int32_t*) value;break;
+  }
 
+  int32_t index = -1;
   if (pBucket->range.iMaxVal == INT32_MIN) {
     /*
      * taking negative integer into consideration,
