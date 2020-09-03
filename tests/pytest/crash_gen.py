@@ -1306,6 +1306,7 @@ class DbManager():
                     "Cannot establish DB connection, please re-run script without parameter, and follow the instructions.")
                 sys.exit(2)
             else:
+                print("Failed to connect to DB, errno = {}, msg: {}".format(Helper.convertErrno(err.errno), err.msg))
                 raise
         except BaseException:
             print("[=] Unexpected exception")
@@ -1910,10 +1911,19 @@ class TaskReadData(StateTransitionTask):
                 # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
                 'sum(speed)', 
                 'stddev(speed)', 
+                # SELECTOR functions
                 'min(speed)', 
                 'max(speed)', 
                 'first(speed)', 
-                'last(speed)']) # TODO: add more from 'top'
+                'last(speed)',
+                # 'top(speed)', # TODO: not supported?
+                # 'bottom(speed)', # TODO: not supported?
+                # 'percentile(speed, 10)', # TODO: TD-1316
+                'last_row(speed)',
+                # Transformation Functions
+                # 'diff(speed)', # TODO: no supported?!
+                'spread(speed)'
+                ]) # TODO: add more from 'top'
             filterExpr = Dice.choice([ # TODO: add various kind of WHERE conditions
                 None
             ])
