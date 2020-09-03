@@ -67,44 +67,56 @@
 				</div>
 				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
 					<div class="form-group input-group-sm">
-						<label for="c4" style="font-weight:normal;font-size:12px">Row Size (bytes)</label>
+						<label for="c4" style="font-weight:normal;font-size:12px">Row Size (Bytes)</label>
 						<input type="number" id="C4" class="form-control" style="height:30px;font-size:12px" placeholder="32">
 					</div>
 				</div>
-				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol" >
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
 					<div class="form-group input-group-sm">
-						<label for="c5" style="font-weight:normal;font-size:12px">Average Cache Blocks a Table</label>
-						<input type="number" id="C5" class="form-control" style="height:30px;font-size:12px" placeholder="4">
+						<label for="c5" style="font-weight:normal;font-size:12px">Length of Table Name (Bytes)</label>
+						<input type="number" id="C5" class="form-control" style="height:30px;font-size:12px" placeholder="48">
 					</div>
 				</div>
 				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
 					<div class="form-group input-group-sm">
-						<label for="c6" style="font-weight:normal;font-size:12px">Cache Block Size (bytes)</label>
-						<input type="number" id="C6" class="form-control" style="height:30px;font-size:12px" placeholder="16000">
-					</div>
-				</div>
-				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
-					<div class="form-group input-group-sm">
-						<label for="c7" style="font-weight:normal;font-size:12px">Number of Tables</label>
-						<input type="number" id="C7" class="form-control" style="height:30px;font-size:12px" placeholder="100000">
-					</div>
-				</div>
-				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
-					<div class="form-group input-group-sm">
-						<label for="c8" style="font-weight:normal;font-size:12px">Sampling Period (seconds)</label>
-						<input type="number" id="C8" class="form-control" style="height:30px;font-size:12px" placeholder="10">
+						<label for="c6" style="font-weight:normal;font-size:12px">Length of Tags for a Table (Bytes)</label>
+						<input type="number" id="C6" class="form-control" style="height:30px;font-size:12px" placeholder="64">
 					</div>
 				</div>
 				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol" >
 					<div class="form-group input-group-sm">
-						<label for="c9" style="font-weight:normal;font-size:12px">Number of Rows a Batch</label>
-						<input type="number" id="C9" class="form-control" style="height:30px;font-size:12px" placeholder="100">
+						<label for="c7" style="font-weight:normal;font-size:12px">Average Cache Blocks a Table</label>
+						<input type="number" id="C7" class="form-control" style="height:30px;font-size:12px" placeholder="6">
 					</div>
 				</div>
 				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
 					<div class="form-group input-group-sm">
-						<label for="c10" style="font-weight:normal;font-size:12px">Compression Ratio</label>
-						<input type="number" id="C10" class="form-control" style="height:30px;font-size:12px" placeholder="0.5">
+						<label for="c8" style="font-weight:normal;font-size:12px">Cache Block Size (MB)</label>
+						<input type="number" id="C8" class="form-control" style="height:30px;font-size:12px" placeholder="16">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c9" style="font-weight:normal;font-size:12px">Number of Tables</label>
+						<input type="number" id="C9" class="form-control" style="height:30px;font-size:12px" placeholder="100000">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c10" style="font-weight:normal;font-size:12px">Sampling Period (seconds)</label>
+						<input type="number" id="C10" class="form-control" style="height:30px;font-size:12px" placeholder="10">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol" >
+					<div class="form-group input-group-sm">
+						<label for="c11" style="font-weight:normal;font-size:12px">Number of Rows a Batch</label>
+						<input type="number" id="C11" class="form-control" style="height:30px;font-size:12px" placeholder="100">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c12" style="font-weight:normal;font-size:12px">Compression Ratio</label>
+						<input type="number" id="C12" class="form-control" style="height:30px;font-size:12px" placeholder="0.5">
 					</div>
 				</div>
 			</div>
@@ -128,15 +140,15 @@
 					</tr>
 				</thead>
 				<tbody id="dbTableBody">
-					<tr><td>1</td><td>Raw Data per Day</td><td id="C15">-</td><td>GB</td></tr>
-					<tr><td>2</td><td>Disk Increase per Day</td><td id="C16">-</td><td>GB</td></tr>
-					<tr><td>3</td><td>Rows per Day</td><td id="CXX">-</td><td>rows</td></tr>
-					<tr><td>4</td><td>Points per Second</td><td id="CYY">-</td><td>points</td></tr>
-					<tr><td>5</td><td>Bandwidth</td><td id="C17">-</td><td>Mbits</td></tr>
-					<tr><td>6</td><td>Outbound Data per Month</td><td id="C18">-</td><td>GB</td></tr>
-					<tr><td>7</td><td>Average Rows in Cache per Table</td><td id="C27">-</td><td>rows</td></tr>
-					<tr><td>8</td><td>Total Memory Size</td><td id="C28">-</td><td>GB</td></tr>
-					<tr><td>9</td><td>Number of CPU Cores Required</td><td id="C31">-</td><td>cores</td></tr>
+					<tr><td>1</td><td>Raw Data per Day</td><td id="C18">-</td><td>GB</td></tr>
+					<tr><td>2</td><td>Disk Increase per Day</td><td id="C19">-</td><td>GB</td></tr>
+					<tr><td>3</td><td>Rows per Day</td><td id="C20">-</td><td>rows</td></tr>
+					<tr><td>4</td><td>Points per Second</td><td id="C21">-</td><td>points</td></tr>
+					<tr><td>5</td><td>Bandwidth</td><td id="C22">-</td><td>Mbits</td></tr>
+					<tr><td>6</td><td>Outbound Data per Month</td><td id="C23">-</td><td>GB</td></tr>
+					<tr><td>7</td><td>Average Rows in Cache per Table</td><td id="C36">-</td><td>rows</td></tr>
+					<tr><td>8</td><td>Total Memory Size</td><td id="C37">-</td><td>MB</td></tr>
+					<tr><td>9</td><td>Number of CPU Cores Required</td><td id="C26">-</td><td>cores</td></tr>
 				</tbody>
 			</table>
 		</div>
@@ -210,6 +222,28 @@
 		return parseFloat(s.replace(/[^\d\.-]/g, ""));
 	}
 
+	function formatDigit(s, type) {
+		if (/[^0-9\.]/.test(s))
+			return "0";
+		if (s == null || s == "null" || s == "")
+			return "0";
+		s = s.toString().replace(/^(\d*)$/, "$1.");
+		s = (s + "00").replace(/(\d*\.\d\d)\d*/, "$1");
+		s = s.replace(".", ",");
+		var re = /(\d)(\d{3},)/;
+		while (re.test(s))
+			s = s.replace(re, "$1,$2");
+		s = s.replace(/,(\d\d)$/, ".$1");
+		if (type == 0) {
+			var a = s.split(".");
+			if (a[1] == "00") {
+				s = a[0];
+			}
+		}
+		s = s.substring(0, s.length-3);
+		return s;
+	}
+	
 	function formatMoney(s, type) {
 		if (/[^0-9\.]/.test(s))
 			return "0.00";
@@ -235,51 +269,75 @@
 	{
 		var C3 = dbGetNumber($('#C3').val(), 3);
 		var C4 = dbGetNumber($('#C4').val(), 32);
-		var C5 = dbGetNumber($('#C5').val(), 4);
-		var C6 = dbGetNumber($('#C6').val(), 16000);
-		var C7 = dbGetNumber($('#C7').val(), 100000);
-		var C8 = dbGetNumber($('#C8').val(), 10);
-		var C9 = dbGetNumber($('#C9').val(), 100);
-		var C10 = dbGetNumber($('#C10').val(), 0.5);
+		var C5 = dbGetNumber($('#C3').val(), 48);
+		var C6 = dbGetNumber($('#C4').val(), 64);
+		var C7 = dbGetNumber($('#C7').val(), 6);
+		var C8 = dbGetNumber($('#C8').val(), 16);
+		var C9 = dbGetNumber($('#C9').val(), 100000);
+		var C10 = dbGetNumber($('#C10').val(), 10);
+		var C11 = dbGetNumber($('#C11').val(), 100);
+		var C12 = dbGetNumber($('#C12').val(), 0.5);
 
-		var C13 = C7/C8;
-		var C14 = C13*C4/1000000;
-		var C15 = C14*24*3600/1000;
-		var C16 = C15*C10;
-		var C17 = (C4*C9+60+28)*C13/C9*8/1000000;
-		var C18 = (60+28)*C13*3600*24*30/C9/1000000/1000;
-		var CXX = C7 *24 * 3600 / C8;
-		var CYY = CXX * C3 / 86400;
+		var C15 = C9/C10;
+		var C16 = C15/C11;
+		var C17 = C15*C4/1000000;
 
-		var C21 = 288+C3*69;
-		var C22 = 256+C3*6;
-		var C23 = C21*C7/1000000000;
-		var C24 = C6*C5*C7/1000000000;
-		var C25 = C22*C7/1000000000;
-		var C26 = 512*C7/1000000000;
-		var C27 = C5*(C6-32-8*C3)/C4;
-		var C28 = C23+C24+C25+C26;
+		//Raw Data Per Day (GB)
+		var C18 = C17*24*3600/1000
 
-		var C31 =C13/20000/C9;
+		//Disk Increase Per Day (GB)
+		var C19 = C18*C12;
+
+		//Rows per Day
+		var C20 = C9 *24 * 3600 / C10
+
+		//Points Per Second
+		var C21 = C20 * C3 / 86400
 		
+		//Bandwidth(Mbits)
+		var C22 = (C4*C11+60+28)*C15/C11*8/1000000;
+
+		//Outbound Data Per Month(GB)
+		var C23 = (60+28)*C15*3600*24*30/C11/1000000/1000;
+		
+		//Number of CPU Cores Required
+		var C26 = Math.ceil(C16/5000);
+		if (C26 < 1) C26 = 1;
+
+		var C27 = C26;
+		if (C27 < 2) C27 = 2
+
+		var C30 = 150+C5
+		var C31 = 350+C5+C6
+		var C32 = C30*C9/1000000
+		var C33 = C8*C7*C27
+		var C34 = C31*C9/1000000
+		var C35 = 512*C9/1000000
+
+		//Average Rows in Cache per Table
+		var C36 = C7*C8*1000000/(C9/C27)/C4
+
+		//Total Memory Size(M)
+		var C37 = C32+C33+C34+C35
+
 		//var cpuRequiredOfAServer = Math.ceil((vnodes + 1) / vnodePerCore);
 		//diskIncreasePerDay = diskIncreasePerDay.toFixed(3);
 
-		$('#C15').text(formatMoney(C15));
-		$('#C16').text(formatMoney(C16));
-		$('#CXX').text(formatMoney(CXX));
-		$('#CYY').text(formatMoney(CYY));
-		$('#C17').text(formatMoney(C17));
 		$('#C18').text(formatMoney(C18));
-		$('#C27').text(formatMoney(C27));
-		$('#C28').text(formatMoney(C28));
-		$('#C31').text(formatMoney(C31));
-
-		if (C27 <= 1024) {
-			$('#C27').css("color","red");
+		$('#C19').text(formatMoney(C19));
+		$('#C20').text(formatDigit(C20));
+		$('#C21').text(formatDigit(C21));
+		$('#C22').text(formatMoney(C22));
+		$('#C23').text(formatMoney(C23));
+		$('#C36').text(formatDigit(C36));
+		$('#C37').text(formatMoney(C37));
+		$('#C26').text(formatDigit(C26));
+		
+		if (C36 <= 1024) {
+			$('#C36').css("color","red");
 		}
 		else{
-			$('#C27').css("color","black");
+			$('#C36').css("color","black");
 		}
 
 	}

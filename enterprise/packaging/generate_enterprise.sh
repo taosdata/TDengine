@@ -1,6 +1,10 @@
 #!/bin/bash
 #
 version=$1
+versionComp=$2
+branchName=$3
+verType=$4
+
 scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -13,18 +17,18 @@ fi
 
 echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir
-git checkout master
-git checkout -- .
+git checkout $branchName
+###git checkout -- .
 git pull
 sudo rm -rf release/*
 
 cd $enterpriseDir
-git checkout master
-git checkout -- .
+git checkout $branchName
+###git checkout -- .
 git pull
 
 cd $communityDir
-sudo ./packaging/release.sh -v cluster -n $version
+sudo ./packaging/release.sh -v cluster -n $version -m $versionComp -V $verType
 
 if [ ! -d  "$archiveDir/v$version" ]; then
   mkdir -p "$archiveDir/v$version"
@@ -35,10 +39,10 @@ mkdir enterprise
 cd enterprise
 cp $communityDir/release/* ./
 
-echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-cd $enterpriseDir
-git branch -d release/v$version
-git checkout -b release/v$version
-git merge master
-git push origin release/v$version
+#echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+#cd $enterpriseDir
+#git branch -d release/v$version
+#git checkout -b release/v$version
+#git merge master
+#git push origin release/v$version
 

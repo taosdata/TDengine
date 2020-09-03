@@ -74,7 +74,11 @@ static SGrantStatus grantStatus = {
 };
 
 int32_t grantInit() {
-  grantActiveSystem("/etc/taos/taos.cfg");
+  #ifdef _TD_POWER_
+    grantActiveSystem("/etc/power/taos.cfg");
+  #else
+    grantActiveSystem("/etc/taos/taos.cfg");
+  #endif
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_GRANTS, grantGetMetaData);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_GRANTS, grantRetrieveData);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
@@ -634,7 +638,11 @@ static void grantCheckGrantInfo() {
 }
 
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+#ifdef _TD_POWER_
+  grantActiveSystem("/etc/power/taos.cfg");
+#else
   grantActiveSystem("/etc/taos/taos.cfg");
+#endif
   grantSendMsgToMgmt();
   usleep(10000);
 
