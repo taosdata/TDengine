@@ -37,12 +37,6 @@ extern "C" {
  * \ref mqttReconnectClient is called, this instance will be passed.
  */
 struct reconnect_state_t {
-  char*    hostname;
-  char*    port;
-  char*    topic;
-  char*    client_id;
-  char*    user_name;
-  char*    password;
   uint8_t* sendbuf;
   size_t   sendbufsz;
   uint8_t* recvbuf;
