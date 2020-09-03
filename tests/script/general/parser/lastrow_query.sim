@@ -153,4 +153,9 @@ if $rows != 46 then
   return -1
 endi
 
-
+print ========>td-1317, empty table last_row query crashed
+sql create table t1(ts timestamp, k int)
+sql select last_row(*) from t1
+if $rows != 0 then
+  return -1
+endi
