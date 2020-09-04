@@ -532,7 +532,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
 
   if (pCacheObj->numOfElemsInTrash == 0) {
     if (pCacheObj->pTrash != NULL) {
-      uError("cache:%s, key:inconsistency data in cache, numOfElem in trash:%d", pCacheObj->name, pCacheObj->numOfElemsInTrash);
+      uError("cache:%s, key:inconsistency data in cache, numOfElem in trashcan:%d", pCacheObj->name, pCacheObj->numOfElemsInTrash);
     }
 
     pCacheObj->pTrash = NULL;
@@ -549,7 +549,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
     }
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
-      uError("cache:%s, key:%p, %p removed from trashcan. numOfElem in trash:%d", pCacheObj->name, pElem->pData->key, pElem->pData->data,
+      uError("cache:%s, key:%p, %p removed from trashcan. numOfElem in trashcan:%d", pCacheObj->name, pElem->pData->key, pElem->pData->data,
              pCacheObj->numOfElemsInTrash - 1);
 
       STrashElem *p = pElem;
