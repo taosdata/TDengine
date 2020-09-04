@@ -455,7 +455,7 @@ int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
 
 void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) {
   uint32_t      version = 0;
-  SFile         file = {0};
+  SFile         file;
   SFile *       pFile = &file;
 
   strncpy(pFile->fname, fname, TSDB_FILENAME_LEN);
