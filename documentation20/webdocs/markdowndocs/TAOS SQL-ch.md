@@ -82,7 +82,13 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     删除数据库。所包含的全部数据表将被删除，谨慎使用
 
+
 - **修改数据库参数**
+    ```mysql
+    ALTER DATABASE db_name KEEP 3651;
+    ```
+    修改数据库文件保留的天数，这个参数缺省值为3650，可以在创建库的时候单独指定：请参见[创建库] (../model/#创建库)。修改的天数必须大于或等于创建数据库时的指定天数，修改后可以使用show databases命令查看是否修改成功
+
     ```mysql
     ALTER DATABASE db_name COMP 2;
     ```
