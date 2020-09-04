@@ -259,11 +259,11 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pSdesc->num = htobe64(pStream->num);
 
     pSdesc->useconds = htobe64(pStream->useconds);
-    pSdesc->stime = htobe64(pStream->stime - pStream->interval);
+    pSdesc->stime = htobe64(pStream->stime - pStream->intervalTime);
     pSdesc->ctime = htobe64(pStream->ctime);
 
     pSdesc->slidingTime = htobe64(pStream->slidingTime);
-    pSdesc->interval = htobe64(pStream->interval);
+    pSdesc->interval = htobe64(pStream->intervalTime);
 
     pHeartbeat->numOfStreams++;
     pSdesc++;

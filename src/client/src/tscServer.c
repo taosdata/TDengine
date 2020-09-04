@@ -226,17 +226,13 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = &pSql->pRpcCtx,
       .code    = 0
   };
+
   // NOTE: the rpc context should be acquired before sending data to server.
   // Otherwise, the pSql object may have been released already during the response function, which is
   // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
   // cause crash.
-  if (pObj != NULL && pObj->signature == pObj) {
-    rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
-    return TSDB_CODE_SUCCESS;
-  } else {
-    //pObj->signature has been reset by other thread, ignore concurrency problem
-    return TSDB_CODE_TSC_CONN_KILLED; 
-  }
+  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
+  return TSDB_CODE_SUCCESS;
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
@@ -280,8 +276,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     }
   }
 
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-
   int32_t cmd = pCmd->command;
   if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_INSERT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
@@ -306,7 +300,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         taosMsleep(duration);
       }
 
-      rpcMsg->code = tscRenewTableMeta(pSql, pTableMetaInfo->name);
+      rpcMsg->code = tscRenewTableMeta(pSql, 0);
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -673,6 +667,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->numOfCols      = htons((int16_t)taosArrayGetSize(pQueryInfo->colList));
   pQueryMsg->intervalTime   = htobe64(pQueryInfo->intervalTime);
   pQueryMsg->slidingTime    = htobe64(pQueryInfo->slidingTime);
+  pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
   pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->numOfTags      = htonl(numOfTags);
@@ -1495,8 +1490,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *tmpData = NULL;
   uint32_t len = pSql->cmd.payloadLen;
   if (len > 0) {
-    tmpData = calloc(1, len);
-    if (NULL == tmpData) {
+    if ((tmpData = calloc(1, len)) == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
@@ -1541,8 +1535,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // copy payload content to temp buff
   char *tmpData = 0;
   if (pCmd->payloadLen > 0) {
-    tmpData = calloc(1, pCmd->payloadLen + 1);
-    if (NULL == tmpData) return -1;
+    if ((tmpData = calloc(1, pCmd->payloadLen + 1)) == NULL) return -1;
     memcpy(tmpData, pCmd->payload, pCmd->payloadLen);
   }
 
@@ -2207,14 +2200,14 @@ int tscGetMeterMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 /**
  * retrieve table meta from mnode, and update the local table meta cache.
  * @param pSql          sql object
- * @param tableId       table full name
+ * @param tableIndex    table index
  * @return              status code
  */
-int tscRenewTableMeta(SSqlObj *pSql, char *tableId) {
+int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pTableMetaInfo->pTableMeta) {

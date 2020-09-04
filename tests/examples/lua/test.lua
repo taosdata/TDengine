@@ -15,7 +15,7 @@ else
    conn = res.conn
 end
 
-local res = driver.query(conn,"drop database demo")
+local res = driver.query(conn,"drop database if exists demo")
 
 res = driver.query(conn,"create database demo")
 if res.code ~=0 then
@@ -106,7 +106,7 @@ end
 
 --From now on we begin continous query in an definite (infinite if you want) loop.
 local loop_index = 0
-while loop_index < 20 do
+while loop_index < 10 do
    local t = os.time()*1000
    local v = loop_index
    res = driver.query(conn,string.format("INSERT INTO therm1 VALUES (%d, %d)",t,v))

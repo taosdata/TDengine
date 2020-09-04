@@ -313,6 +313,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     if (pDb->status != TSDB_DB_STATUS_READY) {
       mError("db:%s, status:%d, in dropping", pDb->name, pDb->status);
       code = TSDB_CODE_MND_DB_IN_DROPPING;
+      mnodeDecDbRef(pDb);
       goto connect_over;
     }
     mnodeDecDbRef(pDb);

@@ -47,6 +47,8 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 因为TDengine具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
 
+具体计算公式，请参见页面：<a href='https://www.taosdata.com/config/config.html'>资源估算方法</a>
+
 ## 容错和灾备
 
 ### 容错

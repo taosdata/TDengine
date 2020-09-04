@@ -55,7 +55,7 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
     SFillColInfo* pColInfo = &pFillInfo->pFillCol[i];
     pFillInfo->pData[i] = calloc(1, pColInfo->col.bytes * capacity);
 
-    if (pColInfo->flag == TSDB_COL_TAG) {
+    if (TSDB_COL_IS_TAG(pColInfo->flag)) {
       bool exists = false;
       for(int32_t j = 0; j < k; ++j) {
         if (pFillInfo->pTags[j].col.colId == pColInfo->col.colId) {
@@ -155,7 +155,7 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInpu
     char* data = pInput->data + pCol->col.offset * pInput->num;
     memcpy(pFillInfo->pData[i], data, (size_t)(pInput->num * pCol->col.bytes));
 
-    if (pCol->flag == TSDB_COL_TAG) {  // copy the tag value to tag value buffer
+    if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       for (int32_t j = 0; j < pFillInfo->numOfTags; ++j) {
         SFillTagColInfo* pTag = &pFillInfo->pTags[j];
         if (pTag->col.colId == pCol->col.colId) {
@@ -179,14 +179,22 @@ int64_t getFilledNumOfRes(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
 
-    numOfRes = (int64_t)(ABS(lastKey - pFillInfo->start) / pFillInfo->slidingTime) + 1;
+    if (pFillInfo->slidingUnit != 'y' && pFillInfo->slidingUnit != 'n') {
+      numOfRes = (int64_t)(ABS(lastKey - pFillInfo->start) / pFillInfo->slidingTime) + 1;
+    } else {
+      numOfRes = taosCountNatualInterval(lastKey, pFillInfo->start, pFillInfo->slidingTime, pFillInfo->slidingUnit, pFillInfo->precision) + 1;
+    }
     assert(numOfRes >= numOfRows);
   } else { // reach the end of data
     if ((ekey1 < pFillInfo->start && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 > pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo))) {
       return 0;
-    } else {  // the numOfRes rows are all filled with specified policy
+    }
+    // the numOfRes rows are all filled with specified policy
+    if (pFillInfo->slidingUnit != 'y' && pFillInfo->slidingUnit != 'n') {
       numOfRes = (ABS(ekey1 - pFillInfo->start) / pFillInfo->slidingTime) + 1;
+    } else {
+      numOfRes = taosCountNatualInterval(ekey1, pFillInfo->start, pFillInfo->slidingTime, pFillInfo->slidingUnit, pFillInfo->precision) + 1;
     }
   }
 
@@ -251,7 +259,7 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
 static void setTagsValue(SFillInfo* pFillInfo, tFilePage** data, int32_t num) {
   for(int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[j];
-    if (pCol->flag == TSDB_COL_NORMAL) {
+    if (TSDB_COL_IS_NORMAL_COL(pCol->flag)) {
       continue;
     }
 
@@ -366,7 +374,12 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
     setTagsValue(pFillInfo, data, *num);
   }
 
-  pFillInfo->start += (pFillInfo->slidingTime * step);
+// TODO natual sliding time
+  if (pFillInfo->slidingUnit != 'n' && pFillInfo->slidingUnit != 'y') {
+    pFillInfo->start += (pFillInfo->slidingTime * step);
+  } else {
+    pFillInfo->start = taosAddNatualInterval(pFillInfo->start, pFillInfo->slidingTime*step, pFillInfo->slidingUnit, pFillInfo->precision);
+  }
   pFillInfo->numOfCurrent++;
 
   (*num) += 1;
@@ -446,7 +459,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         // assign rows to dst buffer
         for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
           SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-          if (pCol->flag == TSDB_COL_TAG) {
+          if (TSDB_COL_IS_TAG(pCol->flag)) {
             continue;
           }
 
@@ -473,7 +486,12 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         // set the tag value for final result
         setTagsValue(pFillInfo, data, num);
 
-        pFillInfo->start += (pFillInfo->slidingTime * step);
+        // TODO natual sliding time
+        if (pFillInfo->slidingUnit != 'n' && pFillInfo->slidingUnit != 'y') {
+          pFillInfo->start += (pFillInfo->slidingTime * step);
+        } else {
+          pFillInfo->start = taosAddNatualInterval(pFillInfo->start, pFillInfo->slidingTime*step, pFillInfo->slidingUnit, pFillInfo->precision);
+        }
         pFillInfo->rowIdx += 1;
 
         pFillInfo->numOfCurrent +=1;

@@ -11,6 +11,7 @@ set -e
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
+#             -d [taos | power]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 
@@ -21,10 +22,11 @@ cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
 soMode=dynamic   # [static | dynamic]
+dbName=taos      # [taos | power]
 verNumber=""
 verNumberComp="2.0.0.0"
 
-while getopts "hv:V:c:o:l:s:n:m:" arg
+while getopts "hv:V:c:o:l:s:d:n:m:" arg
 do
   case $arg in
     v)
@@ -47,6 +49,10 @@ do
       #echo "soMode=$OPTARG"
       soMode=$(echo $OPTARG)
       ;;
+    d)
+      #echo "dbName=$OPTARG"
+      dbName=$(echo $OPTARG)
+      ;;
     n)
       #echo "verNumber=$OPTARG"
       verNumber=$(echo $OPTARG)
@@ -66,6 +72,7 @@ do
       echo "                  -V [stable | beta] "
       echo "                  -l [full | lite] "
       echo "                  -s [static | dynamic] "
+      echo "                  -d [taos | power] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
       exit 0
@@ -77,7 +84,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} verNumber=${verNumber} verNumberComp=${verNumberComp}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} verNumber=${verNumber} verNumberComp=${verNumberComp}"
 
 curr_dir=$(pwd)
 
@@ -170,9 +177,9 @@ cd ${compile_dir}
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
   if [ "$verMode" != "cluster" ]; then
-    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode}
+    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode}
   else
-    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp}
+    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -185,7 +192,7 @@ cd ${curr_dir}
 
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
-  if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]]; then
+  if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
     echo "====do deb package for the ubuntu system===="
     output_dir="${top_dir}/debs"
     if [ -d ${output_dir} ]; then
@@ -208,11 +215,17 @@ if [ "$osType" != "Darwin" ]; then
   echo "====do tar.gz package for all systems===="
   cd ${script_dir}/tools
   
-	${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-	${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-	${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  if [[ "$dbName" == "taos" ]]; then  
+    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  else
+    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makearbi_power.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  fi
 else
   cd ${script_dir}/tools
-  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${dbName}
 fi
 
