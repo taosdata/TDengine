@@ -798,7 +798,15 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBloc
       cur->rows = binfo.rows;
       cur->win  = binfo.window;
       cur->mixBlock = false;
-      cur->lastKey = ASCENDING_TRAVERSE(pQueryHandle->order)? (binfo.window.ekey + 1): (binfo.window.skey -1);
+      cur->blockCompleted = true;
+
+      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+        cur->lastKey = binfo.window.ekey + 1;
+        cur->pos = binfo.rows;
+      } else {
+        cur->lastKey = binfo.window.skey - 1;
+        cur->pos = -1;
+      }
     } else { // partially copy to dest buffer
       int32_t endPos = ASCENDING_TRAVERSE(pQueryHandle->order)? (binfo.rows - 1): 0;
       copyAllRemainRowsFromFileBlock(pQueryHandle, pCheckInfo, &binfo, endPos);
@@ -1194,7 +1202,6 @@ static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STabl
             pQueryHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, cur->mixBlock, cur->win.skey,
             cur->win.ekey, cur->rows, pQueryHandle->qinfo);
 }
-
 
 // only return the qualified data to client in terms of query time window, data rows in the same block but do not
 // be included in the query time window will be discarded
