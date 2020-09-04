@@ -82,12 +82,22 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     删除数据库。所包含的全部数据表将被删除，谨慎使用
 
+- **修改数据库参数**
+    ```mysql
+    ALTER DATABASE db_name COMP 2;
+    ```
+    修改数据库文件压缩标志位，有效数字为0，1，2. 0表示不压缩，1表示一阶段压缩，2表示两阶段压缩。修改后可以使用show databases命令查看是否修改成功
+
+    ```mysql
+    ALTER DATABASE db_name REPLICA 2;
+    ```
+    修改数据库副本数，有效副本数为1到3。在集群中使用，副本数必须小于dnode的数目。修改后可以使用show databases命令查看是否修改成功
+
 
 - **显示系统所有数据库**
     ```mysql
     SHOW DATABASES;
     ```
-
 
 ## 表管理
 - **创建数据表**
