@@ -221,20 +221,18 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-//typedef struct SDataBlockList {  // todo remove
-//  uint32_t           nSize;
-//  uint32_t           nAlloc;
-//  STableDataBlocks **pData;
-//} SDataBlockList;
-
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
+  uint32_t         type;          // query/insert type
+  // TODO refactor
   char             intervalTimeUnit;
   char             slidingTimeUnit;
-  uint32_t         type;          // query/insert type
   STimeWindow      window;        // query time window
-  int64_t          intervalTime;  // aggregation time interval
+  int64_t          intervalTime;  // aggregation time window range
   int64_t          slidingTime;   // sliding window in mseconds
+  int64_t          intervalOffset;// start offset of each time window
+  int32_t          tz;            // query client timezone
+
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
@@ -401,7 +399,7 @@ int tsParseSql(SSqlObj *pSql, bool initial);
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
-int  tscRenewTableMeta(SSqlObj *pSql, char *tableId);
+int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
@@ -416,7 +414,7 @@ void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
-void tscResetSqlCmdObj(SSqlCmd *pCmd);
+void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 
 /**
  * free query result of the sql object
