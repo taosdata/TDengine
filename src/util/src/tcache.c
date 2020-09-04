@@ -90,7 +90,6 @@ static void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force);
 static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   if (pNode->signature != (uint64_t)pNode) {
     uError("key:%s, %p data is invalid, or has been released", pNode->key, pNode);
-    assert(0);
     return;
   }
 
@@ -98,7 +97,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
   assert(size > 0);
 
-  uError("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
+  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
@@ -275,10 +274,10 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
 
   if (pData != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uError("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(*ptNode));
+    uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(*ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uError("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
+    uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
   }
 
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
@@ -292,12 +291,12 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data) {
   SCacheDataNode *ptNode = (SCacheDataNode *)((char *)data - offset);
   
   if (ptNode->signature != (uint64_t)ptNode) {
-    uError("key: %p the data from cache is invalid", ptNode);
+    uError("cache:%s, key: %p the data from cache is invalid", pCacheObj->name, ptNode);
     return NULL;
   }
 
   int32_t ref = T_REF_INC(ptNode);
-  uError("cache:%s, data: %p acquired by data in cache, refcnt:%d", pCacheObj->name, ptNode->data, ref);
+  uDebug("cache:%s, data: %p acquired by data in cache, refcnt:%d", pCacheObj->name, ptNode->data, ref);
 
   // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
   assert(ref >= 2);
@@ -311,7 +310,7 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
   SCacheDataNode *ptNode = (SCacheDataNode *)((char *)(*data) - offset);
   
   if (ptNode->signature != (uint64_t)ptNode) {
-    uError("key: %p the data from cache is invalid", ptNode);
+    uError("cache:%s, key: %p the data from cache is invalid", pCacheObj->name, ptNode);
     return NULL;
   }
   
@@ -345,7 +344,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 
   if (pCacheObj->extendLifespan && (!inTrashCan) && (!_remove)) {
     atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
-    uError("cache:%s data:%p extend expire time: %"PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
+    uDebug("cache:%s data:%p extend expire time: %"PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
   }
 
   if (_remove) {
@@ -354,7 +353,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     char* d = pNode->data;
 
     int32_t ref = T_REF_VAL_GET(pNode);
-    uError("cache:%s, key:%p, %p is released, refcnt:%d, intrash:%d", pCacheObj->name, key, d, ref - 1, inTrashCan);
+    uError("cache:%s, key:%p, %p is released, refcnt:%d, in trashcan:%d", pCacheObj->name, key, d, ref - 1, inTrashCan);
 
     /*
      * If it is not referenced by other users, remove it immediately. Otherwise move this node to trashcan wait for all users
@@ -432,7 +431,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     char* p = pNode->data;
 
     int32_t ref = T_REF_DEC(pNode);
-    uError("cache:%s, key:%p, %p released, refcnt:%d, data in trashcan:%d", pCacheObj->name, key, p, ref, inTrashCan);
+    uDebug("cache:%s, key:%p, %p released, refcnt:%d, data in trashcan:%d", pCacheObj->name, key, p, ref, inTrashCan);
   }
 }
 
@@ -524,7 +523,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pCacheObj->numOfElemsInTrash++;
   __cache_unlock(pCacheObj);
 
-  uError("cache:%s key:%p, %p move to trash, numOfElem in trash:%d", pCacheObj->name, pNode->key, pNode->data,
+  uDebug("cache:%s key:%p, %p move to trash, numOfElem in trash:%d", pCacheObj->name, pNode->key, pNode->data,
       pCacheObj->numOfElemsInTrash);
 }
 
@@ -533,7 +532,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
 
   if (pCacheObj->numOfElemsInTrash == 0) {
     if (pCacheObj->pTrash != NULL) {
-      uError("key:inconsistency data in cache, numOfElem in trash:%d", pCacheObj->numOfElemsInTrash);
+      uError("cache:%s, key:inconsistency data in cache, numOfElem in trash:%d", pCacheObj->name, pCacheObj->numOfElemsInTrash);
     }
 
     pCacheObj->pTrash = NULL;
@@ -550,7 +549,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
     }
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
-      uError("key:%p, %p removed from trash. numOfElem in trash:%d", pElem->pData->key, pElem->pData->data,
+      uError("cache:%s, key:%p, %p removed from trash. numOfElem in trash:%d", pCacheObj->name, pElem->pData->key, pElem->pData->data,
              pCacheObj->numOfElemsInTrash - 1);
 
       STrashElem *p = pElem;
@@ -611,7 +610,7 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
 void* taosCacheTimedRefresh(void *handle) {
   SCacheObj* pCacheObj = handle;
   if (pCacheObj == NULL) {
-    uError("object is destroyed. no refresh retry");
+    uDebug("object is destroyed. no refresh retry");
     return NULL;
   }
 
@@ -624,7 +623,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {
-      uError("%s refresh threads quit", pCacheObj->name);
+      uDebug("%s refresh threads quit", pCacheObj->name);
       break;
     }
 
