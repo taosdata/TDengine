@@ -348,6 +348,7 @@ typedef struct SSqlObj {
   void *           pStream;
   void *           pSubscription;
   char *           sqlstr;
+  char             parseRetry;
   char             retry;
   char             maxRetry;
   SRpcEpSet        epSet;
