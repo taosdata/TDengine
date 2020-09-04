@@ -1284,6 +1284,9 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
+  char fqdn[TSDB_EP_LEN];
+  uint16_t port;
+
   if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
   }
@@ -1297,12 +1300,18 @@ bool taosCheckGlobalCfg() {
 
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);
+  } else {
+    taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+    snprintf(tsFirst, sizeof(tsFirst), "%s:%d", fqdn, port);
   }
 
   if (tsSecond[0] == 0) {
     strcpy(tsSecond, tsLocalEp);
+  } else {
+    taosGetFqdnPortFromEp(tsSecond, fqdn, &port);
+    snprintf(tsSecond, sizeof(tsSecond), "%s:%d", fqdn, port);
   }
-  
+
   taosGetSystemInfo();
 
   tsSetLocale();
