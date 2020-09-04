@@ -364,16 +364,22 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
      * that tries to do the same thing.
      */
     if (inTrashCan) {
-      ref = T_REF_DEC(pNode);
+      ref = T_REF_VAL_GET(pNode);
 
-      if (ref == 0) {
+      if (ref == 1) {  // it is the last ref,
         assert(pNode->pTNodeHeader->pData == pNode);
 
         __cache_wr_lock(pCacheObj);
         doRemoveElemInTrashcan(pCacheObj, pNode->pTNodeHeader);
         __cache_unlock(pCacheObj);
 
+        ref = T_REF_DEC(pNode);
+        assert(ref == 0);
+
         doDestroyTrashcanElem(pCacheObj, pNode->pTNodeHeader);
+      } else {
+        ref = T_REF_DEC(pNode);
+        assert(ref > 0);
       }
     } else {
       // NOTE: remove it from hash in the first place, otherwise, the pNode may have been released by other thread
