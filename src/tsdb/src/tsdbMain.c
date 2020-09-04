@@ -142,7 +142,6 @@ TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
   }
 
   tsdbStartStream(pRepo);
-  // pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   tsdbDebug("vgId:%d open tsdb repository succeed!", REPO_ID(pRepo));
 
@@ -339,6 +338,10 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
   *totalPoints = pRepo->stat.pointsWritten;
   *totalStorage = pRepo->stat.totalStorage;
   *compStorage = pRepo->stat.compStorage;
+}
+
+int tsdbGetState(TSDB_REPO_T *repo) {
+  return ((STsdbRepo *)repo)->state;
 }
 
 // ----------------- INTERNAL FUNCTIONS -----------------
@@ -660,6 +663,8 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
   }
+
+  pRepo->state = TSDB_STATE_OK;
 
   int code = pthread_mutex_init(&pRepo->mutex, NULL);
   if (code != 0) {

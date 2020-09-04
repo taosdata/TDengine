@@ -542,6 +542,7 @@ static void tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo) {
       memset(&pFGroup->files[type].info, 0, sizeof(STsdbFileInfo));
       pFGroup->files[type].info.magic = TSDB_FILE_INIT_MAGIC;
       pFGroup->state = 1;
+      pRepo->state = TSDB_STATE_BAD_FILE;
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     }
   }
