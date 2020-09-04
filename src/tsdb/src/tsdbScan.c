@@ -23,7 +23,7 @@ STsdbScanHandle* tsdbNewScanHandle() { return NULL; }
 
 void tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream) {}
 
-int tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0 }
+int tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
 
 int tsdbScanSCompIdx(STsdbScanHandle* pScanHandle) { return 0; }
 
