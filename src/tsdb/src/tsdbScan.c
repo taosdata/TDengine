@@ -12,3 +12,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "tsdbMain.h"
+
+#ifndef _TSDB_PLUGINS
+
+int tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
+
+STsdbScanHandle* tsdbNewScanHandle() { return NULL; }
+
+void tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream) {}
+
+int tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0 }
+
+int tsdbScanSCompIdx(STsdbScanHandle* pScanHandle) { return 0; }
+
+int tsdbScanSCompBlock(STsdbScanHandle* pScanHandle, int idx) { return 0; }
+
+int tsdbCloseScanFile(STsdbScanHandle* pScanHandle) { return 0; }
+
+void tsdbFreeScanHandle(STsdbScanHandle* pScanHandle) {}
+
+#endif

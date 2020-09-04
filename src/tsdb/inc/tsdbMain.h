@@ -320,6 +320,16 @@ typedef struct {
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
+// ------------------ tsdbScan.c
+typedef struct {
+  SFileGroup fGroup;
+  int        numOfIdx;
+  SCompIdx*  pCompIdx;
+  SCompInfo* pCompInfo;
+  void*      pBuf;
+  FILE*      tLogStream;
+} STsdbScanHandle;
+
 // Operations
 // ------------------ tsdbMeta.c
 #define TSDB_INIT_NTABLES 1024
@@ -551,6 +561,16 @@ int         tsdbGetNextMaxTables(int tid);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
 STsdbFileH* tsdbGetFile(TSDB_REPO_T* pRepo);
 int         tsdbCheckCommit(STsdbRepo* pRepo);
+
+// ------------------ tsdbScan.c
+int              tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
+STsdbScanHandle* tsdbNewScanHandle();
+void             tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream);
+int              tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
+int              tsdbScanSCompIdx(STsdbScanHandle* pScanHandle);
+int              tsdbScanSCompBlock(STsdbScanHandle* pScanHandle, int idx);
+int              tsdbCloseScanFile(STsdbScanHandle* pScanHandle);
+void             tsdbFreeScanHandle(STsdbScanHandle* pScanHandle);
 
 #ifdef __cplusplus
 }
