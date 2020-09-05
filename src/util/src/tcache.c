@@ -223,7 +223,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
           taosTFree(p);
         } else {
           taosAddToTrash(pCacheObj, p);
-          uError("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, p);
+          uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, p->data);
         }
       }
 
@@ -264,17 +264,14 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     return NULL;
   }
 
-  SCacheDataNode **ptNode = (SCacheDataNode **)taosHashGetCB(pCacheObj->pHashTable, key, keyLen, incRefFn);
-  if (ptNode != NULL) {
-    assert ((*ptNode) != NULL && (int64_t) ((*ptNode)->data) != 0x40);
-  }
+  SCacheDataNode* ptNode = NULL;
+  taosHashGetCB(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode, sizeof(void*));
 
-  void* pData = (ptNode != NULL)? (*ptNode)->data:NULL;
-  assert((int64_t)pData != 0x40);
+  void* pData = (ptNode != NULL)? ptNode->data:NULL;
 
   if (pData != NULL) {
     atomic_add_fetch_32(&pCacheObj->statistics.hitCount, 1);
-    uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(*ptNode));
+    uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
     uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
@@ -333,7 +330,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   
   SCacheDataNode *pNode = (SCacheDataNode *)((char *)(*data) - offset);
   if (pNode->signature != (uint64_t)pNode) {
-    uError("%p, release invalid cache data", pNode);
+    uError("cache:%s, %p, release invalid cache data", pCacheObj->name, pNode);
     return;
   }
 
@@ -549,7 +546,7 @@ void taosTrashCanEmpty(SCacheObj *pCacheObj, bool force) {
     }
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
-      uError("cache:%s, key:%p, %p removed from trashcan. numOfElem in trashcan:%d", pCacheObj->name, pElem->pData->key, pElem->pData->data,
+      uDebug("cache:%s, key:%p, %p removed from trashcan. numOfElem in trashcan:%d", pCacheObj->name, pElem->pData->key, pElem->pData->data,
              pCacheObj->numOfElemsInTrash - 1);
 
       STrashElem *p = pElem;
