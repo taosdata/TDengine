@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-version=2.0.2.2
+version=2.0.3.0
 versionComp=2.0.0.0
 
 ## master
-branchName=master
+branchName=release/s101
 verType=stable
 dockerPass="tbase125!"
 tagVal=ver-${version}
@@ -19,5 +19,5 @@ dockerinput=TDengine-server-${version}-Linux-x64.tar.gz
 
 bash generate_community.sh  $version $versionComp $branchName $verType
 bash generate_enterprise.sh $version $versionComp $branchName $verType
-bash docker_generate.sh $version $daockerPass $dockerinput
-bash tag.sh $tagVal $branchName
+# bash docker_generate.sh $version $daockerPass $dockerinput
+# bash tag.sh $tagVal $branchName
