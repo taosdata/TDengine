@@ -19,10 +19,10 @@ cd $communityDir
 ###git checkout $branchName
 git checkout -- .
 git pull
-sudo rm -rf release/*
-sudo rm -rf debs/*
-sudo rm -rf rpms/*
-sudo ./packaging/release.sh -n $version -m $versionComp -V $verType
+rm -rf release/*
+rm -rf debs/*
+rm -rf rpms/*
+./packaging/release.sh -n $version -m $versionComp -V $verType
 cd $archiveDir
 rm -rf v$version
 mkdir v$version
