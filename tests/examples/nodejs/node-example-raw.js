@@ -26,7 +26,7 @@ var c1 = conn.cursor();
 // c1.execute(query) will execute the query
 // Let's create a database named db
 try {
-  c1.execute('create database db;');
+  c1.execute('create database if not exists db;');
 }
 catch(err) {
   conn.close();

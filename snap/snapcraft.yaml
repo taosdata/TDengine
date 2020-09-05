@@ -18,40 +18,17 @@ apps:
       - network
       - network-bind
       - system-observe
-      - systemfiles
 
   taos:
     command: taoswrapper.sh
     plugs:
       - network
       - system-observe
-      - systemfiles
-      - historyfile
 
   taosdemo:
     command: usr/bin/taosdemo
     plugs:
       - network
-
-plugs:
-  historyfile:
-    interface: personal-files
-    read:
-      - $HOME/.taos_history
-    write:
-      - $HOME/.taos_history
-
-  systemfiles:
-    interface: system-files
-    read:
-      - /etc/taos
-      - /var/lib/taos
-      - /var/log/taos
-      - /tmp
-    write:
-      - /var/log/taos
-      - /var/lib/taos
-      - /tmp
 
 parts:
   script:
@@ -115,8 +92,3 @@ layout:
     bind: $SNAP_DATA/var/log/taos
   /etc/taos:
     bind: $SNAP_DATA/etc/taos
-
-
-hooks:
-  install:
-    plugs: [systemfiles, historyfile]
