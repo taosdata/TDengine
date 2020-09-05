@@ -337,9 +337,9 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   *data = NULL;
 
   // note: extend lifespan before dec ref count
-  bool inTrashCan = pNode->inTrashCan;
+  bool inTrashcan = pNode->inTrashcan;
 
-  if (pCacheObj->extendLifespan && (!inTrashCan) && (!_remove)) {
+  if (pCacheObj->extendLifespan && (!inTrashcan) && (!_remove)) {
     atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
     uDebug("cache:%s data:%p extend expire time: %"PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
   }
@@ -350,7 +350,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     char* d = pNode->data;
 
     int32_t ref = T_REF_VAL_GET(pNode);
-    uDebug("cache:%s, key:%p, %p is released, refcnt:%d, in trashcan:%d", pCacheObj->name, key, d, ref - 1, inTrashCan);
+    uDebug("cache:%s, key:%p, %p is released, refcnt:%d, in trashcan:%d", pCacheObj->name, key, d, ref - 1, inTrashcan);
 
     /*
      * If it is not referenced by other users, remove it immediately. Otherwise move this node to trashcan wait for all users
@@ -359,7 +359,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
      * NOTE: previous ref is 0, and current ref is still 0, remove it. If previous is not 0, there is another thread
      * that tries to do the same thing.
      */
-    if (inTrashCan) {
+    if (inTrashcan) {
       ref = T_REF_VAL_GET(pNode);
 
       if (ref == 1) {
@@ -428,7 +428,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     char* p = pNode->data;
 
     int32_t ref = T_REF_DEC(pNode);
-    uDebug("cache:%s, key:%p, %p released, refcnt:%d, data in trashcan:%d", pCacheObj->name, key, p, ref, inTrashCan);
+    uDebug("cache:%s, key:%p, %p released, refcnt:%d, data in trashcan:%d", pCacheObj->name, key, p, ref, inTrashcan);
   }
 }
 
@@ -499,7 +499,7 @@ SCacheDataNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *
 }
 
 void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
-  if (pNode->inTrashCan) { /* node is already in trash */
+  if (pNode->inTrashcan) { /* node is already in trash */
     assert(pNode->pTNodeHeader != NULL && pNode->pTNodeHeader->pData == pNode);
     return;
   }
@@ -507,7 +507,7 @@ void taosAddToTrash(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   STrashElem *pElem = calloc(1, sizeof(STrashElem));
   pElem->pData = pNode;
   pElem->prev  = NULL;
-  pNode->inTrashCan = true;
+  pNode->inTrashcan = true;
   pNode->pTNodeHeader = pElem;
 
   __cache_wr_lock(pCacheObj);
