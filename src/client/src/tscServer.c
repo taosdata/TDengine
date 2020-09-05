@@ -406,7 +406,7 @@ int doProcessSql(SSqlObj *pSql) {
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscQueueAsyncRes(pSql);
-    return pRes->code;
+    return code;
   }
   
   return TSDB_CODE_SUCCESS;
