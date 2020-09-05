@@ -253,7 +253,7 @@ void taosNotePrint(taosNoteInfo * pNote, const char * const format, ...)
                 ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-                ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+                ptm->tm_sec, (int)timeSecs.tv_usec, (unsigned long int)pthread_self());
 #endif
     va_start(argpointer, format);
     len += vsnprintf(buffer + len, MAX_NOTE_LINE_SIZE - len, format, argpointer);
