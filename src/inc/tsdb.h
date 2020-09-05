@@ -38,6 +38,10 @@ extern "C" {
 #define TSDB_STATUS_COMMIT_START 1
 #define TSDB_STATUS_COMMIT_OVER 2
 
+// TSDB STATE DEFINITION
+#define TSDB_STATE_OK 0x0
+#define TSDB_STATE_BAD_FILE 0x1
+
 // --------- TSDB APPLICATION HANDLE DEFINITION
 typedef struct {
   void *appH;
@@ -80,6 +84,7 @@ int32_t      tsdbDropRepo(char *rootDir);
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
 void         tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);
 int32_t      tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg);
+int          tsdbGetState(TSDB_REPO_T *repo);
 
 // --------- TSDB TABLE DEFINITION
 typedef struct {
