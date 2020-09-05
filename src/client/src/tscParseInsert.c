@@ -1335,13 +1335,13 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     // make a backup as tsParseInsertSql may modify the string
     char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if (sqlstr == NULL || pSql->retry >= 1 || ret != TSDB_CODE_TSC_INVALID_SQL) {
+    if (sqlstr == NULL || pSql->parseRetry >= 1 || ret != TSDB_CODE_TSC_INVALID_SQL) {
       free(sqlstr);
     } else {
       tscResetSqlCmdObj(pCmd, true);
       free(pSql->sqlstr);
       pSql->sqlstr = sqlstr;
-      pSql->retry++;
+      pSql->parseRetry++;
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
       }
@@ -1349,16 +1349,12 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   } else {
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->retry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
+    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
       tscResetSqlCmdObj(pCmd, true);
-      pSql->retry++;
+      pSql->parseRetry++;
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
     SQLInfoDestroy(&SQLInfo);
-  }
-
-  if (ret == TSDB_CODE_SUCCESS) {
-    pSql->retry = 0;
   }
 
   /*

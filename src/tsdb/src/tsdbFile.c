@@ -302,7 +302,7 @@ int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 
-  tsdbGetDataFileName(pRepo, fid, type, pFile->fname);
+  tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), fid, type, pFile->fname);
 
   if (access(pFile->fname, F_OK) == 0) {
     tsdbError("vgId:%d file %s already exists", REPO_ID(pRepo), pFile->fname);
@@ -424,33 +424,57 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   }
 }
 
-void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) {
-  char          buf[TSDB_FILE_HEAD_SIZE] = "\0";
-  uint32_t      version = 0;
-  STsdbFileInfo info = {0};
+int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  int fd = open(fname, O_RDONLY);
-  if (fd < 0) goto _err;
+  if (lseek(pFile->fd, 0, SEEK_SET) < 0) {
+    tsdbError("failed to lseek file %s to start since %s", pFile->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
 
-  if (taosTRead(fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) goto _err;
+  if (taosTRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+    tsdbError("failed to read file %s header part with %d bytes, reason:%s", pFile->fname, TSDB_FILE_HEAD_SIZE,
+              strerror(errno));
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
 
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) goto _err;
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
+    tsdbError("file %s header part is corrupted with failed checksum", pFile->fname);
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
 
   void *pBuf = (void *)buf;
-  pBuf = taosDecodeFixedU32(pBuf, &version);
-  pBuf = tsdbDecodeSFileInfo(pBuf, &info);
+  pBuf = taosDecodeFixedU32(pBuf, version);
+  pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
 
-  off_t offset = lseek(fd, 0, SEEK_END);
+  return 0;
+}
+
+void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) {
+  uint32_t      version = 0;
+  SFile         file;
+  SFile *       pFile = &file;
+
+  strncpy(pFile->fname, fname, TSDB_FILENAME_LEN);
+  pFile->fd = -1;
+
+  if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;
+  if (tsdbLoadFileHeader(pFile, &version) < 0) goto _err;
+
+  off_t offset = lseek(pFile->fd, 0, SEEK_END);
   if (offset < 0) goto _err;
-  close(fd);
+  tsdbCloseFile(pFile);
 
-  *magic = info.magic;
+  *magic = pFile->info.magic;
   *size = offset;
 
   return;
 
 _err:
-  if (fd >= 0) close(fd);
+  tsdbCloseFile(pFile);
   *magic = TSDB_FILE_INIT_MAGIC;
   *size = 0;
 }
@@ -458,34 +482,23 @@ _err:
 // ---------------- LOCAL FUNCTIONS ----------------
 static int tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   uint32_t version;
-  char     buf[512] = "\0";
 
-  tsdbGetDataFileName(pRepo, fid, type, pFile->fname);
+  tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), fid, type, pFile->fname);
 
   pFile->fd = -1;
   if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;
 
-  if (taosTRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
-    tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pRepo), TSDB_FILE_HEAD_SIZE,
-              pFile->fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+  if (tsdbLoadFileHeader(pFile, &version) < 0) {
+    tsdbError("vgId:%d failed to load file %s header part since %s", REPO_ID(pRepo), pFile->fname, tstrerror(terrno));
     goto _err;
   }
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
-    tsdbError("vgId:%d file %s head part is corrupted", REPO_ID(pRepo), pFile->fname);
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    goto _err;
-  }
-
-  void *pBuf = buf;
-  pBuf = taosDecodeFixedU32(pBuf, &version);
-  pBuf = tsdbDecodeSFileInfo(pBuf, &(pFile->info));
 
   if (pFile->info.size == TSDB_FILE_HEAD_SIZE) {
     pFile->info.size = lseek(pFile->fd, 0, SEEK_END);
   }
 
   if (version != TSDB_FILE_VERSION) {
+    // TODO: deal with error
     tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
               REPO_ID(pRepo), pFile->fname, version, TSDB_FILE_VERSION);
   }
@@ -529,6 +542,7 @@ static void tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo) {
       memset(&pFGroup->files[type].info, 0, sizeof(STsdbFileInfo));
       pFGroup->files[type].info.magic = TSDB_FILE_INIT_MAGIC;
       pFGroup->state = 1;
+      pRepo->state = TSDB_STATE_BAD_FILE;
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     }
   }
