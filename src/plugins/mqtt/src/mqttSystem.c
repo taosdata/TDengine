@@ -23,12 +23,13 @@
 #include "posix_sockets.h"
 #include "taos.h"
 #include "tglobal.h"
+#include "taoserror.h"
 
-struct mqtt_client         tsMqttClient = {0};
 struct SMqttReconnectState tsMqttStatus = {0};
-static pthread_t           tsMqttClientDaemonThread = {0};
-static void*               tsMqttConnect = NULL;
-static bool                tsMqttIsRuning = false;
+struct mqtt_client tsMqttClient = {0};
+static pthread_t   tsMqttClientDaemonThread = {0};
+static void*       tsMqttConnect = NULL;
+static bool        tsMqttIsRuning = false;
 
 int32_t mqttInitSystem() { return 0; }
 
@@ -69,32 +70,32 @@ void mqttCleanUpSystem() {
 
 void mqttPublishCallback(void** unused, struct mqtt_response_publish* published) {
   const char* content = published->application_message;
-  mqttDebug("receive message size:%d", (int)published->application_message_size);
+  mqttDebug("receive mqtt message, size:%d", (int)published->application_message_size);
 
   if (tsMqttConnect == NULL) {
     tsMqttConnect = taos_connect(NULL, "_root", tsInternalPass, "", 0);
     if (tsMqttConnect == NULL) {
-      mqttError("failed to connect to tdengine");
+      mqttError("failed to connect to tdengine, reason:%s", tstrerror(terrno));
       return;
     } else {
       mqttInfo("successfully connected to the tdengine");
     }
   }
 
-  mqttTrace("receive message content:%s", content);
+  mqttTrace("receive mqtt message, content:%s", content);
 
   char* sql = mqttConverJsonToSql((char*)content, (int)published->application_message_size);
   if (sql != NULL) {
     void* res = taos_query(tsMqttConnect, sql);
     int   code = taos_errno(res);
     if (code != 0) {
-      mqttError("failed to exec sql:%s", sql);
+      mqttError("failed to exec sql, reason:%s sql:%s", tstrerror(code), sql);
     } else {
-      mqttDebug("successfully to exec sql:%s", sql);
+      mqttTrace("successfully to exec sql:%s", sql);
     }
     taos_free_result(res);
   } else {
-    mqttDebug("failed to parse mqtt message");
+    mqttError("failed to parse mqtt message");
   }
 }
 

@@ -251,8 +251,11 @@ bool taosCfgDynamicOptions(char *msg) {
 
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
+    //if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
     if (cfg->valType != TAOS_CFG_VTYPE_INT32) continue;
+    
+    int32_t cfgLen = strlen(cfg->option);
+    if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
     *((int32_t *)cfg->ptr) = vint;
 
