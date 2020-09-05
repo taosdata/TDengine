@@ -1,6 +1,7 @@
 #!/bin/bash
 
 WORK_DIR=/mnt/root
+TDENGINE_DIR=/root/TDengine
 
 walLevel=`grep "^walLevel" /etc/taos/taos.cfg | awk '{print $2}'`
 if [[ "$walLevel" -eq "2" ]]; then
@@ -71,9 +72,17 @@ function runCreateTableThenInsert {
 	restartTaosd
 
 	/usr/bin/time -f "Total: %e" -o totaltime.out bash -c "yes | taosdemo 2>&1 | tee -a taosdemo-$walPostfix-$today.log"
-	demoTableAndInsert=`grep "Total:" totaltime.out|awk '{print $2}'`
-	demoRPS=`grep "records\/second" taosdemo-$walPostfix-$today.log | tail -n1 | awk '{print $13}'`
-}	
+	demoTableAndInsert=`grep "Total:" totaltime.out|awk '{print $2}'`	
+	demoRPS=`grep "records\/second" taosdemo-$walPostfix-$today.log | tail -n1 | awk '{print $13}'`	
+}
+
+function queryPerformance {
+	echoInfo "Restart Taosd"
+	restartTaosd
+	
+	cd $TDENGINE_DIR/tests/pytest
+	python3 query/queryPerformance.py
+}
 
 function generateTaosdemoPlot {
 	echo "${today} $walPostfix, demoCreateTableOnly: ${demoCreateTableOnly}, demoDeleteTableOnly: ${demoDeleteTableOnly}, demoTableAndInsert: ${demoTableAndInsert}" | tee -a taosdemo-$today.log
@@ -101,12 +110,15 @@ today=`date +"%Y%m%d"`
 cd $WORK_DIR
 echoInfo "Test Create Table Only "
 runCreateTableOnly
-echoInfo "Test Create Table then Insert data"
+echoInfo "Test Delete Table Only"
 runDeleteTableOnly
 echoInfo "Test Create Table then Insert data"
 runCreateTableThenInsert
+echoInfo "Query Performance for 10 Billion Records"
+queryPerformance
 echoInfo "Generate plot for taosdemo"
 generateTaosdemoPlot
+
 
 tar czf $WORK_DIR/taos-log-taosdemo-$today.tar.gz $logDir/*
 
