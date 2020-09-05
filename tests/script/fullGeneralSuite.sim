@@ -24,6 +24,7 @@ run general/compute/diff2.sim
 run general/compute/first.sim
 run general/compute/interval.sim
 run general/compute/last.sim
+run general/compute/last_row.sim
 run general/compute/leastsquare.sim
 run general/compute/max.sim
 run general/compute/min.sim

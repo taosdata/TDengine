@@ -12,9 +12,10 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
+import taos
+from util.log import tdLog
+from util.cases import tdCases
+from util.sql import tdSql
 
 
 class TDTestCase:
@@ -24,19 +25,24 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-
-        tdSql.execute('create table tb (ts timestamp, col nchar(10))')
-        tdSql.execute("insert into tb values (now, 'taosdata')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 'taosdata')
-        tdSql.execute("insert into tb values (now, '涛思数据')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(2)
-        tdSql.checkData(1, 1, '涛思数据')
-
-        tdSql.error("insert into tb values (now, 'taosdata001')")
         
+        tdSql.execute(
+            "create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(50))")
+        tdSql.execute(
+            'CREATE TABLE if not exists dev_001 using st tags("dev_01")')
+        tdSql.execute(
+            'CREATE TABLE if not exists dev_002 using st tags("dev_02")')        
+
+        tdSql.execute(
+            """INSERT INTO dev_001(ts, tagtype) VALUES('2020-05-13 10:00:00.000', 1),
+            ('2020-05-13 10:00:00.001', 1)
+             dev_002 VALUES('2020-05-13 10:00:00.001', 1)""")
+
+        for i in range(10):
+            for j in range(1000):
+                tdSql.query("select * from db.st")      
+            tdLog.sleep(10)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

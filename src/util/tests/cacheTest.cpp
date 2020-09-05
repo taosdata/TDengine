@@ -1,16 +1,9 @@
 #include "os.h"
 #include <iostream>
 #include <gtest/gtest.h>
-#include <sys/time.h>
 
 #include "taos.h"
-//#include "tsdb.h"
-
-//#include "testCommon.h"
-#include "tstoken.h"
-#include "tutil.h"
 #include "tcache.h"
-#include "ttimer.h"
 
 namespace {
 int32_t tsMaxMgmtConnections = 10000;

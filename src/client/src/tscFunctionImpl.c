@@ -1648,9 +1648,10 @@ static void last_function(SQLFunctionCtx *pCtx) {
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
-      continue;
+      if (!pCtx->requireNull) {
+        continue; 
+      }
     }
-    
     memcpy(pCtx->aOutputBuf, data, pCtx->inputBytes);
     
     TSKEY ts = pCtx->ptsList[i];
@@ -1721,7 +1722,9 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
-      continue;
+      if (!pCtx->requireNull) {
+        continue; 
+      }
     }
     
     last_data_assign_impl(pCtx, data, i);
@@ -2422,24 +2425,14 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
-  const int32_t MAX_AVAILABLE_BUFFER_SIZE = 1 << 20;  // 1MB
-  const int32_t NUMOFCOLS = 1;
-  
   if (!function_setup(pCtx)) {
     return false;
   }
   
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSchema      field[1] = { { (uint8_t)pCtx->inputType, "dummyCol", 0, pCtx->inputBytes } };
-  
-  SColumnModel *pModel = createColumnModel(field, 1, 1000);
-  int32_t    orderIdx = 0;
-  
-  // tOrderDesc object
-  tOrderDescriptor *pDesc = tOrderDesCreate(&orderIdx, NUMOFCOLS, pModel, TSDB_ORDER_DESC);
-  
+
   ((SPercentileInfo *)(pResInfo->interResultBuf))->pMemBucket =
-      tMemBucketCreate(1024, MAX_AVAILABLE_BUFFER_SIZE, pCtx->inputBytes, pCtx->inputType, pDesc);
+      tMemBucketCreate(pCtx->inputBytes, pCtx->inputType);
   
   return true;
 }
@@ -2485,15 +2478,13 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   tMemBucket * pMemBucket = ((SPercentileInfo *)pResInfo->interResultBuf)->pMemBucket;
   
-  if (pMemBucket->numOfElems > 0) {  // check for null
+  if (pMemBucket->total > 0) {  // check for null
     *(double *)pCtx->aOutputBuf = getPercentile(pMemBucket, v);
   } else {
     setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
   }
   
-  tOrderDescDestroy(pMemBucket->pOrderDesc);
   tMemBucketDestroy(pMemBucket);
-  
   doFinalizer(pCtx);
 }
 

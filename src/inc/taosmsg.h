@@ -170,6 +170,13 @@ enum _mgmt_table {
 #define TSDB_COL_NORMAL          0x0u    // the normal column of the table
 #define TSDB_COL_TAG             0x1u    // the tag column type
 #define TSDB_COL_UDC             0x2u    // the user specified normal string column, it is a dummy column
+#define TSDB_COL_NULL            0x4u    // the column filter NULL or not
+
+#define TSDB_COL_IS_TAG(f)    (((f&(~(TSDB_COL_NULL)))&TSDB_COL_TAG) != 0)
+#define TSDB_COL_IS_NORMAL_COL(f)    ((f&(~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
+#define TSDB_COL_IS_UD_COL(f)   ((f&(~(TSDB_COL_NULL))) == TSDB_COL_UDC)
+#define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
+
 
 extern char *taosMsg[];
 
@@ -456,6 +463,7 @@ typedef struct {
   int64_t     intervalTime;     // time interval for aggregation, in million second
   int64_t     intervalOffset;   // start offset for interval query
   int64_t     slidingTime;      // value for sliding window
+  char        intervalTimeUnit;
   char        slidingTimeUnit;  // time interval type, for revisement of interval(1d)
   uint16_t    tagCondLen;       // tag length in current query
   int16_t     numOfGroupCols;   // num of group by columns

@@ -30,7 +30,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
 SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
 
-int32_t tscHandleMasterJoinQuery(SSqlObj* pSql);
+void tscHandleMasterJoinQuery(SSqlObj* pSql);
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
 

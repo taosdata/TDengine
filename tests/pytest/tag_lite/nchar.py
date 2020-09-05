@@ -12,9 +12,10 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
+import taos
+from util.log import tdLog
+from util.cases import tdCases
+from util.sql import tdSql
 
 
 class TDTestCase:
@@ -25,18 +26,19 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute('create table tb (ts timestamp, col nchar(10))')
-        tdSql.execute("insert into tb values (now, 'taosdata')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 'taosdata')
-        tdSql.execute("insert into tb values (now, '涛思数据')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(2)
-        tdSql.checkData(1, 1, '涛思数据')
+        print("==============step1")
+        tdSql.execute(
+            "create table if not exists st (ts timestamp, tagtype int) tags(dev nchar(5))")
+        tdSql.error(
+            'CREATE TABLE if not exists dev_001 using st tags("dev_001")')
+        tdSql.execute(
+            'CREATE TABLE if not exists dev_002 using st tags("dev")')
 
-        tdSql.error("insert into tb values (now, 'taosdata001')")
-        
+
+        print("==============step2")    
+        tdSql.query("show tables")
+        tdSql.checkRows(1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -24,12 +24,15 @@
 #include "httpResp.h"
 #include "httpAuth.h"
 #include "httpSession.h"
+#include "httpQueue.h"
 
 void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 
-void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);
+
+void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -75,7 +78,11 @@ void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numO
   }
 }
 
-void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
+void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+  httpDispatchToResultQueue(param, result, numOfRows, httpProcessMultiSqlRetrieveCallBackImp);
+}
+
+void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -154,6 +161,10 @@ void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int code) {
   }
 }
 
+void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
+  httpDispatchToResultQueue(param, result, unUsedCode, httpProcessMultiSqlCallBackImp);
+}
+
 void httpProcessMultiSql(HttpContext *pContext) {
   HttpSqlCmds *     multiCmds = pContext->multiCmds;
   HttpEncodeMethod *encode = pContext->encodeMethod;
@@ -196,7 +207,9 @@ void httpProcessMultiSqlCmd(HttpContext *pContext) {
   httpProcessMultiSql(pContext);
 }
 
-void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);
+
+void httpProcessSingleSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -243,7 +256,11 @@ void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int num
   }
 }
 
-void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
+void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+  httpDispatchToResultQueue(param, result, numOfRows, httpProcessSingleSqlRetrieveCallBackImp);
+}
+
+void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int unUsedCode) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -304,6 +321,10 @@ void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode)
 
     taos_fetch_rows_a(result, httpProcessSingleSqlRetrieveCallBack, pContext);
   }
+}
+
+void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
+  httpDispatchToResultQueue(param, result, unUsedCode, httpProcessSingleSqlCallBackImp);
 }
 
 void httpProcessSingleSqlCmd(HttpContext *pContext) {

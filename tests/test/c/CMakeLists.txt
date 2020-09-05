@@ -25,6 +25,9 @@ IF (TD_LINUX)
   #add_executable(createTablePerformance createTablePerformance.c)
   #target_link_libraries(createTablePerformance taos_static tutil common pthread)
 
-  add_executable(createNormalTable createNormalTable.c)
-  target_link_libraries(createNormalTable taos_static tutil common pthread)
+  #add_executable(createNormalTable createNormalTable.c)
+  #target_link_libraries(createNormalTable taos_static tutil common pthread)
+
+  add_executable(queryPerformance queryPerformance.c)
+  target_link_libraries(queryPerformance taos_static tutil common pthread)
 ENDIF()

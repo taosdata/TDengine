@@ -221,19 +221,18 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-//typedef struct SDataBlockList {  // todo remove
-//  uint32_t           nSize;
-//  uint32_t           nAlloc;
-//  STableDataBlocks **pData;
-//} SDataBlockList;
-
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
+  // TODO refactor
+  char             intervalTimeUnit;
   char             slidingTimeUnit;
   STimeWindow      window;        // query time window
-  int64_t          intervalTime;  // aggregation time interval
+  int64_t          intervalTime;  // aggregation time window range
   int64_t          slidingTime;   // sliding window in mseconds
+  int64_t          intervalOffset;// start offset of each time window
+  int32_t          tz;            // query client timezone
+
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
@@ -349,6 +348,7 @@ typedef struct SSqlObj {
   void *           pStream;
   void *           pSubscription;
   char *           sqlstr;
+  char             parseRetry;
   char             retry;
   char             maxRetry;
   SRpcEpSet        epSet;
@@ -366,6 +366,8 @@ typedef struct SSqlStream {
   uint32_t streamId;
   char     listed;
   bool     isProject;
+  char     intervalTimeUnit;
+  char     slidingTimeUnit;
   int16_t  precision;
   int64_t  num;  // number of computing count
 
@@ -379,7 +381,7 @@ typedef struct SSqlStream {
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
   int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
-  int64_t interval;
+  int64_t intervalTime;
   int64_t slidingTime;
   void *  pTimer;
 
@@ -398,7 +400,7 @@ int tsParseSql(SSqlObj *pSql, bool initial);
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
-int  tscRenewTableMeta(SSqlObj *pSql, char *tableId);
+int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
@@ -413,7 +415,7 @@ void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
-void tscResetSqlCmdObj(SSqlCmd *pCmd);
+void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 
 /**
  * free query result of the sql object
@@ -455,6 +457,7 @@ bool tscResultsetFetchCompleted(TAOS_RES *result);
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
+int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql);
 
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
@@ -468,7 +471,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
 
   // user defined constant value output columns
-  if (pInfo->pSqlExpr->colInfo.flag == TSDB_COL_UDC) {
+  if (TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
       pData = pInfo->pSqlExpr->param[1].pz;
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
