@@ -15,7 +15,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =================== step 1
-sql create database $db maxTables 4
+sql create database $db
 sql use $db
 sql show vgroups
 if $rows != 0 then 

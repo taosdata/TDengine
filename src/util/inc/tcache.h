@@ -42,7 +42,7 @@ typedef struct SCacheDataNode {
   uint64_t           signature;
   struct STrashElem *pTNodeHeader; // point to trash node head
   uint16_t           keySize: 15;  // max key size: 32kb
-  bool               inTrashCan: 1;// denote if it is in trash or not
+  bool               inTrashcan: 1;// denote if it is in trash or not
   uint32_t           size;         // allocated size for current SCacheDataNode
   T_REF_DECLARE()
   char              *key;

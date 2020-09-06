@@ -718,6 +718,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
   return TSDB_CODE_SUCCESS;
 }
 
+// TODO: all subqueries should be freed correctly before close this connection.
 void tscCloseTscObj(STscObj* pObj) {
   assert(pObj != NULL);
   
@@ -727,6 +728,7 @@ void tscCloseTscObj(STscObj* pObj) {
   
   if (pObj->pDnodeConn != NULL) {
     rpcClose(pObj->pDnodeConn);
+    pObj->pDnodeConn = NULL;
   }
   
   tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, pObj->pDnodeConn);

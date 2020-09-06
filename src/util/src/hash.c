@@ -255,10 +255,10 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashGetCB(pHashObj, key, keyLen, NULL);
+  return taosHashGetCB(pHashObj, key, keyLen, NULL, NULL, 0);
 }
 
-void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *)) {
+void* taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
   if (pHashObj->size <= 0 || keyLen == 0 || key == NULL) {
     return NULL;
   }
@@ -273,7 +273,6 @@ void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
 
   // no data, return directly
   if (atomic_load_32(&pe->num) == 0) {
-
     __rd_unlock(&pHashObj->lock, pHashObj->type);
     return NULL;
   }
@@ -297,7 +296,11 @@ void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
       fp(pNode->data);
     }
 
-    data = pNode->data;
+    if (d != NULL) {
+      memcpy(d, pNode->data, dsize);
+    } else {
+      data = pNode->data;
+    }
   }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
