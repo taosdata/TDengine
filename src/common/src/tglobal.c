@@ -1298,21 +1298,21 @@ bool taosCheckGlobalCfg() {
     taosGetFqdn(tsLocalFqdn);
   }
 
-  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%d", tsLocalFqdn, tsServerPort);
+  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
   uInfo("localEp is: %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);
   } else {
     taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
-    snprintf(tsFirst, sizeof(tsFirst), "%s:%d", fqdn, port);
+    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", fqdn, port);
   }
 
   if (tsSecond[0] == 0) {
     strcpy(tsSecond, tsLocalEp);
   } else {
     taosGetFqdnPortFromEp(tsSecond, fqdn, &port);
-    snprintf(tsSecond, sizeof(tsSecond), "%s:%d", fqdn, port);
+    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
   }
 
   taosGetSystemInfo();
