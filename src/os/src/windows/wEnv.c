@@ -30,6 +30,7 @@ void osInit() {
   strcpy(tsVnodeDir, "C:/PowerDB/data");
   strcpy(tsDataDir, "C:/PowerDB/data");
   strcpy(tsLogDir, "C:/PowerDB/log");
+  strcpy(tsLogbakDir, "C:/PowerDB/log/bak");
   strcpy(tsScriptDir, "C:/PowerDB/script");
 
 #else
@@ -40,6 +41,7 @@ void osInit() {
   strcpy(tsVnodeDir, "C:/TDengine/data");
   strcpy(tsDataDir, "C:/TDengine/data");
   strcpy(tsLogDir, "C:/TDengine/log");
+  strcpy(tsLogbakDir, "C:/TDengine/log/bak");
   strcpy(tsScriptDir, "C:/TDengine/script");
 #endif
 

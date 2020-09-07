@@ -27,6 +27,7 @@ void osInit() {
   strcpy(tsMnodeDir, "");
   strcpy(tsDataDir, "/var/lib/taos");
   strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogbakDir, "/var/log/taos/bak");
   strcpy(tsScriptDir, "/etc/taos");
   strcpy(tsOsName, "Linux");
 }

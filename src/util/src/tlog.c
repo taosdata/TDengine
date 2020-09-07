@@ -62,14 +62,17 @@ typedef struct {
   pthread_mutex_t logMutex;
 } SLogObj;
 
+int32_t tsLogKeepDays = 0;
 int32_t tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 0.1f;
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
+char    tsLogbakDir[TSDB_FILENAME_LEN] = "/var/log/power/bak";
 #else
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
+char    tsLogbakDir[TSDB_FILENAME_LEN] = "/var/log/taos/bak";
 #endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };

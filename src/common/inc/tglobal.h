@@ -126,6 +126,7 @@ extern char    tsDnodeDir[];
 extern char    tsMnodeDir[];
 extern char    tsDataDir[];
 extern char    tsLogDir[];
+extern char    tsLogbakDir[];
 extern char    tsScriptDir[];
 extern int64_t tsMsPerDay[3];
 extern char    tsVnodeBakDir[];
@@ -158,6 +159,7 @@ extern char buildinfo[];
 // log
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
+extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;

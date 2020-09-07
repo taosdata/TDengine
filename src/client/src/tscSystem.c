@@ -94,6 +94,10 @@ void taos_init_imp(void) {
       printf("failed to create log dir:%s\n", tsLogDir);
     }
 
+    if (mkdir(tsLogbakDir, 0755) != 0 && errno != EEXIST) {
+      printf("failed to create logbak dir:%s\n", tsLogbakDir);
+    }
+
     sprintf(temp, "%s/taoslog", tsLogDir);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
       printf("failed to open log file in directory:%s\n", tsLogDir);

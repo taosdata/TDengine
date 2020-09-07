@@ -25,6 +25,7 @@ void osInit() {
   }
   strcpy(tsDataDir, "/var/lib/power");
   strcpy(tsLogDir, "/var/log/power");
+  strcpy(tsLogbakDir, "/var/log/power/bak");
   strcpy(tsScriptDir, "/etc/power");
 #else
   if (configDir[0] == 0) {
@@ -32,6 +33,7 @@ void osInit() {
   }
   strcpy(tsDataDir, "/var/lib/taos");
   strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogbakDir, "/var/log/taos/bak");
   strcpy(tsScriptDir, "/etc/taos");
 #endif
 
