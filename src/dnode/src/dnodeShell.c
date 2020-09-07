@@ -154,15 +154,15 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   rpcMsg.contLen = sizeof(SDMAuthMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_DM_AUTH;
   
-  dDebug("user:%s, send auth msg to mnode", user);
+  dDebug("user:%s, send auth msg to mnodes", user);
   SRpcMsg rpcRsp = {0};
   dnodeSendMsgToDnodeRecv(&rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
-    dError("user:%s, auth msg received from mnode, error:%s", user, tstrerror(rpcRsp.code));
+    dError("user:%s, auth msg received from mnodes, error:%s", user, tstrerror(rpcRsp.code));
   } else {
     SDMAuthRsp *pRsp = rpcRsp.pCont;
-    dDebug("user:%s, auth msg received from mnode", user);
+    dDebug("user:%s, auth msg received from mnodes", user);
     memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
     memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
     *spi = pRsp->spi;
