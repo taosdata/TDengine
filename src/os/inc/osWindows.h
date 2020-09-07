@@ -179,9 +179,9 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 #endif
 
 #ifdef _MSC_VER
-#if _MSC_VER >= 1900
+//#if _MSC_VER >= 1900
   #define TAOS_OS_FUNC_SOCKET_INET
-#endif
+//#endif
 #endif
 
 #define SHUT_RDWR                SD_BOTH
