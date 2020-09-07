@@ -310,6 +310,13 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
+#ifndef _SYNC
+  if (pCfg->replications != 1) {
+    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+#endif
+
   return TSDB_CODE_SUCCESS;
 }
 

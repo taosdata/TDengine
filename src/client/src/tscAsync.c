@@ -43,6 +43,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->signature = pSql;
   pSql->param     = param;
   pSql->pTscObj   = pObj;
+  pSql->parseRetry= 0;
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->fp        = fp;
   pSql->fetchFp   = fp;

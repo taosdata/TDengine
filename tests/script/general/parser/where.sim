@@ -21,7 +21,7 @@ $mt = $mtPrefix . $i
 
 sql drop database if exits $db -x step1
 step1:
-sql create database if not exists $db maxTables 4
+sql create database if not exists $db 
 sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
 

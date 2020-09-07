@@ -142,7 +142,6 @@ TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
   }
 
   tsdbStartStream(pRepo);
-  // pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   tsdbDebug("vgId:%d open tsdb repository succeed!", REPO_ID(pRepo));
 
@@ -341,6 +340,10 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
   *compStorage = pRepo->stat.compStorage;
 }
 
+int tsdbGetState(TSDB_REPO_T *repo) {
+  return ((STsdbRepo *)repo)->state;
+}
+
 // ----------------- INTERNAL FUNCTIONS -----------------
 char *tsdbGetMetaFileName(char *rootDir) {
   int   tlen = (int)(strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
@@ -354,8 +357,8 @@ char *tsdbGetMetaFileName(char *rootDir) {
   return fname;
 }
 
-void tsdbGetDataFileName(STsdbRepo *pRepo, int fid, int type, char *fname) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", pRepo->rootDir, TSDB_DATA_DIR_NAME, REPO_ID(pRepo), fid, tsdbFileSuffix[type]);
+void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, char *fname) {
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", rootDir, TSDB_DATA_DIR_NAME, vid, fid, tsdbFileSuffix[type]);
 }
 
 int tsdbLockRepo(STsdbRepo *pRepo) {
@@ -660,6 +663,8 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
   }
+
+  pRepo->state = TSDB_STATE_OK;
 
   int code = pthread_mutex_init(&pRepo->mutex, NULL);
   if (code != 0) {

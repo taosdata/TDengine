@@ -45,6 +45,8 @@ extern int tsdbDebugFlag;
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 
+#define TAOS_IN_RANGE(key, keyMin, keyLast) (((key) >= (keyMin)) && ((key) <= (keyMax)))
+
 // NOTE: Any file format change must increase this version number by 1
 //       Also, implement the convert function
 #define TSDB_FILE_VERSION ((uint32_t)0)
@@ -318,6 +320,16 @@ typedef struct {
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
+// ------------------ tsdbScan.c
+typedef struct {
+  SFileGroup fGroup;
+  int        numOfIdx;
+  SCompIdx*  pCompIdx;
+  SCompInfo* pCompInfo;
+  void*      pBuf;
+  FILE*      tLogStream;
+} STsdbScanHandle;
+
 // Operations
 // ------------------ tsdbMeta.c
 #define TSDB_INIT_NTABLES 1024
@@ -475,6 +487,7 @@ int         tsdbUpdateFileHeader(SFile* pFile);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
+int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
 void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
 void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 
@@ -513,7 +526,10 @@ int  tsdbCommitTableData(SRWHelper* pHelper, SCommitIter* pCommitIter, SDataCols
 int  tsdbMoveLastBlockIfNeccessary(SRWHelper* pHelper);
 int  tsdbWriteCompInfo(SRWHelper* pHelper);
 int  tsdbWriteCompIdx(SRWHelper* pHelper);
+int  tsdbLoadCompIdxImpl(SFile* pFile, uint32_t offset, uint32_t len, void* buffer);
+int  tsdbDecodeSCompIdxImpl(void* buffer, uint32_t len, SCompIdx** ppCompIdx, int* numOfIdx);
 int  tsdbLoadCompIdx(SRWHelper* pHelper, void* target);
+int  tsdbLoadCompInfoImpl(SFile* pFile, SCompIdx* pIdx, SCompInfo** ppCompInfo);
 int  tsdbLoadCompInfo(SRWHelper* pHelper, void* target);
 int  tsdbLoadCompData(SRWHelper* phelper, SCompBlock* pcompblock, void* target);
 void tsdbGetDataStatis(SRWHelper* pHelper, SDataStatis* pStatis, int numOfCols);
@@ -537,7 +553,7 @@ static FORCE_INLINE int compTSKEY(const void* key1, const void* key2) {
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
 char*       tsdbGetMetaFileName(char* rootDir);
-void        tsdbGetDataFileName(STsdbRepo* pRepo, int fid, int type, char* fname);
+void        tsdbGetDataFileName(char* rootDir, int vid, int fid, int type, char* fname);
 int         tsdbLockRepo(STsdbRepo* pRepo);
 int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);
@@ -545,6 +561,16 @@ int         tsdbGetNextMaxTables(int tid);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
 STsdbFileH* tsdbGetFile(TSDB_REPO_T* pRepo);
 int         tsdbCheckCommit(STsdbRepo* pRepo);
+
+// ------------------ tsdbScan.c
+int              tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
+STsdbScanHandle* tsdbNewScanHandle();
+void             tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream);
+int              tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
+int              tsdbScanSCompIdx(STsdbScanHandle* pScanHandle);
+int              tsdbScanSCompBlock(STsdbScanHandle* pScanHandle, int idx);
+int              tsdbCloseScanFile(STsdbScanHandle* pScanHandle);
+void             tsdbFreeScanHandle(STsdbScanHandle* pScanHandle);
 
 #ifdef __cplusplus
 }

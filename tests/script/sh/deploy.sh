@@ -119,7 +119,7 @@ echo "tsdbDebugFlag          135"                >> $TAOS_CFG
 echo "cDebugFlag             135"                >> $TAOS_CFG
 echo "jnidebugFlag           135"                >> $TAOS_CFG
 echo "odbcdebugFlag          135"                >> $TAOS_CFG
-echo "httpDebugFlag          143"                >> $TAOS_CFG
+echo "httpDebugFlag          135"                >> $TAOS_CFG
 echo "monitorDebugFlag       135"                >> $TAOS_CFG
 echo "mqttDebugFlag          135"                >> $TAOS_CFG
 echo "qdebugFlag             135"                >> $TAOS_CFG

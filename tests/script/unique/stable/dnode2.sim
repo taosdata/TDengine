@@ -38,7 +38,7 @@ $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 
-sql create database $db maxTables 4
+sql create database $db 
 sql use $db
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
