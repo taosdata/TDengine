@@ -61,6 +61,10 @@ int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int op
     return 0;
   }
 
+   if (level == SOL_TCP && optname == TCP_KEEPCNT) {
+    return 0;
+  }
+
   return setsockopt(socketfd, level, optname, optval, optlen);
 }
 
