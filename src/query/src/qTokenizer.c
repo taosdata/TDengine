@@ -121,7 +121,6 @@ static SKeyword keywordTable[] = {
     {"MINROWS",      TK_MINROWS},
     {"MAXROWS",      TK_MAXROWS},
     {"BLOCKS",       TK_BLOCKS},
-    {"MAXTABLES",    TK_MAXTABLES},
     {"CACHE",        TK_CACHE},
     {"CTIME",        TK_CTIME},
     {"WAL",          TK_WAL},
