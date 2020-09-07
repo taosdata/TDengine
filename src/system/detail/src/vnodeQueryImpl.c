@@ -7698,7 +7698,7 @@ static int32_t getNumOfSubset(STableQuerySupportObj *pSupporter) {
   return totalSubset;
 }
 
-static int32_t doCopyToSData(STableQuerySupportObj *pSupporter, SWindowResult *result, int32_t orderType) {
+static int32_t doCopyToSData(STableQuerySupportObj *pSupporter, SWindowResult *result, int32_t numOfWindowRes, int32_t orderType) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
@@ -7717,7 +7717,7 @@ static int32_t doCopyToSData(STableQuerySupportObj *pSupporter, SWindowResult *r
     step = -1;
   }
 
-  for (int32_t i = startIdx; (i < totalSubset) && (i >= 0); i += step) {
+  for (int32_t i = startIdx; (i < totalSubset && i < numOfWindowRes) && (i >= 0); i += step) {
     if (result[i].numOfRows == 0) {
       pSupporter->offset = 0;
       pSupporter->subgroupIdx += 1;
@@ -7772,12 +7772,12 @@ static int32_t doCopyToSData(STableQuerySupportObj *pSupporter, SWindowResult *r
  * @param pQInfo
  * @param result
  */
-void copyFromWindowResToSData(SQInfo *pQInfo, SWindowResult *result) {
+void copyFromWindowResToSData(SQInfo *pQInfo, SWindowResult *result, int32_t numOfWindowRes) {
   SQuery *               pQuery = &pQInfo->query;
   STableQuerySupportObj *pSupporter = pQInfo->pTableQuerySupporter;
 
   int32_t orderType = (pQuery->pGroupbyExpr != NULL) ? pQuery->pGroupbyExpr->orderType : TSQL_SO_ASC;
-  int32_t numOfResult = doCopyToSData(pSupporter, result, orderType);
+  int32_t numOfResult = doCopyToSData(pSupporter, result, numOfWindowRes, orderType);
 
   pQuery->pointsRead += numOfResult;
   assert(pQuery->pointsRead <= pQuery->pointsToRead);

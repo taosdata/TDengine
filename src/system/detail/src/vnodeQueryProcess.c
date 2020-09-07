@@ -664,7 +664,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
      * we need to return it to client in the first place.
      */
     if (pSupporter->subgroupIdx > 0) {
-      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult, pRuntimeEnv->windowResInfo.size);
       pQInfo->pointsRead += pQuery->pointsRead;
 
       if (pQuery->pointsRead > 0) {
@@ -815,7 +815,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
 
     pQInfo->pTableQuerySupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromWindowResToSData(pQInfo, pWindowResInfo->pResult);
+    copyFromWindowResToSData(pQInfo, pWindowResInfo->pResult, pWindowResInfo->size);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;
@@ -917,7 +917,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
       displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
 #endif
     } else {
-      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult, pRuntimeEnv->windowResInfo.size);
     }
 
     pQInfo->pointsRead += pQuery->pointsRead;
@@ -975,7 +975,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
 #endif
     }
   } else {  // not a interval query
-    copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+    copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult, pRuntimeEnv->windowResInfo.size);
   }
 
   // handle the limitation of output buffer
@@ -1136,7 +1136,7 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
     if (pQuery->intervalTime > 0) {
       pSupporter->subgroupIdx = 0;  // always start from 0
       pQuery->pointsRead = 0;
-      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult, pRuntimeEnv->windowResInfo.size);
 
       clearFirstNTimeWindow(pRuntimeEnv, pSupporter->subgroupIdx);
     }
@@ -1172,7 +1172,7 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {//todo refactor with merge interval time result
     pSupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+    copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult, pRuntimeEnv->windowResInfo.size);
     clearFirstNTimeWindow(pRuntimeEnv, pSupporter->subgroupIdx);
   }
 
@@ -1249,7 +1249,7 @@ void vnodeSingleTableQuery(SSchedMsg *pMsg) {
       pSupporter->subgroupIdx = 0;  // always start from 0
 
       if (pRuntimeEnv->windowResInfo.size > 0) {
-        copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+        copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult, pRuntimeEnv->windowResInfo.size);
         pQInfo->pointsRead += pQuery->pointsRead;
 
         clearFirstNTimeWindow(pRuntimeEnv, pSupporter->subgroupIdx);

@@ -162,7 +162,7 @@ void    disableFunctForSuppleScan(STableQuerySupportObj* pSupporter, int32_t ord
 void    enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
 int32_t mergeMetersResultToOneGroups(STableQuerySupportObj* pSupporter);
-void    copyFromWindowResToSData(SQInfo* pQInfo, SWindowResult* result);
+void    copyFromWindowResToSData(SQInfo* pQInfo, SWindowResult* result, int32_t numOfWindowRes);
 
 SBlockInfo getBlockInfo(SQueryRuntimeEnv *pRuntimeEnv);
 SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv *pRuntimeEnv, void* pBlock, int32_t type);
