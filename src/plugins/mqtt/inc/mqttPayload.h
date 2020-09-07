@@ -15,11 +15,13 @@
 
 #ifndef TDENGINE_MQTT_PLYLOAD_H
 #define TDENGINE_MQTT_PLYLOAD_H
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-char  split(char str[], char delims[], char** p_p_cmd_part, int max);
-char* converJsonToSql(char* json, char* _dbname, char* _tablename);
+
+char* mqttConverJsonToSql(char* json, int maxSize);
+
 #ifdef __cplusplus
 }
 #endif

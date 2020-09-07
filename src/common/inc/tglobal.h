@@ -104,8 +104,12 @@ extern int32_t  tsTelegrafUseFieldNum;
 
 // mqtt
 extern int32_t tsEnableMqttModule;
-extern char    tsMqttBrokerAddress[];
-extern char    tsMqttBrokerClientId[];
+extern char tsMqttHostName[];
+extern char tsMqttPort[];
+extern char tsMqttUser[];
+extern char tsMqttPass[];
+extern char tsMqttClientId[];
+extern char tsMqttTopic[];
 
 // monitor
 extern int32_t tsEnableMonitorModule;

@@ -29,7 +29,7 @@ $db = $dbPrefix
 $mt = $mtPrefix
 $st = $stPrefix . $i
 
-sql create database $db maxTables 4
+sql create database $db 
 sql use $db
 sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
 
