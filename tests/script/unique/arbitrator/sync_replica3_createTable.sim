@@ -61,8 +61,8 @@ $totalTableNum = 20
 $sleepTimer = 3000
 
 $db = db
-print create database $db replica 3 maxTables $totalTableNum
-sql create database $db replica 3 maxTables $totalTableNum
+print create database $db replica 3 
+sql create database $db replica 3
 sql use $db
 
 # create table , insert data
