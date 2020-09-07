@@ -4,6 +4,8 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c debugFlag -v 135
 system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+
 system sh/exec.sh -n dnode1 -s start
 sleep 1000
 sql connect
@@ -27,7 +29,7 @@ $mt1 = $mtPrefix . $j
 
 sql drop database if exits $db -x step1
 step1:
-sql create database if not exists $db 
+sql create database if not exists $db
 sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
 
