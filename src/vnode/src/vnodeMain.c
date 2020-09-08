@@ -382,7 +382,13 @@ void vnodeRelease(void *pVnodeRaw) {
     char newDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
     sprintf(newDir, "%s/vnode%d", tsVnodeBakDir, vgId);
-    taosRename(rootDir, newDir);
+
+    if (0 == tsEnableVnodeBak) {
+      vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
+    } else {
+      taosRename(rootDir, newDir);
+    }
+
     taosRemoveDir(rootDir);
     dnodeSendStatusMsgToMnode();
   }

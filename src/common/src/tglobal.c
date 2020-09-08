@@ -254,7 +254,7 @@ bool taosCfgDynamicOptions(char *msg) {
     //if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
     if (cfg->valType != TAOS_CFG_VTYPE_INT32) continue;
     
-    int32_t cfgLen = strlen(cfg->option);
+    int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
     *((int32_t *)cfg->ptr) = vint;
@@ -1013,8 +1013,18 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsNumOfLogLines;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 10000;
+  cfg.minValue = 1000;
   cfg.maxValue = 2000000000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "logKeepDays";
+  cfg.ptr = &tsLogKeepDays;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 365000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

@@ -158,6 +158,7 @@ extern char buildinfo[];
 // log
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
+extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;
