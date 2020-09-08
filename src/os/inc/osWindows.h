@@ -39,6 +39,7 @@
 #include <Winsock2.h>
 #include <time.h>
 #include <inttypes.h>
+#include <conio.h>
 #include "msvcProcess.h"
 #include "msvcDirect.h"
 #include "msvcFcntl.h"
