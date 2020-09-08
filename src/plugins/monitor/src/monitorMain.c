@@ -115,6 +115,10 @@ static void *monitorThreadFunc(void *param) {
   monitorDebug("starting to initialize monitor module ...");
 
   while (1) {
+    static int32_t accessTimes = 0;
+    accessTimes++;
+    taosMsleep(1000);
+
     if (tsMonitor.quiting) {
       tsMonitor.state = MON_STATE_NOT_INIT;
       monitorInfo("monitor thread will quit, for taosd is quiting");
@@ -126,11 +130,7 @@ static void *monitorThreadFunc(void *param) {
     if (tsMonitor.start == 0) {
       continue;
     }
-
-    static int32_t accessTimes = 0;
-    accessTimes++;
-    taosMsleep(1000);
-
+    
     if (dnodeGetDnodeId() <= 0) {
       monitorDebug("dnode not initialized, waiting for 3000 ms to start monitor module");
       continue;
