@@ -52,6 +52,12 @@ if $data00 != $rowNum then
   return -1
 endi
 
+sql select count(1) from $tb
+print ===> select count(1) from $tb => $data00
+if $data00 != $rowNum then 
+  return -1
+endi
+
 sql select count(tbcol) from $tb
 print ===> $data00
 if $data00 != $rowNum then 
@@ -102,13 +108,20 @@ if $data00 != $totalNum then
   return -1
 endi
 
+print =============== step8
+sql select count(1) from $mt
+print ===> $data00
+if $data00 != $totalNum then 
+  return -1
+endi
+
 sql select count(tbcol) from $mt
 print ===> $data00
 if $data00 != $totalNum then 
   return -1
 endi
 
-print =============== step8
+print =============== step10
 sql select count(tbcol) as c from $mt where ts < now + 4m
 print ===> $data00
 if $data00 != 50 then 
