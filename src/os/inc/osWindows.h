@@ -58,8 +58,6 @@ extern "C" {
   int32_t BUILDIN_CTZL(uint64_t val);
   int32_t BUILDIN_CTZ(uint32_t val);
 
-#define TAOS_OS_FUNC_DIR
-
 #define TAOS_OS_FUNC_FILE
 #define TAOS_OS_FUNC_FILE_ISREG
 #define TAOS_OS_FUNC_FILE_ISDIR

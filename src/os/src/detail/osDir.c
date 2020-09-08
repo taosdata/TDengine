@@ -18,8 +18,6 @@
 #include "tglobal.h"
 #include "tulog.h"
 
-#ifndef TAOS_OS_FUNC_DIR
-
 void taosRemoveDir(char *rootDir) {
   DIR *dir = opendir(rootDir);
   if (dir == NULL) return;
@@ -79,7 +77,7 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
       // if (stat(fname, &fState) < 0) {
       //   continue;
       // }
-      int32_t len = strlen(filename);
+      int32_t len = (int32_t)strlen(filename);
       int64_t fileSec = 0;
       for (int i = len - 1; i >= 0; i--) {
         if (filename[i] == '.') {
@@ -89,7 +87,7 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
       }
 
       if (fileSec <= 100) continue;
-      int32_t days = ABS(sec - fileSec) / 86400 + 1;
+      int32_t days = (int32_t)(ABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
         (void)remove(filename);
         uInfo("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
@@ -102,5 +100,3 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
   closedir(dir);
   rmdir(rootDir);
 }
-
-#endif
