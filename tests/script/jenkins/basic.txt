@@ -253,6 +253,7 @@ cd ../../../debug; make
 ./test.sh -f unique/cluster/balance2.sim
 ./test.sh -f unique/cluster/balance3.sim
 ./test.sh -f unique/cluster/cache.sim
+./test.sh -f unique/cluster/vgroup100.sim
 
 ./test.sh -f unique/column/replica3.sim
 
