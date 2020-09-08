@@ -562,5 +562,5 @@ static TSKEY tsdbGetCurrMinKey(int8_t precision, int32_t keep) {
 }
 
 static int tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days) {
-  return TSDB_KEY_FILEID(tsdbGetCurrMinKey(precision, keep), days, precision);
+  return (int32_t)(TSDB_KEY_FILEID(tsdbGetCurrMinKey(precision, keep), days, precision));
 }
