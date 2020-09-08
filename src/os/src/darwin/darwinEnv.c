@@ -27,7 +27,6 @@ void osInit() {
   strcpy(tsMnodeDir, "");
   strcpy(tsDataDir, "~/TDengine/data");
   strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsLogbakDir, "~/TDengine/log/bak");
   strcpy(tsScriptDir, "~/TDengine/cfg");
   strcpy(tsOsName, "Darwin");
 }

@@ -69,10 +69,8 @@ float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 0.1f;
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
-char    tsLogbakDir[TSDB_FILENAME_LEN] = "/var/log/power/bak";
 #else
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
-char    tsLogbakDir[TSDB_FILENAME_LEN] = "/var/log/taos/bak";
 #endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
@@ -139,11 +137,25 @@ static void taosUnLockFile(int32_t fd) {
   }
 }
 
+static void taosKeepOldLog(char *oldName) {
+  if (tsLogKeepDays <= 0) return;
+
+  int64_t ms = taosGetTimestampMs();
+  char    fileName[LOG_FILE_NAME_LEN + 20];
+  snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, ms);
+
+  uInfo("rename log file %s to %s", oldName, fileName);
+  taosRename(oldName, fileName);
+  taosRemoveOldLogFiles(tsLogDir, tsLogKeepDays);
+}
+
 static void *taosThreadToOpenNewFile(void *param) {
-  char name[LOG_FILE_NAME_LEN + 20];
+  char keepName[LOG_FILE_NAME_LEN + 20];
+  sprintf(keepName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
   tsLogObj.flag ^= 1;
   tsLogObj.lines = 0;
+  char name[LOG_FILE_NAME_LEN + 20];
   sprintf(name, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
   umask(0);
@@ -153,6 +165,7 @@ static void *taosThreadToOpenNewFile(void *param) {
     uError("open new log file fail! fd:%d reason:%s", fd, strerror(errno));
     return NULL;
   }
+
   taosLockFile(fd);
   (void)lseek(fd, 0, SEEK_SET);
 
@@ -160,9 +173,11 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->fd = fd;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
+  taosCloseLogByFd(oldFd);
   uInfo("new log file is opened!!!");
 
-  taosCloseLogByFd(oldFd);
+  taosKeepOldLog(keepName);
+
   return NULL;
 }
 

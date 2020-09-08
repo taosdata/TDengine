@@ -370,16 +370,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "logBakDir";
-  cfg.ptr = tsLogbakDir;
-  cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_LOG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FILENAME_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "scriptDir";
   cfg.ptr = tsScriptDir;
   cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;

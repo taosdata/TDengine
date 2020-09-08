@@ -106,11 +106,6 @@ int32_t dnodeInitSystem() {
    return -1;
   }
 
-  if (dnodeCreateDir(tsLogbakDir) < 0) {
-    printf("failed to create dir: %s, reason: %s\n", tsLogbakDir, strerror(errno));
-    return -1;
-  }
-
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/taosdlog", tsLogDir);
   if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {

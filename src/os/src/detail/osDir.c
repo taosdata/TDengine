@@ -51,11 +51,6 @@ int taosMkDir(const char *path, mode_t mode) {
 }
 
 void taosRename(char* oldName, char *newName) {
-  if (0 == tsEnableVnodeBak) {
-    uInfo("vnode backup not enabled");
-    return;
-  }
-
   // if newName in not empty, rename return fail. 
   // the newName must be empty or does not exist
   if (rename(oldName, newName)) {
@@ -63,6 +58,50 @@ void taosRename(char* oldName, char *newName) {
   } else {
     uInfo("%s is modify to %s success!", oldName, newName);
   }
+}
+
+void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
+  DIR *dir = opendir(rootDir);
+  if (dir == NULL) return;
+
+  int64_t ms = taosGetTimestampMs();
+  struct dirent *de = NULL;
+
+  while ((de = readdir(dir)) != NULL) {
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+
+    char filename[1024];
+    snprintf(filename, 1023, "%s/%s", rootDir, de->d_name);
+    if (de->d_type & DT_DIR) {
+      continue;
+    } else {
+      // struct stat fState;
+      // if (stat(fname, &fState) < 0) {
+      //   continue;
+      // }
+      int32_t len = strlen(filename);
+      int64_t fileMs = 0;
+      for (int i = len - 1; i >= 0; ++i) {
+        if (filename[i] == '.') {
+          fileMs = atoll(filename + i + 1);
+          break;
+        }
+      }
+
+      if (fileMs <= 0) continue;
+      int32_t days = (fileMs - ms) / 86400 + 1;
+      if (days > keepDays) {
+        (void)remove(filename);
+        uInfo("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
+
+      } else {
+        uTrace("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
+      }
+    }
+  }
+
+  closedir(dir);
+  rmdir(rootDir);
 }
 
 #endif
