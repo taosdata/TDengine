@@ -12,19 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef TDENGINE_MQTT_SYSTEM_H
-#define TDENGINE_MQTT_SYSTEM_H
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include <stdint.h>
-int32_t mqttInitSystem();
-int32_t mqttStartSystem();
-void    mqttStopSystem();
-void    mqttCleanUpSystem();
-#ifdef __cplusplus
-}
-#endif
-
-#endif

@@ -2,6 +2,8 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 200
+
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
@@ -23,7 +25,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db cache 16 maxtables 200
+sql create database $db cache 16
 print ====== create tables
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
@@ -135,6 +137,25 @@ sleep 3000
 sql select count(*) from t1.test where ts>10000 and ts<90000 interval(5000a)
 if $rows != 3 then
  return -1
+endi
+
+print =========>td-1308
+sql create database db;
+sql use db;
+
+sql create table stb (ts timestamp, c1 int, c2 binary(10)) tags(t1 binary(10));
+sql create table tb1 using stb tags('a1');
+
+sql insert into tb1 values('2020-09-03 15:30:48.812', 0, 'tb1');
+sql select count(*) from stb where ts > '2020-09-03 15:30:44' interval(4s);
+if $rows != 1 then
+  return -1
+endi
+
+sql create table tb4 using stb tags('a4');
+sql select count(*) from stb where ts > '2020-09-03 15:30:44' interval(4s);
+if $rows != 1 then
+  return -1
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

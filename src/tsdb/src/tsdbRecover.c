@@ -12,18 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef TDENGINE_MQTT_PLYLOAD_H
-#define TDENGINE_MQTT_PLYLOAD_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-char* mqttConverJsonToSql(char* json, int maxSize);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

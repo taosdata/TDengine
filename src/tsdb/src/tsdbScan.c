@@ -13,17 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MQTT_PLYLOAD_H
-#define TDENGINE_MQTT_PLYLOAD_H
+#include "tsdbMain.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef _TSDB_PLUGINS
 
-char* mqttConverJsonToSql(char* json, int maxSize);
+int tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
 
-#ifdef __cplusplus
-}
-#endif
+STsdbScanHandle* tsdbNewScanHandle() { return NULL; }
+
+void tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream) {}
+
+int tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
+
+int tsdbScanSCompIdx(STsdbScanHandle* pScanHandle) { return 0; }
+
+int tsdbScanSCompBlock(STsdbScanHandle* pScanHandle, int idx) { return 0; }
+
+int tsdbCloseScanFile(STsdbScanHandle* pScanHandle) { return 0; }
+
+void tsdbFreeScanHandle(STsdbScanHandle* pScanHandle) {}
 
 #endif
