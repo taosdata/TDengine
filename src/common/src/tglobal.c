@@ -1013,18 +1013,18 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsNumOfLogLines;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 10000;
+  cfg.minValue = 1000;
   cfg.maxValue = 2000000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "logKeepDays";
-  cfg.ptr = &tsNumOfLogLines;
+  cfg.ptr = &tsLogKeepDays;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
-  cfg.maxValue = 3650;
+  cfg.maxValue = 36500;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

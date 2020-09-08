@@ -54,9 +54,9 @@ void taosRename(char* oldName, char *newName) {
   // if newName in not empty, rename return fail. 
   // the newName must be empty or does not exist
   if (rename(oldName, newName)) {
-    uError("%s is modify to %s fail, reason:%s", oldName, newName, strerror(errno));
+    uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   } else {
-    uInfo("%s is modify to %s success!", oldName, newName);
+    uInfo("successfully to rename file %s to %s", oldName, newName);
   }
 }
 
@@ -64,7 +64,7 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
   DIR *dir = opendir(rootDir);
   if (dir == NULL) return;
 
-  int64_t ms = taosGetTimestampMs();
+  int64_t sec = taosGetTimestampSec();
   struct dirent *de = NULL;
 
   while ((de = readdir(dir)) != NULL) {
@@ -80,20 +80,19 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
       //   continue;
       // }
       int32_t len = strlen(filename);
-      int64_t fileMs = 0;
-      for (int i = len - 1; i >= 0; ++i) {
+      int64_t fileSec = 0;
+      for (int i = len - 1; i >= 0; i--) {
         if (filename[i] == '.') {
-          fileMs = atoll(filename + i + 1);
+          fileSec = atoll(filename + i + 1);
           break;
         }
       }
 
-      if (fileMs <= 0) continue;
-      int32_t days = (fileMs - ms) / 86400 + 1;
+      if (fileSec <= 100) continue;
+      int32_t days = ABS(sec - fileSec) / 86400 + 1;
       if (days > keepDays) {
         (void)remove(filename);
         uInfo("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
-
       } else {
         uTrace("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
       }
