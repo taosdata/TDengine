@@ -797,9 +797,11 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer) {
   }
 
   taosTmrStopA(&pPeer->timer);
-  if (tsSyncNum >= tsMaxSyncNum) {
+
+  // Ensure the sync of mnode not interrupted
+  if (pNode->vgId != 1 && tsSyncNum >= tsMaxSyncNum) {
     sInfo("%s, %d syncs are in process, try later", pPeer->id, tsSyncNum);
-    taosTmrReset(syncTryRecoverFromMaster, 500 + (pNode->vgId*10)%200, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncTryRecoverFromMaster, 500 + (pNode->vgId * 10) % 200, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
 
