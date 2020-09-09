@@ -178,10 +178,6 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, in
   pSupporter->subqueryIndex = index;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
-  pSupporter->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
-  pSupporter->slidingTime = pQueryInfo->slidingTimeUnit;
-  pSupporter->intervalTime = pQueryInfo->intervalTime;
-  pSupporter->slidingTime = pQueryInfo->slidingTime;
   pSupporter->limit = pQueryInfo->limit;
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, index);
@@ -311,18 +307,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
 
-    pQueryInfo->intervalTimeUnit = pSupporter->intervalTimeUnit;
-    pQueryInfo->slidingTimeUnit = pSupporter->slidingTimeUnit;
-    pQueryInfo->intervalTime = pSupporter->intervalTime;
-    pQueryInfo->slidingTime = pSupporter->slidingTime;
-    pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
-    
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
     pQueryInfo->colList = pSupporter->colList;
     pQueryInfo->exprList = pSupporter->exprList;
     pQueryInfo->fieldsInfo = pSupporter->fieldsInfo;
-    
+
     pSupporter->exprList = NULL;
     pSupporter->colList = NULL;
     memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
@@ -1221,7 +1211,6 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     pNewQueryInfo->limit.offset = 0;
 
     // backup the data and clear it in the sqlcmd object
-    pSupporter->groupbyExpr = pNewQueryInfo->groupbyExpr;
     memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
     
     tscInitQueryInfo(pNewQueryInfo);

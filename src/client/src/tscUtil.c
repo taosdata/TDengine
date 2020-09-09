@@ -1534,7 +1534,6 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->exprList   = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->colList    = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->window     = TSWINDOW_INITIALIZER;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
@@ -1555,6 +1554,8 @@ int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
   }
 
   tscInitQueryInfo(pQueryInfo);
+
+  pQueryInfo->window = TSWINDOW_INITIALIZER;
   pQueryInfo->msg = pCmd->payload;  // pointer to the parent error message buffer
 
   pCmd->pQueryInfo[pCmd->numOfClause++] = pQueryInfo;

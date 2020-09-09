@@ -1177,7 +1177,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
 
 #if defined(_DEBUG_VIEW)
   printf("elem in comp ts file:%" PRId64 ", key:%" PRId64 ", tag:%"PRIu64", query order:%d, ts order:%d, traverse:%d, index:%d\n",
-         elem.ts, key, elem.tag, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
+         elem.ts, key, elem.tag.i64Key, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
          pRuntimeEnv->pTSBuf->cur.order, pRuntimeEnv->pTSBuf->cur.tsIndex);
 #endif
 
