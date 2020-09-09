@@ -19,13 +19,13 @@ void qsortTest();
 
 void differentMemoryBufferTest();
 
-tMemBucket *createBigIntDataBucket(int32_t start, int32_t end, int32_t bufferSize);
-tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize);
-tMemBucket *createDoubleDataBucket(int32_t start, int32_t end, int32_t bufferSize);
+tMemBucket *createBigIntDataBucket(int32_t start, int32_t end);
+tMemBucket *createIntDataBucket(int32_t start, int32_t end);
+tMemBucket *createDoubleDataBucket(int32_t start, int32_t end);
 
 int32_t main(int32_t argc, char **argv) {
 //  qsortTest();
-//  intDataTest();
+  intDataTest();
 //  bigintDataTest();
 //  doubleDataTest();
   largeDataTest();
@@ -40,17 +40,17 @@ void intDataTest() {
   tMemBucket *pBucket = NULL;
   double      result = 0.;
 
-  pBucket = createIntDataBucket(0, 0, 1);
+  pBucket = createIntDataBucket(0, 0);
   result = getPercentile(pBucket, 0);
   assert(fabs(result) < DBL_EPSILON);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createIntDataBucket(0, 1, 2);
+  pBucket = createIntDataBucket(0, 1);
   result = getPercentile(pBucket, 100);
   assert(result == 1);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createIntDataBucket(-1, 1, 1 << 20);
+  pBucket = createIntDataBucket(-1, 1);
 
   result = getPercentile(pBucket, 50);
   assert(fabs(result) < DBL_EPSILON);
@@ -69,7 +69,7 @@ void intDataTest() {
   printf("%lf\n", result);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createIntDataBucket(0, 99999, 1 << 20);
+  pBucket = createIntDataBucket(0, 99999);
   result = getPercentile(pBucket, 50);
   assert(result - 49999.5 < DBL_EPSILON);
   printf("%lf\n", result);
@@ -83,35 +83,38 @@ void bigintDataTest() {
   tMemBucket *pBucket = NULL;
   double      result = 0.0;
 
-  pBucket = createBigIntDataBucket(-1000, 1000, 1 << 20);
+  pBucket = createBigIntDataBucket(-1000, 1000);
   result = getPercentile(pBucket, 50);
   assert(result == 0.);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createBigIntDataBucket(-10000, 10000, 1 << 20);
+  pBucket = createBigIntDataBucket(-10000, 10000);
   result = getPercentile(pBucket, 100);
   assert(result == 10000.0);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createBigIntDataBucket(-10000, 10000, 1 << 20);
+  pBucket = createBigIntDataBucket(-10000, 10000);
   result = getPercentile(pBucket, 75);
   assert(result == 5000.0);
 
   tMemBucketDestroy(pBucket);
 }
 
-tMemBucket *createDoubleDataBucket(int32_t start, int32_t end, int32_t bufferSize) {
-  tMemBucket *pBucket = tMemBucketCreate(sizeof(double), TSDB_DATA_TYPE_DOUBLE);
+tMemBucket *createDoubleDataBucket(int32_t start, int32_t end) {
+  tMemBucket *pBucket = tMemBucketCreate(sizeof(double), TSDB_DATA_TYPE_DOUBLE, start, end);
   for (int32_t i = start; i <= end; ++i) {
     double val = i;
-    tMemBucketPut(pBucket, &val, 1);
+    int32_t ret = tMemBucketPut(pBucket, &val, 1);
+    if (ret != 0) {
+      printf("value out of range:%f", val);
+    }
   }
 
   return pBucket;
 }
 
-tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize) {
-  tMemBucket *pBucket = tMemBucketCreate(sizeof(int32_t), TSDB_DATA_TYPE_INT);
+tMemBucket *createIntDataBucket(int32_t start, int32_t end) {
+  tMemBucket *pBucket = tMemBucketCreate(sizeof(int32_t), TSDB_DATA_TYPE_INT, start, end);
 
   for (int32_t i = start; i <= end; ++i) {
     int32_t val = i;
@@ -121,8 +124,8 @@ tMemBucket *createIntDataBucket(int32_t start, int32_t end, int32_t bufferSize) 
   return pBucket;
 }
 
-tMemBucket *createBigIntDataBucket(int32_t start, int32_t end, int32_t bufferSize) {
-  tMemBucket *pBucket = tMemBucketCreate(sizeof(int64_t), TSDB_DATA_TYPE_BIGINT);
+tMemBucket *createBigIntDataBucket(int32_t start, int32_t end) {
+  tMemBucket *pBucket = tMemBucketCreate(sizeof(int64_t), TSDB_DATA_TYPE_BIGINT, start, end);
   for (int32_t i = start; i <= end; ++i) {
     int64_t val = i;
     tMemBucketPut(pBucket, &val, 1);
@@ -135,14 +138,14 @@ void createShortDataArrays(int32_t start, int32_t end) {
   tMemBucket *pBucket = NULL;
   double      result = 0;
 
-  pBucket = createDoubleDataBucket(-10, 10, 1 << 20);
+  pBucket = createDoubleDataBucket(-10, 10);
   result = getPercentile(pBucket, 0);
   assert(fabs(result - 10.0) < DBL_EPSILON);
 
   printf("result is: %lf\n", result);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 25);
   assert(fabs(result + 75000) < DBL_EPSILON);
 
@@ -150,7 +153,7 @@ void createShortDataArrays(int32_t start, int32_t end) {
 
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 50);
   assert(result < DBL_EPSILON);
 
@@ -158,7 +161,7 @@ void createShortDataArrays(int32_t start, int32_t end) {
 
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 75);
   assert(fabs(result - 75000) < DBL_EPSILON);
 
@@ -166,7 +169,7 @@ void createShortDataArrays(int32_t start, int32_t end) {
 
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 100);
   assert(fabs(result - 100000.0) < DBL_EPSILON);
 
@@ -180,14 +183,14 @@ void doubleDataTest() {
   tMemBucket *pBucket = NULL;
   double result = 0;
 
-  pBucket = createDoubleDataBucket(-10, 10, 1 << 20);
+  pBucket = createDoubleDataBucket(-10, 10);
   result = getPercentile(pBucket, 0);
   assert(fabs(result + 10.0) < DBL_EPSILON);
 
   printf("result is: %lf\n", result);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 25);
   assert(fabs(result + 50000) < DBL_EPSILON);
 
@@ -195,20 +198,20 @@ void doubleDataTest() {
 
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 50);
   assert(result < DBL_EPSILON);
 
   printf("result is: %lf\n", result);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
   result = getPercentile(pBucket, 75);
   printf("result is: %lf\n", result);
   assert(fabs(result - 50000) < DBL_EPSILON);
   tMemBucketDestroy(pBucket);
 
-  pBucket = createDoubleDataBucket(-100000, 100000, 1 << 20);
+  pBucket = createDoubleDataBucket(-100000, 100000);
 
   result = getPercentile(pBucket, 100);
   assert(fabs(result - 100000.0) < DBL_EPSILON);
@@ -232,7 +235,7 @@ void largeDataTest() {
 
   int64_t start = tv.tv_sec;
   printf("start time: %"PRId64"\n", tv.tv_sec);
-  pBucket = createDoubleDataBucket(0, 100000000, 1 << 20);
+  pBucket = createDoubleDataBucket(0, 100000000);
   result = getPercentile(pBucket, 50);
   assert(result - 50000000 < DBL_EPSILON);
 
