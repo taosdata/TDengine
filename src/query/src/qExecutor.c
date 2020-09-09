@@ -200,9 +200,6 @@ bool doFilterData(SQuery *pQuery, int32_t elemPos) {
     SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[k];
 
     char *pElem = (char*)pFilterInfo->pData + pFilterInfo->info.bytes * elemPos;
-    if (isNull(pElem, pFilterInfo->info.type)) {
-      return false;
-    }
 
     bool qualified = false;
     for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
@@ -1002,7 +999,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
   }
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-  if (QUERY_IS_INTERVAL_QUERY(pQuery)/* && tsCols != NULL*/) {
+  if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
     TSKEY ts = TSKEY_INITIAL_VAL;
 
     if (tsCols == NULL) {

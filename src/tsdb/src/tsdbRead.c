@@ -2071,13 +2071,17 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
     if (keyInfo.pTable != NULL) {
       totalNumOfTable++;
       taosArrayPush(pGroup, &keyInfo);
+    } else {
+      taosArrayRemove(groupList->pGroupList, j);
+      numOfGroups -= 1;
+      j -= 1;
     }
   }
 
   // window does not being updated, so set the original
   if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
     window = TSWINDOW_INITIALIZER;
-    assert(totalNumOfTable == 0);
+    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == 0);
   }
 
   groupList->numOfTables = totalNumOfTable;
@@ -2396,6 +2400,14 @@ static bool indexedNodeFilterFp(const void* pNode, void* param) {
     val = (char*) TABLE_NAME(pTable);
   } else {
     val = tdGetKVRowValOfCol(pTable->tagVal, pInfo->sch.colId);
+  }
+
+  if (pInfo->optr == TSDB_RELATION_ISNULL || pInfo->optr == TSDB_RELATION_NOTNULL) {
+    if (pInfo->optr == TSDB_RELATION_ISNULL) {
+      return (val == NULL) || isNull(val, pInfo->sch.type);
+    } else if (pInfo->optr == TSDB_RELATION_NOTNULL) {
+      return (val != NULL) && (!isNull(val, pInfo->sch.type));
+    }
   }
 
   int32_t ret = 0;

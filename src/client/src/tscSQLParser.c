@@ -2784,6 +2784,12 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     case TK_LIKE:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_LIKE;
       break;
+    case TK_ISNULL:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_ISNULL;
+      break;
+    case TK_NOTNULL:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_NOTNULL;
+      break;
     default:
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
@@ -2829,19 +2835,19 @@ static int32_t tSQLExprNodeToString(tSQLExpr* pExpr, char** str) {
   return TSDB_CODE_SUCCESS;
 }
 
+// pExpr->nSQLOptr == 0 while handling "is null" query
 static bool isExprLeafNode(tSQLExpr* pExpr) {
   return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
-         (pExpr->nSQLOptr == TK_ID || (pExpr->nSQLOptr >= TK_BOOL && pExpr->nSQLOptr <= TK_NCHAR) ||
-          pExpr->nSQLOptr == TK_SET);
+         (pExpr->nSQLOptr == 0 || pExpr->nSQLOptr == TK_ID || (pExpr->nSQLOptr >= TK_BOOL && pExpr->nSQLOptr <= TK_NCHAR) || pExpr->nSQLOptr == TK_SET);
 }
 
-static bool isExprDirectParentOfLeaftNode(tSQLExpr* pExpr) {
+static bool isExprDirectParentOfLeafNode(tSQLExpr* pExpr) {
   return (pExpr->pLeft != NULL && pExpr->pRight != NULL) &&
          (isExprLeafNode(pExpr->pLeft) && isExprLeafNode(pExpr->pRight));
 }
 
 static int32_t tSQLExprLeafToString(tSQLExpr* pExpr, bool addParentheses, char** output) {
-  if (!isExprDirectParentOfLeaftNode(pExpr)) {
+  if (!isExprDirectParentOfLeafNode(pExpr)) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -3052,7 +3058,7 @@ static int32_t getTagCondString(tSQLExpr* pExpr, char** str) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeaftNode(pExpr)) {
+  if (!isExprDirectParentOfLeafNode(pExpr)) {
     *(*str) = '(';
     *str += 1;
 
@@ -3108,7 +3114,7 @@ static int32_t getColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQ
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeaftNode(pExpr)) {  // internal node
+  if (!isExprDirectParentOfLeafNode(pExpr)) {  // internal node
     int32_t ret = getColumnQueryCondInfo(pCmd, pQueryInfo, pExpr->pLeft, pExpr->nSQLOptr);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
@@ -3134,7 +3140,7 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeaftNode(pExpr)) {
+  if (!isExprDirectParentOfLeafNode(pExpr)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -3453,7 +3459,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQL
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  assert(isExprDirectParentOfLeaftNode(*pExpr));
+  assert(isExprDirectParentOfLeafNode(*pExpr));
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -3499,7 +3505,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQL
       }
     }
 
-    // in case of in operator, keep it in a seperate attribute
+    // in case of in operator, keep it in a seprate attribute
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (!validTableNameOptr(*pExpr)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
@@ -3520,7 +3526,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQL
       *type = TSQL_EXPR_TBNAME;
       *pExpr = NULL;
     } else {
-      if (pRight->nSQLOptr == TK_ID) {  // join on tag columns for stable query
+      if (pRight != NULL && pRight->nSQLOptr == TK_ID) {  // join on tag columns for stable query
         if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
@@ -3573,7 +3579,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr** pExpr
   int32_t leftType = -1;
   int32_t rightType = -1;
 
-  if (!isExprDirectParentOfLeaftNode(*pExpr)) {
+  if (!isExprDirectParentOfLeafNode(*pExpr)) {
     int32_t ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, (*pExpr)->nSQLOptr);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
@@ -3635,7 +3641,7 @@ static void doCompactQueryExpr(tSQLExpr** pExpr) {
 }
 
 static void doExtractExprForSTable(SSqlCmd* pCmd, tSQLExpr** pExpr, SQueryInfo* pQueryInfo, tSQLExpr** pOut, int32_t tableIndex) {
-  if (isExprDirectParentOfLeaftNode(*pExpr)) {
+  if (isExprDirectParentOfLeafNode(*pExpr)) {
     tSQLExpr* pLeft = (*pExpr)->pLeft;
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -3794,7 +3800,7 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLE
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeaftNode(pExpr)) {
+  if (!isExprDirectParentOfLeafNode(pExpr)) {
     if (pExpr->nSQLOptr == TK_OR) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -6214,6 +6220,11 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
+  }
+
+  if (pSqlExpr->pLeft == NULL && pSqlExpr->pRight == NULL && pSqlExpr->nSQLOptr == 0) {
+    *pExpr = calloc(1, sizeof(tExprNode));
+    return TSDB_CODE_SUCCESS;
   }
   
   if (pSqlExpr->pLeft == NULL) {

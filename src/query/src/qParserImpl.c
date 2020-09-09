@@ -275,6 +275,11 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   } else {
     pExpr->nSQLOptr = optrType;
     pExpr->pLeft = pLeft;
+
+    if (pRight == NULL) {
+      pRight = calloc(1, sizeof(tSQLExpr));
+    }
+
     pExpr->pRight = pRight;
   }
 
