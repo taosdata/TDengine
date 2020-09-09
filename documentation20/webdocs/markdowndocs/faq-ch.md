@@ -19,7 +19,7 @@
 ## 4. 如何让TDengine crash时生成core文件？
 请看为此问题撰写的<a href='blog/2019/12/06/tdengine-crash时生成core文件的方法/'>技术博客</a>
 
-## 5. 遇到错误"Unable to establish connection"或者"TDengine Error: Unable to resolve FQDN", 我怎么办？
+## 5. 遇到错误"Unable to establish connection", 我怎么办？
 
 客户端遇到链接故障，请按照下面的步骤进行检查：
 
@@ -51,7 +51,7 @@
 
 
 
-## 6. 遇到错误“Unexpected generic error in RPC”， 我怎么办？
+## 6. 遇到错误“Unexpected generic error in RPC”或者"TDengine Error: Unable to resolve FQDN"， 我怎么办？
 产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
 
 1. 请检查连接的服务器的FQDN是否正确
