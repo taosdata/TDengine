@@ -209,21 +209,24 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_RELATION_GREATER_EQUAL 5
 #define TSDB_RELATION_NOT_EQUAL   6
 #define TSDB_RELATION_LIKE        7
-#define TSDB_RELATION_IN          8
+#define TSDB_RELATION_ISNULL      8
+#define TSDB_RELATION_NOTNULL     9
+#define TSDB_RELATION_IN          10
 
-#define TSDB_RELATION_AND         9
-#define TSDB_RELATION_OR          10
-#define TSDB_RELATION_NOT         11
+#define TSDB_RELATION_AND         11
+#define TSDB_RELATION_OR          12
+#define TSDB_RELATION_NOT         13
 
-#define TSDB_BINARY_OP_ADD        12
-#define TSDB_BINARY_OP_SUBTRACT   13
-#define TSDB_BINARY_OP_MULTIPLY   14
-#define TSDB_BINARY_OP_DIVIDE     15
-#define TSDB_BINARY_OP_REMAINDER  16
+#define TSDB_BINARY_OP_ADD        30
+#define TSDB_BINARY_OP_SUBTRACT   31
+#define TSDB_BINARY_OP_MULTIPLY   32
+#define TSDB_BINARY_OP_DIVIDE     33
+#define TSDB_BINARY_OP_REMAINDER  34
 #define TS_PATH_DELIMITER_LEN     1
 
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
+
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation
 // including the terminator zero
