@@ -677,9 +677,13 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
 
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
+
+  vInfo("vgId:%d, save vnode cfg, replica:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.replications);
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", pVnodeCfg->nodes[i].nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", pVnodeCfg->nodes[i].nodeEp);
+    vInfo("vgId:%d, save vnode cfg, nodeId:%d nodeEp:%s", pVnodeCfg->cfg.vgId, pVnodeCfg->nodes[i].nodeId,
+          pVnodeCfg->nodes[i].nodeEp);
 
     if (i < pVnodeCfg->cfg.replications - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");

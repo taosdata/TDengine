@@ -14,10 +14,10 @@ print $data00 $data01 $data02 $data03 $data04 $data05 $data06
 if $data00 != root then 
   return -1
 endi
-if $data02 != 3/10 then 
+if $data02 != 3/128 then 
   return -1
 endi
-if $data03 != 0/64 then 
+if $data03 != 0/128 then 
   return -1
 endi
 if $data04 != 0/2147483647 then 
