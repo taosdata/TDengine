@@ -46,9 +46,13 @@ type TableInfo struct {
 	Cols   []TableColInfo
 }
 
-func taosGetTabInfo(db *sql.DB, table string) (*TableInfo, error) {
+func taosGetTabInfo(db *sql.DB, table string, getMetaFromServer bool) (*TableInfo, error) {
 	var info TableInfo
 	info.Table = table
+
+	if !getMetaFromServer {
+		return &info, nil
+	}
 
 	// Get super table information if has
 	_, rows, err := taosProcessQuery(db, fmt.Sprintf("show tables like '%s'", table))
@@ -197,10 +201,14 @@ func taosGetSchemaString(tableCols []TableColInfo) string {
 	return schemaString
 }
 
-func taosDumpCreateTable(db *sql.DB, client *http.Client, dbname string, tbname string, logger *log.Logger) (tInfo *TableInfo, err error) {
-	tInfo, err = taosGetTabInfo(db, tbname)
+func taosDumpCreateTable(db *sql.DB, client *http.Client, dbname string, tbname string, logger *log.Logger, createTable *bool) (tInfo *TableInfo, err error) {
+	tInfo, err = taosGetTabInfo(db, tbname, *createTable)
 	if err != nil {
 		return nil, err
+	}
+
+	if !(*createTable) {
+		return tInfo, nil
 	}
 
 	if tInfo.STable != "" {
@@ -260,7 +268,7 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, tInfo *TableInfo, cfg
 	stime := *cfg.stime
 	etime := *cfg.etime
 	for {
-		cmd, nstime, fetchRows, err := taosDumpTableBatchData(db, *cfg.dbname, tInfo.Table, (tInfo.Cols)[0].Name, stime, etime, *cfg.batch)
+		cmd, nstime, fetchRows, err := taosDumpTableBatchData(db, *cfg.dbname, tInfo.Table, "_c0", stime, etime, *cfg.batch)
 		if err != nil {
 			return totalRows, err
 		}
@@ -389,6 +397,7 @@ type DumpCfg struct {
 	// Other options
 	logOnConsole *bool
 	schemaOnly   *bool
+	createSchema *bool
 }
 
 func taosGetTableNamesOfDB(db *sql.DB, superTable *string) (*[]string, error) {
@@ -440,7 +449,7 @@ func taosDumpWorker(cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *l
 	// Dump create-table commands
 	var tInfos []*TableInfo
 	for _, table := range tables {
-		tInfo, err := taosDumpCreateTable(db, client, *cfg.dbname, table, logger)
+		tInfo, err := taosDumpCreateTable(db, client, *cfg.dbname, table, logger, cfg.createSchema)
 		if err != nil {
 			tInfos = append(tInfos, nil)
 		} else {
@@ -586,6 +595,7 @@ func main() {
 
 	dumpCfg.logOnConsole = flag.Bool("log-on-console", true, "if print log on console")
 	dumpCfg.schemaOnly = flag.Bool("schema-only", false, "only dump schema")
+	dumpCfg.createSchema = flag.Bool("create-schema", true, "create schema before dumping data")
 
 	flag.Parse()
 
