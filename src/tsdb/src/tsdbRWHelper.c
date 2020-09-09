@@ -733,7 +733,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
   int32_t lsize = tsize;
   int32_t keyLen = 0;
   for (int ncol = 0; ncol < pDataCols->numOfCols; ncol++) {
-    if (tcol >= nColsNotAllNull) break;
+    if (ncol != 0 && tcol >= nColsNotAllNull) break;
 
     SDataCol *pDataCol = pDataCols->cols + ncol;
     SCompCol *pCompCol = pCompData->cols + tcol;
