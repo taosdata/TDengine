@@ -1597,13 +1597,14 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
       if (pItem->pNode->pParam != NULL) {
-        SStrToken* pToken = &pItem->pNode->pParam->a[0].pNode->colInfo;
-        if (pToken->z == NULL || pToken->n == 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-        }
-
         tSQLExprItem* pParamElem = &pItem->pNode->pParam->a[0];
-        if (pParamElem->pNode->nSQLOptr == TK_ALL) {
+        SStrToken* pToken = &pParamElem->pNode->colInfo;
+        short sqlOptr = pParamElem->pNode->nSQLOptr;
+        if ((pToken->z == NULL || pToken->n == 0) 
+            && (TK_INTEGER != sqlOptr)) /*select count(1) from table*/ {
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+        } 
+        if (sqlOptr == TK_ALL) {
           // select table.*
           // check if the table name is valid or not
           SStrToken tmpToken = pParamElem->pNode->colInfo;
@@ -1615,6 +1616,21 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
           int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
           pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size, false);
+        } else if (sqlOptr == TK_INTEGER) { // select count(1) from table1
+          char buf[8] = {0};  
+          int64_t val = -1;
+          tVariant* pVariant = &pParamElem->pNode->val;
+          if (pVariant->nType == TSDB_DATA_TYPE_BIGINT) {
+            tVariantDump(pVariant, buf, TSDB_DATA_TYPE_BIGINT, true);
+            val = GET_INT64_VAL(buf); 
+          }
+          if (val == 1) {
+            index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
+            int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
+            pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size, false);
+          } else {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+          }
         } else {
           // count the number of meters created according to the super table
           if (getColumnIndexByName(pCmd, pToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
