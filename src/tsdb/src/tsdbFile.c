@@ -142,12 +142,30 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     } else if (code == REG_NOMATCH) {
       code = regexec(&regex2, dp->d_name, 0, NULL, 0);
       if (code == 0) {
-        tsdbDebug("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), dp->d_name);
-        char *fname = malloc(strlen(tDataDir) + strlen(dp->d_name) + 2);
-        if (fname == NULL) goto _err;
-        sprintf(fname, "%s/%s", tDataDir, dp->d_name);
-        (void)remove(fname);
-        free(fname);
+        size_t tsize = strlen(tDataDir) + strlen(dp->d_name) + 2;
+        char * fname1 = malloc(tsize);
+        if (fname1 == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          goto _err;
+        }
+        sprintf(fname1, "%s/%s", tDataDir, dp->d_name);
+
+        tsize = tsize + 64;
+        char *fname2 = malloc(tsize);
+        if (fname2 == NULL) {
+          free(fname1);
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          goto _err;
+        }
+        sprintf(fname2, "%s/%s_back_%" PRId64, tDataDir, dp->d_name, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+
+        (void)rename(fname1, fname2);
+
+        tsdbDebug("vgId:%d file %s exists, backup it as %s", REPO_ID(pRepo), fname1, fname2);
+
+        free(fname1);
+        free(fname2);
+        continue;
       } else if (code == REG_NOMATCH) {
         tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
         continue;
@@ -160,6 +178,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
 
     pFileH->pFGroup[pFileH->nFGroups++] = fileGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
+    tsdbDebug("vgId:%d file group %d is restored, nFGroups %d", REPO_ID(pRepo), fileGroup.fileId, pFileH->nFGroups);
   }
 
   regfree(&regex1);
