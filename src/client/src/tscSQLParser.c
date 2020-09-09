@@ -2739,26 +2739,30 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     }
   }
 
+  int32_t retVal = TSDB_CODE_SUCCESS;
   if (pExpr->nSQLOptr == TK_LE || pExpr->nSQLOptr == TK_LT) {
-    tVariantDump(&pRight->val, (char*)&pColumnFilter->upperBndd, colType, false);
-  } else {  // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
-    if (colType == TSDB_DATA_TYPE_BINARY) {
-      pColumnFilter->pz = (int64_t)calloc(1, pRight->val.nLen + TSDB_NCHAR_SIZE);
-      pColumnFilter->len = pRight->val.nLen;
+    retVal = tVariantDump(&pRight->val, (char*)&pColumnFilter->upperBndd, colType, false);
 
-      tVariantDump(&pRight->val, (char*)pColumnFilter->pz, colType, false);
-    } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-      // pRight->val.nLen + 1 is larger than the actual nchar string length
-      pColumnFilter->pz = (int64_t)calloc(1, (pRight->val.nLen + 1) * TSDB_NCHAR_SIZE);
+  // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
+  } else if (colType == TSDB_DATA_TYPE_BINARY) {
+    pColumnFilter->pz = (int64_t)calloc(1, pRight->val.nLen + TSDB_NCHAR_SIZE);
+    pColumnFilter->len = pRight->val.nLen;
+    retVal = tVariantDump(&pRight->val, (char*)pColumnFilter->pz, colType, false);
 
-      tVariantDump(&pRight->val, (char*)pColumnFilter->pz, colType, false);
+  } else if (colType == TSDB_DATA_TYPE_NCHAR) {
+    // pRight->val.nLen + 1 is larger than the actual nchar string length
+    pColumnFilter->pz = (int64_t)calloc(1, (pRight->val.nLen + 1) * TSDB_NCHAR_SIZE);
+    retVal = tVariantDump(&pRight->val, (char*)pColumnFilter->pz, colType, false);
+    size_t len = twcslen((wchar_t*)pColumnFilter->pz);
+    pColumnFilter->len = len * TSDB_NCHAR_SIZE;
 
-      size_t len = twcslen((wchar_t*)pColumnFilter->pz);
-      pColumnFilter->len = len * TSDB_NCHAR_SIZE;
-    } else {
-      tVariantDump(&pRight->val, (char*)&pColumnFilter->lowerBndd, colType, false);
-    }
+  } else {
+    retVal = tVariantDump(&pRight->val, (char*)&pColumnFilter->lowerBndd, colType, false);
   }
+
+  if (retVal != TSDB_CODE_SUCCESS) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+  } 
 
   switch (pExpr->nSQLOptr) {
     case TK_LE:
