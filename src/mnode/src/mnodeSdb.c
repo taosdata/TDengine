@@ -621,7 +621,7 @@ static int sdbWrite(void *param, void *data, int type) {
   } else if (action == SDB_ACTION_UPDATE) {
     void *pRow = sdbGetRowMeta(pTable, pHead->cont);
     if (pRow == NULL) {
-      sdbError("table:%s, object:%s not exist in hash, ignore update action", pTable->tableName,
+      sdbDebug("table:%s, object:%s not exist in hash, ignore update action", pTable->tableName,
                sdbGetKeyStr(pTable, pHead->cont));
       return TSDB_CODE_SUCCESS;
     }
