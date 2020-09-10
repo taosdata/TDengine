@@ -68,6 +68,7 @@ static int32_t mnodeMnodeActionInsert(SSdbOper *pOper) {
   pDnode->isMgmt = true;
   mnodeDecDnodeRef(pDnode);
   
+  mInfo("mnode:%d, fqdn:%s ep:%s port:%d, do insert action", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
 

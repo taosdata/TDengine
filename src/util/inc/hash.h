@@ -110,7 +110,17 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
  */
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
 
-void *taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void(*fp)(void*));
+/**
+ * apply the udf before return the result
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @param fp
+ * @param d
+ * @param dsize
+ * @return
+ */
+void* taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
 
 /**
  * remove item with the specified key

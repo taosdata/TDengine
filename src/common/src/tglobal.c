@@ -137,8 +137,12 @@ int32_t  tsTelegrafUseFieldNum = 0;
 
 // mqtt
 int32_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
-char    tsMqttBrokerAddress[128] = {0};
-char    tsMqttBrokerClientId[128] = {0};
+char    tsMqttHostName[TSDB_MQTT_HOSTNAME_LEN] = "test.mosquitto.org";
+char    tsMqttPort[TSDB_MQTT_PORT_LEN] = "1883";
+char    tsMqttUser[TSDB_MQTT_USER_LEN] = {0};
+char    tsMqttPass[TSDB_MQTT_PASS_LEN] = {0};
+char    tsMqttClientId[TSDB_MQTT_CLIENT_ID_LEN] = "TDengineMqttSubscriber";
+char    tsMqttTopic[TSDB_MQTT_TOPIC_LEN] = "/test"; // #
 
 // monitor
 int32_t tsEnableMonitorModule = 1;
@@ -247,8 +251,11 @@ bool taosCfgDynamicOptions(char *msg) {
 
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
+    //if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
     if (cfg->valType != TAOS_CFG_VTYPE_INT32) continue;
+    
+    int32_t cfgLen = (int32_t)strlen(cfg->option);
+    if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
     *((int32_t *)cfg->ptr) = vint;
 
@@ -767,26 +774,36 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "mqttBrokerAddress";
-  cfg.ptr = tsMqttBrokerAddress;
+  cfg.option = "mqttHostName";
+  cfg.ptr = tsMqttHostName;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = 126;
+  cfg.ptrLength = TSDB_MQTT_HOSTNAME_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "mqttBrokerClientId";
-  cfg.ptr = tsMqttBrokerClientId;
+  cfg.option = "mqttPort";
+  cfg.ptr = tsMqttPort;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
-  cfg.ptrLength = 126;
+  cfg.ptrLength = TSDB_MQTT_PORT_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
- 
+
+  cfg.option = "mqttTopic";
+  cfg.ptr = tsMqttTopic;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = TSDB_MQTT_TOPIC_LEN;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "compressMsgSize";
   cfg.ptr = &tsCompressMsgSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -996,8 +1013,18 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsNumOfLogLines;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 10000;
+  cfg.minValue = 1000;
   cfg.maxValue = 2000000000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "logKeepDays";
+  cfg.ptr = &tsLogKeepDays;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 365000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1270,6 +1297,9 @@ void taosInitGlobalCfg() {
 }
 
 bool taosCheckGlobalCfg() {
+  char fqdn[TSDB_FQDN_LEN];
+  uint16_t port;
+
   if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
   }
@@ -1278,17 +1308,23 @@ bool taosCheckGlobalCfg() {
     taosGetFqdn(tsLocalFqdn);
   }
 
-  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%d", tsLocalFqdn, tsServerPort);
+  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
   uInfo("localEp is: %s", tsLocalEp);
 
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);
+  } else {
+    taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
+    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", fqdn, port);
   }
 
   if (tsSecond[0] == 0) {
     strcpy(tsSecond, tsLocalEp);
+  } else {
+    taosGetFqdnPortFromEp(tsSecond, fqdn, &port);
+    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
   }
-  
+
   taosGetSystemInfo();
 
   tsSetLocale();

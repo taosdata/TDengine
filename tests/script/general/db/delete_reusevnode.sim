@@ -50,7 +50,7 @@ $tbPrefix = t
 $i = 0
 while $i < 10
   $db = db . $i
-  sql create database $db maxTables 4
+  sql create database $db
   sql use $db
 
   sql create table st (ts timestamp, i int) tags(j int);

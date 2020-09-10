@@ -42,6 +42,16 @@ IF (${MEM_CHECK} MATCHES "true")
   MESSAGE(STATUS "build with memory check")
 ENDIF ()
 
+IF (${MQTT} MATCHES "false")
+  SET(TD_MQTT FALSE)
+  MESSAGE(STATUS "build without mqtt module")
+ENDIF ()
+
+IF (${SYNC} MATCHES "false")
+  SET(TD_SYNC FALSE)
+  MESSAGE(STATUS "build without sync module")
+ENDIF ()
+
 IF (${RANDOM_FILE_FAIL} MATCHES "true")
   SET(TD_RANDOM_FILE_FAIL TRUE)
   MESSAGE(STATUS "build with random-file-fail enabled")

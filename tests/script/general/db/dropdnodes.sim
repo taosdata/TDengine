@@ -15,7 +15,7 @@ sql connect
 sql create dnode $hostname2
 sleep 2000
 
-sql create database db maxTables 4
+sql create database db
 sql use db
 
 print ==========  step1

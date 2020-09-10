@@ -12,20 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#define _DEFAULT_SOURCE
-#include "os.h"
-#include "tulog.h"
-
-void taosRemoveDir(char *rootDir) {
-  uError("%s not implemented yet", __FUNCTION__);
-}
-
-int taosMkDir(const char *path, mode_t mode) {
-  uError("%s not implemented yet", __FUNCTION__);
-  return 0;
-}
-
-void taosMvDir(char* destDir, char *srcDir) {
-  uError("%s not implemented yet", __FUNCTION__);
-}

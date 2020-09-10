@@ -36,7 +36,7 @@ extern "C" {
 #include "osLinux32.h"
 #endif
 
-#ifdef _TD_ALPINE
+#ifdef _ALPINE
 #include "osAlpine.h"
 #endif
 

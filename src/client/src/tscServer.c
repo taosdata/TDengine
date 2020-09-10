@@ -406,7 +406,7 @@ int doProcessSql(SSqlObj *pSql) {
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscQueueAsyncRes(pSql);
-    return pRes->code;
+    return code;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -2013,7 +2013,8 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
   return 0;
 }
 
-int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
+int tscProcessDropDbRsp(SSqlObj *pSql) {
+  pSql->pTscObj->db[0] = 0;
   taosCacheEmpty(tscCacheHandle);
   return 0;
 }
