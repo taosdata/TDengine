@@ -512,7 +512,9 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   int ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, start to check peer connection", pPeer->id);
-    taosTmrReset(syncCheckPeerConnection, 100 + (pNode->vgId * 10) % 100, pPeer, syncTmrCtrl, &pPeer->timer);
+    int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
+    if (pNode->vgId) checkMs = tsStatusInterval * 3000 + 100;
+    taosTmrReset(syncCheckPeerConnection, checkMs, pPeer, syncTmrCtrl, &pPeer->timer);
   }
 
   syncAddNodeRef(pNode);
