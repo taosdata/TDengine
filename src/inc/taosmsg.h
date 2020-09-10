@@ -461,10 +461,11 @@ typedef struct {
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   int64_t     intervalTime;     // time interval for aggregation, in million second
-  int64_t     intervalOffset;   // start offset for interval query
   int64_t     slidingTime;      // value for sliding window
+  int64_t     offsetTime;       // start offset for interval query
   char        intervalTimeUnit;
   char        slidingTimeUnit;  // time interval type, for revisement of interval(1d)
+  char        offsetTimeUnit;
   uint16_t    tagCondLen;       // tag length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;

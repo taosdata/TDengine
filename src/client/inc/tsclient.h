@@ -228,10 +228,11 @@ typedef struct SQueryInfo {
   // TODO refactor
   char             intervalTimeUnit;
   char             slidingTimeUnit;
+  char             offsetTimeUnit;
   STimeWindow      window;        // query time window
   int64_t          intervalTime;  // aggregation time window range
   int64_t          slidingTime;   // sliding window in mseconds
-  int64_t          intervalOffset;// start offset of each time window
+  int64_t          offsetTime;    // start offset of each time window
   int32_t          tz;            // query client timezone
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info

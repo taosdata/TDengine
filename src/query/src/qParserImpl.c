@@ -535,7 +535,7 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  * extract the select info out of sql string
  */
 SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
-                             tVariantList *pGroupby, tVariantList *pSortOrder, SStrToken *pInterval,
+                             tVariantList *pGroupby, tVariantList *pSortOrder, SIntervalVal *pInterval,
                              SStrToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
   assert(pSelection != NULL);
 
@@ -558,7 +558,8 @@ SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
   }
 
   if (pInterval != NULL) {
-    pQuery->interval = *pInterval;
+    pQuery->interval = pInterval->interval;
+    pQuery->offset = pInterval->offset;
   }
 
   if (pSliding != NULL) {
