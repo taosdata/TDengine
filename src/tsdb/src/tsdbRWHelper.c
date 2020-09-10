@@ -1314,7 +1314,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
   int dcol = 0;  // loop iter for SDataCols object
   while (dcol < pDataCols->numOfCols) {
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
-    if (ccol >= pCompData->numOfCols) {
+    if (dcol != 0 && ccol >= pCompData->numOfCols) {
       // Set current column as NULL and forward
       dataColSetNEleNull(pDataCol, pCompBlock->numOfRows, pDataCols->maxPoints);
       dcol++;
