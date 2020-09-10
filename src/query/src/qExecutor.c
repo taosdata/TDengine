@@ -205,6 +205,23 @@ bool doFilterData(SQuery *pQuery, int32_t elemPos) {
     for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
       SColumnFilterElem *pFilterElem = &pFilterInfo->pFilters[j];
 
+      bool isnull = isNull(pElem, pFilterInfo->info.type);
+      if (isnull) {
+        if (pFilterElem->fp == isNull_filter) {
+          qualified = true;
+          break;
+        } else {
+          continue;
+        }
+      } else {
+        if (pFilterElem->fp == notNull_filter) {
+          qualified = true;
+          break;
+        } else if (pFilterElem->fp == isNull_filter) {
+          continue;
+        }
+      }
+
       if (pFilterElem->fp(pFilterElem, pElem, pElem)) {
         qualified = true;
         break;
