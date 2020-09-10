@@ -395,8 +395,6 @@ int32_t sdbInit() {
     tsSdbObj.role = TAOS_SYNC_ROLE_MASTER;
   }
 
-  sdbUpdateSync();
-
   tsSdbObj.status = SDB_STATUS_SERVING;
   return TSDB_CODE_SUCCESS;
 }
