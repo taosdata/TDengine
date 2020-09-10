@@ -126,8 +126,8 @@ void syncCleanUp() {
   }
 
   if (vgIdHash) {
-    vgIdHash = NULL;
     taosHashCleanup(vgIdHash);
+    vgIdHash = NULL; 
   }
 
   sInfo("sync module is cleaned up");
