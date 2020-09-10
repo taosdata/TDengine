@@ -22,6 +22,7 @@
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
+#include "ttimer.h"
 #include "tglobal.h"
 #include "dnode.h"
 #include "mnode.h"
@@ -88,6 +89,8 @@ typedef struct {
   SSdbWriteWorker *writeWorker;
 } SSdbWriteWorkerPool;
 
+extern void *     tsMnodeTmr;
+static void *     tsUpdateSyncTmr;
 static SSdbObject tsSdbObj = {0};
 static taos_qset  tsSdbWriteQset;
 static taos_qall  tsSdbWriteQall;
@@ -290,11 +293,16 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   taosFreeQitem(pOper);
 }
 
+static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(); }
+
 void sdbUpdateSync() {
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync info later");
+    dnodeCheckModules();
+    taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
     return;
   }
+  mDebug("update sync info in sdb");
 
   SSyncCfg syncCfg = {0};
   int32_t  index = 0;
@@ -386,8 +394,6 @@ int32_t sdbInit() {
   if (mnodeGetMnodesNum() == 1) {
     tsSdbObj.role = TAOS_SYNC_ROLE_MASTER;
   }
-
-  sdbUpdateSync();
 
   tsSdbObj.status = SDB_STATUS_SERVING;
   return TSDB_CODE_SUCCESS;
