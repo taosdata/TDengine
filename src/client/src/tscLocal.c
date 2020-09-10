@@ -16,7 +16,6 @@
 #include "os.h"
 #include "taosmsg.h"
 
-#include "qExtbuffer.h"
 #include "taosdef.h"
 #include "tcache.h"
 #include "tname.h"
