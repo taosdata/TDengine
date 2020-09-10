@@ -198,7 +198,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 void* getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
-void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
+void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
