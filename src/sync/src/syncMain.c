@@ -42,11 +42,9 @@ int       tsSyncTimer = 1;
 int       tsSyncNum;    // number of sync in process in whole system
 char      tsNodeFqdn[TSDB_FQDN_LEN];
 
-static int            tsNodeNum;    // number of nodes in system
 static ttpool_h       tsTcpPool;
 static void          *syncTmrCtrl = NULL;
 static void          *vgIdHash;
-static pthread_once_t syncModuleInit = PTHREAD_ONCE_INIT;
 
 // local functions
 static void  syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
@@ -75,7 +73,7 @@ char* syncRole[] = {
   "master"
 };
 
-static void syncModuleInitFunc() {
+int32_t syncInit() {
   SPoolInfo info;
 
   info.numOfThreads = tsSyncTcpThreads;
@@ -87,25 +85,52 @@ static void syncModuleInitFunc() {
   info.processIncomingConn = syncProcessIncommingConnection;
 
   tsTcpPool = taosOpenTcpThreadPool(&info);
-  if (tsTcpPool == NULL) return;
+  if (tsTcpPool == NULL) {
+    sError("failed to init tcpPool");
+    return -1;
+  }
 
   syncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
   if (syncTmrCtrl == NULL) {
+    sError("failed to init tmrCtrl");
     taosCloseTcpThreadPool(tsTcpPool);
     tsTcpPool = NULL;
-    return;
+    return -1;
   }
-    
+
   vgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
   if (vgIdHash == NULL) {
+    sError("failed to init vgIdHash");
     taosTmrCleanUp(syncTmrCtrl);
     taosCloseTcpThreadPool(tsTcpPool);
     tsTcpPool = NULL;
     syncTmrCtrl = NULL;
-    return;
-  } 
+    return -1;
+  }
 
   tstrncpy(tsNodeFqdn, tsLocalFqdn, sizeof(tsNodeFqdn));
+  sInfo("sync module initialized successfully");
+
+  return 0;
+}
+
+void syncCleanUp() {
+  if (tsTcpPool) {
+    taosCloseTcpThreadPool(tsTcpPool);
+    tsTcpPool = NULL;
+  }
+
+  if (syncTmrCtrl) {
+    taosTmrCleanUp(syncTmrCtrl);
+    syncTmrCtrl = NULL;
+  }
+
+  if (vgIdHash) {
+    vgIdHash = NULL;
+    taosHashCleanup(vgIdHash);
+  }
+
+  sInfo("sync module is cleaned up");
 }
 
 void *syncStart(const SSyncInfo *pInfo) {
@@ -118,15 +143,6 @@ void *syncStart(const SSyncInfo *pInfo) {
     return NULL;
   }
 
-  pthread_once(&syncModuleInit, syncModuleInitFunc); 
-  if (tsTcpPool == NULL) {
-    free(pNode);
-    syncModuleInit = PTHREAD_ONCE_INIT;
-    sError("failed to init sync module(%s)", tstrerror(errno));
-    return NULL;
-  }
-
-  atomic_add_fetch_32(&tsNodeNum, 1);
   tstrncpy(pNode->path, pInfo->path, sizeof(pNode->path));
   pthread_mutex_init(&pNode->mutex, NULL);
 
@@ -435,17 +451,6 @@ static void syncDecNodeRef(SSyncNode *pNode)
     taosTFree(pNode->pRecv);
     taosTFree(pNode->pSyncFwds);
     taosTFree(pNode);
-
-    if (atomic_sub_fetch_32(&tsNodeNum, 1) == 0) { 
-      if (tsTcpPool) taosCloseTcpThreadPool(tsTcpPool);
-      if (syncTmrCtrl) taosTmrCleanUp(syncTmrCtrl);
-      if (vgIdHash) taosHashCleanup(vgIdHash);
-      syncTmrCtrl = NULL;
-      tsTcpPool = NULL;
-      vgIdHash = NULL;
-      syncModuleInit = PTHREAD_ONCE_INIT;
-      sDebug("sync module is cleaned up");
-    }
   }
 }
 

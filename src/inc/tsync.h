@@ -103,6 +103,9 @@ typedef struct {
 
 typedef void* tsync_h;
 
+int32_t syncInit();
+void    syncCleanUp();
+
 tsync_h syncStart(const SSyncInfo *);
 void    syncStop(tsync_h shandle);
 int32_t syncReconfig(tsync_h shandle, const SSyncCfg *);
