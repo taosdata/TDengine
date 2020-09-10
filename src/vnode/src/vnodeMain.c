@@ -57,6 +57,9 @@ void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
 int32_t vnodeInitResources() {
+  int code = syncInit();
+  if (code != 0) return code;
+
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
@@ -70,11 +73,12 @@ int32_t vnodeInitResources() {
 }
 
 void vnodeCleanupResources() {
-
   if (tsDnodeVnodesHash != NULL) {
     taosHashCleanup(tsDnodeVnodesHash);
     tsDnodeVnodesHash = NULL;
   }
+
+  syncCleanUp();
 }
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
