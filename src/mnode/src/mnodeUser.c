@@ -581,7 +581,7 @@ void mnodeDropAllUsers(SAcctObj *pAcct)  {
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (!sdbIsMaster()) {
     *secret = 0;
-    mDebug("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_APP_NOT_READY));
+    mDebug("user:%s, failed to auth user, mnode is not master", user);
     return TSDB_CODE_APP_NOT_READY;
   }
 

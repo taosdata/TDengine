@@ -270,7 +270,7 @@ void taosReadGlobalLogCfg() {
   }
   wordfree(&full_path);
 
-  taosReadLogOption("tsLogDir", tsLogDir);
+  taosReadLogOption("logDir", tsLogDir);
   
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");
@@ -288,9 +288,9 @@ void taosReadGlobalLogCfg() {
     option = value = NULL;
     olen = vlen = 0;
 
-	taosGetline(&line, &len, fp);
+    taosGetline(&line, &len, fp);
     line[len - 1] = 0;
-    
+
     paGetToken(line, &option, &olen);
     if (olen == 0) continue;
     option[olen] = 0;

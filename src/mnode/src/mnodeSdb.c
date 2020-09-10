@@ -612,8 +612,8 @@ static int sdbWrite(void *param, void *data, int type) {
   } else if (action == SDB_ACTION_DELETE) {
     void *pRow = sdbGetRowMeta(pTable, pHead->cont);
     if (pRow == NULL) {
-      sdbError("table:%s, failed to get object:%s from wal while dispose delete action", pTable->tableName,
-               pHead->cont);
+      sdbDebug("table:%s, object:%s not exist in hash, ignore delete action", pTable->tableName,
+               sdbGetKeyStr(pTable, pHead->cont));
       return TSDB_CODE_SUCCESS;
     }
     SSdbOper oper = {.table = pTable, .pObj = pRow};
@@ -621,8 +621,8 @@ static int sdbWrite(void *param, void *data, int type) {
   } else if (action == SDB_ACTION_UPDATE) {
     void *pRow = sdbGetRowMeta(pTable, pHead->cont);
     if (pRow == NULL) {
-      sdbError("table:%s, failed to get object:%s from wal while dispose update action", pTable->tableName,
-               pHead->cont);
+      sdbDebug("table:%s, object:%s not exist in hash, ignore update action", pTable->tableName,
+               sdbGetKeyStr(pTable, pHead->cont));
       return TSDB_CODE_SUCCESS;
     }
     SSdbOper oper = {.rowSize = pHead->len, .rowData = pHead->cont, .table = pTable};

@@ -14,10 +14,8 @@ public class WeatherService {
     private WeatherMapper weatherMapper;
 
     public boolean init() {
-
         weatherMapper.createDB();
         weatherMapper.createTable();
-
         return true;
     }
 

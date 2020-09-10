@@ -1711,14 +1711,20 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
       mnodeDestroyChildTable(pTable);
       return TSDB_CODE_MND_INVALID_TABLE_NAME;
     }
-    
+
     pTable->suid = pMsg->pSTable->uid;
-    pTable->uid  = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                  (sdbGetVersion() & ((1ul << 16) - 1ul));
+    pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 24) +
+                  ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     pTable->superTable = pMsg->pSTable;
   } else {
-    pTable->uid = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                  (sdbGetVersion() & ((1ul << 16) - 1ul));
+    if (pTable->info.type == TSDB_SUPER_TABLE) {
+      int64_t us = taosGetTimestampUs();
+      pTable->uid = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    } else {
+      pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 24) +
+                    ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    }
+
     pTable->sversion     = 0;
     pTable->numOfColumns = htons(pCreate->numOfColumns);
     pTable->sqlLen       = htons(pCreate->sqlLen);

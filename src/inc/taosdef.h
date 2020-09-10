@@ -272,6 +272,13 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_SHOW_SQL_LEN         64
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
+#define TSDB_MQTT_HOSTNAME_LEN    64
+#define TSDB_MQTT_PORT_LEN        8
+#define TSDB_MQTT_USER_LEN        24
+#define TSDB_MQTT_PASS_LEN        24
+#define TSDB_MQTT_TOPIC_LEN       64
+#define TSDB_MQTT_CLIENT_ID_LEN   32
+
 #define TSDB_METER_STATE_OFFLINE  0
 #define TSDB_METER_STATE_ONLLINE  1
 

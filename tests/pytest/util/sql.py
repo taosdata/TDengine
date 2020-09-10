@@ -122,8 +122,8 @@ class TDSql:
         return self.cursor.istype(col, dataType)
 
     def checkData(self, row, col, data):
-        self.checkRowCol(row, col)                
-        if self.queryResult[row][col] != data:            
+        self.checkRowCol(row, col) 
+        if str(self.queryResult[row][col]) != str(data): 
             if isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:                
                 tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
                             (self.sql, row, col, self.queryResult[row][col], data)) 

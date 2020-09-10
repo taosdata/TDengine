@@ -95,6 +95,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 - [数据查询](https://www.taosdata.com/cn/documentation20/taos-sql/#数据查询)：支持时间段、值过滤、排序、查询结果手动分页等
 - [SQL函数](https://www.taosdata.com/cn/documentation20/taos-sql/#SQL函数)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
 - [时间维度聚合](https://www.taosdata.com/cn/documentation20/taos-sql/#时间维度聚合)：将表中数据按照时间段进行切割后聚合，降维处理
+- [边界线制](https://www.taosdata.com/cn/documentation20/taos-sql/#TAOS-SQL-边界限制)：TAOS SQL的边界限制
+- [错误码](https://www.taosdata.com/cn/documentation20/Taos-Error-Code)：TDengine 2.0 错误码以及对应的十进制码
 
 ## TDengine的技术设计
 

@@ -86,13 +86,29 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     ALTER DATABASE db_name COMP 2;
     ```
-    修改数据库文件压缩标志位，有效数字为0，1，2. 0表示不压缩，1表示一阶段压缩，2表示两阶段压缩。修改后可以使用show databases命令查看是否修改成功
+    COMP参数是指修改数据库文件压缩标志位，取值范围为[0, 2]. 0表示不压缩，1表示一阶段压缩，2表示两阶段压缩。
 
     ```mysql
     ALTER DATABASE db_name REPLICA 2;
     ```
-    修改数据库副本数，有效副本数为1到3。在集群中使用，副本数必须小于dnode的数目。修改后可以使用show databases命令查看是否修改成功
+    REPLICA参数是指修改数据库副本数，取值范围[1, 3]。在集群中使用，副本数必须小于dnode的数目。
 
+    ```mysql
+    ALTER DATABASE db_name KEEP 365;
+    ```
+    KEEP参数是指修改数据文件保存的天数，缺省值为3650，取值范围[days, 365000]，必须大于或等于days参数值。
+
+    ```mysql
+    ALTER DATABASE db_name QUORUM 365;
+    ```
+    QUORUM参数是指数据写入成功所需要的确认数。取值范围[1, 3]。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
+
+    ```mysql
+    ALTER DATABASE db_name BLOCKS 365;
+    ```
+    BLOCKS参数是每个VNODE (TSDB) 中有多少cache大小的内存块，因此一个VNODE的用的内存大小粗略为（cache * blocks）。取值范围[3, 1000]。
+
+    **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
 
 - **显示系统所有数据库**
     ```mysql

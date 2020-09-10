@@ -437,13 +437,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
  * @return
  */
 jstring jniFromNCharToByteArray(JNIEnv *env, char *nchar, int32_t maxBytes) {
-  int len = (int)strlen(nchar);
-  if (len > maxBytes) {  // no terminated symbol exists '\0'
-    len = maxBytes;
-  }
-
-  jbyteArray bytes = (*env)->NewByteArray(env, len);
-  (*env)->SetByteArrayRegion(env, bytes, 0, len, (jbyte *)nchar);
+  jbyteArray bytes = (*env)->NewByteArray(env, maxBytes);
+  (*env)->SetByteArrayRegion(env, bytes, 0, maxBytes, (jbyte *)nchar);
   return bytes;
 }
 
@@ -481,6 +476,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
     }
   }
 
+  int32_t* length = taos_fetch_lengths(result);
+
   char tmp[TSDB_MAX_BYTES_PER_ROW] = {0};
 
   for (int i = 0; i < num_fields; i++) {
@@ -515,15 +512,15 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble)dv);
       } break;
       case TSDB_DATA_TYPE_BINARY: {
-        strncpy(tmp, row[i], (size_t)fields[i].bytes);  // handle the case that terminated does not exist
+        memcpy(tmp, row[i], length[i]);  // handle the case that terminated does not exist
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
 
-        memset(tmp, 0, (size_t)fields[i].bytes);
+        memset(tmp, 0, length[i]);
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
-                               jniFromNCharToByteArray(env, (char *)row[i], fields[i].bytes));
+                               jniFromNCharToByteArray(env, (char *)row[i], length[i]));
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP:

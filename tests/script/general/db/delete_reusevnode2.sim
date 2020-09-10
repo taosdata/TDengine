@@ -8,7 +8,7 @@ sql connect
 
 print ======== step1
 
-sql create database db maxTables 4;
+sql create database db;
 sql use db
 
 $tbPrefix = t

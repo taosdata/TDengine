@@ -62,6 +62,7 @@ typedef struct {
   pthread_mutex_t logMutex;
 } SLogObj;
 
+int32_t tsLogKeepDays = 0;
 int32_t tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
@@ -78,6 +79,7 @@ static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(int32_t oldFd);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
+extern void      taosPrintGlobalCfg();
 
 static int32_t taosStartLog() {
   pthread_attr_t threadAttr;
@@ -136,11 +138,24 @@ static void taosUnLockFile(int32_t fd) {
   }
 }
 
+static void taosKeepOldLog(char *oldName) {
+  if (tsLogKeepDays <= 0) return;
+
+  int64_t fileSec = taosGetTimestampSec();
+  char    fileName[LOG_FILE_NAME_LEN + 20];
+  snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
+
+  taosRename(oldName, fileName);
+  taosRemoveOldLogFiles(tsLogDir, tsLogKeepDays);
+}
+
 static void *taosThreadToOpenNewFile(void *param) {
-  char name[LOG_FILE_NAME_LEN + 20];
+  char keepName[LOG_FILE_NAME_LEN + 20];
+  sprintf(keepName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
   tsLogObj.flag ^= 1;
   tsLogObj.lines = 0;
+  char name[LOG_FILE_NAME_LEN + 20];
   sprintf(name, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
   umask(0);
@@ -150,6 +165,7 @@ static void *taosThreadToOpenNewFile(void *param) {
     uError("open new log file fail! fd:%d reason:%s", fd, strerror(errno));
     return NULL;
   }
+
   taosLockFile(fd);
   (void)lseek(fd, 0, SEEK_SET);
 
@@ -157,9 +173,13 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->fd = fd;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  uInfo("new log file is opened!!!");
-
   taosCloseLogByFd(oldFd);
+  
+  uInfo("   new log file:%d is opened", tsLogObj.flag);
+  uInfo("==================================");
+  taosPrintGlobalCfg();
+  taosKeepOldLog(keepName);
+
   return NULL;
 }
 
@@ -264,20 +284,23 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
     strcat(name, ".0");
   }
 
+  if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
+    strcpy(name, fn);
+    strcat(name, ".1");
+  }
+
+  bool log0Exist = stat(name, &logstat0) >= 0;
+  bool log1Exist = stat(name, &logstat1) >= 0;
+  
   // if none of the log files exist, open 0, if both exists, open the old one
-  if (stat(name, &logstat0) < 0) {
+  if (!log0Exist && !log1Exist) {
     tsLogObj.flag = 0;
+  } else if (!log1Exist) {
+    tsLogObj.flag = 0;
+  } else if (!log0Exist) {
+    tsLogObj.flag = 1;
   } else {
-    if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
-      strcpy(name, fn);
-      strcat(name, ".1");
-    }
-    
-    if (stat(name, &logstat1) < 0) {
-      tsLogObj.flag = 1;
-    } else {
-      tsLogObj.flag = (logstat0.st_mtime > logstat1.st_mtime) ? 0 : 1;
-    }
+    tsLogObj.flag = (logstat0.st_mtime > logstat1.st_mtime) ? 0 : 1;
   }
 
   char fileName[LOG_FILE_NAME_LEN + 50] = "\0";

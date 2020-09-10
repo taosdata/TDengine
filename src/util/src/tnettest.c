@@ -73,7 +73,7 @@ static void *bindUdpPort(void *sarg) {
       continue;
     }
     if (iDataNum > 0) {
-      printf("recv Client: %s pkg from UDP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
+      printf("recv Client: %s pkg from UDP port: %d, pkg len: %d\n", taosInetNtoa(clientAddr.sin_addr), port, iDataNum);
       //printf("Read msg from udp:%s ... %s\n", buffer, buffer+iDataNum-16);
 
       sendto(serverSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int)sin_size);
@@ -138,7 +138,7 @@ static void *bindTcpPort(void *sarg) {
         if (errno == EINTR) {
           continue;
         } else {
-          printf("recv Client: %s pkg from TCP port: %d fail:%s.\n", inet_ntoa(clientAddr.sin_addr), port, strerror(errno));
+          printf("recv Client: %s pkg from TCP port: %d fail:%s.\n", taosInetNtoa(clientAddr.sin_addr), port, strerror(errno));
           taosCloseSocket(serverSocket);
           return NULL;
         }
@@ -149,7 +149,7 @@ static void *bindTcpPort(void *sarg) {
       }      
     }
     
-    printf("recv Client: %s pkg from TCP port: %d, pkg len: %d\n", inet_ntoa(clientAddr.sin_addr), port, iDataNum);
+    printf("recv Client: %s pkg from TCP port: %d, pkg len: %d\n", taosInetNtoa(clientAddr.sin_addr), port, iDataNum);
     if (iDataNum > 0) {
       send(client, buffer, iDataNum, 0);
     }
@@ -197,7 +197,7 @@ static int checkTcpPort(info_s *info) {
 
   struct in_addr ipStr;
   memcpy(&ipStr, &info->hostIp, 4);
-  sprintf(sendbuf, "client send tcp pkg to %s:%d, content: 1122334455", inet_ntoa(ipStr), info->port);
+  sprintf(sendbuf, "client send tcp pkg to %s:%d, content: 1122334455", taosInetNtoa(ipStr), info->port);
   sprintf(sendbuf + info->pktLen - 16, "1122334455667788");
 
   send(clientSocket, sendbuf, info->pktLen, 0);
@@ -267,7 +267,7 @@ static int checkUdpPort(info_s *info) {
 
   struct in_addr ipStr;
   memcpy(&ipStr, &info->hostIp, 4);
-  sprintf(sendbuf, "client send udp pkg to %s:%d, content: 1122334455", inet_ntoa(ipStr), info->port);
+  sprintf(sendbuf, "client send udp pkg to %s:%d, content: 1122334455", taosInetNtoa(ipStr), info->port);
   sprintf(sendbuf + info->pktLen - 16, "1122334455667788");
 
   socklen_t sin_size = sizeof(*(struct sockaddr *)&serverAddr);

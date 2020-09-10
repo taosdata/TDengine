@@ -39,6 +39,7 @@
 #include <Winsock2.h>
 #include <time.h>
 #include <inttypes.h>
+#include <conio.h>
 #include "msvcProcess.h"
 #include "msvcDirect.h"
 #include "msvcFcntl.h"
@@ -57,8 +58,6 @@ extern "C" {
   int32_t BUILDIN_CLZ(uint32_t val);
   int32_t BUILDIN_CTZL(uint64_t val);
   int32_t BUILDIN_CTZ(uint32_t val);
-
-#define TAOS_OS_FUNC_DIR
 
 #define TAOS_OS_FUNC_FILE
 #define TAOS_OS_FUNC_FILE_ISREG
@@ -179,9 +178,9 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 #endif
 
 #ifdef _MSC_VER
-#if _MSC_VER >= 1900
+//#if _MSC_VER >= 1900
   #define TAOS_OS_FUNC_SOCKET_INET
-#endif
+//#endif
 #endif
 
 #define SHUT_RDWR                SD_BOTH

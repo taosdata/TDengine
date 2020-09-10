@@ -26,7 +26,7 @@ sleep 3000
 
 print =================== step 1 
 
-sql create database $db replica 3 maxtables 100
+sql create database $db replica 3
 sql use $db
 sql create table st (ts timestamp, speed int) tags (t1 int)
 sleep 3001

@@ -786,7 +786,7 @@ void read_history() {
 }
 
 void write_history() {
-  char f_history[128];
+  char f_history[TSDB_FILENAME_LEN];
   get_history_path(f_history);
 
   FILE *f = fopen(f_history, "w");

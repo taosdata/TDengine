@@ -26,11 +26,13 @@
 
 const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
-static int  tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
-static void tsdbDestroyFile(SFile *pFile);
-static int  compFGroup(const void *arg1, const void *arg2);
-static int  keyFGroupCompFunc(const void *key, const void *fgroup);
-static void tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo);
+static int   tsdbInitFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type);
+static void  tsdbDestroyFile(SFile *pFile);
+static int   compFGroup(const void *arg1, const void *arg2);
+static int   keyFGroupCompFunc(const void *key, const void *fgroup);
+static void  tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo);
+static TSKEY tsdbGetCurrMinKey(int8_t precision, int32_t keep);
+static int   tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -79,9 +81,11 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   int     vid = 0;
   regex_t regex1, regex2;
   int     code = 0;
+  char    fname[TSDB_FILENAME_LEN] = "\0";
 
   SFileGroup  fileGroup = {0};
   STsdbFileH *pFileH = pRepo->tsdbFileH;
+  STsdbCfg *  pCfg = &(pRepo->config);
 
   tDataDir = tsdbGetDataDirName(pRepo->rootDir);
   if (tDataDir == NULL) {
@@ -108,6 +112,8 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     goto _err;
   }
 
+  int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
+
   struct dirent *dp = NULL;
   while ((dp = readdir(dir)) != NULL) {
     if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
@@ -120,6 +126,14 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
         continue;
       }
 
+      if (fid < mfid) {
+        for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+          tsdbGetDataFileName(pRepo->rootDir, pCfg->tsdbId, fid, type, fname);
+          (void)remove(fname);
+        }
+        continue;
+      }
+
       if (tsdbSearchFGroup(pFileH, fid, TD_EQ) != NULL) continue;
       memset((void *)(&fileGroup), 0, sizeof(SFileGroup));
       fileGroup.fileId = fid;
@@ -128,12 +142,30 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     } else if (code == REG_NOMATCH) {
       code = regexec(&regex2, dp->d_name, 0, NULL, 0);
       if (code == 0) {
-        tsdbDebug("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), dp->d_name);
-        char *fname = malloc(strlen(tDataDir) + strlen(dp->d_name) + 2);
-        if (fname == NULL) goto _err;
-        sprintf(fname, "%s/%s", tDataDir, dp->d_name);
-        (void)remove(fname);
-        free(fname);
+        size_t tsize = strlen(tDataDir) + strlen(dp->d_name) + 2;
+        char * fname1 = malloc(tsize);
+        if (fname1 == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          goto _err;
+        }
+        sprintf(fname1, "%s/%s", tDataDir, dp->d_name);
+
+        tsize = tsize + 64;
+        char *fname2 = malloc(tsize);
+        if (fname2 == NULL) {
+          free(fname1);
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          goto _err;
+        }
+        sprintf(fname2, "%s/%s_back_%" PRId64, tDataDir, dp->d_name, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+
+        (void)rename(fname1, fname2);
+
+        tsdbDebug("vgId:%d file %s exists, backup it as %s", REPO_ID(pRepo), fname1, fname2);
+
+        free(fname1);
+        free(fname2);
+        continue;
       } else if (code == REG_NOMATCH) {
         tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
         continue;
@@ -146,6 +178,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
 
     pFileH->pFGroup[pFileH->nFGroups++] = fileGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
+    tsdbDebug("vgId:%d file group %d is restored, nFGroups %d", REPO_ID(pRepo), fileGroup.fileId, pFileH->nFGroups);
   }
 
   regfree(&regex1);
@@ -179,8 +212,18 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
 
 SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
+  STsdbCfg *  pCfg = &(pRepo->config);
 
-  if (pFileH->nFGroups >= pFileH->maxFGroups) return NULL;
+  if (pFileH->nFGroups >= pFileH->maxFGroups) {
+    int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
+    if (pFileH->pFGroup[0].fileId < mfid) {
+      pthread_rwlock_wrlock(&pFileH->fhlock);
+      tsdbRemoveFileGroup(pRepo, &(pFileH->pFGroup[0]));
+      pthread_rwlock_unlock(&pFileH->fhlock);
+    }
+  }
+
+  ASSERT(pFileH->nFGroups < pFileH->maxFGroups);
 
   SFileGroup  fGroup;
   SFileGroup *pFGroup = &fGroup;
@@ -342,8 +385,7 @@ void tsdbFitRetention(STsdbRepo *pRepo) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = pFileH->pFGroup;
 
-  int mfid = (int)(TSDB_KEY_FILEID(taosGetTimestamp(pCfg->precision), pCfg->daysPerFile, pCfg->precision) -
-             TSDB_MAX_FILE(pCfg->keep, pCfg->daysPerFile));
+  int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
@@ -546,4 +588,12 @@ static void tsdbInitFileGroup(SFileGroup *pFGroup, STsdbRepo *pRepo) {
       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     }
   }
+}
+
+static TSKEY tsdbGetCurrMinKey(int8_t precision, int32_t keep) {
+  return (TSKEY)(taosGetTimestamp(precision) - keep * tsMsPerDay[precision]);
+}
+
+static int tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days) {
+  return (int)(TSDB_KEY_FILEID(tsdbGetCurrMinKey(precision, keep), days, precision));
 }

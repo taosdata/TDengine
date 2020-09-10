@@ -93,6 +93,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - role：dnode的可选角色。0-any; 既可作为mnode，也可分配vnode；1-mgmt;只能作为mnode，不能分配vnode；2-dnode;不能作为mnode，只能分配vnode
 - debugFlag：运行日志开关。131（输出错误和警告日志），135（ 输出错误、警告和调试日志），143（ 输出错误、警告、调试和跟踪日志）。默认值：131或135（不同模块有不同的默认值）。
 - numOfLogLines：单个日志文件允许的最大行数。默认值：10,000,000行。
+- logKeepDays：日志文件的最长保存时间。大于0时，日志文件会被重命名为taosdlog.xxx，其中xxx为日志文件最后修改的时间戳，单位为秒。默认值：0天。
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
 - telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
 

@@ -56,7 +56,7 @@ if $data2_3 != slave then
 endi
 
 print ========== step2
-sql create database d1 maxTables 4
+sql create database d1 
 sql create table d1.t1 (ts timestamp, i int)
 sql create table d1.t2 (ts timestamp, i int)
 sql create table d1.t3 (ts timestamp, i int)

@@ -62,6 +62,7 @@ static void dnodeAllocModules() {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
   }
 
+#ifdef _MQTT
   tsModule[TSDB_MOD_MQTT].enable = (tsEnableMqttModule == 1);
   tsModule[TSDB_MOD_MQTT].name = "mqtt";
   tsModule[TSDB_MOD_MQTT].initFp = mqttInitSystem;
@@ -71,6 +72,7 @@ static void dnodeAllocModules() {
   if (tsEnableMqttModule) {
     dnodeSetModuleStatus(TSDB_MOD_MQTT);
   }
+#endif  
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";

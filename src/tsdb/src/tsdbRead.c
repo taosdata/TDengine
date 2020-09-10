@@ -1186,7 +1186,7 @@ static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STabl
 
   // the time window should always be ascending order: skey <= ekey
   cur->win = (STimeWindow) {.skey = tsArray[start], .ekey = tsArray[end]};
-  cur->mixBlock = (start > 0 && end < pBlockInfo->rows - 1);
+  cur->mixBlock = (numOfRows != pBlockInfo->rows);
   cur->lastKey = tsArray[endPos] + step;
   cur->blockCompleted = true;
 
@@ -1731,12 +1731,13 @@ static void changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle) {
   assert(pQueryHandle->window.skey == pQueryHandle->window.ekey);
 
   // starts from the buffer in case of descending timestamp order check data blocks
-  // todo consider the query time window, current last_row does not apply the query time window
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
 
   int32_t i = 0;
   while(i < numOfTables) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+
+    // the first qualified table for interpolation query
     if (pQueryHandle->window.skey <= pCheckInfo->pTableObj->lastKey &&
         pCheckInfo->pTableObj->lastKey != TSKEY_INITIAL_VAL) {
       break;
