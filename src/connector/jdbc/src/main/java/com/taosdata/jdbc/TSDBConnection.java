@@ -57,9 +57,9 @@ public class TSDBConnection implements Connection {
         File cfgDir = loadConfigDir(info.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR));
         File cfgFile = cfgDir.listFiles((dir, name) -> "taos.cfg".equalsIgnoreCase(name))[0];
         List<String> endpoints = loadConfigEndpoints(cfgFile);
-        if (!endpoints.isEmpty()){
-            info.setProperty(TSDBDriver.PROPERTY_KEY_HOST,endpoints.get(0).split(":")[0]);
-            info.setProperty(TSDBDriver.PROPERTY_KEY_PORT,endpoints.get(0).split(":")[1]);
+        if (!endpoints.isEmpty()) {
+            info.setProperty(TSDBDriver.PROPERTY_KEY_HOST, endpoints.get(0).split(":")[0]);
+            info.setProperty(TSDBDriver.PROPERTY_KEY_PORT, endpoints.get(0).split(":")[1]);
         }
         //load taos.cfg end
 
@@ -69,15 +69,15 @@ public class TSDBConnection implements Connection {
                 info.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
     }
 
-    private List<String> loadConfigEndpoints(File cfgFile){
+    private List<String> loadConfigEndpoints(File cfgFile) {
         List<String> endpoints = new ArrayList<>();
-        try(BufferedReader reader = new BufferedReader(new FileReader(cfgFile))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(cfgFile))) {
             String line = null;
-            while ((line = reader.readLine())!=null){
-                if (line.trim().startsWith("firstEp") || line.trim().startsWith("secondEp")){
-                    endpoints.add(line.substring(line.indexOf('p')+1).trim());
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().startsWith("firstEp") || line.trim().startsWith("secondEp")) {
+                    endpoints.add(line.substring(line.indexOf('p') + 1).trim());
                 }
-                if (endpoints.size()>1)
+                if (endpoints.size() > 1)
                     break;
             }
         } catch (FileNotFoundException e) {
@@ -91,7 +91,7 @@ public class TSDBConnection implements Connection {
     /**
      * @param cfgDirPath
      * @return return the config dir
-     * **/
+     **/
     private File loadConfigDir(String cfgDirPath) {
         if (cfgDirPath == null)
             return loadDefaultConfigDir();
@@ -103,8 +103,8 @@ public class TSDBConnection implements Connection {
 
     /**
      * @return search the default config dir, if the config dir is not exist will return null
-     * */
-    private File loadDefaultConfigDir(){
+     */
+    private File loadDefaultConfigDir() {
         File cfgDir;
         File cfgDir_linux = new File("/etc/taos");
         cfgDir = cfgDir_linux.exists() ? cfgDir_linux : null;
@@ -132,7 +132,9 @@ public class TSDBConnection implements Connection {
 
     public Statement createStatement() throws SQLException {
         if (!this.connector.isClosed()) {
-            return new TSDBStatement(this.connector);
+            TSDBStatement statement = new TSDBStatement(this, this.connector);
+            statement.setConnection(this);
+            return statement;
         } else {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
@@ -153,7 +155,7 @@ public class TSDBConnection implements Connection {
 
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         if (!this.connector.isClosed()) {
-            return new TSDBPreparedStatement(this.connector, sql);
+            return new TSDBPreparedStatement(this, this.connector, sql);
         } else {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }

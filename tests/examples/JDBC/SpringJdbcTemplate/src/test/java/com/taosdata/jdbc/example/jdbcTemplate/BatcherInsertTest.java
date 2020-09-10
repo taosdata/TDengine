@@ -61,5 +61,4 @@ public class BatcherInsertTest {
         assertEquals(count, numOfRecordsPerTable);
     }
 
-
 }
