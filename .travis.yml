@@ -57,7 +57,7 @@ matrix:
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests
-          ./test-all.sh smoke || travis_terminate $?
+          ./test-all.sh full || travis_terminate $?
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
