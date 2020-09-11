@@ -448,7 +448,6 @@ void sdbDecRef(void *handle, void *pObj) {
 }
 
 static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
-  void *pRet = NULL;
   if (pTable == NULL) return NULL;
 
   int32_t keySize = sizeof(int32_t);
@@ -456,12 +455,10 @@ static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
     keySize = strlen((char *)key);
   }
 
-  pthread_mutex_lock(&pTable->mutex);
   void **ppRow = (void **)taosHashGet(pTable->iHandle, key, keySize);
-  if (ppRow != NULL) pRet = *ppRow;
-  pthread_mutex_unlock(&pTable->mutex);
+  if (ppRow != NULL) return *ppRow;
 
-  return pRet;
+  return NULL;
 }
 
 static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
@@ -469,10 +466,12 @@ static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
 }
 
 void *sdbGetRow(void *handle, void *key) {
+  SSdbTable *pTable = handle;
+
+  pthread_mutex_lock(&pTable->mutex);
   void *pRow = sdbGetRowMeta(handle, key);
-  if (pRow) {
-    sdbIncRef(handle, pRow);
-  }
+  if (pRow) sdbIncRef(handle, pRow);
+  pthread_mutex_unlock(&pTable->mutex);
 
   return pRow;
 }
