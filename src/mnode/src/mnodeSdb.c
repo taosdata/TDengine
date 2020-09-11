@@ -298,8 +298,9 @@ static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(); }
 void sdbUpdateSync() {
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync info later");
-    dnodeCheckModules();
-    taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
+    if (dnodeCheckMnodeStarting()) {
+      taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
+    }
     return;
   }
   mDebug("update sync info in sdb");

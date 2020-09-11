@@ -43,7 +43,7 @@ void    dnodeGetMnodeEpSetForPeer(void *epSet);
 void    dnodeGetMnodeEpSetForShell(void *epSet);
 void *  dnodeGetMnodeInfos();
 int32_t dnodeGetDnodeId();
-void    dnodeCheckModules();
+bool    dnodeCheckMnodeStarting();
 
 void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
