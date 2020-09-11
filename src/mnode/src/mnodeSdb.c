@@ -65,6 +65,7 @@ typedef struct _SSdbTable {
   int32_t (*encodeFp)(SSdbOper *pOper);
   int32_t (*destroyFp)(SSdbOper *pOper);
   int32_t (*restoredFp)();
+  pthread_mutex_t mutex;
 } SSdbTable;
 
 typedef struct {
@@ -447,6 +448,7 @@ void sdbDecRef(void *handle, void *pObj) {
 }
 
 static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
+  void *pRet = NULL;
   if (pTable == NULL) return NULL;
 
   int32_t keySize = sizeof(int32_t);
@@ -454,9 +456,12 @@ static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
     keySize = strlen((char *)key);
   }
 
+  pthread_mutex_lock(&pTable->mutex);
   void **ppRow = (void **)taosHashGet(pTable->iHandle, key, keySize);
-  if (ppRow == NULL) return NULL;
-  return *ppRow;
+  if (ppRow != NULL) pRet = *ppRow;
+  pthread_mutex_unlock(&pTable->mutex);
+
+  return pRet;
 }
 
 static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
@@ -467,10 +472,9 @@ void *sdbGetRow(void *handle, void *key) {
   void *pRow = sdbGetRowMeta(handle, key);
   if (pRow) {
     sdbIncRef(handle, pRow);
-    return pRow;
-  } else {
-    return NULL;
   }
+
+  return pRow;
 }
 
 static void *sdbGetRowFromObj(SSdbTable *pTable, void *key) {
@@ -485,7 +489,9 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
     keySize = strlen((char *)key);
   }
 
+  pthread_mutex_lock(&pTable->mutex);
   taosHashPut(pTable->iHandle, key, keySize, &pOper->pObj, sizeof(int64_t));
+  pthread_mutex_unlock(&pTable->mutex);
 
   sdbIncRef(pTable, pOper->pObj);
   atomic_add_fetch_32(&pTable->numOfRows, 1);
@@ -526,7 +532,10 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
     keySize = strlen((char *)key);
   }
 
+  pthread_mutex_lock(&pTable->mutex);
   taosHashRemove(pTable->iHandle, key, keySize);
+  pthread_mutex_unlock(&pTable->mutex);
+
   atomic_sub_fetch_32(&pTable->numOfRows, 1);
   
   sdbDebug("table:%s, delete record:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
@@ -868,6 +877,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   
   if (pTable == NULL) return NULL;
 
+  pthread_mutex_init(&pTable->mutex, NULL);
   tstrncpy(pTable->tableName, pDesc->tableName, SDB_TABLE_LEN);
   pTable->keyType      = pDesc->keyType;
   pTable->tableId      = pDesc->tableId;
@@ -915,6 +925,7 @@ void sdbCloseTable(void *handle) {
 
   taosHashDestroyIter(pIter);
   taosHashCleanup(pTable->iHandle);
+  pthread_mutex_destroy(&pTable->mutex);
 
   sdbDebug("table:%s, is closed, numOfTables:%d", pTable->tableName, tsSdbObj.numOfTables);
   free(pTable);
