@@ -32,7 +32,7 @@
 
 3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
 
-4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得）
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得)）,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 
 5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
 
@@ -54,7 +54,7 @@
 ## 6. 遇到错误“Unexpected generic error in RPC”或者"TDengine Error: Unable to resolve FQDN"， 我怎么办？
 产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
 
-1. 请检查连接的服务器的FQDN是否正确
+1. 请检查连接的服务器的FQDN是否正确,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 2. 如果网络配置有DNS server, 请检查是否正常工作
 3. 如果网络没有配置DNS server, 请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址。
 4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法链接服务器的
