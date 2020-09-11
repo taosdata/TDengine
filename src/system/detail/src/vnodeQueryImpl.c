@@ -6922,12 +6922,12 @@ int32_t vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, tSidSet *pSidSet
 
     if (QUERY_IS_ASC_QUERY(pQuery)) {
       assert(skey >= pSupporter->rawSKey);
-      if (ekey < oldestKey || skey > pMeterObj->lastKeyOnFile) {
+      if (ekey < oldestKey/* || skey > pMeterObj->lastKeyOnFile*/) {
         continue;
       }
     } else {
       assert(skey <= pSupporter->rawSKey);
-      if (skey < oldestKey || ekey > pMeterObj->lastKeyOnFile) {
+      if (skey < oldestKey/* || ekey > pMeterObj->lastKeyOnFile*/) {
         continue;
       }
     }
