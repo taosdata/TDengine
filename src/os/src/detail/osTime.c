@@ -403,6 +403,102 @@ int32_t parseDuration(const char* token, int32_t tokenLen, int64_t* duration, ch
   return getTimestampInUsFromStrImpl(*duration, *unit, duration);
 }
 
+int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
+  if (duration == 0) {
+    return t;
+  }
+  if (unit == 'y') {
+    duration *= 12;
+  } else if (unit != 'n') {
+    return t + duration;
+  }
+
+  t /= 1000;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    t /= 1000;
+  }
+
+  struct tm tm;
+  time_t tt = (time_t)t;
+  localtime_r(&tt, &tm);
+  int mon = tm.tm_year * 12 + tm.tm_mon + (int)duration;
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+
+  t = mktime(&tm) * 1000L;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    t *= 1000L;
+  }
+
+  return t;
+}
+
+int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision) {
+  if (pInterval->sliding == 0) {
+    assert(pInterval->interval == 0);
+    return t;
+  }
+
+  int64_t start = t;
+  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+    start /= 1000;
+    if (precision == TSDB_TIME_PRECISION_MICRO) {
+      start /= 1000;
+    }
+    struct tm tm;
+    time_t t = (time_t)start;
+    localtime_r(&t, &tm);
+    tm.tm_sec = 0;
+    tm.tm_min = 0;
+    tm.tm_hour = 0;
+    tm.tm_mday = 1;
+
+    if (pInterval->slidingUnit == 'y') {
+      tm.tm_mon = 0;
+      tm.tm_year = (int)(tm.tm_year / pInterval->sliding * pInterval->sliding);
+    } else {
+      int mon = tm.tm_year * 12 + tm.tm_mon;
+      mon = (int)(mon / pInterval->sliding * pInterval->sliding);
+      tm.tm_year = mon / 12;
+      tm.tm_mon = mon % 12;
+    }
+
+    start = mktime(&tm) * 1000L;
+    if (precision == TSDB_TIME_PRECISION_MICRO) {
+      start *= 1000L;
+    }
+  } else {
+    int64_t delta = t - pInterval->interval;
+    int32_t factor = delta > 0 ? 1 : -1;
+
+    start = (delta / pInterval->sliding + factor) * pInterval->sliding;
+
+    if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
+      /*
+      * here we revised the start time of day according to the local time zone,
+      * but in case of DST, the start time of one day need to be dynamically decided.
+      */
+      // todo refactor to extract function that is available for Linux/Windows/Mac platform
+  #if defined(WINDOWS) && _MSC_VER >= 1900
+      // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+      int64_t timezone = _timezone;
+      int32_t daylight = _daylight;
+      char**  tzname = _tzname;
+  #endif
+
+      int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
+      start += timezone * t;
+    }
+
+    int64_t end = start + pInterval->interval - 1;
+    if (end < t) {
+      start += pInterval->sliding;
+    }
+  }
+
+  return taosTimeAdd(start, pInterval->offset, pInterval->intervalUnit, precision);
+}
+
 // internal function, when program is paused in debugger,
 // one can call this function from debugger to print a
 // timestamp as human readable string, for example (gdb):

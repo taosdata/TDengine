@@ -226,13 +226,8 @@ typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
   // TODO refactor
-  char             intervalTimeUnit;
-  char             slidingTimeUnit;
-  char             offsetTimeUnit;
   STimeWindow      window;        // query time window
-  int64_t          intervalTime;  // aggregation time window range
-  int64_t          slidingTime;   // sliding window in mseconds
-  int64_t          offsetTime;    // start offset of each time window
+  SInterval        interval;
   int32_t          tz;            // query client timezone
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info

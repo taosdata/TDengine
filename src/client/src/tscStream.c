@@ -400,43 +400,43 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  if (pQueryInfo->intervalTimeUnit != 'n' && pQueryInfo->intervalTimeUnit != 'y' && pQueryInfo->intervalTime < minIntervalTime) {
+  if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.interval < minIntervalTime) {
     tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64, pSql, pStream,
-            pQueryInfo->intervalTime, minIntervalTime);
-    pQueryInfo->intervalTime = minIntervalTime;
+            pQueryInfo->interval.interval, minIntervalTime);
+    pQueryInfo->interval.interval = minIntervalTime;
   }
 
-  pStream->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
-  pStream->intervalTime = pQueryInfo->intervalTime;  // it shall be derived from sql string
+  pStream->intervalTimeUnit = pQueryInfo->interval.intervalUnit;
+  pStream->intervalTime = pQueryInfo->interval.interval;  // it shall be derived from sql string
 
-  if (pQueryInfo->slidingTime <= 0) {
-    pQueryInfo->slidingTime = pQueryInfo->intervalTime;
-    pQueryInfo->slidingTimeUnit = pQueryInfo->intervalTimeUnit;
+  if (pQueryInfo->interval.sliding <= 0) {
+    pQueryInfo->interval.sliding = pQueryInfo->interval.interval;
+    pQueryInfo->interval.slidingUnit = pQueryInfo->interval.intervalUnit;
   }
 
   int64_t minSlidingTime =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
 
-  if (pQueryInfo->intervalTimeUnit != 'n' && pQueryInfo->intervalTimeUnit != 'y' && pQueryInfo->slidingTime < minSlidingTime) {
+  if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.sliding < minSlidingTime) {
     tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
-        pQueryInfo->slidingTime, minSlidingTime);
+        pQueryInfo->interval.sliding, minSlidingTime);
 
-    pQueryInfo->slidingTime = minSlidingTime;
+    pQueryInfo->interval.sliding = minSlidingTime;
   }
 
-  if (pQueryInfo->slidingTime > pQueryInfo->intervalTime) {
+  if (pQueryInfo->interval.sliding > pQueryInfo->interval.interval) {
     tscWarn("%p stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64, pSql, pStream,
-            pQueryInfo->slidingTime, pQueryInfo->intervalTime);
+            pQueryInfo->interval.sliding, pQueryInfo->interval.interval);
 
-    pQueryInfo->slidingTime = pQueryInfo->intervalTime;
+    pQueryInfo->interval.sliding = pQueryInfo->interval.interval;
   }
 
-  pStream->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
-  pStream->slidingTime = pQueryInfo->slidingTime;
+  pStream->slidingTimeUnit = pQueryInfo->interval.slidingUnit;
+  pStream->slidingTime = pQueryInfo->interval.sliding;
   
   if (pStream->isProject) {
-    pQueryInfo->intervalTime = 0; // clear the interval value to avoid the force time window split by query processor
-    pQueryInfo->slidingTime = 0;
+    pQueryInfo->interval.interval = 0; // clear the interval value to avoid the force time window split by query processor
+    pQueryInfo->interval.sliding = 0;
   }
 }
 
