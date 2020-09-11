@@ -5226,7 +5226,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
   }
 }
 
-static void doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
+static int32_t doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
   
   for (int32_t i = 0; i < size; ++i) {
@@ -5244,9 +5244,14 @@ static void doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
         }
       }
 
-      assert(qualifiedCol);
+      // it is not a tag column/tbname column/user-defined column, return error
+      if (!qualifiedCol) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool tagColumnInGroupby(SSqlGroupbyExpr* pGroupbyExpr, int16_t columnId) {
@@ -5329,7 +5334,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
     SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
     if (pExpr->functionId == TSDB_FUNC_TAGPRJ ||
         (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
-      tagColExists = true;
+      tagColExists = true;  // selectivity + ts/tag column
       break;
     }
   }
@@ -5362,7 +5367,11 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
      */
     if (numOfSelectivity == 1) {
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
-      doUpdateSqlFunctionForColPrj(pQueryInfo);
+      int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
     } else if (numOfSelectivity > 1) {
       /*
        * If more than one selectivity functions exist, all the selectivity functions must be last_row.
@@ -5381,7 +5390,10 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
       }
 
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
-      doUpdateSqlFunctionForColPrj(pQueryInfo);
+      int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   } else {
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
@@ -5392,7 +5404,10 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
       if (numOfAggregation > 0 || numOfSelectivity > 0) {
         // clear the projection type flag
         pQueryInfo->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
-        doUpdateSqlFunctionForColPrj(pQueryInfo);
+        int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     }
   }
