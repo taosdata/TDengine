@@ -5,20 +5,21 @@
        xsi:schemaLocation="
 	http://www.springframework.org/schema/beans
 	http://www.springframework.org/schema/beans/spring-beans.xsd
-	http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
-	"
+	http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd"
        default-autowire="byName">
 
     <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
         <property name="driverClassName" value="com.taosdata.jdbc.TSDBDriver"></property>
-        <property name="url" value="jdbc:TAOS://127.0.0.1:6030/log"></property>
+        <property name="url" value="jdbc:TAOS://192.168.236.137:6030/"></property>
         <property name="username" value="root"></property>
         <property name="password" value="taosdata"></property>
     </bean>
 
 
-    <bean id = "jdbcTemplate"  class="org.springframework.jdbc.core.JdbcTemplate" >
-        <property name="dataSource" ref = "dataSource" ></property>
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource" ref="dataSource"></property>
     </bean>
+
+    <context:component-scan base-package="com.taosdata.jdbc.example.jdbcTemplate"/>
 
 </beans>

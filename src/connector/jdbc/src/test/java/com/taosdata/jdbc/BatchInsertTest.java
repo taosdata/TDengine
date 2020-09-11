@@ -7,13 +7,11 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
-import java.util.Properties;
-import java.util.concurrent.Executors;
-import java.util.concurrent.*;
-
-import static org.junit.Assert.assertTrue;
 
 public class BatchInsertTest extends BaseTest {
 
