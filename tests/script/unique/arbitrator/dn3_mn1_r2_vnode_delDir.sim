@@ -53,7 +53,7 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
-sleep 3000
+sleep 5000
 
 $sleepTimer = 3000
 
@@ -225,6 +225,7 @@ if $data00 != $totalRows then
 endi
 
 print ============== step5: stop dnode2, and remove its vnode
+sleep 5000
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep $sleepTimer
 

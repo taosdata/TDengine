@@ -193,6 +193,7 @@ if $data00 != $totalRows then
 endi
 
 print ============== step5: stop dnode1
+sleep 5000
 system sh/exec.sh -n dnode1 -s stop
 sleep 3000
 

@@ -146,8 +146,8 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   }
 }
 
-void dnodeCheckModules() {
-  if (tsModuleStatus & TSDB_MOD_MNODE) return;
+bool dnodeCheckMnodeStarting() {
+  if (tsModuleStatus & TSDB_MOD_MNODE) return false;
 
   SDMMnodeInfos *mnodes = dnodeGetMnodeInfos();
   for (int32_t i = 0; i < mnodes->nodeNum; ++i) {
@@ -156,7 +156,9 @@ void dnodeCheckModules() {
       uint32_t moduleStatus = tsModuleStatus | (1 << TSDB_MOD_MNODE);;
       dInfo("start mnode module, module status:%d, new status:%d", tsModuleStatus, moduleStatus);
       dnodeProcessModuleStatus(moduleStatus);
-      break;
+      return true;
     }
   }
+
+  return false;
 }
