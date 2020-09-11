@@ -5231,7 +5231,8 @@ static int32_t doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
   
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-    if (pExpr->functionId == TSDB_FUNC_PRJ) {
+
+    if (pExpr->functionId == TSDB_FUNC_PRJ && (!TSDB_COL_IS_UD_COL(pExpr->colInfo.flag))) {
       bool qualifiedCol = false;
       for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
         SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
