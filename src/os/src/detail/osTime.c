@@ -496,7 +496,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     }
   }
 
-  return taosTimeAdd(start, pInterval->offset, pInterval->intervalUnit, precision);
+  return taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
 }
 
 // internal function, when program is paused in debugger,

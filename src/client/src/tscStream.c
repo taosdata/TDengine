@@ -246,11 +246,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     }
 
     if (!pStream->isProject) {
-      if (pStream->intervalTimeUnit == 'y' || pStream->intervalTimeUnit == 'n') {
-        pStream->stime = taosAddNatualInterval(pStream->stime, pStream->slidingTime, pStream->slidingTimeUnit, pStream->precision);
-      } else {
-        pStream->stime += pStream->slidingTime;
-      }
+      pStream->stime = taosTimeAdd(pStream->stime, pStream->slidingTime, pStream->slidingTimeUnit, pStream->precision);
     }
     // actually only one row is returned. this following is not necessary
     taos_fetch_rows_a(res, tscProcessStreamRetrieveResult, pStream);

@@ -99,33 +99,6 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
   return pFilter;
 }
 
-int64_t taosAddNatualInterval(int64_t key, int64_t intervalTime, char timeUnit, int16_t precision) {
-  key /= 1000;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    key /= 1000;
-  }
-
-  struct tm tm;
-  time_t t = (time_t)key;
-  localtime_r(&t, &tm);
-
-  if (timeUnit == 'y') {
-    intervalTime *= 12;
-  }
-
-  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + intervalTime);
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-
-  key = mktime(&tm) * 1000L;
-
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    key *= 1000L;
-  }
-
-  return key;
-}
-
 int32_t taosCountNatualInterval(int64_t skey, int64_t ekey, int64_t intervalTime, char timeUnit, int16_t precision) {
   skey /= 1000;
   ekey /= 1000;

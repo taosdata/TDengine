@@ -108,21 +108,15 @@ void* taosDestoryFillInfo(SFillInfo* pFillInfo) {
   return NULL;
 }
 
-static TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int64_t timeInterval, int8_t slidingTimeUnit, int8_t precision) {
-  if (order == TSDB_ORDER_ASC) {
-    return ekey;
-  } else {
-    return taosGetIntervalStartTimestamp(ekey, timeInterval, timeInterval, slidingTimeUnit, precision);
-  }
-}
-
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey) {
   if (pFillInfo->fillType == TSDB_FILL_NONE) {
     return;
   }
 
-  pFillInfo->endKey = taosGetRevisedEndKey(endKey, pFillInfo->order, pFillInfo->interval.sliding, pFillInfo->interval.slidingUnit,
-      pFillInfo->precision);
+  pFillInfo->endKey = endKey;
+  if (pFillInfo->order != TSDB_ORDER_ASC) {
+    pFillInfo->endKey = taosTimeTruncate(endKey, &pFillInfo->interval, pFillInfo->precision);
+  }
 
   pFillInfo->rowIdx    = 0;
   pFillInfo->numOfRows = numOfRows;
@@ -172,8 +166,10 @@ int64_t getFilledNumOfRes(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows
 
   int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
 
-  TSKEY ekey1 = taosGetRevisedEndKey(ekey, pFillInfo->order, pFillInfo->interval.sliding, pFillInfo->interval.slidingUnit,
-      pFillInfo->precision);
+  TSKEY ekey1 = ekey;
+  if (pFillInfo->order != TSDB_ORDER_ASC) {
+    pFillInfo->endKey = taosTimeTruncate(ekey, &pFillInfo->interval, pFillInfo->precision);
+  }
 
   int64_t numOfRes = -1;
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
@@ -374,12 +370,7 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
     setTagsValue(pFillInfo, data, *num);
   }
 
-// TODO natual sliding time
-  if (pFillInfo->interval.slidingUnit != 'n' && pFillInfo->interval.slidingUnit != 'y') {
-    pFillInfo->start += (pFillInfo->interval.sliding * step);
-  } else {
-    pFillInfo->start = taosAddNatualInterval(pFillInfo->start, pFillInfo->interval.sliding*step, pFillInfo->interval.slidingUnit, pFillInfo->precision);
-  }
+  pFillInfo->start = taosTimeAdd(pFillInfo->start, pFillInfo->interval.sliding * step, pFillInfo->interval.slidingUnit, pFillInfo->precision);
   pFillInfo->numOfCurrent++;
 
   (*num) += 1;
@@ -486,12 +477,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
         // set the tag value for final result
         setTagsValue(pFillInfo, data, num);
 
-        // TODO natual sliding time
-        if (pFillInfo->interval.slidingUnit != 'n' && pFillInfo->interval.slidingUnit != 'y') {
-          pFillInfo->start += (pFillInfo->interval.sliding * step);
-        } else {
-          pFillInfo->start = taosAddNatualInterval(pFillInfo->start, pFillInfo->interval.sliding*step, pFillInfo->interval.slidingUnit, pFillInfo->precision);
-        }
+        pFillInfo->start = taosTimeAdd(pFillInfo->start, pFillInfo->interval.sliding*step, pFillInfo->interval.slidingUnit, pFillInfo->precision);
         pFillInfo->rowIdx += 1;
 
         pFillInfo->numOfCurrent +=1;
