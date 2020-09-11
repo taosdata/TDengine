@@ -42,6 +42,8 @@ class TDTestCase:
         # join 3 tables -- bug exists
         tdSql.error("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_p.id, stb_p.dscrption, stb_p.pressure,stb_v.velocity from stb_p, stb_t, stb_v where stb_p.ts=stb_t.ts and stb_p.ts=stb_v.ts and stb_p.id = stb_t.id")
 
+        tdSql.error("select * from stb1 whern c1 > 'test' limit 100")
+
         # query show stable
         tdSql.query("show stables")
         tdSql.checkRows(1)
