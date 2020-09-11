@@ -42,6 +42,9 @@ class TDTestCase:
         tdSql.prepare()
         
         for i in range(len(self.types)):
+            tdSql.execute("drop table if exists t0")
+            tdSql.execute("drop table if exists t1")
+            
             print("======== checking type %s ==========" % self.types[i])
             tdSql.execute("create table t0 (ts timestamp, col %s)" % self.types[i])
             tdSql.execute("insert into t0 values (%d, NULL)" % (self.ts))
