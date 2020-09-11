@@ -518,7 +518,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
   } else {
     int32_t slot = curTimeWindowIndex(pWindowResInfo);
     SWindowResult* pWindowRes = getWindowResult(pWindowResInfo, slot);
-    w = GET_TIMEWINDOW(pWindowResInfo, pWindowRes);
+    w = pWindowRes->win;
   }
 
   if (w.skey > ts || w.ekey < ts) {
@@ -624,7 +624,7 @@ static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowRes
   }
 
   // set time window for current result
-  pWindowRes->skey = win->skey;
+  pWindowRes->win = (*win);
 
   setWindowResOutputBufInitCtx(pRuntimeEnv, pWindowRes);
   return TSDB_CODE_SUCCESS;
@@ -697,12 +697,12 @@ static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKe
         continue;
       }
 
-      TSKEY ekey = pResult->skey + pWindowResInfo->interval;
+      TSKEY ekey = pResult->win.ekey;
       if ((ekey <= lastKey && QUERY_IS_ASC_QUERY(pQuery)) ||
-          (pResult->skey >= lastKey && !QUERY_IS_ASC_QUERY(pQuery))) {
+          (pResult->win.skey >= lastKey && !QUERY_IS_ASC_QUERY(pQuery))) {
         closeTimeWindow(pWindowResInfo, i);
       } else {
-        skey = pResult->skey;
+        skey = pResult->win.skey;
         break;
       }
     }
@@ -715,7 +715,7 @@ static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKe
       pWindowResInfo->curIndex = i;
     }
 
-    pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex].skey;
+    pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex].win.skey;
 
     // the number of completed slots are larger than the threshold, return current generated results to client.
     if (numOfClosed > pWindowResInfo->threshold) {
@@ -1097,8 +1097,25 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
 
   SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
-  int64_t v = -1;
   // not assign result buffer yet, add new result buffer
+  char* d = pData;
+  int16_t len = bytes;
+  if (type == TSDB_DATA_TYPE_BINARY||type == TSDB_DATA_TYPE_NCHAR) {
+    d = varDataVal(pData);
+    len = varDataLen(pData);
+  } else if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+    SQInfo* pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
+    qError("QInfo:%p group by not supported on double/float/binary/nchar columns, abort", pQInfo);
+
+    longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
+  }
+
+  SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, d, len, true);
+  if (pWindowRes == NULL) {
+    return -1;
+  }
+
+  int64_t v = -1;
   switch(type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:  v = GET_INT8_VAL(pData);  break;
@@ -1107,12 +1124,14 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
     case TSDB_DATA_TYPE_BIGINT:   v = GET_INT64_VAL(pData); break;
   }
 
-  SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, pData, bytes, true);
-  if (pWindowRes == NULL) {
-    return -1;
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    pWindowRes->key = malloc(varDataTLen(pData));
+    varDataCopy(pWindowRes->key, pData);
+  } else {
+    pWindowRes->win.skey = v;
+    pWindowRes->win.ekey = v;
   }
 
-  pWindowRes->skey = v;
   assert(pRuntimeEnv->windowResInfo.interval == 0);
 
   if (pWindowRes->pos.pageId == -1) {
@@ -3004,7 +3023,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
     char *b = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes, page);
     TSKEY ts = GET_INT64_VAL(b);
 
-    assert(ts == pWindowRes->skey);
+    assert(ts == pWindowRes->win.skey);
     int64_t num = getNumOfResultWindowRes(pQuery, pWindowRes);
     if (num <= 0) {
       cs.position[pos] += 1;
