@@ -818,8 +818,7 @@ bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
   cJSON *metrics = cJSON_GetObjectItem(root, "metrics");
   if (metrics != NULL) {
     int size = cJSON_GetArraySize(metrics);
-    httpDebug("context:%p, fd:%d, multiple metrics:%d at one time", pContext, pContext->fd,
-              size);
+    httpDebug("context:%p, fd:%d, multiple metrics:%d at one time", pContext, pContext->fd, size);
     if (size <= 0) {
       httpSendErrorResp(pContext, HTTP_TG_METRICS_NULL);
       cJSON_Delete(root);
