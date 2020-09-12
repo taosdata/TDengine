@@ -105,6 +105,15 @@ if $dnode4Vnodes != null then
   goto show1
 endi
 
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
+
 print ============================== step2
 print ========= start dnode4
 sql create dnode $hostname4
@@ -131,6 +140,15 @@ print dnode4 $dnode4Vnodes
 if $dnode4Vnodes != 2 then
   goto show2
 endi
+
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
 
 print ============================== step3
 print ========= drop dnode2
@@ -167,6 +185,15 @@ if $dnode4Vnodes != 3 then
   goto show3
 endi
 
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
+
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 
 print ============================== step4
@@ -194,6 +221,15 @@ print dnode4 $dnode4Vnodes
 if $dnode5Vnodes != 2 then
   goto show4
 endi
+
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
 
 print ============================== step5
 print ========= drop dnode3
@@ -232,6 +268,15 @@ endi
 
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
+
 print ============================== step6
 sql create dnode $hostname6
 system sh/exec.sh -n dnode6 -s start
@@ -257,6 +302,15 @@ print dnode6 $dnode6Vnodes
 if $dnode6Vnodes != 2 then
   goto show6
 endi
+
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
 
 print ============================== step7
 print ========= drop dnode4
@@ -294,6 +348,14 @@ if $dnode4Vnodes != null then
 endi
 
 system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
 
 print ============================== step8
 sql create dnode $hostname7
@@ -321,6 +383,15 @@ if $dnode7Vnodes != 2 then
   goto show8
 endi
 
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
+
 print ============================== step9
 print ========= drop dnode1
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
@@ -335,15 +406,20 @@ sql show mnodes
 $dnode1Role = $data2_1
 $dnode4Role = $data2_4
 $dnode5Role = $data2_5
-print dnode1 ==> $dnode1Role
-print dnode4 ==> $dnode4Role
-print dnode5 ==> $dnode5Role
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
 
 if $dnode1Role != offline then
   return -1
 endi
 
 print ============================== step9.1
+sleep 2000
 system sh/exec.sh -n dnode1 -s start
 
 $x = 0
@@ -353,6 +429,19 @@ show9:
 	if $x == 20 then
 	  return -1
 	endi
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode4Role = $data2_4
+$dnode5Role = $data2_5
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
+
 sql show dnodes -x show9
 $dnode5Vnodes = $data2_5
 print dnode5 $dnode5Vnodes
@@ -373,6 +462,15 @@ endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 5000
+
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+print dnode3 ==> $data2_3
+print dnode4 ==> $data2_4
+print dnode5 ==> $data2_5
+print dnode6 ==> $data2_6
+print dnode7 ==> $data2_7
 
 print ============================== step11
 print ========= add db4

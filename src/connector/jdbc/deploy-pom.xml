@@ -93,13 +93,12 @@
         <version>3.6.1</version>
         <configuration>
           <encoding>UTF-8</encoding>
-          <source>11</source>
-          <target>11</target>
+          <source>8</source>
+          <target>8</target>
           <debug>true</debug>
           <showDeprecation>true</showDeprecation>
         </configuration>
       </plugin>
-
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

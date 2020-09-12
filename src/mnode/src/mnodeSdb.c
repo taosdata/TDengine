@@ -22,6 +22,7 @@
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
+#include "ttimer.h"
 #include "tglobal.h"
 #include "dnode.h"
 #include "mnode.h"
@@ -64,6 +65,7 @@ typedef struct _SSdbTable {
   int32_t (*encodeFp)(SSdbOper *pOper);
   int32_t (*destroyFp)(SSdbOper *pOper);
   int32_t (*restoredFp)();
+  pthread_mutex_t mutex;
 } SSdbTable;
 
 typedef struct {
@@ -88,6 +90,8 @@ typedef struct {
   SSdbWriteWorker *writeWorker;
 } SSdbWriteWorkerPool;
 
+extern void *     tsMnodeTmr;
+static void *     tsUpdateSyncTmr;
 static SSdbObject tsSdbObj = {0};
 static taos_qset  tsSdbWriteQset;
 static taos_qall  tsSdbWriteQall;
@@ -290,11 +294,17 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   taosFreeQitem(pOper);
 }
 
+static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(); }
+
 void sdbUpdateSync() {
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync info later");
+    if (dnodeCheckMnodeStarting()) {
+      taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
+    }
     return;
   }
+  mDebug("update sync info in sdb");
 
   SSyncCfg syncCfg = {0};
   int32_t  index = 0;
@@ -387,8 +397,6 @@ int32_t sdbInit() {
     tsSdbObj.role = TAOS_SYNC_ROLE_MASTER;
   }
 
-  sdbUpdateSync();
-
   tsSdbObj.status = SDB_STATUS_SERVING;
   return TSDB_CODE_SUCCESS;
 }
@@ -448,8 +456,9 @@ static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
   }
 
   void **ppRow = (void **)taosHashGet(pTable->iHandle, key, keySize);
-  if (ppRow == NULL) return NULL;
-  return *ppRow;
+  if (ppRow != NULL) return *ppRow;
+
+  return NULL;
 }
 
 static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
@@ -457,13 +466,14 @@ static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
 }
 
 void *sdbGetRow(void *handle, void *key) {
+  SSdbTable *pTable = handle;
+
+  pthread_mutex_lock(&pTable->mutex);
   void *pRow = sdbGetRowMeta(handle, key);
-  if (pRow) {
-    sdbIncRef(handle, pRow);
-    return pRow;
-  } else {
-    return NULL;
-  }
+  if (pRow) sdbIncRef(handle, pRow);
+  pthread_mutex_unlock(&pTable->mutex);
+
+  return pRow;
 }
 
 static void *sdbGetRowFromObj(SSdbTable *pTable, void *key) {
@@ -478,7 +488,9 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbOper *pOper) {
     keySize = strlen((char *)key);
   }
 
+  pthread_mutex_lock(&pTable->mutex);
   taosHashPut(pTable->iHandle, key, keySize, &pOper->pObj, sizeof(int64_t));
+  pthread_mutex_unlock(&pTable->mutex);
 
   sdbIncRef(pTable, pOper->pObj);
   atomic_add_fetch_32(&pTable->numOfRows, 1);
@@ -519,7 +531,10 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbOper *pOper) {
     keySize = strlen((char *)key);
   }
 
+  pthread_mutex_lock(&pTable->mutex);
   taosHashRemove(pTable->iHandle, key, keySize);
+  pthread_mutex_unlock(&pTable->mutex);
+
   atomic_sub_fetch_32(&pTable->numOfRows, 1);
   
   sdbDebug("table:%s, delete record:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->tableName,
@@ -612,8 +627,8 @@ static int sdbWrite(void *param, void *data, int type) {
   } else if (action == SDB_ACTION_DELETE) {
     void *pRow = sdbGetRowMeta(pTable, pHead->cont);
     if (pRow == NULL) {
-      sdbError("table:%s, failed to get object:%s from wal while dispose delete action", pTable->tableName,
-               pHead->cont);
+      sdbDebug("table:%s, object:%s not exist in hash, ignore delete action", pTable->tableName,
+               sdbGetKeyStr(pTable, pHead->cont));
       return TSDB_CODE_SUCCESS;
     }
     SSdbOper oper = {.table = pTable, .pObj = pRow};
@@ -621,8 +636,8 @@ static int sdbWrite(void *param, void *data, int type) {
   } else if (action == SDB_ACTION_UPDATE) {
     void *pRow = sdbGetRowMeta(pTable, pHead->cont);
     if (pRow == NULL) {
-      sdbError("table:%s, failed to get object:%s from wal while dispose update action", pTable->tableName,
-               pHead->cont);
+      sdbDebug("table:%s, object:%s not exist in hash, ignore update action", pTable->tableName,
+               sdbGetKeyStr(pTable, pHead->cont));
       return TSDB_CODE_SUCCESS;
     }
     SSdbOper oper = {.rowSize = pHead->len, .rowData = pHead->cont, .table = pTable};
@@ -861,6 +876,7 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
   
   if (pTable == NULL) return NULL;
 
+  pthread_mutex_init(&pTable->mutex, NULL);
   tstrncpy(pTable->tableName, pDesc->tableName, SDB_TABLE_LEN);
   pTable->keyType      = pDesc->keyType;
   pTable->tableId      = pDesc->tableId;
@@ -908,6 +924,7 @@ void sdbCloseTable(void *handle) {
 
   taosHashDestroyIter(pIter);
   taosHashCleanup(pTable->iHandle);
+  pthread_mutex_destroy(&pTable->mutex);
 
   sdbDebug("table:%s, is closed, numOfTables:%d", pTable->tableName, tsSdbObj.numOfTables);
   free(pTable);

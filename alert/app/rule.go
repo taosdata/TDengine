@@ -121,7 +121,21 @@ func (alert *Alert) refresh(rule *Rule, values map[string]interface{}) {
 	alert.Values = values
 	res := rule.Expr.Eval(func(key string) interface{} {
 		// ToLower is required as column name in result is in lower case
-		return alert.Values[strings.ToLower(key)]
+		i := alert.Values[strings.ToLower(key)]
+		switch v := i.(type) {
+		case int8:
+			return int64(v)
+		case int16:
+			return int64(v)
+		case int:
+			return int64(v)
+		case int32:
+			return int64(v)
+		case float32:
+			return float64(v)
+		default:
+			return v
+		}
 	})
 
 	val, ok := res.(bool)

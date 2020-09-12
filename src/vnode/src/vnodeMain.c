@@ -57,6 +57,9 @@ void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
 #endif
 
 int32_t vnodeInitResources() {
+  int code = syncInit();
+  if (code != 0) return code;
+
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
@@ -70,11 +73,12 @@ int32_t vnodeInitResources() {
 }
 
 void vnodeCleanupResources() {
-
   if (tsDnodeVnodesHash != NULL) {
     taosHashCleanup(tsDnodeVnodesHash);
     tsDnodeVnodesHash = NULL;
   }
+
+  syncCleanUp();
 }
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
@@ -382,7 +386,13 @@ void vnodeRelease(void *pVnodeRaw) {
     char newDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
     sprintf(newDir, "%s/vnode%d", tsVnodeBakDir, vgId);
-    taosRename(rootDir, newDir);
+
+    if (0 == tsEnableVnodeBak) {
+      vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
+    } else {
+      taosRename(rootDir, newDir);
+    }
+
     taosRemoveDir(rootDir);
     dnodeSendStatusMsgToMnode();
   }
@@ -671,9 +681,13 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
 
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
+
+  vInfo("vgId:%d, save vnode cfg, replica:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.replications);
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", pVnodeCfg->nodes[i].nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", pVnodeCfg->nodes[i].nodeEp);
+    vInfo("vgId:%d, save vnode cfg, nodeId:%d nodeEp:%s", pVnodeCfg->cfg.vgId, pVnodeCfg->nodes[i].nodeId,
+          pVnodeCfg->nodes[i].nodeEp);
 
     if (i < pVnodeCfg->cfg.replications - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");

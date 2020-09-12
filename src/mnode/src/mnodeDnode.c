@@ -72,6 +72,7 @@ static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
     pDnode->lastAccess = tsAccessSquence;
   }
 
+  mInfo("dnode:%d, fqdn:%s ep:%s port:%d, do insert action", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
 

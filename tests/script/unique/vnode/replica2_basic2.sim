@@ -25,8 +25,8 @@ system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
 sql create dnode $hostname2
-system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep 3000
 

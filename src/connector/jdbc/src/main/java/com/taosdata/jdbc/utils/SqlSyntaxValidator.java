@@ -23,6 +23,7 @@ import java.sql.SQLException;
 public class SqlSyntaxValidator {
 
     private TSDBConnection tsdbConnection;
+
     public SqlSyntaxValidator(Connection connection) {
         this.tsdbConnection = (TSDBConnection) connection;
     }

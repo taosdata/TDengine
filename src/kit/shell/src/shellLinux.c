@@ -409,7 +409,7 @@ void set_terminal_mode() {
   }
 }
 
-void get_history_path(char *history) { sprintf(history, "%s/%s", getenv("HOME"), HISTORY_FILE); }
+void get_history_path(char *history) { snprintf(history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;

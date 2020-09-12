@@ -42,8 +42,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     private SavedPreparedStatement savedPreparedStatement;
 
-    TSDBPreparedStatement(TSDBJNIConnector connecter, String sql) {
-        super(connecter);
+    TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
+        super(connection, connecter);
         init(sql);
     }
 
