@@ -165,7 +165,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
   
-  // set free cache node callback function for hash table
+  // set free cache node callback function
   pCacheObj->freeFp = fn;
   pCacheObj->refreshTime = refreshTimeInSeconds * 1000;
   pCacheObj->extendLifespan = extendLifespan;
@@ -322,7 +322,12 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
 }
 
 void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
-  if (pCacheObj == NULL || (*data) == NULL || (taosHashGetSize(pCacheObj->pHashTable) + pCacheObj->numOfElemsInTrash == 0)) {
+  if (taosHashGetSize(pCacheObj->pHashTable) + pCacheObj->numOfElemsInTrash == 0) {
+    return;
+  }
+
+  if (pCacheObj == NULL || (*data) == NULL) {
+    uError("cache:%s, NULL data to release", pCacheObj->name);
     return;
   }
   

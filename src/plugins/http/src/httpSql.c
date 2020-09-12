@@ -50,10 +50,6 @@ void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int n
     }
   }
 
-  // if (tscResultsetFetchCompleted(result)) {
-  //   isContinue = false;
-  // }
-
   if (isContinue) {
     // retrieve next batch of rows
     httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, continue retrieve, numOfRows:%d, sql:%s",
@@ -222,15 +218,6 @@ void httpProcessSingleSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int 
       isContinue = (encode->buildQueryJsonFp)(pContext, &pContext->singleCmd, result, numOfRows);
     }
   }
-
-#if 0
-  // todo refactor
-  if (tscResultsetFetchCompleted(result)) {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, resultset fetch completed", pContext, pContext->fd, pContext->ipstr,
-              pContext->user);
-    isContinue = false;
-  }
-#endif
 
   if (isContinue) {
     // retrieve next batch of rows

@@ -27,10 +27,7 @@
 #include "tutil.h"
 #include "tlockfree.h"
 
-#define TSC_MGMT_VNODE 999
-
 SRpcCorEpSet  tscMgmtEpSet;
-SRpcEpSet  tscDnodeEpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -236,11 +233,16 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
-  SSqlObj *pSql = (SSqlObj *)rpcMsg->ahandle;
-  if (pSql == NULL || pSql->signature != pSql) {
-    tscError("%p sql is already released", pSql);
+  uint64_t handle = (uint64_t) rpcMsg->ahandle;
+
+  void** p = taosCacheAcquireByKey(tscObjCache, &handle, sizeof(uint64_t));
+  if (p == NULL) {
+    rpcFreeCont(rpcMsg->pCont);
     return;
   }
+
+  SSqlObj* pSql = *p;
+  assert(pSql != NULL);
 
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
@@ -249,7 +251,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
 
-    tscFreeSqlObj(pSql);
+    taosCacheRelease(tscObjCache, (void**) &p, true);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -261,18 +263,18 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
-    tscFreeSqlObj(pSql);
+    taosCacheRelease(tscObjCache, (void**) &p, true);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
 
-  if (pEpSet) { 
+  if (pEpSet) {
     if (!tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
-      if(pCmd->command < TSDB_SQL_MGMT)  { 
-        tscUpdateVgroupInfo(pSql, pEpSet); 
+      if (pCmd->command < TSDB_SQL_MGMT) {
+        tscUpdateVgroupInfo(pSql, pEpSet);
       } else {
         tscUpdateMgmtEpSet(pEpSet);
-    }
+      }
     }
   }
 
@@ -294,7 +296,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     if (pSql->retry > pSql->maxRetry) {
       tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
     } else {
-      // wait for a little bit moment and then retry
+      // wait for a little bit moment and then retry, todo do not sleep in rpc callback thread
       if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
         int32_t duration = getWaitingTimeInterval(pSql->retry);
         taosMsleep(duration);
@@ -304,6 +306,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        taosCacheRelease(tscObjCache, (void**) &p, false);
         rpcFreeCont(rpcMsg->pCont);
         return;
       }
@@ -365,18 +368,21 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
+  bool shouldFree = false;
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     
-    bool shouldFree = tscShouldBeFreed(pSql);
+    shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
 
     if (shouldFree) {
+      void** p1 = p;
+      taosCacheRelease(tscObjCache, (void **)&p1, true);
       tscDebug("%p sqlObj is automatically freed", pSql);
-      tscFreeSqlObj(pSql);
     }
   }
 
+  taosCacheRelease(tscObjCache, (void**) &p, false);
   rpcFreeCont(rpcMsg->pCont);
 }
 
@@ -2000,7 +2006,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 
   createHBObj(pObj);
 
-  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+//  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
 }
@@ -2164,6 +2170,10 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->fp = tscTableMetaCallBack;
   pNew->param = pSql;
 
+  // TODO add test case on x86 platform
+  uint64_t adr = (uint64_t) pNew;
+  pNew->self = taosCachePut(tscObjCache, &adr, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2*60*1000);
+
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify upper application that current process need to be terminated
@@ -2265,6 +2275,9 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
+
+  uint64_t p = (uint64_t) pNew;
+  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
   tscDebug("%p new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql, pNew, pNewQueryInfo->numOfTables);
 
   pNew->fp = tscTableMetaCallBack;

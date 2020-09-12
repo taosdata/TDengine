@@ -252,11 +252,11 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pRes->tsrow == NULL) {
     int32_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
     pRes->numOfCols = numOfOutput;
-  
+
     pRes->tsrow  = calloc(numOfOutput, POINTER_BYTES);
     pRes->length = calloc(numOfOutput, sizeof(int32_t));
     pRes->buffer = calloc(numOfOutput, POINTER_BYTES);
-  
+
     // not enough memory
     if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
       taosTFree(pRes->tsrow);
@@ -268,7 +268,7 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tscDestroyResPointerInfo(SSqlRes* pRes) {
+static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   if (pRes->buffer != NULL) { // free all buffers containing the multibyte string
     for (int i = 0; i < pRes->numOfCols; i++) {
       taosTFree(pRes->buffer[i]);
@@ -367,12 +367,36 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   tscResetSqlCmdObj(pCmd, false);
 }
 
+static void tscFreeSubobj(SSqlObj* pSql) {
+  if (pSql->numOfSubs == 0) {
+    return;
+  }
+
+  tscDebug("%p start to free sub SqlObj, numOfSub:%d", pSql, pSql->numOfSubs);
+
+  for(int32_t i = 0; i < pSql->numOfSubs; ++i) {
+    tscDebug("%p free sub SqlObj:%p, index:%d", pSql, pSql->pSubs[i], i);
+    taos_free_result(pSql->pSubs[i]);
+    pSql->pSubs[i] = NULL;
+  }
+
+  pSql->numOfSubs = 0;
+}
+
+void tscFreeSqlObjInCache(void *pSql) {
+  assert(pSql != NULL);
+  SSqlObj** p = (SSqlObj**) pSql;
+
+  tscFreeSqlObj(*p);
+}
+
 void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
   }
 
   tscDebug("%p start to free sql object", pSql);
+  tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
 
   pSql->signature = NULL;
@@ -724,13 +748,25 @@ void tscCloseTscObj(STscObj* pObj) {
   
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
-  pthread_mutex_destroy(&pObj->mutex);
-  
+
+  // wait for all sqlObjs created according to this connect closed
+  while(1) {
+    pthread_mutex_lock(&pObj->mutex);
+    void* p = pObj->sqlList;
+    pthread_mutex_unlock(&pObj->mutex);
+
+    if (p == NULL) {
+      break;
+    }
+  }
+
   if (pObj->pDnodeConn != NULL) {
     rpcClose(pObj->pDnodeConn);
     pObj->pDnodeConn = NULL;
   }
-  
+
+  pthread_mutex_destroy(&pObj->mutex);
+
   tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, pObj->pDnodeConn);
   taosTFree(pObj);
 }
@@ -1721,6 +1757,9 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
+
+  uint64_t p = (uint64_t) pNew;
+  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
   return pNew;
 }
 
@@ -1960,6 +1999,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscDebug("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->vgroupIndex);
   }
 
+  uint64_t p = (uint64_t) pNew;
+  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 10);
   return pNew;
 
 _error:
@@ -2099,11 +2140,6 @@ int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* s
 bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
   assert(pQueryInfo != NULL && pQueryInfo->clauseLimit != 0);
   return (pQueryInfo->clauseLimit > 0 && pRes->numOfClauseTotal >= pQueryInfo->clauseLimit);
-}
-
-bool tscResultsetFetchCompleted(TAOS_RES *result) {
-  SSqlRes* pRes = result;
-  return pRes->completed; 
 }
 
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }

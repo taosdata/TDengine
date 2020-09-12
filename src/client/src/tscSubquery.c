@@ -1512,9 +1512,9 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   SSqlObj *pParentSql = trsupport->pParentSql;
 
   assert(pSql == pParentSql->pSubs[index]);
-  pParentSql->pSubs[index] = NULL;
-
-  taos_free_result(pSql);
+//  pParentSql->pSubs[index] = NULL;
+//
+//  taos_free_result(pSql);
   taosTFree(trsupport->localBuffer);
   taosTFree(trsupport);
 }
@@ -1728,10 +1728,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
 
   assert(tres != NULL);
   SSqlObj *pSql = (SSqlObj *)tres;
-//  if (pSql == NULL) {  // sql object has been released in error process, return immediately
-//    tscDebug("%p subquery has been released, idx:%d, abort", pParentSql, idx);
-//    return;
-//  }
 
   SSubqueryState* pState = trsupport->pState;
   assert(pState->numOfRemain <= pState->numOfTotal && pState->numOfRemain >= 0 && pParentSql->numOfSubs == pState->numOfTotal);
@@ -1907,9 +1903,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     pParentObj->res.code = pSql->res.code;
   }
 
-  taos_free_result(tres);
   taosTFree(pSupporter);
-
   if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
     return;
   }
@@ -2029,11 +2023,6 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 
   _error:
-  for(int32_t j = 0; j < numOfSub; ++j) {
-    taosTFree(pSql->pSubs[j]->param);
-    taos_free_result(pSql->pSubs[j]);
-  }
-
   taosTFree(pState);
   return TSDB_CODE_TSC_OUT_OF_MEMORY;
 }

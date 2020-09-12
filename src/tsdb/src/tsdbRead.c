@@ -248,6 +248,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL && sizeOfGroup >= 1 && pCond != NULL && pCond->numOfCols > 0);
 
+  // todo apply the lastkey of table check to avoid to load header file
   for (int32_t i = 0; i < sizeOfGroup; ++i) {
     SArray* group = *(SArray**) taosArrayGet(groupList->pGroupList, i);
 

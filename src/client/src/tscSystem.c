@@ -30,7 +30,8 @@
 #include "tlocale.h"
 
 // global, not configurable
-void *  tscCacheHandle;
+SCacheObj*  tscCacheHandle;
+SCacheObj*  tscObjCache;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
@@ -146,6 +147,7 @@ void taos_init_imp(void) {
 
   if (tscCacheHandle == NULL) {
     tscCacheHandle = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL, "tableMeta");
+    tscObjCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, refreshTime, false, tscFreeSqlObjInCache, "sqlObjHandle");
   }
 
   tscDebug("client is initialized successfully");
@@ -157,6 +159,9 @@ void taos_cleanup() {
   if (tscCacheHandle != NULL) {
     taosCacheCleanup(tscCacheHandle);
     tscCacheHandle = NULL;
+
+    taosCacheCleanup(tscObjCache);
+    tscObjCache = NULL;
   }
   
   if (tscQhandle != NULL) {
