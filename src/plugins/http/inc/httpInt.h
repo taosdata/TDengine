@@ -28,6 +28,8 @@
 #include "httpLog.h"
 #include "httpJson.h"
 
+#include "ehttp_parser.h"
+
 #define HTTP_MAX_CMD_SIZE           1024
 #define HTTP_MAX_BUFFER_SIZE        1024*1024
 
@@ -162,6 +164,11 @@ typedef struct {
   int32_t len;
 } HttpBuf;
 
+typedef enum {
+  EHTTP_CONTEXT_PROCESS_FAILED = 0x01,
+  EHTTP_CONTEXT_PARSER_FAILED  = 0x02
+} EHTTP_CONTEXT_FAILED_CAUSE;
+
 typedef struct {
   char              buffer[HTTP_BUFFER_SIZE];
   int               bufsize;
@@ -172,6 +179,10 @@ typedef struct {
   HttpBuf           data;                // body content
   HttpBuf           token;               // auth token
   HttpDecodeMethod *pMethod;
+
+  ehttp_parser_t        *parser;
+  int                    inited:2;
+  int                    failed:4;
 } HttpParser;
 
 typedef struct HttpContext {
@@ -201,6 +212,8 @@ typedef struct HttpContext {
   void *       timer;
   HttpEncodeMethod * encodeMethod;
   struct HttpThread *pThread;
+
+  int             closed:2;
 } HttpContext;
 
 typedef struct HttpThread {
@@ -231,6 +244,8 @@ typedef struct HttpServer {
   pthread_mutex_t   serverMutex;
   HttpDecodeMethod *methodScanner[HTTP_METHOD_SCANNER_SIZE];
   bool (*processData)(HttpContext *pContext);
+
+  int               fallback:2;
 } HttpServer;
 
 extern const char *httpKeepAliveStr[];

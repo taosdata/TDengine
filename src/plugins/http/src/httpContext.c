@@ -27,17 +27,42 @@
 #include "httpSql.h"
 #include "httpSession.h"
 
+#include "httpContext.h"
+#include "elog.h"
+
+// dirty tweak
+extern bool httpGetHttpMethod(HttpContext* pContext);
+extern bool httpParseURL(HttpContext* pContext);
+extern bool httpParseHttpVersion(HttpContext* pContext);
+extern bool httpGetDecodeMethod(HttpContext* pContext);
+extern bool httpParseHead(HttpContext* pContext);
+
+static void on_request_line(void *arg, const char *method, const char *target, const char *version, const char *target_raw);
+static void on_status_line(void *arg, const char *version, int status_code, const char *reason_phrase);
+static void on_header_field(void *arg, const char *key, const char *val);
+static void on_body(void *arg, const char *chunk, size_t len);
+static void on_end(void *arg);
+static void on_error(void *arg, int status_code);
+
+static void httpDestroyContext(void *data);
+static void httpMightDestroyContext(void *data);
+static void ehttpReleaseContext(HttpContext *pContext);
+
 static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
     int32_t fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
     taosCloseSocket(fd);
+    if (!tsHttpServer.fallback) {
+      ehttpDecContextRef(&pContext);
+    }
   }
 }
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
+  D("==context[%p] destroyed==", pContext);
   if (pContext->fd > 0) taosClose(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
@@ -54,11 +79,18 @@ static void httpDestroyContext(void *data) {
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
 
+  if (!tsHttpServer.fallback) {
+    if (pContext->parser.parser) {
+      ehttp_parser_destroy(pContext->parser.parser);
+      pContext->parser.parser = NULL;
+    }
+  }
+
   taosTFree(pContext);
 }
 
 bool httpInitContexts() {
-  tsHttpServer.contextCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 2, true, httpDestroyContext, "restc");
+  tsHttpServer.contextCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 2, true, httpMightDestroyContext, "restc");
   if (tsHttpServer.contextCache == NULL) {
     httpError("failed to init context cache");
     return false;
@@ -103,16 +135,20 @@ HttpContext *httpCreateContext(int32_t fd) {
   HttpContext *pContext = calloc(1, sizeof(HttpContext));
   if (pContext == NULL) return NULL;
 
+  D("==context[%p] created==", pContext);
+
   pContext->fd = fd;
   pContext->httpVersion = HTTP_VERSION_10;
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
 
+  ehttpIncContextRef(pContext);
   uint64_t handleVal = (uint64_t)pContext;
   HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(int64_t), &pContext, sizeof(int64_t), 3000);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
+  ehttpIncContextRef(pContext);
   // set the ref to 0 
   taosCacheRelease(tsHttpServer.contextCache, (void**)&ppContext, false);
 
@@ -122,10 +158,13 @@ HttpContext *httpCreateContext(int32_t fd) {
 HttpContext *httpGetContext(void *ptr) {
   uint64_t handleVal = (uint64_t)ptr;
   HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
+  EQ_ASSERT(ppContext);
+  EQ_ASSERT(*ppContext);
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;
     if (pContext) {
+      if (!tsHttpServer.fallback) return pContext;
       int32_t refCount = atomic_add_fetch_32(&pContext->refCount, 1);
       httpDebug("context:%p, fd:%d, is accquired, data:%p refCount:%d", pContext, pContext->fd, ppContext, refCount);
       return pContext;
@@ -135,6 +174,10 @@ HttpContext *httpGetContext(void *ptr) {
 }
 
 void httpReleaseContext(HttpContext *pContext) {
+  if (!tsHttpServer.fallback) {
+    ehttpReleaseContext(pContext);
+    return;
+  }
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   if (refCount < 0) {
     httpError("context:%p, is already released, refCount:%d", pContext, refCount);
@@ -169,12 +212,31 @@ bool httpInitContext(HttpContext *pContext) {
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
 
+  if (!tsHttpServer.fallback) {
+    ehttp_parser_callbacks_t callbacks = {
+      on_request_line,
+      on_status_line,
+      on_header_field,
+      on_body,
+      on_end,
+      on_error
+    };
+    ehttp_parser_conf_t conf = {
+      .flush_block_size = 0
+    };
+    pParser->parser = ehttp_parser_create(callbacks, conf, pContext);
+    pParser->inited = 1;
+  }
+
   httpDebug("context:%p, fd:%d, ip:%s, accessTimes:%d, parsed:%d", pContext, pContext->fd, pContext->ipstr,
             pContext->accessTimes, pContext->parsed);
   return true;
 }
 
 void httpCloseContextByApp(HttpContext *pContext) {
+  if (!tsHttpServer.fallback) {
+    if (pContext->parsed == false) return;
+  }
   pContext->parsed = false;
   bool keepAlive = true;
 
@@ -211,10 +273,14 @@ void httpCloseContextByApp(HttpContext *pContext) {
               pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
   }
 
-  httpReleaseContext(pContext);
+  if (tsHttpServer.fallback) httpReleaseContext(pContext);
 }
 
 void httpCloseContextByServer(HttpContext *pContext) {
+  if (!tsHttpServer.fallback) {
+    if (pContext->closed) return;
+    pContext->closed = 1;
+  }
   if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_DROPPING)) {
     httpDebug("context:%p, fd:%d, ip:%s, epoll finished, still used by app", pContext, pContext->fd, pContext->ipstr);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_DROPPING)) {
@@ -229,5 +295,176 @@ void httpCloseContextByServer(HttpContext *pContext) {
 
   pContext->parsed = false;
   httpRemoveContextFromEpoll(pContext);
-  httpReleaseContext(pContext);
+  if (tsHttpServer.fallback) httpReleaseContext(pContext);
 }
+
+
+
+
+
+static void on_request_line(void *arg, const char *method, const char *target, const char *version, const char *target_raw) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
+  int n = snprintf(pParser->pLast, avail,
+                   "%s %s %s\r\n", method, target_raw, version);
+
+  char *last = pParser->pLast;
+
+  do {
+    if (n>=avail) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), exceeding buffer size",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    pParser->bufsize += n;
+
+    if (!httpGetHttpMethod(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), parse http method failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    if (!httpParseURL(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), parse http url failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    if (!httpParseHttpVersion(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), parse http version failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+    if (!httpGetDecodeMethod(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_request_line(%s,%s,%s,%s), get decode method failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, method, target, version, target_raw);
+      break;
+    }
+
+    last              += n;
+    pParser->pLast     = last;
+    return;
+  } while (0);
+
+  pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+}
+
+static void on_status_line(void *arg, const char *version, int status_code, const char *reason_phrase) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+}
+
+static void on_header_field(void *arg, const char *key, const char *val) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  if (pParser->failed) return;
+
+  D("==key:[%s], val:[%s]==", key, val);
+  int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
+  int n = snprintf(pParser->pLast, avail,
+                   "%s: %s\r\n", key, val);
+
+  char *last = pParser->pLast;
+
+  do {
+    if (n>=avail) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_header_field(%s,%s), exceeding buffer size",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, key, val);
+      break;
+    }
+    pParser->bufsize += n;
+    pParser->pCur     = pParser->pLast + n;
+
+    if (!httpParseHead(pContext)) {
+      httpDebug("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, on_header_field(%s,%s), parse head failed",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, key, val);
+      break;
+    }
+
+    last              += n;
+    pParser->pLast     = last;
+    return;
+  } while (0);
+
+  pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+}
+
+static void on_body(void *arg, const char *chunk, size_t len) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  if (pParser->failed) return;
+
+  if (pParser->data.pos == 0) {
+    pParser->data.pos = pParser->pLast;
+    pParser->data.len = 0;
+  }
+
+  int avail = sizeof(pParser->buffer) - (pParser->pLast - pParser->buffer);
+  if (len+1>=avail) {
+    pParser->failed |= EHTTP_CONTEXT_PROCESS_FAILED;
+    return;
+  }
+  memcpy(pParser->pLast, chunk, len);
+  pParser->pLast    += len;
+  pParser->data.len += len;
+}
+
+static void on_end(void *arg) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  if (pParser->failed) return;
+
+  if (pParser->data.pos == 0) pParser->data.pos = pParser->pLast;
+
+  if (!pContext->parsed) {
+    pContext->parsed = true;
+  }
+}
+
+static void on_error(void *arg, int status_code) {
+  HttpContext *pContext = (HttpContext*)arg;
+  HttpParser  *pParser  = &pContext->parser;
+
+  pParser->failed |= EHTTP_CONTEXT_PARSER_FAILED;
+}
+
+static void httpMightDestroyContext(void *data) {
+  HttpContext *pContext = *(HttpContext **)data;
+  if (!tsHttpServer.fallback) {
+    httpRemoveContextFromEpoll(pContext);
+    ehttpDecContextRef(&pContext);
+    return;
+  }
+  httpDestroyContext(data);
+}
+
+static void ehttpReleaseContext(HttpContext *pContext) {
+  HttpContext **ppContext = pContext->ppContext;
+
+  if (tsHttpServer.contextCache != NULL) {
+    taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
+  } else {
+    httpDebug("context:%p, won't be destroyed for cache is already released", pContext);
+    // httpDestroyContext((void **)(&ppContext));
+  }
+}
+
+void ehttpIncContextRef(HttpContext *pContext) {
+  if (tsHttpServer.fallback) return;
+  atomic_add_fetch_32(&pContext->refCount, 1);
+}
+
+void ehttpDecContextRef(HttpContext **ppContext) {
+  if (tsHttpServer.fallback) return;
+  HttpContext *pContext = *ppContext;
+  int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
+  if (refCount>0) return;
+  EQ_ASSERT(refCount==0);
+  httpDestroyContext(ppContext);
+}
+

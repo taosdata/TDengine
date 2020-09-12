@@ -25,9 +25,13 @@
 #include "httpResp.h"
 #include "httpUtil.h"
 
+#include "elog.h"
+
 #ifndef EPOLLWAKEUP
  #define EPOLLWAKEUP (1u << 29)
 #endif
+
+static bool ehttpReadData(HttpContext *pContext);
 
 static void httpStopThread(HttpThread* pThread) {
   pThread->stop = true;
@@ -134,6 +138,8 @@ static bool httpDecompressData(HttpContext *pContext) {
 }
 
 static bool httpReadData(HttpContext *pContext) {
+  if (!tsHttpServer.fallback) return ehttpReadData(pContext);
+
   if (!pContext->parsed) {
     httpInitContext(pContext);
   }
@@ -188,6 +194,8 @@ static void httpProcessHttpData(void *param) {
   sigaddset(&set, SIGPIPE);
   pthread_sigmask(SIG_SETMASK, &set, NULL);
 
+  elog_set_thread_name("httpProcessHttpData");
+
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];
     //-1 means uncertainty, 0-nowait, 1-wait 1 ms, set it from -1 to 1
@@ -207,10 +215,14 @@ static void httpProcessHttpData(void *param) {
         continue;
       }
 
+      ehttpIncContextRef(pContext);
+
       if (events[i].events & EPOLLPRI) {
         httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLPRI events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
+        if (!tsHttpServer.fallback) httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
         continue;
       }
 
@@ -218,6 +230,8 @@ static void httpProcessHttpData(void *param) {
         httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLRDHUP events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
+        httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
         continue;
       }
 
@@ -225,6 +239,8 @@ static void httpProcessHttpData(void *param) {
         httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLERR events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
+        if (!tsHttpServer.fallback) httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
         continue;
       }
 
@@ -232,6 +248,8 @@ static void httpProcessHttpData(void *param) {
         httpDebug("context:%p, fd:%d, ip:%s, state:%s, EPOLLHUP events occured, accessed:%d, close connect",
                   pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpCloseContextByServer(pContext);
+        if (!tsHttpServer.fallback) httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
         continue;
       }
 
@@ -239,6 +257,7 @@ static void httpProcessHttpData(void *param) {
         httpDebug("context:%p, fd:%d, ip:%s, state:%s, not in ready state, ignore read events",
                 pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state));
         httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
         continue;
       }
 
@@ -247,11 +266,15 @@ static void httpProcessHttpData(void *param) {
                   pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), pContext->accessTimes);
         httpSendErrorResp(pContext, HTTP_SERVER_OFFLINE);
         httpNotifyContextClose(pContext);
+        if (!tsHttpServer.fallback) httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
       } else {
         if (httpReadData(pContext)) {
           (*(pThread->processData))(pContext);
           atomic_fetch_add_32(&pServer->requestNum, 1);
         }
+        if (!tsHttpServer.fallback) httpReleaseContext(pContext);
+        ehttpDecContextRef(&pContext);
       }
     }
   }
@@ -332,7 +355,8 @@ static void *httpAcceptHttpConnection(void *arg) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
                 pContext->ipstr, pThread->label, strerror(errno));
       taosClose(pContext->fd);
-      httpReleaseContext(pContext);
+      if (tsHttpServer.fallback) httpReleaseContext(pContext);
+      ehttpDecContextRef(&pContext);
       continue;
     }
 
@@ -405,3 +429,80 @@ bool httpInitConnect() {
             pServer->serverPort, pServer->numOfThreads);
   return true;
 }
+
+
+
+
+static bool ehttpReadData(HttpContext *pContext) {
+  HttpParser *pParser = &pContext->parser;
+  EQ_ASSERT(!pContext->parsed);
+  if (!pParser->parser) {
+    if (!pParser->inited) {
+      httpInitContext(pContext);
+    }
+    if (!pParser->parser) {
+      return false;
+    }
+  }
+
+  pContext->accessTimes++;
+  pContext->lastAccessTime = taosGetTimestampSec();
+
+  char buf[HTTP_STEP_SIZE+1] = {0};
+  int nread = (int)taosReadSocket(pContext->fd, buf, sizeof(buf));
+  if (nread > 0) {
+    buf[nread] = '\0';
+    if (strstr(buf, "GET ")==buf && !strchr(buf, '\r') && !strchr(buf, '\n')) {
+      D("==half of request line received:\n%s\n==", buf);
+    }
+
+    if (ehttp_parser_parse(pParser->parser, buf, nread)) {
+      D("==parsing failed==");
+      httpCloseContextByServer(pContext);
+      return false;
+    }
+
+    if (pContext->parser.failed) {
+      D("==parsing failed: [0x%x]==", pContext->parser.failed);
+      httpNotifyContextClose(pContext);
+      return false;
+    }
+    if (pContext->parsed) {
+      // int ret = httpCheckReadCompleted(pContext);
+      // already done in ehttp_parser
+      int ret = HTTP_CHECK_BODY_SUCCESS;
+      if (ret == HTTP_CHECK_BODY_CONTINUE) {
+        //httpDebug("context:%p, fd:%d, ip:%s, not finished yet, wait another event", pContext, pContext->fd, pContext->ipstr);
+        return false;
+      } else if (ret == HTTP_CHECK_BODY_SUCCESS){
+        httpDebug("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
+                  pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->parser.bufsize, pContext->parser.data.len);
+        if (httpDecompressData(pContext)) {
+          return true;
+        } else {
+          httpNotifyContextClose(pContext);
+          return false;
+        }
+      } else {
+        httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
+        httpNotifyContextClose(pContext);
+        return false;
+      }
+    }
+    return pContext->parsed;
+  } else if (nread < 0) {
+    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+      httpDebug("context:%p, fd:%d, ip:%s, read from socket error:%d, wait another event",
+                pContext, pContext->fd, pContext->ipstr, errno);
+      return false; // later again
+    } else {
+      httpError("context:%p, fd:%d, ip:%s, read from socket error:%d, close connect",
+                pContext, pContext->fd, pContext->ipstr, errno);
+      return false;
+    }
+  } else {
+    // eof
+    return false;
+  }
+}
+
