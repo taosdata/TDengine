@@ -25,8 +25,6 @@
 #include "httpResp.h"
 #include "httpUtil.h"
 
-#include "elog.h"
-
 #ifndef EPOLLWAKEUP
  #define EPOLLWAKEUP (1u << 29)
 #endif
@@ -334,7 +332,7 @@ bool httpInitConnect() {
 
 static bool httpReadData(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;
-  EQ_ASSERT(!pContext->parsed);
+  ASSERT(!pContext->parsed);
 
   if (!pParser->parser) {
     if (!pParser->inited) {

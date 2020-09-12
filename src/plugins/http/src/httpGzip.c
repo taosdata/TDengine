@@ -1,9 +1,6 @@
-#include "ehttp_gzip.h"
-
 #include "os.h"
 #include "zlib.h"
-
-#include <stdlib.h>
+#include "httpGzip.h"
 
 typedef enum {
   EHTTP_GZIP_INITING,

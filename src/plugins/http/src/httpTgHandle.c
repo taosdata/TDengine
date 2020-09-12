@@ -19,8 +19,8 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "httpInt.h"
-#include "tgHandle.h"
-#include "tgJson.h"
+#include "httpTgHandle.h"
+#include "httpTgJson.h"
 #include "cJSON.h"
 
 /*

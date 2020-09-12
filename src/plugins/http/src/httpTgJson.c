@@ -19,8 +19,8 @@
 #include "httpLog.h"
 #include "httpJson.h"
 #include "httpResp.h"
-#include "tgHandle.h"
-#include "tgJson.h"
+#include "httpTgHandle.h"
+#include "httpTgJson.h"
 
 void tgInitQueryJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);

@@ -18,8 +18,8 @@
 #include "tglobal.h"
 #include "httpLog.h"
 #include "httpJson.h"
-#include "restHandle.h"
-#include "restJson.h"
+#include "httpRestHandle.h"
+#include "httpRestJson.h"
 
 void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);

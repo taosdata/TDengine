@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "httpLog.h"
-#include "restHandle.h"
-#include "restJson.h"
+#include "httpRestHandle.h"
+#include "httpRestJson.h"
 
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};

@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosdef.h"
 #include "cJSON.h"
 #include "httpLog.h"
-#include "gcHandle.h"
-#include "gcJson.h"
-#include "taosdef.h"
+#include "httpGcHandle.h"
+#include "httpGcJson.h"
 
 static HttpDecodeMethod gcDecodeMethod = {"grafana", gcProcessRequest};
 static HttpEncodeMethod gcHeartBeatMethod = {

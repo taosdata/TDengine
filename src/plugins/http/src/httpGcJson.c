@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "gcHandle.h"
-#include "gcJson.h"
+#include "httpGcHandle.h"
+#include "httpGcJson.h"
 #include "httpJson.h"
 #include "httpResp.h"
 

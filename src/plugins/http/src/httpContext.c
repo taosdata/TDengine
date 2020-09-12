@@ -27,7 +27,6 @@
 #include "httpSql.h"
 #include "httpSession.h"
 #include "httpContext.h"
-#include "elog.h"
 
 extern bool httpGetHttpMethod(HttpContext* pContext);
 extern bool httpParseURL(HttpContext* pContext);
@@ -144,8 +143,8 @@ HttpContext *httpCreateContext(int32_t fd) {
 HttpContext *httpGetContext(void *ptr) {
   uint64_t handleVal = (uint64_t)ptr;
   HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
-  EQ_ASSERT(ppContext);
-  EQ_ASSERT(*ppContext);
+  ASSERT(ppContext);
+  ASSERT(*ppContext);
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;

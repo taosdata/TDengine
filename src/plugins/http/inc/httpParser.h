@@ -1,8 +1,7 @@
 #ifndef HTTP_PARSER_H
 #define HTTP_PARSER_H
 
-#include "ehttp_util_string.h"
-#include "ehttp_gzip.h"
+#include "httpGzip.h"
 
 struct HttpContext;
 
@@ -24,6 +23,11 @@ typedef enum HTTP_PARSER_STATE {
   HTTP_PARSER_END,
   HTTP_PARSER_ERROR,
 } HTTP_PARSER_STATE;
+
+typedef struct HttpParserString {
+  char * str;
+  size_t len;
+} HttpParserString;
 
 typedef struct HttpParserStatusObj {
   int32_t     status_code;
@@ -77,10 +81,15 @@ typedef struct HttpParserObj {
   size_t             received_chunk_size;
   size_t             received_size;
   ehttp_gzip_t *     gzip;
-  HttpUtilString     str;
+  HttpParserString     str;
   HTTP_PARSER_STATE *stacks;
   size_t             stacks_count;
 } HttpParserObj;
+
+void    httpParserCleanupString(HttpParserString *str);
+int32_t httpParserAppendString(HttpParserString *str, const char *s, int32_t len);
+void    httpParserClearString(HttpParserString *str);
+
 
 HttpParserObj* httpParserCreate(HttpParserCallbackObj callbacks, HttpParserConfObj conf, void *arg);
 void           httpParserDestroy(HttpParserObj *parser);

@@ -27,8 +27,7 @@
 #include "httpCode.h"
 #include "httpLog.h"
 #include "httpJson.h"
-
-#include "ehttp_parser.h"
+#include "httpParser.h"
 
 #define HTTP_MAX_CMD_SIZE           1024
 #define HTTP_MAX_BUFFER_SIZE        1024*1024

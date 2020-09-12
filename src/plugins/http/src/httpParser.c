@@ -1,18 +1,8 @@
 #include "os.h"
 #include "httpLog.h"
 #include "httpContext.h"
-#include "ehttp_util_string.h"
-#include "ehttp_parser.h"
-
-#include "ehttp_gzip.h"
-#include "ehttp_util_string.h"
-#include "elog.h"
-
-
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "httpParser.h"
+#include "httpGzip.h"
 
 static HttpParserStatusObj status_codes[] = {
   {100, "Continue"},
@@ -213,7 +203,7 @@ void httpParserDestroy(HttpParserObj *parser) {
 
 char *ehttp_parser_urldecode(const char *enc) {
   int ok = 1;
-  HttpUtilString str = {0};
+  HttpParserString str = {0};
   while (*enc) {
     char *p = strchr(enc, '%');
     if (!p) break;
@@ -915,4 +905,28 @@ int32_t httpParserBuf(HttpContext *pContext, HttpParserObj *parser, const char *
   }
 
   return ret;
+}
+
+void httpParserCleanupString(HttpParserString *str) {
+  free(str->str);
+  str->str = NULL;
+  str->len = 0;
+}
+
+int32_t httpParserAppendString(HttpParserString *str, const char *s, int32_t len) {
+  int32_t n   = str->len;
+  char *p     = (char*)realloc(str->str, n + len + 1);
+  if (!p) return -1;
+  strncpy(p+n, s, len);
+  p[n+len]    = '\0';
+  str->str    = p;
+  str->len    = n+len;
+  return 0;
+}
+
+void httpParserClearString(HttpParserString *str) {
+  if (str->str) {
+    str->str[0] = '\0';
+    str->len    = 0;
+  }
 }

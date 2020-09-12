@@ -27,9 +27,9 @@
 #include "httpResp.h"
 #include "httpHandle.h"
 #include "httpQueue.h"
-#include "gcHandle.h"
-#include "restHandle.h"
-#include "tgHandle.h"
+#include "httpGcHandle.h"
+#include "httpRestHandle.h"
+#include "httpTgHandle.h"
 
 #ifndef _ADMIN
 void adminInitHandle(HttpServer* pServer) {}
