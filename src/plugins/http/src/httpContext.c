@@ -26,11 +26,9 @@
 #include "httpResp.h"
 #include "httpSql.h"
 #include "httpSession.h"
-
 #include "httpContext.h"
 #include "elog.h"
 
-// dirty tweak
 extern bool httpGetHttpMethod(HttpContext* pContext);
 extern bool httpParseURL(HttpContext* pContext);
 extern bool httpParseHttpVersion(HttpContext* pContext);
@@ -74,7 +72,7 @@ static void httpDestroyContext(void *data) {
   httpFreeMultiCmds(pContext);
 
   if (pContext->parser.parser) {
-    ehttp_parser_destroy(pContext->parser.parser);
+    httpParserDestroy(pContext->parser.parser);
     pContext->parser.parser = NULL;
   }
 
@@ -195,7 +193,7 @@ bool httpInitContext(HttpContext *pContext) {
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
 
-  ehttp_parser_callbacks_t callbacks = {
+  HttpParserCallbackObj callbacks = {
     httpParseOnRequestLine,
     httpParseOnStatusLine,
     httpParseOnHeaderField,
@@ -203,10 +201,10 @@ bool httpInitContext(HttpContext *pContext) {
     httpParseOnEnd,
     httpParseOnError
   };
-  ehttp_parser_conf_t conf = {
+  HttpParserConfObj conf = {
     .flush_block_size = 0
   };
-  pParser->parser = ehttp_parser_create(callbacks, conf, pContext);
+  pParser->parser = httpParserCreate(callbacks, conf, pContext);
   pParser->inited = 1;
 
   httpDebug("context:%p, fd:%d, parsed:%d", pContext, pContext->fd, pContext->parsed);

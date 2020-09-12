@@ -1,18 +1,13 @@
-#ifndef _ehttp_util_string_h_99dacde5_2e7d_4662_97d6_04611fde683b_
-#define _ehttp_util_string_h_99dacde5_2e7d_4662_97d6_04611fde683b_
+#ifndef HTTP_UTIL_STRING
+#define HTTP_UTIL_STRING
 
-#include <stddef.h>
+typedef struct HttpUtilString {
+  char * str;
+  size_t len;
+} HttpUtilString;
 
-typedef struct ehttp_util_string_s   ehttp_util_string_t;
+void    httpParserCleanupString(HttpUtilString *str);
+int32_t httpParserAppendString(HttpUtilString *str, const char *s, int32_t len);
+void    httpParserClearString(HttpUtilString *str);
 
-struct ehttp_util_string_s {
-  char                        *str;
-  size_t                       len;
-};
-
-void ehttp_util_string_cleanup(ehttp_util_string_t *str);
-int  ehttp_util_string_append(ehttp_util_string_t *str, const char *s, size_t len);
-void ehttp_util_string_clear(ehttp_util_string_t *str);
-
-#endif // _ehttp_util_string_h_99dacde5_2e7d_4662_97d6_04611fde683b_
-
+#endif

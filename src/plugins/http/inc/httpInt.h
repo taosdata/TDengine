@@ -179,10 +179,9 @@ typedef struct {
   HttpBuf           data;                // body content
   HttpBuf           token;               // auth token
   HttpDecodeMethod *pMethod;
-
-  ehttp_parser_t        *parser;
-  int                    inited:2;
-  int                    failed:4;
+  HttpParserObj *  parser;
+  int8_t            inited;
+  int8_t            failed;
 } HttpParser;
 
 typedef struct HttpContext {

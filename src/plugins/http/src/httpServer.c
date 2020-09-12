@@ -352,8 +352,11 @@ static bool httpReadData(HttpContext *pContext) {
   int  nread = (int)taosReadSocket(pContext->fd, buf, sizeof(buf));
   if (nread > 0) {
     buf[nread] = '\0';
-    if (ehttp_parser_parse(pParser->parser, buf, nread)) {
-      httpError("context:%p, fd:%d, init parse failed, close connect", pContext, pContext->fd);
+    httpTrace("context:%p, fd:%d, nread:%d content:%s", pContext, pContext->fd, nread, buf);
+    int ok = httpParserBuf(pContext, pParser->parser, buf, nread);
+
+    if (ok) {
+      httpError("context:%p, fd:%d, init parse failed, reason:%d close connect", pContext, pContext->fd, ok);
       httpNotifyContextClose(pContext);
       return false;
     }
