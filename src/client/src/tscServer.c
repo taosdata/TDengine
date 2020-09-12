@@ -248,6 +248,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
+  assert(*pSql->self == pSql);
+
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
 
@@ -262,6 +264,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
+
+    void** p1 = p;
+    taosCacheRelease(tscObjCache, (void**) &p1, false);
 
     taosCacheRelease(tscObjCache, (void**) &p, true);
     rpcFreeCont(rpcMsg->pCont);
@@ -368,21 +373,20 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
-  bool shouldFree = false;
+  bool shouldFree = tscShouldBeFreed(pSql);;
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
-    
-    shouldFree = tscShouldBeFreed(pSql);
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
-
-    if (shouldFree) {
-      void** p1 = p;
-      taosCacheRelease(tscObjCache, (void **)&p1, true);
-      tscDebug("%p sqlObj is automatically freed", pSql);
-    }
   }
 
+  void** p1 = p;
   taosCacheRelease(tscObjCache, (void**) &p, false);
+
+  if (shouldFree) {
+    taosCacheRelease(tscObjCache, (void **)&p1, true);
+    tscDebug("%p sqlObj is automatically freed", pSql);
+  }
+
   rpcFreeCont(rpcMsg->pCont);
 }
 

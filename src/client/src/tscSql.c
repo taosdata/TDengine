@@ -26,6 +26,7 @@
 #include "tsclient.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "tscProfile.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -536,39 +537,53 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 // send free message to vnode to free qhandle and corresponding resources in vnode
-//static bool tscKillQueryInVnode(SSqlObj* pSql) {
-//  SSqlCmd* pCmd = &pSql->cmd;
-//  SSqlRes* pRes = &pSql->res;
-//
-//  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-//
-//  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-//    return false;
-//  }
-//
-//  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && (pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL) &&
-//      (pCmd->command == TSDB_SQL_SELECT ||
-//       pCmd->command == TSDB_SQL_SHOW ||
-//       pCmd->command == TSDB_SQL_RETRIEVE ||
-//       pCmd->command == TSDB_SQL_FETCH)) {
-//
-//    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-//    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s, ", pSql, sqlCmd[pCmd->command]);
-//    tscProcessSql(pSql);
-//    return true;
-//  }
-//
-//  return false;
-//}
+static bool tscKillQueryInDnode(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+
+  if (pRes == NULL || pRes->qhandle == 0) {
+    return true;
+  }
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    return true;
+  }
+
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  tscRemoveFromSqlList(pSql);
+
+  int32_t cmd = pCmd->command;
+  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && pSql->pStream == NULL && (pTableMetaInfo->pTableMeta != NULL) &&
+      (cmd == TSDB_SQL_SELECT ||
+       cmd == TSDB_SQL_SHOW ||
+       cmd == TSDB_SQL_RETRIEVE ||
+       cmd == TSDB_SQL_FETCH)) {
+    pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s, ", pSql, sqlCmd[pCmd->command]);
+
+    tscProcessSql(pSql);
+    return false;
+  }
+
+  return true;
+}
 
 void taos_free_result(TAOS_RES *res) {
-  if (res == NULL) {
+  SSqlObj* pSql = (SSqlObj*) res;
+  if (pSql == NULL || pSql->signature != pSql) {
+    tscError("%p already released sqlObj", res);
     return;
   }
 
-  SSqlObj* pSql = (SSqlObj*) res;
-  taosCacheRelease(tscObjCache, (void**) &pSql->self, true);
+  assert(pSql->self != 0 && *pSql->self == pSql);
+
+  bool freeNow = tscKillQueryInDnode(pSql);
+  if (freeNow) {
+    tscDebug("%p free sqlObj in cache", pSql);
+    taosCacheRelease(tscObjCache, (void**) &pSql->self, true);
+  }
 }
 
 //static void doFreeResult(TAOS_RES *res) {
@@ -596,7 +611,7 @@ void taos_free_result(TAOS_RES *res) {
 //  }
 //
 //  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-//  if (!tscKillQueryInVnode(pSql)) {
+//  if (!tscKillQueryInDnode(pSql)) {
 //    tscFreeSqlObj(pSql);
 //    tscDebug("%p sqlObj is freed by app", pSql);
 //  }
