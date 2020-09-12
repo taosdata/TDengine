@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "adminHandle.h"
-#include "adminJson.h"
+#include "httpAdminHandle.h"
+#include "httpAdminHandle.h"
 
 static HttpDecodeMethod adminDecodeMethod = {"admin", adminProcessRequest};
 static HttpEncodeMethod adminEncodeSqlMethod = {

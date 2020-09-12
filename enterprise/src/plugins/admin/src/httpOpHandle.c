@@ -19,8 +19,8 @@
 #include "taosdef.h"
 #include "cJSON.h"
 #include "httpLog.h"
-#include "opJson.h"
-#include "opHandle.h"
+#include "httpOpJson.h"
+#include "httpOpHandle.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
 static HttpEncodeMethod opPutSummaryMethod = {

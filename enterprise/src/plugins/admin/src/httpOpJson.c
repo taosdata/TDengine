@@ -19,8 +19,8 @@
 #include "httpLog.h"
 #include "httpJson.h"
 #include "httpResp.h"
-#include "opHandle.h"
-#include "opJson.h"
+#include "httpOpHandle.h"
+#include "httpOpJson.h"
 
 void opInitPutDetailJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);

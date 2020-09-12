@@ -18,8 +18,8 @@
 #include "tglobal.h"
 #include "httpLog.h"
 #include "httpJson.h"
-#include "adminHandle.h"
-#include "adminJson.h"
+#include "httpAdminHandle.h"
+#include "httpAdminHandle.h"
 
 void adminStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
