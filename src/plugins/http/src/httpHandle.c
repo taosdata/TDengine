@@ -103,15 +103,13 @@ bool httpParseHttpVersion(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
   char* pEnd = strchr(pParser->pLast, '1');
   if (pEnd == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, can't find http version at position:%s", pContext, pContext->fd,
-              pContext->ipstr, pParser->pLast);
+    httpError("context:%p, fd:%d, can't find http version at position:%s", pContext, pContext->fd, pParser->pLast);
     httpSendErrorResp(pContext, HTTP_PARSE_HTTP_VERSION_ERROR);
     return false;
   }
 
   if (*(pEnd + 1) != '.') {
-    httpError("context:%p, fd:%d, ip:%s, can't find http version at position:%s", pContext, pContext->fd,
-              pContext->ipstr, pParser->pLast);
+    httpError("context:%p, fd:%d, can't find http version at position:%s", pContext, pContext->fd, pParser->pLast);
     httpSendErrorResp(pContext, HTTP_PARSE_HTTP_VERSION_ERROR);
     return false;
   }
@@ -125,8 +123,7 @@ bool httpParseHttpVersion(HttpContext* pContext) {
   else
     pContext->httpVersion = HTTP_VERSION_10;
 
-  httpDebug("context:%p, fd:%d, ip:%s, httpVersion:1.%d", pContext, pContext->fd, pContext->ipstr,
-            pContext->httpVersion);
+  httpDebug("context:%p, fd:%d, httpVersion:1.%d", pContext, pContext->fd, pContext->httpVersion);
   return true;
 }
 
@@ -147,18 +144,20 @@ bool httpGetNextLine(HttpContext* pContext) {
 
 bool httpGetHttpMethod(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
-
   char*       pSeek = strchr(pParser->pLast, ' ');
+
   if (pSeek == NULL) {
+    httpError("context:%p, fd:%d, failed to parse httpMethod", pContext, pContext->fd);
     httpSendErrorResp(pContext, HTTP_PARSE_HTTP_METHOD_ERROR);
     return false;
   }
+
   pParser->method.pos = pParser->pLast;
   pParser->method.len = (int16_t)(pSeek - pParser->pLast);
   pParser->method.pos[pParser->method.len] = 0;
   pParser->pLast = pSeek + 1;
 
-  httpTrace("context:%p, fd:%d, ip:%s, httpMethod:%s", pContext, pContext->fd, pContext->ipstr, pParser->method.pos);
+  httpTrace("context:%p, fd:%d, httpMethod:%s", pContext, pContext->fd, pParser->method.pos);
   return true;
 }
 
@@ -176,8 +175,8 @@ bool httpGetDecodeMethod(HttpContext* pContext) {
     return true;
   }
 
-  httpError("context:%p, fd:%d, ip:%s, error:the url is not support, method:%s, path:%s",
-            pContext, pContext->fd, pContext->ipstr, pParser->method.pos, pParser->path[0].pos);
+  httpError("context:%p, fd:%d, error:the url is not support, method:%s, path:%s",
+            pContext, pContext->fd, pParser->method.pos, pParser->path[0].pos);
   httpSendErrorResp(pContext, HTTP_UNSUPPORT_URL);
 
   return false;
@@ -187,23 +186,23 @@ bool httpParseHead(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
   if (strncasecmp(pParser->pLast, "Content-Length: ", 16) == 0) {
     pParser->data.len = (int32_t)atoi(pParser->pLast + 16);
-    httpTrace("context:%p, fd:%d, ip:%s, Content-Length:%d", pContext, pContext->fd, pContext->ipstr,
+    httpTrace("context:%p, fd:%d, Content-Length:%d", pContext, pContext->fd,
               pParser->data.len);
   } else if (strncasecmp(pParser->pLast, "Accept-Encoding: ", 17) == 0) {
     if (tsHttpEnableCompress && strstr(pParser->pLast + 17, "gzip") != NULL) {
       pContext->acceptEncoding = HTTP_COMPRESS_GZIP;
-      httpTrace("context:%p, fd:%d, ip:%s, Accept-Encoding:gzip", pContext, pContext->fd, pContext->ipstr);
+      httpTrace("context:%p, fd:%d, Accept-Encoding:gzip", pContext, pContext->fd);
     } else {
       pContext->acceptEncoding = HTTP_COMPRESS_IDENTITY;
-      httpTrace("context:%p, fd:%d, ip:%s, Accept-Encoding:identity", pContext, pContext->fd, pContext->ipstr);
+      httpTrace("context:%p, fd:%d, Accept-Encoding:identity", pContext, pContext->fd);
     }
   } else if (strncasecmp(pParser->pLast, "Content-Encoding: ", 18) == 0) {
     if (strstr(pParser->pLast + 18, "gzip") != NULL) {
       pContext->contentEncoding = HTTP_COMPRESS_GZIP;
-      httpTrace("context:%p, fd:%d, ip:%s, Content-Encoding:gzip", pContext, pContext->fd, pContext->ipstr);
+      httpTrace("context:%p, fd:%d, Content-Encoding:gzip", pContext, pContext->fd);
     } else {
       pContext->contentEncoding = HTTP_COMPRESS_IDENTITY;
-      httpTrace("context:%p, fd:%d, ip:%s, Content-Encoding:identity", pContext, pContext->fd, pContext->ipstr);
+      httpTrace("context:%p, fd:%d, Content-Encoding:identity", pContext, pContext->fd);
     }
   } else if (strncasecmp(pParser->pLast, "Connection: ", 12) == 0) {
     if (strncasecmp(pParser->pLast + 12, "Keep-Alive", 10) == 0) {
@@ -211,8 +210,7 @@ bool httpParseHead(HttpContext* pContext) {
     } else {
       pContext->httpKeepAlive = HTTP_KEEPALIVE_DISABLE;
     }
-    httpTrace("context:%p, fd:%d, ip:%s, keepAlive:%d", pContext, pContext->fd, pContext->ipstr,
-              pContext->httpKeepAlive);
+    httpTrace("context:%p, fd:%d, keepAlive:%d", pContext, pContext->fd, pContext->httpKeepAlive);
   } else if (strncasecmp(pParser->pLast, "Transfer-Encoding: ", 19) == 0) {
     if (strncasecmp(pParser->pLast + 19, "chunked", 7) == 0) {
       pContext->httpChunked = HTTP_CHUNKED;
@@ -244,129 +242,6 @@ bool httpParseHead(HttpContext* pContext) {
   return true;
 }
 
-bool httpParseChunkedBody(HttpContext* pContext, HttpParser* pParser, bool test) {
-  char*  pEnd = pParser->buffer + pParser->bufsize;
-  char*  pRet = pParser->data.pos;
-  char*  pSize = pParser->data.pos;
-  size_t size = strtoul(pSize, NULL, 16);
-  if (size <= 0) return false;
-
-  while (size > 0) {
-    char* pData = strstr(pSize, "\r\n");
-    if (pData == NULL || pData >= pEnd) return false;
-    pData += 2;
-
-    pSize = strstr(pData, "\r\n");
-    if (pSize == NULL || pSize >= pEnd) return false;
-    if ((size_t)(pSize - pData) != size) return false;
-    pSize += 2;
-
-    if (!test) {
-      memmove(pRet, pData, size);
-      pRet += size;
-    }
-
-    size = strtoul(pSize, NULL, 16);
-  }
-
-  if (!test) {
-    *pRet = '\0';
-  }
-
-  return true;
-}
-
-int httpReadChunkedBody(HttpContext* pContext, HttpParser* pParser) {
-  bool parsedOk = httpParseChunkedBody(pContext, pParser, true);
-  if (parsedOk) {
-    httpParseChunkedBody(pContext, pParser, false);
-    return HTTP_CHECK_BODY_SUCCESS;
-  } else {
-    httpTrace("context:%p, fd:%d, ip:%s, chunked body not finished, continue read", pContext, pContext->fd, pContext->ipstr);
-    if (httpReadDataImp(pContext) != HTTP_READ_DATA_SUCCESS) {
-      httpError("context:%p, fd:%d, ip:%s, read chunked request error", pContext, pContext->fd, pContext->ipstr);
-      return HTTP_CHECK_BODY_ERROR;
-    } else {
-      return HTTP_CHECK_BODY_CONTINUE;
-    }
-  }
-}
-
-int httpReadUnChunkedBody(HttpContext* pContext, HttpParser* pParser) {
-  int dataReadLen = pParser->bufsize - (int)(pParser->data.pos - pParser->buffer);
-  if (dataReadLen > pParser->data.len) {
-    httpError("context:%p, fd:%d, ip:%s, un-chunked body length invalid, read size:%d dataReadLen:%d > pContext->data.len:%d",
-              pContext, pContext->fd, pContext->ipstr, pContext->parser.bufsize, dataReadLen, pParser->data.len);
-    return HTTP_CHECK_BODY_ERROR;
-  } else if (dataReadLen < pParser->data.len) {
-    httpTrace("context:%p, fd:%d, ip:%s, un-chunked body not finished, read size:%d dataReadLen:%d < pContext->data.len:%d, continue read",
-              pContext, pContext->fd, pContext->ipstr, pContext->parser.bufsize, dataReadLen, pParser->data.len);
-    return HTTP_CHECK_BODY_CONTINUE;
-  } else {
-    return HTTP_CHECK_BODY_SUCCESS;
-  }
-}
-
-bool httpParseRequest(HttpContext* pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pContext->parsed) {
-    return true;
-  }
-
-  httpTraceL("context:%p, fd:%d, ip:%s, thread:%s, numOfContexts:%d, read size:%d, raw data:\n%s", pContext,
-             pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfContexts,
-             pContext->parser.bufsize, pContext->parser.buffer);
-
-  if (!httpGetHttpMethod(pContext)) {
-    return false;
-  }
-
-  if (!httpParseURL(pContext)) {
-    return false;
-  }
-
-  if (!httpParseHttpVersion(pContext)) {
-    return false;
-  }
-
-  if (!httpGetDecodeMethod(pContext)) {
-    return false;
-  }
-
-  do {
-    if (!httpGetNextLine(pContext)) {
-      return false;
-    }
-
-    // Empty line, end of the HTTP HEAD
-    if (pParser->pCur - pParser->pLast == 1) {
-      pParser->data.pos = ++pParser->pCur;
-      break;
-    }
-
-    if (!httpParseHead(pContext)) {
-      return false;
-    }
-
-    pParser->pLast = ++pParser->pCur;
-  } while (1);
-
-  httpDebug("context:%p, fd:%d, ip:%s, parse http head ok", pContext, pContext->fd, pContext->ipstr);
-
-  pContext->parsed = true;
-  return true;
-}
-
-int httpCheckReadCompleted(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-
-  if (pContext->httpChunked == HTTP_UNCUNKED) {
-    return httpReadUnChunkedBody(pContext, pParser);
-  } else {
-    return httpReadChunkedBody(pContext, pParser);
-  }
-}
-
 bool httpDecodeRequest(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;
   if (pParser->pMethod->decodeFp == NULL) {
@@ -380,17 +255,16 @@ bool httpDecodeRequest(HttpContext* pContext) {
  * Process the request from http pServer
  */
 bool httpProcessData(HttpContext* pContext) {
-
   if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_HANDLING)) {
-    httpDebug("context:%p, fd:%d, ip:%s, state:%s not in ready state, stop process request",
-            pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state));
+    httpDebug("context:%p, fd:%d, state:%s not in ready state, stop process request", pContext, pContext->fd,
+              httpContextStateStr(pContext->state));
     httpCloseContextByApp(pContext);
     return false;
   }
 
   // handle Cross-domain request
   if (strcmp(pContext->parser.method.pos, "OPTIONS") == 0) {
-    httpDebug("context:%p, fd:%d, ip:%s, process options request", pContext, pContext->fd, pContext->ipstr);
+    httpDebug("context:%p, fd:%d, process options request", pContext, pContext->fd);
     httpSendOptionResp(pContext, "process options request success");
   } else {
     if (!httpDecodeRequest(pContext)) {

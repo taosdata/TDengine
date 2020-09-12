@@ -80,15 +80,13 @@ bool restGetPassFromUrl(HttpContext* pContext) {
 }
 
 bool restProcessLoginRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process restful login msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process restful login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
 
 bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process restful sql msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process restful sql msg", pContext, pContext->fd, pContext->user);
 
   char* sql = pContext->parser.data.pos;
   if (sql == NULL) {

@@ -46,7 +46,7 @@ const char *httpRespTemplate[] = {
 };
 
 static void httpSendErrorRespImp(HttpContext *pContext, int httpCode, char *httpCodeStr, int errNo, char *desc) {
-  httpError("context:%p, fd:%d, ip:%s, code:%d, error:%s", pContext, pContext->fd, pContext->ipstr, httpCode, desc);
+  httpError("context:%p, fd:%d, code:%d, error:%s", pContext, pContext->fd, httpCode, desc);
 
   char head[512] = {0};
   char body[512] = {0};
@@ -169,7 +169,7 @@ void httpSendErrorRespWithDesc(HttpContext *pContext, int errNo, char *desc) {
       httpCodeStr = "Bad Request";
       break;
     default:
-      httpError("context:%p, fd:%d, ip:%s, error:%d not recognized", pContext, pContext->fd, pContext->ipstr, errNo);
+      httpError("context:%p, fd:%d, error:%d not recognized", pContext, pContext->fd, errNo);
       break;
   }
 

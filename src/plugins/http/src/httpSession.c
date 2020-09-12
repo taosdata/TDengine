@@ -39,15 +39,15 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
   // taosCacheRelease(server->sessionCache, (void **)&temp, false);
 
   if (pContext->session == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, error:%s", pContext, pContext->fd, pContext->ipstr, pContext->user,
+    httpError("context:%p, fd:%d, user:%s, error:%s", pContext, pContext->fd, pContext->user,
               httpMsg[HTTP_SESSION_FULL]);
     taos_close(taos);
     pthread_mutex_unlock(&server->serverMutex);
     return;
   }
 
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, create a new session:%p:%p sessionRef:%d", pContext, pContext->fd,
-            pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
+  httpDebug("context:%p, fd:%d, user:%s, create a new session:%p:%p sessionRef:%d", pContext, pContext->fd,
+            pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   pthread_mutex_unlock(&server->serverMutex);
 }
 
@@ -61,11 +61,10 @@ static void httpFetchSessionImp(HttpContext *pContext) {
   pContext->session = taosCacheAcquireByKey(server->sessionCache, sessionId, len);
   if (pContext->session != NULL) {
     atomic_add_fetch_32(&pContext->session->refCount, 1);
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, find an exist session:%p:%p, sessionRef:%d", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
+    httpDebug("context:%p, fd:%d, user:%s, find an exist session:%p:%p, sessionRef:%d", pContext, pContext->fd,
+              pContext->user, pContext->session, pContext->session->taos, pContext->session->refCount);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, session not found", pContext, pContext->fd, pContext->ipstr,
-              pContext->user);
+    httpDebug("context:%p, fd:%d, user:%s, session not found", pContext, pContext->fd, pContext->user);
   }
 
   pthread_mutex_unlock(&server->serverMutex);

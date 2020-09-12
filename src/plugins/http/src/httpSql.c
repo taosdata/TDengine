@@ -56,18 +56,18 @@ void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int n
 
   if (isContinue) {
     // retrieve next batch of rows
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, continue retrieve, numOfRows:%d, sql:%s",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, numOfRows, sql);
+    httpDebug("context:%p, fd:%d, user:%s, process pos:%d, continue retrieve, numOfRows:%d, sql:%s", pContext,
+              pContext->fd, pContext->user, multiCmds->pos, numOfRows, sql);
     taos_fetch_rows_a(result, httpProcessMultiSqlRetrieveCallBack, param);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, stop retrieve, numOfRows:%d, sql:%s",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, numOfRows, sql);
+    httpDebug("context:%p, fd:%d, user:%s, process pos:%d, stop retrieve, numOfRows:%d, sql:%s", pContext, pContext->fd,
+              pContext->user, multiCmds->pos, numOfRows, sql);
 
     if (numOfRows < 0) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, retrieve failed code:%s, sql:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(numOfRows), sql);
-    } 
-    
+      httpError("context:%p, fd:%d, user:%s, process pos:%d, retrieve failed code:%s, sql:%s", pContext, pContext->fd,
+                pContext->user, multiCmds->pos, tstrerror(numOfRows), sql);
+    }
+
     taos_free_result(result);
     
     if (singleCmd->cmdReturnType == HTTP_CMD_RETURN_TYPE_WITH_RETURN && encode->stopJsonFp) {
@@ -94,20 +94,20 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code) {
   char *      sql = httpGetCmdsString(pContext, singleCmd->sql);
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    httpWarn("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, code:%s:inprogress, sql:%s",
-             pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(code), sql);
+    httpWarn("context:%p, fd:%d, user:%s, process pos:%d, code:%s:inprogress, sql:%s", pContext, pContext->fd,
+             pContext->user, multiCmds->pos, tstrerror(code), sql);
     return;
   }
 
   if (code < 0) {
     if (encode->checkFinishedFp != NULL && !encode->checkFinishedFp(pContext, singleCmd, code)) {
       singleCmd->code = code;
-      httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos jump to:%d, last code:%s, last sql:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos + 1, tstrerror(code), sql);
+      httpDebug("context:%p, fd:%d, user:%s, process pos jump to:%d, last code:%s, last sql:%s", pContext, pContext->fd,
+                pContext->user, multiCmds->pos + 1, tstrerror(code), sql);
     } else {
       singleCmd->code = code;
-      httpError("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, error code:%s, sql:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, tstrerror(code), sql);
+      httpError("context:%p, fd:%d, user:%s, process pos:%d, error code:%s, sql:%s", pContext, pContext->fd,
+                pContext->user, multiCmds->pos, tstrerror(code), sql);
 
       if (singleCmd->cmdReturnType == HTTP_CMD_RETURN_TYPE_WITH_RETURN) {
         if (encode->startJsonFp) (encode->startJsonFp)(pContext, singleCmd, result);
@@ -125,8 +125,8 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code) {
   if (isUpdate) {
     // not select or show commands
     int affectRows = taos_affected_rows(result);
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, affect rows:%d, sql:%s",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, affectRows, sql);
+    httpDebug("context:%p, fd:%d, user:%s, process pos:%d, affect rows:%d, sql:%s", pContext, pContext->fd,
+              pContext->user, multiCmds->pos, affectRows, sql);
 
     singleCmd->code = 0;
 
@@ -151,8 +151,8 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code) {
     taos_free_result(result);
     httpProcessMultiSql(pContext);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start retrieve, sql:%s",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, sql);
+    httpDebug("context:%p, fd:%d, user:%s, process pos:%d, start retrieve, sql:%s", pContext, pContext->fd,
+              pContext->user, multiCmds->pos, sql);
 
     if (singleCmd->cmdReturnType == HTTP_CMD_RETURN_TYPE_WITH_RETURN && encode->startJsonFp) {
       (encode->startJsonFp)(pContext, singleCmd, result);
@@ -170,8 +170,8 @@ void httpProcessMultiSql(HttpContext *pContext) {
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   if (multiCmds->pos >= multiCmds->size) {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, size:%d, stop mulit-querys",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, multiCmds->pos, multiCmds->size);
+    httpDebug("context:%p, fd:%d, user:%s, process pos:%d, size:%d, stop mulit-querys", pContext, pContext->fd,
+              pContext->user, multiCmds->pos, multiCmds->size);
     if (encode->cleanJsonFp) {
       (encode->cleanJsonFp)(pContext);
     }
@@ -182,8 +182,8 @@ void httpProcessMultiSql(HttpContext *pContext) {
   HttpSqlCmd *cmd = multiCmds->cmds + multiCmds->pos;
 
   char *sql = httpGetCmdsString(pContext, cmd->sql);
-  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
-             pContext->ipstr, pContext->user, multiCmds->pos, sql);
+  httpTraceL("context:%p, fd:%d, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd, pContext->user,
+             multiCmds->pos, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
@@ -197,8 +197,8 @@ void httpProcessMultiSqlCmd(HttpContext *pContext) {
     return;
   }
 
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, start multi-querys pos:%d, size:%d", pContext, pContext->fd,
-            pContext->ipstr, pContext->user, multiCmds->pos, multiCmds->size);
+  httpDebug("context:%p, fd:%d, user:%s, start multi-querys pos:%d, size:%d", pContext, pContext->fd, pContext->user,
+            multiCmds->pos, multiCmds->size);
   HttpEncodeMethod *encode = pContext->encodeMethod;
   if (encode->initJsonFp) {
     (encode->initJsonFp)(pContext);
@@ -226,24 +226,23 @@ void httpProcessSingleSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int 
 #if 0
   // todo refactor
   if (tscResultsetFetchCompleted(result)) {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, resultset fetch completed", pContext, pContext->fd, pContext->ipstr,
-              pContext->user);
+    httpDebug("context:%p, fd:%d, user:%s, resultset fetch completed", pContext, pContext->fd, pContext->user);
     isContinue = false;
   }
 #endif
 
   if (isContinue) {
     // retrieve next batch of rows
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, continue retrieve, numOfRows:%d", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, numOfRows);
+    httpDebug("context:%p, fd:%d, user:%s, continue retrieve, numOfRows:%d", pContext, pContext->fd, pContext->user,
+              numOfRows);
     taos_fetch_rows_a(result, httpProcessSingleSqlRetrieveCallBack, param);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, stop retrieve, numOfRows:%d", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, numOfRows);
+    httpDebug("context:%p, fd:%d, user:%s, stop retrieve, numOfRows:%d", pContext, pContext->fd, pContext->user,
+              numOfRows);
 
     if (numOfRows < 0) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, retrieve failed, code:%s", pContext, pContext->fd, pContext->ipstr,
-                pContext->user, tstrerror(numOfRows));
+      httpError("context:%p, fd:%d, user:%s, retrieve failed, code:%s", pContext, pContext->fd, pContext->user,
+                tstrerror(numOfRows));
     }
 
     taos_free_result(result);
@@ -269,20 +268,20 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int unUsedCo
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s:inprogress, sqlObj:%p",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), (SSqlObj *)result);
+    httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s:inprogress, sqlObj:%p", pContext, pContext->fd,
+              pContext->user, pContext->session->taos, tstrerror(code), (SSqlObj *)result);
     return;
   }
 
   if (code < 0) {
     SSqlObj *pObj = (SSqlObj *)result;
     if (code == TSDB_CODE_TSC_INVALID_SQL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s, sqlObj:%p, error:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), pObj, pObj->cmd.payload);
+      httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s, sqlObj:%p, error:%s", pContext,
+                pContext->fd, pContext->user, pContext->session->taos, tstrerror(code), pObj, pObj->cmd.payload);
       httpSendTaosdInvalidSqlErrorResp(pContext, pObj->cmd.payload);
     } else {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, query error, taos:%p, code:%s, sqlObj:%p",
-                pContext, pContext->fd, pContext->ipstr, pContext->user, pContext->session->taos, tstrerror(code), pObj);
+      httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s, sqlObj:%p", pContext, pContext->fd,
+                pContext->user, pContext->session->taos, tstrerror(code), pObj);
       httpSendTaosdErrorResp(pContext, code);
     }
     taos_free_result(result);
@@ -294,8 +293,8 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int unUsedCo
     // not select or show commands
     int affectRows = taos_affected_rows(result);
 
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, affect rows:%d, stop query, sqlObj:%p",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, affectRows, result);
+    httpDebug("context:%p, fd:%d, user:%s, affect rows:%d, stop query, sqlObj:%p", pContext, pContext->fd,
+              pContext->user, affectRows, result);
 
     if (encode->startJsonFp) {
       (encode->startJsonFp)(pContext, &pContext->singleCmd, result);
@@ -312,8 +311,7 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int unUsedCo
     taos_free_result(result);
     httpCloseContextByApp(pContext);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, start retrieve", pContext, pContext->fd, pContext->ipstr,
-              pContext->user);
+    httpDebug("context:%p, fd:%d, user:%s, start retrieve", pContext, pContext->fd, pContext->user);
 
     if (encode->startJsonFp) {
       (encode->startJsonFp)(pContext, &pContext->singleCmd, result);
@@ -333,14 +331,12 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
   HttpSession *pSession = pContext->session;
 
   if (sql == NULL || sql[0] == 0) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, error:no sql input", pContext, pContext->fd, pContext->ipstr,
-              pContext->user);
+    httpError("context:%p, fd:%d, user:%s, error:no sql input", pContext, pContext->fd, pContext->user);
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return;
   }
 
-  httpTraceL("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
-            pContext->user, sql);
+  httpTraceL("context:%p, fd:%d, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->user, sql);
   taosNotePrintHttp(sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }
@@ -350,8 +346,8 @@ void httpProcessLoginCmd(HttpContext *pContext) {
   if (!httpGenTaosdAuthToken(pContext, token, 128)) {
     httpSendErrorResp(pContext, HTTP_GEN_TAOSD_TOKEN_ERR);
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, login via http, return token:%s",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, token);
+    httpDebug("context:%p, fd:%d, user:%s, login via http, return token:%s", pContext, pContext->fd, pContext->user,
+              token);
     httpSendSuccResp(pContext, token);
   }
 }
@@ -397,17 +393,16 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
   if (pContext == NULL) return;
 
   if (code < 0) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, login error, code:%s", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, tstrerror(code));
+    httpError("context:%p, fd:%d, user:%s, login error, code:%s", pContext, pContext->fd, pContext->user,
+              tstrerror(code));
     httpSendTaosdErrorResp(pContext, code);
     return;
   }
 
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, connect tdengine success, taos:%p", pContext, pContext->fd,
-            pContext->ipstr, pContext->user, pContext->taos);
+  httpDebug("context:%p, fd:%d, user:%s, connect tdengine success, taos:%p", pContext, pContext->fd, pContext->user,
+            pContext->taos);
   if (pContext->taos == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, login error, taos is empty", pContext, pContext->fd, pContext->ipstr,
-              pContext->user);
+    httpError("context:%p, fd:%d, user:%s, login error, taos is empty", pContext, pContext->fd, pContext->user);
     httpSendErrorResp(pContext, HTTP_NO_ENOUGH_SESSIONS);
     return;
   }
@@ -428,8 +423,8 @@ void httpProcessRequest(HttpContext *pContext) {
   if (pContext->session == NULL || pContext->reqType == HTTP_REQTYPE_LOGIN) {
     taos_connect_a(NULL, pContext->user, pContext->pass, "", 0, httpProcessRequestCb, (void *)pContext,
                    &(pContext->taos));
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, try connect tdengine, taos:%p", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, pContext->taos);
+    httpDebug("context:%p, fd:%d, user:%s, try connect tdengine, taos:%p", pContext, pContext->fd, pContext->user,
+              pContext->taos);
   } else {
     httpExecCmd(pContext);
   }

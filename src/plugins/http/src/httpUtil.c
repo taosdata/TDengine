@@ -141,16 +141,15 @@ int32_t httpAddToSqlCmdBufferWithSize(HttpContext *pContext, int mallocSize) {
 
 bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, cmdSize, HTTP_MAX_CMD_SIZE);
+    httpError("context:%p, fd:%d, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd, pContext->user,
+              cmdSize, HTTP_MAX_CMD_SIZE);
     return false;
   }
 
   if (pContext->multiCmds == NULL) {
     pContext->multiCmds = (HttpSqlCmds *)malloc(sizeof(HttpSqlCmds));
     if (pContext->multiCmds == NULL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, malloc multiCmds error", pContext, pContext->fd, pContext->ipstr,
-                pContext->user);
+      httpError("context:%p, fd:%d, user:%s, malloc multiCmds error", pContext, pContext->fd, pContext->user);
       return false;
     }
     memset(pContext->multiCmds, 0, sizeof(HttpSqlCmds));
@@ -161,7 +160,7 @@ bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
     free(multiCmds->cmds);
     multiCmds->cmds = (HttpSqlCmd *)malloc((size_t)cmdSize * sizeof(HttpSqlCmd));
     if (multiCmds->cmds == NULL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->ipstr,
+      httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd,
                 pContext->user, cmdSize);
       return false;
     }
@@ -172,8 +171,8 @@ bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
     free(multiCmds->buffer);
     multiCmds->buffer = (char *)malloc((size_t)bufferSize);
     if (multiCmds->buffer == NULL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->ipstr,
-                pContext->user, bufferSize);
+      httpError("context:%p, fd:%d, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->user,
+                bufferSize);
       return false;
     }
     multiCmds->bufferSize = bufferSize;
@@ -191,15 +190,14 @@ bool httpReMallocMultiCmdsSize(HttpContext *pContext, int cmdSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, cmdSize, HTTP_MAX_CMD_SIZE);
+    httpError("context:%p, fd:%d, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd, pContext->user,
+              cmdSize, HTTP_MAX_CMD_SIZE);
     return false;
   }
 
   multiCmds->cmds = (HttpSqlCmd *)realloc(multiCmds->cmds, (size_t)cmdSize * sizeof(HttpSqlCmd));
   if (multiCmds->cmds == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, cmdSize);
+    httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->user, cmdSize);
     return false;
   }
   memset(multiCmds->cmds + multiCmds->maxSize, 0, (size_t)(cmdSize - multiCmds->maxSize) * sizeof(HttpSqlCmd));
@@ -212,15 +210,14 @@ bool httpReMallocMultiCmdsBuffer(HttpContext *pContext, int bufferSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
   if (bufferSize > HTTP_MAX_BUFFER_SIZE) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, mulitcmd buffer size:%d large then %d",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, bufferSize, HTTP_MAX_BUFFER_SIZE);
+    httpError("context:%p, fd:%d, user:%s, mulitcmd buffer size:%d large then %d", pContext, pContext->fd,
+              pContext->user, bufferSize, HTTP_MAX_BUFFER_SIZE);
     return false;
   }
 
   multiCmds->buffer = (char *)realloc(multiCmds->buffer, (size_t)bufferSize);
   if (multiCmds->buffer == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, bufferSize);
+    httpError("context:%p, fd:%d, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->user, bufferSize);
     return false;
   }
   memset(multiCmds->buffer + multiCmds->bufferSize, 0, (size_t)(bufferSize - multiCmds->bufferSize));

@@ -800,7 +800,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
  }
  */
 bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, ip:%s, process telegraf query msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process telegraf query msg", pContext, pContext->fd);
 
   HttpParser *pParser = &pContext->parser;
   char *      filter = pParser->data.pos;
@@ -818,7 +818,7 @@ bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
   cJSON *metrics = cJSON_GetObjectItem(root, "metrics");
   if (metrics != NULL) {
     int size = cJSON_GetArraySize(metrics);
-    httpDebug("context:%p, fd:%d, ip:%s, multiple metrics:%d at one time", pContext, pContext->fd, pContext->ipstr,
+    httpDebug("context:%p, fd:%d, multiple metrics:%d at one time", pContext, pContext->fd,
               size);
     if (size <= 0) {
       httpSendErrorResp(pContext, HTTP_TG_METRICS_NULL);
@@ -859,7 +859,7 @@ bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
       }
     }
   } else {
-    httpDebug("context:%p, fd:%d, ip:%s, single metric", pContext, pContext->fd, pContext->ipstr);
+    httpDebug("context:%p, fd:%d, single metric", pContext, pContext->fd);
 
     if (!httpMallocMultiCmds(pContext, 3, HTTP_BUFFER_SIZE)) {
       httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);

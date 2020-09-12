@@ -52,14 +52,12 @@ int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz) {
     }
 
     if (len < 0) {
-      httpDebug("context:%p, fd:%d, ip:%s, socket write errno:%d, times:%d",
-                pContext, pContext->fd, pContext->ipstr, errno, countWait);
+      httpDebug("context:%p, fd:%d, socket write errno:%d, times:%d", pContext, pContext->fd, errno, countWait);
       if (++countWait > HTTP_WRITE_RETRY_TIMES) break;
       taosMsleep(HTTP_WRITE_WAIT_TIME_MS);
       continue;
     } else if (len == 0) {
-      httpDebug("context:%p, fd:%d, ip:%s, socket write errno:%d, connect already closed",
-                pContext, pContext->fd, pContext->ipstr, errno);
+      httpDebug("context:%p, fd:%d, socket write errno:%d, connect already closed", pContext, pContext->fd, errno);
       break;
     } else {
       countWait = 0;
@@ -70,14 +68,13 @@ int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz) {
   return writeLen;
 }
 
-int httpWriteBuf(struct HttpContext *pContext, const char *buf, int sz) {
+int httpWriteBuf(struct HttpContext* pContext, const char* buf, int sz) {
   int writeSz = httpWriteBufByFd(pContext, buf, sz);
   if (writeSz != sz) {
-    httpError("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, failed to send response:\n%s",
-              pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
+    httpError("context:%p, fd:%d, dataSize:%d, writeSize:%d, failed to send response:\n%s", pContext, pContext->fd, sz,
+              writeSz, buf);
   } else {
-    httpTrace("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, response:\n%s", pContext, pContext->fd,
-              pContext->ipstr, sz, writeSz, buf);
+    httpTrace("context:%p, fd:%d, dataSize:%d, writeSize:%d, response:\n%s", pContext, pContext->fd, sz, writeSz, buf);
   }
 
   return writeSz;
@@ -86,8 +83,8 @@ int httpWriteBuf(struct HttpContext *pContext, const char *buf, int sz) {
 int httpWriteBufNoTrace(struct HttpContext *pContext, const char *buf, int sz) {
   int writeSz = httpWriteBufByFd(pContext, buf, sz);
   if (writeSz != sz) {
-    httpError("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, failed to send response",
-              pContext, pContext->fd, pContext->ipstr, sz, writeSz);
+    httpError("context:%p, fd:%d, dataSize:%d, writeSize:%d, failed to send response", pContext, pContext->fd, sz,
+              writeSz);
   }
 
   return writeSz;
@@ -99,7 +96,7 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
   uint64_t srcLen = (uint64_t) (buf->lst - buf->buf);
 
   if (buf->pContext->fd <= 0) {
-    httpTrace("context:%p, fd:%d, ip:%s, write json body error", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+    httpTrace("context:%p, fd:%d, write json body error", buf->pContext, buf->pContext->fd);
     buf->pContext->fd = -1;
   }
 
@@ -113,12 +110,12 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
 
   if (buf->pContext->acceptEncoding == HTTP_COMPRESS_IDENTITY) {
     if (buf->lst == buf->buf) {
-      httpTrace("context:%p, fd:%d, ip:%s, no data need dump", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+      httpTrace("context:%p, fd:%d, no data need dump", buf->pContext, buf->pContext->fd);
       return 0;  // there is no data to dump.
     } else {
       int len = sprintf(sLen, "%lx\r\n", srcLen);
-      httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", response:\n%s",
-                buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, buf->buf);
+      httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", response:\n%s", buf->pContext, buf->pContext->fd,
+                srcLen, buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
       remain = httpWriteBufNoTrace(buf->pContext, buf->buf, (int) srcLen);
     }
@@ -129,18 +126,18 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
     if (ret == 0) {
       if (compressBufLen > 0) {
         int len = sprintf(sLen, "%x\r\n", compressBufLen);
-        httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
-                  buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, compressBufLen, isTheLast, buf->buf);
+        httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
+                  buf->pContext, buf->pContext->fd, srcLen, compressBufLen, isTheLast, buf->buf);
         httpWriteBufNoTrace(buf->pContext, sLen, len);
-        remain = httpWriteBufNoTrace(buf->pContext, (const char *) compressBuf, (int) compressBufLen);
+        remain = httpWriteBufNoTrace(buf->pContext, (const char*)compressBuf, (int)compressBufLen);
       } else {
-        httpTrace("context:%p, fd:%d, ip:%s, last:%d, compress already dumped, response:\n%s",
-                buf->pContext, buf->pContext->fd, buf->pContext->ipstr, isTheLast, buf->buf);
+        httpTrace("context:%p, fd:%d, last:%d, compress already dumped, response:\n%s", buf->pContext,
+                  buf->pContext->fd, isTheLast, buf->buf);
         return 0;  // there is no data to dump.
       }
     } else {
-      httpError("context:%p, fd:%d, ip:%s, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
-                buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, isTheLast, ret, buf->buf);
+      httpError("context:%p, fd:%d, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
+                buf->pContext, buf->pContext->fd, srcLen, isTheLast, ret, buf->buf);
       return 0;
     }
   }
@@ -173,7 +170,7 @@ void httpWriteJsonBufHead(JsonBuf* buf) {
 
 void httpWriteJsonBufEnd(JsonBuf* buf) {
   if (buf->pContext->fd <= 0) {
-    httpTrace("context:%p, fd:%d, ip:%s, json buf fd is 0", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+    httpTrace("context:%p, fd:%d, json buf fd is 0", buf->pContext, buf->pContext->fd);
     buf->pContext->fd = -1;
   }
 
@@ -192,7 +189,7 @@ void httpInitJsonBuf(JsonBuf* buf, struct HttpContext* pContext) {
     httpGzipCompressInit(buf->pContext);
   }
 
-  httpDebug("context:%p, fd:%d, ip:%s, json buffer initialized", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+  httpDebug("context:%p, fd:%d, json buffer initialized", buf->pContext, buf->pContext->fd);
 }
 
 void httpJsonItemToken(JsonBuf* buf) {

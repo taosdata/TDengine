@@ -67,8 +67,7 @@ bool gcGetPassFromUrl(HttpContext* pContext) {
 }
 
 bool gcProcessLoginRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process grafana login msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process grafana login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
@@ -143,7 +142,7 @@ bool gcProcessLoginRequest(HttpContext* pContext) {
 //}]
 
 bool gcProcessQueryRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, process grafana query msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process grafana query msg", pContext, pContext->fd);
 
   HttpParser* pParser = &pContext->parser;
   char*       filter = pParser->data.pos;
@@ -183,15 +182,13 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
     cJSON* refId = cJSON_GetObjectItem(query, "refId");
     if (refId == NULL || refId->valuestring == NULL || strlen(refId->valuestring) == 0) {
-      httpDebug("context:%p, fd:%d, ip:%s, user:%s, refId is null", pContext, pContext->fd, pContext->ipstr,
-                pContext->user);
+      httpDebug("context:%p, fd:%d, user:%s, refId is null", pContext, pContext->fd, pContext->user);
       continue;
     }
 
     int refIdBuffer = httpAddToSqlCmdBuffer(pContext, refId->valuestring);
     if (refIdBuffer == -1) {
-      httpWarn("context:%p, fd:%d, ip:%s, user:%s, refId buffer is full", pContext, pContext->fd, pContext->ipstr,
-               pContext->user);
+      httpWarn("context:%p, fd:%d, user:%s, refId buffer is full", pContext, pContext->fd, pContext->user);
       break;
     }
 
@@ -200,8 +197,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     if (!(alias == NULL || alias->valuestring == NULL || strlen(alias->valuestring) == 0)) {
       aliasBuffer = httpAddToSqlCmdBuffer(pContext, alias->valuestring);
       if (aliasBuffer == -1) {
-        httpWarn("context:%p, fd:%d, ip:%s, user:%s, alias buffer is full", pContext, pContext->fd, pContext->ipstr,
-                 pContext->user);
+        httpWarn("context:%p, fd:%d, user:%s, alias buffer is full", pContext, pContext->fd, pContext->user);
         break;
       }
     }
@@ -211,15 +207,13 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
     cJSON* sql = cJSON_GetObjectItem(query, "sql");
     if (sql == NULL || sql->valuestring == NULL || strlen(sql->valuestring) == 0) {
-      httpDebug("context:%p, fd:%d, ip:%s, user:%s, sql is null", pContext, pContext->fd, pContext->ipstr,
-                pContext->user);
+      httpDebug("context:%p, fd:%d, user:%s, sql is null", pContext, pContext->fd, pContext->user);
       continue;
     }
 
     int sqlBuffer = httpAddToSqlCmdBuffer(pContext, sql->valuestring);
     if (sqlBuffer == -1) {
-      httpWarn("context:%p, fd:%d, ip:%s, user:%s, sql buffer is full", pContext, pContext->fd, pContext->ipstr,
-               pContext->user);
+      httpWarn("context:%p, fd:%d, user:%s, sql buffer is full", pContext, pContext->fd, pContext->user);
       break;
     }
 
@@ -237,8 +231,8 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     cmd->timestamp = httpAddToSqlCmdBufferWithSize(pContext, HTTP_GC_TARGET_SIZE + 1);  // hack way
 
     if (cmd->timestamp == -1) {
-      httpWarn("context:%p, fd:%d, ip:%s, user:%s, cant't malloc target size, sql buffer is full",
-               pContext, pContext->fd, pContext->ipstr, pContext->user);
+      httpWarn("context:%p, fd:%d, user:%s, cant't malloc target size, sql buffer is full", pContext, pContext->fd,
+               pContext->user);
       break;
     }
   }
@@ -251,7 +245,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 }
 
 bool gcProcessHeartbeatRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, process grafana heartbeat msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process grafana heartbeat msg", pContext, pContext->fd);
   pContext->reqType = HTTP_REQTYPE_HEARTBEAT;
   pContext->encodeMethod = &gcHeartBeatMethod;
   return true;
