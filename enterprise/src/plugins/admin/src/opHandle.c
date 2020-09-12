@@ -85,8 +85,7 @@ char *opGetDbFromUrl(HttpContext *pContext) {
 }
 
 bool opProcessLoginRequest(HttpContext *pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process opentsdb login msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process opentsdb login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
@@ -428,7 +427,7 @@ request from opentsdb
 ]
 */
 bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, ip:%s, process opentsdb put detail msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process opentsdb put detail msg", pContext, pContext->fd);
 
   HttpParser *pParser = &pContext->parser;
   char *      filter = pParser->data.pos;
@@ -444,7 +443,7 @@ bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
   }
 
   int size = cJSON_GetArraySize(root);
-  httpDebug("context:%p, fd:%d, ip:%s, metrics:%d at one time", pContext, pContext->fd, pContext->ipstr, size);
+  httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_METRICS_NULL);
     cJSON_Delete(root);
@@ -774,7 +773,7 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
 
 // summary parse
 bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, ip:%s, process opentsdb put summary msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process opentsdb put summary msg", pContext, pContext->fd);
 
   HttpParser *pParser = &pContext->parser;
   char *      filter = pParser->data.pos;
@@ -790,7 +789,7 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   }
 
   int size = cJSON_GetArraySize(root);
-  httpDebug("context:%p, fd:%d, ip:%s, metrics:%d at one time", pContext, pContext->fd, pContext->ipstr, size);
+  httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_METRICS_NULL);
     cJSON_Delete(root);

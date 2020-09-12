@@ -100,23 +100,20 @@ bool adminGetPassFromUrl(HttpContext* pContext) {
 }
 
 bool adminProcessLoginRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin login msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process admin login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
 
 bool adminProcessLogoutRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin logout msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process admin logout msg", pContext, pContext->fd, pContext->user);
   httpSendSuccResp(pContext, "logout success");
   pContext->reqType = HTTP_REQTYPE_OTHERS;
   return false;
 }
 
 bool adminProcessSqlRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin query part msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process admin query part msg", pContext, pContext->fd, pContext->user);
 
   char* sql = pContext->parser.data.pos;
   if (sql == NULL) {
@@ -139,8 +136,7 @@ bool adminProcessSqlRequest(HttpContext* pContext) {
 }
 
 bool adminProcessSqlAllRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin query all msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process admin query all msg", pContext, pContext->fd, pContext->user);
 
   char* sql = pContext->parser.data.pos;
   if (sql == NULL) {
@@ -163,8 +159,7 @@ bool adminProcessSqlAllRequest(HttpContext* pContext) {
 }
 
 bool adminProcessSqlsRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process multi-sqls msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process multi-sqls msg", pContext, pContext->fd, pContext->user);
 
   char* sql = pContext->parser.data.pos;
   if (sql == NULL) {
@@ -206,8 +201,7 @@ bool adminProcessSqlsRequest(HttpContext* pContext) {
 }
 
 bool adminProcessInfoRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin info msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process admin info msg", pContext, pContext->fd, pContext->user);
 
   if (!httpMallocMultiCmds(pContext, 10, HTTP_BUFFER_SIZE)) {
     httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
@@ -268,8 +262,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 }
 
 bool adminProcessMetaRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process admin table meta msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process admin table meta msg", pContext, pContext->fd, pContext->user);
 
   char* sql = pContext->parser.data.pos;
   if (sql == NULL) {
