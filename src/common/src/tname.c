@@ -99,35 +99,7 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
   return pFilter;
 }
 
-int32_t taosCountNatualInterval(int64_t skey, int64_t ekey, int64_t intervalTime, char timeUnit, int16_t precision) {
-  skey /= 1000;
-  ekey /= 1000;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    skey /= 1000;
-    ekey /= 1000;
-  }
-  if (ekey < skey) {
-    int64_t tmp = ekey;
-    ekey = skey;
-    skey = tmp;
-  }
-
-  struct tm tm;
-  time_t t = (time_t)skey;
-  localtime_r(&t, &tm);
-  int smon = tm.tm_year * 12 + tm.tm_mon;
-
-  t = (time_t)ekey;
-  localtime_r(&t, &tm);
-  int emon = tm.tm_year * 12 + tm.tm_mon;
-
-  if (timeUnit == 'y') {
-    intervalTime *= 12;
-  }
-
-  return (emon - smon) / (int32_t)intervalTime;
-}
-
+#if 0
 int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
   if (slidingTime == 0) {
     return startTime;
@@ -191,6 +163,8 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
   return start;
 }
+
+#endif
 
 /*
  * tablePrefix.columnName

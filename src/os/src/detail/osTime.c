@@ -413,24 +413,43 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
     return t + duration;
   }
 
-  t /= 1000;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    t /= 1000;
-  }
-
   struct tm tm;
-  time_t tt = (time_t)t;
+  time_t tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
   localtime_r(&tt, &tm);
   int mon = tm.tm_year * 12 + tm.tm_mon + (int)duration;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
-  t = mktime(&tm) * 1000L;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    t *= 1000L;
+  return mktime(&tm) * TSDB_TICK_PER_SECOND(precision);
+}
+
+int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
+  if (ekey < skey) {
+    int64_t tmp = ekey;
+    ekey = skey;
+    skey = tmp;
+  }
+  if (unit != 'n' && unit != 'y') {
+    return (int32_t)((ekey - skey) / interval);
   }
 
-  return t;
+  skey /= TSDB_TICK_PER_SECOND(precision);
+  ekey /= TSDB_TICK_PER_SECOND(precision);
+
+  struct tm tm;
+  time_t t = (time_t)skey;
+  localtime_r(&t, &tm);
+  int smon = tm.tm_year * 12 + tm.tm_mon;
+
+  t = (time_t)ekey;
+  localtime_r(&t, &tm);
+  int emon = tm.tm_year * 12 + tm.tm_mon;
+
+  if (unit == 'y') {
+    interval *= 12;
+  }
+
+  return (emon - smon) / (int32_t)interval;
 }
 
 int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision) {
@@ -440,14 +459,11 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
   }
 
   int64_t start = t;
-  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-    start /= 1000;
-    if (precision == TSDB_TIME_PRECISION_MICRO) {
-      start /= 1000;
-    }
+  if (pInterval->slidingUnit == 'n' || pInterval->slidingUnit == 'y') {
+    start /= TSDB_TICK_PER_SECOND(precision);
     struct tm tm;
-    time_t t = (time_t)start;
-    localtime_r(&t, &tm);
+    time_t tt = (time_t)start;
+    localtime_r(&tt, &tm);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -463,10 +479,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       tm.tm_mon = mon % 12;
     }
 
-    start = mktime(&tm) * 1000L;
-    if (precision == TSDB_TIME_PRECISION_MICRO) {
-      start *= 1000L;
-    }
+    start = mktime(&tm) * TSDB_TICK_PER_SECOND(precision);
   } else {
     int64_t delta = t - pInterval->interval;
     int32_t factor = delta > 0 ? 1 : -1;
@@ -486,8 +499,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       char**  tzname = _tzname;
   #endif
 
-      int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
-      start += timezone * t;
+      start += timezone * TSDB_TICK_PER_SECOND(precision);
     }
 
     int64_t end = start + pInterval->interval - 1;
@@ -496,7 +508,13 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     }
   }
 
-  return taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
+  if (pInterval->offset > 0) {
+    start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision);
+    if (start > t) {
+      start = taosTimeAdd(start, -pInterval->interval, pInterval->intervalUnit, precision);
+    }
+  }
+  return start;
 }
 
 // internal function, when program is paused in debugger,
@@ -507,24 +525,38 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 //     2020-07-03 17:48:42
 // and the parameter can also be a variable.
 const char* fmtts(int64_t ts) {
-  static char buf[32];
+  static char buf[96];
+  size_t pos = 0;
+  struct tm tm;
 
-  time_t tt;
   if (ts > -62135625943 && ts < 32503651200) {
-    tt = ts;
-  } else if (ts > -62135625943000 && ts < 32503651200000) {
-    tt = ts / 1000;
-  } else {
-    tt = ts / 1000000;
+    time_t t = (time_t)ts;
+    localtime_r(&t, &tm);
+    pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
   }
 
-  struct tm* ptm = localtime(&tt);
-  size_t pos = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ptm);
+  if (ts > -62135625943000 && ts < 32503651200000) {
+    time_t t = (time_t)(ts / 1000);
+    localtime_r(&t, &tm);
+    if (pos > 0) {
+      buf[pos++] = ' ';
+      buf[pos++] = '|';
+      buf[pos++] = ' ';
+    }
+    pos += strftime(buf + pos, sizeof(buf), "ms=%Y-%m-%d %H:%M:%S", &tm);
+    pos += sprintf(buf + pos, ".%03d", (int)(ts % 1000));
+  }
 
-  if (ts <= -62135625943000 || ts >= 32503651200000) {
-    sprintf(buf + pos, ".%06d", (int)(ts % 1000000));
-  } else if (ts <= -62135625943 || ts >= 32503651200) {
-    sprintf(buf + pos, ".%03d", (int)(ts % 1000));
+  {
+    time_t t = (time_t)(ts / 1000000);
+    localtime_r(&t, &tm);
+    if (pos > 0) {
+      buf[pos++] = ' ';
+      buf[pos++] = '|';
+      buf[pos++] = ' ';
+    }
+    pos += strftime(buf + pos, sizeof(buf), "us=%Y-%m-%d %H:%M:%S", &tm);
+    pos += sprintf(buf + pos, ".%06d", (int)(ts % 1000000));
   }
 
   return buf;
