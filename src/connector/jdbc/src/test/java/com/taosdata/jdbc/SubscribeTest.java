@@ -10,8 +10,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-import static org.junit.Assert.assertTrue;
-
 public class SubscribeTest extends BaseTest {
     Connection connection = null;
     Statement statement = null;
