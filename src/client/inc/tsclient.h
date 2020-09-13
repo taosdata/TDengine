@@ -98,6 +98,7 @@ typedef struct STableMeta {
   uint8_t        tableType;
   int16_t        sversion;
   int16_t        tversion;
+  char           sTableId[TSDB_TABLE_FNAME_LEN];
   SCMVgroupInfo  vgroupInfo;
   SCMCorVgroupInfo  corVgroupInfo;
   STableId       id;
