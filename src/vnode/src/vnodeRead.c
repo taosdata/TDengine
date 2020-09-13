@@ -93,11 +93,12 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void* pVnode, void** handle, 
       vDebug("QInfo:%p exec completed, free handle:%d", *handle, *freeHandle);
     }
   } else {
-    SRetrieveTableRsp* pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRsp, 0, sizeof(SRetrieveTableRsp));
     pRsp->completed = true;
 
     pRet->rsp = pRsp;
+    pRet->len = sizeof(SRetrieveTableRsp);
     *freeHandle = true;
   }
 
@@ -270,6 +271,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     //TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    pRet->len = sizeof(SRetrieveTableRsp);
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
     freeHandle = true;
   } else { // result is not ready, return immediately

@@ -8,8 +8,7 @@ import org.junit.BeforeClass;
 public class BaseTest {
 
     private static boolean testCluster = false;           
-    private static TDNodes nodes = new TDNodes();    
-    
+    private static TDNodes nodes = new TDNodes();
     
     @BeforeClass
     public static void setupEnv() {
@@ -19,11 +18,9 @@ public class BaseTest {
                 nodes.getTDNode(1).setRunning(1);
                 nodes.stop(1);
             }
-
             nodes.setTestCluster(testCluster);  
             nodes.deploy(1);
-            nodes.start(1);  
-
+            nodes.start(1);
         } catch (Exception e) {
             e.printStackTrace();            
         }

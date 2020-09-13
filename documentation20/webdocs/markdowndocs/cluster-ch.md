@@ -2,13 +2,15 @@
 
 多个taosd的运行实例可以组成一个集群，以保证TDengine的高可靠运行，并提供水平扩展能力。要了解TDengine 2.0的集群管理，需要对集群的基本概念有所了解，请看TDengine 2.0整体架构一章。而且在安装集群之前，请按照[《立即开始》](https://www.taosdata.com/cn/getting-started20/)一章安装并体验过单节点功能。
 
-集群的每个节点是由End Point来唯一标识的，End Point是由FQDN(Fully Qualified Domain Name)外加Port组成，比如 h1.taosdata.com:6030。一般FQDN就是服务器的hostname，可通过Linux命令`hostname -f`获取。端口是这个节点对外服务的端口号，缺省是6030，但可以通过taos.cfg里配置参数serverPort进行修改。一个节点可能配置了多个hostname, TDengine会自动获取第一个，但也可以通过taos.cfg里配置参数fqdn进行指定。如果习惯IP地址直接访问，可以将参数fqdn设置为本节点的IP地址。
+集群的每个节点是由End Point来唯一标识的，End Point是由FQDN(Fully Qualified Domain Name)外加Port组成，比如 h1.taosdata.com:6030。一般FQDN就是服务器的hostname，可通过Linux命令`hostname -f`获取,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。端口是这个节点对外服务的端口号，缺省是6030，但可以通过taos.cfg里配置参数serverPort进行修改。一个节点可能配置了多个hostname, TDengine会自动获取第一个，但也可以通过taos.cfg里配置参数fqdn进行指定。如果习惯IP地址直接访问，可以将参数fqdn设置为本节点的IP地址。
 
 TDengine的集群管理极其简单，除添加和删除节点需要人工干预之外，其他全部是自动完成，最大程度的降低了运维的工作量。本章对集群管理的操作做详细的描述。
 
 ## 准备工作
 
 **第一步**：如果搭建集群的节点中，存有之前的测试数据、装过1.X的版本，或者装过其他版本的TDengine，请先将其删除，并清空所有数据，具体步骤请参考博客[《TDengine多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html ) 
+**注意1：**因为FQDN的信息会写进文件，如果之前没有配置或者更改FQDN，且启动了TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/）；
+**注意2：**客户端也需要配置，确保它可以正确解析每个节点的FQDN配置，不管是通过DNS服务，还是 Host 文件。
 
 **第二步**：建议关闭防火墙，至少保证端口：6030 - 6042的TCP和UDP端口都是开放的。**强烈建议**先关闭防火墙，集群搭建完毕之后，再来配置端口；
 
@@ -23,7 +25,7 @@ TDengine的集群管理极其简单，除添加和删除节点需要人工干预
 **第五步**：修改TDengine的配置文件（所有节点的文件/etc/taos/taos.cfg都需要修改）。假设准备启动的第一个节点End Point为 h1.taosdata.com:6030, 那么以下几个参数与集群相关：
 
 ```
-// firstEp 是每个节点启动后连接的第一个节点
+// firstEp 集群中所有节点的配置都是一致的，对其第一次访问后，就获得了整个集群的信息
 firstEp               h1.taosdata.com:6030
 
 // 配置本节点的FQDN，如果本机只有一个hostname, 无需配置
@@ -32,7 +34,7 @@ fqdn                  h1.taosdata.com
 // 配置本节点的端口号，缺省是6030
 serverPort            6030
 
-// 副本数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
+// 服务端节点数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
 arbitrator            ha.taosdata.com:6042
 ```
 

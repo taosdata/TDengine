@@ -34,7 +34,6 @@ public class SelectTest extends BaseTest {
         statement.executeUpdate("drop database if exists " + dbName);
         statement.executeUpdate("create database if not exists " + dbName);
         statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
-
     }
 
     @Test
@@ -66,6 +65,5 @@ public class SelectTest extends BaseTest {
         statement.close();
         connection.close();
         Thread.sleep(10);
-
     }
 }

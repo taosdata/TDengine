@@ -119,7 +119,7 @@ WantedBy=multi-user.target
 	return nil
 }
 
-const version = "TDengine alert v2.0.0.0"
+const version = "TDengine alert v2.0.0.1"
 
 func main() {
 	var (
