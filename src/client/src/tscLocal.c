@@ -658,7 +658,6 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
   snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".%s", param->sTableName);
   extractTableName(pTableMetaInfo->name, param->buf);
 
-  //tstrncpy(param->tableName, pTableMetaInfo->name, TSDB_TABLE_FNAME_LEN);
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
   param->fp         = tscRebuildCreateTableStatement;
@@ -676,6 +675,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
   if (code != TSDB_CODE_SUCCESS) {
     free(param); 
     free(pInterSql);
+    free(query);
     return code;
   }
 
