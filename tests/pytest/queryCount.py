@@ -80,8 +80,8 @@ class QueryCountMultiThread:
 
         if(data[0][0] == 10000000):
             tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%d" % (sql, 0, 0, data[0][0], 10000000))
-        else:
-            tdLog.exit("sql:%s, row:%d col:%d data:%d == expect:%d" % (sql, 0, 0, data[0][0], 10000000))        
+        else:            
+            tdLog.exit("queryCount.py failed: sql:%s failed, row:%d col:%d data:%d != expect:%d" % (sql, 0, 0, data[0][0], 10000000))        
 
         cursor.close()
         self.conn.close()
