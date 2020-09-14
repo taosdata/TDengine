@@ -27,7 +27,8 @@ static int     tsdbCompareSchemaVersion(const void *key1, const void *key2);
 static int     tsdbRestoreTable(void *pHandle, void *cont, int contLen);
 static void    tsdbOrgMeta(void *pHandle);
 static char *  getTagIndexKey(const void *pData);
-static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper);
+static STable *tsdbNewTable();
+static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper);
 static void    tsdbFreeTable(STable *pTable);
 static int     tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, bool lock);
 static void    tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx, bool lock);
@@ -92,7 +93,7 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
     super = tsdbGetTableByUid(pMeta, pCfg->superUid);
     if (super == NULL) {  // super table not exists, try to create it
       newSuper = 1;
-      super = tsdbNewTable(pCfg, true);
+      super = tsdbCreateTableFromCfg(pCfg, true);
       if (super == NULL) goto _err;
     } else {
       if (TABLE_TYPE(super) != TSDB_SUPER_TABLE || TABLE_UID(super) != pCfg->superUid) {
@@ -102,7 +103,7 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
     }
   }
 
-  table = tsdbNewTable(pCfg, false);
+  table = tsdbCreateTableFromCfg(pCfg, false);
   if (table == NULL) goto _err;
 
   // Register to meta
@@ -654,15 +655,24 @@ static char *getTagIndexKey(const void *pData) {
   return res;
 }
 
-static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
+static STable *tsdbNewTable() {
+  STable *pTable = (STable *)calloc(1, sizeof(*pTable));
+  if (pTable == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pTable->lastKey = TSKEY_INITIAL_VAL;
+
+  return pTable;
+}
+
+static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
   STable *pTable = NULL;
   size_t  tsize = 0;
 
-  pTable = (STable *)calloc(1, sizeof(STable));
-  if (pTable == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
+  pTable = tsdbNewTable();
+  if (pTable == NULL) goto _err;
 
   if (isSuper) {
     pTable->type = TSDB_SUPER_TABLE;
@@ -731,8 +741,6 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
         }
       }
     }
-
-    pTable->lastKey = TSKEY_INITIAL_VAL;
   }
 
   T_REF_INC(pTable);
@@ -1139,11 +1147,9 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
 }
 
 static void *tsdbDecodeTable(void *buf, STable **pRTable) {
-  STable *pTable = (STable *)calloc(1, sizeof(STable));
-  if (pTable == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return NULL;
-  }
+  STable *pTable = tsdbNewTable();
+  if (pTable == NULL) return NULL;
+
   uint8_t type = 0;
 
   buf = taosDecodeFixedU8(buf, &type);
