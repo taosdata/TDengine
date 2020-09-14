@@ -19,7 +19,20 @@
 #include "taoserror.h"
 #include "httpSystem.h"
 
+void signal_handler(int signum) {
+  httpStopSystem();
+  httpCleanUpSystem();
+  exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char *argv[]) {
+  struct sigaction act;
+  act.sa_handler = signal_handler;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
+  sigaction(SIGABRT, &act, NULL);
+
   // Initialize the system
   if (httpInitSystem() < 0) {
     exit(EXIT_FAILURE);
