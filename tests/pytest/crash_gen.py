@@ -1763,8 +1763,8 @@ class TaskCreateDb(StateTransitionTask):
         return state.canCreateDb()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        self.execWtSql(wt, "create database db replica {}".format(Dice.throw(3)+1))
-
+        # self.execWtSql(wt, "create database db replica {}".format(Dice.throw(3)+1))
+        self.execWtSql(wt, "create database db")
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
