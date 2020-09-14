@@ -245,6 +245,8 @@ static void *taosAcceptTcpConnection(void *arg) {
     }
 
     taosKeepTcpAlive(connFd);
+    struct timeval to={1, 0};
+    taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
 
     // pick up the thread to handle this connection
     pThreadObj = pServerObj->pThreadObj + threadId;
