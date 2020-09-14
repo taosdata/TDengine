@@ -60,7 +60,7 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
       uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      uError("failed get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+      uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
     }
 
     return 0xFFFFFFFF;
