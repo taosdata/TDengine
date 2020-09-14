@@ -139,7 +139,7 @@ static void httpProcessHttpData(void *param) {
       if (pServer->status != HTTP_SERVER_RUNNING) {
         httpDebug("context:%p, fd:%d, state:%s, server is not running, accessed:%d, close connect", pContext,
                   pContext->fd, httpContextStateStr(pContext->state), pContext->accessTimes);
-        httpSendErrorResp(pContext, HTTP_SERVER_OFFLINE);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_SERVER_OFFLINE);
         httpNotifyContextClose(pContext);
       } else {
         if (httpReadData(pContext)) {

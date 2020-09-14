@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taos.h"
+#include "taoserror.h"
 #include "tglobal.h"
 #include "tcache.h"
 #include "httpInt.h"
@@ -40,7 +41,7 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
 
   if (pContext->session == NULL) {
     httpError("context:%p, fd:%d, user:%s, error:%s", pContext, pContext->fd, pContext->user,
-              httpMsg[HTTP_SESSION_FULL]);
+              tstrerror(TSDB_CODE_HTTP_SESSION_FULL));
     taos_close(taos);
     pthread_mutex_unlock(&server->serverMutex);
     return;

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "httpLog.h"
 #include "httpRestHandle.h"
 #include "httpRestJson.h"
@@ -90,7 +91,7 @@ bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
 
   char* sql = pContext->parser->body.str;
   if (sql == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
 
@@ -99,7 +100,7 @@ bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
    * for async test
    *
   if (httpCheckUsedbSql(sql)) {
-    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_EXEC_USEDB);
     return false;
   }
   */
@@ -126,7 +127,7 @@ bool restProcessRequest(struct HttpContext* pContext) {
   }
 
   if (strlen(pContext->user) == 0 || strlen(pContext->pass) == 0) {
-    httpSendErrorResp(pContext, HTTP_PARSE_USR_ERROR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_AUTH_INFO);
     return false;
   }
 
@@ -141,6 +142,6 @@ bool restProcessRequest(struct HttpContext* pContext) {
   } else {
   }
 
-  httpSendErrorResp(pContext, HTTP_PARSE_URL_ERROR);
+  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVLALID_URL);
   return false;
 }

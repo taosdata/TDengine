@@ -20,7 +20,6 @@
 #include "tglobal.h"
 #include "http.h"
 #include "httpLog.h"
-#include "httpCode.h"
 #include "httpJson.h"
 #include "httpResp.h"
 #include "httpUtil.h"

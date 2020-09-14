@@ -17,6 +17,7 @@
 #include "os.h"
 #include "tnote.h"
 #include "taos.h"
+#include "taoserror.h"
 #include "tsclient.h"
 #include "httpInt.h"
 #include "httpContext.h"
@@ -193,7 +194,7 @@ void httpProcessMultiSqlCmd(HttpContext *pContext) {
 
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   if (multiCmds == NULL || multiCmds->size <= 0 || multiCmds->pos >= multiCmds->size || multiCmds->pos < 0) {
-    httpSendErrorResp(pContext, HTTP_INVALID_MULTI_REQUEST);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVALID_MULTI_REQUEST);
     return;
   }
 
@@ -282,7 +283,7 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int unUsedCo
     } else {
       httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s, sqlObj:%p", pContext, pContext->fd,
                 pContext->user, pContext->session->taos, tstrerror(code), pObj);
-      httpSendTaosdErrorResp(pContext, code);
+      httpSendErrorResp(pContext, code);
     }
     taos_free_result(result);
     return;
@@ -332,7 +333,7 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
 
   if (sql == NULL || sql[0] == 0) {
     httpError("context:%p, fd:%d, user:%s, error:no sql input", pContext, pContext->fd, pContext->user);
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return;
   }
 
@@ -344,7 +345,7 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
 void httpProcessLoginCmd(HttpContext *pContext) {
   char token[128] = {0};
   if (!httpGenTaosdAuthToken(pContext, token, 128)) {
-    httpSendErrorResp(pContext, HTTP_GEN_TAOSD_TOKEN_ERR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_GEN_TAOSD_TOKEN_ERR);
   } else {
     httpDebug("context:%p, fd:%d, user:%s, login via http, return token:%s", pContext, pContext->fd, pContext->user,
               token);
@@ -395,7 +396,7 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
   if (code < 0) {
     httpError("context:%p, fd:%d, user:%s, login error, code:%s", pContext, pContext->fd, pContext->user,
               tstrerror(code));
-    httpSendTaosdErrorResp(pContext, code);
+    httpSendErrorResp(pContext, code);
     return;
   }
 
@@ -403,14 +404,14 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
             pContext->taos);
   if (pContext->taos == NULL) {
     httpError("context:%p, fd:%d, user:%s, login error, taos is empty", pContext, pContext->fd, pContext->user);
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_SESSIONS);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_LOGIN_FAILED);
     return;
   }
 
   httpCreateSession(pContext, pContext->taos);
 
   if (pContext->session == NULL) {
-    httpSendErrorResp(pContext, HTTP_SESSION_FULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_SESSION_FULL);
     httpCloseContextByApp(pContext);
   } else {
     httpExecCmd(pContext);

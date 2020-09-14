@@ -338,7 +338,7 @@ static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
   if (len + 1 >= avail) {
     if (buf->size >= HTTP_BUFFER_SIZE) {
       httpError("context:%p, fd:%d, failed parse body, exceeding buffer size %d", pContext, pContext->fd, buf->size);
-      httpOnError(parser, 0, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
+      httpOnError(parser, 0, TSDB_CODE_HTTP_REQUSET_TOO_BIG);
       return -1;
     } else {
       int32_t newSize = buf->size * 10;

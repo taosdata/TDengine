@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "cJSON.h"
 #include "httpLog.h"
 #include "httpGcHandle.h"
@@ -146,31 +147,31 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
   char* filter = pContext->parser->body.str;
   if (filter == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_MSG_INPUT);
     return false;
   }
 
   cJSON* root = cJSON_Parse(filter);
   if (root == NULL) {
-    httpSendErrorResp(pContext, HTTP_PARSE_GC_REQ_ERROR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_GC_REQ_PARSE_ERROR);
     return false;
   }
 
   int32_t size = cJSON_GetArraySize(root);
   if (size <= 0) {
-    httpSendErrorResp(pContext, HTTP_GC_QUERY_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_GC_QUERY_NULL);
     cJSON_Delete(root);
     return false;
   }
 
   if (size > 100) {
-    httpSendErrorResp(pContext, HTTP_GC_QUERY_SIZE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_GC_QUERY_SIZE);
     cJSON_Delete(root);
     return false;
   }
 
   if (!httpMallocMultiCmds(pContext, size, HTTP_BUFFER_SIZE)) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     cJSON_Delete(root);
     return false;
   }
@@ -218,7 +219,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
     HttpSqlCmd* cmd = httpNewSqlCmd(pContext);
     if (cmd == NULL) {
-      httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
       cJSON_Delete(root);
       return false;
     }
@@ -227,7 +228,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     cmd->values = refIdBuffer;
     cmd->table = aliasBuffer;
     cmd->numOfRows = 0;                                                                 // hack way as target flags
-    cmd->timestamp = httpAddToSqlCmdBufferWithSize(pContext, HTTP_GC_TARGET_SIZE + 1);  // hack way
+    cmd->timestamp = httpAddToSqlCmdBufferWithSize(pContext, TSDB_CODE_HTTP_GC_TARGET_SIZE + 1);  // hack way
 
     if (cmd->timestamp == -1) {
       httpWarn("context:%p, fd:%d, user:%s, cant't malloc target size, sql buffer is full", pContext, pContext->fd,
@@ -260,7 +261,7 @@ bool gcProcessRequest(struct HttpContext* pContext) {
   }
 
   if (strlen(pContext->user) == 0 || strlen(pContext->pass) == 0) {
-    httpSendErrorResp(pContext, HTTP_PARSE_USR_ERROR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_AUTH_INFO);
     return false;
   }
 
