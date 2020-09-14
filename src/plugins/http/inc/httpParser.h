@@ -1,9 +1,23 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef HTTP_PARSER_H
 #define HTTP_PARSER_H
-
 #include "httpGzip.h"
 
-struct HttpContext;
+#define HTTP_MAX_URL 5  // http url stack size
 
 typedef enum HTTP_PARSER_STATE {
   HTTP_PARSER_BEGIN,
@@ -24,79 +38,82 @@ typedef enum HTTP_PARSER_STATE {
   HTTP_PARSER_ERROR,
 } HTTP_PARSER_STATE;
 
-typedef struct HttpParserString {
-  char * str;
-  size_t len;
-} HttpParserString;
+typedef enum HTTP_AUTH_TYPE {
+  HTTP_INVALID_AUTH,
+  HTTP_BASIC_AUTH,
+  HTTP_TAOSD_AUTH
+} HTTP_AUTH_TYPE;
 
-typedef struct HttpParserStatusObj {
-  int32_t     status_code;
-  const char *status_desc;
-} HttpParserStatusObj;
+typedef enum HTTP_VERSION {
+  HTTP_VERSION_10 = 0,
+  HTTP_VERSION_11 = 1,
+  HTTP_VERSION_12 = 2,
+  HTTP_INVALID_VERSION
+} HTTP_VERSION;
 
-typedef struct HttpParserCallbackObj {
-  void (*on_request_line)(void *arg, const char *method, const char *target, const char *version, const char *target_raw);
-  void (*on_status_line)(void *arg, const char *version, int status_code, const char *reason_phrase);
-  void (*on_header_field)(void *arg, const char *key, const char *val);
-  void (*on_body)(void *arg, const char *chunk, size_t len);
-  void (*on_end)(void *arg);
-  void (*on_error)(void *arg, int status_code);
-} HttpParserCallbackObj;
+typedef enum HTTP_KEEPALIVE {
+  HTTP_KEEPALIVE_NO_INPUT = 0,
+  HTTP_KEEPALIVE_ENABLE = 1,
+  HTTP_KEEPALIVE_DISABLE = 2
+} HTTP_KEEPALIVE;
 
-typedef struct HttpParserConfObj {
-  size_t flush_block_size;  // <=0: immediately
-} HttpParserConfObj;
+typedef struct HttpString {
+  char *  str;
+  int32_t pos;
+  int32_t size;
+} HttpString;
 
-typedef struct HttpParseKvObj {
-  char *key;
-  char *val;
-} HttpParseKvObj;
+typedef struct HttpStatus {
+  int32_t code;
+  char *  desc;
+} HttpStatus;
 
-typedef struct HttpParserObj {
-  HttpParserCallbackObj callbacks;
-  HttpParserConfObj      conf;
-  void *             arg;
-  char *             method;
-  char *             target;
-  char *             target_raw;
-  char *             version;
-  int                http_10 : 2;
-  int                http_11 : 2;
-  int                accept_encoding_gzip : 2;
-  int                accept_encoding_chunked : 2;
-  int                transfer_gzip : 2;
-  int                transfer_chunked : 2;
-  int                content_length_specified : 2;
-  int                content_chunked : 2;
-  int                status_code;
-  char *             reason_phrase;
-  char *             key;
-  char *             val;
-  HttpParseKvObj *   kvs;
-  size_t             kvs_count;
-  char *             auth_basic;
-  char *             auth_taosd;
-  size_t             content_length;
-  size_t             chunk_size;
-  size_t             received_chunk_size;
-  size_t             received_size;
-  ehttp_gzip_t *     gzip;
-  HttpParserString     str;
-  HTTP_PARSER_STATE *stacks;
-  size_t             stacks_count;
-} HttpParserObj;
+typedef struct HttpStack{
+  int8_t *stacks;
+  int32_t pos;
+  int32_t size;
+} HttpStack;
 
-void    httpParserCleanupString(HttpParserString *str);
-int32_t httpParserAppendString(HttpParserString *str, const char *s, int32_t len);
-void    httpParserClearString(HttpParserString *str);
+struct HttpContext;
+typedef struct HttpParser {
+  struct HttpContext *pContext;
+  ehttp_gzip_t *gzip;
+  HttpStack     stacks;
+  HttpString    str;
+  HttpString    body;
+  HttpString    path[HTTP_MAX_URL];
+  char *  method;
+  char *  target;
+  char *  target_raw;
+  char *  version;
+  char *  reasonPhrase;
+  char *  key;
+  char *  val;
+  char *  authContent;
+  int8_t  httpVersion;
+  int8_t  acceptEncodingGzip;
+  int8_t  acceptEncodingChunked;
+  int8_t  contentLengthSpecified;
+  int8_t  contentChunked;
+  int8_t  transferGzip;
+  int8_t  transferChunked;
+  int8_t  keepAlive;
+  int8_t  authType;
+  int32_t contentLength;
+  int32_t chunkSize;
+  int32_t receivedChunkSize;
+  int32_t receivedSize;
+  int32_t statusCode;
+  int8_t  inited;
+  int8_t  parsed;
+  int16_t httpCode;
+  int32_t parseCode;
+} HttpParser;
 
-
-HttpParserObj* httpParserCreate(HttpParserCallbackObj callbacks, HttpParserConfObj conf, void *arg);
-void           httpParserDestroy(HttpParserObj *parser);
-int32_t        httpParserBuf(struct HttpContext *pContext, HttpParserObj *parser, const char *buf, int32_t len);
-
-char* ehttp_parser_urldecode(const char *enc);
-
-const char* ehttp_status_code_get_desc(const int status_code);
+void        httpInitParser(HttpParser *parser);
+HttpParser *httpCreateParser(struct HttpContext *pContext);
+void        httpDestroyParser(HttpParser *parser);
+int32_t     httpParseBuf(HttpParser *parser, const char *buf, int32_t len);
+char *      httpGetStatusDesc(int32_t statusCode);
 
 #endif

@@ -1,10 +1,30 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "httpLog.h"
 #include "httpContext.h"
 #include "httpParser.h"
 #include "httpGzip.h"
+#include "httpAuth.h"
 
-static HttpParserStatusObj status_codes[] = {
+static void httpOnData(ehttp_gzip_t *gzip, void *arg, const char *buf, int32_t len);
+
+static HttpStatus httpStatusCodes[] = {
   {100, "Continue"},
   {101, "Switching Protocol"},
   {102, "Processing (WebDAV)"},
@@ -71,127 +91,411 @@ static HttpParserStatusObj status_codes[] = {
   {0,   NULL}
 };
 
-const char* ehttp_status_code_get_desc(const int status_code) {
-  HttpParserStatusObj *p = status_codes;
-  while (p->status_code!=0) {
-    if (p->status_code==status_code) return p->status_desc;
+char *httpGetStatusDesc(int32_t statusCode) {
+  HttpStatus *p = httpStatusCodes;
+  while (p->code != 0) {
+    if (p->code == statusCode) return p->desc;
     ++p;
   }
   return "Unknow status code";
 }
 
-static void dummy_on_request_line(void *arg, const char *method, const char *target, const char *version, const char *target_raw) {
+static void httpCleanupString(HttpString *str) {
+  free(str->str);
+  str->str = NULL;
+  str->pos = 0;
+  str->size = 0;
 }
 
-static void dummy_on_status_line(void *arg, const char *version, int status_code, const char *reason_phrase) {
+static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
+  if (str->size == 0) {
+    str->pos = 0;
+    str->size = 32;
+    str->str = malloc(str->size);
+  } else if (str->pos + len + 1 > str->size) {
+    str->size *= 10;
+    str->str = realloc(str->str, str->size);
+  } else {
+  }
+
+  if (str->str == NULL) return -1;
+
+  memcpy(str->str + str->pos, s, len);
+  str->pos += len;
+  str->str[str->pos] = 0;
+  return 0;
 }
 
-static void dummy_on_header_field(void *arg, const char *key, const char *val) {
+static void httpClearString(HttpString *str) {
+  if (str->str) {
+    str->str[0] = '\0';
+    str->pos    = 0;
+    str->size   = 0;
+  }
 }
 
-static void dummy_on_body(void *arg, const char *chunk, size_t len) {
+static int32_t httpOnError(HttpParser *parser, int32_t httpCode, int32_t parseCode) {
+  HttpContext *pContext = parser->pContext;
+  if (httpCode != 0) parser->httpCode = httpCode;
+  if (parseCode != 0) parser->parseCode = parseCode;
+  httpError("context:%p, fd:%d, parse failed, httpCode:%d parseCode:%d", pContext, pContext->fd, httpCode, parseCode);
+  return 0;
 }
 
-static void dummy_on_end(void *arg) {
-}
+static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target, char *version) {
+  HttpContext *pContext = pParser->pContext;
+  httpDebug("context:%p, fd:%d, method:%s target:%s version:%s", pContext, pContext->fd, method, target, version);
 
-static void dummy_on_error(void *arg, int status_code) {
-}
+  // parse url
+  char *pStart = target + 1;
+  for (int32_t i = 0; i < HTTP_MAX_URL; i++) {
+    char *pSeek = strchr(pStart, '/');
+    if (pSeek == NULL) {
+      pParser->path[i].str = strdup(pStart);
+      pParser->path[i].size = strlen(pStart);
+      pParser->path[i].pos = pParser->path[i].size;
+      break;
+    } else {
+      int32_t len = (int32_t)(pSeek - pStart);
+      pParser->path[i].str = malloc(len + 1);
+      memcpy(pParser->path[i].str, pStart, len);
+      pParser->path[i].str[len] = 0;
+      pParser->path[i].size = len;
+      pParser->path[i].pos = len;
+    }
+    pStart = pSeek + 1;
+  }
 
-static HTTP_PARSER_STATE httpParserTop(HttpParserObj *parser) {
-  ASSERT(parser->stacks_count >= 1);
-  ASSERT(parser->stacks);
+  // parse decode method
+  for (int32_t i = 0; i < tsHttpServer.methodScannerLen; i++) {
+    HttpDecodeMethod *method = tsHttpServer.methodScanner[i];
+    if (strcmp(method->module, pParser->path[0].str) == 0) {
+      pContext->decodeMethod = method;
+      break;
+    }
+  }
 
-  return parser->stacks[parser->stacks_count - 1];
-}
+  if (pContext->decodeMethod != NULL) {
+    httpDebug("context:%p, fd:%d, decode method is %s", pContext, pContext->fd, pContext->decodeMethod->module);
+  } else {
+    httpError("context:%p, fd:%d, the url is not support, target:%s", pContext, pContext->fd, target);
+    httpOnError(pParser, 0, TSDB_CODE_HTTP_UNSUPPORT_URL);
+    return -1;
+  }
 
-static int httpParserPush(HttpParserObj *parser, HTTP_PARSER_STATE state) {
-  size_t                   n      = parser->stacks_count + 1;
-  // HTTP_PARSER_STATE *stacks       = (HTTP_PARSER_STATE*)reallocarray(parser->stacks, n, sizeof(*stacks));
-  HTTP_PARSER_STATE *stacks       = (HTTP_PARSER_STATE*)realloc(parser->stacks, n * sizeof(*stacks));
-  if (!stacks) return -1;
-
-  parser->stacks_count            = n;
-  parser->stacks                  = stacks;
-  parser->stacks[n-1]             = state;
+  // parse version
+  if (pParser->httpVersion < HTTP_VERSION_10 || pParser->httpVersion > HTTP_VERSION_12) {
+    httpError("context:%p, fd:%d, unsupport httpVersion %d", pContext, pContext->fd, pParser->httpVersion);
+    httpOnError(pParser, 0, TSDB_CODE_HTTP_INVALID_VERSION);
+  } else {
+    httpDebug("context:%p, fd:%d, httpVersion:1.%d", pContext, pContext->fd, pParser->httpVersion);
+  }
 
   return 0;
 }
 
-static int httpParserPop(HttpParserObj *parser) {
-  if (parser->stacks_count <= 0) return -1;
-  --parser->stacks_count;
+static int32_t httpOnStatusLine(HttpParser *pParser, int32_t code, const char *reason) {
+  HttpContext *pContext = pParser->pContext;
+  httpError("context:%p, fd:%d, status line, code:%d reason:%s", pContext, pContext->fd, code, reason);
+  return 0;
+}
+
+static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const char *val) {
+  HttpContext *pContext = parser->pContext;
+  httpDebug("context:%p, fd:%d, key:%s val:%s", pContext, pContext->fd, key, val);
+
+  if (0 == strcasecmp(key, "Content-Length")) {
+    int32_t len = 0;
+    int32_t bytes = 0;
+    int32_t n = sscanf(val, "%d%n", &len, &bytes);
+    if (n == 1 && bytes == strlen(val)) {
+      parser->contentLength = len;
+      parser->chunkSize = len;
+      parser->contentLengthSpecified = 1;
+      httpDebug("context:%p, fd:%d, contentLength:%d chunkSize:%d contentLengthSpecified:%d", pContext, pContext->fd,
+                parser->contentLength, parser->chunkSize, parser->contentLengthSpecified);
+      return 0;
+    } else {
+      httpError("context:%p, fd:%d, failed to parser %s:%s", pContext, pContext->fd, key, val);
+      httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_CONTENT_LENGTH);
+      return -1;
+    }
+  }
+
+  else if (0 == strcasecmp(key, "Accept-Encoding")) {
+    if (strstr(val, "gzip")) {
+      parser->acceptEncodingGzip = 1;
+      httpDebug("context:%p, fd:%d, acceptEncodingGzip:%d", pContext, pContext->fd, parser->acceptEncodingGzip);
+    }
+    if (strstr(val, "chunked")) {
+      parser->acceptEncodingChunked = 1;
+      httpDebug("context:%p, fd:%d, acceptEncodingChunked:%d", pContext, pContext->fd, parser->acceptEncodingChunked);
+    }
+    return 0;
+  }
+
+  else if (strncasecmp(key, "Connection: ", 12) == 0) {
+    if (strncasecmp(val, "Keep-Alive", 10) == 0) {
+      parser->keepAlive = HTTP_KEEPALIVE_ENABLE;
+    } else {
+      parser->keepAlive = HTTP_KEEPALIVE_DISABLE;
+    }
+    httpTrace("context:%p, fd:%d, keepAlive:%d", pContext, pContext->fd, pContext->parser->keepAlive);
+  }
+
+  else if (0 == strcasecmp(key, "Content-Encoding")) {
+    if (0 == strcmp(val, "gzip")) {
+      parser->contentChunked = 1;
+      httpDebug("context:%p, fd:%d, contentChunked:%d", pContext, pContext->fd, parser->contentChunked);
+    }
+    return 0;
+  }
+
+  else if (0 == strcasecmp(key, "Transfer-Encoding")) {
+    if (strstr(val, "gzip")) {
+      parser->transferGzip = 1;
+      ehttp_gzip_conf_t      conf = {0};
+      ehttp_gzip_callbacks_t callbacks = {0};
+
+      callbacks.on_data = httpOnData;
+
+      parser->gzip = ehttp_gzip_create_decompressor(conf, callbacks, parser);
+
+      if (!parser->gzip) {
+        httpError("context:%p, fd:%d, failed to create gzip decompressor", pContext, pContext->fd);
+        httpOnError(parser, 0, TSDB_CODE_HTTP_CREATE_GZIP_FAILED);
+        return -1;
+      }
+    }
+    if (strstr(val, "chunked")) {
+      parser->transferChunked = 1;
+      httpDebug("context:%p, fd:%d, transferChunked:%d", pContext, pContext->fd, parser->transferChunked);
+    }
+    return 0;
+  }
+
+  else if (0 == strcasecmp(key, "Authorization")) {
+    char *  t = NULL;
+    char *  s = NULL;
+    int32_t bytes = 0;
+    int32_t n = sscanf(val, "%ms %ms%n", &t, &s, &bytes);
+    if (n == 2 && t && s && bytes == strlen(val)) {
+      if (strcmp(t, "Basic") == 0) {
+        free(parser->authContent);
+        parser->authContent = s;
+        parser->authType = HTTP_BASIC_AUTH;
+        s = NULL;
+        free(t);
+        free(s);
+        httpDebug("context:%p, fd:%d, basic auth:%s", pContext, pContext->fd, parser->authContent);
+        int32_t ok = httpParseBasicAuthToken(pContext, parser->authContent, strlen(parser->authContent));
+        if (ok != 0) {
+          httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_BASIC_AUTH);
+          return -1;
+        }
+        return 0;
+      } else if (strcmp(t, "Taosd") == 0) {
+        free(parser->authContent);
+        parser->authContent = s;
+        parser->authType = HTTP_TAOSD_AUTH;
+        s = NULL;
+        free(t);
+        free(s);
+        httpDebug("context:%p, fd:%d, taosd auth:%s", pContext, pContext->fd, parser->authContent);
+        int32_t ok = httpParseTaosdAuthToken(pContext, parser->authContent, strlen(parser->authContent));
+        if (ok != 0) {
+          httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_TAOSD_AUTH);
+          return -1;
+        }
+        return 0;
+      } else {
+        free(t);
+        free(s);
+        parser->authType = HTTP_INVALID_AUTH;
+        httpError("context:%p, fd:%d, invalid auth, t:%s s:%s", pContext, pContext->fd, t, s);
+        httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_TYPE);
+        return -1;
+      }
+    } else {
+      free(t);
+      free(s);
+      parser->authType = HTTP_INVALID_AUTH;
+      httpError("context:%p, fd:%d, parse auth failed, t:%s s:%s", pContext, pContext->fd, t, s);
+      httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_FORMAT);
+      return -1;
+    }
+  }
 
   return 0;
 }
 
-HttpParserObj *httpParserCreate(HttpParserCallbackObj callbacks, HttpParserConfObj conf, void *arg) {
-  HttpParserObj *parser = (HttpParserObj*)calloc(1, sizeof(*parser));
+static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
+  HttpContext *pContext = parser->pContext;
+  HttpString * buf = &parser->body;
+  if (parser->parseCode != TSDB_CODE_SUCCESS) return -1;
+
+  int32_t avail = buf->size - buf->pos;
+  if (len + 1 >= avail) {
+    if (buf->size >= HTTP_BUFFER_SIZE) {
+      httpError("context:%p, fd:%d, failed parse body, exceeding buffer size %d", pContext, pContext->fd, buf->size);
+      httpOnError(parser, 0, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
+      return -1;
+    } else {
+      int32_t newSize = buf->size * 10;
+      newSize = MIN(newSize, HTTP_BUFFER_SIZE);
+      buf->str = realloc(buf->str, newSize);
+      if (buf->str == NULL) {
+        httpError("context:%p, fd:%d, failed parse body, realloc %d failed", pContext, pContext->fd, newSize);
+        httpOnError(parser, 0, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
+        return -1;
+      }
+      buf->size = newSize;
+    }
+  }
+
+  memcpy(buf->str + buf->pos, chunk, len);
+  buf->pos += len;
+  buf->str[buf->pos] = 0;
+
+  return 0;
+}
+
+static int32_t httpOnEnd(HttpParser *parser) {
+  HttpContext *pContext = parser->pContext;
+  parser->parsed = true;
+
+  if (parser->parseCode != TSDB_CODE_SUCCESS) {
+    return -1;
+  }
+
+  httpDebug("context:%p, fd:%d, parse success", pContext, pContext->fd);
+  return 0;
+}
+
+static HTTP_PARSER_STATE httpTopStack(HttpParser *parser) {
+  HttpStack *stack = &parser->stacks;
+  ASSERT(stack->pos >= 1);
+
+  return stack->stacks[stack->pos - 1];
+}
+
+static int32_t httpPushStack(HttpParser *parser, HTTP_PARSER_STATE state) {
+  HttpStack *stack = &parser->stacks;
+  if (stack->size == 0) {
+    stack->pos = 0;
+    stack->size = 32;
+    stack->stacks = malloc(stack->size * sizeof(int8_t));
+  } else if (stack->pos + 1 > stack->size) {
+    stack->size *= 10;
+    stack->stacks = realloc(stack->stacks, stack->size * sizeof(int8_t));
+  } else {
+  }
+
+  if (stack->stacks == NULL) return -1;
+
+  stack->stacks[stack->pos] = state;
+  stack->pos++;
+
+  return 0;
+}
+
+static int32_t httpPopStack(HttpParser *parser) {
+  HttpStack *stack = &parser->stacks;
+  ASSERT(stack->pos >= 1);
+  stack->pos--;
+  return 0;
+}
+
+static void httpClearStack(HttpStack *stack) {
+  stack->pos = 0;
+}
+
+static int32_t httpCleanupStack(HttpStack *stack) {
+  free(stack->stacks);
+  memset(stack, 0, sizeof(HttpStack));
+
+  return 0;
+}
+
+void httpInitParser(HttpParser *parser) {
+  HttpContext *pContext = parser->pContext;
+  httpTrace("context:%p, fd:%d, free parser", pContext, pContext->fd);
+
+  parser->parsed = false;
+  parser->inited = 1;
+  parser->httpVersion = 0;
+  parser->acceptEncodingGzip = 0;
+  parser->acceptEncodingChunked = 0;
+  parser->contentLengthSpecified = 0;
+  parser->contentChunked = 0;
+  parser->transferGzip = 0;
+  parser->transferChunked = 0;
+  parser->keepAlive = 0;
+  parser->authType = 0;
+  parser->contentLength = 0;
+  parser->chunkSize = 0;
+  parser->receivedChunkSize = 0;
+  parser->receivedSize = 0;
+  parser->statusCode = 0;
+  parser->httpCode = 0;
+  parser->parseCode = 0;
+
+  free(parser->method);         parser->method          = NULL;
+  free(parser->target);         parser->target          = NULL;
+  free(parser->target_raw);     parser->target_raw      = NULL;
+  free(parser->version);        parser->version         = NULL;
+  free(parser->reasonPhrase);   parser->reasonPhrase    = NULL;
+  free(parser->key);            parser->key             = NULL;
+  free(parser->val);            parser->val             = NULL;
+  free(parser->authContent);    parser->authContent     = NULL;
+  
+  httpClearStack(&parser->stacks);
+  httpClearString(&parser->str);
+  httpClearString(&parser->body);
+  for (int32_t i = 0; i < HTTP_MAX_URL; ++i) {
+    httpClearString(&parser->path[i]);
+  }
+
+  if (parser->gzip != NULL) {
+    ehttp_gzip_destroy(parser->gzip);
+    parser->gzip = NULL;
+  }
+
+  httpPushStack(parser, HTTP_PARSER_BEGIN);
+}
+
+HttpParser *httpCreateParser(HttpContext *pContext) {
+  HttpParser *parser = calloc(1, sizeof(HttpParser));
   if (!parser) return NULL;
+  httpTrace("context:%p, fd:%d, create parser", pContext, pContext->fd);
 
-  parser->callbacks       = callbacks;
-  parser->arg             = arg;
-  parser->conf            = conf;
-
-  if (parser->callbacks.on_request_line == NULL) {
-    parser->callbacks.on_request_line = dummy_on_request_line;
-  }
-  if (parser->callbacks.on_status_line == NULL) {
-    parser->callbacks.on_status_line = dummy_on_status_line;
-  }
-  if (parser->callbacks.on_header_field == NULL) {
-    parser->callbacks.on_header_field = dummy_on_header_field;
-  }
-  if (parser->callbacks.on_body == NULL) {
-    parser->callbacks.on_body = dummy_on_body;
-  }
-  if (parser->callbacks.on_end == NULL) {
-    parser->callbacks.on_end = dummy_on_end;
-  }
-  if (parser->callbacks.on_error == NULL) {
-    parser->callbacks.on_error = dummy_on_error;
-  }
-
-  httpParserPush(parser, HTTP_PARSER_BEGIN);
-
+  parser->pContext = pContext;
   return parser;
 }
 
-static void ehttp_parser_kvs_destroy(HttpParserObj *parser) {
-  if (!parser->kvs) return;
+void httpDestroyParser(HttpParser *parser) {
+  HttpContext *pContext = parser->pContext;
+  httpTrace("context:%p, fd:%d, free parser", pContext, pContext->fd);
 
-  for (size_t i=0; i<parser->kvs_count; ++i) {
-    HttpParseKvObj *p = &parser->kvs[i];
-    free(p->key); p->key = NULL;
-    free(p->val); p->val = NULL;
-  }
-  free(parser->kvs);
-  parser->kvs = NULL;
-  parser->kvs_count = 0;
-
-  free(parser->auth_basic);
-  parser->auth_basic = NULL;
-}
-
-void httpParserDestroy(HttpParserObj *parser) {
   if (!parser) return;
 
   free(parser->method);         parser->method          = NULL;
   free(parser->target);         parser->target          = NULL;
   free(parser->target_raw);     parser->target_raw      = NULL;
   free(parser->version);        parser->version         = NULL;
-  free(parser->reason_phrase);  parser->reason_phrase   = NULL;
+  free(parser->reasonPhrase);   parser->reasonPhrase    = NULL;
   free(parser->key);            parser->key             = NULL;
   free(parser->val);            parser->val             = NULL;
-  free(parser->auth_basic);     parser->auth_basic      = NULL;
-  free(parser->stacks);         parser->stacks          = NULL;
+  free(parser->authContent);    parser->authContent     = NULL;
+  
+  httpCleanupStack(&parser->stacks);
+  httpCleanupString(&parser->str);
+  httpCleanupString(&parser->body);
+  for (int32_t i = 0; i < HTTP_MAX_URL; ++i) {
+    httpCleanupString(&parser->path[i]);
+  }
 
-  parser->stacks_count = 0;
-
-  ehttp_parser_kvs_destroy(parser);
-
-  httpParserCleanupString(&parser->str);
-  if (parser->gzip) {
+  if (parser->gzip != NULL) {
     ehttp_gzip_destroy(parser->gzip);
     parser->gzip = NULL;
   }
@@ -201,209 +505,106 @@ void httpParserDestroy(HttpParserObj *parser) {
 
 #define is_token(c)      (strchr("!#$%&'*+-.^_`|~", c) || isdigit(c) || isalpha(c))
 
-char *ehttp_parser_urldecode(const char *enc) {
-  int ok = 1;
-  HttpParserString str = {0};
+char *httpDecodeUrl(const char *enc) {
+  int32_t ok = 1;
+  HttpString str = {0};
   while (*enc) {
     char *p = strchr(enc, '%');
     if (!p) break;
-    int hex, cnt;
-    int n = sscanf(p+1, "%2x%n", &hex, &cnt);
+    int32_t hex, cnt;
+    int32_t n = sscanf(p+1, "%2x%n", &hex, &cnt);
     if (n!=1 && cnt !=2) { ok = 0; break; }
-    if (httpParserAppendString(&str, enc, p-enc)) { ok = 0; break; }
+    if (httpAppendString(&str, enc, p-enc)) { ok = 0; break; }
     char c = (char)hex;
-    if (httpParserAppendString(&str, &c, 1)) { ok = 0; break; }
+    if (httpAppendString(&str, &c, 1)) { ok = 0; break; }
     enc    = p+3;
   }
   char *dec = NULL;
   if (ok && *enc) {
-    if (httpParserAppendString(&str, enc, strlen(enc))) { ok = 0; }
+    if (httpAppendString(&str, enc, strlen(enc))) { ok = 0; }
   }
   if (ok) {
     dec = str.str;
     str.str = NULL;
   }
-  httpParserCleanupString(&str);
+  httpCleanupString(&str);
   return dec;
 }
 
-static void on_data(ehttp_gzip_t *gzip, void *arg, const char *buf, size_t len) {
-  HttpParserObj *parser = (HttpParserObj*)arg;
-  parser->callbacks.on_body(parser->arg, buf, len);
+static void httpOnData(ehttp_gzip_t *gzip, void *arg, const char *buf, int32_t len) {
+  HttpParser *parser = (HttpParser*)arg;
+  httpOnBody(parser, buf, len);
 }
 
-static int32_t httpParserCheckField(HttpContext *pContext, HttpParserObj *parser, const char *key, const char *val) {
-  int32_t ok = 0;
-  do {
-    if (0 == strcasecmp(key, "Content-Length")) {
-      int32_t len = 0;
-      int32_t bytes = 0;
-      int32_t n = sscanf(val, "%d%n", &len, &bytes);
-      if (n == 1 && bytes == strlen(val)) {
-        parser->content_length = len;
-        parser->chunk_size = len;
-        parser->content_length_specified = 1;
-        break;
-      }
-      ok = -1;
-      break;
-    }
-    if (0 == strcasecmp(key, "Accept-Encoding")) {
-      if (strstr(val, "gzip")) {
-        parser->accept_encoding_gzip = 1;
-      }
-      if (strstr(val, "chunked")) {
-        parser->accept_encoding_chunked = 1;
-      }
-      break;
-    }
-    if (0 == strcasecmp(key, "Content-Encoding")) {
-      if (0 == strcmp(val, "gzip")) {
-        parser->content_chunked = 1;
-      }
-      break;
-    }
-    if (0 == strcasecmp(key, "Transfer-Encoding")) {
-      if (strstr(val, "gzip")) {
-        parser->transfer_gzip = 1;
-        ehttp_gzip_conf_t             conf = {0};
-        ehttp_gzip_callbacks_t        callbacks = {0};
-
-        callbacks.on_data     = on_data;
-
-        parser->gzip          = ehttp_gzip_create_decompressor(conf, callbacks, parser);
-
-        if (!parser->gzip) {
-          httpDebug("failed to create gzip decompressor");
-          ok = -1;
-          break;
-        }
-      }
-      if (strstr(val, "chunked")) {
-        parser->transfer_chunked = 1;
-      }
-      break;
-    }
-    if (0==strcasecmp(key, "Authorization")) {
-      char *t   = NULL;
-      char *s   = NULL;
-      int32_t bytes = 0;
-      int32_t n = sscanf(val, "%ms %ms%n", &t, &s, &bytes);
-      if (n == 2 && t && s && bytes == strlen(val)) {
-        if (strcmp(t, "Basic") == 0) {
-          free(parser->auth_basic);
-          parser->auth_basic = s;
-          s = NULL;
-        } else if (n == 2 && t && s && strcmp(t, "Taosd") == 0) {
-          free(parser->auth_taosd);
-          parser->auth_taosd = s;
-          s = NULL;
-        } else {
-          httpError("context:%p, fd:%d, invalid auth, t:%s s:%s", pContext, pContext->fd, t, s);
-          ok = -1;
-        }
-      } else {
-        httpError("context:%p, fd:%d, parse auth failed, t:%s s:%s", pContext, pContext->fd, t, s);
-        ok = -1;
-      }
-
-      free(t);
-      free(s);
-      break;
-    }
-  } while (0);
-  return ok;
-}
-
-static int httpParserAppendKv(HttpParserObj *parser, const char *key, const char *val) {
-  // HttpParseKvObj *kvs   = (HttpParseKvObj*)reallocarray(parser->kvs, parser->kvs_count + 1, sizeof(*kvs));
-  HttpParseKvObj *kvs   = (HttpParseKvObj*)realloc(parser->kvs, (parser->kvs_count + 1) * sizeof(*kvs));
-  if (!kvs) return -1;
-
-  parser->kvs = kvs;
-
-  kvs[parser->kvs_count].key  = strdup(key);
-  kvs[parser->kvs_count].val  = strdup(val);
-
-  if (kvs[parser->kvs_count].key && kvs[parser->kvs_count].val) {
-    ++parser->kvs_count;
-    return 0;
-  }
-
-  free(kvs[parser->kvs_count].key);
-  kvs[parser->kvs_count].key = NULL;
-  free(kvs[parser->kvs_count].val);
-  kvs[parser->kvs_count].val = NULL;
-
-  return -1;
-}
-
-static int32_t httpParserOnBegin(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnBegin(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
     if (c == 'G' || c == 'P' || c == 'H' || c == 'D' || c == 'C' || c == 'O' || c == 'T') {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
         break;
       }
-      httpParserPop(parser);
-      httpParserPush(parser, HTTP_PARSER_REQUEST_OR_RESPONSE);
+      httpPopStack(parser);
+      httpPushStack(parser, HTTP_PARSER_REQUEST_OR_RESPONSE);
       break;
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 400);
+    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnRquestOrResponse(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnRquestOrResponse(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
-    if (parser->str.len == 1) {
+    if (parser->str.pos == 1) {
       if (c == 'T' && parser->str.str[0] == 'H') {
-        httpParserPop(parser);
-        httpParserPush(parser, HTTP_PARSER_END);
-        httpParserPush(parser, HTTP_PARSER_HEADER);
-        httpParserPush(parser, HTTP_PARSER_CRLF);
-        httpParserPush(parser, HTTP_PARSER_REASON_PHRASE);
-        httpParserPush(parser, HTTP_PARSER_SP);
-        httpParserPush(parser, HTTP_PARSER_STATUS_CODE);
-        httpParserPush(parser, HTTP_PARSER_SP);
-        httpParserPush(parser, HTTP_PARSER_HTTP_VERSION);
+        httpPopStack(parser);
+        httpPushStack(parser, HTTP_PARSER_END);
+        httpPushStack(parser, HTTP_PARSER_HEADER);
+        httpPushStack(parser, HTTP_PARSER_CRLF);
+        httpPushStack(parser, HTTP_PARSER_REASON_PHRASE);
+        httpPushStack(parser, HTTP_PARSER_SP);
+        httpPushStack(parser, HTTP_PARSER_STATUS_CODE);
+        httpPushStack(parser, HTTP_PARSER_SP);
+        httpPushStack(parser, HTTP_PARSER_HTTP_VERSION);
         *again = 1;
         break;
       }
-      httpParserPop(parser);
-      httpParserPush(parser, HTTP_PARSER_END);
-      httpParserPush(parser, HTTP_PARSER_HEADER);
-      httpParserPush(parser, HTTP_PARSER_CRLF);
-      httpParserPush(parser, HTTP_PARSER_HTTP_VERSION);
-      httpParserPush(parser, HTTP_PARSER_SP);
-      httpParserPush(parser, HTTP_PARSER_TARGET);
-      httpParserPush(parser, HTTP_PARSER_SP);
-      httpParserPush(parser, HTTP_PARSER_METHOD);
+      httpPopStack(parser);
+      httpPushStack(parser, HTTP_PARSER_END);
+      httpPushStack(parser, HTTP_PARSER_HEADER);
+      httpPushStack(parser, HTTP_PARSER_CRLF);
+      httpPushStack(parser, HTTP_PARSER_HTTP_VERSION);
+      httpPushStack(parser, HTTP_PARSER_SP);
+      httpPushStack(parser, HTTP_PARSER_TARGET);
+      httpPushStack(parser, HTTP_PARSER_SP);
+      httpPushStack(parser, HTTP_PARSER_METHOD);
       *again = 1;
       break;
     }
 
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 400);
+    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnMethod(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnMethod(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
     if (isalnum(c) || strchr("!#$%&'*+-.^_`|~", c)) {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpDebug("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
         break;
       }
       break;
@@ -412,59 +613,63 @@ static int32_t httpParserOnMethod(HttpContext *pContext, HttpParserObj *parser, 
     if (!parser->method) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
       break;
+    } else {
+      httpTrace("context:%p, fd:%d, httpMethod:%s", pContext, pContext->fd, parser->method);
     }
-    httpParserClearString(&parser->str);
-    httpParserPop(parser);
+    httpClearString(&parser->str);
+    httpPopStack(parser);
     *again = 1;
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnTarget(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
     if (!isspace(c) && c != '\r' && c != '\n') {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);
         break;
       }
       break;
     }
     parser->target_raw = strdup(parser->str.str);
-    parser->target = ehttp_parser_urldecode(parser->str.str);
+    parser->target = httpDecodeUrl(parser->str.str);
     if (!parser->target_raw || !parser->target) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);
       break;
     }
-    httpParserClearString(&parser->str);
-    httpParserPop(parser);
+    httpClearString(&parser->str);
+    httpPopStack(parser);
     *again = 1;
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnVersion(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
     const char *prefix = "HTTP/1.";
     int32_t     len = strlen(prefix);
-    if (parser->str.len < len) {
-      if (prefix[parser->str.len]!=c) {
+    if (parser->str.pos < len) {
+      if (prefix[parser->str.pos] != c) {
         httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 400);
+        httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
         break;
       }
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
         break;
       }
       break;
@@ -473,135 +678,143 @@ static int32_t httpParserOnVersion(HttpContext *pContext, HttpParserObj *parser,
     if (c!='0' && c!='1') {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 400);
+      httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
-    if (httpParserAppendString(&parser->str, &c, 1)) {
+    if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
-    if (c=='0') parser->http_10 = 1;
-    if (c=='1') parser->http_11 = 1;
+    
+    if (c == '0') parser->httpVersion = HTTP_VERSION_10;
+    else if (c == '1') parser->httpVersion = HTTP_VERSION_11;
+    else if (c == '2') parser->httpVersion = HTTP_VERSION_12;
+    else parser->httpVersion = HTTP_INVALID_VERSION;
 
     parser->version = strdup(parser->str.str);
     if (!parser->version) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
 
     if (parser->method) {
-      parser->callbacks.on_request_line(parser->arg, parser->method, parser->target, parser->version, parser->target_raw);
+      ok = httpOnRequestLine(parser, parser->method, parser->target, parser->version);
     }
 
-    httpParserClearString(&parser->str);
-    httpParserPop(parser);
+    httpClearString(&parser->str);
+    httpPopStack(parser);
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnSp(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int *again) {
+static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
     if (c == ' ') {
-      httpParserPop(parser);
+      httpPopStack(parser);
       break;
     }
     httpDebug("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 507);
+    httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_SP_FAILED);
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnStatusCode(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int *again) {
-  int ok = 0;
+static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
+  int32_t ok = 0;
   do {
     if (isdigit(c)) {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_STATUS_FAILED);
         break;
       }
-      if (parser->str.len < 3) break;
+      if (parser->str.pos < 3) break;
 
-      sscanf(parser->str.str, "%d", &parser->status_code);
-      httpParserClearString(&parser->str);
-      httpParserPop(parser);
+      sscanf(parser->str.str, "%d", &parser->statusCode);
+      httpClearString(&parser->str);
+      httpPopStack(parser);
       break;
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 400);
+    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_STATUS_FAILED);
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnReasonPhrase(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int *again) {
-  int ok = 0;
+static int32_t httpParserOnReasonPhrase(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
+  int32_t ok = 0;
   do {
-    if (c=='\r') {
-      parser->reason_phrase = strdup(parser->str.str);
-      if (!parser->reason_phrase) {
+    if (c == '\r') {
+      parser->reasonPhrase = strdup(parser->str.str);
+      if (!parser->reasonPhrase) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_PHRASE_FAILED);
         break;
       }
-      parser->callbacks.on_status_line(parser->arg, parser->version, parser->status_code, parser->reason_phrase);
-      httpParserClearString(&parser->str);
-      httpParserPop(parser);
+      ok = httpOnStatusLine(parser, parser->statusCode, parser->reasonPhrase);
+      httpClearString(&parser->str);
+      httpPopStack(parser);
       *again = 1;
       break;
     }
-    if (httpParserAppendString(&parser->str, &c, 1)) {
+    if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_PHRASE_FAILED);
       break;
     }
   } while (0);
   return ok;
 }
 
-static int32_t httpParserPostProcess(HttpContext *pContext, HttpParserObj *parser) {
+static int32_t httpParserPostProcess(HttpParser *parser) {
+  HttpContext *pContext = parser->pContext;
   if (parser->gzip) {
     if (ehttp_gzip_finish(parser->gzip)) {
       httpError("context:%p, fd:%d, gzip failed", pContext, pContext->fd);
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_FINISH_GZIP_FAILED);
       return -1;
     }
   }
-  parser->callbacks.on_end(parser->arg);
+  httpOnEnd(parser);
   return 0;
 }
 
-static int32_t httpParserOnCrlf(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnCrlf(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
     const char *s   = "\r\n";
     int32_t   len   = strlen(s);
-    if (s[parser->str.len]!=c) {
+    if (s[parser->str.pos] != c) {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 400);
+      httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_CRLF_FAILED);
       break;
     }
-    if (httpParserAppendString(&parser->str, &c, 1)) {
+    if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CRLF_FAILED);
       break;
     }
-    if (parser->str.len == len) {
-      httpParserClearString(&parser->str);
-      httpParserPop(parser);
-      if (httpParserTop(parser) == HTTP_PARSER_END) {
-        ok = httpParserPostProcess(pContext, parser);
+    if (parser->str.pos == len) {
+      httpClearString(&parser->str);
+      httpPopStack(parser);
+      if (httpTopStack(parser) == HTTP_PARSER_END) {
+        ok = httpParserPostProcess(parser);
       }
     }
     break;
@@ -609,141 +822,140 @@ static int32_t httpParserOnCrlf(HttpContext *pContext, HttpParserObj *parser, HT
   return ok;
 }
 
-static int32_t httpParserOnHeader(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
-    if (c=='\r') {
-      httpParserPop(parser);
-      if (parser->transfer_chunked) {
-        httpParserPush(parser, HTTP_PARSER_CHUNK_SIZE);
-        httpParserPush(parser, HTTP_PARSER_CRLF);
+    if (c == '\r') {
+      httpPopStack(parser);
+      if (parser->transferChunked) {
+        httpPushStack(parser, HTTP_PARSER_CHUNK_SIZE);
+        httpPushStack(parser, HTTP_PARSER_CRLF);
       } else {
-        if (parser->content_length > 0) {
-          httpParserPush(parser, HTTP_PARSER_CHUNK);
+        if (parser->contentLength > 0) {
+          httpPushStack(parser, HTTP_PARSER_CHUNK);
         }
-        httpParserPush(parser, HTTP_PARSER_CRLF);
+        httpPushStack(parser, HTTP_PARSER_CRLF);
       }
       *again = 1;
       break;
     }
-    if (c!=' ' && c!='\t' && c!=':' ) {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+    if (c != ' ' && c != '\t' && c != ':') {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_FAILED);
         break;
       }
-      httpParserPush(parser, HTTP_PARSER_CRLF);
-      httpParserPush(parser, HTTP_PARSER_HEADER_VAL);
-      httpParserPush(parser, HTTP_PARSER_SP);
-      httpParserPush(parser, HTTP_PARSER_HEADER_KEY);
+      httpPushStack(parser, HTTP_PARSER_CRLF);
+      httpPushStack(parser, HTTP_PARSER_HEADER_VAL);
+      httpPushStack(parser, HTTP_PARSER_SP);
+      httpPushStack(parser, HTTP_PARSER_HEADER_KEY);
       break;
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 400);
+    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_HEADER_FAILED);
   } while (0);
   return ok;
 }
 
-static int httpParserOnHeaderKey(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int *again) {
-  int ok = 0;
+static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
+  int32_t ok = 0;
   do {
     if (isalnum(c) || strchr("!#$%&'*+-.^_`|~", c)) {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
         break;
       }
       break;
     }
-    if (c==':') {
+    if (c == ':') {
       parser->key        = strdup(parser->str.str);
       if (!parser->key) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
         break;
       }
-      httpParserClearString(&parser->str);
-      httpParserPop(parser);
+      httpClearString(&parser->str);
+      httpPopStack(parser);
       break;
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 400);
+    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnHeaderVal(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnHeaderVal(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
-    if (c != '\r' && c != '\n' && (!isspace(c) || parser->str.len>0)) {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+    if (c != '\r' && c != '\n' && (!isspace(c) || parser->str.pos > 0)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        parser->parseCode = TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED;
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED);
         break;
       }
       break;
     }
     const char *val = parser->str.str;
-    ok = httpParserCheckField(pContext, parser, parser->key, val);
-    if (httpParserAppendKv(parser, parser->key, val)) {
-      ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
-    } else {
-      parser->callbacks.on_header_field(parser->arg, parser->key, val);
-    }
+    ok = httpOnParseHeaderField(parser, parser->key, val);
     free(parser->key);
     parser->key = NULL;
     val = NULL;
     if (ok == -1) break;
-    httpParserClearString(&parser->str);
-    httpParserPop(parser);
+    httpClearString(&parser->str);
+    httpPopStack(parser);
     *again = 1;
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnChunkSize(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnChunkSize(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   int32_t bytes;
   int32_t len;
-  int n;
+  int32_t n;
   do {
     if (isxdigit(c)) {
-      if (httpParserAppendString(&parser->str, &c, 1)) {
+      if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED);
         break;
       }
       break;
     }
-    if (c=='\r') {
+    if (c == '\r') {
       n = sscanf(parser->str.str, "%x%n", &len, &bytes);
-      if (n==1 && bytes==strlen(parser->str.str) && len>=0) {
-        if (len==0) {
-          if (parser->content_length_specified == 0 || parser->received_size == parser->content_length) {
-            httpParserClearString(&parser->str);
-            httpParserPop(parser);
-            httpParserPush(parser, HTTP_PARSER_CRLF);
-            httpParserPush(parser, HTTP_PARSER_CRLF);
+      if (n == 1 && bytes == strlen(parser->str.str) && len >= 0) {
+        if (len == 0) {
+          if (parser->contentLengthSpecified == 0 || parser->receivedSize == parser->contentLength) {
+            httpClearString(&parser->str);
+            httpPopStack(parser);
+            httpPushStack(parser, HTTP_PARSER_CRLF);
+            httpPushStack(parser, HTTP_PARSER_CRLF);
             *again = 1;
             break;
           }
         } else {
-          if (parser->content_length_specified == 0 || parser->received_size + len <= parser->content_length) {
-            parser->chunk_size = len;
-            httpParserClearString(&parser->str);
-            httpParserPop(parser);
-            httpParserPush(parser, HTTP_PARSER_CHUNK_SIZE);
-            httpParserPush(parser, HTTP_PARSER_CRLF);
-            httpParserPush(parser, HTTP_PARSER_CHUNK);
-            httpParserPush(parser, HTTP_PARSER_CRLF);
+          if (parser->contentLengthSpecified == 0 || parser->receivedSize + len <= parser->contentLength) {
+            parser->chunkSize = len;
+            httpClearString(&parser->str);
+            httpPopStack(parser);
+            httpPushStack(parser, HTTP_PARSER_CHUNK_SIZE);
+            httpPushStack(parser, HTTP_PARSER_CRLF);
+            httpPushStack(parser, HTTP_PARSER_CHUNK);
+            httpPushStack(parser, HTTP_PARSER_CRLF);
             *again = 1;
             break;
           }
@@ -752,116 +964,119 @@ static int32_t httpParserOnChunkSize(HttpContext *pContext, HttpParserObj *parse
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 400);
+    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED);
   } while (0);
   return ok;
 }
 
-static int httpParserOnChunk(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int *again) {
-  int ok = 0;
+static int32_t httpParserOnChunk(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
+  int32_t ok = 0;
   do {
-    if (httpParserAppendString(&parser->str, &c, 1)) {
+    if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      parser->callbacks.on_error(parser->arg, 507);
+      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
       break;
     }
-    ++parser->received_size;
-    ++parser->received_chunk_size;
-    if (parser->received_chunk_size < parser->chunk_size) break;
+    ++parser->receivedSize;
+    ++parser->receivedChunkSize;
+    if (parser->receivedChunkSize < parser->chunkSize) break;
 
     if (parser->gzip) {
-      if (ehttp_gzip_write(parser->gzip, parser->str.str, parser->str.len)) {
+      if (ehttp_gzip_write(parser->gzip, parser->str.str, parser->str.pos)) {
         httpError("context:%p, fd:%d, gzip failed", pContext, pContext->fd);
         ok = -1;
-        parser->callbacks.on_error(parser->arg, 507);
+        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
         break;
       }
     } else {
-      parser->callbacks.on_body(parser->arg, parser->str.str, parser->str.len);
+      httpOnBody(parser, parser->str.str, parser->str.pos);
     }
-    parser->received_chunk_size = 0;
-    httpParserClearString(&parser->str);
-    httpParserPop(parser);
-    if (httpParserTop(parser) == HTTP_PARSER_END) {
-      ok = httpParserPostProcess(pContext, parser);
+    parser->receivedChunkSize = 0;
+    httpClearString(&parser->str);
+    httpPopStack(parser);
+    if (httpTopStack(parser) == HTTP_PARSER_END) {
+      ok = httpParserPostProcess(parser);
     }
   } while (0);
   return ok;
 }
 
-static int32_t httpParserOnEnd(HttpContext *pContext, HttpParserObj *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+static int32_t httpParserOnEnd(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
   do {
-    httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 507);
+    httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
+    httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_END_FAILED);
   } while (0);
   return ok;
 }
 
-static int32_t httpParseChar(HttpContext *pContext, HttpParserObj *parser, const char c, int32_t *again) {
+static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
+  HttpContext *pContext = parser->pContext;
   int32_t ok = 0;
-  HTTP_PARSER_STATE state = httpParserTop(parser);
+  HTTP_PARSER_STATE state = httpTopStack(parser);
   do {
     if (state == HTTP_PARSER_BEGIN) {
-      ok = httpParserOnBegin(pContext, parser, state, c, again);
+      ok = httpParserOnBegin(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_REQUEST_OR_RESPONSE) {
-      ok = httpParserOnRquestOrResponse(pContext, parser, state, c, again);
+      ok = httpParserOnRquestOrResponse(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_METHOD) {
-      ok = httpParserOnMethod(pContext, parser, state, c, again);
+      ok = httpParserOnMethod(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_TARGET) {
-      ok = httpParserOnTarget(pContext, parser, state, c, again);
+      ok = httpParserOnTarget(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_HTTP_VERSION) {
-      ok = httpParserOnVersion(pContext, parser, state, c, again);
+      ok = httpParserOnVersion(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_SP) {
-      ok = httpParserOnSp(pContext, parser, state, c, again);
+      ok = httpParserOnSp(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_STATUS_CODE) {
-      ok = httpParserOnStatusCode(pContext, parser, state, c, again);
+      ok = httpParserOnStatusCode(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_REASON_PHRASE) {
-      ok = httpParserOnReasonPhrase(pContext, parser, state, c, again);
+      ok = httpParserOnReasonPhrase(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_CRLF) {
-      ok = httpParserOnCrlf(pContext, parser, state, c, again);
+      ok = httpParserOnCrlf(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_HEADER) {
-      ok = httpParserOnHeader(pContext, parser, state, c, again);
+      ok = httpParserOnHeader(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_HEADER_KEY) {
-      ok = httpParserOnHeaderKey(pContext, parser, state, c, again);
+      ok = httpParserOnHeaderKey(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_HEADER_VAL) {
-      ok = httpParserOnHeaderVal(pContext, parser, state, c, again);
+      ok = httpParserOnHeaderVal(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_CHUNK_SIZE) {
-      ok = httpParserOnChunkSize(pContext, parser, state, c, again);
+      ok = httpParserOnChunkSize(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_CHUNK) {
-      ok = httpParserOnChunk(pContext, parser, state, c, again);
+      ok = httpParserOnChunk(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_END) {
-      ok = httpParserOnEnd(pContext, parser, state, c, again);
+      ok = httpParserOnEnd(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_ERROR) {
@@ -869,32 +1084,34 @@ static int32_t httpParseChar(HttpContext *pContext, HttpParserObj *parser, const
       break;
     }
 
-    httpError("context:%p, fd:%d, unknown parse state:%d", pContext, pContext->fd, state);
     ok = -1;
-    parser->callbacks.on_error(parser->arg, 500);
+    httpError("context:%p, fd:%d, unknown parse state:%d", pContext, pContext->fd, state);
+    httpOnError(parser, 500, TSDB_CODE_HTTP_PARSE_INVALID_STATE);
   } while (0);
 
   if (ok == -1) {
-    httpError("context:%p, fd:%d, failed to parse, state:%d ok:%d", pContext, pContext->fd, state, ok);
-    httpParserPush(parser, HTTP_PARSER_ERROR);
+    httpError("context:%p, fd:%d, failed to parse, state:%d", pContext, pContext->fd, state);
+    httpPushStack(parser, HTTP_PARSER_ERROR);
   }
 
   if (ok == -2) {
-    httpError("context:%p, fd:%d, failed to parse, state:%d ok:%d", pContext, pContext->fd, state, ok);
     ok = -1;
+    httpError("context:%p, fd:%d, failed to parse, invalid state", pContext, pContext->fd);
+    httpOnError(parser, 500, TSDB_CODE_HTTP_PARSE_ERROR_STATE);
   }
 
   return ok;
 }
 
-int32_t httpParserBuf(HttpContext *pContext, HttpParserObj *parser, const char *buf, int32_t len) {
+int32_t httpParseBuf(HttpParser *parser, const char *buf, int32_t len) {
+  HttpContext *pContext = parser->pContext;
   const char *p = buf;
   int32_t     ret = 0;
   int32_t     i = 0;
 
   while (i < len) {
     int32_t again = 0;
-    ret = httpParseChar(pContext, parser, *p, &again);
+    ret = httpParseChar(parser, *p, &again);
     if (ret != 0) {
       httpError("context:%p, fd:%d, parse failed, ret:%d i:%d len:%d buf:%s", pContext, pContext->fd, ret, i, len, buf);
       break;
@@ -905,28 +1122,4 @@ int32_t httpParserBuf(HttpContext *pContext, HttpParserObj *parser, const char *
   }
 
   return ret;
-}
-
-void httpParserCleanupString(HttpParserString *str) {
-  free(str->str);
-  str->str = NULL;
-  str->len = 0;
-}
-
-int32_t httpParserAppendString(HttpParserString *str, const char *s, int32_t len) {
-  int32_t n   = str->len;
-  char *p     = (char*)realloc(str->str, n + len + 1);
-  if (!p) return -1;
-  strncpy(p+n, s, len);
-  p[n+len]    = '\0';
-  str->str    = p;
-  str->len    = n+len;
-  return 0;
-}
-
-void httpParserClearString(HttpParserString *str) {
-  if (str->str) {
-    str->str[0] = '\0';
-    str->len    = 0;
-  }
 }

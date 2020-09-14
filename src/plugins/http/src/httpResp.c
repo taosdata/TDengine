@@ -45,23 +45,23 @@ const char *httpRespTemplate[] = {
     "%s 200 OK\r\nAccess-Control-Allow-Origin:*\r\n%sAccess-Control-Allow-Methods:POST, GET, OPTIONS, DELETE, PUT\r\nAccess-Control-Allow-Headers:Accept, Content-Type\r\nContent-Type: application/json;charset=utf-8\r\nContent-Length: %d\r\n\r\n"
 };
 
-static void httpSendErrorRespImp(HttpContext *pContext, int httpCode, char *httpCodeStr, int errNo, char *desc) {
+static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *httpCodeStr, int32_t errNo, char *desc) {
   httpError("context:%p, fd:%d, code:%d, error:%s", pContext, pContext->fd, httpCode, desc);
 
   char head[512] = {0};
   char body[512] = {0};
 
-  int bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_ERROR], errNo, desc);
-  int headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[pContext->httpVersion], httpCode,
-                        httpCodeStr, httpKeepAliveStr[pContext->httpKeepAlive], bodyLen);
+  int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_ERROR], errNo, desc);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[pContext->parser->httpVersion],
+                            httpCode, httpCodeStr, httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
   httpCloseContextByApp(pContext);
 }
 
-void httpSendErrorRespWithDesc(HttpContext *pContext, int errNo, char *desc) {
-  int   httpCode = 500;
+void httpSendErrorRespWithDesc(HttpContext *pContext, int32_t errNo, char *desc) {
+  int32_t   httpCode = 500;
   char *httpCodeStr = "Internal Server Error";
   switch (errNo) {
     case HTTP_SUCCESS:
@@ -180,20 +180,20 @@ void httpSendErrorRespWithDesc(HttpContext *pContext, int errNo, char *desc) {
   }
 }
 
-void httpSendErrorResp(HttpContext *pContext, int errNo) { httpSendErrorRespWithDesc(pContext, errNo, NULL); }
+void httpSendErrorResp(HttpContext *pContext, int32_t errNo) { httpSendErrorRespWithDesc(pContext, errNo, NULL); }
 
-void httpSendTaosdErrorResp(HttpContext *pContext, int errCode) {
-  int httpCode = 400;
+void httpSendTaosdErrorResp(HttpContext *pContext, int32_t errCode) {
+  int32_t httpCode = 400;
   
   httpSendErrorRespImp(pContext, httpCode, "Bad Request", errCode & 0XFFFF, (char*)tstrerror(errCode));
 }
 
-void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {
-  int httpCode = 400;
-  char temp[512] = {0};
-  int len = sprintf(temp, "invalid SQL: %s", errMsg);
+void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
+  int32_t httpCode = 400;
+  char    temp[512] = {0};
+  int32_t len = sprintf(temp, "invalid SQL: %s", errMsg);
 
-  for (int i = 0; i < len; ++i) {
+  for (int32_t i = 0; i < len; ++i) {
     if (temp[i] == '\"') {
       temp[i] = '\'';
     } else if (temp[i] == '\n') {
@@ -208,9 +208,9 @@ void httpSendSuccResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
-  int bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], HTTP_SUCCESS, desc);
-  int headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[pContext->httpVersion],
-                        httpKeepAliveStr[pContext->httpKeepAlive], bodyLen);
+  int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], HTTP_SUCCESS, desc);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[pContext->parser->httpVersion],
+                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
@@ -221,9 +221,9 @@ void httpSendOptionResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
-  int bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], HTTP_SUCCESS, desc);
-  int headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[pContext->httpVersion],
-                        httpKeepAliveStr[pContext->httpKeepAlive], bodyLen);
+  int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], HTTP_SUCCESS, desc);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[pContext->parser->httpVersion],
+                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);

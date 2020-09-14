@@ -61,19 +61,19 @@ void tgStartQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   // data
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "metric", 6, httpGetCmdsString(pContext, cmd->stable),
-               (int)strlen(httpGetCmdsString(pContext, cmd->metric)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->metric)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "stable", 6, httpGetCmdsString(pContext, cmd->stable),
-               (int)strlen(httpGetCmdsString(pContext, cmd->stable)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->stable)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "table", 5, httpGetCmdsString(pContext, cmd->table),
-               (int)strlen(httpGetCmdsString(pContext, cmd->table)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->table)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "timestamp", 9, httpGetCmdsString(pContext, cmd->timestamp),
-               (int)strlen(httpGetCmdsString(pContext, cmd->timestamp)));  // hack way
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->timestamp)));  // hack way
 }
 
 void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd) {
@@ -88,7 +88,7 @@ void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd) {
   httpJsonToken(jsonBuf, JsonObjEnd);
 }
 
-void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows) {
+void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
@@ -96,7 +96,7 @@ void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect
   httpJsonPairIntVal(jsonBuf, "affected_rows", 13, affect_rows);
 }
 
-bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug("context:%p, fd:%d, check telegraf command, code:%s, state:%d, type:%d, rettype:%d, tags:%d", pContext,
             pContext->fd, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
@@ -133,7 +133,7 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
   return true;
 }
 
-void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug("context:%p, fd:%d, get telegraf next command, pos:%d, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
             pContext, pContext->fd, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType,

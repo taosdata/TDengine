@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "zlib.h"
 #include "httpGzip.h"
@@ -16,10 +32,10 @@ struct ehttp_gzip_s {
   gz_header              *header;
   char                   *chunk;
 
-  int                     state;
+  int32_t                 state;
 };
 
-static void dummy_on_data(ehttp_gzip_t *gzip, void *arg, const char *buf, size_t len) {
+static void dummy_on_data(ehttp_gzip_t *gzip, void *arg, const char *buf, int32_t len) {
 }
 
 static void ehttp_gzip_cleanup(ehttp_gzip_t *gzip) {
@@ -72,7 +88,7 @@ ehttp_gzip_t* ehttp_gzip_create_decompressor(ehttp_gzip_conf_t conf, ehttp_gzip_
   // 868    below), inflate() will not automatically decode concatenated gzip streams.
   // 869    inflate() will return Z_STREAM_END at the end of the gzip stream.  The state
   // 870    would need to be reset to continue decoding a subsequent gzip stream.
-    int ret = inflateInit2(gzip->gzip, 32); // 32/16? 32/16 + MAX_WBITS
+    int32_t ret = inflateInit2(gzip->gzip, 32); // 32/16? 32/16 + MAX_WBITS
     if (ret != Z_OK) break;
     if (gzip->header) {
       ret = inflateGetHeader(gzip->gzip, gzip->header);
@@ -97,7 +113,7 @@ void ehttp_gzip_destroy(ehttp_gzip_t *gzip) {
   free(gzip);
 }
 
-int ehttp_gzip_write(ehttp_gzip_t *gzip, const char *buf, size_t len) {
+int32_t ehttp_gzip_write(ehttp_gzip_t *gzip, const char *buf, int32_t len) {
   if (gzip->state != EHTTP_GZIP_READY) return -1;
   if (len <= 0) return 0;
 
@@ -105,7 +121,7 @@ int ehttp_gzip_write(ehttp_gzip_t *gzip, const char *buf, size_t len) {
   gzip->gzip->avail_in       = len;
 
   while (gzip->gzip->avail_in) {
-    int ret;
+    int32_t ret;
     if (gzip->header) {
       ret = inflate(gzip->gzip, Z_BLOCK);
     } else {
@@ -117,7 +133,7 @@ int ehttp_gzip_write(ehttp_gzip_t *gzip, const char *buf, size_t len) {
       if (ret!=Z_STREAM_END) continue;
     }
 
-    size_t len = gzip->gzip->next_out - (z_const Bytef*)gzip->chunk;
+    int32_t len = gzip->gzip->next_out - (z_const Bytef*)gzip->chunk;
 
     gzip->gzip->next_out[0] = '\0';
     gzip->callbacks.on_data(gzip, gzip->arg, gzip->chunk, len);
@@ -128,18 +144,18 @@ int ehttp_gzip_write(ehttp_gzip_t *gzip, const char *buf, size_t len) {
   return 0;
 }
 
-int ehttp_gzip_finish(ehttp_gzip_t *gzip) {
+int32_t ehttp_gzip_finish(ehttp_gzip_t *gzip) {
   if (gzip->state != EHTTP_GZIP_READY) return -1;
 
   gzip->gzip->next_in        = NULL;
   gzip->gzip->avail_in       = 0;
 
-  int ret;
+  int32_t ret;
   ret = inflate(gzip->gzip, Z_FINISH);
 
   if (ret != Z_STREAM_END) return -1;
 
-  size_t len = gzip->gzip->next_out - (z_const Bytef*)gzip->chunk;
+  int32_t len = gzip->gzip->next_out - (z_const Bytef*)gzip->chunk;
 
   gzip->gzip->next_out[0] = '\0';
   gzip->callbacks.on_data(gzip, gzip->arg, gzip->chunk, len);

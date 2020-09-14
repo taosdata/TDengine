@@ -47,22 +47,22 @@ static HttpEncodeMethod gcQueryMethod = {
 void gcInitHandle(HttpServer* pServer) { httpAddMethod(pServer, &gcDecodeMethod); }
 
 bool gcGetUserFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[GC_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[GC_USER_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[GC_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[GC_USER_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->user, pParser->path[GC_USER_URL_POS].pos, TSDB_USER_LEN);
+  tstrncpy(pContext->user, pParser->path[GC_USER_URL_POS].str, TSDB_USER_LEN);
   return true;
 }
 
 bool gcGetPassFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[GC_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[GC_PASS_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[GC_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[GC_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[GC_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[GC_PASS_URL_POS].str, TSDB_PASSWORD_LEN);
   return true;
 }
 
@@ -144,8 +144,7 @@ bool gcProcessLoginRequest(HttpContext* pContext) {
 bool gcProcessQueryRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, process grafana query msg", pContext, pContext->fd);
 
-  HttpParser* pParser = &pContext->parser;
-  char*       filter = pParser->data.pos;
+  char* filter = pContext->parser->body.str;
   if (filter == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
     return false;
@@ -157,7 +156,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     return false;
   }
 
-  int size = cJSON_GetArraySize(root);
+  int32_t size = cJSON_GetArraySize(root);
   if (size <= 0) {
     httpSendErrorResp(pContext, HTTP_GC_QUERY_NULL);
     cJSON_Delete(root);
@@ -176,7 +175,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     return false;
   }
 
-  for (int i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     cJSON* query = cJSON_GetArrayItem(root, i);
     if (query == NULL) continue;
 
@@ -186,14 +185,14 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       continue;
     }
 
-    int refIdBuffer = httpAddToSqlCmdBuffer(pContext, refId->valuestring);
+    int32_t refIdBuffer = httpAddToSqlCmdBuffer(pContext, refId->valuestring);
     if (refIdBuffer == -1) {
       httpWarn("context:%p, fd:%d, user:%s, refId buffer is full", pContext, pContext->fd, pContext->user);
       break;
     }
 
     cJSON* alias = cJSON_GetObjectItem(query, "alias");
-    int    aliasBuffer = -1;
+    int32_t aliasBuffer = -1;
     if (!(alias == NULL || alias->valuestring == NULL || strlen(alias->valuestring) == 0)) {
       aliasBuffer = httpAddToSqlCmdBuffer(pContext, alias->valuestring);
       if (aliasBuffer == -1) {
@@ -211,7 +210,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       continue;
     }
 
-    int sqlBuffer = httpAddToSqlCmdBuffer(pContext, sql->valuestring);
+    int32_t sqlBuffer = httpAddToSqlCmdBuffer(pContext, sql->valuestring);
     if (sqlBuffer == -1) {
       httpWarn("context:%p, fd:%d, user:%s, sql buffer is full", pContext, pContext->fd, pContext->user);
       break;

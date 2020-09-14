@@ -60,22 +60,22 @@ void restInitHandle(HttpServer* pServer) {
 }
 
 bool restGetUserFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[REST_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[REST_USER_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[REST_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[REST_USER_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->user, pParser->path[REST_USER_URL_POS].pos, TSDB_USER_LEN);
+  tstrncpy(pContext->user, pParser->path[REST_USER_URL_POS].str, TSDB_USER_LEN);
   return true;
 }
 
 bool restGetPassFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[REST_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[REST_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].str, TSDB_PASSWORD_LEN);
   return true;
 }
 
@@ -85,10 +85,10 @@ bool restProcessLoginRequest(HttpContext* pContext) {
   return true;
 }
 
-bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
+bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
   httpDebug("context:%p, fd:%d, user:%s, process restful sql msg", pContext, pContext->fd, pContext->user);
 
-  char* sql = pContext->parser.data.pos;
+  char* sql = pContext->parser->body.str;
   if (sql == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return false;

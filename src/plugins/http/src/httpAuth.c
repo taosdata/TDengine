@@ -23,9 +23,9 @@
 
 #define KEY_DES_4 4971256377704625728L
 
-bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
+bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len) {
   token[len] = '\0';
-  int   outlen = 0;
+  int32_t outlen = 0;
   char *base64 = (char *)base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, basic token:%s parsed error", pContext, pContext->fd, token);
@@ -40,7 +40,7 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
     return false;
   }
 
-  int user_len = (int)(user - base64);
+  int32_t user_len = (int32_t)(user - base64);
   if (user_len < 1 || user_len >= TSDB_USER_LEN) {
     httpError("context:%p, fd:%d, basic token:%s parse user error", pContext, pContext->fd, token);
     free(base64);
@@ -50,7 +50,7 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
   pContext->user[user_len] = 0;
 
   char *password = user + 1;
-  int   pass_len = (int)((base64 + outlen) - password);
+  int32_t pass_len = (int32_t)((base64 + outlen) - password);
   if (pass_len < 1 || pass_len >= TSDB_PASSWORD_LEN) {
     httpError("context:%p, fd:%d, basic token:%s parse password error", pContext, pContext->fd, token);
     free(base64);
@@ -64,9 +64,9 @@ bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len) {
   return true;
 }
 
-bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
+bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int32_t len) {
   token[len] = '\0';
-  int            outlen = 0;
+  int32_t outlen = 0;
   unsigned char *base64 = base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, taosd token:%s parsed error", pContext, pContext->fd, token);
@@ -96,7 +96,7 @@ bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len) {
   }
 }
 
-bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
+bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int32_t maxLen) {
   char buffer[sizeof(pContext->user) + sizeof(pContext->pass)] = {0};
   size_t size = sizeof(pContext->user);
   tstrncpy(buffer, pContext->user, size);
@@ -111,7 +111,7 @@ bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   free(encrypt);
   free(base64);
 
-  httpDebug("context:%p, fd:%d, gen taosd token:%s", pContext, pContext->fd, token);
+  httpDebug("context:%p, fd:%d, generate taosd token:%s", pContext, pContext->fd, token);
 
   return true;
 }

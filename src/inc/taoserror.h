@@ -97,8 +97,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_APP_ERROR,                0, 0x0211, "Applicatio
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ACTION_IN_PROGRESS,       0, 0x0212, "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DISCONNECTED,             0, 0x0213, "Disconnected from service")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_WRITE_AUTH,            0, 0x0214, "No write permission")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_CONN_KILLED,            0, 0x0215, "Connection killed")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,            0, 0x0216, "Syntax errr in SQL")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_CONN_KILLED,              0, 0x0215, "Connection killed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,         0, 0x0216, "Syntax errr in SQL")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        0, 0x0300, "Message not processed")
@@ -246,6 +246,39 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "Sync modul
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "Unexpected generic error in wal")
+
+// http
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_UNSUPPORT_URL,           0, 0x1100, "http url is not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_NO_ENOUGH_MEMORY,        0, 0x1101, "no enough memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_VERSION,         0, 0x1102, "invalid http version")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_CONTENT_LENGTH,  0, 0x1103, "invalid content length")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_CREATE_GZIP_FAILED,      0, 0x1104, "failed to create gzip")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_FINISH_GZIP_FAILED,      0, 0x1105, "failed to finish gzip")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_AUTH_TYPE,       0, 0x1106, "invalid type of Authorization")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_AUTH_FORMAT,     0, 0x1107, "invalid format of Authorization")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_BASIC_AUTH,      0, 0x1108, "invalid basic Authorization")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_TAOSD_AUTH,      0, 0x1109, "invalid taosd Authorization")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_METHOD_FAILED,     0, 0x110A, "failed to parse method")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_TARGET_FAILED,     0, 0x110B, "failed to parse target")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_VERSION_FAILED,    0, 0x110C, "failed to parse http version")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_SP_FAILED,         0, 0x110D, "failed to parse sp")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_STATUS_FAILED,     0, 0x110E, "failed to parse status")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_PHRASE_FAILED,     0, 0x110F, "failed to parse phrase")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_CRLF_FAILED,       0, 0x1110, "failed to parse crlf")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_HEADER_FAILED,     0, 0x1111, "failed to parse header")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED, 0, 0x1112, "failed to parse header key")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED, 0, 0x1113, "failed to parse header val")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED, 0, 0x1114, "failed to parse chunk size")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_CHUNK_FAILED,      0, 0x1115, "failed to parse chunk")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_END_FAILED,        0, 0x1116, "failed to parse end section")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_INVALID_STATE,     0, 0x1117, "invalid parse state")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_PARSE_ERROR_STATE,       0, 0x1118, "failed to parse error section")
+
+
+
+
+
+
 
 #ifdef TAOS_ERROR_C
 };

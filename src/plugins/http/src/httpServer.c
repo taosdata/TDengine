@@ -61,7 +61,7 @@ void httpCleanUpConnect() {
   if (pServer->pThreads == NULL) return;
 
   pthread_join(pServer->thread, NULL);
-  for (int i = 0; i < pServer->numOfThreads; ++i) {
+  for (int32_t i = 0; i < pServer->numOfThreads; ++i) {
     HttpThread* pThread = pServer->pThreads + i;
     if (pThread != NULL) {
       httpStopThread(pThread);
@@ -71,41 +71,11 @@ void httpCleanUpConnect() {
   httpDebug("http server:%s is cleaned up", pServer->label);
 }
 
-static bool httpDecompressData(HttpContext *pContext) {
-  if (pContext->contentEncoding != HTTP_COMPRESS_GZIP) {
-    httpTraceL("context:%p, fd:%d, content:%s", pContext, pContext->fd, pContext->parser.data.pos);
-    return true;
-  }
-
-  char   *decompressBuf = calloc(HTTP_DECOMPRESS_BUF_SIZE, 1);
-  int32_t decompressBufLen = HTTP_DECOMPRESS_BUF_SIZE;
-  size_t  bufsize = sizeof(pContext->parser.buffer) - (pContext->parser.data.pos - pContext->parser.buffer) - 1;
-  if (decompressBufLen > (int)bufsize) {
-    decompressBufLen = (int)bufsize;
-  }
-
-  int ret = httpGzipDeCompress(pContext->parser.data.pos, pContext->parser.data.len, decompressBuf, &decompressBufLen);
-
-  if (ret == 0) {
-    memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
-    pContext->parser.data.pos[decompressBufLen] = 0;
-    httpTraceL("context:%p, fd:%d, rawSize:%d, decompressSize:%d, content:%s", pContext, pContext->fd,
-               pContext->parser.data.len, decompressBufLen, decompressBuf);
-    pContext->parser.data.len = decompressBufLen;
-  } else {
-    httpError("context:%p, fd:%d, failed to decompress data, rawSize:%d, error:%d", pContext, pContext->fd,
-              pContext->parser.data.len, ret);
-  }
-
-  free(decompressBuf);
-  return ret == 0;
-}
-
 static void httpProcessHttpData(void *param) {
   HttpServer  *pServer = &tsHttpServer;
   HttpThread  *pThread = (HttpThread *)param;
   HttpContext *pContext;
-  int          fdNum;
+  int32_t      fdNum;
 
   sigset_t set;
   sigemptyset(&set);
@@ -122,7 +92,7 @@ static void httpProcessHttpData(void *param) {
     }
     if (fdNum <= 0) continue;
 
-    for (int i = 0; i < fdNum; ++i) {
+    for (int32_t i = 0; i < fdNum; ++i) {
       pContext = httpGetContext(events[i].data.ptr);
       if (pContext == NULL) {
         httpError("context:%p, is already released, close connect", events[i].data.ptr);
@@ -182,13 +152,13 @@ static void httpProcessHttpData(void *param) {
 }
 
 static void *httpAcceptHttpConnection(void *arg) {
-  int                connFd = -1;
+  int32_t            connFd = -1;
   struct sockaddr_in clientAddr;
-  int                threadId = 0;
+  int32_t            threadId = 0;
   HttpServer *       pServer = &tsHttpServer;
   HttpThread *       pThread = NULL;
   HttpContext *      pContext = NULL;
-  int                totalFds = 0;
+  int32_t            totalFds = 0;
 
   sigset_t set;
   sigemptyset(&set);
@@ -208,7 +178,7 @@ static void *httpAcceptHttpConnection(void *arg) {
 
   while (1) {
     socklen_t addrlen = sizeof(clientAddr);
-    connFd = (int)accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
+    connFd = (int32_t)accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
     if (connFd == -1) {
       if (errno == EINVAL) {
         httpDebug("http server:%s socket was shutdown, exiting...", pServer->label);
@@ -219,7 +189,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     }
 
     totalFds = 1;
-    for (int i = 0; i < pServer->numOfThreads; ++i) {
+    for (int32_t i = 0; i < pServer->numOfThreads; ++i) {
       totalFds += pServer->pThreads[i].numOfContexts;
     }
 
@@ -283,7 +253,7 @@ bool httpInitConnect() {
   }
 
   HttpThread *pThread = pServer->pThreads;
-  for (int i = 0; i < pServer->numOfThreads; ++i) {
+  for (int32_t i = 0; i < pServer->numOfThreads; ++i) {
     sprintf(pThread->label, "%s%d", pServer->label, i);
     pThread->processData = pServer->processData;
     pThread->threadId = i;
@@ -331,52 +301,39 @@ bool httpInitConnect() {
 }
 
 static bool httpReadData(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  ASSERT(!pContext->parsed);
-
-  if (!pParser->parser) {
-    if (!pParser->inited) {
-      httpInitContext(pContext);
-    }
-    if (!pParser->parser) {
-      return false;
-    }
+  HttpParser *pParser = pContext->parser;
+  ASSERT(!pParser->parsed);
+  if (!pParser->inited) {
+    httpInitParser(pParser);
   }
 
   pContext->accessTimes++;
   pContext->lastAccessTime = taosGetTimestampSec();
 
-  char buf[HTTP_STEP_SIZE + 1] = {0};
-  int  nread = (int)taosReadSocket(pContext->fd, buf, sizeof(buf));
+  char    buf[HTTP_STEP_SIZE + 1] = {0};
+  int32_t nread = (int32_t)taosReadSocket(pContext->fd, buf, sizeof(buf));
   if (nread > 0) {
     buf[nread] = '\0';
     httpTrace("context:%p, fd:%d, nread:%d content:%s", pContext, pContext->fd, nread, buf);
-    int ok = httpParserBuf(pContext, pParser->parser, buf, nread);
+    int32_t ok = httpParseBuf(pParser, buf, nread);
 
     if (ok) {
-      httpError("context:%p, fd:%d, init parse failed, reason:%d close connect", pContext, pContext->fd, ok);
+      httpError("context:%p, fd:%d, parse failed, ret:%d code:%d close connect", pContext, pContext->fd, ok, pParser->parseCode);
       httpNotifyContextClose(pContext);
       return false;
     }
 
-    if (pContext->parser.failed) {
-      httpError("context:%p, fd:%d, parse failed, close connect", pContext, pContext->fd);
+    if (pParser->parseCode) {
+      httpError("context:%p, fd:%d, parse failed, code:%d close connect", pContext, pContext->fd, pParser->parseCode);
       httpNotifyContextClose(pContext);
       return false;
     }
 
-    if (pContext->parsed) {
-      httpDebug("context:%p, fd:%d, read size:%d, dataLen:%d", pContext, pContext->fd, pContext->parser.bufsize,
-                pContext->parser.data.len);
-      if (httpDecompressData(pContext)) {
-        return true;
-      } else {
-        httpNotifyContextClose(pContext);
-        return false;
-      }
+    if (pParser->parsed) {
+      httpDebug("context:%p, fd:%d, len:%d, body:%s", pContext, pContext->fd, pParser->body.pos, pParser->body.str);
     }
 
-    return pContext->parsed;
+    return true;
   } else if (nread < 0) {
     if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
       httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
