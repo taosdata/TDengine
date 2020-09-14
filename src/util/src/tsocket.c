@@ -16,7 +16,7 @@
 #include "os.h"
 #include "tulog.h"
 #include "tsocket.h"
-#include "tutil.h"
+#include "taoserror.h"
 
 int taosGetFqdn(char *fqdn) {
   char hostname[1024];
@@ -56,7 +56,13 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
     freeaddrinfo(result);
     return ip;
   } else {
-    uError("failed get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+    if (ret == EAI_SYSTEM) {
+      uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      uError("failed get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+    }
+
     return 0xFFFFFFFF;
   }
 }
