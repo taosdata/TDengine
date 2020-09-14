@@ -17,21 +17,19 @@
 #define TDENGINE_HTTP_UTIL_H
 
 bool httpCheckUsedbSql(char *sql);
-void httpTimeToString(time_t t, char *buf, int buflen);
+void httpTimeToString(time_t t, char *buf, int32_t buflen);
 
-bool httpUrlMatch(HttpContext *pContext, int pos, char *cmp);
-bool httpParseRequest(HttpContext *pContext);
-int  httpCheckReadCompleted(HttpContext *pContext);
-void httpReadDirtyData(HttpContext *pContext);
+bool    httpUrlMatch(HttpContext *pContext, int32_t pos, char *cmp);
+bool    httpParseRequest(HttpContext *pContext);
+int32_t httpCheckReadCompleted(HttpContext *pContext);
+void    httpReadDirtyData(HttpContext *pContext);
 
-int httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData);
-int httpGzipCompressInit(HttpContext *pContext);
-int httpGzipCompress(HttpContext *pContext, char *inSrcData, int32_t inSrcDataLen,
+int32_t httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData);
+int32_t httpGzipCompressInit(HttpContext *pContext);
+int32_t httpGzipCompress(HttpContext *pContext, char *inSrcData, int32_t inSrcDataLen,
                      char *outDestData, int32_t *outDestDataLen, bool isTheLast);
 
 // http request parser
 void httpAddMethod(HttpServer *pServer, HttpDecodeMethod *pMethod);
-
-
 
 #endif

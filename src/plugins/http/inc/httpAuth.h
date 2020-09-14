@@ -16,8 +16,8 @@
 #ifndef TDENGINE_HTTP_TOKEN_H
 #define TDENGINE_HTTP_TOKEN_H
 
-bool httpParseBasicAuthToken(HttpContext *pContext, char *token, int len);
-bool httpParseTaosdAuthToken(HttpContext *pContext, char *token, int len);
-bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen);
+int32_t httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len);
+int32_t httpParseTaosdAuthToken(HttpContext *pContext, char *token, int32_t len);
+int32_t httpGenTaosdAuthToken(HttpContext *pContext, char *token, int32_t maxLen);
 
 #endif

@@ -92,6 +92,8 @@ cd TDengine
 
 ## Build TDengine
 
+### On Linux platform
+
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
@@ -109,6 +111,34 @@ aarch32:
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
+### On Windows platform
+
+If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
+Please specify "x86_amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+```
+mkdir debug && cd debug
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < x86_amd64 | x86 >
+cmake .. -G "NMake Makefiles"
+nmake
+```
+
+If you use the Visual Studio 2019, please open a command window by executing "cmd.exe".
+Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+```
+mkdir debug && cd debug
+"c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
+cmake .. -G "NMake Makefiles"
+nmake
+```
+
+Or, you can open a command window by clicking Visual Studio 2019 menu "Tools -> Command Line -> Developer Command Prompt" or "Tools -> Command Line -> Developer PowerShell" then execute commands as follows:
+```
+mkdir debug && cd debug
+cmake .. -G "NMake Makefiles"
+nmake
+```
+
+# Quick Run
 # Quick Run
 To quickly start a TDengine server after building, run the command below in terminal:
 ```cmd
