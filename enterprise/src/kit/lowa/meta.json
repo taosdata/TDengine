@@ -1,0 +1,75 @@
+{
+	"host": "192.168.1.200",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"thread_count": 10,
+	"databases": [{
+		"dbinfo": {
+			"name": "db01",
+			"replica": 1,
+			"keep": 3650,
+			"days": 10,
+			"cache": 16,
+			"blocks": 8,
+			"precision": "ms",
+			"maxtablesPerVnode":1000
+		},
+		"super_tables": [{
+			"name": "stb001",
+			"childtable_count": 1000,
+			"childtable_prefix": "stb001_",
+			"auto_create_table":"no",
+			"data_source": "rand",
+			"insert_mode": "taosc",
+			"insert_rate": 0,
+			"insert_rows": 1000,
+			"timestamp_step":1000,
+			"start_timestamp": "2020-09-01 00:00:00.000",
+			"sample_format": "csv",
+			"sample_file": "/home/develop_2.0/sample.csv",
+			"columns": [{
+				"type": "FLOAT"
+			}, {
+				"type": "BIGINT"
+			}, {
+				"type": "TINYINT"
+			}, {
+				"type": "SMALLINT"
+			}, {
+				"type": "BOOL"
+			}, {
+				"type": "INT"
+			}, {
+				"type": "DOUBLE"
+			}, {
+				"type": "BINARY",
+				"len": 16
+			}, {
+				"type": "NCHAR",
+				"len": 16
+			}],
+			"tags": [{
+					"type": "FLOAT"
+				}, {
+					"type": "BIGINT"
+				}, {
+					"type": "TINYINT"
+				}, {
+					"type": "SMALLINT"
+				}, {
+					"type": "BOOL"
+				}, {
+					"type": "INT"
+				}, {
+					"type": "DOUBLE"
+				}, {
+					"type": "BINARY",
+					"len": 16
+				}, {
+					"type": "NCHAR",
+					"len": 16
+				}]
+		}]
+	}]
+}
