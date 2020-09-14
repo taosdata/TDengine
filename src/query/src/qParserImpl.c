@@ -179,7 +179,7 @@ tSQLExpr *tSQLExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SSt
 tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
 
-  if (pRight != NULL && pLeft != NULL) {
+  if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
     char* endPos = pRight->token.z + pRight->token.n;
     pExpr->token.z = pLeft->token.z;
     pExpr->token.n = (uint32_t)(endPos - pExpr->token.z);
