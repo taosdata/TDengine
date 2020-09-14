@@ -110,11 +110,11 @@ static void httpCleanupString(HttpString *str) {
 static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
   if (str->size == 0) {
     str->pos = 0;
-    str->size = 32;
+    str->size = 64;
     str->str = malloc(str->size);
   } else if (str->pos + len + 1 >= str->size) {
     str->size += len;
-    str->size *= 10;
+    str->size *= 4;
     str->str = realloc(str->str, str->size);
   } else {
   }
@@ -153,17 +153,10 @@ static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target
   for (int32_t i = 0; i < HTTP_MAX_URL; i++) {
     char *pSeek = strchr(pStart, '/');
     if (pSeek == NULL) {
-      pParser->path[i].str = strdup(pStart);
-      pParser->path[i].size = strlen(pStart);
-      pParser->path[i].pos = pParser->path[i].size;
+      httpAppendString(pParser->path + i, pStart, strlen(pStart));
       break;
     } else {
-      int32_t len = (int32_t)(pSeek - pStart);
-      pParser->path[i].str = malloc(len + 1);
-      memcpy(pParser->path[i].str, pStart, len);
-      pParser->path[i].str[len] = 0;
-      pParser->path[i].size = len;
-      pParser->path[i].pos = len;
+      httpAppendString(pParser->path + i, pStart, (int32_t)(pSeek - pStart));
     }
     pStart = pSeek + 1;
   }
@@ -336,23 +329,29 @@ static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
   HttpString * buf = &parser->body;
   if (parser->parseCode != TSDB_CODE_SUCCESS) return -1;
 
+  if (buf->size <= 0) {
+    buf->size = MIN(len + 2, HTTP_BUFFER_SIZE);
+    buf->str = malloc(buf->size);
+  }
+
   int32_t newSize = buf->pos + len + 1;
   if (newSize >= buf->size) {
     if (buf->size >= HTTP_BUFFER_SIZE) {
       httpError("context:%p, fd:%d, failed parse body, exceeding buffer size %d", pContext, pContext->fd, buf->size);
       httpOnError(parser, 0, TSDB_CODE_HTTP_REQUSET_TOO_BIG);
       return -1;
-    } else {
-      newSize = MAX(newSize, 32);
-      newSize *= 10;
-      newSize = MIN(newSize, HTTP_BUFFER_SIZE);
-      buf->str = realloc(buf->str, newSize);
-      if (buf->str == NULL) {
-        httpError("context:%p, fd:%d, failed parse body, realloc %d failed", pContext, pContext->fd, newSize);
-        httpOnError(parser, 0, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
-        return -1;
-      }
-      buf->size = newSize;
+    }
+
+    newSize = MAX(newSize, HTTP_BUFFER_INIT);
+    newSize *= 4;
+    newSize = MIN(newSize, HTTP_BUFFER_SIZE);
+    buf->str = realloc(buf->str, newSize);
+    buf->size = newSize;
+    
+    if (buf->str == NULL) {
+      httpError("context:%p, fd:%d, failed parse body, realloc %d failed", pContext, pContext->fd, buf->size);
+      httpOnError(parser, 0, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
+      return -1;
     }
   }
 
@@ -389,7 +388,7 @@ static int32_t httpPushStack(HttpParser *parser, HTTP_PARSER_STATE state) {
     stack->size = 32;
     stack->stacks = malloc(stack->size * sizeof(int8_t));
   } else if (stack->pos + 1 > stack->size) {
-    stack->size *= 10;
+    stack->size *= 2;
     stack->stacks = realloc(stack->stacks, stack->size * sizeof(int8_t));
   } else {
   }

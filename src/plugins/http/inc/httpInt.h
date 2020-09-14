@@ -32,9 +32,9 @@
 #define HTTP_MAX_BUFFER_SIZE        1024*1024*8
 #define HTTP_LABEL_SIZE             8
 #define HTTP_MAX_EVENTS             10
-#define HTTP_BUFFER_INIT            8192
-#define HTTP_BUFFER_SIZE            8192000
-#define HTTP_STEP_SIZE              1024    //http message get process step by step
+#define HTTP_BUFFER_INIT            4096
+#define HTTP_BUFFER_SIZE            8388608
+#define HTTP_STEP_SIZE              4096    //http message get process step by step
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
 #define TSDB_CODE_HTTP_GC_TARGET_SIZE         512
 #define HTTP_WRITE_RETRY_TIMES      500

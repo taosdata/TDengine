@@ -145,14 +145,17 @@ HttpContext *httpGetContext(void *ptr) {
   return NULL;
 }
 
-void httpReleaseContext(HttpContext *pContext) {
+void httpReleaseContext(HttpContext *pContext, bool clearRes) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   if (refCount < 0) {
     httpError("context:%p, is already released, refCount:%d", pContext, refCount);
     return;
   }
 
-  httpClearParser(pContext->parser);
+  if (clearRes) {
+    httpClearParser(pContext->parser);
+  }
+
   HttpContext **ppContext = pContext->ppContext;
   httpTrace("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
 
@@ -211,7 +214,7 @@ void httpCloseContextByApp(HttpContext *pContext) {
               httpContextStateStr(pContext->state), pContext->state);
   }
 
-  httpReleaseContext(pContext);
+  httpReleaseContext(pContext, true);
 }
 
 void httpCloseContextByServer(HttpContext *pContext) {
