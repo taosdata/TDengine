@@ -382,39 +382,6 @@ static UNUSED_FUNC void tscFreeSubobj(SSqlObj* pSql) {
   pSql->numOfSubs = 0;
 }
 
-//static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
-//  SSqlCmd* pCmd = &pSql->cmd;
-//  SSqlRes* pRes = &pSql->res;
-//
-//  if (pRes == NULL || pRes->qhandle == 0) {
-//    return true;
-//  }
-//
-//  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-//  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-//    return true;
-//  }
-//
-//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-//  tscRemoveFromSqlList(pSql);
-//
-//  int32_t cmd = pCmd->command;
-//  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && pSql->pStream == NULL && (pTableMetaInfo->pTableMeta != NULL) &&
-//      (cmd == TSDB_SQL_SELECT ||
-//       cmd == TSDB_SQL_SHOW ||
-//       cmd == TSDB_SQL_RETRIEVE ||
-//       cmd == TSDB_SQL_FETCH)) {
-//    pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-//    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-//    tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s, ", pSql, sqlCmd[pCmd->command]);
-//
-//    tscProcessSql(pSql);
-//    return false;
-//  }
-//
-//  return true;
-//}
-
 /**
  * The free operation will cause the pSql to be removed from hash table and free it in
  * the function of processmsgfromserver is impossible in this case, since it will fail
@@ -438,7 +405,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscDebug("%p start to free sqlObj", pSql);
   STscObj* pTscObj = pSql->pTscObj;
 
-//  tscFreeSubobj(pSql);
+  tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
 
   pSql->signature = NULL;
