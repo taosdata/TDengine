@@ -319,21 +319,25 @@ static bool httpReadData(HttpContext *pContext) {
 
     if (ok) {
       httpError("context:%p, fd:%d, parse failed, ret:%d code:%d close connect", pContext, pContext->fd, ok, pParser->parseCode);
+      httpSendErrorResp(pContext, pParser->parseCode);
       httpNotifyContextClose(pContext);
       return false;
     }
 
     if (pParser->parseCode) {
       httpError("context:%p, fd:%d, parse failed, code:%d close connect", pContext, pContext->fd, pParser->parseCode);
+      httpSendErrorResp(pContext, pParser->parseCode);
       httpNotifyContextClose(pContext);
       return false;
     }
 
-    if (pParser->parsed) {
+    if (!pParser->parsed) {
+      httpDebug("context:%p, fd:%d, read not over yet, len:%d", pContext, pContext->fd, pParser->body.pos);
+      return false;
+    } else {
       httpDebug("context:%p, fd:%d, len:%d, body:%s", pContext, pContext->fd, pParser->body.pos, pParser->body.str);
+      return true;
     }
-
-    return true;
   } else if (nread < 0) {
     if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
       httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);

@@ -112,7 +112,8 @@ static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
     str->pos = 0;
     str->size = 32;
     str->str = malloc(str->size);
-  } else if (str->pos + len + 1 > str->size) {
+  } else if (str->pos + len + 1 >= str->size) {
+    str->size += len;
     str->size *= 10;
     str->str = realloc(str->str, str->size);
   } else {
@@ -130,7 +131,6 @@ static void httpClearString(HttpString *str) {
   if (str->str) {
     str->str[0] = '\0';
     str->pos    = 0;
-    str->size   = 0;
   }
 }
 
@@ -138,7 +138,9 @@ static int32_t httpOnError(HttpParser *parser, int32_t httpCode, int32_t parseCo
   HttpContext *pContext = parser->pContext;
   if (httpCode != 0) parser->httpCode = httpCode;
   if (parseCode != 0) parser->parseCode = parseCode;
-  httpError("context:%p, fd:%d, parse failed, httpCode:%d parseCode:%d", pContext, pContext->fd, httpCode, parseCode);
+
+  httpError("context:%p, fd:%d, parse failed, httpCode:%d parseCode:%d reason:%s", pContext, pContext->fd, httpCode,
+            parseCode & 0XFFFF, tstrerror(parseCode));
   return 0;
 }
 
@@ -309,19 +311,19 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         }
         return 0;
       } else {
-        free(t);
-        free(s);
         parser->authType = HTTP_INVALID_AUTH;
         httpError("context:%p, fd:%d, invalid auth, t:%s s:%s", pContext, pContext->fd, t, s);
         httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_TYPE);
+        free(t);
+        free(s);
         return -1;
       }
     } else {
-      free(t);
-      free(s);
       parser->authType = HTTP_INVALID_AUTH;
       httpError("context:%p, fd:%d, parse auth failed, t:%s s:%s", pContext, pContext->fd, t, s);
       httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_FORMAT);
+      free(t);
+      free(s);
       return -1;
     }
   }
@@ -334,14 +336,15 @@ static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
   HttpString * buf = &parser->body;
   if (parser->parseCode != TSDB_CODE_SUCCESS) return -1;
 
-  int32_t avail = buf->size - buf->pos;
-  if (len + 1 >= avail) {
+  int32_t newSize = buf->pos + len + 1;
+  if (newSize >= buf->size) {
     if (buf->size >= HTTP_BUFFER_SIZE) {
       httpError("context:%p, fd:%d, failed parse body, exceeding buffer size %d", pContext, pContext->fd, buf->size);
       httpOnError(parser, 0, TSDB_CODE_HTTP_REQUSET_TOO_BIG);
       return -1;
     } else {
-      int32_t newSize = buf->size * 10;
+      newSize = MAX(newSize, 32);
+      newSize *= 10;
       newSize = MIN(newSize, HTTP_BUFFER_SIZE);
       buf->str = realloc(buf->str, newSize);
       if (buf->str == NULL) {
@@ -442,7 +445,6 @@ void httpInitParser(HttpParser *parser) {
 
   free(parser->method);         parser->method          = NULL;
   free(parser->target);         parser->target          = NULL;
-  free(parser->target_raw);     parser->target_raw      = NULL;
   free(parser->version);        parser->version         = NULL;
   free(parser->reasonPhrase);   parser->reasonPhrase    = NULL;
   free(parser->key);            parser->key             = NULL;
@@ -481,7 +483,6 @@ void httpDestroyParser(HttpParser *parser) {
 
   free(parser->method);         parser->method          = NULL;
   free(parser->target);         parser->target          = NULL;
-  free(parser->target_raw);     parser->target_raw      = NULL;
   free(parser->version);        parser->version         = NULL;
   free(parser->reasonPhrase);   parser->reasonPhrase    = NULL;
   free(parser->key);            parser->key             = NULL;
@@ -638,9 +639,8 @@ static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, c
       }
       break;
     }
-    parser->target_raw = strdup(parser->str.str);
-    parser->target = httpDecodeUrl(parser->str.str);
-    if (!parser->target_raw || !parser->target) {
+    parser->target = strdup(parser->str.str);
+    if (!parser->target) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
       httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);

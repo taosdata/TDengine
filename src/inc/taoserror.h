@@ -303,8 +303,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TIMESTAMP_NULL,       0, 0x1169, "timestamp 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TIMESTAMP_TYPE,       0, 0x116A, "timestamp type should be integer")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TIMESTAMP_VAL_NULL,   0, 0x116B, "timestamp value smaller than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAGS_NULL,            0, 0x116C, "tags not find")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAGS_SIZE_0,          0, 0x116D, "tags size too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAGS_SIZE_LONG,       0, 0x116E, "tags size is 0")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAGS_SIZE_0,          0, 0x116D, "tags size is 0")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAGS_SIZE_LONG,       0, 0x116E, "tags size too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAG_NULL,             0, 0x116F, "tag is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAG_NAME_NULL,        0, 0x1170, "tag name is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_TG_TAG_NAME_SIZE,        0, 0x1171, "tag name length too long")
@@ -345,7 +345,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TYPE,       0, 0x11A2, "tag value 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_NULL,       0, 0x11A3, "tag value is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   0, 0x11A4, "tag value can not more than 64")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           0, 0x11A5, "value not find")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A5, "value type should be boolean, number or string")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A6, "value type should be boolean, number or string")
 
 #ifdef TAOS_ERROR_C
 };

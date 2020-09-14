@@ -136,6 +136,10 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
   else
     httpCode = 400;
 
+  if (pContext->parser->httpCode != 0) {
+    httpCode = pContext->parser->httpCode;
+  }
+
   char *httpCodeStr = httpGetStatusDesc(httpCode);
   httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo & 0XFFFF, tstrerror(errNo));
 }

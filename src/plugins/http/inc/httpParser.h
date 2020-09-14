@@ -84,7 +84,6 @@ typedef struct HttpParser {
   HttpString    path[HTTP_MAX_URL];
   char *  method;
   char *  target;
-  char *  target_raw;
   char *  version;
   char *  reasonPhrase;
   char *  key;
