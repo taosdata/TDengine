@@ -53,64 +53,10 @@ public class TSDBConnection implements Connection {
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
         this.dbMetaData = meta;
 
-        //load taos.cfg start
-        File cfgDir = loadConfigDir(info.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR));
-        File cfgFile = cfgDir.listFiles((dir, name) -> "taos.cfg".equalsIgnoreCase(name))[0];
-        List<String> endpoints = loadConfigEndpoints(cfgFile);
-        if (!endpoints.isEmpty()) {
-            info.setProperty(TSDBDriver.PROPERTY_KEY_HOST, endpoints.get(0).split(":")[0]);
-            info.setProperty(TSDBDriver.PROPERTY_KEY_PORT, endpoints.get(0).split(":")[1]);
-        }
-        //load taos.cfg end
-
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME), info.getProperty(TSDBDriver.PROPERTY_KEY_USER),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
-    }
-
-    private List<String> loadConfigEndpoints(File cfgFile) {
-        List<String> endpoints = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(cfgFile))) {
-            String line = null;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().startsWith("firstEp") || line.trim().startsWith("secondEp")) {
-                    endpoints.add(line.substring(line.indexOf('p') + 1).trim());
-                }
-                if (endpoints.size() > 1)
-                    break;
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return endpoints;
-    }
-
-    /**
-     * @param cfgDirPath
-     * @return return the config dir
-     **/
-    private File loadConfigDir(String cfgDirPath) {
-        if (cfgDirPath == null)
-            return loadDefaultConfigDir();
-        File cfgDir = new File(cfgDirPath);
-        if (!cfgDir.exists())
-            return loadDefaultConfigDir();
-        return cfgDir;
-    }
-
-    /**
-     * @return search the default config dir, if the config dir is not exist will return null
-     */
-    private File loadDefaultConfigDir() {
-        File cfgDir;
-        File cfgDir_linux = new File("/etc/taos");
-        cfgDir = cfgDir_linux.exists() ? cfgDir_linux : null;
-        File cfgDir_windows = new File("C:\\TDengine\\cfg");
-        cfgDir = (cfgDir == null && cfgDir_windows.exists()) ? cfgDir_windows : cfgDir;
-        return cfgDir;
     }
 
     private void connect(String host, int port, String dbName, String user, String password) throws SQLException {
