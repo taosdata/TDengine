@@ -265,22 +265,22 @@ void taos_close(TAOS *taos) {
   }
 
   // free all sqlObjs created by using this connect before free the STscObj
-  while(1) {
-    pthread_mutex_lock(&pObj->mutex);
-    void* p = pObj->sqlList;
-    pthread_mutex_unlock(&pObj->mutex);
-
-    if (p == NULL) {
-      break;
-    }
-
-    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
-    taosMsleep(100);
-
-    // todo fix me!! two threads call taos_free_result will cause problem.
-    tscDebug("%p free :%p", pObj, p);
-    taos_free_result(p);
-  }
+//  while(1) {
+//    pthread_mutex_lock(&pObj->mutex);
+//    void* p = pObj->sqlList;
+//    pthread_mutex_unlock(&pObj->mutex);
+//
+//    if (p == NULL) {
+//      break;
+//    }
+//
+//    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
+//    taosMsleep(100);
+//
+//    // todo fix me!! two threads call taos_free_result will cause problem.
+//    tscDebug("%p free :%p", pObj, p);
+//    taos_free_result(p);
+//  }
 
   int32_t ref = T_REF_DEC(pObj);
   assert(ref >= 0);
@@ -604,8 +604,6 @@ void taos_free_result(TAOS_RES *res) {
     tscError("%p already released sqlObj", res);
     return;
   }
-
-//  assert(pSql->self != 0 && *pSql->self == pSql);
 
   bool freeNow = tscKillQueryInDnode(pSql);
   if (freeNow) {

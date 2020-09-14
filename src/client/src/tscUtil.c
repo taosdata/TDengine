@@ -366,7 +366,7 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   tscResetSqlCmdObj(pCmd, false);
 }
 
-static void tscFreeSubobj(SSqlObj* pSql) {
+static UNUSED_FUNC void tscFreeSubobj(SSqlObj* pSql) {
   if (pSql->numOfSubs == 0) {
     return;
   }
@@ -438,7 +438,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscDebug("%p start to free sqlObj", pSql);
   STscObj* pTscObj = pSql->pTscObj;
 
-  tscFreeSubobj(pSql);
+//  tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
 
   pSql->signature = NULL;
