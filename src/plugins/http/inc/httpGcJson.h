@@ -24,7 +24,7 @@ void gcCleanQueryJson(HttpContext *pContext);
 
 void gcStartQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
 void gcStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd);
-bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
 
 void gcSendHeartBeatResp(HttpContext *pContext, HttpSqlCmd *cmd);
 

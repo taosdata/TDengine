@@ -24,8 +24,8 @@ void tgInitQueryJson(HttpContext *pContext);
 void tgCleanQueryJson(HttpContext *pContext);
 void tgStartQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
 void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd);
-void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows);
-bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code);
-void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code);
+void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows);
+bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code);
+void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code);
 
 #endif

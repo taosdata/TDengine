@@ -13,62 +13,62 @@ print ============================ dnode1 start
 print ===============  step1 - parse
 system_content curl -u root:taosdata -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/
 print $system_content
-if $system_content != @{"status":"error","code":5057,"desc":"database name can not be null"}@ then
+if $system_content != @{"status":"error","code":4496,"desc":"database name can not be null"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db123456789012345678901234567890db
 print $system_content
-if $system_content != @{"status":"error","code":5058,"desc":"database name too long"}@ then
+if $system_content != @{"status":"error","code":4497,"desc":"database name too long"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/
 print $system_content
-if $system_content != @{"status":"error","code":5057,"desc":"database name can not be null"}@ then
+if $system_content != @{"status":"error","code":4496,"desc":"database name can not be null"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put2
 print $system_content
-if $system_content != @{"status":"error","code":5009,"desc":"http url parse error"}@ then
+if $system_content != @{"status":"error","code":4354,"desc":"invalid url format"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5060,"desc":"metrics size is 0"}@ then
+if $system_content != @{"status":"error","code":4499,"desc":"metrics size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5059,"desc":"invalid opentsdb json fromat"}@ then
+if $system_content != @{"status":"error","code":4498,"desc":"invalid opentsdb json fromat"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '{}' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5060,"desc":"metrics size is 0"}@ then
+if $system_content != @{"status":"error","code":4499,"desc":"metrics size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
 
-if $system_content != @{"status":"error","code":5062,"desc":"metric name not find"}@ then
+if $system_content != @{"status":"error","code":4501,"desc":"metric name not find"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": 1,"timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5063,"desc":"metric name type should be string"}@ then
+if $system_content != @{"status":"error","code":4502,"desc":"metric name type should be string"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "","timestamp": 1346846400,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5064,"desc":"metric name length is 0"}@ then
+if $system_content != @{"status":"error","code":4503,"desc":"metric name length is 0"}@ then
   return -1
 endi
 
@@ -80,25 +80,25 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5066,"desc":"timestamp not find"}@ then
+if $system_content != @{"status":"error","code":4505,"desc":"timestamp not find"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": "2","value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5067,"desc":"timestamp type should be integer"}@ then
+if $system_content != @{"status":"error","code":4506,"desc":"timestamp type should be integer"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": -1,"value": 18,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5068,"desc":"timestamp value smaller than 0"}@ then
+if $system_content != @{"status":"error","code":4507,"desc":"timestamp value smaller than 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"tags": {"host": "web01","group1": "1","dc": "lga"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5078,"desc":"value not find"}@ then
+if $system_content != @{"status":"error","code":4517,"desc":"value not find"}@ then
   return -1
 endi
 
@@ -106,19 +106,19 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5069,"desc":"tags not find"}@ then
+if $system_content != @{"status":"error","code":4508,"desc":"tags not find"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5070,"desc":"tags size is 0"}@ then
+if $system_content != @{"status":"error","code":4509,"desc":"tags size is 0"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": 0}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5070,"desc":"tags size is 0"}@ then
+if $system_content != @{"status":"error","code":4509,"desc":"tags size is 0"}@ then
   return -1
 endi
 
@@ -130,25 +130,25 @@ endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"": "web01"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5073,"desc":"tag name is null"}@ then
+if $system_content != @{"status":"error","code":4512,"desc":"tag name is null"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host01123456789001123456789001123456789001123456789001123456789001123456789": "01"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5074,"desc":"tag name length too long"}@ then
+if $system_content != @{"status":"error","code":4513,"desc":"tag name length too long"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": "web011234567890011234567890011234567890011234567890011234567890011234567890011234567890011234567890"}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5077,"desc":"tag value can not more than 64"}@ then
+if $system_content != @{"status":"error","code":4516,"desc":"tag value can not more than 64"}@ then
   return -1
 endi
 
 system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 1346846400,"value": 18,"tags": {"host": ""}}]' 127.0.0.1:7111/opentsdb/db/put
 print $system_content
-if $system_content != @{"status":"error","code":5076,"desc":"tag value is null"}@ then
+if $system_content != @{"status":"error","code":4515,"desc":"tag value is null"}@ then
   return -1
 endi
 

@@ -26,6 +26,10 @@
 #include "httpResp.h"
 #include "httpSql.h"
 #include "httpSession.h"
+#include "httpContext.h"
+#include "httpParser.h"
+
+static void httpDestroyContext(void *data);
 
 static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
@@ -53,6 +57,11 @@ static void httpDestroyContext(void *data) {
   // avoid double free
   httpFreeJsonBuf(pContext);
   httpFreeMultiCmds(pContext);
+
+  if (pContext->parser) {
+    httpDestroyParser(pContext->parser);
+    pContext->parser = NULL;
+  }
 
   taosTFree(pContext);
 }
@@ -104,9 +113,9 @@ HttpContext *httpCreateContext(int32_t fd) {
   if (pContext == NULL) return NULL;
 
   pContext->fd = fd;
-  pContext->httpVersion = HTTP_VERSION_10;
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
+  pContext->parser = httpCreateParser(pContext);
 
   uint64_t handleVal = (uint64_t)pContext;
   HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(int64_t), &pContext, sizeof(int64_t), 3000);
@@ -122,27 +131,33 @@ HttpContext *httpCreateContext(int32_t fd) {
 HttpContext *httpGetContext(void *ptr) {
   uint64_t handleVal = (uint64_t)ptr;
   HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
+  ASSERT(ppContext);
+  ASSERT(*ppContext);
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;
     if (pContext) {
       int32_t refCount = atomic_add_fetch_32(&pContext->refCount, 1);
-      httpDebug("context:%p, fd:%d, is accquired, data:%p refCount:%d", pContext, pContext->fd, ppContext, refCount);
+      httpTrace("context:%p, fd:%d, is accquired, data:%p refCount:%d", pContext, pContext->fd, ppContext, refCount);
       return pContext;
     }
   }
   return NULL;
 }
 
-void httpReleaseContext(HttpContext *pContext) {
+void httpReleaseContext(HttpContext *pContext, bool clearRes) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   if (refCount < 0) {
     httpError("context:%p, is already released, refCount:%d", pContext, refCount);
     return;
   }
 
+  if (clearRes) {
+    httpClearParser(pContext->parser);
+  }
+
   HttpContext **ppContext = pContext->ppContext;
-  httpDebug("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
+  httpTrace("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
 
   if (tsHttpServer.contextCache != NULL) {
     taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
@@ -155,79 +170,66 @@ void httpReleaseContext(HttpContext *pContext) {
 bool httpInitContext(HttpContext *pContext) {
   pContext->accessTimes++;
   pContext->lastAccessTime = taosGetTimestampSec();
-  pContext->httpVersion = HTTP_VERSION_10;
-  pContext->httpKeepAlive = HTTP_KEEPALIVE_NO_INPUT;
-  pContext->httpChunked = HTTP_UNCUNKED;
-  pContext->acceptEncoding = HTTP_COMPRESS_IDENTITY;
-  pContext->contentEncoding = HTTP_COMPRESS_IDENTITY;
+
   pContext->reqType = HTTP_REQTYPE_OTHERS;
   pContext->encodeMethod = NULL;
-  pContext->timer = NULL;
   memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
 
-  HttpParser *pParser = &pContext->parser;
-  memset(pParser, 0, sizeof(HttpParser));
-  pParser->pCur = pParser->pLast = pParser->buffer;
 
-  httpDebug("context:%p, fd:%d, ip:%s, accessTimes:%d, parsed:%d", pContext, pContext->fd, pContext->ipstr,
-            pContext->accessTimes, pContext->parsed);
+  httpTrace("context:%p, fd:%d, parsed:%d", pContext, pContext->fd, pContext->parsed);
   return true;
 }
 
 void httpCloseContextByApp(HttpContext *pContext) {
+  HttpParser *parser = pContext->parser;
   pContext->parsed = false;
   bool keepAlive = true;
 
-  if (pContext->httpVersion == HTTP_VERSION_10 && pContext->httpKeepAlive != HTTP_KEEPALIVE_ENABLE) {
+  if (parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
     keepAlive = false;
-  } else if (pContext->httpVersion != HTTP_VERSION_10 && pContext->httpKeepAlive == HTTP_KEEPALIVE_DISABLE) {
+  } else if (parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
     keepAlive = false;
   } else {
   }
 
   if (keepAlive) {
     if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_READY)) {
-      httpDebug("context:%p, fd:%d, ip:%s, last state:handling, keepAlive:true, reuse context", pContext, pContext->fd,
-                pContext->ipstr);
+      httpTrace("context:%p, fd:%d, last state:handling, keepAlive:true, reuse context", pContext, pContext->fd);
     } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_CLOSED)) {
       httpRemoveContextFromEpoll(pContext);
-      httpDebug("context:%p, fd:%d, ip:%s, last state:dropping, keepAlive:true, close connect", pContext, pContext->fd,
-                pContext->ipstr);
+      httpTrace("context:%p, fd:%d, ast state:dropping, keepAlive:true, close connect", pContext, pContext->fd);
     } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_READY)) {
-      httpDebug("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, reuse context", pContext, pContext->fd,
-                pContext->ipstr);
+      httpTrace("context:%p, fd:%d, last state:ready, keepAlive:true, reuse context", pContext, pContext->fd);
     } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_CLOSED, HTTP_CONTEXT_STATE_CLOSED)) {
       httpRemoveContextFromEpoll(pContext);
-      httpDebug("context:%p, fd:%d, ip:%s, last state:ready, keepAlive:true, close connect", pContext, pContext->fd,
-                pContext->ipstr);
+      httpTrace("context:%p, fd:%d, last state:ready, keepAlive:true, close connect", pContext, pContext->fd);
     } else {
       httpRemoveContextFromEpoll(pContext);
-      httpError("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:true, close connect", pContext, pContext->fd,
-                pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
+      httpError("context:%p, fd:%d, last state:%s:%d, keepAlive:true, close connect", pContext, pContext->fd,
+                httpContextStateStr(pContext->state), pContext->state);
     }
   } else {
     httpRemoveContextFromEpoll(pContext);
-    httpDebug("context:%p, fd:%d, ip:%s, last state:%s:%d, keepAlive:false, close context", pContext, pContext->fd,
-              pContext->ipstr, httpContextStateStr(pContext->state), pContext->state);
+    httpTrace("context:%p, fd:%d, ilast state:%s:%d, keepAlive:false, close context", pContext, pContext->fd,
+              httpContextStateStr(pContext->state), pContext->state);
   }
 
-  httpReleaseContext(pContext);
+  httpReleaseContext(pContext, true);
 }
 
 void httpCloseContextByServer(HttpContext *pContext) {
   if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_HANDLING, HTTP_CONTEXT_STATE_DROPPING)) {
-    httpDebug("context:%p, fd:%d, ip:%s, epoll finished, still used by app", pContext, pContext->fd, pContext->ipstr);
+    httpTrace("context:%p, fd:%d, epoll finished, still used by app", pContext, pContext->fd);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_DROPPING, HTTP_CONTEXT_STATE_DROPPING)) {
-    httpDebug("context:%p, fd:%d, ip:%s, epoll already finished, wait app finished", pContext, pContext->fd, pContext->ipstr);
+    httpTrace("context:%p, fd:%d, epoll already finished, wait app finished", pContext, pContext->fd);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_CLOSED)) {
-    httpDebug("context:%p, fd:%d, ip:%s, epoll finished, close connect", pContext, pContext->fd, pContext->ipstr);
+    httpTrace("context:%p, fd:%d, epoll finished, close connect", pContext, pContext->fd);
   } else if (httpAlterContextState(pContext, HTTP_CONTEXT_STATE_CLOSED, HTTP_CONTEXT_STATE_CLOSED)) {
-    httpDebug("context:%p, fd:%d, ip:%s, epoll finished, will be closed soon", pContext, pContext->fd, pContext->ipstr);
+    httpTrace("context:%p, fd:%d, epoll finished, will be closed soon", pContext, pContext->fd);
   } else {
-    httpError("context:%p, fd:%d, ip:%s, unknown state:%d", pContext, pContext->fd, pContext->ipstr, pContext->state);
+    httpError("context:%p, fd:%d, unknown state:%d", pContext, pContext->fd, pContext->state);
   }
 
   pContext->parsed = false;
   httpRemoveContextFromEpoll(pContext);
-  httpReleaseContext(pContext);
 }

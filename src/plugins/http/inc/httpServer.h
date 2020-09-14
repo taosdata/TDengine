@@ -21,8 +21,7 @@
 bool httpInitConnect();
 void httpCleanUpConnect();
 
-void *httpInitServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
-void httpCleanUpServer(HttpServer *pServer);
-int  httpReadDataImp(HttpContext *pContext);
+void *httpInitServer(char *ip, uint16_t port, char *label, int32_t numOfThreads, void *fp, void *shandle);
+void  httpCleanUpServer(HttpServer *pServer);
 
 #endif
