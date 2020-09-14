@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
+#include "taoserror.h"
 #include "httpAdminHandle.h"
 #include "httpAdminJson.h"
 
@@ -117,12 +118,12 @@ bool adminProcessSqlRequest(HttpContext* pContext) {
 
   char* sql = pContext->parser->body.str;
   if (sql == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
 
   if (httpCheckUsedbSql(sql)) {
-    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_EXEC_USEDB);
     return false;
   }
 
@@ -140,12 +141,12 @@ bool adminProcessSqlAllRequest(HttpContext* pContext) {
 
   char* sql = pContext->parser->body.str;
   if (sql == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
 
   if (httpCheckUsedbSql(sql)) {
-    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_EXEC_USEDB);
     return false;
   }
 
@@ -163,7 +164,7 @@ bool adminProcessSqlsRequest(HttpContext* pContext) {
 
   char* sql = pContext->parser->body.str;
   if (sql == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
 
@@ -174,7 +175,7 @@ bool adminProcessSqlsRequest(HttpContext* pContext) {
   }
 
   if (!httpMallocMultiCmds(pContext, cmdSize + 1, HTTP_BUFFER_SIZE)) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
 
@@ -184,7 +185,7 @@ bool adminProcessSqlsRequest(HttpContext* pContext) {
 
     HttpSqlCmd* cmd = httpNewSqlCmd(pContext);
     if (cmd == NULL) {
-      httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
       return false;
     }
 
@@ -204,12 +205,12 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, user:%s, process admin info msg", pContext, pContext->fd, pContext->user);
 
   if (!httpMallocMultiCmds(pContext, 10, HTTP_BUFFER_SIZE)) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
 
   if (!httpMallocMultiCmds(pContext, 6, HTTP_BUFFER_SIZE)) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
 
@@ -217,7 +218,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 
   cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "show databases");
@@ -225,7 +226,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 
   cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "show databases");
@@ -233,7 +234,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 
   cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "show users");
@@ -241,7 +242,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 
   cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "show mnodes");
@@ -249,7 +250,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 
   cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "show dnodes");
@@ -266,12 +267,12 @@ bool adminProcessMetaRequest(HttpContext* pContext) {
 
   char* sql = pContext->parser->body.str;
   if (sql == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
 
   if (httpCheckUsedbSql(sql)) {
-    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_EXEC_USEDB);
     return false;
   }
 
@@ -291,7 +292,7 @@ bool adminProcessRequest(struct HttpContext* pContext) {
   }
 
   if (strlen(pContext->user) == 0 || strlen(pContext->pass) == 0) {
-    httpSendErrorResp(pContext, HTTP_PARSE_USR_ERROR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_AUTH_INFO);
     return false;
   }
 
@@ -312,6 +313,6 @@ bool adminProcessRequest(struct HttpContext* pContext) {
   } else {
   }
 
-  httpSendErrorResp(pContext, HTTP_PARSE_URL_ERROR);
+  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVLALID_URL);
   return false;
 }
