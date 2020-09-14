@@ -485,6 +485,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
        pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
        pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
        pCmd->command == TSDB_SQL_SERV_STATUS ||
