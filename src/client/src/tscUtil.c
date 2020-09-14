@@ -344,8 +344,6 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   }
 
   SSqlCmd* pCmd = &pSql->cmd;
-  STscObj* pObj = pSql->pTscObj;
-
   int32_t cmd = pCmd->command;
   if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
@@ -353,11 +351,11 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   }
   
   // pSql->sqlstr will be used by tscBuildQueryStreamDesc
-  if (pObj->signature == pObj) {
+//  if (pObj->signature == pObj) {
     //pthread_mutex_lock(&pObj->mutex);
     taosTFree(pSql->sqlstr);
     //pthread_mutex_unlock(&pObj->mutex);
-  }
+//  }
   
   tscFreeSqlResult(pSql);
   
@@ -384,34 +382,52 @@ static void tscFreeSubobj(SSqlObj* pSql) {
   pSql->numOfSubs = 0;
 }
 
+//static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
+//  SSqlCmd* pCmd = &pSql->cmd;
+//  SSqlRes* pRes = &pSql->res;
+//
+//  if (pRes == NULL || pRes->qhandle == 0) {
+//    return true;
+//  }
+//
+//  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+//  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+//    return true;
+//  }
+//
+//  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//  tscRemoveFromSqlList(pSql);
+//
+//  int32_t cmd = pCmd->command;
+//  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && pSql->pStream == NULL && (pTableMetaInfo->pTableMeta != NULL) &&
+//      (cmd == TSDB_SQL_SELECT ||
+//       cmd == TSDB_SQL_SHOW ||
+//       cmd == TSDB_SQL_RETRIEVE ||
+//       cmd == TSDB_SQL_FETCH)) {
+//    pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
+//    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+//    tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s, ", pSql, sqlCmd[pCmd->command]);
+//
+//    tscProcessSql(pSql);
+//    return false;
+//  }
+//
+//  return true;
+//}
+
+/**
+ * The free operation will cause the pSql to be removed from hash table and free it in
+ * the function of processmsgfromserver is impossible in this case, since it will fail
+ * to retrieve pSqlObj in hashtable.
+ *
+ * @param pSql
+ */
 void tscFreeSqlObjInCache(void *pSql) {
   assert(pSql != NULL);
-  SSqlObj** p = (SSqlObj**) pSql;
+  SSqlObj** p = (SSqlObj**)pSql;
 
+  assert((*p)->self != 0 && (*p)->self == (p));
   tscFreeSqlObj(*p);
-}
-
-static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
-  SSqlCmd* pCmd = &pSql->cmd;
-  SSqlRes* pRes = &pSql->res;
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    return false;
-  }
-
-  int32_t cmd = pCmd->command;
-  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && pSql->pStream == NULL && (pTableMetaInfo->pTableMeta != NULL) &&
-      (cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_SHOW || cmd == TSDB_SQL_RETRIEVE || cmd == TSDB_SQL_FETCH)) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s, ", pSql, sqlCmd[pCmd->command]);
-    tscProcessSql(pSql);
-    return true;
-  }
-
-  return false;
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
@@ -420,6 +436,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   }
 
   tscDebug("%p start to free sqlObj", pSql);
+  STscObj* pTscObj = pSql->pTscObj;
 
   tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
@@ -438,6 +455,13 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   free(pSql);
   tscDebug("%p free sqlObj completed", pSql);
+
+  int32_t ref = T_REF_DEC(pTscObj);
+  assert(ref >= 0);
+
+  if (ref == 0) {
+    tscCloseTscObj(pTscObj);
+  }
 }
 
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
@@ -450,7 +474,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
 
   // free the refcount for metermeta
   if (pDataBlock->pTableMeta != NULL) {
-    taosCacheRelease(tscCacheHandle, (void**)&(pDataBlock->pTableMeta), false);
+    taosCacheRelease(tscMetaCache, (void**)&(pDataBlock->pTableMeta), false);
   }
 
   taosTFree(pDataBlock);
@@ -509,10 +533,10 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
     tstrncpy(pTableMetaInfo->name, pDataBlock->tableId, sizeof(pTableMetaInfo->name));
 
     if (pTableMetaInfo->pTableMeta != NULL) {
-      taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
+      taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), false);
     }
 
-    pTableMetaInfo->pTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta = taosCacheTransfer(tscMetaCache, (void**)&pDataBlock->pTableMeta);
   } else {
     assert(strncmp(pTableMetaInfo->name, pDataBlock->tableId, tListLen(pDataBlock->tableId)) == 0);
   }
@@ -583,7 +607,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
    * due to operation such as drop database. So here we add the reference count directly instead of invoke
    * taosGetDataFromCache, which may return NULL value.
    */
-  dataBuf->pTableMeta = taosCacheAcquireByData(tscCacheHandle, pTableMeta);
+  dataBuf->pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMeta);
   assert(initialSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 
   *dataBlocks = dataBuf;
@@ -777,27 +801,9 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 // TODO: all subqueries should be freed correctly before close this connection.
 void tscCloseTscObj(STscObj* pObj) {
   assert(pObj != NULL);
-  
+
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
-
-  // wait for all sqlObjs created according to this connect closed
-  while(1) {
-    pthread_mutex_lock(&pObj->mutex);
-    void* p = pObj->sqlList;
-    pthread_mutex_unlock(&pObj->mutex);
-
-    if (p == NULL) {
-      break;
-    }
-
-    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
-    taosMsleep(100);
-
-    // todo fix me!! two threads call taos_free_result will cause problem.
-    tscDebug("%p free :%p", pObj, p);
-    taos_free_result(p);
-  }
 
   if (pObj->pDnodeConn != NULL) {
     rpcClose(pObj->pDnodeConn);
@@ -1743,7 +1749,7 @@ void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
   }
 
   if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
+    taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
   }
 
   taosTFree(pTableMetaInfo->vgroupList);
@@ -1769,6 +1775,8 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   }
 
   pNew->pTscObj = pSql->pTscObj;
+  T_REF_INC(pNew->pTscObj);
+
   pNew->signature = pNew;
 
   SSqlCmd* pCmd = &pNew->cmd;
@@ -1799,6 +1807,8 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
+
+  T_REF_INC(pNew->pTscObj);
 
   uint64_t p = (uint64_t) pNew;
   pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
@@ -1890,6 +1900,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
+  T_REF_INC(pNew->pTscObj);
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
@@ -1994,14 +2005,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   STableMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    STableMeta* pTableMeta = taosCacheAcquireByData(tscCacheHandle, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
+    STableMeta* pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
     assert(pTableMeta != NULL);
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->tagColList);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-    STableMeta*  pPrevTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
+    STableMeta*  pPrevTableMeta = taosCacheTransfer(tscMetaCache, (void**)&pPrevInfo->pTableMeta);
     
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList);
@@ -2040,6 +2051,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   } else {
     tscDebug("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->vgroupIndex);
   }
+
+  T_REF_INC(pNew->pTscObj);
 
   uint64_t p = (uint64_t) pNew;
   pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 10);
@@ -2154,6 +2167,7 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   
 }
+
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {
   const char* msgFormat1 = "invalid SQL: %s";
   const char* msgFormat2 = "invalid SQL: \'%s\' (%s)";

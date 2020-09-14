@@ -334,6 +334,7 @@ typedef struct STscObj {
   struct SSqlStream *streamList;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
+  T_REF_DECLARE();
 } STscObj;
 
 typedef struct SSqlObj {
@@ -503,7 +504,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SCacheObj*    tscCacheHandle;
+extern SCacheObj*    tscMetaCache;
 extern SCacheObj*    tscObjCache;
 extern void *    tscTmr;
 extern void *    tscQhandle;

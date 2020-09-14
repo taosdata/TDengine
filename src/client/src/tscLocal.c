@@ -429,7 +429,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     pRes->qhandle = 0x1;
     pRes->numOfRows = 0;
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosCacheEmpty(tscCacheHandle);
+    taosCacheEmpty(tscMetaCache);
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);

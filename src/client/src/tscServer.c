@@ -373,17 +373,17 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
-  bool shouldFree = tscShouldBeFreed(pSql);;
+  bool shouldFree = tscShouldBeFreed(pSql);
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
   void** p1 = p;
-  taosCacheRelease(tscObjCache, (void**) &p, false);
+  taosCacheRelease(tscObjCache, (void**) &p1, false);
 
-  if (shouldFree) {
-    taosCacheRelease(tscObjCache, (void **)&p1, true);
+  if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
+    taosCacheRelease(tscObjCache, (void **)&p, true);
     tscDebug("%p sqlObj is automatically freed", pSql);
   }
 
@@ -1718,7 +1718,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pTableMetaInfo->pTableMeta == NULL);
 
-  pTableMetaInfo->pTableMeta = (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name,
+  pTableMetaInfo->pTableMeta = (STableMeta *) taosCachePut(tscMetaCache, pTableMetaInfo->name,
       strlen(pTableMetaInfo->name), pTableMeta, size, tsTableMetaKeepTimer * 1000);
   
   // todo handle out of memory case
@@ -1830,7 +1830,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     //    int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with STableMeta in cache
     //
     //    pMeta->index = 0;
-    //    (void)taosCachePut(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsTableMetaKeepTimer);
+    //    (void)taosCachePut(tscMetaCache, pMeta->tableId, (char *)pMeta, size, tsTableMetaKeepTimer);
     //  }
   }
   
@@ -1917,12 +1917,14 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   key[0] = pCmd->msgType + 'a';
   strcpy(key + 1, "showlist");
 
-  taosCacheRelease(tscCacheHandle, (void *)&(pTableMetaInfo->pTableMeta), false);
-  
+  if (pTableMetaInfo->pTableMeta != NULL) {
+    taosCacheRelease(tscMetaCache, (void *)&(pTableMetaInfo->pTableMeta), false);
+  }
+
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
   
-  pTableMetaInfo->pTableMeta = taosCachePut(tscCacheHandle, key, strlen(key), (char *)pTableMeta, size,
+  pTableMetaInfo->pTableMeta = taosCachePut(tscMetaCache, key, strlen(key), (char *)pTableMeta, size,
       tsTableMetaKeepTimer * 1000);
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
@@ -1981,6 +1983,8 @@ static void createHBObj(STscObj* pObj) {
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
   pObj->pHb = pSql;
+  T_REF_INC(pObj);
+
   tscAddSubqueryInfo(&pObj->pHb->cmd);
 
   tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
@@ -2025,14 +2029,14 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 
 int tscProcessDropDbRsp(SSqlObj *pSql) {
   pSql->pTscObj->db[0] = 0;
-  taosCacheEmpty(tscCacheHandle);
+  taosCacheEmpty(tscMetaCache);
   return 0;
 }
 
 int tscProcessDropTableRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
-  STableMeta *pTableMeta = taosCacheAcquireByKey(tscCacheHandle, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
+  STableMeta *pTableMeta = taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
   if (pTableMeta == NULL) { /* not in cache, abort */
     return 0;
   }
@@ -2045,10 +2049,10 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
    * instead.
    */
   tscDebug("%p force release table meta after drop table:%s", pSql, pTableMetaInfo->name);
-  taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
+  taosCacheRelease(tscMetaCache, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {
-    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
+    taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), true);
   }
 
   return 0;
@@ -2057,21 +2061,21 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
 int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
-  STableMeta *pTableMeta = taosCacheAcquireByKey(tscCacheHandle, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
+  STableMeta *pTableMeta = taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
   if (pTableMeta == NULL) { /* not in cache, abort */
     return 0;
   }
 
   tscDebug("%p force release metermeta in cache after alter-table: %s", pSql, pTableMetaInfo->name);
-  taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
+  taosCacheRelease(tscMetaCache, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {
     bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
+    taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), true);
 
     if (isSuperTable) {  // if it is a super table, reset whole query cache
       tscDebug("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
-      taosCacheEmpty(tscCacheHandle);
+      taosCacheEmpty(tscMetaCache);
     }
   }
 
@@ -2156,6 +2160,12 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->signature = pNew;
   pNew->cmd.command = TSDB_SQL_META;
 
+  T_REF_INC(pNew->pTscObj);
+
+  // TODO add test case on x86 platform
+  uint64_t adr = (uint64_t) pNew;
+  pNew->self = taosCachePut(tscObjCache, &adr, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2*60*1000);
+
   tscAddSubqueryInfo(&pNew->cmd);
 
   SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
@@ -2179,10 +2189,6 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->fp = tscTableMetaCallBack;
   pNew->param = pSql;
 
-  // TODO add test case on x86 platform
-  uint64_t adr = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &adr, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2*60*1000);
-
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify upper application that current process need to be terminated
@@ -2196,10 +2202,10 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
 
   // If this STableMetaInfo owns a table meta, release it first
   if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), false);
+    taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), false);
   }
   
-  pTableMetaInfo->pTableMeta = (STableMeta *)taosCacheAcquireByKey(tscCacheHandle, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
+  pTableMetaInfo->pTableMeta = (STableMeta *)taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
   if (pTableMetaInfo->pTableMeta != NULL) {
     STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     tscDebug("%p retrieve table Meta from cache, the number of columns:%d, numOfTags:%d, %p", pSql, tinfo.numOfColumns,
@@ -2234,7 +2240,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
              tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid, pTableMeta);
   }
 
-  taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
+  taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), true);
   return getTableMetaFromMgmt(pSql, pTableMetaInfo);
 }
 
@@ -2264,7 +2270,8 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   pNew->signature = pNew;
 
   pNew->cmd.command = TSDB_SQL_STABLEVGROUP;
-  
+
+  // TODO TEST IT
   SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
   if (pNewQueryInfo == NULL) {
     tscFreeSqlObj(pNew);
@@ -2274,7 +2281,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pMInfo = tscGetMetaInfo(pQueryInfo, i);
-    STableMeta *pTableMeta = taosCacheAcquireByData(tscCacheHandle, pMInfo->pTableMeta);
+    STableMeta *pTableMeta = taosCacheAcquireByData(tscMetaCache, pMInfo->pTableMeta);
     tscAddTableMetaInfo(pNewQueryInfo, pMInfo->name, pTableMeta, NULL, pMInfo->tagColList);
   }
 
@@ -2284,6 +2291,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
+  T_REF_INC(pNew->pTscObj);
 
   uint64_t p = (uint64_t) pNew;
   pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
