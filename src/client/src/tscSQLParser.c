@@ -360,8 +360,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
+      // additional msg has been attached already
       if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        return TSDB_CODE_TSC_INVALID_SQL;
       }
 
       return tscGetTableMeta(pSql, pTableMetaInfo);
@@ -712,8 +713,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableName, SSqlObj* pSql) {
   const char* msg1 = "name too long";
-  const char* msg2 = "invalid db name";
-  const char *msg = msg1;
+  const char* msg2 = "current database name is invalid";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -728,17 +728,24 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
   if (hasSpecifyDB(pzTableName)) {
     // db has been specified in sql string so we ignore current db path
     code = setObjFullName(pTableMetaInfo->name, getAccountId(pSql), NULL, pzTableName, NULL);
+    if (code != 0) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
   } else {  // get current DB name first, then set it into path
     SStrToken t = {0};
     getCurrentDBName(pSql, &t);
     if (t.n == 0) {
-      msg = msg2;
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
+
     code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
+    if (code != 0) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
   }
+
   if (code != TSDB_CODE_SUCCESS) {
-    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-    free(oldName);  
+    taosTFree(oldName);
     return code;
   }
 
