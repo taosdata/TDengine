@@ -50,38 +50,38 @@ void opInitHandle(HttpServer *pServer) {
 }
 
 bool opGetUserFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[OP_USER_URL_POS].len <= 0) {
+  HttpParser *pParser = pContext->parser;
+  if (pParser->path[OP_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[OP_USER_URL_POS].pos <= 0) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[OP_USER_URL_POS].pos);
+  strcpy(pContext->user, pParser->path[OP_USER_URL_POS].str);
   return true;
 }
 
 bool opGetPassFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_PASS_URL_POS].len > TSDB_PASSWORD_LEN || pParser->path[OP_PASS_URL_POS].len <= 0) {
+  HttpParser *pParser = pContext->parser;
+  if (pParser->path[OP_PASS_URL_POS].pos > TSDB_PASSWORD_LEN || pParser->path[OP_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[OP_PASS_URL_POS].pos);
+  strcpy(pContext->pass, pParser->path[OP_PASS_URL_POS].str);
   return true;
 }
 
 char *opGetDbFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_DB_URL_POS].len <= 0) {
+  HttpParser *pParser = pContext->parser;
+  if (pParser->path[OP_DB_URL_POS].pos <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_DB_NOT_INPUT);
     return NULL;
   }
 
-  if (pParser->path[OP_DB_URL_POS].len >= TSDB_DB_NAME_LEN) {
+  if (pParser->path[OP_DB_URL_POS].pos >= TSDB_DB_NAME_LEN) {
     httpSendErrorResp(pContext, HTTP_OP_DB_TOO_LONG);
     return NULL;
   }
 
-  return pParser->path[OP_DB_URL_POS].pos;
+  return pParser->path[OP_DB_URL_POS].str;
 }
 
 bool opProcessLoginRequest(HttpContext *pContext) {
@@ -156,7 +156,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     return false;
   }
 
-  int tagsSize = cJSON_GetArraySize(tags);
+  int32_t tagsSize = cJSON_GetArraySize(tags);
   if (tagsSize <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_TAGS_SIZE_0);
     return false;
@@ -168,7 +168,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   }
 
   // tags detail
-  for (int i = 0; i < tagsSize; i++) {
+  for (int32_t i = 0; i < tagsSize; i++) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     if (tag == NULL) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NULL);
@@ -193,7 +193,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
         httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
         return false;
       }
-      int len = (int)strlen(tag->valuestring);
+      int32_t len = (int32_t)strlen(tag->valuestring);
       if (len == 0) {
         httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
         return false;
@@ -222,13 +222,13 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   table_cmd->cmdType = HTTP_CMD_TYPE_INSERT;
 
   // order by tag name
-  cJSON *orderedTags[12] = {0};
-  int    orderTagsLen = 0;
+  cJSON * orderedTags[12] = {0};
+  int32_t orderTagsLen = 0;
   tagsSize = MIN(tagsSize, 12);
-  for (int t1 = 0; t1 < tagsSize; ++t1) {
+  for (int32_t t1 = 0; t1 < tagsSize; ++t1) {
     cJSON *tag = cJSON_GetArrayItem(tags, t1);
     orderedTags[orderTagsLen++] = tag;
-    for (int t2 = orderTagsLen - 1; t2 >= 1; --t2) {
+    for (int32_t t2 = orderTagsLen - 1; t2 >= 1; --t2) {
       cJSON *tag1 = orderedTags[t2];
       cJSON *tag2 = orderedTags[t2 - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
@@ -254,7 +254,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpAddToSqlCmdBufferNoTerminal(pContext, "n");
   httpAddToSqlCmdBufferNoTerminal(pContext, "_");
 
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "b");
@@ -270,7 +270,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
       httpShrinkTableName(pContext, table_cmd->stable, httpGetCmdsString(pContext, table_cmd->stable));
 
   // stable tag for detail
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     stable_cmd->tagNames[i] = table_cmd->tagNames[i] = httpAddToSqlCmdBuffer(pContext, tag->string);
 
@@ -287,7 +287,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // table name
   table_cmd->table = stable_cmd->table =
       httpAddToSqlCmdBufferNoTerminal(pContext, "%s", httpGetCmdsString(pContext, table_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
@@ -315,7 +315,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   else {
   }
   httpAddToSqlCmdBufferNoTerminal(pContext, ",%s %s) tags(", value->string, field_type);
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     char * tag_type = "double";
     if (tag->type == cJSON_String)
@@ -335,7 +335,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   table_cmd->sql = httpAddToSqlCmdBufferNoTerminal(pContext, "import into %s.%s using %s.%s tags(", db,
                                                    httpGetCmdsString(pContext, table_cmd->table), db,
                                                    httpGetCmdsString(pContext, table_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (i != tagsSize - 1) {
       if (tag->type == cJSON_Number)
@@ -429,8 +429,7 @@ request from opentsdb
 bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
   httpDebug("context:%p, fd:%d, process opentsdb put detail msg", pContext, pContext->fd);
 
-  HttpParser *pParser = &pContext->parser;
-  char *      filter = pParser->data.pos;
+  char *filter = pContext->parser->body.str;
   if (filter == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
     return false;
@@ -442,7 +441,7 @@ bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
     return false;
   }
 
-  int size = cJSON_GetArraySize(root);
+  int32_t size = cJSON_GetArraySize(root);
   httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_METRICS_NULL);
@@ -450,7 +449,7 @@ bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
     return false;
   }
 
-  int cmdSize = size * 2 + 1;
+  int32_t cmdSize = size * 2 + 1;
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
     httpSendErrorResp(pContext, HTTP_OP_METRICS_SIZE);
     cJSON_Delete(root);
@@ -473,7 +472,7 @@ bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
   cmd->cmdReturnType = HTTP_CMD_RETURN_TYPE_NO_RETURN;
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "create database if not exists %s", db);
 
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     cJSON *metric = cJSON_GetArrayItem(root, i);
     if (metric != NULL) {
       if (!opProcessPutDetailMetric(pContext, metric, db)) {
@@ -547,7 +546,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     return false;
   }
 
-  int tagsSize = cJSON_GetArraySize(tags);
+  int32_t tagsSize = cJSON_GetArraySize(tags);
   if (tagsSize <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_TAGS_SIZE_0);
     return false;
@@ -559,7 +558,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
   }
 
   // tags detail
-  for (int i = 0; i < tagsSize; i++) {
+  for (int32_t i = 0; i < tagsSize; i++) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     if (tag == NULL) {
       httpSendErrorResp(pContext, HTTP_OP_TAG_NULL);
@@ -584,7 +583,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
         httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
         return false;
       }
-      int len = (int)strlen(tag->valuestring);
+      int32_t len = (int32_t)strlen(tag->valuestring);
       if (len == 0) {
         httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
         return false;
@@ -607,11 +606,11 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
   // order by tag name
   cJSON *orderedTags[6] = {0};
-  int    orderTagsLen = 0;
-  for (int i = 0; i < tagsSize; ++i) {
+  int32_t orderTagsLen = 0;
+  for (int32_t i = 0; i < tagsSize; ++i) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     orderedTags[orderTagsLen++] = tag;
-    for (int j = orderTagsLen - 1; j >= 1; --j) {
+    for (int32_t j = orderTagsLen - 1; j >= 1; --j) {
       cJSON *tag1 = orderedTags[j];
       cJSON *tag2 = orderedTags[j - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
@@ -633,7 +632,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpAddToSqlCmdBufferNoTerminal(pContext, "n");
   httpAddToSqlCmdBufferNoTerminal(pContext, "_");
 
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "b");
@@ -650,7 +649,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
   // table name
   stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s", httpGetCmdsString(pContext, stable_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
@@ -678,7 +677,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
   }
 
   httpAddToSqlCmdBufferNoTerminal(pContext, ",%s %s) tags(", value->string, field_type);
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     char * tag_type = "double";
     if (tag->type == cJSON_String)
@@ -706,16 +705,16 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
   cJSON *value = cJSON_GetObjectItem(metric, "value");
 
   // tags
-  cJSON *tags = cJSON_GetObjectItem(metric, "tags");
-  int    tagsSize = cJSON_GetArraySize(tags);
+  cJSON * tags = cJSON_GetObjectItem(metric, "tags");
+  int32_t tagsSize = cJSON_GetArraySize(tags);
 
   // order by tag name
-  cJSON *orderedTags[6] = {0};
-  int    orderTagsLen = 0;
-  for (int i = 0; i < tagsSize; ++i) {
+  cJSON * orderedTags[6] = {0};
+  int32_t orderTagsLen = 0;
+  for (int32_t i = 0; i < tagsSize; ++i) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     orderedTags[orderTagsLen++] = tag;
-    for (int j = orderTagsLen - 1; j >= 1; --j) {
+    for (int32_t j = orderTagsLen - 1; j >= 1; --j) {
       cJSON *tag1 = orderedTags[j];
       cJSON *tag2 = orderedTags[j - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
@@ -729,7 +728,7 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
   httpAddToSqlCmdBufferNoTerminal(pContext, " %s.%s using %s.%s tags(", db,
                                   httpGetCmdsString(pContext, table_cmd->table), db,
                                   httpGetCmdsString(pContext, table_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (i != tagsSize - 1) {
       if (tag->type == cJSON_Number)
@@ -775,8 +774,7 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
 bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   httpDebug("context:%p, fd:%d, process opentsdb put summary msg", pContext, pContext->fd);
 
-  HttpParser *pParser = &pContext->parser;
-  char *      filter = pParser->data.pos;
+  char *filter = pContext->parser->body.str;
   if (filter == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
     return false;
@@ -788,7 +786,7 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
     return false;
   }
 
-  int size = cJSON_GetArraySize(root);
+  int32_t size = cJSON_GetArraySize(root);
   httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
     httpSendErrorResp(pContext, HTTP_OP_METRICS_NULL);
@@ -796,7 +794,7 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
     return false;
   }
 
-  int cmdSize = size + 5;
+  int32_t cmdSize = size + 5;
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
     httpSendErrorResp(pContext, HTTP_OP_METRICS_SIZE);
     cJSON_Delete(root);
@@ -819,7 +817,7 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   cmd->cmdReturnType = HTTP_CMD_RETURN_TYPE_NO_RETURN;
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "create database if not exists %s", db);
 
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     cJSON *metric = cJSON_GetArrayItem(root, i);
     if (metric != NULL) {
       if (!opProcessPutSummaryMetric(pContext, metric, db)) {
@@ -839,10 +837,10 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   cmd->cmdType = HTTP_CMD_TYPE_INSERT;
   cmd->sql = httpAddToSqlCmdBufferNoTerminal(pContext, "import into", db);
 
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     cJSON *metric = cJSON_GetArrayItem(root, i);
     if (metric != NULL) {
-      int sqlLen = pContext->multiCmds->bufferPos - cmd->sql;
+      int32_t sqlLen = pContext->multiCmds->bufferPos - cmd->sql;
       if (sqlLen > 50000) {
         httpAddToSqlCmdBuffer(pContext, "");
         cmd = httpNewSqlCmd(pContext);

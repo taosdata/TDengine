@@ -17,7 +17,7 @@
 #include "os.h"
 #include "tglobal.h"
 #include "httpAdminHandle.h"
-#include "httpAdminHandle.h"
+#include "httpAdminJson.h"
 
 static HttpDecodeMethod adminDecodeMethod = {"admin", adminProcessRequest};
 static HttpEncodeMethod adminEncodeSqlMethod = {
@@ -80,22 +80,22 @@ void adminInitHandle(HttpServer* pServer) {
 }
 
 bool adminGetUserFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[ADMIN_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[ADMIN_USER_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[ADMIN_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[ADMIN_USER_URL_POS].pos <= 0) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[ADMIN_USER_URL_POS].pos);
+  strcpy(pContext->user, pParser->path[ADMIN_USER_URL_POS].str);
   return true;
 }
 
 bool adminGetPassFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[ADMIN_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[ADMIN_PASS_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[ADMIN_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[ADMIN_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[ADMIN_PASS_URL_POS].pos);
+  strcpy(pContext->pass, pParser->path[ADMIN_PASS_URL_POS].str);
   return true;
 }
 
@@ -115,7 +115,7 @@ bool adminProcessLogoutRequest(HttpContext* pContext) {
 bool adminProcessSqlRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, user:%s, process admin query part msg", pContext, pContext->fd, pContext->user);
 
-  char* sql = pContext->parser.data.pos;
+  char* sql = pContext->parser->body.str;
   if (sql == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return false;
@@ -138,7 +138,7 @@ bool adminProcessSqlRequest(HttpContext* pContext) {
 bool adminProcessSqlAllRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, user:%s, process admin query all msg", pContext, pContext->fd, pContext->user);
 
-  char* sql = pContext->parser.data.pos;
+  char* sql = pContext->parser->body.str;
   if (sql == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return false;
@@ -161,15 +161,15 @@ bool adminProcessSqlAllRequest(HttpContext* pContext) {
 bool adminProcessSqlsRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, user:%s, process multi-sqls msg", pContext, pContext->fd, pContext->user);
 
-  char* sql = pContext->parser.data.pos;
+  char* sql = pContext->parser->body.str;
   if (sql == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return false;
   }
 
-  int cmdSize = 0;
+  int32_t cmdSize = 0;
 
-  for (int i = 0; sql[i] != 0; ++i) {
+  for (int32_t i = 0; sql[i] != 0; ++i) {
     if (sql[i] == ';') cmdSize++;
   }
 
@@ -264,7 +264,7 @@ bool adminProcessInfoRequest(HttpContext* pContext) {
 bool adminProcessMetaRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, user:%s, process admin table meta msg", pContext, pContext->fd, pContext->user);
 
-  char* sql = pContext->parser.data.pos;
+  char* sql = pContext->parser->body.str;
   if (sql == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return false;

@@ -47,10 +47,10 @@ void opCleanPutDetailJson(HttpContext *pContext) {
   // array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
-  int successed = 0;
-  int failed = 0;
-  int affected_rows = 0;
-  for (int i = 0; i < pContext->multiCmds->size; ++i) {
+  int32_t successed = 0;
+  int32_t failed = 0;
+  int32_t affected_rows = 0;
+  for (int32_t i = 0; i < pContext->multiCmds->size; ++i) {
     HttpSqlCmd *cmd = &pContext->multiCmds->cmds[i];
     if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
       if (cmd->code == 0)
@@ -92,36 +92,36 @@ void opStartPutDetailJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
   // data
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "metric", 6, httpGetCmdsString(pContext, cmd->stable),
-               (int)strlen(httpGetCmdsString(pContext, cmd->metric)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->metric)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "stable", 6, httpGetCmdsString(pContext, cmd->stable),
-               (int)strlen(httpGetCmdsString(pContext, cmd->stable)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->stable)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "table", 5, httpGetCmdsString(pContext, cmd->table),
-               (int)strlen(httpGetCmdsString(pContext, cmd->table)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->table)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPairOriginString(jsonBuf, "timestamp", 9, httpGetCmdsString(pContext, cmd->timestamp),
-                           (int)strlen(httpGetCmdsString(pContext, cmd->timestamp)));
+                           (int32_t)strlen(httpGetCmdsString(pContext, cmd->timestamp)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPairOriginString(jsonBuf, "value", 5, httpGetCmdsString(pContext, cmd->values),
-                           (int)strlen(httpGetCmdsString(pContext, cmd->values)));
+                           (int32_t)strlen(httpGetCmdsString(pContext, cmd->values)));
 
   // tag begin
   httpJsonItemToken(jsonBuf);
   httpJsonPairHead(jsonBuf, "tags", 4);
   httpJsonToken(jsonBuf, JsonObjStt);
 
-  for (int i = 0; i < cmd->tagNum; ++i) {
+  for (int32_t i = 0; i < cmd->tagNum; ++i) {
     httpJsonItemToken(jsonBuf);
     char *tagName = httpGetCmdsString(pContext, cmd->tagNames[i]);
     char *tagValue = httpGetCmdsString(pContext, cmd->tagValues[i]);
 
     httpJsonItemToken(jsonBuf);
-    httpJsonPairOriginString(jsonBuf, tagName, (int)strlen(tagName), tagValue, (int)strlen(tagValue));
+    httpJsonPairOriginString(jsonBuf, tagName, (int32_t)strlen(tagName), tagValue, (int32_t)strlen(tagValue));
   }
 
   // tag end
@@ -143,7 +143,7 @@ void opStopPutDetailJson(HttpContext *pContext, HttpSqlCmd *cmd) {
   httpJsonToken(jsonBuf, JsonObjEnd);
 }
 
-void opBuildPutDetailAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows) {
+void opBuildPutDetailAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
@@ -152,7 +152,7 @@ void opBuildPutDetailAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int 
   cmd->numOfRows += affect_rows;
 }
 
-bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug("context:%p, fd:%d, check opentsdb command, code:%s, state:%d, type:%d, rettype:%d, tags:%d", pContext,
             pContext->fd, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
@@ -189,7 +189,7 @@ bool opCheckPutDetailFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int
   return true;
 }
 
-void opSetPutDetailNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+void opSetPutDetailNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug(
       "context:%p, fd:%d, get opentsdb detail next command, pos:%d, "
@@ -224,9 +224,9 @@ void opCleanPutSummaryJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
-  int total = 0;
-  int successed = 0;
-  for (int i = 0; i < pContext->multiCmds->size; ++i) {
+  int32_t total = 0;
+  int32_t successed = 0;
+  for (int32_t i = 0; i < pContext->multiCmds->size; ++i) {
     HttpSqlCmd *cmd = &pContext->multiCmds->cmds[i];
     if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
       total++;
@@ -247,11 +247,11 @@ void opCleanPutSummaryJson(HttpContext *pContext) {
   httpWriteJsonBufEnd(jsonBuf);
 }
 
-void opBuildPutSummaryAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows) {
+void opBuildPutSummaryAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows) {
   cmd->numOfRows += affect_rows;
 }
 
-bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug(
       "context:%p, fd:%d, check opentsdb summary command, code:%s, "
@@ -290,7 +290,7 @@ bool opCheckPutSummaryFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, in
   return true;
 }
 
-void opSetPutSummaryNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+void opSetPutSummaryNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   httpDebug(
       "context:%p, fd:%d, get opentsdb summary next command, pos:%d, "
