@@ -1678,9 +1678,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if ((pMetaMsg->tableType == TSDB_SUPER_TABLE) &&
-      (pMetaMsg->sid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
-    tscError("invalid value in table numOfEps:%d, vgId:%d sid%d", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
-             pMetaMsg->sid);
+      (pMetaMsg->sid < 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
+    tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
+             pMetaMsg->sid, pMetaMsg->tableId);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
