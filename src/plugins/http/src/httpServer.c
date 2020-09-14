@@ -308,7 +308,11 @@ static bool httpReadData(HttpContext *pContext) {
     httpInitParser(pParser);
   }
 
-  ASSERT(!pParser->parsed);
+  if (pParser->parsed) {
+    httpDebug("context:%p, fd:%d, not in ready state, parsed:%d", pContext, pContext->fd, pParser->parsed);    
+    return false;
+  }
+
   pContext->accessTimes++;
   pContext->lastAccessTime = taosGetTimestampSec();
 

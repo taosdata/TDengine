@@ -29,10 +29,10 @@ void httpFreeMultiCmds(HttpContext *pContext);
 
 HttpSqlCmd *httpNewSqlCmd(HttpContext *pContext);
 HttpSqlCmd *httpCurrSqlCmd(HttpContext *pContext);
-int32_t httpCurSqlCmdPos(HttpContext *pContext);
+int32_t     httpCurSqlCmdPos(HttpContext *pContext);
 
-void httpTrimTableName(char *name);
+void    httpTrimTableName(char *name);
 int32_t httpShrinkTableName(HttpContext *pContext, int32_t pos, char *name);
-char *httpGetCmdsString(HttpContext *pContext, int32_t pos);
+char *  httpGetCmdsString(HttpContext *pContext, int32_t pos);
 
 #endif
