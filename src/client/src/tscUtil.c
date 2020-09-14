@@ -772,6 +772,7 @@ void tscCloseTscObj(STscObj* pObj) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
+  void* p = pObj->pDnodeConn;
   if (pObj->pDnodeConn != NULL) {
     rpcClose(pObj->pDnodeConn);
     pObj->pDnodeConn = NULL;
@@ -779,7 +780,7 @@ void tscCloseTscObj(STscObj* pObj) {
 
   pthread_mutex_destroy(&pObj->mutex);
 
-  tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, pObj->pDnodeConn);
+  tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, p);
   taosTFree(pObj);
 }
 
