@@ -1903,7 +1903,9 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     pParentObj->res.code = pSql->res.code;
   }
 
+  taos_free_result(tres);
   taosTFree(pSupporter);
+
   if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
     return;
   }
