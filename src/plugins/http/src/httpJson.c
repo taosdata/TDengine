@@ -189,7 +189,7 @@ void httpInitJsonBuf(JsonBuf* buf, struct HttpContext* pContext) {
     httpGzipCompressInit(buf->pContext);
   }
 
-  httpDebug("context:%p, fd:%d, json buffer initialized", buf->pContext, buf->pContext->fd);
+  httpTrace("context:%p, fd:%d, json buffer initialized", buf->pContext, buf->pContext->fd);
 }
 
 void httpJsonItemToken(JsonBuf* buf) {

@@ -111,6 +111,7 @@ typedef struct HttpParser {
 
 void        httpInitParser(HttpParser *parser);
 HttpParser *httpCreateParser(struct HttpContext *pContext);
+void        httpClearParser(HttpParser *parser);
 void        httpDestroyParser(HttpParser *parser);
 int32_t     httpParseBuf(HttpParser *parser, const char *buf, int32_t len);
 char *      httpGetStatusDesc(int32_t statusCode);

@@ -71,7 +71,7 @@ static void *httpProcessResultQueue(void *param) {
       break;
     }
 
-    httpDebug("context:%p, res:%p will be processed in result queue", pMsg->param, pMsg->result);    
+    httpTrace("context:%p, res:%p will be processed in result queue", pMsg->param, pMsg->result);    
     (*pMsg->fp)(pMsg->param, pMsg->result, pMsg->numOfRows);  
     taosFreeQitem(pMsg);
   }

@@ -302,11 +302,11 @@ bool httpInitConnect() {
 
 static bool httpReadData(HttpContext *pContext) {
   HttpParser *pParser = pContext->parser;
-  ASSERT(!pParser->parsed);
   if (!pParser->inited) {
     httpInitParser(pParser);
   }
 
+  ASSERT(!pParser->parsed);
   pContext->accessTimes++;
   pContext->lastAccessTime = taosGetTimestampSec();
 
@@ -332,10 +332,10 @@ static bool httpReadData(HttpContext *pContext) {
     }
 
     if (!pParser->parsed) {
-      httpDebug("context:%p, fd:%d, read not over yet, len:%d", pContext, pContext->fd, pParser->body.pos);
+      httpTrace("context:%p, fd:%d, read not over yet, len:%d", pContext, pContext->fd, pParser->body.pos);
       return false;
     } else {
-      httpDebug("context:%p, fd:%d, len:%d, body:%s", pContext, pContext->fd, pParser->body.pos, pParser->body.str);
+      httpTraceL("context:%p, fd:%d, len:%d, body:%s", pContext, pContext->fd, pParser->body.pos, pParser->body.str);
       return true;
     }
   } else if (nread < 0) {

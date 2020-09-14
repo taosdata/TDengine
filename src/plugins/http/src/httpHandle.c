@@ -33,7 +33,7 @@ bool httpDecodeRequest(HttpContext* pContext) {
  */
 bool httpProcessData(HttpContext* pContext) {
   if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_HANDLING)) {
-    httpDebug("context:%p, fd:%d, state:%s not in ready state, stop process request", pContext, pContext->fd,
+    httpTrace("context:%p, fd:%d, state:%s not in ready state, stop process request", pContext, pContext->fd,
               httpContextStateStr(pContext->state));
     httpCloseContextByApp(pContext);
     return false;
@@ -41,7 +41,7 @@ bool httpProcessData(HttpContext* pContext) {
 
   // handle Cross-domain request
   if (strcmp(pContext->parser->method, "OPTIONS") == 0) {
-    httpDebug("context:%p, fd:%d, process options request", pContext, pContext->fd);
+    httpTrace("context:%p, fd:%d, process options request", pContext, pContext->fd);
     httpSendOptionResp(pContext, "process options request success");
   } else {
     if (!httpDecodeRequest(pContext)) {
