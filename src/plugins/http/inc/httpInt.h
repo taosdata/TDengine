@@ -36,7 +36,7 @@
 #define HTTP_BUFFER_SIZE            8388608
 #define HTTP_STEP_SIZE              4096    //http message get process step by step
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
-#define TSDB_CODE_HTTP_GC_TARGET_SIZE         512
+#define HTTP_GC_TARGET_SIZE         512
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN + TSDB_PASSWORD_LEN)

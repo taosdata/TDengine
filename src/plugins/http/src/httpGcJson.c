@@ -129,48 +129,48 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
     // for group by
     if (groupFields != -1) {
-      char target[TSDB_CODE_HTTP_GC_TARGET_SIZE] = {0};
+      char target[HTTP_GC_TARGET_SIZE] = {0};
       int32_t len;
-      len = snprintf(target,TSDB_CODE_HTTP_GC_TARGET_SIZE,"%s{",aliasBuffer);
+      len = snprintf(target,HTTP_GC_TARGET_SIZE,"%s{",aliasBuffer);
       for (int32_t i = dataFields + 1; i<num_fields; i++){
           switch (fields[i].type) {
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int8_t *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int8_t *)row[i]));
             break;
           case TSDB_DATA_TYPE_SMALLINT:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int16_t *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int16_t *)row[i]));
             break;
           case TSDB_DATA_TYPE_INT:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%d,", fields[i].name, *((int32_t *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d,", fields[i].name, *((int32_t *)row[i]));
             break;
           case TSDB_DATA_TYPE_BIGINT:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%ld", fields[i].name, *((int64_t *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%ld", fields[i].name, *((int64_t *)row[i]));
             break;
           case TSDB_DATA_TYPE_FLOAT:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%.5f", fields[i].name, *((float *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.5f", fields[i].name, *((float *)row[i]));
             break;
           case TSDB_DATA_TYPE_DOUBLE:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%.9f", fields[i].name, *((double *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.9f", fields[i].name, *((double *)row[i]));
             break;
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR:
             if (row[i]!= NULL){            
-              len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
+              len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
               memcpy(target + len, (char *) row[i], length[i]);
               len = strlen(target);
             }
             break;
           default:
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, "-");
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, "-");
             break;
         }
         if(i < num_fields - 1 ){
-            len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, ", ");
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
         }
 
       }
-      len += snprintf(target + len, TSDB_CODE_HTTP_GC_TARGET_SIZE - len, "}");
+      len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "}");
 
       if (strcmp(target, targetBuffer) != 0) {
         // first target not write this section
@@ -180,7 +180,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
         // start new target
         gcWriteTargetStartJson(jsonBuf, refIdBuffer, target);
-        strncpy(targetBuffer, target, TSDB_CODE_HTTP_GC_TARGET_SIZE);
+        strncpy(targetBuffer, target, HTTP_GC_TARGET_SIZE);
       }
     }  // end of group by
 

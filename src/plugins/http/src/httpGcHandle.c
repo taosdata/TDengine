@@ -228,7 +228,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
     cmd->values = refIdBuffer;
     cmd->table = aliasBuffer;
     cmd->numOfRows = 0;                                                                 // hack way as target flags
-    cmd->timestamp = httpAddToSqlCmdBufferWithSize(pContext, TSDB_CODE_HTTP_GC_TARGET_SIZE + 1);  // hack way
+    cmd->timestamp = httpAddToSqlCmdBufferWithSize(pContext, HTTP_GC_TARGET_SIZE + 1);  // hack way
 
     if (cmd->timestamp == -1) {
       httpWarn("context:%p, fd:%d, user:%s, cant't malloc target size, sql buffer is full", pContext, pContext->fd,
