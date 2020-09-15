@@ -341,8 +341,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -383,7 +383,8 @@ int main(int argc, char** argv) {
 //    taos_free_result(p);
 //  }
 
-  executeSQL(conn,"use test", NULL);
+  executeSQL(conn,"use lr_db0", NULL);
+  executeSQL(conn,"select last_row(*), ts, 'abc', 123.981, tbname from m1", NULL);
 //  executeSQL( conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and
 //  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
 //  return 0;
@@ -472,7 +473,6 @@ int main(int argc, char** argv) {
 //  taos_query_a(conn, "insert into tm2 values(1433955661000, 1)", insertCallBack, &p2);
 //    taos_query_a(conn, "select count(*) from tm0", queryCallback, &p);
 //    taos_query_a(conn, "select count(*) from tm0", queryCallback, &p);
-      getchar();
   //    executeSQL(conn, "select count(m1.*) from m1", NULL);
   //    executeSQL(conn, "select top(k, 4) from mx interval(10a) order by ts desc", NULL);
   //    executeSQL(conn, "INSERT INTO
