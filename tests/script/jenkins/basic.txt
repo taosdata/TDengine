@@ -77,6 +77,8 @@ cd ../../../debug; make
 ./test.sh -f general/field/smallint.sim
 ./test.sh -f general/field/tinyint.sim
 
+./test.sh -f general/http/autocreate.sim
+./test.sh -f general/http/chunked.sim
 ./test.sh -f general/http/restful.sim
 ./test.sh -f general/http/restful_insert.sim
 ./test.sh -f general/http/restful_limit.sim

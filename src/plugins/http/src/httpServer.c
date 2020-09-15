@@ -317,10 +317,10 @@ static bool httpReadData(HttpContext *pContext) {
   pContext->lastAccessTime = taosGetTimestampSec();
 
   char    buf[HTTP_STEP_SIZE + 1] = {0};
-  int32_t nread = (int32_t)taosReadSocket(pContext->fd, buf, sizeof(buf));
+  int32_t nread = (int32_t)taosReadSocket(pContext->fd, buf, HTTP_STEP_SIZE);
   if (nread > 0) {
     buf[nread] = '\0';
-    httpTrace("context:%p, fd:%d, nread:%d", pContext, pContext->fd, nread);
+    httpTraceL("context:%p, fd:%d, nread:%d content:%s", pContext, pContext->fd, nread, buf);
     int32_t ok = httpParseBuf(pParser, buf, nread);
 
     if (ok) {
@@ -341,7 +341,7 @@ static bool httpReadData(HttpContext *pContext) {
       httpTrace("context:%p, fd:%d, read not over yet, len:%d", pContext, pContext->fd, pParser->body.pos);
       return false;
     } else {
-      httpTraceL("context:%p, fd:%d, len:%d, body:%s", pContext, pContext->fd, pParser->body.pos, pParser->body.str);
+      httpDebug("context:%p, fd:%d, totalLen:%d", pContext, pContext->fd, pParser->body.pos);
       return true;
     }
   } else if (nread < 0) {

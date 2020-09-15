@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <malloc.h>
 #include "os.h"
 #include "taos.h"
 #include "tcache.h"
@@ -91,15 +92,17 @@ void doTest() {
   putRowInCache();
   pPrint("%s insert %d rows, procMemory %f MB %s", GREEN, tsNumOfRows, getProcMemory(), NC);
 
-  int32_t sleepMs = (MAX_REFRESH_TIME_SEC * 3 + 10) * 1000 + tsKeepTimeInSec * 1000;
+  int32_t sleepMs = (MAX_REFRESH_TIME_SEC * 3) * 1000 + tsKeepTimeInSec * 1000;
   taosMsleep(sleepMs);
   pPrint("%s after sleep %d ms, procMemory %f MB %s", GREEN, sleepMs, getProcMemory(), NC);
 
-  //cleanupCache();
+  cleanupCache();
   taosMsleep(sleepMs);
   pPrint("%s after cleanup cache, procMemory %f MB %s", GREEN, getProcMemory(), NC);
-
-  pPrint("%s finally destroyTimes:%d %s", GREEN, destroyTimes, NC);
+  
+  malloc_trim(0);
+  taosMsleep(sleepMs);
+  pPrint("%s after malloc_trim, procMemory %f MB %s", GREEN, getProcMemory(), NC);
 }
 
 void printHelp() {
