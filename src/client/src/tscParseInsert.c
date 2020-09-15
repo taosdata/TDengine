@@ -526,7 +526,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
   int32_t   index = 0;
   SStrToken sToken;
 
-  int16_t numOfRows = 0;
+  int32_t numOfRows = 0;
 
   SSchema *pSchema = tscGetTableSchema(pTableMeta);
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
