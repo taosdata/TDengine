@@ -1788,6 +1788,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* p
     }
 
     assert(matched);
+    matched = matched;
   }
 
   tscFieldInfoUpdateOffset(pNewQueryInfo);

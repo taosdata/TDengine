@@ -5271,6 +5271,7 @@ static void doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
       }
 
       assert(qualifiedCol);
+      qualifiedCol = qualifiedCol;
     }
   }
 }
