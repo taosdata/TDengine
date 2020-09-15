@@ -26,9 +26,10 @@
 #define NC "\033[0m"
 
 int32_t tsKeepTimeInSec = 3;
-int32_t tsNumOfRows = 10000;
-int32_t tsSizeOfRow = 64 * 1024 * 100;
+int32_t tsNumOfRows = 1000000;
+int32_t tsSizeOfRow = 64 * 1024;
 void *  tsCacheObj = NULL;
+int32_t destroyTimes = 0;
 
 typedef int64_t CacheTestKey;
 typedef struct CacheTestRow {
@@ -48,6 +49,10 @@ void detroyRow(void *data) {
   CacheTestRow *row = *(CacheTestRow **)data;
   free(row->data);
   free(row);
+  destroyTimes++;
+  if (destroyTimes % 50000 == 0) {
+    pPrint("%s ===> destroyTimes:%d %s", GREEN, destroyTimes, NC);
+  }
 }
 
 void initCache() {
@@ -86,13 +91,15 @@ void doTest() {
   putRowInCache();
   pPrint("%s insert %d rows, procMemory %f MB %s", GREEN, tsNumOfRows, getProcMemory(), NC);
 
-  int32_t sleepMs = (MAX_REFRESH_TIME_SEC * 3) * 1000 + tsKeepTimeInSec * 1000;
+  int32_t sleepMs = (MAX_REFRESH_TIME_SEC * 3 + 10) * 1000 + tsKeepTimeInSec * 1000;
   taosMsleep(sleepMs);
   pPrint("%s after sleep %d ms, procMemory %f MB %s", GREEN, sleepMs, getProcMemory(), NC);
 
-  cleanupCache();
+  //cleanupCache();
   taosMsleep(sleepMs);
   pPrint("%s after cleanup cache, procMemory %f MB %s", GREEN, getProcMemory(), NC);
+
+  pPrint("%s finally destroyTimes:%d %s", GREEN, destroyTimes, NC);
 }
 
 void printHelp() {
