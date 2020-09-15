@@ -957,17 +957,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  // http configs
-  cfg.option = "httpCacheSessions";
-  cfg.ptr = &tsHttpCacheSessions;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
-  cfg.maxValue = 100000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "httpEnableRecordSql";
   cfg.ptr = &tsHttpEnableRecordSql;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
