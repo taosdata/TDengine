@@ -199,4 +199,18 @@ if $rows != 4098 then
   return -1
 endi
 
+print ======================>td-1454
+sql select count(*)/10, count(*)+99 from t
+if $rows != 1  then
+  return -1
+endi
+
+if $data00 != 509.600000000 then
+  return -1
+endi
+
+if $data01 != 5195.000000000 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

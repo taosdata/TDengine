@@ -2198,15 +2198,14 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
     // calculate the result from several other columns
     if (pSup->pArithExprInfo != NULL) {
       if (pRes->pArithSup == NULL) {
-        SArithmeticSupport *sas = (SArithmeticSupport *) calloc(1, sizeof(SArithmeticSupport));
-        sas->offset     = 0;
-        sas->pArithExpr = pSup->pArithExprInfo;
-        sas->numOfCols  = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
-        sas->exprList   = pQueryInfo->exprList;
-        sas->data       = calloc(sas->numOfCols, POINTER_BYTES);
-
-        pRes->pArithSup = sas;
+        pRes->pArithSup = (SArithmeticSupport*)calloc(1, sizeof(SArithmeticSupport));
       }
+
+      pRes->pArithSup->offset     = 0;
+      pRes->pArithSup->pArithExpr = pSup->pArithExprInfo;
+      pRes->pArithSup->numOfCols  = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
+      pRes->pArithSup->exprList   = pQueryInfo->exprList;
+      pRes->pArithSup->data       = calloc(pRes->pArithSup->numOfCols, POINTER_BYTES);
 
       if (pRes->buffer[i] == NULL) {
         TAOS_FIELD* field = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
