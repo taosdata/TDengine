@@ -186,15 +186,17 @@ if $rows != 1 then
   return -1
 endi
 
-if $data02 != 'abc' then
+if $data01 != @abc@ then
+  print expect abc, actual $data02
   return -1
 endi
 
-if $data03 !=  1234.938400000 then
+if $data02 !=  1234.938400000 then
   return -1
 endi
 
-if $data04 != @2019-01-01 01:01:01.000@ then
+if $data03 != @19-01-01 01:01:01.000@ then
+  print expect 19-01-01 01:01:01.000, actual:$data03
   return -1
 endi
 
@@ -202,4 +204,17 @@ print ===================> last_row + stable + ts/tag column + condition + udf
 sql select last_row(*), ts, 'abc', 123.981, tbname from m1
 if $rows != 1 then
   return -1
+endi
+
+if $data02 != @19-01-01 01:01:01.000@ then
+    return -1
+endi
+
+if $data03 != @abc@ then
+    return -1
+endi
+
+if $data04 != 123.981000000 then
+    print expect 123.981000000, actual: $data04
+    return -1
 endi
