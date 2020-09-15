@@ -786,6 +786,13 @@ class DbConnRest(DbConn):
 
 
 class MyTDSql:
+    # Class variables
+    _clsLock = threading.Lock() # class wide locking
+    longestQuery = None # type: str
+    longestQueryTime = 0.0 # seconds
+    lqStartTime = 0.0
+    # lqEndTime = 0.0 # Not needed, as we have the two above already
+
     def __init__(self, hostAddr, cfgPath):
         # Make the DB connection
         self._conn = taos.connect(host=hostAddr, config=cfgPath) 
@@ -805,10 +812,23 @@ class MyTDSql:
         self._conn.close() # TODO: very important, cursor close does NOT close DB connection!
         self._cursor.close()
 
+    def _execInternal(self, sql):
+        startTime = time.time() 
+        ret = self._cursor.execute(sql)
+        queryTime =  time.time() - startTime
+        # Record the query time
+        cls = self.__class__
+        if queryTime > (cls.longestQueryTime + 0.01) :
+            with cls._clsLock:
+                cls.longestQuery = sql
+                cls.longestQueryTime = queryTime
+                cls.lqStartTime = startTime
+        return ret
+
     def query(self, sql):
         self.sql = sql
         try:
-            self._cursor.execute(sql)
+            self._execInternal(sql)
             self.queryResult = self._cursor.fetchall()
             self.queryRows = len(self.queryResult)
             self.queryCols = len(self._cursor.description)
@@ -822,7 +842,7 @@ class MyTDSql:
     def execute(self, sql):
         self.sql = sql
         try:
-            self.affectedRows = self._cursor.execute(sql)
+            self.affectedRows = self._execInternal(sql)
         except Exception as e:
             # caller = inspect.getframeinfo(inspect.stack()[1][0])
             # args = (caller.filename, caller.lineno, sql, repr(e))
@@ -1785,6 +1805,10 @@ class ExecutionStats:
                 self._elapsedTime))
         logger.info("| Top numbers written: {}".format(TaskExecutor.getBoundedList()))
         logger.info("| Total Number of Active DB Native Connections: {}".format(DbConnNative.totalConnections))
+        logger.info("| Longest native query time: {:.3f} seconds, started: {}".
+            format(MyTDSql.longestQueryTime, 
+                time.strftime("%x %X", time.localtime(MyTDSql.lqStartTime))) )
+        logger.info("| Longest native query: {}".format(MyTDSql.longestQuery))
         logger.info(
             "----------------------------------------------------------------------")
 
@@ -1837,7 +1861,9 @@ class TaskCreateDb(StateTransitionTask):
     # Actually creating the database(es)
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
-        self.execWtSql(wt, "create database {}".format(self._db.getName()))        
+        numReplica = Dice.throw(3) + 1 # 1,2,3
+        self.execWtSql(wt, "create database {} replica {}"
+            .format(self._db.getName(), numReplica) )
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
