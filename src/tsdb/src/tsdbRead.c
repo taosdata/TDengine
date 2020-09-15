@@ -389,9 +389,9 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
     SDataRow row = *(SDataRow *)SL_GET_NODE_DATA(node);
     TSKEY key = dataRowKey(row);  // first timestamp in buffer
     tsdbDebug("%p uid:%" PRId64 ", tid:%d check data in mem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
-              "-%" PRId64 ", lastKey:%" PRId64 ", %p",
+              "-%" PRId64 ", lastKey:%" PRId64 ", numOfRows:%"PRId64", %p",
               pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, key, order, pMem->keyFirst, pMem->keyLast,
-              pCheckInfo->lastKey, pHandle->qinfo);
+              pCheckInfo->lastKey, pMem->numOfRows, pHandle->qinfo);
 
     if (ASCENDING_TRAVERSE(order)) {
       assert(pCheckInfo->lastKey <= key);
@@ -411,9 +411,9 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
     SDataRow row = *(SDataRow *)SL_GET_NODE_DATA(node);
     TSKEY key = dataRowKey(row);  // first timestamp in buffer
     tsdbDebug("%p uid:%" PRId64 ", tid:%d check data in imem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
-              "-%" PRId64 ", lastKey:%" PRId64 ", %p",
+              "-%" PRId64 ", lastKey:%" PRId64 ", numOfRows:%"PRId64", %p",
               pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid, key, order, pIMem->keyFirst, pIMem->keyLast,
-              pCheckInfo->lastKey, pHandle->qinfo);
+              pCheckInfo->lastKey, pIMem->numOfRows, pHandle->qinfo);
 
     if (ASCENDING_TRAVERSE(order)) {
       assert(pCheckInfo->lastKey <= key);
@@ -735,6 +735,7 @@ static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getEndPosInDataBlock(STsdbQueryHandle* pQueryHandle, SDataBlockInfo* pBlockInfo);
 static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end);
 static void moveDataToFront(STsdbQueryHandle* pQueryHandle, int32_t numOfRows, int32_t numOfCols);
 static void doCheckGeneratedBlockRange(STsdbQueryHandle* pQueryHandle);
@@ -791,9 +792,10 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBloc
      * Here the buffer is not enough, so only part of file block can be loaded into memory buffer
      */
     assert(pQueryHandle->outputCapacity >= binfo.rows);
+    int32_t endPos = getEndPosInDataBlock(pQueryHandle, &binfo);
 
-    if ((cur->pos == 0 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-        (cur->pos == (binfo.rows - 1) && (!ASCENDING_TRAVERSE(pQueryHandle->order)))) {
+    if ((cur->pos == 0 && endPos == binfo.rows -1 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
+        (cur->pos == (binfo.rows - 1) && endPos == 0 && (!ASCENDING_TRAVERSE(pQueryHandle->order)))) {
       pQueryHandle->realNumOfRows = binfo.rows;
 
       cur->rows = binfo.rows;
@@ -809,7 +811,6 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBloc
         cur->pos = -1;
       }
     } else { // partially copy to dest buffer
-      int32_t endPos = ASCENDING_TRAVERSE(pQueryHandle->order)? (binfo.rows - 1): 0;
       copyAllRemainRowsFromFileBlock(pQueryHandle, pCheckInfo, &binfo, endPos);
       cur->mixBlock = true;
     }
@@ -1204,6 +1205,29 @@ static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STabl
             cur->win.ekey, cur->rows, pQueryHandle->qinfo);
 }
 
+int32_t getEndPosInDataBlock(STsdbQueryHandle* pQueryHandle, SDataBlockInfo* pBlockInfo) {
+  // NOTE: reverse the order to find the end position in data block
+  int32_t endPos = -1;
+  int32_t order = ASCENDING_TRAVERSE(pQueryHandle->order)? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
+
+  SQueryFilePos* cur = &pQueryHandle->cur;
+  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+
+  if (ASCENDING_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey >= pBlockInfo->window.ekey) {
+    endPos = pBlockInfo->rows - 1;
+    cur->mixBlock = (cur->pos != 0);
+  } else if (!ASCENDING_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey <= pBlockInfo->window.skey) {
+    endPos = 0;
+    cur->mixBlock = (cur->pos != pBlockInfo->rows - 1);
+  } else {
+    assert(pCols->numOfRows > 0);
+    endPos = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pQueryHandle->window.ekey, order);
+    cur->mixBlock = true;
+  }
+
+  return endPos;
+}
+
 // only return the qualified data to client in terms of query time window, data rows in the same block but do not
 // be included in the query time window will be discarded
 static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock) {
@@ -1225,19 +1249,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
 
   STable* pTable = pCheckInfo->pTableObj;
-  int32_t endPos = cur->pos;
-
-  if (ASCENDING_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey > blockInfo.window.ekey) {
-    endPos = blockInfo.rows - 1;
-    cur->mixBlock = (cur->pos != 0);
-  } else if (!ASCENDING_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey < blockInfo.window.skey) {
-    endPos = 0;
-    cur->mixBlock = (cur->pos != blockInfo.rows - 1);
-  } else {
-    assert(pCols->numOfRows > 0);
-    endPos = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pQueryHandle->window.ekey, order);
-    cur->mixBlock = true;
-  }
+  int32_t endPos = getEndPosInDataBlock(pQueryHandle, &blockInfo);
 
   tsdbDebug("%p uid:%" PRIu64",tid:%d start merge data block, file block range:%"PRIu64"-%"PRIu64" rows:%d, start:%d,"
             "end:%d, %p",
@@ -1339,8 +1351,8 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   }
 
   cur->blockCompleted =
-      (((pos >= endPos || cur->lastKey > pQueryHandle->window.ekey) && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-       ((pos <= endPos || cur->lastKey < pQueryHandle->window.ekey) && !ASCENDING_TRAVERSE(pQueryHandle->order)));
+      (((pos > endPos || cur->lastKey > pQueryHandle->window.ekey) && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
+       ((pos < endPos || cur->lastKey < pQueryHandle->window.ekey) && !ASCENDING_TRAVERSE(pQueryHandle->order)));
 
   if (!ASCENDING_TRAVERSE(pQueryHandle->order)) {
     SWAP(cur->win.skey, cur->win.ekey, TSKEY);

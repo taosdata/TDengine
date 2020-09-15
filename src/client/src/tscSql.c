@@ -286,11 +286,11 @@ void taos_close(TAOS *taos) {
   assert(ref >= 0);
 
   if (ref > 0) {
-    tscDebug("%p %d remain sqlObjs, do not close dnodeConn:%p", pObj, ref, pObj->pDnodeConn);
+    tscDebug("%p %d remain sqlObjs, not free tscObj and dnodeConn:%p", pObj, ref, pObj->pDnodeConn);
     return;
   }
 
-  tscDebug("%p all sqlObj are freed, free tscObj, dnodeConn:%p", pObj, pObj->pDnodeConn);
+  tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
   tscCloseTscObj(pObj);
 }
 
