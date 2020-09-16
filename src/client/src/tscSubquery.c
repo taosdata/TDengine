@@ -92,7 +92,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
     STSElem elem2 = tsBufGetElem(pSupporter2->pTSBuf);
 
 #ifdef _DEBUG_VIEW
-    tscInfo("%" PRId64 ", tags:%d \t %" PRId64 ", tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
+    tscInfo("%" PRId64 ", tags:%"PRId64" \t %" PRId64 ", tags:%"PRId64, elem1.ts, elem1.tag.i64Key, elem2.ts, elem2.tag.i64Key);
 #endif
 
     int32_t res = tVariantCompare(&elem1.tag, &elem2.tag);
