@@ -317,7 +317,7 @@ class ThreadCoordinator:
         logger.debug("[TRD] Main thread waking up at step {}, tapping worker threads".format(
                 self._curStep))  # Now not all threads had time to go to sleep
         # Worker threads will wake up at this point, and each execute it's own task
-        self.tapAllThreads() # release all worker thread from their "gate"
+        self.tapAllThreads() # release all worker thread from their "gates"
 
     def _syncAtBarrier(self):
          # Now main thread (that's us) is ready to enter a step
@@ -818,7 +818,7 @@ class MyTDSql:
     def _execInternal(self, sql):
         startTime = time.time() 
         ret = self._cursor.execute(sql)
-        print("\nSQL success: {}".format(sql))
+        # print("\nSQL success: {}".format(sql))
         queryTime =  time.time() - startTime
         # Record the query time
         cls = self.__class__
@@ -1339,7 +1339,6 @@ class StateMechine:
             if rnd < 0:
                 return i
 
-
 class Database:
     ''' We use this to represent an actual TDengine database inside a service instance,
         possibly in a cluster environment.
@@ -1355,7 +1354,6 @@ class Database:
         self._dbNum = dbNum # we assign a number to databases, for our testing purpose
         self._stateMachine = StateMechine(self)
         self._stateMachine.init(dbc)
-
           
         self._lock = threading.RLock()
 
@@ -1878,9 +1876,12 @@ class TaskCreateDb(StateTransitionTask):
     # Actually creating the database(es)
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
-        numReplica = Dice.throw(3) + 1 # 1,2,3
-        self.execWtSql(wt, "create database {} replica {}"
-            .format(self._db.getName(), numReplica) )
+        repStr = ""
+        if gConfig.max_replicas != 1:
+            numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
+            repStr = "replica {}".format(numReplica)
+        self.execWtSql(wt, "create database {} {}"
+            .format(self._db.getName(), repStr) )
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
@@ -2234,22 +2235,23 @@ class TaskAddData(StateTransitionTask):
                     os.fsync(self.fAddLogDone)
 
                 # Now read it back and verify, we might encounter an error if table is dropped
-                try:
-                    readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts= '{}'".
-                        format(db.getName(), regTableName, nextTick))
-                    if readBack != nextInt :
-                        raise taos.error.ProgrammingError(
-                            "Failed to read back same data, wrote: {}, read: {}"
-                            .format(nextInt, readBack), 0x999)
-                except taos.error.ProgrammingError as err:
-                    errno = Helper.convertErrno(err.errno)
-                    if errno in [0x991, 0x992]  : # not a single result
-                        raise taos.error.ProgrammingError(
-                            "Failed to read back same data for tick: {}, wrote: {}, read: {}"
-                            .format(nextTick, nextInt, "Empty Result" if errno==0x991 else "Multiple Result"),
-                            errno)
-                    # Re-throw no matter what
-                    raise
+                if gConfig.verify_data: # only if command line asks for it
+                    try:
+                        readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts= '{}'".
+                            format(db.getName(), regTableName, nextTick))
+                        if readBack != nextInt :
+                            raise taos.error.ProgrammingError(
+                                "Failed to read back same data, wrote: {}, read: {}"
+                                .format(nextInt, readBack), 0x999)
+                    except taos.error.ProgrammingError as err:
+                        errno = Helper.convertErrno(err.errno)
+                        if errno in [0x991, 0x992]  : # not a single result
+                            raise taos.error.ProgrammingError(
+                                "Failed to read back same data for tick: {}, wrote: {}, read: {}"
+                                .format(nextTick, nextInt, "Empty Result" if errno==0x991 else "Multiple Result"),
+                                errno)
+                        # Re-throw no matter what
+                        raise
                 
 
             self.activeTable.discard(i)  # not raising an error, unlike remove
@@ -3043,6 +3045,13 @@ def main():
         action='store_true',
         help='Run TDengine service in foreground (default: false)')
     parser.add_argument(
+        '-i',
+        '--max-replicas',
+        action='store',
+        default=1,
+        type=int,
+        help='Maximum number of replicas to use, when testing against clusters. (default: 1)')
+    parser.add_argument(
         '-l',
         '--larger-data',
         action='store_true',
@@ -3071,6 +3080,11 @@ def main():
         default=5,
         type=int,
         help='Number of threads to run (default: 10)')
+    parser.add_argument(
+        '-v',
+        '--verify-data',
+        action='store_true',
+        help='Verify data written in a number of places by reading back (default: false)')
     parser.add_argument(
         '-x',
         '--continue-on-exception',
