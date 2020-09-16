@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -147,11 +148,22 @@ func getToken() (string, error) {
 
 func exec(client *http.Client, sql string) {
 	for times := 0; times < 10; times++ {
+		//if (1) {
+			var zBuf bytes.Buffer
+			zw := gzip.NewWriter(&zBuf)
+			zw.Write([]byte(sql))
+			zw.Close()
+			req, err1 := http.NewRequest("POST", url, &zBuf)
+			req.Header.Set("Content-Encoding", "gzip")
+			req.Header.Set("Transfer-Encoding", "gzip")
+		//} else {
+		//	req, err1 := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))	
+		//}
 
-		req, err1 := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))
 		if err1 != nil {
 			continue
 		}
+		
 		req.Header.Add("Authorization", "Taosd "+token)
 
 		begin := time.Now()

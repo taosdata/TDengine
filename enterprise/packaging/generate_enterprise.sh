@@ -17,18 +17,19 @@ fi
 
 echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir
-git checkout $branchName
-###git checkout -- .
+# git checkout $branchName
+# git checkout -- .
 git pull
-sudo rm -rf release/*
+git checkout -- .
+rm -rf release/*
 
 cd $enterpriseDir
-git checkout $branchName
-###git checkout -- .
+# git checkout $branchName
+# git checkout -- .
 git pull
 
 cd $communityDir
-sudo ./packaging/release.sh -v cluster -n $version -m $versionComp -V $verType
+./packaging/release.sh -v cluster -n $version -m $versionComp -V $verType
 
 if [ ! -d  "$archiveDir/v$version" ]; then
   mkdir -p "$archiveDir/v$version"

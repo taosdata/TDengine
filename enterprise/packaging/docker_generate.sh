@@ -12,11 +12,11 @@ archiveDir=$scriptDir/../release
 echo "make docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir/packaging/docker
 cp -f $archiveDir/v$version/community/${dockerinput} ./tdengine.tar.gz
-sudo ./dockerbuild.sh ${version} ${password}
+./dockerbuild.sh ${version} ${password}
 echo ">>>>>>>>>>>>> check whether the docker image has been published"
-sudo docker pull tdengine/tdengine:${version}
+docker pull tdengine/tdengine:${version}
 
-sudo docker tag tdengine/tdengine:$version tdengine/tdengine:latest
-sudo docker push tdengine/tdengine:latest
+docker tag tdengine/tdengine:$version tdengine/tdengine:latest
+docker push tdengine/tdengine:latest
 
 

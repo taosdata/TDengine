@@ -18,15 +18,15 @@
 #include "tglobal.h"
 #include "httpLog.h"
 #include "httpJson.h"
-#include "adminHandle.h"
-#include "adminJson.h"
+#include "httpAdminHandle.h"
+#include "httpAdminJson.h"
 
 void adminStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  int         num_fields = taos_num_fields(result);
+  int32_t         num_fields = taos_num_fields(result);
 
   httpInitJsonBuf(jsonBuf, pContext);
   httpWriteJsonBufHead(jsonBuf);
@@ -49,9 +49,9 @@ void adminStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result)
     httpJsonItemToken(jsonBuf);
     httpJsonString(jsonBuf, ADMIN_JSON_AFFECT_ROWS, ADMIN_JSON_AFFECT_ROWS_LEN);
   } else {
-    for (int i = 0; i < num_fields; ++i) {
+    for (int32_t i = 0; i < num_fields; ++i) {
       httpJsonItemToken(jsonBuf);
-      httpJsonString(jsonBuf, fields[i].name, (int)strlen(fields[i].name));
+      httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
     }
   }
 
@@ -66,7 +66,7 @@ void adminStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result)
   httpJsonToken(jsonBuf, JsonArrStt);
 }
 
-void adminBuildSqlAffectRowJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows) {
+void adminBuildSqlAffectRowJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
@@ -82,13 +82,13 @@ void adminBuildSqlAffectRowJson(HttpContext *pContext, HttpSqlCmd *cmd, int affe
   cmd->numOfRows = affect_rows;
 }
 
-bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
-  int         num_fields = taos_num_fields(result);
+  int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  for (int i = 0; i < numOfRows; ++i) {
+  for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_ROW row = taos_fetch_row(result);
     int32_t* length = taos_fetch_lengths(result);
 
@@ -102,7 +102,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
     httpJsonItemToken(jsonBuf);
     httpJsonToken(jsonBuf, JsonArrStt);
 
-    for (int i = 0; i < num_fields; i++) {
+    for (int32_t i = 0; i < num_fields; i++) {
       httpJsonItemToken(jsonBuf);
       if (row[i] == NULL) {
         httpJsonString(jsonBuf, "NULL", 4);
@@ -146,31 +146,29 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
   }
 
   if (cmd->numOfRows >= tsRestRowLimit) {
-    httpDebug("context:%p, fd:%d, ip:%s, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve"
-      , pContext, pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows, tsRestRowLimit);
+    httpDebug("context:%p, fd:%d, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve", pContext,
+              pContext->fd, pContext->user, cmd->numOfRows, tsRestRowLimit);
     return false;
-  }
-  else {
+  } else {
     if (pContext->fd <= 0) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, connection is closed, abort retrieve"
-      , pContext, pContext->fd, pContext->ipstr, pContext->user);
+      httpError("context:%p, fd:%d, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
+                pContext->user);
       return false;
-    }
-    else {
-      httpDebug("context:%p, fd:%d, ip:%s, user:%s, total rows:%d retrieved"
-      , pContext, pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows);
+    } else {
+      httpDebug("context:%p, fd:%d, user:%s, total rows:%d retrieved", pContext, pContext->fd, pContext->user,
+                cmd->numOfRows);
       return true;
     }
   }
 }
 
-bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
-  int         num_fields = taos_num_fields(result);
+  int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  for (int i = 0; i < numOfRows; ++i) {
+  for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_ROW row = taos_fetch_row(result);
 
     cmd->numOfRows++;
@@ -179,7 +177,7 @@ bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
     httpJsonItemToken(jsonBuf);
     httpJsonToken(jsonBuf, JsonArrStt);
 
-    for (int i = 0; i < num_fields; i++) {
+    for (int32_t i = 0; i < num_fields; i++) {
       httpJsonItemToken(jsonBuf);
       if (row[i] == NULL) {
         httpJsonString(jsonBuf, "NULL", 4);
@@ -266,17 +264,17 @@ void adminInitInfoJson(HttpContext *pContext) {
   httpJsonToken(jsonBuf, JsonObjStt);
 }
 
-bool adminBuildInfoJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+bool adminBuildInfoJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
   // hackway
   if (cmd->values == ADMIN_JSON_TABLES_TYPE) {
-    int num_fields = taos_num_fields(result);
-    for (int i = 0; i < numOfRows; ++i) {
+    int32_t num_fields = taos_num_fields(result);
+    for (int32_t i = 0; i < numOfRows; ++i) {
       TAOS_ROW row = taos_fetch_row(result);
       if (num_fields >= 3) {
-        int tables = *((int32_t *)row[2]);
+        int32_t tables = *((int32_t *)row[2]);
         cmd->numOfRows += tables;
       }
     }
@@ -369,11 +367,10 @@ void adminStartMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result
   httpJsonItemToken(jsonBuf);
   httpJsonToken(jsonBuf, JsonArrStt);
 
-  //
-  int         num_fields = taos_num_fields(result);
+  int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
-  for (int i = 0; i < num_fields; ++i) {
+  for (int32_t i = 0; i < num_fields; ++i) {
     // data row array begin
     httpJsonItemToken(jsonBuf);
     httpJsonToken(jsonBuf, JsonArrStt);
@@ -416,7 +413,7 @@ void adminStartMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result
     }
 
     httpJsonItemToken(jsonBuf);
-    httpJsonString(jsonBuf, fields[i].name, (int)strlen(fields[i].name));
+    httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
     httpJsonItemToken(jsonBuf);
     httpJsonInt(jsonBuf, fields[i].bytes);
 
@@ -427,13 +424,13 @@ void adminStartMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result
   cmd->numOfRows = num_fields;
 }
 
-bool adminBuildMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) { return false; }
+bool adminBuildMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) { return false; }
 
 void adminStopMetaJson(HttpContext *pContext, HttpSqlCmd *cmd) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
-  int num_fields = cmd->numOfRows;
+  int32_t num_fields = cmd->numOfRows;
 
   // array end
   httpJsonToken(jsonBuf, JsonArrEnd);
@@ -475,7 +472,7 @@ void adminStartSqlsJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result
   if (jsonBuf == NULL) return;
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  int         num_fields = taos_num_fields(result);
+  int32_t         num_fields = taos_num_fields(result);
 
   // object begin
   httpJsonItemToken(jsonBuf);
@@ -496,9 +493,9 @@ void adminStartSqlsJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result
     httpJsonItemToken(jsonBuf);
     httpJsonString(jsonBuf, ADMIN_JSON_AFFECT_ROWS, ADMIN_JSON_AFFECT_ROWS_LEN);
   } else {
-    for (int i = 0; i < num_fields; ++i) {
+    for (int32_t i = 0; i < num_fields; ++i) {
       httpJsonItemToken(jsonBuf);
-      httpJsonString(jsonBuf, fields[i].name, (int)strlen(fields[i].name));
+      httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
     }
   }
 
