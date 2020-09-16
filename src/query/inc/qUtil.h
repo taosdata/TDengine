@@ -50,13 +50,15 @@ static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int3
     tFilePage* page) {
   assert(pResult != NULL && pRuntimeEnv != NULL);
 
-  SQuery    *pQuery = pRuntimeEnv->pQuery;
-//  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pos.pageId);
+  SQuery *pQuery = pRuntimeEnv->pQuery;
 
   int32_t realRowId = (int32_t)(pResult->pos.rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pRuntimeEnv->topBotQuery, pRuntimeEnv->stableQuery));
   return ((char *)page->data) + pRuntimeEnv->offset[columnIndex] * pRuntimeEnv->numOfRowsPerPage +
       pQuery->pSelectExpr[columnIndex].bytes * realRowId;
 }
+
+bool isNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
+bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
 
 __filter_func_t *getRangeFilterFuncArray(int32_t type);
 __filter_func_t *getValueFilterFuncArray(int32_t type);

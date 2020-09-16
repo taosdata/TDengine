@@ -205,10 +205,12 @@ if $rows != 9 then
 endi
 
 if $data00 != @70-01-01 08:01:40.100@ then
+  print $data00
   return -1
 endi
 
 if $data10 != @70-01-01 08:01:40.200@ then
+  print $data10
   return -1
 endi
 

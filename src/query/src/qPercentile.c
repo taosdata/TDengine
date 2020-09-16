@@ -70,6 +70,33 @@ static void resetBoundingBox(MinMaxEntry* range, int32_t type) {
   }
 }
 
+static int32_t setBoundingBox(MinMaxEntry* range, int16_t type, double minval, double maxval) {
+  if (minval > maxval) {
+    return -1;
+  }
+
+  switch(type) {
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+      range->iMinVal = (int32_t) minval;
+      range->iMaxVal = (int32_t) maxval;
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+      range->i64MinVal = (int64_t) minval;
+      range->i64MaxVal = (int64_t) maxval;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      range->dMinVal = minval;
+      range->dMaxVal = maxval;
+      break;
+  }
+
+  return 0;
+}
+
 static void resetPosInfo(SSlotInfo* pInfo) {
   pInfo->size   = 0;
   pInfo->pageId = -1;
@@ -135,6 +162,11 @@ int32_t tBucketBigIntHash(tMemBucket *pBucket, const void *value) {
 
     return index;
   } else {
+    // out of range
+    if (v < pBucket->range.i64MinVal || v > pBucket->range.i64MaxVal) {
+      return -1;
+    }
+
     // todo hash for bigint and float and double
     int64_t span = pBucket->range.i64MaxVal - pBucket->range.i64MinVal;
     if (span < pBucket->numOfSlots) {
@@ -179,6 +211,11 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
 
     return index;
   } else {
+    // out of range
+    if (v < pBucket->range.iMinVal || v > pBucket->range.iMaxVal) {
+      return -1;
+    }
+
     // divide a range of [iMinVal, iMaxVal] into 1024 buckets
     int32_t span = pBucket->range.iMaxVal - pBucket->range.iMinVal;
     if (span < pBucket->numOfSlots) {
@@ -209,6 +246,12 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
     double posx = (v + DBL_MAX) / x;
     return ((int32_t)posx) % pBucket->numOfSlots;
   } else {
+
+    // out of range
+    if (v < pBucket->range.dMinVal || v > pBucket->range.dMaxVal) {
+      return -1;
+    }
+
     // divide a range of [dMinVal, dMaxVal] into 1024 buckets
     double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
     if (span < pBucket->numOfSlots) {
@@ -262,7 +305,7 @@ static void resetSlotInfo(tMemBucket* pBucket) {
   }
 }
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType) {
+tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval) {
   tMemBucket *pBucket = (tMemBucket *)calloc(1, sizeof(tMemBucket));
   if (pBucket == NULL) {
     return NULL;
@@ -278,9 +321,14 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType) {
 
   pBucket->maxCapacity = 200000;
 
+  if (setBoundingBox(&pBucket->range, pBucket->type, minval, maxval) != 0) {
+    uError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
+    free(pBucket);
+    return NULL;
+  }
+
   pBucket->elemPerPage = (pBucket->bufPageSize - sizeof(tFilePage))/pBucket->bytes;
   pBucket->comparFn = getKeyComparFunc(pBucket->type);
-  resetBoundingBox(&pBucket->range, pBucket->type);
 
   pBucket->hashFunc = getHashFunc(pBucket->type);
   if (pBucket->hashFunc == NULL) {
@@ -395,23 +443,25 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, char *data, int32_t dataType) {
 /*
  * in memory bucket, we only accept data array list
  */
-void tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
+int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   assert(pBucket != NULL && data != NULL && size > 0);
+
   pBucket->total += (int32_t)size;
 
   int32_t bytes = pBucket->bytes;
-
   for (int32_t i = 0; i < size; ++i) {
     char *d = (char *) data + i * bytes;
 
-    int32_t slotIdx = (pBucket->hashFunc)(pBucket, d);
-    assert(slotIdx >= 0);
+    int32_t index = (pBucket->hashFunc)(pBucket, d);
+    if (index == -1) {  // the value is out of range, do not add it into bucket
+      return -1;
+    }
 
-    tMemBucketSlot *pSlot = &pBucket->pSlots[slotIdx];
+    tMemBucketSlot *pSlot = &pBucket->pSlots[index];
     tMemBucketUpdateBoundingBox(&pSlot->range, d, pBucket->type);
 
     // ensure available memory pages to allocate
-    int32_t groupId = getGroupId(pBucket->numOfSlots, slotIdx, pBucket->times);
+    int32_t groupId = getGroupId(pBucket->numOfSlots, index, pBucket->times);
     int32_t pageId = -1;
 
     if (pSlot->info.data == NULL || pSlot->info.data->num >= pBucket->elemPerPage) {
@@ -432,10 +482,12 @@ void tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
     pSlot->info.data->num += 1;
     pSlot->info.size += 1;
   }
+
+  return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-static void findMaxMinValue(tMemBucket *pMemBucket, double *maxVal, double *minVal) {
+static UNUSED_FUNC void findMaxMinValue(tMemBucket *pMemBucket, double *maxVal, double *minVal) {
   *minVal = DBL_MAX;
   *maxVal = -DBL_MAX;
 
@@ -681,16 +733,29 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
 
   // find the min/max value, no need to scan all data in bucket
   if (fabs(percent - 100.0) < DBL_EPSILON || (percent < DBL_EPSILON)) {
-    double minx = 0, maxx = 0;
-    findMaxMinValue(pMemBucket, &maxx, &minx);
+    MinMaxEntry* pRange = &pMemBucket->range;
 
-    return fabs(percent - 100) < DBL_EPSILON ? maxx : minx;
+    switch(pMemBucket->type) {
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+        return fabs(percent - 100) < DBL_EPSILON? pRange->iMaxVal:pRange->iMinVal;
+      case TSDB_DATA_TYPE_BIGINT: {
+        double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->i64MaxVal : pRange->i64MinVal);
+        return v;
+      }
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+        return fabs(percent - 100) < DBL_EPSILON? pRange->dMaxVal:pRange->dMinVal;
+        default:
+        return -1;
+    }
   }
 
   double  percentVal = (percent * (pMemBucket->total - 1)) / ((double)100.0);
-  int32_t orderIdx = (int32_t)percentVal;
 
   // do put data by using buckets
+  int32_t orderIdx = (int32_t)percentVal;
   return getPercentileImpl(pMemBucket, orderIdx, percentVal - orderIdx);
 }
 

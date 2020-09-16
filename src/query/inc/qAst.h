@@ -32,6 +32,7 @@ struct tExprNode;
 struct SSchema;
 
 enum {
+  TSQL_NODE_DUMMY = 0x0,
   TSQL_NODE_EXPR  = 0x1,
   TSQL_NODE_COL   = 0x2,
   TSQL_NODE_VALUE = 0x4,

@@ -188,6 +188,10 @@ uint8_t getBinaryExprOptr(SStrToken *pToken) {
       return TSDB_BINARY_OP_REMAINDER;
     case TK_LIKE:
       return TSDB_RELATION_LIKE;
+    case TK_ISNULL:
+      return TSDB_RELATION_ISNULL;
+    case TK_NOTNULL:
+      return TSDB_RELATION_NOTNULL;
     default: { return 0; }
   }
 }
@@ -486,29 +490,42 @@ static void tQueryIndexColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArr
   } else {
     int32_t optr = cond.end ? cond.end->optr : TSDB_RELATION_INVALID;
     if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
-      bool comp = true;
+      bool    comp = true;
       int32_t ret = 0;
-      
-      while(tSkipListIterNext(iter)) {
-        SSkipListNode* pNode = tSkipListIterGet(iter);
-      
+
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode *pNode = tSkipListIterGet(iter);
+
         if (comp) {
           ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
           assert(ret <= 0);
         }
-        
+
         if (ret == 0 && optr == TSDB_RELATION_LESS) {
           continue;
         } else {
-          STableKeyInfo info = {.pTable = *(void**)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          STableKeyInfo info = {.pTable = *(void **)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
           taosArrayPush(result, &info);
           comp = false;  // no need to compare anymore
+        }
+      }
+    } else {
+      assert(pQueryInfo->optr == TSDB_RELATION_ISNULL || pQueryInfo->optr == TSDB_RELATION_NOTNULL);
+
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode *pNode = tSkipListIterGet(iter);
+
+        bool isnull = isNull(SL_GET_NODE_KEY(pSkipList, pNode), pQueryInfo->sch.type);
+        if ((pQueryInfo->optr == TSDB_RELATION_ISNULL && isnull) ||
+            (pQueryInfo->optr == TSDB_RELATION_NOTNULL && (!isnull))) {
+          STableKeyInfo info = {.pTable = *(void **)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
         }
       }
     }
   }
 
-  free(cond.start); 
+  free(cond.start);
   free(cond.end);
   tSkipListDestroyIter(iter);
 }
@@ -683,6 +700,7 @@ static void tQueryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, 
     char *         pData = SL_GET_NODE_DATA(pNode);
 
     tstr *name = (tstr*) tsdbGetTableName(*(void**) pData);
+
     // todo speed up by using hash
     if (pQueryInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
       if (pQueryInfo->optr == TSDB_RELATION_IN) {
@@ -714,7 +732,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
 
   // column project
   if (pLeft->nodeType != TSQL_NODE_EXPR && pRight->nodeType != TSQL_NODE_EXPR) {
-    assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
+    assert(pLeft->nodeType == TSQL_NODE_COL && (pRight->nodeType == TSQL_NODE_VALUE || pRight->nodeType == TSQL_NODE_DUMMY));
 
     param->setupInfoFn(pExpr, param->pExtInfo);
     if (pSkipList == NULL) {
