@@ -1950,8 +1950,10 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  size_t size = taosArrayGetSize(pCmd->pDataBlocks);
-  assert(size > 0);
+  pSql->numOfSubs = taosArrayGetSize(pCmd->pDataBlocks);
+  assert(pSql->numOfSubs > 0);
+
+  pRes->code = TSDB_CODE_SUCCESS;
 
   // the number of already initialized subqueries
   int32_t numOfSub = 0;
@@ -1960,15 +1962,12 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   pState->numOfTotal = pSql->numOfSubs;
   pState->numOfRemain = pSql->numOfSubs;
 
-  pSql->numOfSubs = (uint16_t)size;
-  pRes->code = TSDB_CODE_SUCCESS;
-
-  pSql->pSubs = calloc(size, POINTER_BYTES);
+  pSql->pSubs = calloc(pSql->numOfSubs, POINTER_BYTES);
   if (pSql->pSubs == NULL) {
     goto _error;
   }
 
-  tscDebug("%p submit data to %" PRIzu " vnode(s)", pSql, size);
+  tscDebug("%p submit data to %d vnode(s)", pSql, pSql->numOfSubs);
 
   while(numOfSub < pSql->numOfSubs) {
     SInsertSupporter* pSupporter = calloc(1, sizeof(SInsertSupporter));
@@ -1999,8 +1998,8 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
       tscDebug("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, numOfSub);
       numOfSub++;
     } else {
-      tscDebug("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%" PRIzu ", code:%s", pSql, numOfSub,
-               size, tstrerror(pRes->code));
+      tscDebug("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%s", pSql, numOfSub,
+               pSql->numOfSubs, tstrerror(pRes->code));
       goto _error;
     }
   }
