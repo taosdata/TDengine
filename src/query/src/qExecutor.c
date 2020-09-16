@@ -2836,6 +2836,7 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   // all results have been return to client, try next group
   if (pGroupResInfo->pos.pageId == pGroupResInfo->numOfDataPages) {
     pGroupResInfo->numOfDataPages = 0;
+    pGroupResInfo->pos.pageId = 0;
     pGroupResInfo->pos.rowId = 0;
 
     // current results of group has been sent to client, try next group
