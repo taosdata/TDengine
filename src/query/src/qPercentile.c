@@ -740,8 +740,10 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
       case TSDB_DATA_TYPE_SMALLINT:
       case TSDB_DATA_TYPE_INT:
         return fabs(percent - 100) < DBL_EPSILON? pRange->iMaxVal:pRange->iMinVal;
-      case TSDB_DATA_TYPE_BIGINT:
-        return fabs(percent - 100) < DBL_EPSILON? pRange->i64MaxVal:pRange->i64MinVal;
+      case TSDB_DATA_TYPE_BIGINT: {
+        double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->i64MaxVal : pRange->i64MinVal);
+        return v;
+      }
       case TSDB_DATA_TYPE_FLOAT:
       case TSDB_DATA_TYPE_DOUBLE:
         return fabs(percent - 100) < DBL_EPSILON? pRange->dMaxVal:pRange->dMinVal;
