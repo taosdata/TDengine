@@ -65,6 +65,7 @@ typedef struct {
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
   int8_t  precision;
   int8_t  compression;
+  int8_t  update;
 } STsdbCfg;
 
 // --------- TSDB REPOSITORY USAGE STATISTICS

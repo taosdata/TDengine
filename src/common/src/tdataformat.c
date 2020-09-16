@@ -18,6 +18,9 @@
 #include "tcoding.h"
 #include "wchar.h"
 
+static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
+                               int limit2, int tRows);
+
 /**
  * Duplicate the schema and return a new object
  */
@@ -499,7 +502,9 @@ _err:
   return -1;
 }
 
-void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2, int limit2, int tRows) {
+// src2 data has more priority than src1
+static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
+                               int limit2, int tRows) {
   tdResetDataCols(target);
   ASSERT(limit1 <= src1->numOfRows && limit2 <= src2->numOfRows);
 
@@ -509,7 +514,7 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limi
     TSKEY key1 = (*iter1 >= limit1) ? INT64_MAX : ((TSKEY *)(src1->cols[0].pData))[*iter1];
     TSKEY key2 = (*iter2 >= limit2) ? INT64_MAX : ((TSKEY *)(src2->cols[0].pData))[*iter2];
 
-    if (key1 <= key2) {
+    if (key1 < key2) {
       for (int i = 0; i < src1->numOfCols; i++) {
         ASSERT(target->cols[i].type == src1->cols[i].type);
         if (src1->cols[i].len > 0) {
@@ -520,7 +525,6 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limi
 
       target->numOfRows++;
       (*iter1)++;
-      if (key1 == key2) (*iter2)++;
     } else {
       for (int i = 0; i < src2->numOfCols; i++) {
         ASSERT(target->cols[i].type == src2->cols[i].type);
@@ -532,6 +536,7 @@ void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limi
 
       target->numOfRows++;
       (*iter2)++;
+      if (key1 == key2) (*iter1)++;
     }
   }
 }

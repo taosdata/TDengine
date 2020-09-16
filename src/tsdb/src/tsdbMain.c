@@ -512,6 +512,9 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
     }
   }
 
+  // update check
+  if (pCfg->update != 0) pCfg->update = 1;
+
   return 0;
 
 _err:
@@ -923,6 +926,7 @@ static int tsdbEncodeCfg(void **buf, STsdbCfg *pCfg) {
   tlen += taosEncodeVariantI32(buf, pCfg->maxRowsPerFileBlock);
   tlen += taosEncodeFixedI8(buf, pCfg->precision);
   tlen += taosEncodeFixedI8(buf, pCfg->compression);
+  tlen += taosEncodeFixedI8(buf, pCfg->update);
 
   return tlen;
 }
@@ -939,6 +943,7 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
   buf = taosDecodeVariantI32(buf, &(pCfg->maxRowsPerFileBlock));
   buf = taosDecodeFixedI8(buf, &(pCfg->precision));
   buf = taosDecodeFixedI8(buf, &(pCfg->compression));
+  buf = taosDecodeFixedI8(buf, &(pCfg->update));
 
   return buf;
 }

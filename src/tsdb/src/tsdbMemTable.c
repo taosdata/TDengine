@@ -278,7 +278,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 }
 
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
-                          TSKEY *filterKeys, int nFilterKeys) {
+                          TSKEY *filterKeys, int nFilterKeys, bool keepDup) {
   ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
   STSchema *pSchema = NULL;
@@ -319,6 +319,10 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
     if (!keyFiltered) {
       if (numOfRows >= maxRowsToRead) break;
+      numOfRows++;
+    }
+
+    if (!keyFiltered || keepDup) {
       if (pCols) {
         if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
           pSchema = tsdbGetTableSchemaImpl(pTable, false, false, dataRowVersion(row));
@@ -329,8 +333,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
         tdAppendDataRowToDataCol(row, pSchema, pCols);
       }
-      numOfRows++;
-    }
+    } 
   } while (tSkipListIterNext(pIter));
 
   return numOfRows;
@@ -422,8 +425,9 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   pTableData->keyLast = 0;
   pTableData->numOfRows = 0;
 
-  pTableData->pData = tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
-                                      TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], /*SL_DISCARD_DUP_KEY*/ SL_APPEND_DUP_KEY, tsdbGetTsTupleKey);
+  pTableData->pData =
+      tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP],
+                      pCfg->update ? SL_APPEND_DUP_KEY : SL_DISCARD_DUP_KEY, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
