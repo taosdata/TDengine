@@ -79,13 +79,13 @@ static int32_t setBoundingBox(MinMaxEntry* range, int16_t type, double minval, d
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
-      range->iMinVal = minval;
-      range->iMaxVal = maxval;
+      range->iMinVal = (int32_t) minval;
+      range->iMaxVal = (int32_t) maxval;
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
-      range->i64MinVal = minval;
-      range->i64MaxVal = maxval;
+      range->i64MinVal = (int64_t) minval;
+      range->i64MaxVal = (int64_t) maxval;
       break;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
