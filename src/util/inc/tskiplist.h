@@ -27,6 +27,14 @@ extern "C" {
 #define MAX_SKIP_LIST_LEVEL 15
 #define SKIP_LIST_RECORD_PERFORMANCE 0
 
+// For key property setting
+#define SL_ALLOW_DUP_KEY (uint8_t)0x0    // Allow duplicate key exists
+#define SL_DISCARD_DUP_KEY (uint8_t)0x1  // Discard duplicate key
+#define SL_UPDATA_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert
+#define SL_APPEND_DUP_KEY (uint8_t)0x3   // Update duplicate key by append
+// For thread safety setting
+#define SL_THREAD_SAFE (uint8_t)0x4
+
 typedef char *SSkipListKey;
 typedef char *(*__sl_key_fn_t)(const void *);
 
@@ -41,6 +49,9 @@ typedef struct SSkipListNode {
   uint8_t level;
 } SSkipListNode;
 
+#define SL_IS_THREAD_SAFE(flags) ((flags)&SL_THREAD_SAFE)
+#define SL_DUP_MODE(flags) ((flags) & ((((uint8_t)1) << 2) - 1))
+
 #define SL_NODE_HEADER_SIZE(_l) (sizeof(SSkipListNode) + ((_l) << 1u) * POINTER_BYTES)
 
 #define SL_GET_FORWARD_POINTER(n, _l) ((SSkipListNode **)((char *)(n) + sizeof(SSkipListNode)))[(_l)]
@@ -54,6 +65,8 @@ typedef struct SSkipListNode {
 #define SL_GET_SL_MAX_KEY(s) (SL_GET_NODE_KEY((s), SL_GET_BACKWARD_POINTER((s)->pTail, 0)))
 
 #define SL_GET_NODE_LEVEL(n) *(uint8_t *)((n))
+#define SL_GET_SIZE(s) (s)->size
+#define SL_GET_TSIZE(s) (s)->tsize
 
 /*
  * @version 0.3
@@ -113,13 +126,16 @@ typedef struct SSkipListKeyInfo {
 typedef struct SSkipList {
   __compar_fn_t     comparFn;
   __sl_key_fn_t     keyFn;
-  uint32_t          size;
-  uint8_t           maxLevel;
-  uint8_t           level;
-  SSkipListKeyInfo  keyInfo;
   pthread_rwlock_t *lock;
-  SSkipListNode *   pHead;    // point to the first element
-  SSkipListNode *   pTail;    // point to the last element
+  uint16_t          len;
+  uint8_t           maxLevel;
+  uint8_t           flags;
+  uint8_t           type;   // static info above
+  uint8_t           level;
+  uint32_t          size;   // not including duplicate keys
+  uint32_t          tsize;  // including duplicate keys
+  SSkipListNode *   pHead;  // point to the first element
+  SSkipListNode *   pTail;  // point to the last element
 #if SKIP_LIST_RECORD_PERFORMANCE
   tSkipListState state;  // skiplist state
 #endif
@@ -145,8 +161,7 @@ typedef struct SSkipListIterator {
  * @param dupKey      allow the duplicated key in the skip list
  * @return
  */
-SSkipList *tSkipListCreate(uint8_t nMaxLevel, uint8_t keyType, uint8_t keyLen, uint8_t dupKey, uint8_t threadsafe,
-    uint8_t freeNode, __sl_key_fn_t fn);
+SSkipList *tSkipListCreate(uint8_t nMaxLevel, uint8_t keyType, uint16_t keyLen, uint8_t flags, __sl_key_fn_t fn);
 
 /**
  *
@@ -164,6 +179,17 @@ void *tSkipListDestroy(SSkipList *pSkipList);
 void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize);
 
 /**
+ * put the data into the skiplist
+ * If failed, NULL will be returned, otherwise, the pNode will be returned.
+ *
+ * @param pSkipList
+ * @param pData
+ * @param dataLen
+ * @return
+ */
+SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData, int dataLen);
+
+/**
  * put the skip list node into the skip list.
  * If failed, NULL will be returned, otherwise, the pNode will be returned.
  *
@@ -171,7 +197,7 @@ void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSiz
  * @param pNode
  * @return
  */
-SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode);
+SSkipListNode *tSkipListPutNode(SSkipList *pSkipList, SSkipListNode *pNode);
 
 /**
  * get *all* nodes which key are equivalent to pKey
@@ -181,13 +207,6 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode);
  * @return
  */
 SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
-
-/**
- * get the size of skip list
- * @param pSkipList
- * @return
- */
-size_t tSkipListGetSize(const SSkipList *pSkipList);
 
 /**
  * display skip list of the given level, for debug purpose only

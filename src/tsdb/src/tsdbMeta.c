@@ -690,7 +690,7 @@ static STable *tsdbNewTable(STableCfg *pCfg, bool isSuper) {
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), SL_ALLOW_DUP_KEY, getTagIndexKey);
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
@@ -892,23 +892,8 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
 
   pTable->pSuper = pSTable;
 
-  int32_t level = 0;
-  int32_t headSize = 0;
+  tSkipListPut(pSTable->pIndex, (void *)(&pTable), sizeof(STable *));
 
-  tSkipListNewNodeInfo(pSTable->pIndex, &level, &headSize);
-
-  // NOTE: do not allocate the space for key, since in each skip list node, only keep the pointer to pTable, not the
-  // actual key value, and the key value will be retrieved during query through the pTable and getTagIndexKey function
-  SSkipListNode *pNode = calloc(1, headSize + sizeof(STable *));
-  if (pNode == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-  pNode->level = level;
-
-  memcpy(SL_GET_NODE_DATA(pNode), &pTable, sizeof(STable *));
-
-  tSkipListPut(pSTable->pIndex, pNode);
   if (refSuper) T_REF_INC(pSTable);
   return 0;
 }
@@ -1165,7 +1150,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
       pTable->pIndex =
-          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
+          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), SL_ALLOW_DUP_KEY, getTagIndexKey);
       if (pTable->pIndex == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tsdbFreeTable(pTable);
@@ -1191,7 +1176,7 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (tSkipListGetSize(pTable->pIndex) + 1));
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (SL_GET_SIZE(pTable->pIndex) + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }

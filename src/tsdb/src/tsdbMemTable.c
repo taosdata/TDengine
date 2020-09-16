@@ -37,38 +37,25 @@ static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   STsdbCfg *  pCfg = &pRepo->config;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
-  int32_t     level = 0;
-  int32_t     headSize = 0;
   TSKEY       key = dataRowKey(row);
   SMemTable * pMemTable = pRepo->mem;
   STableData *pTableData = NULL;
-  SSkipList * pSList = NULL;
+  // SSkipList * pSList = NULL;
 
-  if (pMemTable != NULL && TABLE_TID(pTable) < pMemTable->maxTables && pMemTable->tData[TABLE_TID(pTable)] != NULL &&
-      pMemTable->tData[TABLE_TID(pTable)]->uid == TABLE_UID(pTable)) {
-    pTableData = pMemTable->tData[TABLE_TID(pTable)];
-    pSList = pTableData->pData;
-  }
-
-  tSkipListNewNodeInfo(pSList, &level, &headSize);
-
-  SSkipListNode *pNode = (SSkipListNode *)malloc(headSize + sizeof(SDataRow *));
-  if (pNode == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
+  // if (pMemTable != NULL && TABLE_TID(pTable) < pMemTable->maxTables && pMemTable->tData[TABLE_TID(pTable)] != NULL &&
+  //     pMemTable->tData[TABLE_TID(pTable)]->uid == TABLE_UID(pTable)) {
+  //   pTableData = pMemTable->tData[TABLE_TID(pTable)];
+  //   pSList = pTableData->pData;
+  // }
 
   void *pRow = tsdbAllocBytes(pRepo, dataRowLen(row));
   if (pRow == NULL) {
     tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
               REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), dataRowLen(row), tstrerror(terrno));
-    free(pNode);
     return -1;
   }
 
-  pNode->level = level;
   dataRowCpy(pRow, row);
-  *(SDataRow *)SL_GET_NODE_DATA(pNode) = pRow;
 
   // Operations above may change pRepo->mem, retake those values
   ASSERT(pRepo->mem != NULL);
@@ -77,7 +64,6 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   if (TABLE_TID(pTable) >= pMemTable->maxTables) {
     if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) {
       tsdbFreeBytes(pRepo, pRow, dataRowLen(row));
-      free(pNode);
       return -1;
     }
   }
@@ -97,7 +83,6 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
                 " to table %s while create new table data object since %s",
                 REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), tstrerror(terrno));
       tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
-      free(pNode);
       return -1;
     }
 
@@ -106,20 +91,19 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 
   ASSERT((pTableData != NULL) && pTableData->uid == TABLE_UID(pTable));
 
-  if (tSkipListPut(pTableData->pData, pNode) == NULL) {
+  int64_t oldSize = SL_GET_SIZE(pTableData->pData);
+  if (tSkipListPut(pTableData->pData, (void *)(&pRow), sizeof(void *)) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
-    free(pNode);
   } else {
+    int64_t deltaSize = SL_GET_SIZE(pTableData->pData) - oldSize;
     if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
     if (pMemTable->keyLast < key) pMemTable->keyLast = key;
-    pMemTable->numOfRows++;
+    pMemTable->numOfRows += deltaSize;
 
     if (pTableData->keyFirst > key) pTableData->keyFirst = key;
     if (pTableData->keyLast < key) pTableData->keyLast = key;
-    pTableData->numOfRows++;
-
-    ASSERT(pTableData->numOfRows == tSkipListGetSize(pTableData->pData));
+    pTableData->numOfRows += deltaSize;
   }
 
   tsdbTrace("vgId:%d a row is inserted to table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
@@ -439,7 +423,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   pTableData->numOfRows = 0;
 
   pTableData->pData = tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
-                                      TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 1, tsdbGetTsTupleKey);
+                                      TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], /*SL_DISCARD_DUP_KEY*/ SL_APPEND_DUP_KEY, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;

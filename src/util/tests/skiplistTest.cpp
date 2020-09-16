@@ -247,7 +247,7 @@ void skiplistPerformanceTest() {
   printf("total:%" PRIu64 " ms, avg:%f\n", e - s, (e - s) / (double)size);
   printf("max level of skiplist:%d, actually level:%d\n ", pSkipList->maxLevel, pSkipList->level);
 
-  assert(tSkipListGetSize(pSkipList) == size);
+  assert(SL_GET_SIZE(pSkipList) == size);
 
   //  printf("the level of skiplist is:\n");
   //
@@ -273,7 +273,7 @@ void skiplistPerformanceTest() {
 
   int64_t et = taosGetTimestampMs();
   printf("delete %d data from skiplist, elapased time:%" PRIu64 "ms\n", 10000, et - st);
-  assert(tSkipListGetSize(pSkipList) == size);
+  assert(SL_GET_SIZE(pSkipList) == size);
 
   tSkipListDestroy(pSkipList);
   taosTFree(total);
