@@ -430,7 +430,7 @@ void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemTable* pMem, SMemTable* pIMem)
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
-                            TSKEY* filterKeys, int nFilterKeys);
+                            TSKEY* filterKeys, int nFilterKeys, bool keepDup);
 
 static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
