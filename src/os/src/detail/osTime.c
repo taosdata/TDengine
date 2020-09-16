@@ -321,7 +321,7 @@ int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
 }
 
 
-static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* result) {
+static int32_t getDurationInUs(int64_t val, char unit, int64_t* result) {
   *result = val;
 
   int64_t factor = 1000L;
@@ -342,19 +342,12 @@ static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* resu
     case 'w':
       (*result) *= MILLISECOND_PER_WEEK*factor;
       break;
-    case 'n':
-      (*result) *= MILLISECOND_PER_MONTH*factor;
-      break;
-    case 'y':
-      (*result) *= MILLISECOND_PER_YEAR*factor;
-      break;
     case 'a':
       (*result) *= factor;
       break;
     case 'u':
       break;
     default: {
-      ;
       return -1;
     }
   }
@@ -373,7 +366,7 @@ static int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t* resu
  * n - Months (30 days)
  * y - Years (365 days)
  */
-int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts) {
+int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration) {
   errno = 0;
   char* endPtr = NULL;
 
@@ -383,10 +376,16 @@ int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts) {
     return -1;
   }
 
-  return getTimestampInUsFromStrImpl(timestamp, token[tokenlen - 1], ts);
+  /* natual month/year are not allowed in absolute duration */
+  char unit = token[tokenlen - 1];
+  if (unit == 'n' || unit == 'y') {
+    return -1;
+  }
+
+  return getDurationInUs(timestamp, unit, duration);
 }
 
-int32_t parseDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit) {
+int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit) {
   errno = 0;
 
   /* get the basic numeric value */
@@ -400,7 +399,7 @@ int32_t parseDuration(const char* token, int32_t tokenLen, int64_t* duration, ch
     return 0;
   }
 
-  return getTimestampInUsFromStrImpl(*duration, *unit, duration);
+  return getDurationInUs(*duration, *unit, duration);
 }
 
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {

@@ -596,7 +596,7 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
 
   // interval is not null
   SStrToken* t = &pQuerySql->interval;
-  if (parseDuration(t->z, t->n, &pQueryInfo->interval.interval, &pQueryInfo->interval.intervalUnit) != TSDB_CODE_SUCCESS) {
+  if (parseNatualDuration(t->z, t->n, &pQueryInfo->interval.interval, &pQueryInfo->interval.intervalUnit) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -693,7 +693,7 @@ int32_t parseOffsetClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQue
     return TSDB_CODE_SUCCESS;
   }
 
-  if (parseDuration(t->z, t->n, &pQueryInfo->interval.offset, &pQueryInfo->interval.offsetUnit) != TSDB_CODE_SUCCESS) {
+  if (parseNatualDuration(t->z, t->n, &pQueryInfo->interval.offset, &pQueryInfo->interval.offsetUnit) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -751,7 +751,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
-  getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->interval.sliding);
+  parseAbsoluteDuration(pSliding->z, pSliding->n, &pQueryInfo->interval.sliding);
   if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
     pQueryInfo->interval.sliding /= 1000;
   }

@@ -135,7 +135,7 @@ tSQLExpr *tSQLExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
     pSQLExpr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = getTimestampInUsFromStr(pToken->z, pToken->n, &pSQLExpr->val.i64Key);
+    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSQLExpr->val.i64Key);
     UNUSED(ret);
 
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
@@ -441,44 +441,6 @@ void setDBName(SStrToken *pCpxName, SStrToken *pDB) {
   pCpxName->type = pDB->type;
   pCpxName->z = pDB->z;
   pCpxName->n = pDB->n;
-}
-
-int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t *result) {
-  *result = val;
-
-  switch (unit) {
-    case 's':
-      (*result) *= MILLISECOND_PER_SECOND;
-      break;
-    case 'm':
-      (*result) *= MILLISECOND_PER_MINUTE;
-      break;
-    case 'h':
-      (*result) *= MILLISECOND_PER_HOUR;
-      break;
-    case 'd':
-      (*result) *= MILLISECOND_PER_DAY;
-      break;
-    case 'w':
-      (*result) *= MILLISECOND_PER_WEEK;
-      break;
-    case 'n':
-      (*result) *= MILLISECOND_PER_MONTH;
-      break;
-    case 'y':
-      (*result) *= MILLISECOND_PER_YEAR;
-      break;
-    case 'a':
-      break;
-    default: {
-      ;
-      return -1;
-    }
-  }
-
-  /* get the value in microsecond */
-  (*result) *= 1000L;
-  return 0;
 }
 
 void tSQLSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
