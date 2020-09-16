@@ -721,6 +721,12 @@ bool simParseSqlSlowCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
+bool simParseRestfulCmd(char *rest, SCommand *pCmd, int lineNum) {
+  simParseSqlCmd(rest, pCmd, lineNum);
+  cmdLine[numOfLines - 1].cmdno = SIM_CMD_RESTFUL;
+  return true;
+}
+
 bool simParseSystemCmd(char *rest, SCommand *pCmd, int lineNum) {
   int expLen;
 
@@ -1018,6 +1024,14 @@ void simInitsimCmdList() {
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseSqlSlowCmd;
   simCmdList[cmdno].executeCmd = simExecuteSqlSlowCmd;
+  simAddCmdIntoHash(&(simCmdList[cmdno]));
+
+  cmdno = SIM_CMD_RESTFUL;
+  simCmdList[cmdno].cmdno = cmdno;
+  strcpy(simCmdList[cmdno].name, "restful");
+  simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
+  simCmdList[cmdno].parseCmd = simParseRestfulCmd;
+  simCmdList[cmdno].executeCmd = simExecuteRestfulCmd;
   simAddCmdIntoHash(&(simCmdList[cmdno]));
 
   /* test is only an internal command */

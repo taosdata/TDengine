@@ -13,11 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_TOKEN_H
-#define TDENGINE_HTTP_TOKEN_H
+#ifndef TDENGINE_TG_JSON_H
+#define TDENGINE_TG_JSON_H
 
-int32_t httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len);
-int32_t httpParseTaosdAuthToken(HttpContext *pContext, char *token, int32_t len);
-int32_t httpGenTaosdAuthToken(HttpContext *pContext, char *token, int32_t maxLen);
+#include "httpHandle.h"
+#include "httpJson.h"
+#include "taos.h"
+
+void tgInitQueryJson(HttpContext *pContext);
+void tgCleanQueryJson(HttpContext *pContext);
+void tgStartQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
+void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd);
+void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows);
+bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code);
+void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code);
 
 #endif

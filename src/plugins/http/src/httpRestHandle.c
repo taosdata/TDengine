@@ -15,9 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "httpLog.h"
-#include "restHandle.h"
-#include "restJson.h"
+#include "httpRestHandle.h"
+#include "httpRestJson.h"
 
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};
@@ -60,39 +61,37 @@ void restInitHandle(HttpServer* pServer) {
 }
 
 bool restGetUserFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[REST_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[REST_USER_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[REST_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[REST_USER_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->user, pParser->path[REST_USER_URL_POS].pos, TSDB_USER_LEN);
+  tstrncpy(pContext->user, pParser->path[REST_USER_URL_POS].str, TSDB_USER_LEN);
   return true;
 }
 
 bool restGetPassFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->parser;
-  if (pParser->path[REST_PASS_URL_POS].len >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].len <= 0) {
+  HttpParser* pParser = pContext->parser;
+  if (pParser->path[REST_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].pos, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].str, TSDB_PASSWORD_LEN);
   return true;
 }
 
 bool restProcessLoginRequest(HttpContext* pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process restful login msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process restful login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
 
-bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process restful sql msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
+  httpDebug("context:%p, fd:%d, user:%s, process restful sql msg", pContext, pContext->fd, pContext->user);
 
-  char* sql = pContext->parser.data.pos;
+  char* sql = pContext->parser->body.str;
   if (sql == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
 
@@ -101,7 +100,7 @@ bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
    * for async test
    *
   if (httpCheckUsedbSql(sql)) {
-    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_EXEC_USEDB);
     return false;
   }
   */
@@ -128,7 +127,7 @@ bool restProcessRequest(struct HttpContext* pContext) {
   }
 
   if (strlen(pContext->user) == 0 || strlen(pContext->pass) == 0) {
-    httpSendErrorResp(pContext, HTTP_PARSE_USR_ERROR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_AUTH_INFO);
     return false;
   }
 
@@ -143,6 +142,6 @@ bool restProcessRequest(struct HttpContext* pContext) {
   } else {
   }
 
-  httpSendErrorResp(pContext, HTTP_PARSE_URL_ERROR);
+  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVLALID_URL);
   return false;
 }

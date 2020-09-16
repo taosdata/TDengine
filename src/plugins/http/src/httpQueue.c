@@ -39,15 +39,15 @@ typedef struct {
 typedef struct {
   void *param;
   void *result;
-  int   numOfRows;
-  void (*fp)(void *param, void *result, int numOfRows);
+  int32_t numOfRows;
+  void (*fp)(void *param, void *result, int32_t numOfRows);
 } SHttpResult;
 
 static SHttpWorkerPool tsHttpPool;
 static taos_qset tsHttpQset;
 static taos_queue tsHttpQueue;
 
-void httpDispatchToResultQueue(void *param, TAOS_RES *result, int numOfRows, void (*fp)(void *param, void *result, int numOfRows)) {
+void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t numOfRows, void (*fp)(void *param, void *result, int32_t numOfRows)) {
   if (tsHttpQueue != NULL) {
     SHttpResult *pMsg = (SHttpResult *)taosAllocateQitem(sizeof(SHttpResult));
     pMsg->param = param;
@@ -71,7 +71,7 @@ static void *httpProcessResultQueue(void *param) {
       break;
     }
 
-    httpDebug("context:%p, res:%p will be processed in result queue", pMsg->param, pMsg->result);    
+    httpTrace("context:%p, res:%p will be processed in result queue", pMsg->param, pMsg->result);    
     (*pMsg->fp)(pMsg->param, pMsg->result, pMsg->numOfRows);  
     taosFreeQitem(pMsg);
   }

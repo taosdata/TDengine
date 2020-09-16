@@ -84,6 +84,7 @@ enum {
   SIM_CMD_SQL,
   SIM_CMD_SQL_ERROR,
   SIM_CMD_SQL_SLOW,
+  SIM_CMD_RESTFUL,
   SIM_CMD_TEST,
   SIM_CMD_RETURN,
   SIM_CMD_END
@@ -172,6 +173,7 @@ bool simExecuteReturnCmd(SScript *script, char *option);
 bool simExecuteSqlCmd(SScript *script, char *option);
 bool simExecuteSqlErrorCmd(SScript *script, char *rest);
 bool simExecuteSqlSlowCmd(SScript *script, char *option);
+bool simExecuteRestfulCmd(SScript *script, char *rest);
 void simVisuallizeOption(SScript *script, char *src, char *dst);
 
 #endif
