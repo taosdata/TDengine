@@ -341,7 +341,7 @@ static bool httpReadData(HttpContext *pContext) {
 
       if (!pParser->parsed) {
         httpTrace("context:%p, fd:%d, read not finished", pContext, pContext->fd);
-        return false;
+        continue;
       } else {
         httpDebug("context:%p, fd:%d, bodyLen:%d", pContext, pContext->fd, pParser->body.pos);
         return true;
