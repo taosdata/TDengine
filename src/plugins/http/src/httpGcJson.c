@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "gcHandle.h"
-#include "gcJson.h"
+#include "httpGcHandle.h"
+#include "httpGcJson.h"
 #include "httpJson.h"
 #include "httpResp.h"
 
@@ -54,8 +54,8 @@ void gcWriteTargetStartJson(JsonBuf *jsonBuf, char *refId, char *target) {
   httpJsonToken(jsonBuf, JsonObjStt);
 
   // target section
-  httpJsonPair(jsonBuf, "refId", 5, refId, (int)strlen(refId));
-  httpJsonPair(jsonBuf, "target", 6, target, (int)strlen(target));
+  httpJsonPair(jsonBuf, "refId", 5, refId, (int32_t)strlen(refId));
+  httpJsonPair(jsonBuf, "target", 6, target, (int32_t)strlen(target));
 
   // data begin
   httpJsonPairHead(jsonBuf, "datapoints", 10);
@@ -82,25 +82,25 @@ void gcStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd) {
   }
 }
 
-bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
+bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
-  int         num_fields = taos_num_fields(result);
+  int32_t  num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
   if (num_fields == 0) {
     return false;
   }
 
-  int precision = taos_result_precision(result);
+  int32_t precision = taos_result_precision(result);
 
   // such as select count(*) from sys.cpu
   // such as select count(*) from sys.cpu group by ipaddr
   // such as select count(*) from sys.cpu interval(1d)
   // such as select count(*) from sys.cpu interval(1d) group by ipaddr
   // such as select count(*) count(*) from sys.cpu group by ipaddr interval(1d)
-  int  dataFields = -1;
-  int  groupFields = -1;
+  int32_t dataFields = -1;
+  int32_t groupFields = -1;
   bool hasTimestamp = fields[0].type == TSDB_DATA_TYPE_TIMESTAMP;
   if (hasTimestamp) {
     dataFields = 1;
@@ -119,7 +119,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   }
   cmd->numOfRows += numOfRows;
 
-  for (int k = 0; k < numOfRows; ++k) {
+  for (int32_t k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
     if (row == NULL) {
       cmd->numOfRows--;
@@ -130,9 +130,9 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     // for group by
     if (groupFields != -1) {
       char target[HTTP_GC_TARGET_SIZE] = {0};
-      int len;
+      int32_t len;
       len = snprintf(target,HTTP_GC_TARGET_SIZE,"%s{",aliasBuffer);
-      for (int i = dataFields + 1; i<num_fields; i++){
+      for (int32_t i = dataFields + 1; i<num_fields; i++){
           switch (fields[i].type) {
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
@@ -188,7 +188,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     httpJsonItemToken(jsonBuf);
     httpJsonToken(jsonBuf, JsonArrStt);
 
-    for (int i = dataFields; i >= 0; i--) {
+    for (int32_t i = dataFields; i >= 0; i--) {
       httpJsonItemToken(jsonBuf);
       if (row[i] == NULL) {
         httpJsonOriginString(jsonBuf, "null", 4);
@@ -253,13 +253,13 @@ void gcSendHeartBeatResp(HttpContext *pContext, HttpSqlCmd *cmd) {
   httpInitJsonBuf(jsonBuf, pContext);
 
   httpJsonToken(jsonBuf, JsonObjStt);
-  httpJsonPair(jsonBuf, "message", (int)strlen("message"), desc, (int)strlen(desc));
+  httpJsonPair(jsonBuf, "message", (int32_t)strlen("message"), desc, (int32_t)strlen(desc));
   httpJsonToken(jsonBuf, JsonObjEnd);
 
   char head[1024];
 
-  int hLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_GRAFANA], httpVersionStr[pContext->httpVersion],
-                     httpKeepAliveStr[pContext->httpKeepAlive], (jsonBuf->lst - jsonBuf->buf));
+  int32_t hLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_GRAFANA], httpVersionStr[pContext->parser->httpVersion],
+                         httpKeepAliveStr[pContext->parser->keepAlive], (jsonBuf->lst - jsonBuf->buf));
   httpWriteBuf(pContext, head, hLen);
-  httpWriteBuf(pContext, jsonBuf->buf, (int)(jsonBuf->lst - jsonBuf->buf));
+  httpWriteBuf(pContext, jsonBuf->buf, (int32_t)(jsonBuf->lst - jsonBuf->buf));
 }

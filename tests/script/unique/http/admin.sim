@@ -33,25 +33,25 @@ print ===============  step1 - login
 
 system_content curl 127.0.0.1:7111/admin/
 print 1-> $system_content
-if $system_content != @{"status":"error","code":5011,"desc":"no auth info input"}@ then
+if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
   return -1
 endi
 
 system_content curl 127.0.0.1:7111/admin/xx
 print 2-> $system_content
-if $system_content != @{"status":"error","code":5011,"desc":"no auth info input"}@ then
+if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
   return -1
 endi
 
 system_content curl 127.0.0.1:7111/admin/login
 print 3-> $system_content
-if $system_content != @{"status":"error","code":5011,"desc":"no auth info input"}@ then
+if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
   return -1
 endi
 
 system_content curl 127.0.0.1:7111/admin/login/root
 print 4-> $system_content
-if $system_content != @{"status":"error","code":5011,"desc":"no auth info input"}@ then
+if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
   return -1
 endi
 
@@ -69,13 +69,13 @@ endi
 
 system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.'  -d 'show databases' 127.0.0.1:7111/admin/login/root/1
 print 7-> $system_content
-if $system_content != @{"status":"error","code":5010,"desc":"invalid type of Authorization"}@ then
+if $system_content != @{"status":"error","code":4386,"desc":"invalid type of Authorization"}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi' 127.0.0.1:7111/admin/login/root/1
 print 8-> $system_content
-if $system_content != @{"status":"error","code":5053,"desc":"parse http auth token error"}@ then
+if $system_content != @{"status":"error","code":4389,"desc":"invalid taosd Authorization"}@ then
   return -1
 endi
 
@@ -105,7 +105,7 @@ endi
 system_content curl  127.0.0.1:7111/admin/logout
 print 11 -----> $system_content
 
-if $system_content != @{"status":"error","code":5011,"desc":"no auth info input"}@ then
+if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
   return -1
 endi
 
@@ -168,7 +168,7 @@ print ===============  step7 - use dbs
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'use d1;' 127.0.0.1:7111/admin/all
 print 23-> $system_content
-if $system_content != @{"status":"error","code":5017,"desc":"no need to execute use db cmd"}@ then
+if $system_content != @{"status":"error","code":4360,"desc":"no need to execute use db cmd"}@ then
   return -1
 endi
 
