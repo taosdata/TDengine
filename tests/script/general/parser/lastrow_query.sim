@@ -154,6 +154,7 @@ if $rows != 46 then
 endi
 
 print ========>td-1317, empty table last_row query crashed
+sql drop table if exists m1;
 sql create table m1(ts timestamp, k int) tags (a int);
 sql create table t1 using m1 tags(1);
 sql create table t2 using m1 tags(2);
