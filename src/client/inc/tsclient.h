@@ -330,7 +330,7 @@ typedef struct STscObj {
   struct SSqlStream *streamList;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
-  T_REF_DECLARE();
+  T_REF_DECLARE()
 } STscObj;
 
 typedef struct SSqlObj {
@@ -463,7 +463,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t type = pInfo->pSqlExpr->resType;
   int32_t bytes = pInfo->pSqlExpr->resBytes;
 
-  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
+  char* pData = pRes->data + (int32_t)(pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row);
 
   // user defined constant value output columns
   if (TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
