@@ -1900,10 +1900,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pNewQueryInfo->command = pQueryInfo->command;
-  pNewQueryInfo->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
-  pNewQueryInfo->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
-  pNewQueryInfo->intervalTime = pQueryInfo->intervalTime;
-  pNewQueryInfo->slidingTime  = pQueryInfo->slidingTime;
+  memcpy(&pNewQueryInfo->interval, &pQueryInfo->interval, sizeof(pNewQueryInfo->interval));
   pNewQueryInfo->type   = pQueryInfo->type;
   pNewQueryInfo->window = pQueryInfo->window;
   pNewQueryInfo->limit  = pQueryInfo->limit;

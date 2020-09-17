@@ -113,7 +113,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
        * in case of stable query, limit/offset is not applied here. the limit/offset is applied to the
        * final results which is acquired after the secondry merge of in the client.
        */
-      if (pLimit->offset == 0 || pQueryInfo->intervalTime > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
+      if (pLimit->offset == 0 || pQueryInfo->interval.interval > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
         if (win->skey > elem1.ts) {
           win->skey = elem1.ts;
         }
@@ -178,6 +178,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, in
   pSupporter->subqueryIndex = index;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
+  memcpy(&pSupporter->interval, &pQueryInfo->interval, sizeof(pSupporter->interval));
   pSupporter->limit = pQueryInfo->limit;
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, index);
@@ -297,18 +298,20 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       success = false;
       break;
     }
-  
+
     tscClearSubqueryInfo(&pNew->cmd);
     pSql->pSubs[i] = pNew;
   
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     pQueryInfo->tsBuf = pTSBuf;  // transfer the ownership of timestamp comp-z data to the new created object
-  
+
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
 
+    memcpy(&pQueryInfo->interval, &pSupporter->interval, sizeof(pQueryInfo->interval));
+
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
-  
+
     pQueryInfo->colList = pSupporter->colList;
     pQueryInfo->exprList = pSupporter->exprList;
     pQueryInfo->fieldsInfo = pSupporter->fieldsInfo;
@@ -1204,7 +1207,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     }
 
     pNew->cmd.numOfCols = 0;
-    pNewQueryInfo->intervalTime = 0;
+    pNewQueryInfo->interval.interval = 0;
     pSupporter->limit = pNewQueryInfo->limit;
 
     pNewQueryInfo->limit.limit = -1;
@@ -2185,7 +2188,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
     }
 
     // primary key column cannot be null in interval query, no need to check
-    if (i == 0 && pQueryInfo->intervalTime > 0) {
+    if (i == 0 && pQueryInfo->interval.interval > 0) {
       continue;
     }
 

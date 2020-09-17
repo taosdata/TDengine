@@ -458,9 +458,10 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 %type tmvar {SStrToken}
 tmvar(A) ::= VARIABLE(X).   {A = X;}
 
-%type interval_opt {SStrToken}
-interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
-interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
+%type interval_opt {SIntervalVal}
+interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0; N.offset.z = NULL; N.offset.type = 0;}
+interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(O) RP.    {N.interval = E; N.offset = O;}
+interval_opt(N) ::= .                           {memset(&N, 0, sizeof(N));}
 
 %type fill_opt {tVariantList*}
 %destructor fill_opt {tVariantListDestroy($$);}
