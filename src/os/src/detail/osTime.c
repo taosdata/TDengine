@@ -419,7 +419,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
 
-  return mktime(&tm) * TSDB_TICK_PER_SECOND(precision);
+  return (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
 }
 
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
@@ -432,8 +432,8 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     return (int32_t)((ekey - skey) / interval);
   }
 
-  skey /= TSDB_TICK_PER_SECOND(precision);
-  ekey /= TSDB_TICK_PER_SECOND(precision);
+  skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
+  ekey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
 
   struct tm tm;
   time_t t = (time_t)skey;
@@ -459,7 +459,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 
   int64_t start = t;
   if (pInterval->slidingUnit == 'n' || pInterval->slidingUnit == 'y') {
-    start /= TSDB_TICK_PER_SECOND(precision);
+    start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm tm;
     time_t tt = (time_t)start;
     localtime_r(&tt, &tm);
@@ -478,7 +478,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       tm.tm_mon = mon % 12;
     }
 
-    start = mktime(&tm) * TSDB_TICK_PER_SECOND(precision);
+    start = (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
   } else {
     int64_t delta = t - pInterval->interval;
     int32_t factor = delta > 0 ? 1 : -1;
@@ -498,7 +498,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       char**  tzname = _tzname;
   #endif
 
-      start += timezone * TSDB_TICK_PER_SECOND(precision);
+      start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
     }
 
     int64_t end = start + pInterval->interval - 1;
