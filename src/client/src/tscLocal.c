@@ -467,7 +467,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
 // build 'show create table/database' result fields 
 static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const char *ddl) {
   int32_t  rowLen = 0;
-  int16_t  ddlLen = strlen(ddl); 
+  int16_t  ddlLen = (int16_t)strlen(ddl); 
   SColumnIndex index = {0};
   pSql->cmd.numOfCols = 2;
 
