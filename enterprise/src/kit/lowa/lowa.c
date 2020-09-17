@@ -54,7 +54,7 @@
 
 extern char configDir[];
 
-#define BUFFER_SIZE        65536
+#define BUFFER_SIZE        (65536*2)
 #define MAX_DB_NAME_SIZE   64
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      16000
