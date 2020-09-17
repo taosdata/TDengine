@@ -4433,7 +4433,7 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
     pQuery->window = cond.twindow;
 
     if (pQInfo->tableGroupInfo.numOfTables == 0) {
-      doDestroyTableQueryInfo(&pQInfo->tableqinfoGroupInfo);
+      pQInfo->tableqinfoGroupInfo.numOfTables = 0;
     } else {
       size_t numOfGroups = GET_NUM_OF_TABLEGROUP(pQInfo);
       for(int32_t i = 0; i < numOfGroups; ++i) {
@@ -4581,7 +4581,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
     getAlignQueryTimeWindow(pQuery, pQuery->window.skey, sk, ek, &w);
 
     pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, w.skey, 0, (int32_t)pQuery->rec.capacity, pQuery->numOfOutput,
-                                              &pQuery->interval, pQuery->precision, pQuery->fillType, pColInfo);
+                                              &pQuery->interval, (int8_t)pQuery->precision, pQuery->fillType, pColInfo);
   }
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
