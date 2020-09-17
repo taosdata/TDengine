@@ -6345,7 +6345,7 @@ static void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilter
 
 static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
   if (pTableqinfoGroupInfo->pGroupList != NULL) {
-    int32_t numOfGroups = taosArrayGetSize(pTableqinfoGroupInfo->pGroupList);
+    int32_t numOfGroups = (int32_t) taosArrayGetSize(pTableqinfoGroupInfo->pGroupList);
     for (int32_t i = 0; i < numOfGroups; ++i) {
       SArray *p = taosArrayGetP(pTableqinfoGroupInfo->pGroupList, i);
 
