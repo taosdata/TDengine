@@ -1950,7 +1950,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  pSql->numOfSubs = taosArrayGetSize(pCmd->pDataBlocks);
+  pSql->numOfSubs = (uint16_t)taosArrayGetSize(pCmd->pDataBlocks);
   assert(pSql->numOfSubs > 0);
 
   pRes->code = TSDB_CODE_SUCCESS;
