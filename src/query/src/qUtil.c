@@ -54,7 +54,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  pWindowResInfo->interval = pRuntimeEnv->pQuery->intervalTime;
+  pWindowResInfo->interval = pRuntimeEnv->pQuery->interval.interval;
 
   pSummary->internalSupSize += sizeof(SWindowResult) * threshold;
   pSummary->internalSupSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
