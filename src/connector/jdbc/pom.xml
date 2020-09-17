@@ -7,6 +7,7 @@
     <packaging>jar</packaging>
     <name>JDBCDriver</name>
     <url>https://github.com/taosdata/TDengine/tree/master/src/connector/jdbc</url>
+
     <description>TDengine JDBC Driver</description>
     <licenses>
         <license>

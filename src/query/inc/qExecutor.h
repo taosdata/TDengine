@@ -57,7 +57,7 @@ typedef struct SWindowResult {
   uint16_t      numOfRows;   // number of rows of current time window
   bool          closed;      // this result status: closed or opened
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
-  TSKEY         skey;        // start key of current time window
+  union {STimeWindow win; char* key;};  // start key of current time window
 } SWindowResult;
 
 /**
@@ -132,12 +132,9 @@ typedef struct SQueryCostInfo {
 typedef struct SQuery {
   int16_t          numOfCols;
   int16_t          numOfTags;
-  char             intervalTimeUnit;
-  char             slidingTimeUnit;  // interval data type, used for daytime revise
   SOrderVal        order;
   STimeWindow      window;
-  int64_t          intervalTime;
-  int64_t          slidingTime;      // sliding time for sliding window query
+  SInterval        interval;
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;

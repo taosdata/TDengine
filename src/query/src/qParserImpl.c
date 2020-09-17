@@ -135,7 +135,7 @@ tSQLExpr *tSQLExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
     pSQLExpr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = getTimestampInUsFromStr(pToken->z, pToken->n, &pSQLExpr->val.i64Key);
+    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSQLExpr->val.i64Key);
     UNUSED(ret);
 
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
@@ -179,7 +179,7 @@ tSQLExpr *tSQLExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SSt
 tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
 
-  if (pRight != NULL && pLeft != NULL) {
+  if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
     char* endPos = pRight->token.z + pRight->token.n;
     pExpr->token.z = pLeft->token.z;
     pExpr->token.n = (uint32_t)(endPos - pExpr->token.z);
@@ -275,6 +275,11 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   } else {
     pExpr->nSQLOptr = optrType;
     pExpr->pLeft = pLeft;
+
+    if (pRight == NULL) {
+      pRight = calloc(1, sizeof(tSQLExpr));
+    }
+
     pExpr->pRight = pRight;
   }
 
@@ -438,44 +443,6 @@ void setDBName(SStrToken *pCpxName, SStrToken *pDB) {
   pCpxName->n = pDB->n;
 }
 
-int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t *result) {
-  *result = val;
-
-  switch (unit) {
-    case 's':
-      (*result) *= MILLISECOND_PER_SECOND;
-      break;
-    case 'm':
-      (*result) *= MILLISECOND_PER_MINUTE;
-      break;
-    case 'h':
-      (*result) *= MILLISECOND_PER_HOUR;
-      break;
-    case 'd':
-      (*result) *= MILLISECOND_PER_DAY;
-      break;
-    case 'w':
-      (*result) *= MILLISECOND_PER_WEEK;
-      break;
-    case 'n':
-      (*result) *= MILLISECOND_PER_MONTH;
-      break;
-    case 'y':
-      (*result) *= MILLISECOND_PER_YEAR;
-      break;
-    case 'a':
-      break;
-    default: {
-      ;
-      return -1;
-    }
-  }
-
-  /* get the value in microsecond */
-  (*result) *= 1000L;
-  return 0;
-}
-
 void tSQLSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
   
@@ -530,7 +497,7 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  * extract the select info out of sql string
  */
 SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
-                             tVariantList *pGroupby, tVariantList *pSortOrder, SStrToken *pInterval,
+                             tVariantList *pGroupby, tVariantList *pSortOrder, SIntervalVal *pInterval,
                              SStrToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
   assert(pSelection != NULL);
 
@@ -553,7 +520,8 @@ SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
   }
 
   if (pInterval != NULL) {
-    pQuery->interval = *pInterval;
+    pQuery->interval = pInterval->interval;
+    pQuery->offset = pInterval->offset;
   }
 
   if (pSliding != NULL) {

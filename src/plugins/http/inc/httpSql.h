@@ -19,20 +19,20 @@
 
 int32_t httpAddToSqlCmdBuffer(HttpContext *pContext, const char *const format, ...);
 int32_t httpAddToSqlCmdBufferNoTerminal(HttpContext *pContext, const char *const format, ...);
-int32_t httpAddToSqlCmdBufferWithSize(HttpContext *pContext, int mallocSize);
+int32_t httpAddToSqlCmdBufferWithSize(HttpContext *pContext, int32_t mallocSize);
 int32_t httpAddToSqlCmdBufferTerminal(HttpContext *pContext);
 
-bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize);
-bool httpReMallocMultiCmdsSize(HttpContext *pContext, int cmdSize);
-bool httpReMallocMultiCmdsBuffer(HttpContext *pContext, int bufferSize);
+bool httpMallocMultiCmds(HttpContext *pContext, int32_t cmdSize, int32_t bufferSize);
+bool httpReMallocMultiCmdsSize(HttpContext *pContext, int32_t cmdSize);
+bool httpReMallocMultiCmdsBuffer(HttpContext *pContext, int32_t bufferSize);
 void httpFreeMultiCmds(HttpContext *pContext);
 
 HttpSqlCmd *httpNewSqlCmd(HttpContext *pContext);
 HttpSqlCmd *httpCurrSqlCmd(HttpContext *pContext);
-int httpCurSqlCmdPos(HttpContext *pContext);
+int32_t     httpCurSqlCmdPos(HttpContext *pContext);
 
-void httpTrimTableName(char *name);
-int httpShrinkTableName(HttpContext *pContext, int pos, char *name);
-char *httpGetCmdsString(HttpContext *pContext, int pos);
+void    httpTrimTableName(char *name);
+int32_t httpShrinkTableName(HttpContext *pContext, int32_t pos, char *name);
+char *  httpGetCmdsString(HttpContext *pContext, int32_t pos);
 
 #endif

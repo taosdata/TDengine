@@ -19,8 +19,8 @@
 #include "httpLog.h"
 #include "httpJson.h"
 #include "httpResp.h"
-#include "tgHandle.h"
-#include "tgJson.h"
+#include "httpTgHandle.h"
+#include "httpTgJson.h"
 
 void tgInitQueryJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
@@ -61,19 +61,19 @@ void tgStartQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   // data
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "metric", 6, httpGetCmdsString(pContext, cmd->stable),
-               (int)strlen(httpGetCmdsString(pContext, cmd->metric)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->metric)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "stable", 6, httpGetCmdsString(pContext, cmd->stable),
-               (int)strlen(httpGetCmdsString(pContext, cmd->stable)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->stable)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "table", 5, httpGetCmdsString(pContext, cmd->table),
-               (int)strlen(httpGetCmdsString(pContext, cmd->table)));
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->table)));
 
   httpJsonItemToken(jsonBuf);
   httpJsonPair(jsonBuf, "timestamp", 9, httpGetCmdsString(pContext, cmd->timestamp),
-               (int)strlen(httpGetCmdsString(pContext, cmd->timestamp)));  // hack way
+               (int32_t)strlen(httpGetCmdsString(pContext, cmd->timestamp)));  // hack way
 }
 
 void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd) {
@@ -88,7 +88,7 @@ void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd) {
   httpJsonToken(jsonBuf, JsonObjEnd);
 }
 
-void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows) {
+void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return;
 
@@ -96,10 +96,10 @@ void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect
   httpJsonPairIntVal(jsonBuf, "affected_rows", 13, affect_rows);
 }
 
-bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpDebug("context:%p, fd:%d, ip:%s, check telegraf command, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
-            pContext, pContext->fd, pContext->ipstr, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
+  httpDebug("context:%p, fd:%d, check telegraf command, code:%s, state:%d, type:%d, rettype:%d, tags:%d", pContext,
+            pContext->fd, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType, cmd->tagNum);
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
     if (cmd->cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
@@ -107,16 +107,14 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[0].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)-1;
-          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create database", pContext, pContext->fd,
-                    pContext->ipstr);
+          httpDebug("context:%p, fd:%d, import failed, try create database", pContext, pContext->fd);
           return false;
         }
       } else if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
         cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
         if (multiCmds->cmds[multiCmds->pos - 1].cmdState == HTTP_CMD_STATE_NOT_RUN_YET) {
           multiCmds->pos = (int16_t)(multiCmds->pos - 2);
-          httpDebug("context:%p, fd:%d, ip:%s, import failed, try create stable", pContext, pContext->fd,
-                    pContext->ipstr);
+          httpDebug("context:%p, fd:%d, import failed, try create stable", pContext, pContext->fd);
           return false;
         }
       } else {
@@ -125,22 +123,21 @@ bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
     }
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_DB) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create database failed", pContext, pContext->fd, pContext->ipstr,
-              tstrerror(code));
+    httpDebug("context:%p, fd:%d, code:%s, create database failed", pContext, pContext->fd, tstrerror(code));
   } else if (cmd->cmdType == HTTP_CMD_TYPE_CREATE_STBALE) {
     cmd->cmdState = HTTP_CMD_STATE_RUN_FINISHED;
-    httpDebug("context:%p, fd:%d, ip:%s, code:%s, create stable failed", pContext, pContext->fd, pContext->ipstr, tstrerror(code));
+    httpDebug("context:%p, fd:%d, code:%s, create stable failed", pContext, pContext->fd, tstrerror(code));
   } else {
   }
 
   return true;
 }
 
-void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code) {
+void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int32_t code) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
-  httpDebug("context:%p, fd:%d, ip:%s, get telegraf next command, pos:%d, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
-            pContext, pContext->fd, pContext->ipstr, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType,
-            cmd->cmdReturnType, cmd->tagNum);
+  httpDebug("context:%p, fd:%d, get telegraf next command, pos:%d, code:%s, state:%d, type:%d, rettype:%d, tags:%d",
+            pContext, pContext->fd, multiCmds->pos, tstrerror(code), cmd->cmdState, cmd->cmdType, cmd->cmdReturnType,
+            cmd->tagNum);
 
   if (cmd->cmdType == HTTP_CMD_TYPE_INSERT) {
     multiCmds->pos = (int16_t)(multiCmds->pos + 2);

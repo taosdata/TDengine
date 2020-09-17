@@ -24,5 +24,10 @@ print curl 127.0.0.1:7111/rest/sql -----> $system_content
 #  return -1
 #endi
 
+sql select * from db.win_cpu_windows_1_processor
+print rows: $rows
+if $rows != 1 then
+  return -1
+endi
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

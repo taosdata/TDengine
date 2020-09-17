@@ -13,19 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TG_JSON_H
-#define TDENGINE_TG_JSON_H
+#include "os.h"
+#include "os.h"
+#include "tglobal.h"
+#include "taoserror.h"
+#include "httpSystem.h"
 
-#include "httpHandle.h"
-#include "httpJson.h"
-#include "taos.h"
+void signal_handler(int signum) {
+  httpStopSystem();
+  httpCleanUpSystem();
+  exit(EXIT_SUCCESS);
+}
 
-void tgInitQueryJson(HttpContext *pContext);
-void tgCleanQueryJson(HttpContext *pContext);
-void tgStartQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
-void tgStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd);
-void tgBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows);
-bool tgCheckFinished(struct HttpContext *pContext, HttpSqlCmd *cmd, int code);
-void tgSetNextCmd(struct HttpContext *pContext, HttpSqlCmd *cmd, int code);
+int main(int argc, char *argv[]) {
+  struct sigaction act;
+  act.sa_handler = signal_handler;
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
+  sigaction(SIGABRT, &act, NULL);
 
-#endif
+  // Initialize the system
+  if (httpInitSystem() < 0) {
+    exit(EXIT_FAILURE);
+  }
+
+  if (httpStartSystem() < 0) {
+    exit(EXIT_FAILURE);
+  }
+
+  while (1) {
+    sleep(1000);
+  }
+}

@@ -14,9 +14,11 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +45,7 @@ import java.util.logging.Logger;
  * register a driver by doing Class.forName("foo.bah.Driver")
  */
 public class TSDBDriver implements java.sql.Driver {
+
 
     @Deprecated
     private static final String URL_PREFIX1 = "jdbc:TSDB://";
@@ -78,6 +81,7 @@ public class TSDBDriver implements java.sql.Driver {
      */
     public static final String PROPERTY_KEY_USER = "user";
 
+
     /**
      * Key for the configuration file directory of TSDB client in properties instance
      */
@@ -100,6 +104,7 @@ public class TSDBDriver implements java.sql.Driver {
     public static final String PROPERTY_KEY_CHARSET = "charset";
 
     public static final String PROPERTY_KEY_PROTOCOL = "protocol";
+
 
     /**
      * Index for port coming out of parseHostPortPair().
