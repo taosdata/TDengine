@@ -2707,4 +2707,5 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
   }
 
   taosArrayDestroy(pGroupList->pGroupList);
+  pGroupList->numOfTables = 0;
 }

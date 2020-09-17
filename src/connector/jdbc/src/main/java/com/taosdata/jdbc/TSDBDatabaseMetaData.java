@@ -68,15 +68,15 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 	}
 
 	public boolean nullsAreSortedLow() throws SQLException {
-		return false;
+		return !nullsAreSortedHigh();
 	}
 
 	public boolean nullsAreSortedAtStart() throws SQLException {
-		return false;
+		return true;
 	}
 
 	public boolean nullsAreSortedAtEnd() throws SQLException {
-		return false;
+		return !nullsAreSortedAtStart();
 	}
 
 	public String getDatabaseProductName() throws SQLException {

@@ -711,13 +711,16 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY en
   if (pCtx->aOutputBuf == NULL) {
     return BLK_DATA_ALL_NEEDED;
   }
-  
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+
+  return BLK_DATA_ALL_NEEDED;
+  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
+  // is invalid
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {  // data in current block is not earlier than current result
+//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
@@ -730,12 +733,16 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end
     return BLK_DATA_ALL_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {
-    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  return BLK_DATA_ALL_NEEDED;
+  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
+  // is invalid
+
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {
+//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -2453,11 +2460,11 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
       if (pInfo->minval > pCtx->preAggVals.statis.min) {
-        pInfo->minval = pCtx->preAggVals.statis.min;
+        pInfo->minval = (double)pCtx->preAggVals.statis.min;
       }
 
       if (pInfo->maxval < pCtx->preAggVals.statis.max) {
-        pInfo->maxval = pCtx->preAggVals.statis.max;
+        pInfo->maxval = (double)pCtx->preAggVals.statis.max;
       }
 
       pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);

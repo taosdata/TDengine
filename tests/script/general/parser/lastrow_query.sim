@@ -219,3 +219,9 @@ if $data04 != 123.981000000 then
     print expect 123.981000000, actual: $data04
     return -1
 endi
+
+sql create table tu(ts timestamp, k int)
+sql select last_row(*) from tu
+if $row != 0 then
+  return -1
+endi

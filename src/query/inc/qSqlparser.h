@@ -65,6 +65,11 @@ typedef struct tVariantList {
   tVariantListItem *a;      /* One entry for each expression */
 } tVariantList;
 
+typedef struct SIntervalVal {
+  SStrToken interval;
+  SStrToken offset;
+} SIntervalVal;
+
 typedef struct SQuerySQL {
   struct tSQLExprList *pSelection;   // select clause
   tVariantList *       from;         // from clause
@@ -72,6 +77,7 @@ typedef struct SQuerySQL {
   tVariantList *       pGroupby;     // groupby clause, only for tags[optional]
   tVariantList *       pSortOrder;   // orderby [optional]
   SStrToken            interval;     // interval [optional]
+  SStrToken            offset;       // offset window [optional]
   SStrToken            sliding;      // sliding window [optional]
   SLimitVal            limit;        // limit offset [optional]
   SLimitVal            slimit;       // group limit offset [optional]
@@ -259,7 +265,7 @@ tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken
 void tSQLExprListDestroy(tSQLExprList *pList);
 
 SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
-                             tVariantList *pGroupby, tVariantList *pSortOrder, SStrToken *pInterval,
+                             tVariantList *pGroupby, tVariantList *pSortOrder, SIntervalVal *pInterval,
                              SStrToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SStrToken *pMetricName,

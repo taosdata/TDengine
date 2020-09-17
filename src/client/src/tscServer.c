@@ -647,8 +647,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
   
-  if (pQueryInfo->intervalTime < 0) {
-    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
+  if (pQueryInfo->interval.interval < 0) {
+    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->interval.interval);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
   
@@ -675,10 +675,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
   pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
   pQueryMsg->numOfCols      = htons((int16_t)taosArrayGetSize(pQueryInfo->colList));
-  pQueryMsg->intervalTime   = htobe64(pQueryInfo->intervalTime);
-  pQueryMsg->slidingTime    = htobe64(pQueryInfo->slidingTime);
-  pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
-  pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
+  pQueryMsg->interval.interval   = htobe64(pQueryInfo->interval.interval);
+  pQueryMsg->interval.sliding   = htobe64(pQueryInfo->interval.sliding);
+  pQueryMsg->interval.offset   = htobe64(pQueryInfo->interval.offset);
+  pQueryMsg->interval.intervalUnit = pQueryInfo->interval.intervalUnit;
+  pQueryMsg->interval.slidingUnit = pQueryInfo->interval.slidingUnit;
+  pQueryMsg->interval.offsetUnit = pQueryInfo->interval.offsetUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
