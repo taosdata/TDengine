@@ -15,8 +15,6 @@
 package com.taosdata.jdbc;
 
 
-import org.apache.commons.lang3.StringUtils;
-
 import java.io.*;
 
 import java.sql.*;
@@ -246,7 +244,7 @@ public class TSDBDriver implements java.sql.Driver {
     }
 
     public boolean acceptsURL(String url) throws SQLException {
-        return StringUtils.isNotBlank(url) && url.startsWith(URL_PREFIX);
+        return (url != null && url.length() > 0 && url.trim().length() > 0) && url.toLowerCase().startsWith(URL_PREFIX);
     }
 
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
@@ -293,7 +291,8 @@ public class TSDBDriver implements java.sql.Driver {
             return null;
         }
 
-        if (!StringUtils.startsWithIgnoreCase(url, URL_PREFIX) && !StringUtils.startsWithIgnoreCase(url, URL_PREFIX1)) {
+        String lowerUrl = url.toLowerCase();
+        if (!lowerUrl.startsWith(URL_PREFIX) && !lowerUrl.startsWith(URL_PREFIX1)) {
             return null;
         }
 
