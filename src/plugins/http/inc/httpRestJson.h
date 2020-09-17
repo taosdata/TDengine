@@ -43,12 +43,12 @@
 #define REST_TIMESTAMP_FMT_TIMESTAMP    1
 #define REST_TIMESTAMP_FMT_UTC_STRING   2
 
-void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows);
+void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows);
 
 void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
-bool restBuildSqlTimestampJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
-bool restBuildSqlLocalTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
-bool restBuildSqlUtcTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool restBuildSqlTimestampJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
+bool restBuildSqlLocalTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
+bool restBuildSqlUtcTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
 void restStopSqlJson(HttpContext *pContext, HttpSqlCmd *cmd);
 
 #endif

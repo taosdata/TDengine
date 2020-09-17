@@ -89,10 +89,10 @@ class TDTestCase:
     def superTable(self):
         tdSql.execute("create table cars(ts timestamp, s int) tags(id int)")
         tdSql.execute("create table car0 using cars tags(0)")
-        tdSql.execute("create table car1 using cars tags(0)")
-        tdSql.execute("create table car2 using cars tags(0)")
-        tdSql.execute("create table car3 using cars tags(0)")
-        tdSql.execute("create table car4 using cars tags(0)")
+        tdSql.execute("create table car1 using cars tags(1)")
+        tdSql.execute("create table car2 using cars tags(2)")
+        tdSql.execute("create table car3 using cars tags(3)")
+        tdSql.execute("create table car4 using cars tags(4)")
 
         tdSql.execute("insert into car0 values('2019-01-01 00:00:00', 1)")
         tdSql.execute("insert into car1 values('2019-05-13 12:00:00', 1)")

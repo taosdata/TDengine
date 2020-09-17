@@ -38,7 +38,7 @@ class TDTestCase:
         tdLog.info("drop database db if exits")
         tdSql.execute('drop database if exists db')
         tdLog.info("================= step1")
-        tdSql.execute('create database db maxtables 4')
+        tdSql.execute('create database db')
         tdLog.sleep(5)
         tdSql.execute('use db')
 

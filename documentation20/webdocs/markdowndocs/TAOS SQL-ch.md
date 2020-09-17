@@ -33,8 +33,7 @@ taos> DESCRIBE meters;
 - 内部函数now是服务器的当前时间
 - 插入记录时，如果时间戳为now，插入数据时使用服务器当前时间
 - Epoch Time: 时间戳也可以是一个长整数，表示从1970-01-01 08:00:00.000开始的毫秒数
-- 时间可以加减，比如 now-2h，表明查询时刻向前推2个小时(最近2小时)。数字后面的时间单位：a(毫秒), s(秒), m(分), h(小时), d(天)，w(周), n(月), y(年)。比如select * from t1 where ts > now-2w and ts <= now-1w, 表示查询两周前整整一周的数据
-- TDengine暂不支持时间窗口按照自然年和自然月切分。Where条件中的时间窗口单位的换算关系如下：interval(1y) 等效于 interval(365d), interval(1n) 等效于 interval(30d), interval(1w) 等效于 interval(7d)
+- 时间可以加减，比如 now-2h，表明查询时刻向前推2个小时(最近2小时)。 数字后面的时间单位可以是 a(毫秒)、s(秒)、 m(分)、h(小时)、d(天)、w(周)。 比如select * from t1 where ts > now-2w and ts <= now-1w, 表示查询两周前整整一周的数据。 在指定降频操作(down sampling)的时间窗口(interval)时，时间单位还可以使用 n(自然月) 和 y(自然年)。
 
 TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMicrosecond就可支持微秒。
 
@@ -109,6 +108,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     BLOCKS参数是每个VNODE (TSDB) 中有多少cache大小的内存块，因此一个VNODE的用的内存大小粗略为（cache * blocks）。取值范围[3, 1000]。
 
     **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
+
 
 - **显示系统所有数据库**
     ```mysql
@@ -298,7 +298,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 SELECT select_expr [, select_expr ...]
     FROM {tb_name_list}
     [WHERE where_condition]
-    [INTERVAL [interval_offset,] interval_val]
+    [INTERVAL (interval_val [, interval_offset])]
     [FILL fill_val]
     [SLIDING fill_val]
     [GROUP BY col_list]
@@ -971,17 +971,17 @@ TDengine支持按时间段进行聚合，可以将表中数据按照时间段进
 ```mysql
 SELECT function_list FROM tb_name 
   [WHERE where_condition]
-  INTERVAL (interval)
+  INTERVAL (interval [, offset])
   [FILL ({NONE | VALUE | PREV | NULL | LINEAR})]
 
 SELECT function_list FROM stb_name 
   [WHERE where_condition]
-  INTERVAL (interval)
+  INTERVAL (interval [, offset])
   [FILL ({ VALUE | PREV | NULL | LINEAR})]
   [GROUP BY tags]
 ```
 
-- 聚合时间段的长度由关键词INTERVAL指定，最短时间间隔10毫秒（10a）。聚合查询中，能够同时执行的聚合和选择函数仅限于单个输出的函数：count、avg、sum 、stddev、leastsquares、percentile、min、max、first、last，不能使用具有多行输出结果的函数（例如：top、bottom、diff以及四则运算）。
+- 聚合时间段的长度由关键词INTERVAL指定，最短时间间隔10毫秒（10a），并且支持偏移（偏移必须小于间隔）。聚合查询中，能够同时执行的聚合和选择函数仅限于单个输出的函数：count、avg、sum 、stddev、leastsquares、percentile、min、max、first、last，不能使用具有多行输出结果的函数（例如：top、bottom、diff以及四则运算）。
 - WHERE语句可以指定查询的起止时间和其他过滤条件 
 - FILL语句指定某一时间区间数据缺失的情况下的填充模式。填充模式包括以下几种：
   1. 不进行填充：NONE(默认填充模式)。

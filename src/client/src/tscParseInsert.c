@@ -142,7 +142,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
       return tscInvalidSQLErrMsg(error, "value expected in timestamp", sToken.z);
     }
 
-    if (getTimestampInUsFromStr(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
+    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -526,7 +526,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
   int32_t   index = 0;
   SStrToken sToken;
 
-  int16_t numOfRows = 0;
+  int32_t numOfRows = 0;
 
   SSchema *pSchema = tscGetTableSchema(pTableMeta);
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);

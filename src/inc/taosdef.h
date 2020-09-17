@@ -101,6 +101,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
 #define TSDB_TIME_PRECISION_NANO  2
+#define TSDB_TICK_PER_SECOND(precision) ((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L))
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
@@ -198,7 +199,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 void* getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
-void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
+void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
@@ -209,21 +210,24 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_RELATION_GREATER_EQUAL 5
 #define TSDB_RELATION_NOT_EQUAL   6
 #define TSDB_RELATION_LIKE        7
-#define TSDB_RELATION_IN          8
+#define TSDB_RELATION_ISNULL      8
+#define TSDB_RELATION_NOTNULL     9
+#define TSDB_RELATION_IN          10
 
-#define TSDB_RELATION_AND         9
-#define TSDB_RELATION_OR          10
-#define TSDB_RELATION_NOT         11
+#define TSDB_RELATION_AND         11
+#define TSDB_RELATION_OR          12
+#define TSDB_RELATION_NOT         13
 
-#define TSDB_BINARY_OP_ADD        12
-#define TSDB_BINARY_OP_SUBTRACT   13
-#define TSDB_BINARY_OP_MULTIPLY   14
-#define TSDB_BINARY_OP_DIVIDE     15
-#define TSDB_BINARY_OP_REMAINDER  16
+#define TSDB_BINARY_OP_ADD        30
+#define TSDB_BINARY_OP_SUBTRACT   31
+#define TSDB_BINARY_OP_MULTIPLY   32
+#define TSDB_BINARY_OP_DIVIDE     33
+#define TSDB_BINARY_OP_REMAINDER  34
 #define TS_PATH_DELIMITER_LEN     1
 
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
+
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation
 // including the terminator zero

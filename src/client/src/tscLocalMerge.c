@@ -368,13 +368,12 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   TSKEY stime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.skey : pQueryInfo->window.ekey;
-  int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
+  int64_t revisedSTime = taosTimeTruncate(stime, &pQueryInfo->interval, tinfo.precision);
   
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
     pReducer->pFillInfo = taosInitFillInfo(pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
-                                           4096, (int32_t)numOfCols, pQueryInfo->slidingTime, pQueryInfo->slidingTimeUnit,
+                                           4096, (int32_t)numOfCols, pQueryInfo->interval.sliding, pQueryInfo->interval.slidingUnit,
                                            tinfo.precision, pQueryInfo->fillType, pFillCol);
   }
 }
@@ -472,10 +471,8 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     return;
   }
 
-  tscDebug("%p start to free local reducer", pSql);
   SSqlRes *pRes = &(pSql->res);
   if (pRes->pLocalReducer == NULL) {
-    tscDebug("%p local reducer has been freed, abort", pSql);
     return;
   }
 
@@ -553,7 +550,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   }
 
   // primary timestamp column is involved in final result
-  if (pQueryInfo->intervalTime != 0 || tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+  if (pQueryInfo->interval.interval != 0 || tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
     numOfGroupByCols++;
   }
 
@@ -570,7 +567,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
       orderIdx[i] = startCols++;
     }
 
-    if (pQueryInfo->intervalTime != 0) {
+    if (pQueryInfo->interval.interval != 0) {
       // the first column is the timestamp, handles queries like "interval(10m) group by tags"
       orderIdx[numOfGroupByCols - 1] = PRIMARYKEY_TIMESTAMP_COL_INDEX;
     }
@@ -614,12 +611,12 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
      * super table interval query
      * if the order columns is the primary timestamp, all result data belongs to one group
      */
-    assert(pQueryInfo->intervalTime > 0);
+    assert(pQueryInfo->interval.interval > 0);
     if (numOfCols == 1) {
       return true;
     }
   } else {  // simple group by query
-    assert(pQueryInfo->intervalTime == 0);
+    assert(pQueryInfo->interval.interval == 0);
   }
 
   // only one row exists
@@ -827,8 +824,7 @@ void savePrevRecordAndSetupFillInfo(SLocalReducer *pLocalReducer, SQueryInfo *pQ
 
   if (pFillInfo != NULL) {
     int64_t stime = (pQueryInfo->window.skey < pQueryInfo->window.ekey) ? pQueryInfo->window.skey : pQueryInfo->window.ekey;
-    int64_t revisedSTime =
-        taosGetIntervalStartTimestamp(stime, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, tinfo.precision);
+    int64_t revisedSTime = taosTimeTruncate(stime, &pQueryInfo->interval, tinfo.precision);
   
     taosResetFillInfo(pFillInfo, revisedSTime);
   }
@@ -841,7 +837,7 @@ void savePrevRecordAndSetupFillInfo(SLocalReducer *pLocalReducer, SQueryInfo *pQ
 }
 
 static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, SQueryInfo* pQueryInfo) {
-  assert(pQueryInfo->intervalTime == 0 || pQueryInfo->fillType == TSDB_FILL_NONE);
+  assert(pQueryInfo->interval.interval == 0 || pQueryInfo->fillType == TSDB_FILL_NONE);
 
   tFilePage * pBeforeFillData = pLocalReducer->pResultBuf;
 
@@ -1222,7 +1218,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
 #endif
 
   // no interval query, no fill operation
-  if (pQueryInfo->intervalTime == 0 || pQueryInfo->fillType == TSDB_FILL_NONE) {
+  if (pQueryInfo->interval.interval == 0 || pQueryInfo->fillType == TSDB_FILL_NONE) {
     genFinalResWithoutFill(pRes, pLocalReducer, pQueryInfo);
   } else {
     SFillInfo* pFillInfo = pLocalReducer->pFillInfo;
@@ -1260,13 +1256,10 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
-  int8_t precision = tinfo.precision;
-
   // for group result interpolation, do not return if not data is generated
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     TSKEY skey = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.skey:pQueryInfo->window.ekey;//MIN(pQueryInfo->window.skey, pQueryInfo->window.ekey);
-    int64_t newTime =
-        taosGetIntervalStartTimestamp(skey, pQueryInfo->slidingTime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
+    int64_t newTime = taosTimeTruncate(skey, &pQueryInfo->interval, tinfo.precision);
     taosResetFillInfo(pLocalReducer->pFillInfo, newTime);
   }
 }
