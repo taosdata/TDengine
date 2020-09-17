@@ -92,7 +92,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
     STSElem elem2 = tsBufGetElem(pSupporter2->pTSBuf);
 
 #ifdef _DEBUG_VIEW
-    tscInfo("%" PRId64 ", tags:%d \t %" PRId64 ", tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
+    tscInfo("%" PRId64 ", tags:%"PRId64" \t %" PRId64 ", tags:%"PRId64, elem1.ts, elem1.tag.i64Key, elem2.ts, elem2.tag.i64Key);
 #endif
 
     int32_t res = tVariantCompare(&elem1.tag, &elem2.tag);
@@ -1950,7 +1950,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  pSql->numOfSubs = taosArrayGetSize(pCmd->pDataBlocks);
+  pSql->numOfSubs = (uint16_t)taosArrayGetSize(pCmd->pDataBlocks);
   assert(pSql->numOfSubs > 0);
 
   pRes->code = TSDB_CODE_SUCCESS;
