@@ -57,7 +57,7 @@ typedef struct SWindowResult {
   uint16_t      numOfRows;   // number of rows of current time window
   bool          closed;      // this result status: closed or opened
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
-  TSKEY         skey;        // start key of current time window
+  union {STimeWindow win; char* key;};  // start key of current time window
 } SWindowResult;
 
 /**

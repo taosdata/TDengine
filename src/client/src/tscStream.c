@@ -167,7 +167,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
              retryDelay);
 
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
-    taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), true);
+    taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), true);
     taosTFree(pTableMetaInfo->vgroupList);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
@@ -275,7 +275,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
     // release the metric/meter meta information reference, so data in cache can be updated
 
-    taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
+    taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), false);
     tscFreeSqlResult(pSql);
     taosTFree(pSql->pSubs);
     pSql->numOfSubs = 0;
