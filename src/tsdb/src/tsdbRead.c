@@ -1321,7 +1321,11 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         assert(end != -1);
 
         if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
-          moveToNextRowInMem(pCheckInfo);
+          if (!pCfg->update) {
+            moveToNextRowInMem(pCheckInfo);
+          } else {
+            end -= step;
+          }
         }
 
         int32_t qstart = 0, qend = 0;
