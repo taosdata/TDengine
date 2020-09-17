@@ -472,10 +472,8 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     return;
   }
 
-  tscDebug("%p start to free local reducer", pSql);
   SSqlRes *pRes = &(pSql->res);
   if (pRes->pLocalReducer == NULL) {
-    tscDebug("%p local reducer has been freed, abort", pSql);
     return;
   }
 

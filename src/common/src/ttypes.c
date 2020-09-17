@@ -540,9 +540,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   }
 }
 
-void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size) {
-  char tmpBuf[4096] = {0};
-  
+void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       SWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight), int32_t);
@@ -575,10 +573,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size) {
     }
     
     default: {
-      assert(size <= 4096);
-      memcpy(tmpBuf, pLeft, size);
+      memcpy(buf, pLeft, size);
       memcpy(pLeft, pRight, size);
-      memcpy(pRight, tmpBuf, size);
+      memcpy(pRight, buf, size);
       break;
     }
   }
