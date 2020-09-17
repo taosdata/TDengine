@@ -59,29 +59,6 @@
             <version>4.13</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- calcite -->
-        <dependency>
-            <groupId>org.apache.calcite</groupId>
-            <artifactId>calcite-core</artifactId>
-            <version>1.23.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-dbcp2</artifactId>
-            <version>2.7.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.calcite.avatica</groupId>
-            <artifactId>avatica-core</artifactId>
-            <version>1.17.0</version>
-        </dependency>
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <version>5.1.47</version>
-        </dependency>
-
     </dependencies>
     <build>
         <plugins>
