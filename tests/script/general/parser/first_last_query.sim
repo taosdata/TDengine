@@ -260,6 +260,7 @@ if $data13 != 210 then
  return -1
 endi
 
-if $data14 != @test11@ then
+if $data14 != @test2@ then
+  print expect test2 , actual: $data14
   return -1
 endi
