@@ -15,6 +15,11 @@ system sh/cfg.sh -n dnode2 -c wallevel -v 1
 system sh/cfg.sh -n dnode3 -c wallevel -v 1
 system sh/cfg.sh -n dnode4 -c wallevel -v 1
 
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
+
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
