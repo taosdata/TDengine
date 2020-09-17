@@ -148,7 +148,7 @@ INSERT INTO <tb1_name> USING <stb1_name> TAGS (<tag1_value1>, ...) VALUES (<fiel
 SELECT function<field_name>,… 
  FROM <stable_name> 
  WHERE <tag_name> <[=|<=|>=|<>] values..> ([AND|OR] …)
- INTERVAL (<time range>)
+ INTERVAL (<interval> [, offset])
  GROUP BY <tag_name>, <tag_name>…
  ORDER BY <tag_name> <asc|desc>
  SLIMIT <group_limit>
