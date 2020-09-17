@@ -4575,8 +4575,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
     getAlignQueryTimeWindow(pQuery, pQuery->window.skey, sk, ek, &w);
 
     pRuntimeEnv->pFillInfo = taosInitFillInfo(pQuery->order.order, w.skey, 0, (int32_t)pQuery->rec.capacity, pQuery->numOfOutput,
-                                              pQuery->interval.sliding, pQuery->interval.slidingUnit, (int8_t)pQuery->precision,
-                                              pQuery->fillType, pColInfo);
+                                              &pQuery->interval, pQuery->precision, pQuery->fillType, pColInfo);
   }
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);

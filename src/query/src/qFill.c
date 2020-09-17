@@ -23,7 +23,7 @@
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)
 
 SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-    int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType, SFillColInfo* pFillCol) {
+    SInterval* pInterval, int8_t precision, int32_t fillType, SFillColInfo* pFillCol) {
   if (fillType == TSDB_FILL_NONE) {
     return NULL;
   }
@@ -38,8 +38,7 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
   pFillInfo->numOfTags = numOfTags;
   pFillInfo->numOfCols = numOfCols;
   pFillInfo->precision = precision;
-  pFillInfo->interval.sliding = slidingTime;
-  pFillInfo->interval.slidingUnit = slidingUnit;
+  memcpy(&pFillInfo->interval, pInterval, sizeof(SInterval));
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
   if (numOfTags > 0) {
