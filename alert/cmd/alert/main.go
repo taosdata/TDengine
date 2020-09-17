@@ -119,7 +119,7 @@ WantedBy=multi-user.target
 	return nil
 }
 
-const version = "TDengine alert v2.0.0.1"
+var version = "2.0.0.1s"
 
 func main() {
 	var (
@@ -133,7 +133,7 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Println(version)
+		fmt.Println("TDengine alert v" + version)
 		return
 	}
 
