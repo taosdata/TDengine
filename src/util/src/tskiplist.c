@@ -466,7 +466,12 @@ static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **forward, 
     }
 
     SSkipListNode *px = pSkipList->pHead;
-    for (int i = pSkipList->level - 1; i >= 0; --i) {
+    for (int i = pNode->level - 1; i >= 0; --i) {
+      if (i >= pSkipList->level) {
+        forward[i] = pSkipList->pHead;
+        continue;
+      }
+
       SSkipListNode *p = SL_GET_FORWARD_POINTER(px, i);
       while (p != pSkipList->pTail) {
         pKey = SL_GET_NODE_KEY(pSkipList, p);
