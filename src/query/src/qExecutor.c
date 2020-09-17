@@ -784,6 +784,8 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, bool closed
   SQuery *        pQuery = pRuntimeEnv->pQuery;
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
+  bool hasPrev = pCtx[0].preAggVals.isSet;
+
   if (IS_MASTER_SCAN(pRuntimeEnv) || closed) {
     for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
       pCtx[k].nStartQueryTimestamp = pWin->skey;
@@ -796,11 +798,17 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, bool closed
       }
 
       // not a whole block involved in query processing, statistics data can not be used
-      pCtx[k].preAggVals.isSet = (forwardStep == numOfTotal);
+      // NOTE: the original value of isSet have been changed here
+      if (pCtx[k].preAggVals.isSet && forwardStep < numOfTotal) {
+        pCtx[k].preAggVals.isSet = false;
+      }
 
       if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
+
+      // restore it
+      pCtx[k].preAggVals.isSet = hasPrev;
     }
   }
 }
