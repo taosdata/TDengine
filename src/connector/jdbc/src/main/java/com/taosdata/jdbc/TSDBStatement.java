@@ -242,7 +242,7 @@ public class TSDBStatement implements Statement {
 
     public void addBatch(String sql) throws SQLException {
         if (batchedArgs == null) {
-            batchedArgs = new ArrayList<String>();
+            batchedArgs = new ArrayList<>();
         }
         batchedArgs.add(sql);
     }
