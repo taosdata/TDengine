@@ -2460,11 +2460,11 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
       if (pInfo->minval > pCtx->preAggVals.statis.min) {
-        pInfo->minval = pCtx->preAggVals.statis.min;
+        pInfo->minval = (double)pCtx->preAggVals.statis.min;
       }
 
       if (pInfo->maxval < pCtx->preAggVals.statis.max) {
-        pInfo->maxval = pCtx->preAggVals.statis.max;
+        pInfo->maxval = (double)pCtx->preAggVals.statis.max;
       }
 
       pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);

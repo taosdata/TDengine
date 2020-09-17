@@ -226,12 +226,8 @@ typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
   // TODO refactor
-  char             intervalTimeUnit;
-  char             slidingTimeUnit;
   STimeWindow      window;        // query time window
-  int64_t          intervalTime;  // aggregation time window range
-  int64_t          slidingTime;   // sliding window in mseconds
-  int64_t          intervalOffset;// start offset of each time window
+  SInterval        interval;
   int32_t          tz;            // query client timezone
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
@@ -334,7 +330,7 @@ typedef struct STscObj {
   struct SSqlStream *streamList;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
-  T_REF_DECLARE();
+  T_REF_DECLARE()
 } STscObj;
 
 typedef struct SSqlObj {
@@ -370,8 +366,6 @@ typedef struct SSqlStream {
   uint32_t streamId;
   char     listed;
   bool     isProject;
-  char     intervalTimeUnit;
-  char     slidingTimeUnit;
   int16_t  precision;
   int64_t  num;  // number of computing count
 
@@ -385,8 +379,7 @@ typedef struct SSqlStream {
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
   int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
-  int64_t intervalTime;
-  int64_t slidingTime;
+  SInterval interval;
   void *  pTimer;
 
   void (*fp)();
@@ -470,7 +463,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t type = pInfo->pSqlExpr->resType;
   int32_t bytes = pInfo->pSqlExpr->resBytes;
 
-  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row;
+  char* pData = pRes->data + (int32_t)(pInfo->pSqlExpr->offset * pRes->numOfRows + bytes * pRes->row);
 
   // user defined constant value output columns
   if (TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {

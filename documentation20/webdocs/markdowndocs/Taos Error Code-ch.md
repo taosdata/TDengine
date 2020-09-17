@@ -1,7 +1,7 @@
 # TDengine 2.0 错误码以及对应的十进制码
 
 
-| Code                  |  bit  |   error code |  错误描述                  | 十进制错误码       |
+| 状态码                 |  模  |   错误码（十六进制） |  错误描述                  | 错误码（十进制）   |
 |-----------------------| :---: | :---------:  | :------------------------ | ---------------- |
 |TSDB_CODE_RPC_ACTION_IN_PROGRESS|	0	| 0x0001|	 "Action in progress"|	-2147483647|
 |TSDB_CODE_RPC_AUTH_REQUIRED|	0	| 0x0002	| "Authentication required"|	-2147483646|
@@ -87,7 +87,7 @@
 |TSDB_CODE_MND_INVALID_ACCT_OPTION|	0	| 0x0342	| "Invalid account options"|	-2147482814|
 |TSDB_CODE_MND_USER_ALREADY_EXIST|	0	| 0x0350	| "User already exists"|	-2147482800|
 |TSDB_CODE_MND_INVALID_USER	|0	| 0x0351	| "Invalid user"	|-2147482799|
-|TSDB_CODE_MND_INVALID_USER_FORMAT|	|0	 |0x0352	 |"Invalid user format"	|-2147482798|
+|TSDB_CODE_MND_INVALID_USER_FORMAT| 0	 |0x0352	 |"Invalid user format"	|-2147482798|
 |TSDB_CODE_MND_INVALID_PASS_FORMAT|	0|	 0x0353	| "Invalid password format"|	-2147482797|
 |TSDB_CODE_MND_NO_USER_FROM_CONN|	0	| 0x0354	| "Can not get user from conn"|	-2147482796|
 |TSDB_CODE_MND_TOO_MANY_USERS|	0	| 0x0355|	 "Too many users"|	-2147482795|
@@ -107,7 +107,7 @@
 |TSDB_CODE_MND_DB_NOT_SELECTED|	0	| 0x0380	| "Database not specified or available"|	-2147482752|
 |TSDB_CODE_MND_DB_ALREADY_EXIST|	0	| 0x0381	| "Database already exists"|	-2147482751|
 |TSDB_CODE_MND_INVALID_DB_OPTION|	0	| 0x0382	| "Invalid database options"|	-2147482750|
-|TSDB_CODE_MND_INVALID_DB|	|0	| 0x0383	| "Invalid database name"|	-2147482749|
+|TSDB_CODE_MND_INVALID_DB|	0	| 0x0383	| "Invalid database name"|	-2147482749|
 |TSDB_CODE_MND_MONITOR_DB_FORBIDDEN|	0	| 0x0384	| "Cannot delete monitor database"|	-2147482748|
 |TSDB_CODE_MND_TOO_MANY_DATABASES|	0|	 0x0385	| "Too many databases for account"|	-2147482747|
 |TSDB_CODE_MND_DB_IN_DROPPING|	0	| 0x0386|	 "Database not available"	|-2147482746|
