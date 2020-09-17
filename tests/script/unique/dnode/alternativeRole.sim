@@ -16,6 +16,11 @@ system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
 system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
 
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+
+
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
