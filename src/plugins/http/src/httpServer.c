@@ -315,45 +315,48 @@ static bool httpReadData(HttpContext *pContext) {
 
   pContext->accessTimes++;
   pContext->lastAccessTime = taosGetTimestampSec();
+  char buf[HTTP_STEP_SIZE + 1] = {0};
 
-  char    buf[HTTP_STEP_SIZE + 1] = {0};
-  int32_t nread = (int32_t)taosReadSocket(pContext->fd, buf, sizeof(buf));
-  if (nread > 0) {
-    buf[nread] = '\0';
-    httpTrace("context:%p, fd:%d, nread:%d", pContext, pContext->fd, nread);
-    int32_t ok = httpParseBuf(pParser, buf, nread);
+  while (1) {
+    int32_t nread = (int32_t)taosReadSocket(pContext->fd, buf, HTTP_STEP_SIZE);
+    if (nread > 0) {
+      buf[nread] = '\0';
+      httpTraceL("context:%p, fd:%d, nread:%d content:%s", pContext, pContext->fd, nread, buf);
+      int32_t ok = httpParseBuf(pParser, buf, nread);
 
-    if (ok) {
-      httpError("context:%p, fd:%d, parse failed, ret:%d code:%d close connect", pContext, pContext->fd, ok, pParser->parseCode);
-      httpSendErrorResp(pContext, pParser->parseCode);
-      httpNotifyContextClose(pContext);
-      return false;
-    }
+      if (ok) {
+        httpError("context:%p, fd:%d, parse failed, ret:%d code:%d close connect", pContext, pContext->fd, ok,
+                  pParser->parseCode);
+        httpSendErrorResp(pContext, pParser->parseCode);
+        httpNotifyContextClose(pContext);
+        return false;
+      }
 
-    if (pParser->parseCode) {
-      httpError("context:%p, fd:%d, parse failed, code:%d close connect", pContext, pContext->fd, pParser->parseCode);
-      httpSendErrorResp(pContext, pParser->parseCode);
-      httpNotifyContextClose(pContext);
-      return false;
-    }
+      if (pParser->parseCode) {
+        httpError("context:%p, fd:%d, parse failed, code:%d close connect", pContext, pContext->fd, pParser->parseCode);
+        httpSendErrorResp(pContext, pParser->parseCode);
+        httpNotifyContextClose(pContext);
+        return false;
+      }
 
-    if (!pParser->parsed) {
-      httpTrace("context:%p, fd:%d, read not over yet, len:%d", pContext, pContext->fd, pParser->body.pos);
-      return false;
+      if (!pParser->parsed) {
+        httpTrace("context:%p, fd:%d, read not finished", pContext, pContext->fd);
+        continue;
+      } else {
+        httpDebug("context:%p, fd:%d, bodyLen:%d", pContext, pContext->fd, pParser->body.pos);
+        return true;
+      }
+    } else if (nread < 0) {
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+        httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
+        return false;  // later again
+      } else {
+        httpError("context:%p, fd:%d, read from socket error:%d, close connect", pContext, pContext->fd, errno);
+        return false;
+      }
     } else {
-      httpTraceL("context:%p, fd:%d, len:%d, body:%s", pContext, pContext->fd, pParser->body.pos, pParser->body.str);
-      return true;
-    }
-  } else if (nread < 0) {
-    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
-      httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
-      return false;  // later again
-    } else {
-      httpError("context:%p, fd:%d, read from socket error:%d, close connect", pContext, pContext->fd, errno);
+      httpError("context:%p, fd:%d, nread:%d, wait another event", pContext, pContext->fd, nread);
       return false;
     }
-  } else {
-    httpError("context:%p, fd:%d, nread:%d, wait another event", pContext, pContext->fd, nread);
-    return false;
   }
 }

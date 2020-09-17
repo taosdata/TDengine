@@ -284,6 +284,14 @@ bool nequal_nchar(SColumnFilterElem *pFilter, char* minval, char *maxval) {
 
   return wcsncmp((wchar_t *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) != 0;
 }
+////////////////////////////////////////////////////////////////
+bool isNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval) {
+  return true;
+}
+
+bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval) {
+  return true;
+}
 
 ////////////////////////////////////////////////////////////////
 
@@ -398,6 +406,8 @@ bool (*filterFunc_i8[])(SColumnFilterElem *pFilter, char *minval, char *maxval) 
   largeEqual_i8,
   nequal_i8,
   NULL,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_i16[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
@@ -409,6 +419,8 @@ bool (*filterFunc_i16[])(SColumnFilterElem *pFilter, char *minval, char *maxval)
   largeEqual_i16,
   nequal_i16,
   NULL,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_i32[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
@@ -420,6 +432,8 @@ bool (*filterFunc_i32[])(SColumnFilterElem *pFilter, char *minval, char *maxval)
   largeEqual_i32,
   nequal_i32,
   NULL,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_i64[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
@@ -431,6 +445,8 @@ bool (*filterFunc_i64[])(SColumnFilterElem *pFilter, char *minval, char *maxval)
   largeEqual_i64,
   nequal_i64,
   NULL,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_ds[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
@@ -442,6 +458,8 @@ bool (*filterFunc_ds[])(SColumnFilterElem *pFilter, char *minval, char *maxval) 
   largeEqual_ds,
   nequal_ds,
   NULL,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_dd[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
@@ -453,6 +471,8 @@ bool (*filterFunc_dd[])(SColumnFilterElem *pFilter, char *minval, char *maxval) 
   largeEqual_dd,
   nequal_dd,
   NULL,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_str[])(SColumnFilterElem* pFilter, char* minval, char *maxval) = {
@@ -464,6 +484,8 @@ bool (*filterFunc_str[])(SColumnFilterElem* pFilter, char* minval, char *maxval)
   NULL,
   nequal_str,
   like_str,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*filterFunc_nchar[])(SColumnFilterElem* pFitler, char* minval, char* maxval) = {
@@ -475,6 +497,8 @@ bool (*filterFunc_nchar[])(SColumnFilterElem* pFitler, char* minval, char* maxva
   NULL,
   nequal_nchar,
   like_nchar,
+  isNull_filter,
+  notNull_filter,
 };
 
 bool (*rangeFilterFunc_i8[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {

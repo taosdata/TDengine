@@ -18,6 +18,7 @@
 
 #include "tnote.h"
 #include "trpc.h"
+#include "tcache.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscLocalMerge.h"
@@ -40,6 +41,8 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
   pSql->signature = pSql;
   pSql->param     = param;
   pSql->pTscObj   = pObj;
@@ -47,6 +50,11 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
+
+  uint64_t handle = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+
+  T_REF_INC(pSql->pTscObj);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
@@ -59,7 +67,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
-  pSql->cmd.curSql = pSql->sqlstr;
+  pCmd->curSql = pSql->sqlstr;
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
@@ -69,7 +77,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
     tscQueueAsyncRes(pSql);
     return;
   }
-  
+
   tscDoQuery(pSql);
 }
 

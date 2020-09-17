@@ -26,6 +26,7 @@
 #include "tsclient.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "tscProfile.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -100,6 +101,8 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   }
 
   pObj->signature = pObj;
+  pObj->pDnodeConn = pDnodeConn;
+  T_REF_INIT_VAL(pObj, 1);
 
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
@@ -132,20 +135,15 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     return NULL;
   }
 
-  pSql->pTscObj = pObj;
+  pSql->pTscObj   = pObj;
   pSql->signature = pSql;
-  pSql->maxRetry = TSDB_MAX_REPLICA;
-  tsem_init(&pSql->rspSem, 0, 0);
-  
-  pObj->pDnodeConn = pDnodeConn;
-  
-  pSql->fp = fp;
-  pSql->param = param;
-  if (taos != NULL) {
-    *taos = pObj;
-  }
-
+  pSql->maxRetry  = TSDB_MAX_REPLICA;
+  pSql->fp        = fp;
+  pSql->param     = param;
   pSql->cmd.command = TSDB_SQL_CONNECT;
+
+  tsem_init(&pSql->rspSem, 0, 0);
+
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     rpcClose(pDnodeConn);
@@ -154,7 +152,16 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     return NULL;
   }
 
+  if (taos != NULL) {
+    *taos = pObj;
+  }
+
+  T_REF_INC(pSql->pTscObj);
+
+  uint64_t key = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &key, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
+
   return pSql;
 }
 
@@ -257,6 +264,33 @@ void taos_close(TAOS *taos) {
     tscFreeSqlObj(pObj->pHb);
   }
 
+  // free all sqlObjs created by using this connect before free the STscObj
+//  while(1) {
+//    pthread_mutex_lock(&pObj->mutex);
+//    void* p = pObj->sqlList;
+//    pthread_mutex_unlock(&pObj->mutex);
+//
+//    if (p == NULL) {
+//      break;
+//    }
+//
+//    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
+//    taosMsleep(100);
+//
+//    // todo fix me!! two threads call taos_free_result will cause problem.
+//    tscDebug("%p free :%p", pObj, p);
+//    taos_free_result(p);
+//  }
+
+  int32_t ref = T_REF_DEC(pObj);
+  assert(ref >= 0);
+
+  if (ref > 0) {
+    tscDebug("%p %d remain sqlObjs, not free tscObj and dnodeConn:%p", pObj, ref, pObj->pDnodeConn);
+    return;
+  }
+
+  tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
   tscCloseTscObj(pObj);
 }
 
@@ -533,57 +567,51 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 // send free message to vnode to free qhandle and corresponding resources in vnode
-static bool tscKillQueryInVnode(SSqlObj* pSql) {
+static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && !tscIsTwoStageSTableQuery(pQueryInfo, 0) &&
-      (pCmd->command == TSDB_SQL_SELECT ||
-       pCmd->command == TSDB_SQL_SHOW ||
-       pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_FETCH) &&
-      (pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL)) {
-
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscDebug("%p send msg to dnode to free qhandle ASAP, command:%s, ", pSql, sqlCmd[pCmd->command]);
-    tscProcessSql(pSql);
+  if (pRes == NULL || pRes->qhandle == 0) {
     return true;
   }
 
-  return false;
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    return true;
+  }
+
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  tscRemoveFromSqlList(pSql);
+
+  int32_t cmd = pCmd->command;
+  if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && pSql->pStream == NULL && (pTableMetaInfo->pTableMeta != NULL) &&
+      (cmd == TSDB_SQL_SELECT ||
+       cmd == TSDB_SQL_SHOW ||
+       cmd == TSDB_SQL_RETRIEVE ||
+       cmd == TSDB_SQL_FETCH)) {
+    pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql, sqlCmd[pCmd->command]);
+
+    tscProcessSql(pSql);
+    return false;
+  }
+
+  return true;
 }
 
 void taos_free_result(TAOS_RES *res) {
-  SSqlObj *pSql = (SSqlObj *)res;
-
+  SSqlObj* pSql = (SSqlObj*) res;
   if (pSql == NULL || pSql->signature != pSql) {
-    tscDebug("%p sqlObj has been freed", pSql);
-    return;
-  }
-  
-  // The semaphore can not be changed while freeing async sub query objects.
-  SSqlRes *pRes = &pSql->res;
-  if (pRes == NULL || pRes->qhandle == 0) {
-    tscFreeSqlObj(pSql);
-    tscDebug("%p SqlObj is freed by app, qhandle is null", pSql);
+    tscError("%p already released sqlObj", res);
     return;
   }
 
-  // set freeFlag to 1 in retrieve message if there are un-retrieved results data in node
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  if (pQueryInfo == NULL) {
-    tscFreeSqlObj(pSql);
-    tscDebug("%p SqlObj is freed by app", pSql);
-    return;
-  }
-
-  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-  if (!tscKillQueryInVnode(pSql)) {
-    tscFreeSqlObj(pSql);
-    tscDebug("%p sqlObj is freed by app", pSql);
+  bool freeNow = tscKillQueryInDnode(pSql);
+  if (freeNow) {
+    tscDebug("%p free sqlObj in cache", pSql);
+    SSqlObj** p = pSql->self;
+    taosCacheRelease(tscObjCache, (void**) &p, true);
   }
 }
 

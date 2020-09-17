@@ -29,6 +29,7 @@ extern "C" {
 #include "tglobal.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
+#include "tcache.h"
 
 #include "qExecutor.h"
 #include "qSqlparser.h"
@@ -333,6 +334,7 @@ typedef struct STscObj {
   struct SSqlStream *streamList;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
+  T_REF_DECLARE();
 } STscObj;
 
 typedef struct SSqlObj {
@@ -359,6 +361,8 @@ typedef struct SSqlObj {
   uint16_t         numOfSubs;
   struct SSqlObj **pSubs;
   struct SSqlObj * prev, *next;
+
+  struct SSqlObj **self;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -413,7 +417,6 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
-void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 
@@ -425,17 +428,19 @@ void tscFreeSqlResult(SSqlObj *pSql);
 
 /**
  * only free part of resources allocated during query.
+ * TODO remove it later
  * Note: this function is multi-thread safe.
  * @param pObj
  */
-void tscPartiallyFreeSqlObj(SSqlObj *pObj);
+void tscPartiallyFreeSqlObj(SSqlObj *pSql);
 
 /**
  * free sql object, release allocated resource
- * @param pObj  Free metric/meta information, dynamically allocated payload, and
- * response buffer, object itself
+ * @param pObj
  */
-void tscFreeSqlObj(SSqlObj *pObj);
+void tscFreeSqlObj(SSqlObj *pSql);
+
+void tscFreeSqlObjInCache(void *pSql);
 
 void tscCloseTscObj(STscObj *pObj);
 
@@ -450,9 +455,6 @@ void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
-
-// todo remove this function.
-bool tscResultsetFetchCompleted(TAOS_RES *result);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
@@ -502,7 +504,8 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern void *    tscCacheHandle;
+extern SCacheObj*    tscMetaCache;
+extern SCacheObj*    tscObjCache;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];

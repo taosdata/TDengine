@@ -1,3 +1,5 @@
+run general/http/autocreate.sim
+run general/http/chunked.sim
 run general/http/restful.sim
 run general/http/restful_insert.sim
 run general/http/restful_limit.sim

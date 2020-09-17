@@ -423,6 +423,8 @@ if $data97 != @group_tb0@ then
   return -1
 endi
 
+print ---------------------------------> group by binary|nchar data add cases
+
 
 #=========================== group by multi tags ======================
 sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);
