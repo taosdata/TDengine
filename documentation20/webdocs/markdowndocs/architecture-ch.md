@@ -67,7 +67,7 @@ TDengine 分布式架构的逻辑结构图如下：
 <center> 图 1 TDengine架构示意图  </center>
 一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点(dnode)、TDengine客户端(taosc)以及应用(app)。系统中存在一到多个数据节点，这些数据节点组成一个集群(cluster)。应用通过taosc的API与TDengine集群进行互动。下面对每个逻辑单元进行简要介绍。
 
-**物理节点(pnode):** pnode是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有OS的物理机、虚拟机或容器。物理节点由其配置的 FQDN(Fully Qualified Domain Name)来标识。
+**物理节点(pnode):** pnode是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有OS的物理机、虚拟机或容器。物理节点由其配置的 FQDN(Fully Qualified Domain Name)来标识。TDengine完全依赖FQDN来进行网络通讯，如果不了解FQDN，请看博文《[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)》。
 
 **数据节点(dnode):** dnode 是 TDengine 服务器侧执行代码 taosd 在物理节点上的一个运行实例，一个工作的系统必须有至少一个数据节点。dnode包含零到多个逻辑的虚拟节点(VNODE)，零或者至多一个逻辑的管理节点(mnode)。dnode在系统中的唯一标识由实例的End Point (EP )决定。EP是dnode所在物理节点的FQDN (Fully Qualified Domain Name)和系统所配置的网络端口号(Port)的组合。通过配置不同的端口，一个物理节点(一台物理机、虚拟机或容器）可以运行多个实例，或有多个数据节点。
 
