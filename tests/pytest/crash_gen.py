@@ -362,7 +362,7 @@ class ThreadCoordinator:
                 # end, and maybe signal them to stop
             else:
                 raise
-        return transitionFailed
+        # return transitionFailed # Why did we have this??!!
 
         self.resetExecutedTasks()  # clear the tasks after we are done
         # Get ready for next step
@@ -1049,8 +1049,8 @@ class AnyState:
             if task.isSuccess():
                 sCnt += 1
         if (exists and sCnt <= 0):
-            raise RuntimeError(
-                "Unexpected zero success for task: {}".format(cls))
+            raise RuntimeError("Unexpected zero success for task type: {}, from tasks: {}"
+                .format(cls, tasks))
 
     def assertNoTask(self, tasks, cls):
         for task in tasks:
