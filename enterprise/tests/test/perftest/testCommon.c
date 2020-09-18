@@ -41,7 +41,7 @@ static void insertSampleData(TAOS *conn, int32_t count, int32_t tableIdx, int64_
    * z = delta%2
    */
   for (int32_t i = 0; i < totalRound; ++i) {
-    int32_t len = sprintf(first, "insert into tm%d values (%ld, %d, '%d_%d_123', %d, %f, %f, %d, %d, %d)", tableIdx,
+    int32_t len = sprintf(first, "insert into t2m%d values (%ld, %d, '%d_%d_123', %d, %f, %f, %d, %d, %d)", tableIdx,
                           startTS + delta * timeDelta, delta, delta, delta, delta + 10000000, delta * 1.023,
                           ((double)delta) / 12 + 1, delta % 30000, delta % 128, delta % 2);
     strncat(tt, first, len + 1);
@@ -65,27 +65,19 @@ static void insertSampleData(TAOS *conn, int32_t count, int32_t tableIdx, int64_
 }
 
 void createEnvironment(TAOS *conn, int32_t count, int32_t totalCnt, int32_t pointsPerTable, int64_t timeDelta) {
-  sleep(2);
-  TAOS_RES *pSql = taos_query(conn, "drop table m1");
-  taos_free_result(pSql);
-
   sleep(1);
-  pSql = taos_query(conn,
-                    "create table if not exists m1(ts timestamp, k int, h binary(400), t bigint,"
+  TAOS_RES* pSql = taos_query(conn,
+                    "create table if not exists m2(ts timestamp, k int, h binary(400), t bigint,"
                     "s float, f double, x smallint, y tinyint, z bool) tags(b binary(20), a int, c bigint)");
 
   if (taos_errno(pSql) != 0) {
-    printf("Failed to create metric, reason:%s\n", taos_errstr(conn));
+    printf("Failed to create super table, reason:%s\n", taos_errstr(conn));
     exit(-1);
   }
 
   char tt[1024] = {0};
   for (int32_t i = 0; i < count; ++i) {
-    sprintf(tt, "drop table if exists tm%d", i);
-    pSql = taos_query(conn, tt);
-    taos_free_result(pSql);
-
-    sprintf(tt, "create table tm%d using m1 tags('tm%d', %d, %d)", i, i, i % 20, i);
+    sprintf(tt, "create table t2m%d using m2 tags('tm%d', %d, %d)", i, i, i % 20, i);
     pSql = taos_query(conn, tt);
     if (taos_errno(pSql) != 0) {
       printf("%s\n", taos_errstr(conn));
