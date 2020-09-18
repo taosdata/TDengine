@@ -43,10 +43,23 @@ TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
 LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
 
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
-export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
+export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3:$(pwd)
 
 # Then let us set up the library path so that our compiled SO file can be loaded by Python
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 
 # Now we are all let, and let's see if we can find a crash. Note we pass all params
-python3.8 ./crash_gen.py $@
+if [[ $1 == '--valgrind' ]]; then
+  shift
+  export PYTHONMALLOC=malloc
+  # How to generate valgrind suppression file: https://stackoverflow.com/questions/17159578/generating-suppressions-for-memory-leaks
+  # valgrind --leak-check=full --gen-suppressions=all --log-fd=9 python3.8 ./crash_gen.py $@ 9>>memcheck.log
+  valgrind  \
+    --leak-check=yes \
+    --suppressions=crash_gen/valgrind_taos.supp \
+    python3.8 \
+    ./crash_gen/crash_gen.py $@
+else
+  python3.8 ./crash_gen/crash_gen.py $@
+fi
+
