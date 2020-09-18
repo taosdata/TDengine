@@ -123,8 +123,8 @@ class TDSql:
 
     def checkData(self, row, col, data):
         self.checkRowCol(row, col) 
-        if self.queryResult[row][col] != data:
-            if str(self.queryResult[row][col]) != str(data):
+        if self.queryResult[row][col] != data:            
+            if str(self.queryResult[row][col]) == str(data):
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data)) 
                 return

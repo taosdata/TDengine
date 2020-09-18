@@ -230,4 +230,5 @@ void httpCloseContextByServer(HttpContext *pContext) {
 
   pContext->parsed = false;
   httpRemoveContextFromEpoll(pContext);
+  httpReleaseContext(pContext, true);
 }

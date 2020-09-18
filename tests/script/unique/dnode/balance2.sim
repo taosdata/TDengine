@@ -12,6 +12,12 @@ system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 4
 
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode5 -c maxTablesPerVnode -v 4
+
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1
 system sh/cfg.sh -n dnode3 -c wallevel -v 1
