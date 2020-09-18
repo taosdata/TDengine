@@ -51,12 +51,11 @@ typedef struct SFillInfo {
   int32_t rowSize;              // size of each row
 //  char ** pTags;                // tags value for current interpolation
   SFillTagColInfo* pTags;       // tags value for filling gap
-  int64_t slidingTime;          // sliding value to determine the number of result for a given time window
+  SInterval interval;
   char *  prevValues;           // previous row of data, to generate the interpolation results
   char *  nextValues;           // next row of data
   char**  pData;                // original result data block involved in filling data
   int32_t capacityInRows;       // data buffer size in rows
-  int8_t  slidingUnit;          // sliding time unit
   int8_t  precision;            // time resoluation
   SFillColInfo* pFillCol;       // column info for fill operations
 } SFillInfo;

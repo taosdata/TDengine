@@ -39,7 +39,6 @@ static FORCE_INLINE SWindowResult *getWindowResult(SWindowResInfo *pWindowResInf
 }
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-#define GET_TIMEWINDOW(_winresInfo, _win)  (STimeWindow) {(_win)->skey, ((_win)->skey + (_winresInfo)->interval - 1)}
 #define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!sq))? (_q)->pSelectExpr[1].base.arg->argValue.i64:1)
 
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
