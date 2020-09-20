@@ -69,17 +69,13 @@ typedef struct SJoinSupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
-  char            intervalTimeUnit;
-  char            slidingTimeUnit;
-  int64_t         intervalTime;   // interval time
-  int64_t         slidingTime;    // sliding time
+  SInterval       interval;
   SLimitVal       limit;          // limit info
-  uint64_t        uid;            // query meter uid
+  uint64_t        uid;            // query table uid
   SArray*         colList;        // previous query information, no need to use this attribute, and the corresponding attribution
   SArray*         exprList;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
-  SSqlGroupbyExpr groupbyExpr;
   struct STSBuf*  pTSBuf;          // the TSBuf struct that holds the compressed timestamp array
   FILE*           f;               // temporary file in order to create TSBuf
   char            path[PATH_MAX];  // temporary file path, todo dynamic allocate memory

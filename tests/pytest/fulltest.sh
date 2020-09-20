@@ -186,6 +186,9 @@ python3 ./test.py -f functions/function_sum.py
 python3 ./test.py -f functions/function_top.py
 #python3 ./test.py -f functions/function_twa.py
 python3 queryCount.py
+python3 ./test.py -f query/queryGroupbyWithInterval.py
+python3 client/twoClients.py
+python3 test.py -f query/queryInterval.py
 
 # tools
 python3 test.py -f tools/taosdemo.py

@@ -87,15 +87,12 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
-  cmd->numOfRows += numOfRows;
-
   int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
   for (int32_t k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
     if (row == NULL) {
-      cmd->numOfRows--;
       continue;
     }
     int32_t* length = taos_fetch_lengths(result);
@@ -151,24 +148,23 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     }
 
     // data row array end
-    httpJsonToken(jsonBuf, JsonArrEnd);
-  }
+    httpJsonToken(jsonBuf, JsonArrEnd);   
+    cmd->numOfRows ++;
 
-  if (cmd->numOfRows >= tsRestRowLimit) {
-    httpDebug("context:%p, fd:%d, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve", pContext,
-              pContext->fd, pContext->user, cmd->numOfRows, tsRestRowLimit);
-    return false;
-  } else {
     if (pContext->fd <= 0) {
-      httpError("context:%p, fd:%d, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
-                pContext->user);
+      httpError("context:%p, fd:%d, user:%s, conn closed, abort retrieve", pContext, pContext->fd, pContext->user);
       return false;
-    } else {
-      httpDebug("context:%p, fd:%d, user:%s, total rows:%d retrieved", pContext, pContext->fd, pContext->user,
-                cmd->numOfRows);
-      return true;
+    }
+
+    if (cmd->numOfRows >= tsRestRowLimit) {
+      httpDebug("context:%p, fd:%d, user:%s, retrieve rows:%d larger than limit:%d, abort retrieve", pContext,
+                pContext->fd, pContext->user, cmd->numOfRows, tsRestRowLimit);
+      return false;
     }
   }
+
+  httpDebug("context:%p, fd:%d, user:%s, retrieved row:%d", pContext, pContext->fd, pContext->user, cmd->numOfRows);
+  return true;
 }
 
 bool restBuildSqlTimestampJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {

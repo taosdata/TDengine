@@ -238,6 +238,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
     httpTrace("context:%p, fd:%d, keepAlive:%d", pContext, pContext->fd, pContext->parser->keepAlive);
   }
 
+#if 0
   else if (0 == strcasecmp(key, "Content-Encoding")) {
     if (0 == strcmp(val, "gzip")) {
       parser->contentChunked = 1;
@@ -245,8 +246,9 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
     }
     return 0;
   }
+  #endif
 
-  else if (0 == strcasecmp(key, "Transfer-Encoding")) {
+  else if (0 == strcasecmp(key, "Transfer-Encoding") || 0 == strcasecmp(key, "Content-Encoding")) {
     if (strstr(val, "gzip")) {
       parser->transferGzip = 1;
       ehttp_gzip_conf_t      conf = {0};

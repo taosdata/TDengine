@@ -433,7 +433,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
-  int32_t            len;
+  int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
   time_t         curTime;

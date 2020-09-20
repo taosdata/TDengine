@@ -64,11 +64,11 @@ typedef struct tMemBucket {
   __perc_hash_func_t hashFunc;
 } tMemBucket;
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType);
+tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);
 
 void tMemBucketDestroy(tMemBucket *pBucket);
 
-void tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
+int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
 
 double getPercentile(tMemBucket *pMemBucket, double percent);
 
