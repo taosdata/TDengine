@@ -155,6 +155,7 @@ static SKeyword keywordTable[] = {
     {"INSERT",       TK_INSERT},
     {"INTO",         TK_INTO},
     {"VALUES",       TK_VALUES},
+    {"UPDATE",       TK_UPDATE},
     {"RESET",        TK_RESET},
     {"QUERY",        TK_QUERY},
     {"ADD",          TK_ADD},
