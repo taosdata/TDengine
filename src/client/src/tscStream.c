@@ -515,6 +515,10 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
     return;
   }
 
+  uint64_t handle = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+  T_REF_INC(pSql->pTscObj);
+
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
@@ -608,6 +612,7 @@ void taos_close_stream(TAOS_STREAM *handle) {
    * Here, we need a check before release memory
    */
   if (pSql->signature == pSql) {
+    T_REF_DEC(pSql->pTscObj);
     tscRemoveFromStreamList(pStream, pSql);
 
     taosTmrStopA(&(pStream->pTimer));
