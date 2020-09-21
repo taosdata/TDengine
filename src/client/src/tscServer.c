@@ -188,8 +188,8 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   if (tscShouldFreeHeartBeat(pHB)) {
     tscDebug("%p free HB object and release connection", pHB);
-    tscFreeSqlObj(pHB);
-    tscCloseTscObj(pObj);
+    pObj->pHb = 0;
+    taos_free_result(pHB);
   } else {
     int32_t code = tscProcessSql(pHB);
     if (code != TSDB_CODE_SUCCESS) {
