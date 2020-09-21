@@ -620,9 +620,9 @@ void taos_close_stream(TAOS_STREAM *handle) {
     tscDebug("%p stream:%p is closed", pSql, pStream);
     // notify CQ to release the pStream object
     pStream->fp(pStream->param, NULL, NULL);
-    taos_free_result(pSql);
-
     pStream->pSql = NULL;
+
+    taos_free_result(pSql);
     taosTFree(pStream);
   }
 }
