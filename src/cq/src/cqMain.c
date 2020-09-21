@@ -66,8 +66,6 @@ typedef struct SCqObj {
   SCqContext *   pContext;
 } SCqObj;
 
-int cqDebugFlag = 135;
-
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row); 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
 
@@ -252,6 +250,7 @@ static void cqProcessCreateTimer(void *param, void *tmrId) {
   SCqContext* pContext = pObj->pContext;
 
   if (pContext->dbConn == NULL) {
+    cDebug("vgId:%d, try connect to TDengine", pContext->vgId);
     taos_connect_a(NULL, pContext->user, pContext->pass, pContext->db, 0, doCreateStream, param, NULL);
   } else {
     cqCreateStream(pContext, pObj);
@@ -262,6 +261,7 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pContext = pContext;
 
   if (pContext->dbConn == NULL) {
+    cDebug("vgId:%d, create dbConn after 1000 ms", pContext->vgId);
     pObj->tmrId = taosTmrStart(cqProcessCreateTimer, 1000, pObj, pContext->tmrCtrl);
     return;
   }
