@@ -263,32 +263,15 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  if (pObj->pHb != NULL) {
-    if (pObj->pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
-      rpcCancelRequest(pObj->pHb->pRpcCtx);
+  SSqlObj* pHb = pObj->pHb;
+  if (pHb != NULL) {
+    if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
+      rpcCancelRequest(pHb->pRpcCtx);
     }
 
-    tscSetFreeHeatBeat(pObj);
-    tscFreeSqlObj(pObj->pHb);
+    pObj->pHb = NULL;
+    taos_free_result(pHb);
   }
-
-  // free all sqlObjs created by using this connect before free the STscObj
-//  while(1) {
-//    pthread_mutex_lock(&pObj->mutex);
-//    void* p = pObj->sqlList;
-//    pthread_mutex_unlock(&pObj->mutex);
-//
-//    if (p == NULL) {
-//      break;
-//    }
-//
-//    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
-//    taosMsleep(100);
-//
-//    // todo fix me!! two threads call taos_free_result will cause problem.
-//    tscDebug("%p free :%p", pObj, p);
-//    taos_free_result(p);
-//  }
 
   int32_t ref = T_REF_DEC(pObj);
   assert(ref >= 0);
