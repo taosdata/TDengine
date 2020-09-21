@@ -128,6 +128,7 @@ echo "tmrDebugFlag           131"                >> $TAOS_CFG
 echo "udebugFlag             135"                >> $TAOS_CFG
 echo "sdebugFlag             135"                >> $TAOS_CFG
 echo "wdebugFlag             135"                >> $TAOS_CFG
+echo "cqdebugFlag            135"                >> $TAOS_CFG
 echo "monitor                0"                  >> $TAOS_CFG
 echo "monitorInterval        1"                  >> $TAOS_CFG
 echo "http                   0"                  >> $TAOS_CFG
