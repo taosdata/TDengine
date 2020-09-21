@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "taos.h"
+#include "tsclient.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "ttimer.h"
@@ -64,8 +65,6 @@ typedef struct SCqObj {
   struct SCqObj *next;
   SCqContext *   pContext;
 } SCqObj;
-
-int cqDebugFlag = 135;
 
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row); 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
@@ -238,24 +237,31 @@ void cqDrop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
+static void doCreateStream(void *param, TAOS_RES *result, int code) {
+  SCqObj* pObj = (SCqObj*)param;
+  SCqContext* pContext = pObj->pContext;
+  SSqlObj* pSql = (SSqlObj*)result;
+  pContext->dbConn = pSql->pTscObj;
+  cqCreateStream(pContext, pObj);
+}
+
 static void cqProcessCreateTimer(void *param, void *tmrId) {
   SCqObj* pObj = (SCqObj*)param;
   SCqContext* pContext = pObj->pContext;
 
   if (pContext->dbConn == NULL) {
-    pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, pContext->db, 0);
-    if (pContext->dbConn == NULL) {
-      cError("vgId:%d, failed to connect to TDengine(%s)", pContext->vgId, tstrerror(terrno));
-    }
+    cDebug("vgId:%d, try connect to TDengine", pContext->vgId);
+    taos_connect_a(NULL, pContext->user, pContext->pass, pContext->db, 0, doCreateStream, param, NULL);
+  } else {
+    cqCreateStream(pContext, pObj);
   }
-  
-  cqCreateStream(pContext, pObj);
 }
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pContext = pContext;
 
   if (pContext->dbConn == NULL) {
+    cDebug("vgId:%d, create dbConn after 1000 ms", pContext->vgId);
     pObj->tmrId = taosTmrStart(cqProcessCreateTimer, 1000, pObj, pContext->tmrCtrl);
     return;
   }
