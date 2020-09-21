@@ -53,7 +53,7 @@ function buildTDengine {
 function runGeneralCaseOneByOne {
 	while read -r line; do
 		if [[ $line =~ ^./test.sh* ]]; then
-			case=`echo $line | grep -w "general\|unique\/mnode\/mgmt33.sim\|unique\/stable\/dnode3.sim\|unique\/cluster\/balance3.sim\|unique\/arbitrator\/offline_replica2_alterTable_online.sim"|awk '{print $NF}'`
+			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
 			if [ -n "$case" ]; then
 				./test.sh -f $case > /dev/null 2>&1 && \
