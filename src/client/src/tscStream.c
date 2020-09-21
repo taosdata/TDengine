@@ -612,7 +612,6 @@ void taos_close_stream(TAOS_STREAM *handle) {
    * Here, we need a check before release memory
    */
   if (pSql->signature == pSql) {
-    T_REF_DEC(pSql->pTscObj);
     tscRemoveFromStreamList(pStream, pSql);
 
     taosTmrStopA(&(pStream->pTimer));
@@ -621,7 +620,7 @@ void taos_close_stream(TAOS_STREAM *handle) {
     // notify CQ to release the pStream object
     pStream->fp(pStream->param, NULL, NULL);
 
-    tscFreeSqlObj(pSql);
+    taos_free_result(pSql);
     pStream->pSql = NULL;
 
     taosTFree(pStream);
