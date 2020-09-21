@@ -1383,7 +1383,7 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs, SSubqueryState
     taosTFree(pSupport->localBuffer);
     taosTFree(pSupport);
     
-    tscFreeSqlObj(pSub);
+    taos_free_result(pSub);
   }
   
   free(pState);
