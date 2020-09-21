@@ -152,6 +152,10 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     goto fail;
   }
 
+  uint64_t handle = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+  T_REF_INC(pSql->pTscObj);
+
   code = tsParseSql(pSql, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tsem_wait(&pSub->sem);
@@ -173,7 +177,11 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 fail:
   tscError("tscCreateSubscription failed at line %d, reason: %s", line, tstrerror(code));
   if (pSql != NULL) {
-    tscFreeSqlObj(pSql);
+    if (pSql->self != NULL) {
+      taos_free_result(pSql);
+    } else {
+      tscFreeSqlObj(pSql);
+    }
     pSql = NULL;
   }
   if (pSub != NULL) {
@@ -492,6 +500,10 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
     if (remove(path) != 0) {
       tscError("failed to remove progress file, topic = %s, error = %s", pSub->topic, strerror(errno));
     }
+  }
+
+  if (pSub->pSql != NULL) {
+    taos_free_result(pSub->pSql);
   }
 
   tscFreeSqlObj(pSub->pSql);
