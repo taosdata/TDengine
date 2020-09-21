@@ -1743,8 +1743,6 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   }
 
   pNew->pTscObj = pSql->pTscObj;
-  T_REF_INC(pNew->pTscObj);
-
   pNew->signature = pNew;
 
   SSqlCmd* pCmd = &pNew->cmd;
@@ -1777,7 +1775,6 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
 
   T_REF_INC(pNew->pTscObj);
-
   uint64_t p = (uint64_t) pNew;
   pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
   return pNew;

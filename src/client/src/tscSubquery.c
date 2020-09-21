@@ -278,7 +278,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       tscDebug("%p subIndex: %d, no need to launch query, ignore it", pSql, i);
     
       tscDestroyJoinSupporter(pSupporter);
-      tscFreeSqlObj(pPrevSub);
+      taos_free_result(pPrevSub);
     
       pSql->pSubs[i] = NULL;
       continue;
