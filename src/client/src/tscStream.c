@@ -572,6 +572,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   pStream->pSql = pSql;
   pSql->pStream = pStream;
   pSql->param = pStream;
+  pSql->maxRetry = TSDB_MAX_REPLICA;
 
   pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
@@ -579,6 +580,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     tscFreeSqlObj(pSql);
     return NULL;
   }
+
   strtolower(pSql->sqlstr, sqlstr);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
@@ -612,7 +614,6 @@ void taos_close_stream(TAOS_STREAM *handle) {
    * Here, we need a check before release memory
    */
   if (pSql->signature == pSql) {
-    T_REF_DEC(pSql->pTscObj);
     tscRemoveFromStreamList(pStream, pSql);
 
     taosTmrStopA(&(pStream->pTimer));
