@@ -531,6 +531,8 @@ typedef struct {
   int8_t   replications;
   int8_t   quorum;
   int8_t   ignoreExist;
+  int8_t   update;
+  int8_t   reserve[9];
 } SCMCreateDbMsg, SCMAlterDbMsg;
 
 typedef struct {
@@ -630,7 +632,8 @@ typedef struct {
   int8_t   replications;
   int8_t   wals;
   int8_t   quorum;
-  int8_t   reserved[16];
+  int8_t   update;
+  int8_t   reserved[15];
 } SMDVnodeCfg;
 
 typedef struct {
