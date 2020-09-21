@@ -260,7 +260,13 @@ static void incRefFn(void* ptNode) {
 }
 
 void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
-  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0 || pCacheObj->deleting == 1) {
+  if (pCacheObj == NULL || pCacheObj->deleting == 1) {
+    return NULL;
+  }
+
+  if (taosHashGetSize(pCacheObj->pHashTable) == 0) {
+    atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
+    uError("cache:%s, key:%p, not in cache, retrieved failed, reason: empty sqlObj cache", pCacheObj->name, key);
     return NULL;
   }
 
@@ -274,7 +280,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
+    uError("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
   }
 
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
