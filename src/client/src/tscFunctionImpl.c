@@ -326,7 +326,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = dataBytes + sizeof(SLastrowInfo);
+    *interBytes = dataBytes;
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -1843,8 +1843,10 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
     pInfo1->hasResult = DATA_SET_FLAG;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
+  } else {
+    DO_UPDATE_TAG_COLUMNS(pCtx, pCtx->ptsList[pCtx->size - 1]);
   }
-  
+
   SET_VAL(pCtx, pCtx->size, 1);
 }
 
