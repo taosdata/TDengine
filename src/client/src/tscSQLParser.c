@@ -5286,9 +5286,12 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
 
 static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
   int32_t tagLength = 0;
-  
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
-  
+
+//todo is 0??
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_TAGPRJ || pExpr->functionId == TSDB_FUNC_TAG) {
@@ -5300,8 +5303,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
     }
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  SSchema*        pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
+  SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -5309,7 +5311,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
        !(pExpr->functionId == TSDB_FUNC_PRJ && TSDB_COL_IS_UD_COL(pExpr->colInfo.flag))) {
       SSchema* pColSchema = &pSchema[pExpr->colInfo.colIndex];
       getResultDataInfo(pColSchema->type, pColSchema->bytes, pExpr->functionId, (int32_t)pExpr->param[0].i64Key, &pExpr->resType,
-                        &pExpr->resBytes, &pExpr->interBytes, tagLength, true);
+                        &pExpr->resBytes, &pExpr->interBytes, tagLength, isSTable);
     }
   }
 }
@@ -5320,7 +5322,7 @@ static int32_t doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    if (pExpr->functionId == TSDB_FUNC_PRJ && (!TSDB_COL_IS_UD_COL(pExpr->colInfo.flag))) {
+    if (pExpr->functionId == TSDB_FUNC_PRJ && (!TSDB_COL_IS_UD_COL(pExpr->colInfo.flag) && (pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX))) {
       bool qualifiedCol = false;
       for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
         SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
@@ -5417,13 +5419,6 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
   bool    tagTsColExists = false;
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
-
-  // todo is 0??
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (!isSTable) {
-    return TSDB_CODE_SUCCESS;
-  }
 
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
