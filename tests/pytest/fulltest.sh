@@ -192,3 +192,8 @@ python3 test.py -f query/queryInterval.py
 
 # tools
 python3 test.py -f tools/taosdemo.py
+
+# subscribe
+python3 test.py -f subscribe/singlemeter.py
+python3 test.py -f subscribe/stability.py
+python3 test.py -f subscribe/supertable.py
