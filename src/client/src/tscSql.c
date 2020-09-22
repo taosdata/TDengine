@@ -264,12 +264,13 @@ void taos_close(TAOS *taos) {
   }
 
   SSqlObj* pHb = pObj->pHb;
-  if (pHb != NULL) {
+  if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
     if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
       rpcCancelRequest(pHb->pRpcCtx);
+      pHb->pRpcCtx = NULL;
     }
 
-    pObj->pHb = NULL;
+    tscDebug("%p, HB is freed", pHb);
     taos_free_result(pHb);
   }
 

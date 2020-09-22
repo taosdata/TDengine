@@ -266,7 +266,6 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
 
   if (taosHashGetSize(pCacheObj->pHashTable) == 0) {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uError("cache:%s, key:%p, not in cache, retrieved failed, reason: empty cache", pCacheObj->name, key);
     return NULL;
   }
 
