@@ -402,6 +402,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
     return;
   }
 
+  void *p = pSql;
+
   tscDebug("%p start to free sqlObj", pSql);
   STscObj* pTscObj = pSql->pTscObj;
 
@@ -421,7 +423,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tsem_destroy(&pSql->rspSem);
 
   free(pSql);
-  tscDebug("%p free sqlObj completed", pSql);
+
+  tscDebug("%p free sqlObj completed", p);
 
   int32_t ref = T_REF_DEC(pTscObj);
   assert(ref >= 0);
