@@ -406,14 +406,20 @@ int32_t httpGzipCompressInit(HttpContext *pContext) {
 
 int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData, bool isTheLast) {
   int32_t err = 0;
+  int32_t lastTotalLen = (int32_t) (pContext->gzipStream.total_out);
   pContext->gzipStream.next_in = (Bytef *) srcData;
   pContext->gzipStream.avail_in = (uLong) nSrcData;
   pContext->gzipStream.next_out = (Bytef *) destData;
   pContext->gzipStream.avail_out = (uLong) (*nDestData);
 
-  while (pContext->gzipStream.avail_in != 0 && pContext->gzipStream.total_out < (uLong) (*nDestData)) {
+  while (pContext->gzipStream.avail_in != 0) {
     if (deflate(&pContext->gzipStream, Z_FULL_FLUSH) != Z_OK) {
       return -1;
+    }
+
+    int32_t cacheLen = pContext->gzipStream.total_out - lastTotalLen;
+    if (cacheLen >= *nDestData) {
+      return -2;
     }
   }
 
@@ -427,16 +433,16 @@ int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData,
         break;
       }
       if (err != Z_OK) {
-        return -2;
+        return -3;
       }
     }
 
     if (deflateEnd(&pContext->gzipStream) != Z_OK) {
-      return -3;
+      return -4;
     }
   }
 
-  *nDestData = (int32_t) (pContext->gzipStream.total_out);
+  *nDestData = (int32_t) (pContext->gzipStream.total_out) - lastTotalLen;
   return 0;
 }
 
