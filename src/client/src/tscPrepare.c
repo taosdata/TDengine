@@ -546,6 +546,10 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     pSql->cmd.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
     
+    uint64_t handle = (uint64_t) pSql;
+    pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+    T_REF_INC(pSql->pTscObj);
+
     int32_t code = tsParseSql(pSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       // wait for the callback function to post the semaphore
@@ -574,7 +578,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     free(normal->sql);
   }
 
-  tscFreeSqlObj(pStmt->pSql);
+  taos_free_result(pStmt->pSql);
   free(pStmt);
   return TSDB_CODE_SUCCESS;
 }
