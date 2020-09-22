@@ -136,7 +136,6 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
       etime = pStream->stime + (etime - pStream->stime) / pStream->interval.interval * pStream->interval.interval;
     } else {
       etime = taosTimeTruncate(etime, &pStream->interval, pStream->precision);
-      //etime = taosGetIntervalStartTimestamp(etime, pStream->interval.sliding, pStream->interval.sliding, pStream->interval.slidingUnit, pStream->precision);
     }
     pQueryInfo->window.ekey = etime;
     if (pQueryInfo->window.skey >= pQueryInfo->window.ekey) {
@@ -454,17 +453,11 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
     }
   } else {             // timewindow based aggregation stream
     if (stime == 0) {  // no data in meter till now
-      stime = pQueryInfo->window.skey;
-      if (stime == INT64_MIN) {
-        stime = (int64_t)taosGetTimestamp(pStream->precision);
-        stime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
-        stime = taosTimeTruncate(stime - 1, &pStream->interval, pStream->precision);
-        //stime = taosGetIntervalStartTimestamp(stime, pStream->interval.interval, pStream->interval.interval, pStream->interval.intervalUnit, pStream->precision);
-        //stime = taosGetIntervalStartTimestamp(stime - 1, pStream->interval.interval, pStream->interval.interval, pStream->interval.intervalUnit, pStream->precision);
-        tscWarn("%p stream:%p, last timestamp:0, reset to:%" PRId64, pSql, pStream, stime);
+      if (pQueryInfo->window.skey != INT64_MIN) {
+        stime = pQueryInfo->window.skey;
       }
+      stime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
     } else {
-      //int64_t newStime = taosGetIntervalStartTimestamp(stime, pStream->interval.interval, pStream->interval.interval, pStream->interval.intervalUnit, pStream->precision);
       int64_t newStime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
       if (newStime != stime) {
         tscWarn("%p stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64, pSql, pStream, stime, newStime);
@@ -477,8 +470,10 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
 }
 
 static int64_t tscGetLaunchTimestamp(const SSqlStream *pStream) {
-  int64_t timer = pStream->stime - taosGetTimestamp(pStream->precision);
-  if (timer < 0) timer = 0;
+  int64_t timer = 0, now = taosGetTimestamp(pStream->precision);
+  if (pStream->stime > now) {
+    timer = pStream->stime - now;
+  }
 
   int64_t startDelay =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsStreamCompStartDelay * 1000L : tsStreamCompStartDelay;
