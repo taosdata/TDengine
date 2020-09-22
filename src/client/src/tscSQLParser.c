@@ -368,7 +368,40 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       return tscGetTableMeta(pSql, pTableMetaInfo);
     }
+    case TSDB_SQL_SHOW_CREATE_TABLE: {
+      SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
+      const char* msg1 = "invalid table name";
+      const char* msg2 = "table name is too long";
 
+      if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
+      if (!tscValidateTableNameLength(pToken->n)) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+      return tscGetTableMeta(pSql, pTableMetaInfo);
+    }
+    case TSDB_SQL_SHOW_CREATE_DATABASE: {
+      const char* msg1 = "invalid database name";
+      const char* msg2 = "table name is too long";
+      SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
+
+      if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+      if (pToken->n > TSDB_DB_NAME_LEN) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+      if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+      return TSDB_CODE_SUCCESS; 
+    }                                
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
       const char* msg3 = "invalid dnode ep";
