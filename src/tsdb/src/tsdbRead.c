@@ -2114,6 +2114,8 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
       totalNumOfTable++;
       taosArrayPush(pGroup, &keyInfo);
     } else {
+      taosArrayDestroy(pGroup);
+
       taosArrayRemove(groupList->pGroupList, j);
       numOfGroups -= 1;
       j -= 1;
@@ -2736,4 +2738,5 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
   }
 
   taosArrayDestroy(pGroupList->pGroupList);
+  pGroupList->numOfTables = 0;
 }

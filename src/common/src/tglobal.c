@@ -204,6 +204,7 @@ int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
+int32_t cqDebugFlag = 135;
 
 int32_t (*monitorStartSystemFp)() = NULL;
 void (*monitorStopSystemFp)() = NULL;
@@ -223,12 +224,13 @@ void taosSetAllDebugFlag() {
     httpDebugFlag = debugFlag;
     mqttDebugFlag = debugFlag;
     monitorDebugFlag = debugFlag;
+    qDebugFlag = debugFlag;    
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
     sDebugFlag = debugFlag;
     wDebugFlag = debugFlag;
     tsdbDebugFlag = debugFlag;
-    qDebugFlag = debugFlag;    
+    cqDebugFlag = debugFlag;
     uInfo("all debug flag are set to %d", debugFlag);
   }
 }
@@ -1214,6 +1216,16 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsdbDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "cqDebugFlag";
+  cfg.ptr = &cqDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
   cfg.maxValue = 255;
   cfg.ptrLength = 0;

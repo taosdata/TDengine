@@ -236,13 +236,21 @@ TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t us
   return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
 }
 
+static void asyncConnCallback(void *param, TAOS_RES *tres, int code) {
+  SSqlObj *pSql = (SSqlObj *) tres;
+  assert(pSql != NULL);
+  
+  pSql->fetchFp(pSql->param, tres, code);
+}
+
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-  SSqlObj* pSql = taosConnectImpl(ip, user, pass, NULL, db, port, fp, param, taos);
+  SSqlObj* pSql = taosConnectImpl(ip, user, pass, NULL, db, port, asyncConnCallback, param, taos);
   if (pSql == NULL) {
     return NULL;
   }
   
+  pSql->fetchFp = fp;
   pSql->res.code = tscProcessSql(pSql);
   tscDebug("%p DB async connection is opening", taos);
   return taos;
@@ -255,32 +263,16 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  if (pObj->pHb != NULL) {
-    if (pObj->pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
-      rpcCancelRequest(pObj->pHb->pRpcCtx);
+  SSqlObj* pHb = pObj->pHb;
+  if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
+    if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
+      rpcCancelRequest(pHb->pRpcCtx);
+      pHb->pRpcCtx = NULL;
     }
 
-    tscSetFreeHeatBeat(pObj);
-    tscFreeSqlObj(pObj->pHb);
+    tscDebug("%p, HB is freed", pHb);
+    taos_free_result(pHb);
   }
-
-  // free all sqlObjs created by using this connect before free the STscObj
-//  while(1) {
-//    pthread_mutex_lock(&pObj->mutex);
-//    void* p = pObj->sqlList;
-//    pthread_mutex_unlock(&pObj->mutex);
-//
-//    if (p == NULL) {
-//      break;
-//    }
-//
-//    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
-//    taosMsleep(100);
-//
-//    // todo fix me!! two threads call taos_free_result will cause problem.
-//    tscDebug("%p free :%p", pObj, p);
-//    taos_free_result(p);
-//  }
 
   int32_t ref = T_REF_DEC(pObj);
   assert(ref >= 0);

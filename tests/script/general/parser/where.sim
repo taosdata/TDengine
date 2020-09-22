@@ -308,13 +308,25 @@ sleep 2000
 
 system sh/exec.sh -n dnode1 -s start
 
-sql select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
+sql_error select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
+
+sql select * from wh_mt0 where c3 = '1' and tbname in ('test_null_filter');
 if $row != 0 then
   return -1
 endi
 
-sql select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
-if $row != 0 then
+sql select * from wh_mt0 where c3 = '1';
+if $row == 0 then
+  return -1
+endi
+
+sql select * from wh_mt0 where c3 is null and tbname in ('test_null_filter');
+if $rows != 10000 then
+  return -1
+endi
+
+sql select * from wh_mt0 where c3 is not null and tbname in ('test_null_filter');
+if $rows != 0 then
   return -1
 endi
 

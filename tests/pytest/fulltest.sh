@@ -16,6 +16,7 @@ python3 ./test.py -f insert/nchar.py
 python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
+python3 insert/retentionpolicy.py
 
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
@@ -187,6 +188,13 @@ python3 ./test.py -f functions/function_top.py
 #python3 ./test.py -f functions/function_twa.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
+python3 client/twoClients.py
+python3 test.py -f query/queryInterval.py
 
 # tools
 python3 test.py -f tools/taosdemo.py
+
+# subscribe
+python3 test.py -f subscribe/singlemeter.py
+python3 test.py -f subscribe/stability.py
+python3 test.py -f subscribe/supertable.py

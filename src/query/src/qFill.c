@@ -38,6 +38,9 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
   pFillInfo->numOfTags = numOfTags;
   pFillInfo->numOfCols = numOfCols;
   pFillInfo->precision = precision;
+
+  pFillInfo->interval.interval = slidingTime;
+  pFillInfo->interval.intervalUnit = slidingUnit;
   pFillInfo->interval.sliding = slidingTime;
   pFillInfo->interval.slidingUnit = slidingUnit;
 

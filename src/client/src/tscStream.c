@@ -515,6 +515,10 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
     return;
   }
 
+  uint64_t handle = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+  T_REF_INC(pSql->pTscObj);
+
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
@@ -568,6 +572,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   pStream->pSql = pSql;
   pSql->pStream = pStream;
   pSql->param = pStream;
+  pSql->maxRetry = TSDB_MAX_REPLICA;
 
   pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
@@ -575,6 +580,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     tscFreeSqlObj(pSql);
     return NULL;
   }
+
   strtolower(pSql->sqlstr, sqlstr);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
@@ -615,10 +621,9 @@ void taos_close_stream(TAOS_STREAM *handle) {
     tscDebug("%p stream:%p is closed", pSql, pStream);
     // notify CQ to release the pStream object
     pStream->fp(pStream->param, NULL, NULL);
-
-    tscFreeSqlObj(pSql);
     pStream->pSql = NULL;
 
+    taos_free_result(pSql);
     taosTFree(pStream);
   }
 }

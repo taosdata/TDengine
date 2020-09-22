@@ -188,8 +188,8 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   if (tscShouldFreeHeartBeat(pHB)) {
     tscDebug("%p free HB object and release connection", pHB);
-    tscFreeSqlObj(pHB);
-    tscCloseTscObj(pObj);
+    pObj->pHb = 0;
+    taos_free_result(pHB);
   } else {
     int32_t code = tscProcessSql(pHB);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1959,6 +1959,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   return 0;
 }
 
+// TODO multithread problem
 static void createHBObj(STscObj* pObj) {
   if (pObj->pHb != NULL) {
     return;
@@ -1987,9 +1988,12 @@ static void createHBObj(STscObj* pObj) {
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
   pObj->pHb = pSql;
-  T_REF_INC(pObj);
 
   tscAddSubqueryInfo(&pObj->pHb->cmd);
+
+  int64_t ad = (int64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &ad, sizeof(int64_t), &pSql, sizeof(int64_t), 2 * 60 * 1000);
+  T_REF_INC(pObj);
 
   tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
 }
@@ -2017,8 +2021,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->connId = htonl(pConnect->connId);
 
   createHBObj(pObj);
-
-//  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
 }

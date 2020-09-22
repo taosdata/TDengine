@@ -326,7 +326,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = dataBytes + sizeof(SLastrowInfo);
+    *interBytes = dataBytes;
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -711,13 +711,16 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY en
   if (pCtx->aOutputBuf == NULL) {
     return BLK_DATA_ALL_NEEDED;
   }
-  
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+
+  return BLK_DATA_ALL_NEEDED;
+  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
+  // is invalid
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {  // data in current block is not earlier than current result
+//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
@@ -730,12 +733,16 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end
     return BLK_DATA_ALL_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {
-    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  return BLK_DATA_ALL_NEEDED;
+  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
+  // is invalid
+
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {
+//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1836,8 +1843,10 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
     pInfo1->hasResult = DATA_SET_FLAG;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
+  } else {
+    DO_UPDATE_TAG_COLUMNS(pCtx, pCtx->ptsList[pCtx->size - 1]);
   }
-  
+
   SET_VAL(pCtx, pCtx->size, 1);
 }
 

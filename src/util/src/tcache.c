@@ -260,7 +260,12 @@ static void incRefFn(void* ptNode) {
 }
 
 void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
-  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0 || pCacheObj->deleting == 1) {
+  if (pCacheObj == NULL || pCacheObj->deleting == 1) {
+    return NULL;
+  }
+
+  if (taosHashGetSize(pCacheObj->pHashTable) == 0) {
+    atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
     return NULL;
   }
 
