@@ -16,6 +16,7 @@ python3 ./test.py -f insert/nchar.py
 python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
+python3 insert/retentionpolicy.py
 
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
