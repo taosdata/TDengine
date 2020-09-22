@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 5, false, mnodeFreeShowObj, "show");
+  tsMnodeShowCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 5, true, mnodeFreeShowObj, "show");
   return 0;
 }
 
@@ -389,10 +389,12 @@ static bool mnodeAccquireShowObj(SShowObj *pShow) {
 }
 
 static void* mnodePutShowObj(SShowObj *pShow) {
+  const int32_t DEFAULT_SHOWHANDLE_LIFE_SPAN = tsShellActivityTimer * 6 * 1000;
+
   if (tsMnodeShowCache != NULL) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
     uint64_t handleVal = (uint64_t)pShow;
-    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &handleVal, sizeof(int64_t), &pShow, sizeof(int64_t), 6000);
+    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &handleVal, sizeof(int64_t), &pShow, sizeof(int64_t), DEFAULT_SHOWHANDLE_LIFE_SPAN);
     pShow->ppShow = (void**)ppShow;
     mDebug("%p, show is put into cache, data:%p index:%d", pShow, ppShow, pShow->index);
     return pShow;
