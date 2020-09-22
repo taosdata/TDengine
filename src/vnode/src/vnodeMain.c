@@ -396,6 +396,7 @@ void vnodeRelease(void *pVnodeRaw) {
     if (0 == tsEnableVnodeBak) {
       vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
     } else {
+      taosRemoveDir(newDir);
       taosRename(rootDir, newDir);
     }
 
