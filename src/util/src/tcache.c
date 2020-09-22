@@ -279,7 +279,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     uDebug("cache:%s, key:%p, %p is retrieved from cache, refcnt:%d", pCacheObj->name, key, pData, T_REF_VAL_GET(ptNode));
   } else {
     atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
-    uError("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
+    uDebug("cache:%s, key:%p, not in cache, retrieved failed", pCacheObj->name, key);
   }
 
   atomic_add_fetch_32(&pCacheObj->statistics.totalAccess, 1);
