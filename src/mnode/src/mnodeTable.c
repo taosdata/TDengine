@@ -1384,6 +1384,9 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   }
 
   pShow->numOfReads += numOfRows;
+  const int32_t NUM_OF_COLUMNS = 5;
+
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;
