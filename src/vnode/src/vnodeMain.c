@@ -135,7 +135,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.compression         = pVnodeCfg->cfg.compression;
-  tsdbCfg.update = 1;
+  tsdbCfg.update              = pVnodeCfg->cfg.update;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
@@ -144,7 +144,8 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_VND_INIT_FAILED;
   }
 
-  vInfo("vgId:%d, vnode is created, walLevel:%d fsyncPeriod:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel, pVnodeCfg->cfg.fsyncPeriod);
+  vInfo("vgId:%d, vnode is created, walLevel:%d fsyncPeriod:%d update:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel,
+        pVnodeCfg->cfg.fsyncPeriod, pVnodeCfg->cfg.update);
   code = vnodeOpen(pVnodeCfg->cfg.vgId, rootDir);
 
   return code;
