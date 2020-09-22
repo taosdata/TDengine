@@ -643,7 +643,7 @@ static void tsdbOrgMeta(void *pHandle) {
 }
 
 static char *getTagIndexKey(const void *pData) {
-  STable *pTable = *(STable **)pData;
+  STable *pTable = (STable *)pData;
 
   STSchema *pSchema = tsdbGetTableTagSchema(pTable);
   STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
@@ -900,7 +900,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
 
   pTable->pSuper = pSTable;
 
-  tSkipListPut(pSTable->pIndex, (void *)(&pTable), sizeof(STable *));
+  tSkipListPut(pSTable->pIndex, (void *)pTable);
 
   if (refSuper) T_REF_INC(pSTable);
   return 0;
@@ -1182,7 +1182,7 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (SL_GET_SIZE(pTable->pIndex) + 1));
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (SL_SIZE(pTable->pIndex) + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }
