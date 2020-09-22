@@ -155,6 +155,7 @@ python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 python3 ./test.py -f stream/parser.py
+python3 ./test.py -f stream/history.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
