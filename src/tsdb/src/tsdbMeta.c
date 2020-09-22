@@ -925,7 +925,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
     SSkipListNode *pNode = taosArrayGetP(res, i);
 
     // STableIndexElem* pElem = (STableIndexElem*) SL_GET_NODE_DATA(pNode);
-    if (*(STable **)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
+    if ((STable *)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
       tSkipListRemoveNode(pSTable->pIndex, pNode);
     }
   }
@@ -1229,7 +1229,7 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
     }
 
     while (tSkipListIterNext(pIter)) {
-      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
       ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
       pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
     }
@@ -1254,7 +1254,7 @@ static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
     tsdbWLockRepoMeta(pRepo);
 
     while (tSkipListIterNext(pIter)) {
-      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
       tsdbRemoveTableFromMeta(pRepo, tTable, false, false);
     }
 
