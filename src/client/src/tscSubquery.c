@@ -23,6 +23,7 @@
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "tscSubquery.h"
 
 typedef struct SInsertSupporter {
   SSubqueryState* pState;

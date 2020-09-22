@@ -673,6 +673,7 @@ typedef struct {
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_FNAME_LEN];   // table id
+  char          sTableId[TSDB_TABLE_FNAME_LEN];
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
