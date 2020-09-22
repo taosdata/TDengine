@@ -130,8 +130,15 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   int code = TSDB_CODE_SUCCESS;
 
   STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
-  if (pCfg == NULL) return terrno;
-  if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) code = terrno;
+  if (pCfg == NULL) {
+    ASSERT(terrno != 0);
+    return terrno;
+  }
+
+  if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
+    code = terrno;
+    ASSERT(code != 0);
+  }
 
   tsdbClearTableCfg(pCfg);
   return code;

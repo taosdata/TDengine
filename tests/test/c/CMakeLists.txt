@@ -31,16 +31,16 @@ IF (TD_LINUX)
   #add_executable(createTablePerformance createTablePerformance.c)
   #target_link_libraries(createTablePerformance taos_static tutil common pthread)
 
-  #add_executable(createNormalTable createNormalTable.c)
-  #target_link_libraries(createNormalTable taos_static tutil common pthread)
+  add_executable(createNormalTable createNormalTable.c)
+  target_link_libraries(createNormalTable taos_static tutil common pthread)
 
   #add_executable(queryPerformance queryPerformance.c)
   #target_link_libraries(queryPerformance taos_static tutil common pthread)
   
-  add_executable(httpTest httpTest.c)
-  target_link_libraries(httpTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
+  #add_executable(httpTest httpTest.c)
+  #target_link_libraries(httpTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
 
-  add_executable(cacheTest cacheTest.c)
-  target_link_libraries(cacheTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
+  #add_executable(cacheTest cacheTest.c)
+  #target_link_libraries(cacheTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
 ENDIF()
 
