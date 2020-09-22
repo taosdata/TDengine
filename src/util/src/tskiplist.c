@@ -19,8 +19,6 @@
 #include "tulog.h"
 #include "tutil.h"
 
-#define DO_MEMSET_PTR_AREA(n) memset((n)->forwards, 0, ((n)->level * 2))
-
 static int                initForwardBackwardPtr(SSkipList *pSkipList);
 static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order);
 static void               tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode);
@@ -117,7 +115,10 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
     if (dupMode == SL_UPDATE_DUP_KEY) {
       pNode = SL_NODE_GET_FORWARD_POINTER(forward[0], 0);
       atomic_store_ptr(&(pNode->pData), pData);
-      pNode->flags &= (~(SL_NODE_DELETED_FLAG));
+      if (SL_IS_NODE_DELETED(pNode)) {
+        pNode->flags &= (~(SL_NODE_DELETED_FLAG));
+        pSkipList->size++;
+      }
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
@@ -135,6 +136,8 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
 
 uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key) {
   uint32_t count = 0;
+
+  if (SL_DUP_MODE(pSkipList) == SL_DISCARD_DUP_KEY) return 0;
 
   tSkipListWLock(pSkipList);
 
@@ -199,8 +202,8 @@ SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
 }
 
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order) {
-  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
-  assert(pSkipList != NULL);
+  ASSERT(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  ASSERT(pSkipList != NULL);
 
   SSkipListIterator *iter = doCreateSkipListIterator(pSkipList, order);
   if (val == NULL) {
@@ -274,7 +277,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   while (p != pSkipList->pTail) {
     char *key = SL_GET_NODE_KEY(pSkipList, p);
     if (prev != NULL) {
-      assert(pSkipList->comparFn(prev, key) < 0);
+      ASSERT(pSkipList->comparFn(prev, key) < 0);
     }
 
     switch (pSkipList->type) {
@@ -302,9 +305,29 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
   }
 }
 
-static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **forward, SSkipListNode *pNode) {
-  DO_MEMSET_PTR_AREA(pNode);
+SSkipListKey tSkipListGetMinKey(SSkipList *pSkipList) {
+  if (pSkipList == NULL || SL_SIZE(pSkipList) == 0) return NULL;
 
+  SSkipListNode *pNode = pSkipList->pHead;
+  while ((pNode = SL_NODE_GET_FORWARD_POINTER(pNode, 0)) != pSkipList->pTail) {
+    if (!SL_IS_NODE_DELETED(pNode)) return pSkipList->keyFn(pNode->pData);
+  }
+
+  return NULL;
+}
+
+SSkipListKey tSkipListGetMaxKey(SSkipList *pSkipList) {
+  if (pSkipList == NULL || SL_SIZE(pSkipList) == 0) return NULL;
+
+  SSkipListNode *pNode = pSkipList->pTail;
+  while ((pNode = SL_NODE_GET_BACKWARD_POINTER(pNode, 0)) != pSkipList->pHead) {
+    if (!SL_IS_NODE_DELETED(pNode)) return pSkipList->keyFn(pNode->pData);
+  }
+
+  return NULL;
+}
+
+static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **forward, SSkipListNode *pNode) {
   for (int32_t i = 0; i < pNode->level; ++i) {
     if (i >= pSkipList->level) {
       SL_NODE_GET_FORWARD_POINTER(pNode, i) = pSkipList->pTail;
@@ -365,7 +388,7 @@ static FORCE_INLINE int tSkipListUnlock(SSkipList *pSkipList) {
 }
 
 static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **forward, void *pData) {
-  int     compare = 1;
+  int     compare = 0;
   bool    hasDupKey = false;
   char *  pDataKey = pSkipList->keyFn(pData);
 
@@ -497,7 +520,7 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList) {
     }
   }
 
-  assert(level <= pSkipList->maxLevel);
+  ASSERT(level <= pSkipList->maxLevel);
   return level;
 }
 

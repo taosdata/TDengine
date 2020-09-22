@@ -40,13 +40,6 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   TSKEY       key = dataRowKey(row);
   SMemTable * pMemTable = pRepo->mem;
   STableData *pTableData = NULL;
-  // SSkipList * pSList = NULL;
-
-  // if (pMemTable != NULL && TABLE_TID(pTable) < pMemTable->maxTables && pMemTable->tData[TABLE_TID(pTable)] != NULL &&
-  //     pMemTable->tData[TABLE_TID(pTable)]->uid == TABLE_UID(pTable)) {
-  //   pTableData = pMemTable->tData[TABLE_TID(pTable)];
-  //   pSList = pTableData->pData;
-  // }
 
   void *pRow = tsdbAllocBytes(pRepo, dataRowLen(row));
   if (pRow == NULL) {

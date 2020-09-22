@@ -145,6 +145,8 @@ SSkipListNode *    tSkipListIterGet(SSkipListIterator *iter);
 void *             tSkipListDestroyIter(SSkipListIterator *iter);
 uint32_t           tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
 void               tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode);
+SSkipListKey       tSkipListGetMinKey(SSkipList *pSkipList);
+SSkipListKey       tSkipListGetMaxKey(SSkipList *pSkipList);
 
 #ifdef __cplusplus
 }
