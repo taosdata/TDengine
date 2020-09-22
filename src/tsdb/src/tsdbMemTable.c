@@ -91,11 +91,11 @@ int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
 
   ASSERT((pTableData != NULL) && pTableData->uid == TABLE_UID(pTable));
 
-  int64_t oldSize = SL_GET_SIZE(pTableData->pData);
-  if (tSkipListPut(pTableData->pData, (void *)(&pRow), sizeof(void *)) == NULL) {
+  int64_t oldSize = SL_SIZE(pTableData->pData);
+  if (tSkipListPut(pTableData->pData, pRow) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
   } else {
-    int64_t deltaSize = SL_GET_SIZE(pTableData->pData) - oldSize;
+    int64_t deltaSize = SL_SIZE(pTableData->pData) - oldSize;
     if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
     if (pMemTable->keyLast < key) pMemTable->keyLast = key;
@@ -427,7 +427,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
 
   pTableData->pData =
       tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP],
-                      pCfg->update ? SL_APPEND_DUP_KEY : SL_DISCARD_DUP_KEY, tsdbGetTsTupleKey);
+                      pCfg->update ? SL_UPDATE_DUP_KEY : SL_DISCARD_DUP_KEY, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _err;
@@ -447,7 +447,7 @@ static void tsdbFreeTableData(STableData *pTableData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple(*(SDataRow *)data); }
+static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple((SDataRow)data); }
 
 static void *tsdbCommitData(void *arg) {
   STsdbRepo *  pRepo = (STsdbRepo *)arg;
