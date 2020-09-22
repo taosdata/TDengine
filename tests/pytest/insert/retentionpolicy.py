@@ -67,8 +67,12 @@ class TDTestRetetion:
         cmd = 'insert into test values(now,11);'
         tdLog.info(cmd)
         tdSql.execute(cmd)
-        tdSql.query('select * from test')
-        tdSql.checkRows(5)
+        queryRows=tdSql.query('select * from test')
+        if queryRows==4:
+            tdSql.checkRows(4)
+            return 0
+        else:
+            tdSql.checkRows(5)
 
         tdLog.info("=============== step3")
         tdDnodes.stop(1)
@@ -77,7 +81,7 @@ class TDTestRetetion:
         cmd = 'insert into test values(now-1d,11);'
         tdLog.info(cmd)
         tdSql.execute(cmd)
-        tdSql.query('select * from test')
+        queryRows=tdSql.query('select * from test')
         tdSql.checkRows(6)
         tdLog.info("=============== step4")
         tdDnodes.stop(1)
