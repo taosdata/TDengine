@@ -1192,8 +1192,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         str += index;
 
         if (TK_STRING == sToken.type) {
-          strdequote(sToken.z);
-          sToken.n = (uint32_t)strtrim(sToken.z);
+          tscDequoteAndTrimToken(&sToken);
         }
 
         if (sToken.type == TK_RP) {
