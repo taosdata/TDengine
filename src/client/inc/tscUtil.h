@@ -191,6 +191,7 @@ SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
 SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);
 
+void tscDequoteAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken);
 
 void tscIncStreamExecutionCount(void* pStream);
