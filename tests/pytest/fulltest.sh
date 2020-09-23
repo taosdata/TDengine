@@ -16,6 +16,7 @@ python3 ./test.py -f insert/nchar.py
 python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
+python3 insert/retentionpolicy.py
 
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
@@ -154,6 +155,7 @@ python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 python3 ./test.py -f stream/parser.py
+python3 ./test.py -f stream/history.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
@@ -192,3 +194,8 @@ python3 test.py -f query/queryInterval.py
 
 # tools
 python3 test.py -f tools/taosdemo.py
+
+# subscribe
+python3 test.py -f subscribe/singlemeter.py
+python3 test.py -f subscribe/stability.py
+python3 test.py -f subscribe/supertable.py

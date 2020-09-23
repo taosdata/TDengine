@@ -910,13 +910,13 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   }
 
   if (walLevel > 0 && walLevel != pDb->cfg.walLevel) {
-    mError("db:%s, can't alter walLevel option", pDb->name);
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    mDebug("db:%s, walLevel:%d change to %d", pDb->name, pDb->cfg.walLevel, walLevel);
+    newCfg.walLevel = walLevel;
   }
 
   if (fsyncPeriod >= 0 && fsyncPeriod != pDb->cfg.fsyncPeriod) {
-    mError("db:%s, can't alter fsyncPeriod option", pDb->name);
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    mDebug("db:%s, fsyncPeriod:%d change to %d", pDb->name, pDb->cfg.fsyncPeriod, fsyncPeriod);
+    newCfg.fsyncPeriod = fsyncPeriod;
   }
 
   if (replications > 0 && replications != pDb->cfg.replications) {
