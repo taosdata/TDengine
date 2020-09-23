@@ -1265,6 +1265,51 @@ static int32_t validateQuoteToken(SStrToken* pToken) {
   return TSDB_CODE_SUCCESS;
 }
 
+void tscDequoteAndTrimToken(SStrToken* pToken) {
+  assert(pToken->type == TK_STRING);
+
+  uint32_t first = 0, last = pToken->n;
+
+  // trim leading spaces
+  while (first < last) {
+    char c = pToken->z[first];
+    if (c != ' ' && c != '\t') {
+      break;
+    }
+    first++;
+  }
+
+  // trim ending spaces
+  while (first < last) {
+    char c = pToken->z[last - 1];
+    if (c != ' ' && c != '\t') {
+      break;
+    }
+    last--;
+  }
+
+  // there are still at least two characters
+  if (first < last - 1) {
+    char c = pToken->z[first];
+    // dequote
+    if ((c == '\'' || c == '"') && c == pToken->z[last - 1]) {
+      first++;
+      last--;
+    }
+  }
+
+  // left shift the string and pad spaces
+  for (uint32_t i = 0; i + first < last; i++) {
+    pToken->z[i] = pToken->z[first + i];
+  }
+  for (uint32_t i = last - first; i < pToken->n; i++) {
+    pToken->z[i] = ' ';
+  }
+
+  // adjust token length
+  pToken->n = last - first;
+}
+
 int32_t tscValidateName(SStrToken* pToken) {
   if (pToken->type != TK_STRING && pToken->type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -1750,6 +1795,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
   pCmd->parseFinished = 1;
+  pCmd->autoCreated = pSql->cmd.autoCreated;
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
