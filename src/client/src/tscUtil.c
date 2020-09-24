@@ -1784,7 +1784,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 }
 
 void registerSqlObj(SSqlObj* pSql) {
-  int64_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
+  int32_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
 
   int32_t ref = T_REF_INC(pSql->pTscObj);
   tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
