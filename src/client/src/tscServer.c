@@ -128,6 +128,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
+
 void tscPrintMgmtEp() {
   SRpcEpSet dump;
   tscDumpMgmtEpSet(&dump);
@@ -745,7 +746,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
-      /* column id is not valid according to the cached table meta, the table meta is expired */
       tscError("%p table schema is not matched with parsed sql", pSql);
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -1987,15 +1987,11 @@ static void createHBObj(STscObj* pObj) {
   pSql->param = pObj;
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
+
+  registerSqlObj(pSql);
+  tscDebug("%p HB is allocated, pObj:%p", pSql, pObj);
+
   pObj->pHb = pSql;
-
-  tscAddSubqueryInfo(&pObj->pHb->cmd);
-
-  int64_t ad = (int64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &ad, sizeof(int64_t), &pSql, sizeof(int64_t), 2 * 60 * 1000);
-  T_REF_INC(pObj);
-
-  tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
@@ -2170,11 +2166,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->signature = pNew;
   pNew->cmd.command = TSDB_SQL_META;
 
-  T_REF_INC(pNew->pTscObj);
-
-  // TODO add test case on x86 platform
-  uint64_t adr = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &adr, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2*60*1000);
+  registerSqlObj(pNew);
 
   tscAddSubqueryInfo(&pNew->cmd);
 
@@ -2301,10 +2293,8 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
-  T_REF_INC(pNew->pTscObj);
+  registerSqlObj(pNew);
 
-  uint64_t p = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
   tscDebug("%p new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql, pNew, pNewQueryInfo->numOfTables);
 
   pNew->fp = tscTableMetaCallBack;
