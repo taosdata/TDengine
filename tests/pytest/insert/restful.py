@@ -41,7 +41,7 @@ class RestfulInsert:
             requests.post(self.url, data, headers = self.header)
 
     def run(self):
-        data = "drop database if exist test"
+        data = "drop database if exists test"
         requests.post(self.url, data, headers = self.header)
         data = "create database test keep 7300"
         requests.post(self.url, data, headers = self.header)
@@ -58,6 +58,3 @@ class RestfulInsert:
 ri = RestfulInsert()
 ri.init()
 ri.run()
-
-
-
