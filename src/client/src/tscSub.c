@@ -152,9 +152,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     goto fail;
   }
 
-  uint64_t handle = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
-  T_REF_INC(pSql->pTscObj);
+  registerSqlObj(pSql);
 
   code = tsParseSql(pSql, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {

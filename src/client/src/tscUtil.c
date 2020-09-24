@@ -424,12 +424,12 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   free(pSql);
 
-  tscDebug("%p free sqlObj completed", p);
-
   int32_t ref = T_REF_DEC(pTscObj);
   assert(ref >= 0);
 
+  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", p, pTscObj, ref);
   if (ref == 0) {
+    tscDebug("%p all sqlObj freed, free tscObj:%p", p, pTscObj);
     tscCloseTscObj(pTscObj);
   }
 }
@@ -1783,6 +1783,16 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
   pRes->numOfRows = 0;
 }
 
+void registerSqlObj(SSqlObj* pSql) {
+  int64_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
+
+  int32_t ref = T_REF_INC(pSql->pTscObj);
+  tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
+
+  uint64_t p = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &p, sizeof(uint64_t), DEFAULT_LIFE_TIME);
+}
+
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
@@ -1822,10 +1832,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
-
-  T_REF_INC(pNew->pTscObj);
-  uint64_t p = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
+  registerSqlObj(pNew);
   return pNew;
 }
 
@@ -2063,10 +2070,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscDebug("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->vgroupIndex);
   }
 
-  T_REF_INC(pNew->pTscObj);
-
-  uint64_t p = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 10);
+  registerSqlObj(pNew);
   return pNew;
 
 _error:

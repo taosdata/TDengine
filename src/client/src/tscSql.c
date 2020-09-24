@@ -156,10 +156,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     *taos = pObj;
   }
 
-  T_REF_INC(pSql->pTscObj);
-
-  uint64_t key = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &key, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+  registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
   return pSql;
@@ -270,7 +267,7 @@ void taos_close(TAOS *taos) {
       pHb->pRpcCtx = NULL;
     }
 
-    tscDebug("%p, HB is freed", pHb);
+    tscDebug("%p HB is freed", pHb);
     taos_free_result(pHb);
   }
 
