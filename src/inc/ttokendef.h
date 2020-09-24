@@ -16,6 +16,7 @@
 #ifndef TDENGINE_TTOKENDEF_H
 #define TDENGINE_TTOKENDEF_H
 
+
 #define TK_ID                               1
 #define TK_BOOL                             2
 #define TK_TINYINT                          3
@@ -75,24 +76,24 @@
 #define TK_VNODES                          57
 #define TK_IPTOKEN                         58
 #define TK_DOT                             59
-#define TK_TABLES                          60
-#define TK_STABLES                         61
-#define TK_VGROUPS                         62
-#define TK_DROP                            63
-#define TK_TABLE                           64
-#define TK_DATABASE                        65
-#define TK_DNODE                           66
-#define TK_USER                            67
-#define TK_ACCOUNT                         68
-#define TK_USE                             69
-#define TK_DESCRIBE                        70
-#define TK_ALTER                           71
-#define TK_PASS                            72
-#define TK_PRIVILEGE                       73
-#define TK_LOCAL                           74
-#define TK_IF                              75
-#define TK_EXISTS                          76
-#define TK_CREATE                          77
+#define TK_CREATE                          60
+#define TK_TABLE                           61
+#define TK_DATABASE                        62
+#define TK_TABLES                          63
+#define TK_STABLES                         64
+#define TK_VGROUPS                         65
+#define TK_DROP                            66
+#define TK_DNODE                           67
+#define TK_USER                            68
+#define TK_ACCOUNT                         69
+#define TK_USE                             70
+#define TK_DESCRIBE                        71
+#define TK_ALTER                           72
+#define TK_PASS                            73
+#define TK_PRIVILEGE                       74
+#define TK_LOCAL                           75
+#define TK_IF                              76
+#define TK_EXISTS                          77
 #define TK_PPS                             78
 #define TK_TSERIES                         79
 #define TK_DBS                             80
@@ -221,7 +222,6 @@
 #define TK_INSERT                         203
 #define TK_INTO                           204
 #define TK_VALUES                         205
-
 
 #define TK_SPACE                          300
 #define TK_COMMENT                        301

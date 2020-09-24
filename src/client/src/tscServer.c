@@ -128,6 +128,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
+
 void tscPrintMgmtEp() {
   SRpcEpSet dump;
   tscDumpMgmtEpSet(&dump);
@@ -188,8 +189,8 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   if (tscShouldFreeHeartBeat(pHB)) {
     tscDebug("%p free HB object and release connection", pHB);
-    tscFreeSqlObj(pHB);
-    tscCloseTscObj(pObj);
+    pObj->pHb = 0;
+    taos_free_result(pHB);
   } else {
     int32_t code = tscProcessSql(pHB);
     if (code != TSDB_CODE_SUCCESS) {
@@ -745,7 +746,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
-      /* column id is not valid according to the cached table meta, the table meta is expired */
       tscError("%p table schema is not matched with parsed sql", pSql);
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -1959,6 +1959,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   return 0;
 }
 
+// TODO multithread problem
 static void createHBObj(STscObj* pObj) {
   if (pObj->pHb != NULL) {
     return;
@@ -1986,12 +1987,11 @@ static void createHBObj(STscObj* pObj) {
   pSql->param = pObj;
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
+
+  registerSqlObj(pSql);
+  tscDebug("%p HB is allocated, pObj:%p", pSql, pObj);
+
   pObj->pHb = pSql;
-  T_REF_INC(pObj);
-
-  tscAddSubqueryInfo(&pObj->pHb->cmd);
-
-  tscDebug("%p HB is allocated, pObj:%p", pObj->pHb, pObj);
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
@@ -2017,8 +2017,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->connId = htonl(pConnect->connId);
 
   createHBObj(pObj);
-
-//  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
 }
@@ -2089,6 +2088,9 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 int tscProcessAlterDbMsgRsp(SSqlObj *pSql) {
   UNUSED(pSql);
   return 0;
+}
+int tscProcessShowCreateRsp(SSqlObj *pSql) {
+  return tscLocalResultCommonBuilder(pSql, 1);
 }
 
 int tscProcessQueryRsp(SSqlObj *pSql) {
@@ -2164,11 +2166,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->signature = pNew;
   pNew->cmd.command = TSDB_SQL_META;
 
-  T_REF_INC(pNew->pTscObj);
-
-  // TODO add test case on x86 platform
-  uint64_t adr = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &adr, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2*60*1000);
+  registerSqlObj(pNew);
 
   tscAddSubqueryInfo(&pNew->cmd);
 
@@ -2295,10 +2293,8 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
-  T_REF_INC(pNew->pTscObj);
+  registerSqlObj(pNew);
 
-  uint64_t p = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
   tscDebug("%p new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql, pNew, pNewQueryInfo->numOfTables);
 
   pNew->fp = tscTableMetaCallBack;
@@ -2375,6 +2371,10 @@ void tscInitMsgsFp() {
 
   tscProcessMsgRsp[TSDB_SQL_ALTER_TABLE] = tscProcessAlterTableMsgRsp;
   tscProcessMsgRsp[TSDB_SQL_ALTER_DB] = tscProcessAlterDbMsgRsp;
+
+  tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_TABLE] = tscProcessShowCreateRsp;
+  tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
+  
 
   tscKeepConn[TSDB_SQL_SHOW] = 1;
   tscKeepConn[TSDB_SQL_RETRIEVE] = 1;

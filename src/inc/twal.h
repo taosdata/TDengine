@@ -44,6 +44,7 @@ typedef void* twalh;  // WAL HANDLE
 typedef int (*FWalWrite)(void *ahandle, void *pHead, int type);
 
 twalh   walOpen(const char *path, const SWalCfg *pCfg);
+int     walAlter(twalh pWal, const SWalCfg *pCfg);
 void    walClose(twalh);
 int     walRenew(twalh);
 int     walWrite(twalh, SWalHead *);

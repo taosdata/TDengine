@@ -391,10 +391,21 @@ static UNUSED_FUNC void tscFreeSubobj(SSqlObj* pSql) {
  */
 void tscFreeSqlObjInCache(void *pSql) {
   assert(pSql != NULL);
+
   SSqlObj** p = (SSqlObj**)pSql;
+  STscObj* pTscObj = (*p)->pTscObj;
 
   assert((*p)->self != 0 && (*p)->self == (p));
   tscFreeSqlObj(*p);
+
+  int32_t ref = T_REF_DEC(pTscObj);
+  assert(ref >= 0);
+
+  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
+  if (ref == 0) {
+    tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
+    tscCloseTscObj(pTscObj);
+  }
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
@@ -403,7 +414,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   }
 
   tscDebug("%p start to free sqlObj", pSql);
-  STscObj* pTscObj = pSql->pTscObj;
 
   tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
@@ -421,14 +431,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tsem_destroy(&pSql->rspSem);
 
   free(pSql);
-  tscDebug("%p free sqlObj completed", pSql);
-
-  int32_t ref = T_REF_DEC(pTscObj);
-  assert(ref >= 0);
-
-  if (ref == 0) {
-    tscCloseTscObj(pTscObj);
-  }
 }
 
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
@@ -1265,6 +1267,51 @@ static int32_t validateQuoteToken(SStrToken* pToken) {
   return TSDB_CODE_SUCCESS;
 }
 
+void tscDequoteAndTrimToken(SStrToken* pToken) {
+  assert(pToken->type == TK_STRING);
+
+  uint32_t first = 0, last = pToken->n;
+
+  // trim leading spaces
+  while (first < last) {
+    char c = pToken->z[first];
+    if (c != ' ' && c != '\t') {
+      break;
+    }
+    first++;
+  }
+
+  // trim ending spaces
+  while (first < last) {
+    char c = pToken->z[last - 1];
+    if (c != ' ' && c != '\t') {
+      break;
+    }
+    last--;
+  }
+
+  // there are still at least two characters
+  if (first < last - 1) {
+    char c = pToken->z[first];
+    // dequote
+    if ((c == '\'' || c == '"') && c == pToken->z[last - 1]) {
+      first++;
+      last--;
+    }
+  }
+
+  // left shift the string and pad spaces
+  for (uint32_t i = 0; i + first < last; i++) {
+    pToken->z[i] = pToken->z[first + i];
+  }
+  for (uint32_t i = last - first; i < pToken->n; i++) {
+    pToken->z[i] = ' ';
+  }
+
+  // adjust token length
+  pToken->n = last - first;
+}
+
 int32_t tscValidateName(SStrToken* pToken) {
   if (pToken->type != TK_STRING && pToken->type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -1735,6 +1782,16 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
   pRes->numOfRows = 0;
 }
 
+void registerSqlObj(SSqlObj* pSql) {
+  int32_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
+
+  int32_t ref = T_REF_INC(pSql->pTscObj);
+  tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
+
+  uint64_t p = (uint64_t) pSql;
+  pSql->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &p, sizeof(uint64_t), DEFAULT_LIFE_TIME);
+}
+
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
@@ -1743,13 +1800,12 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   }
 
   pNew->pTscObj = pSql->pTscObj;
-  T_REF_INC(pNew->pTscObj);
-
   pNew->signature = pNew;
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
   pCmd->parseFinished = 1;
+  pCmd->autoCreated = pSql->cmd.autoCreated;
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
@@ -1764,8 +1820,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
     tscError("%p new subquery failed", pSql);
-
-    free(pNew);
+    tscFreeSqlObj(pNew);
     return NULL;
   }
 
@@ -1776,10 +1831,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
 
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
 
-  T_REF_INC(pNew->pTscObj);
-
-  uint64_t p = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 1000);
+  registerSqlObj(pNew);
   return pNew;
 }
 
@@ -1869,7 +1921,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
-  T_REF_INC(pNew->pTscObj);
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
@@ -2018,10 +2069,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     tscDebug("%p new sub insertion: %p, vnodeIdx:%d", pSql, pNew, pTableMetaInfo->vgroupIndex);
   }
 
-  T_REF_INC(pNew->pTscObj);
-
-  uint64_t p = (uint64_t) pNew;
-  pNew->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &pNew, sizeof(uint64_t), 2 * 600 * 10);
+  registerSqlObj(pNew);
   return pNew;
 
 _error:

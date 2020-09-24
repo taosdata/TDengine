@@ -79,6 +79,7 @@ cd ../../../debug; make
 
 ./test.sh -f general/http/autocreate.sim
 ./test.sh -f general/http/chunked.sim
+./test.sh -f general/http/gzip.sim
 ./test.sh -f general/http/restful.sim
 ./test.sh -f general/http/restful_insert.sim
 ./test.sh -f general/http/restful_limit.sim

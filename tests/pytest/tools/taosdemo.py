@@ -16,6 +16,7 @@ import os
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.dnodes import *
 
 
 class TDTestCase:
@@ -25,11 +26,30 @@ class TDTestCase:
         
         self.numberOfTables = 10000
         self.numberOfRecords = 100
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
 
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosd" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root)-len("/build/bin")]
+                    break
+        return buildPath
     def run(self):
         tdSql.prepare()
-        
-        os.system("yes | taosdemo -t %d -n %d" % (self.numberOfTables, self.numberOfRecords))
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        binPath = buildPath+ "/build/bin/"
+        os.system("yes | %staosdemo -t %d -n %d" % (binPath,self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute("use test")
         tdSql.query("select count(*) from meters")

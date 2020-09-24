@@ -22,7 +22,7 @@ TDengine的集群管理极其简单，除添加和删除节点需要人工干预
 
 1. 每个物理节点上执行命令`hostname -f`，查看和确认所有节点的hostname是不相同的(应用驱动所在节点无需做此项检查)；
 2. 每个物理节点上执行`ping host`, 其中host是其他物理节点的hostname, 看能否ping通其它物理节点; 如果不能ping通，需要检查网络设置, 或/etc/hosts文件(Windows系统默认路径为C:\Windows\system32\drivers\etc\hosts)，或DNS的配置。如果无法ping通，是无法组成集群的；
-3. 从应用运行的物理节点，ping taosd运行的数据节点，如果无法平通，应用是无法连接taosd的，请检查应用所在物理节点的DNS设置或hosts文件；
+3. 从应用运行的物理节点，ping taosd运行的数据节点，如果无法ping通，应用是无法连接taosd的，请检查应用所在物理节点的DNS设置或hosts文件；
 4. 每个数据节点的End Point就是输出的hostname外加端口号，比如h1.taosdata.com:6030
 
 **第五步**：修改TDengine的配置文件（所有节点的文件/etc/taos/taos.cfg都需要修改）。假设准备启动的第一个数据节点End Point为 h1.taosdata.com:6030, 其与集群配置相关参数如下：
@@ -31,8 +31,8 @@ TDengine的集群管理极其简单，除添加和删除节点需要人工干预
 // firstEp 是每个数据节点首次启动后连接的第一个数据节点
 firstEp               h1.taosdata.com:6030
 
-// 配置本数据节点的FQDN，如果本机只有一个hostname, 无需配置
-fqdn                  h1.taosdata.com
+// 必须配置为本数据节点的FQDN，如果本机只有一个hostname, 可注释掉本配置
+fqdn                  h1.taosdata.com  
 
 // 配置本数据节点的端口号，缺省是6030
 serverPort            6030
@@ -41,7 +41,7 @@ serverPort            6030
 arbitrator            ha.taosdata.com:6042
 ```
 
-一定要修改的参数是firstEp和fqdn, 其他参数可不做任何修改，除非你很清楚为什么要修改。
+一定要修改的参数是firstEp和fqdn。在每个数据节点，firstEp需全部配置成一样，**但fqdn一定要配置成其所在数据节点的值**。其他参数可不做任何修改，除非你很清楚为什么要修改。
 
 **加入到集群中的数据节点dnode，涉及集群相关的下表11项参数必须完全相同，否则不能成功加入到集群中。**
 

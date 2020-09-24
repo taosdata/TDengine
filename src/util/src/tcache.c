@@ -97,7 +97,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
   assert(size > 0);
 
-  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
+  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, totalNum:%d size:%" PRId64 "bytes",
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
@@ -260,7 +260,12 @@ static void incRefFn(void* ptNode) {
 }
 
 void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
-  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) == 0 || pCacheObj->deleting == 1) {
+  if (pCacheObj == NULL || pCacheObj->deleting == 1) {
+    return NULL;
+  }
+
+  if (taosHashGetSize(pCacheObj->pHashTable) == 0) {
+    atomic_add_fetch_32(&pCacheObj->statistics.missCount, 1);
     return NULL;
   }
 
