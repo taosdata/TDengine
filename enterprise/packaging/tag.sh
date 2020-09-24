@@ -25,4 +25,3 @@ git push origin --delete tag $tagVal
 git tag -a $tagVal      # open vim and input release notes
 git show-ref --tags
 git push origin $tagVal
-
