@@ -1912,7 +1912,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
-  T_REF_INC(pNew->pTscObj);
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
