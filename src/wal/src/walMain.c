@@ -69,6 +69,13 @@ static void walModuleInitFunc() {
     wDebug("WAL module is initialized");
 }
 
+static inline bool walNeedFsyncTimer(SWal *pWal) {
+  if (pWal->fsyncPeriod > 0 && pWal->level == TAOS_WAL_FSYNC) {
+    return true;
+  }
+  return false;
+}
+
 void *walOpen(const char *path, const SWalCfg *pCfg) {
   SWal *pWal = calloc(sizeof(SWal), 1);
   if (pWal == NULL) {
@@ -95,7 +102,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
 
-  if (pWal->fsyncPeriod > 0  && pWal->level == TAOS_WAL_FSYNC) {
+  if (walNeedFsyncTimer(pWal)) {
     pWal->timer = taosTmrStart(walProcessFsyncTimer, pWal->fsyncPeriod, pWal, walTmrCtrl);
     if (pWal->timer == NULL) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -125,6 +132,37 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
 
   if (pWal) wDebug("wal:%s, it is open, level:%d fsyncPeriod:%d", path, pWal->level, pWal->fsyncPeriod);
   return pWal;
+}
+
+int walAlter(twalh wal, const SWalCfg *pCfg) {
+  SWal *pWal = wal;
+  if (pWal == NULL) {
+    return TSDB_CODE_WAL_APP_ERROR;
+  }
+
+  if (pWal->level == pCfg->walLevel && pWal->fsyncPeriod == pCfg->fsyncPeriod) {
+    wDebug("wal:%s, old walLevel:%d fsync:%d, new walLevel:%d fsync:%d not change", pWal->name, pWal->level,
+           pWal->fsyncPeriod, pCfg->walLevel, pCfg->fsyncPeriod);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  wInfo("wal:%s, change old walLevel:%d fsync:%d, new walLevel:%d fsync:%d", pWal->name, pWal->level, pWal->fsyncPeriod,
+        pCfg->walLevel, pCfg->fsyncPeriod);
+
+  pthread_mutex_lock(&pWal->mutex);
+  pWal->level = pCfg->walLevel;
+  pWal->fsyncPeriod = pCfg->fsyncPeriod;
+  if (walNeedFsyncTimer(pWal)) {
+    wInfo("wal:%s, reset fsync timer, walLevel:%d fsyncPeriod:%d", pWal->name, pWal->level, pWal->fsyncPeriod);
+    taosTmrReset(walProcessFsyncTimer, pWal->fsyncPeriod, pWal, &pWal->timer,walTmrCtrl);
+  } else {
+    wInfo("wal:%s, stop fsync timer, walLevel:%d fsyncPeriod:%d", pWal->name, pWal->level, pWal->fsyncPeriod);
+    taosTmrStop(pWal->timer);
+    pWal->timer = NULL;
+  }
+  pthread_mutex_unlock(&pWal->mutex);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void walClose(void *handle) {
@@ -484,6 +522,12 @@ static void walProcessFsyncTimer(void *param, void *tmrId) {
   if (fsync(pWal->fd) < 0) {
     wError("wal:%s, fsync failed(%s)", pWal->name, strerror(errno));
   }
-  
-  pWal->timer = taosTmrStart(walProcessFsyncTimer, pWal->fsyncPeriod, pWal, walTmrCtrl);
+
+  if (walNeedFsyncTimer(pWal)) {
+    pWal->timer = taosTmrStart(walProcessFsyncTimer, pWal->fsyncPeriod, pWal, walTmrCtrl);
+  } else {
+    wInfo("wal:%s, stop fsync timer for walLevel:%d fsyncPeriod:%d", pWal->name, pWal->level, pWal->fsyncPeriod);
+    taosTmrStop(pWal->timer);
+    pWal->timer = NULL;
+  }
 }

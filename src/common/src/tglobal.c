@@ -131,7 +131,7 @@ uint16_t tsHttpPort = 6041;  // only tcp, range tcp[6041]
 int32_t  tsHttpCacheSessions = 1000;
 int32_t  tsHttpSessionExpire = 36000;
 int32_t  tsHttpMaxThreads = 2;
-int32_t  tsHttpEnableCompress = 0;
+int32_t  tsHttpEnableCompress = 1;
 int32_t  tsHttpEnableRecordSql = 0;
 int32_t  tsTelegrafUseFieldNum = 0;
 

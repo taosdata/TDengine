@@ -291,8 +291,8 @@ public class TSDBDriver implements java.sql.Driver {
             return null;
         }
 
-        String lowerUrl = url.toLowerCase();
-        if (!lowerUrl.startsWith(URL_PREFIX) && !lowerUrl.startsWith(URL_PREFIX1)) {
+//        String lowerUrl = url.toLowerCase();
+        if (!url.startsWith(URL_PREFIX) && !url.startsWith(URL_PREFIX1)) {
             return null;
         }
 
