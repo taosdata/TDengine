@@ -264,12 +264,13 @@ void taos_close(TAOS *taos) {
   }
 
   SSqlObj* pHb = pObj->pHb;
-  if (pHb != NULL) {
+  if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
     if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
       rpcCancelRequest(pHb->pRpcCtx);
+      pHb->pRpcCtx = NULL;
     }
 
-    pObj->pHb = NULL;
+    tscDebug("%p, HB is freed", pHb);
     taos_free_result(pHb);
   }
 
@@ -476,6 +477,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
        pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
        pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
        pCmd->command == TSDB_SQL_SERV_STATUS ||

@@ -23,6 +23,7 @@
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "tscSubquery.h"
 
 typedef struct SInsertSupporter {
   SSubqueryState* pState;
@@ -278,7 +279,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       tscDebug("%p subIndex: %d, no need to launch query, ignore it", pSql, i);
     
       tscDestroyJoinSupporter(pSupporter);
-      tscFreeSqlObj(pPrevSub);
+      taos_free_result(pPrevSub);
     
       pSql->pSubs[i] = NULL;
       continue;
@@ -1383,7 +1384,7 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs, SSubqueryState
     taosTFree(pSupport->localBuffer);
     taosTFree(pSupport);
     
-    tscFreeSqlObj(pSub);
+    taos_free_result(pSub);
   }
   
   free(pState);
