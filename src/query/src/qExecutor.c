@@ -2225,10 +2225,11 @@ static bool overlapWithTimeWindow(SQuery* pQuery, SDataBlockInfo* pBlockInfo) {
   return false;
 }
 
-int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, void* pQueryHandle, SDataBlockInfo* pBlockInfo, SDataStatis **pStatis, SArray** pDataBlock, uint32_t* status) {
+int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo * pWindowResInfo, void* pQueryHandle, SDataBlockInfo* pBlockInfo, SDataStatis **pStatis, SArray** pDataBlock, uint32_t* status) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  *status = 0;
+  *status = BLK_DATA_NO_NEEDED;
+
   if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTSBuf > 0) {
     *status = BLK_DATA_ALL_NEEDED;
   } else { // check if this data block is required to load
@@ -2240,12 +2241,26 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, void* pQueryHandle,
     }
 
     if ((*status) != BLK_DATA_ALL_NEEDED) {
+      // the pCtx[i] result is belonged to previous time window since the outputBuf has not been set yet,
+      // the filter result may be incorrect. So in case of interval query, we need to set the correct time output buffer
+      if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+        bool hasTimeWindow = false;
+        bool masterScan = IS_MASTER_SCAN(pRuntimeEnv);
+
+        TSKEY k = QUERY_IS_ASC_QUERY(pQuery)? pBlockInfo->window.skey:pBlockInfo->window.ekey;
+
+        STimeWindow win = getActiveTimeWindow(pWindowResInfo, k, pQuery);
+        if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pBlockInfo->tid, &win, masterScan, &hasTimeWindow) !=
+            TSDB_CODE_SUCCESS) {
+          // todo handle error in set result for timewindow
+        }
+      }
+
       for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
         SSqlFuncMsg* pSqlFunc = &pQuery->pSelectExpr[i].base;
 
         int32_t functionId = pSqlFunc->functionId;
         int32_t colId = pSqlFunc->colInfo.colId;
-
         (*status) |= aAggs[functionId].dataReqFunc(&pRuntimeEnv->pCtx[i], pBlockInfo->window.skey, pBlockInfo->window.ekey, colId);
         if (((*status) & BLK_DATA_ALL_NEEDED) == BLK_DATA_ALL_NEEDED) {
           break;
@@ -2476,7 +2491,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     SArray *     pDataBlock = NULL;
     uint32_t     status = 0;
 
-    int32_t ret = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis, &pDataBlock, &status);
+    int32_t ret = loadDataBlockOnDemand(pRuntimeEnv, &pRuntimeEnv->windowResInfo, pQueryHandle, &blockInfo, &pStatis, &pDataBlock, &status);
     if (ret != TSDB_CODE_SUCCESS) {
       break;
     }
@@ -4667,18 +4682,17 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
       setEnvForEachBlock(pQInfo, *pTableQueryInfo, &blockInfo);
     }
 
-    SDataStatis *pStatis = NULL;
-    SArray *     pDataBlock = NULL;
     uint32_t     status = 0;
+    SDataStatis *pStatis = NULL;
+    SArray      *pDataBlock = NULL;
 
-    int32_t ret = loadDataBlockOnDemand(pRuntimeEnv, pQueryHandle, &blockInfo, &pStatis, &pDataBlock, &status);
+    int32_t ret = loadDataBlockOnDemand(pRuntimeEnv, &pQuery->current->windowResInfo, pQueryHandle, &blockInfo, &pStatis, &pDataBlock, &status);
     if (ret != TSDB_CODE_SUCCESS) {
       break;
     }
 
     if (status == BLK_DATA_DISCARD) {
-      pQuery->current->lastKey =
-          QUERY_IS_ASC_QUERY(pQuery) ? blockInfo.window.ekey + step : blockInfo.window.skey + step;
+      pQuery->current->lastKey = QUERY_IS_ASC_QUERY(pQuery)? blockInfo.window.ekey + step : blockInfo.window.skey + step;
       continue;
     }
 
