@@ -391,10 +391,21 @@ static UNUSED_FUNC void tscFreeSubobj(SSqlObj* pSql) {
  */
 void tscFreeSqlObjInCache(void *pSql) {
   assert(pSql != NULL);
+
   SSqlObj** p = (SSqlObj**)pSql;
+  STscObj* pTscObj = (*p)->pTscObj;
 
   assert((*p)->self != 0 && (*p)->self == (p));
   tscFreeSqlObj(*p);
+
+  int32_t ref = T_REF_DEC(pTscObj);
+  assert(ref >= 0);
+
+  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
+  if (ref == 0) {
+    tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
+    tscCloseTscObj(pTscObj);
+  }
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
@@ -402,10 +413,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
     return;
   }
 
-  void *p = pSql;
-
   tscDebug("%p start to free sqlObj", pSql);
-  STscObj* pTscObj = pSql->pTscObj;
 
   tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
@@ -423,15 +431,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tsem_destroy(&pSql->rspSem);
 
   free(pSql);
-
-  int32_t ref = T_REF_DEC(pTscObj);
-  assert(ref >= 0);
-
-  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", p, pTscObj, ref);
-  if (ref == 0) {
-    tscDebug("%p all sqlObj freed, free tscObj:%p", p, pTscObj);
-    tscCloseTscObj(pTscObj);
-  }
 }
 
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
@@ -1821,8 +1820,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
     tscError("%p new subquery failed", pSql);
-
-    free(pNew);
+    tscFreeSqlObj(pNew);
     return NULL;
   }
 
@@ -1832,6 +1830,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
+
   registerSqlObj(pNew);
   return pNew;
 }

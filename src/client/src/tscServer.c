@@ -128,6 +128,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
+
 void tscPrintMgmtEp() {
   SRpcEpSet dump;
   tscDumpMgmtEpSet(&dump);
@@ -745,7 +746,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
-      /* column id is not valid according to the cached table meta, the table meta is expired */
       tscError("%p table schema is not matched with parsed sql", pSql);
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -2294,6 +2294,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
   registerSqlObj(pNew);
+
   tscDebug("%p new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql, pNew, pNewQueryInfo->numOfTables);
 
   pNew->fp = tscTableMetaCallBack;
