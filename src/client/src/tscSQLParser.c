@@ -827,12 +827,12 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
     SStrToken t = {0};
     getCurrentDBName(pSql, &t);
     if (t.n == 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    }
-
-    code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
-    if (code != 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    } else {
+      code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
+      if (code != 0) {
+        invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
     }
   }
 
