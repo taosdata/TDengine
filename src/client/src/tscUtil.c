@@ -1794,6 +1794,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pCmd->command = cmd;
   pCmd->parseFinished = 1;
   pCmd->autoCreated = pSql->cmd.autoCreated;
+  memcpy(&pCmd->tagData, &pSql->cmd.tagData, sizeof(pCmd->tagData));
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
