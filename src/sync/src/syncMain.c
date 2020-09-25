@@ -167,6 +167,8 @@ void *syncStart(const SSyncInfo *pInfo) {
     }
   }
 
+  syncAddNodeRef(pNode);
+  
   if (pNode->selfIndex < 0) {
     sInfo("vgId:%d, this node is not configured", pNode->vgId);
     terrno = TSDB_CODE_SYN_INVALID_CONFIG;
@@ -194,7 +196,6 @@ void *syncStart(const SSyncInfo *pInfo) {
   }
 
   syncAddArbitrator(pNode);
-  syncAddNodeRef(pNode);
   taosHashPut(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t), (char *)(&pNode), sizeof(SSyncNode *));
 
   if (pNode->notifyRole) {
