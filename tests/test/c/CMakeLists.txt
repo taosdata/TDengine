@@ -22,8 +22,8 @@ IF (TD_LINUX)
   #add_executable(importOneRow importOneRow.c)
   #target_link_libraries(importOneRow taos_static pthread)
 
-  #add_executable(importPerTable importPerTable.c)
-  #target_link_libraries(importPerTable taos_static pthread)
+  add_executable(importPerTable importPerTable.c)
+  target_link_libraries(importPerTable taos_static pthread)
 
   #add_executable(hashPerformance hashPerformance.c)
   #target_link_libraries(hashPerformance taos_static tutil common pthread)
@@ -37,10 +37,10 @@ IF (TD_LINUX)
   #add_executable(queryPerformance queryPerformance.c)
   #target_link_libraries(queryPerformance taos_static tutil common pthread)
   
-  add_executable(httpTest httpTest.c)
-  target_link_libraries(httpTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
+  #add_executable(httpTest httpTest.c)
+  #target_link_libraries(httpTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
 
-  add_executable(cacheTest cacheTest.c)
-  target_link_libraries(cacheTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
+  #add_executable(cacheTest cacheTest.c)
+  #target_link_libraries(cacheTest taos_static tutil common pthread mnode monitor http tsdb twal vnode cJson lz4)
 ENDIF()
 
