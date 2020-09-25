@@ -1374,7 +1374,11 @@ static bool getMetaFromJsonFile(char* fileName) {
       cJSON *tagsFile = cJSON_GetObjectItem(stbInfo, "tags_file");
       if (tagsFile && tagsFile->type == cJSON_String && tagsFile->valuestring != NULL) {
         strncpy(g_Dbs.db[i].supterTbls[j].tagsFile, tagsFile->valuestring, MAX_FILE_NAME_LEN);
-        g_Dbs.db[i].supterTbls[j].tagSource = 1;
+        if (0 == g_Dbs.db[i].supterTbls[j].tagsFile[0]) {
+          g_Dbs.db[i].supterTbls[j].tagSource = 0;
+        } else {
+          g_Dbs.db[i].supterTbls[j].tagSource = 1;
+        }
       } else if (!tagsFile) {
         memset(g_Dbs.db[i].supterTbls[j].tagsFile, 0, MAX_FILE_NAME_LEN);
         g_Dbs.db[i].supterTbls[j].tagSource = 0;
@@ -1499,7 +1503,7 @@ void prePareSampleData() {
       }
       
       if (g_Dbs.db[i].supterTbls[j].tagsFile[0] != 0) {
-        readTagFromCsvFileToMem(&g_Dbs.db[i].supterTbls[j]);
+        (void)readTagFromCsvFileToMem(&g_Dbs.db[i].supterTbls[j]);
       }
 
       if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "resetful", 8)) {
