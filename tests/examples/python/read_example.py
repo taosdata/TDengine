@@ -22,8 +22,12 @@ if __name__ == '__main__':
     # @password : Password 
     # @database : Database to use when connecting to TDengine server
     # @config   : Configuration directory
-    conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
-
+    if len(sys.argv)>1:
+        hostname=sys.argv[1]
+        conn = taos.connect(host=hostname, user="root", password="taosdata", config="/etc/taos")
+    else:
+        conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+   
     # Generate a cursor object to run SQL commands
     c1 = conn.cursor()
     # Create a database named db
