@@ -105,6 +105,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     code = TAOS_SYSTEM_ERROR(errno);
     goto fail;
   }
+
   tstrncpy(pSub->topic, topic, sizeof(pSub->topic));
   pSub->progress = taosArrayInit(32, sizeof(SSubscriptionProgress));
   if (pSub->progress == NULL) {
@@ -119,6 +120,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto fail;
   }
+
   pSql->signature = pSql;
   pSql->pTscObj = pObj;
   pSql->pSubscription = pSub;
@@ -142,6 +144,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto fail;
   }
+
   strtolower(pSql->sqlstr, pSql->sqlstr);
   pRes->qhandle = 0;
   pRes->numOfRows = 1;
@@ -152,15 +155,14 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     goto fail;
   }
 
-  uint64_t handle = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
-  T_REF_INC(pSql->pTscObj);
+  registerSqlObj(pSql);
 
   code = tsParseSql(pSql, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tsem_wait(&pSub->sem);
     code = pSql->res.code;
   }
+
   if (code != TSDB_CODE_SUCCESS) {
     line = __LINE__;
     goto fail;
@@ -182,8 +184,10 @@ fail:
     } else {
       tscFreeSqlObj(pSql);
     }
+
     pSql = NULL;
   }
+
   if (pSub != NULL) {
     taosArrayDestroy(pSub->progress);
     tsem_destroy(&pSub->sem);

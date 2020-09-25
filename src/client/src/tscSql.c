@@ -156,10 +156,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     *taos = pObj;
   }
 
-  T_REF_INC(pSql->pTscObj);
-
-  uint64_t key = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &key, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+  registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
   return pSql;
@@ -270,7 +267,7 @@ void taos_close(TAOS *taos) {
       pHb->pRpcCtx = NULL;
     }
 
-    tscDebug("%p, HB is freed", pHb);
+    tscDebug("%p HB is freed", pHb);
     taos_free_result(pHb);
   }
 
@@ -789,13 +786,16 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+
   pSql->pTscObj = taos;
   pSql->signature = pSql;
+
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
   pRes->numOfTotal = 0;
   pRes->numOfClauseTotal = 0;
+
 
   tscDebug("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
@@ -832,11 +832,12 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     tsem_wait(&pSql->rspSem);
     code = pSql->res.code;
   }
+
   if (code != TSDB_CODE_SUCCESS) {
     tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(taos), pObj);
   }
-  taos_free_result(pSql);
 
+  taos_free_result(pSql);
   return code;
 }
 
@@ -935,12 +936,12 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   pSql->pTscObj = taos;
   pSql->signature = pSql;
+
   SSqlRes *pRes = &pSql->res;
 
+  pRes->code = 0;
   pRes->numOfTotal = 0;  // the number of getting table meta from server
   pRes->numOfClauseTotal = 0;
-
-  pRes->code = 0;
 
   assert(pSql->fp == NULL);
   tscDebug("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
@@ -948,21 +949,19 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   int32_t tblListLen = (int32_t)strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
     tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
-    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    taosTFree(pSql);
-    return pRes->code;
+    tscFreeSqlObj(pSql);
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   char *str = calloc(1, tblListLen + 1);
   if (str == NULL) {
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
-    taosTFree(pSql);
-    return pRes->code;
+    tscFreeSqlObj(pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strtolower(str, tableNameList);
-  pRes->code = (uint8_t)tscParseTblNameList(pSql, str, tblListLen);
+  int32_t code = (uint8_t) tscParseTblNameList(pSql, str, tblListLen);
 
   /*
    * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
@@ -972,17 +971,17 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   pRes->qhandle = 0;
   free(str);
 
-  if (pRes->code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
-    return pRes->code;
+    return code;
   }
 
   tscDoQuery(pSql);
 
-  tscDebug("%p load multi metermeta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscPartiallyFreeSqlObj(pSql);
+  tscDebug("%p load multi table meta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+  if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
+    tscFreeSqlObj(pSql);
   }
 
-  return pRes->code;
+  return code;
 }
