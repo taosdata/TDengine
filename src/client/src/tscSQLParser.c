@@ -838,7 +838,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
    * the old name exists and is not equalled to the new name. Release the table meta
    * that are corresponding to the old name for the new table name.
    */
-  if (strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
+  if (strlen(oldName) > 0 && strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
     tscClearTableMetaInfo(pTableMetaInfo, false);
   }
 
@@ -6122,7 +6122,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   assert(pQuerySql != NULL && (pQuerySql->from == NULL || pQuerySql->from->nExpr > 0));
 
   const char* msg0  = "invalid table name";
-  //const char* msg1  = "table name too long";
   const char* msg2  = "point interpolation query needs timestamp";
   const char* msg5  = "fill only available for interval query";
   const char* msg6  = "start(end) time of query range required or time range too large";
