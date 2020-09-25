@@ -259,8 +259,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     return;
   }
 
-  pSql->pRpcCtx = NULL;    // clear the rpcCtx
-
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
@@ -389,6 +387,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   rpcFreeCont(rpcMsg->pCont);
+
 }
 
 int doProcessSql(SSqlObj *pSql) {
@@ -475,6 +474,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
     pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     if (pSub->pRpcCtx != NULL) {
       rpcCancelRequest(pSub->pRpcCtx);
+      pSub->pRpcCtx = NULL;
     }
 
     tscQueueAsyncRes(pSub); // async res? not other functions?
