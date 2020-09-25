@@ -233,8 +233,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
         assert(pInfo->pDCLInfo->nTokens == 1);
 
-        code = tscSetTableFullName(pTableMetaInfo, pzName, pSql);
-        if(code != TSDB_CODE_SUCCESS) {
+        if((code = tscSetTableFullName(pTableMetaInfo, pzName, pSql)) != TSDB_CODE_SUCCESS) {
           return code; 
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
@@ -362,8 +361,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       // additional msg has been attached already
-      if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_SQL;
+      code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       return tscGetTableMeta(pSql, pTableMetaInfo);
@@ -381,14 +381,15 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
+
       return tscGetTableMeta(pSql, pTableMetaInfo);
     }
     case TSDB_SQL_SHOW_CREATE_DATABASE: {
       const char* msg1 = "invalid database name";
-      const char* msg2 = "table name is too long";
       SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
 
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
@@ -397,11 +398,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pToken->n > TSDB_DB_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-      if (tscSetTableFullName(pTableMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-      return TSDB_CODE_SUCCESS; 
-    }                                
+
+      return tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+    }
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
       const char* msg3 = "invalid dnode ep";
@@ -4555,6 +4554,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg18 = "primary timestamp column cannot be dropped";
   const char* msg19 = "invalid new tag name";
 
+  int32_t code = TSDB_CODE_SUCCESS;
+
   SSqlCmd*        pCmd = &pSql->cmd;
   SAlterTableSQL* pAlterSQL = pInfo->pAlterInfo;
   SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -4565,13 +4566,14 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (tscSetTableFullName(pTableMetaInfo, &(pAlterSQL->name), pSql) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+  code = tscSetTableFullName(pTableMetaInfo, &(pAlterSQL->name), pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  int32_t ret = tscGetTableMeta(pSql, pTableMetaInfo);
-  if (ret != TSDB_CODE_SUCCESS) {
-    return ret;
+  code = tscGetTableMeta(pSql, pTableMetaInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
@@ -5869,8 +5871,9 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (tscSetTableFullName(pTableMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+  int32_t code = tscSetTableFullName(pTableMetaInfo, pzTableName, pSql);
+  if(code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   if (!validateTableColumnInfo(pFieldList, pCmd) ||
@@ -5924,15 +5927,16 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (tscSetTableFullName(pStableMeterMetaInfo, pToken, pSql) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+  int32_t code = tscSetTableFullName(pStableMeterMetaInfo, pToken, pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   // get meter meta from mnode
   tstrncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, sizeof(pCreateTable->usingInfo.tagdata.name));
   tVariantList* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
 
-  int32_t code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
+  code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6009,7 +6013,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
 int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg1 = "invalid table name";
-  const char* msg2 = "table name too long";
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
   const char* msg5 = "sql too long";  // todo ADD support
@@ -6041,11 +6044,12 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (tscSetTableFullName(pTableMetaInfo, &srcToken, pSql) != TSDB_CODE_SUCCESS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  int32_t code = tscSetTableFullName(pTableMetaInfo, &srcToken, pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  int32_t code = tscGetTableMeta(pSql, pTableMetaInfo);
+  code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6072,8 +6076,9 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // set the created table[stream] name
-  if (tscSetTableFullName(pTableMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  code = tscSetTableFullName(pTableMetaInfo, pzTableName, pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   if (pQuerySql->selectToken.n > TSDB_MAX_SAVED_SQL_LEN) {
@@ -6189,8 +6194,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i/2);
 
     SStrToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
-    if (tscSetTableFullName(pTableMetaInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+    code = tscSetTableFullName(pTableMetaInfo1, &t, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     tVariant* pTableItem1 = &pQuerySql->from->a[i + 1].pVar;
