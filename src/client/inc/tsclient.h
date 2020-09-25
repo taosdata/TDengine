@@ -261,7 +261,7 @@ typedef struct {
   };
 
   int32_t      insertType;
-  int32_t      clauseIndex;   // index of multiple subclause query
+  int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
@@ -276,7 +276,8 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  int8_t       submitSchema;  // submit block is built with table schema
+  int8_t       submitSchema; // submit block is built with table schema
+  STagData     tagData;
   SHashObj    *pTableList;   // referred table involved in sql
   SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
 } SSqlCmd;
