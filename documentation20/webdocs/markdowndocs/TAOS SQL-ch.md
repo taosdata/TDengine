@@ -98,12 +98,12 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     KEEP参数是指修改数据文件保存的天数，缺省值为3650，取值范围[days, 365000]，必须大于或等于days参数值。
 
     ```mysql
-    ALTER DATABASE db_name QUORUM 365;
+    ALTER DATABASE db_name QUORUM 2;
     ```
     QUORUM参数是指数据写入成功所需要的确认数。取值范围[1, 3]。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
 
     ```mysql
-    ALTER DATABASE db_name BLOCKS 365;
+    ALTER DATABASE db_name BLOCKS 100;
     ```
     BLOCKS参数是每个VNODE (TSDB) 中有多少cache大小的内存块，因此一个VNODE的用的内存大小粗略为（cache * blocks）。取值范围[3, 1000]。
 

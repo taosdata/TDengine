@@ -17,6 +17,7 @@ python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
+python3 ./test.py -f insert/alterTableAndInsert.py
 
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
@@ -163,6 +164,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 # client
 python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
+python3 ./test.py -f client/alterDatabase.py
 
 # Misc
 python3 testCompress.py
