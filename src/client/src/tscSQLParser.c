@@ -817,17 +817,16 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
     oldName = strdup(pTableMetaInfo->name);
   }
 
-  if (hasSpecifyDB(pzTableName)) {
-    // db has been specified in sql string so we ignore current db path
+  if (hasSpecifyDB(pzTableName)) { // db has been specified in sql string so we ignore current db path
     code = setObjFullName(pTableMetaInfo->name, getAccountId(pSql), NULL, pzTableName, NULL);
     if (code != 0) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
-  } else {  // get current DB name first, then set it into path
+  } else {  // get current DB name first, and then set it into path
     SStrToken t = {0};
     getCurrentDBName(pSql, &t);
-    if (t.n == 0) {
-      code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    if (t.n == 0) {  // current database not available or not specified
+      code = TSDB_CODE_MND_DB_NOT_SELECTED;
     } else {
       code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
       if (code != 0) {
