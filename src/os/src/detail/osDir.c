@@ -130,7 +130,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   }
 
   while (!feof(srcFp)) {
-    len = (uLong)fread(data, 1, COMPRESS_STEP_SIZE, srcFp);
+    len = (int32_t)fread(data, 1, COMPRESS_STEP_SIZE, srcFp);
     gzwrite(dstFp, data, len);
   }
 
