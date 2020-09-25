@@ -4,30 +4,29 @@ import com.taosdata.example.jdbcTaosdemo.domain.JdbcTaosdemoConfig;
 import com.taosdata.example.jdbcTaosdemo.task.CreateTableTask;
 import com.taosdata.example.jdbcTaosdemo.task.InsertTableDatetimeTask;
 import com.taosdata.example.jdbcTaosdemo.task.InsertTableTask;
+import com.taosdata.example.jdbcTaosdemo.utils.ConnectionFactory;
+import com.taosdata.example.jdbcTaosdemo.utils.SqlSpeller;
 import com.taosdata.example.jdbcTaosdemo.utils.TimeStampUtil;
-import com.taosdata.jdbc.TSDBDriver;
 import org.apache.log4j.Logger;
 
 import java.sql.*;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class JdbcTaosdemo {
 
     private static Logger logger = Logger.getLogger(JdbcTaosdemo.class);
-    private static AtomicLong beginTimestamp = new AtomicLong(TimeStampUtil.datetimeToLong("2005-01-01 00:00:00.000"));
     private final JdbcTaosdemoConfig config;
     private Connection connection;
-    private static final String[] locations = {"Beijing", "Shanghai", "Guangzhou", "Shenzhen", "HangZhou", "Tianjin", "Wuhan", "Changsha", "Nanjing", "Xian"};
-    private static Random random = new Random(System.currentTimeMillis());
 
     public JdbcTaosdemo(JdbcTaosdemoConfig config) {
         this.config = config;
     }
 
-
     public static void main(String[] args) {
-        JdbcTaosdemoConfig config = JdbcTaosdemoConfig.build(args);
+
+        JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
 
         boolean isHelp = Arrays.asList(args).contains("--help");
         if (isHelp) {
@@ -67,7 +66,7 @@ public class JdbcTaosdemo {
     private void init() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
-            connection = getConnection(config);
+            connection = ConnectionFactory.build(config);
             if (connection != null)
                 logger.info("[ OK ] Connection established.");
         } catch (ClassNotFoundException | SQLException e) {
@@ -76,27 +75,19 @@ public class JdbcTaosdemo {
         }
     }
 
-    public static Connection getConnection(JdbcTaosdemoConfig config) throws SQLException {
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, config.getHost());
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, config.getUser());
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, config.getPassword());
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        return DriverManager.getConnection("jdbc:TAOS://" + config.getHost() + ":" + config.getPort() + "/" + config.getDbName() + "", properties);
-    }
-
     /**
      * create database
      */
     private void createDatabase() {
-        String sql = "create database if not exists " + config.getDbName() + " keep " + config.getKeep() + " days " + config.getDays();
+        String sql = SqlSpeller.createDatabaseSQL(config.getDbName(), config.getKeep(), config.getDays());
         execute(sql);
     }
 
+    /**
+     * drop database
+     */
     private void dropDatabase() {
-        String sql = "drop database if exists " + config.getDbName();
+        String sql = SqlSpeller.dropDatabaseSQL(config.getDbName());
         execute(sql);
     }
 
@@ -104,12 +95,15 @@ public class JdbcTaosdemo {
      * use database
      */
     private void useDatabase() {
-        String sql = "use " + config.getDbName();
+        String sql = SqlSpeller.useDatabaseSQL(config.getDbName());
         execute(sql);
     }
 
+    /**
+     * create super table
+     */
     private void createSuperTable() {
-        String sql = "create table if not exists " + config.getStbName() + "(ts timestamp, current float, voltage int, phase float) tags(location binary(64), groupId int)";
+        String sql = SqlSpeller.createSuperTableSQL(config.getStbName());
         execute(sql);
     }
 
@@ -128,13 +122,16 @@ public class JdbcTaosdemo {
             for (Thread thread : threads) {
                 thread.join();
             }
-            logger.info(">>> Multi Threads create table finished.");
+            logger.info("<<< Multi Threads create table finished.");
         } catch (InterruptedException e) {
             logger.error(e.getMessage());
             e.printStackTrace();
         }
     }
 
+    /**
+     * insert data infinitely
+     */
     private void insertInfinite() {
         try {
             final long startDatetime = TimeStampUtil.datetimeToLong("2005-01-01 00:00:00.000");
@@ -150,7 +147,7 @@ public class JdbcTaosdemo {
             for (Thread thread : threads) {
                 thread.join();
             }
-            logger.info(">>> Multi Threads insert table finished.");
+            logger.info("<<< Multi Threads insert table finished.");
         } catch (InterruptedException e) {
             logger.error(e.getMessage());
             e.printStackTrace();
@@ -170,46 +167,11 @@ public class JdbcTaosdemo {
             for (Thread thread : threads) {
                 thread.join();
             }
-            logger.info(">>> Multi Threads insert table finished.");
+            logger.info("<<< Multi Threads insert table finished.");
         } catch (InterruptedException e) {
             logger.error(e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    public static String insertSql(int tableIndex, JdbcTaosdemoConfig config) {
-        float current = 10 + random.nextFloat();
-        int voltage = 200 + random.nextInt(20);
-        float phase = random.nextFloat();
-        String sql = "insert into " + config.getDbName() + "." + config.getTbPrefix() + "" + tableIndex + " " +
-                "values(" + beginTimestamp.getAndIncrement() + ", " + current + ", " + voltage + ", " + phase + ") ";
-        return sql;
-    }
-
-    public static String insertSql(int tableIndex, long ts, JdbcTaosdemoConfig config) {
-        float current = 10 + random.nextFloat();
-        int voltage = 200 + random.nextInt(20);
-        float phase = random.nextFloat();
-        String sql = "insert into " + config.getDbName() + "." + config.getTbPrefix() + "" + tableIndex + " " +
-                "values(" + ts + ", " + current + ", " + voltage + ", " + phase + ") ";
-        return sql;
-    }
-
-    public static String batchInsertSql(int tableIndex, long ts, int valueCnt, JdbcTaosdemoConfig config) {
-        float current = 10 + random.nextFloat();
-        int voltage = 200 + random.nextInt(20);
-        float phase = random.nextFloat();
-        StringBuilder sb = new StringBuilder();
-        sb.append("insert into " + config.getDbName() + "." + config.getTbPrefix() + "" + tableIndex + " " + "values");
-        for (int i = 0; i < valueCnt; i++) {
-            sb.append("(" + (ts + i) + ", " + current + ", " + voltage + ", " + phase + ") ");
-        }
-        return sb.toString();
-    }
-
-    public static String createTableSql(int tableIndex, JdbcTaosdemoConfig config) {
-        String location = locations[random.nextInt(locations.length)];
-        return "create table d" + tableIndex + " using " + config.getDbName() + "." + config.getStbName() + " tags('" + location + "'," + tableIndex + ")";
     }
 
     private void countFromSuperTable() {
@@ -233,7 +195,7 @@ public class JdbcTaosdemo {
      * drop super table
      */
     private void dropSuperTable() {
-        String sql = "drop table if exists " + config.getDbName() + "." + config.getStbName();
+        String sql = SqlSpeller.dropSuperTableSQL(config.getDbName(), config.getStbName());
         execute(sql);
     }
 

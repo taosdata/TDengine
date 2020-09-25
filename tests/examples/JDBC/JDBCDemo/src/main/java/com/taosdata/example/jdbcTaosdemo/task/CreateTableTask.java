@@ -1,7 +1,8 @@
 package com.taosdata.example.jdbcTaosdemo.task;
 
-import com.taosdata.example.jdbcTaosdemo.JdbcTaosdemo;
 import com.taosdata.example.jdbcTaosdemo.domain.JdbcTaosdemoConfig;
+import com.taosdata.example.jdbcTaosdemo.utils.ConnectionFactory;
+import com.taosdata.example.jdbcTaosdemo.utils.SqlSpeller;
 import org.apache.log4j.Logger;
 
 import java.sql.Connection;
@@ -24,14 +25,11 @@ public class CreateTableTask implements Runnable {
     @Override
     public void run() {
         try {
-            Connection connection = JdbcTaosdemo.getConnection(config);
+            Connection connection = ConnectionFactory.build(config);
             for (int i = startIndex; i < startIndex + tableNumber; i++) {
                 Statement statement = connection.createStatement();
-                String sql = JdbcTaosdemo.createTableSql(i + 1, config);
-//                    long start = System.currentTimeMillis();
-                boolean execute = statement.execute(sql);
-//                    long end = System.currentTimeMillis();
-//                    printSql(sql, execute, (end - start));
+                String sql = SqlSpeller.createTableSQL(i + 1, config.getDbName(), config.getStbName());
+                statement.execute(sql);
                 statement.close();
                 logger.info(">>> " + sql);
             }
