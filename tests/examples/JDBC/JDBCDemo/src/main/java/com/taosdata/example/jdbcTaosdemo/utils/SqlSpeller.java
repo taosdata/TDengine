@@ -54,5 +54,29 @@ public class SqlSpeller {
         return sb.toString();
     }
 
+    public static String selectFromTableLimitSQL(String dbName, String tbPrefix, int tbIndex, int limit, int offset) {
+        return "select * from " + dbName + "." + tbPrefix + "" + tbIndex + " limit " + limit + " offset " + offset;
+    }
+
+    public static String selectCountFromTableSQL(String dbName, String tbPrefix, int tbIndex) {
+        return "select count(*) from " + dbName + "." + tbPrefix + "" + tbIndex;
+    }
+
+    public static String selectAvgMinMaxFromTableSQL(String field, String dbName, String tbPrefix, int tbIndex) {
+        return "select avg(" + field + "),min(" + field + "),max(" + field + ") from " + dbName + "." + tbPrefix + "" + tbIndex;
+    }
+
+    public static String selectFromSuperTableLimitSQL(String dbName, String stbName, int limit, int offset) {
+        return "select * from " + dbName + "." + stbName + " limit " + limit + " offset " + offset;
+    }
+
+    public static String selectCountFromSuperTableSQL(String dbName, String stableName) {
+        return "select count(*) from " + dbName + "." + stableName;
+    }
+
+    public static String selectAvgMinMaxFromSuperTableSQL(String field, String dbName, String stbName) {
+        return "select avg(" + field + "),min(" + field + "),max(" + field + ") from " + dbName + "." + stbName + "";
+    }
+
 
 }

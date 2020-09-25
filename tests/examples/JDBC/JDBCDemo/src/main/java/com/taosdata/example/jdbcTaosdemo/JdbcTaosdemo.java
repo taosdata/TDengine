@@ -25,7 +25,6 @@ public class JdbcTaosdemo {
     }
 
     public static void main(String[] args) {
-
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
 
         boolean isHelp = Arrays.asList(args).contains("--help");
@@ -52,7 +51,15 @@ public class JdbcTaosdemo {
             taosdemo.insertInfinite();
         } else {
             taosdemo.insertMultiThreads();
-            taosdemo.countFromSuperTable();
+            // single table select
+            taosdemo.selectFromTableLimit();
+            taosdemo.selectCountFromTable();
+            taosdemo.selectAvgMinMaxFromTable();
+            // super table select
+            taosdemo.selectFromSuperTableLimit();
+            taosdemo.selectCountFromSuperTable();
+            taosdemo.selectAvgMinMaxFromSuperTable();
+            // drop super table
             if (config.isDeleteTable())
                 taosdemo.dropSuperTable();
             taosdemo.close();
@@ -174,8 +181,33 @@ public class JdbcTaosdemo {
         }
     }
 
-    private void countFromSuperTable() {
-        String sql = "select count(*) from " + config.getDbName() + "." + config.getStbName();
+    private void selectFromTableLimit() {
+        String sql = SqlSpeller.selectFromTableLimitSQL(config.getDbName(), config.getTbPrefix(), 1, 10, 0);
+        executeQuery(sql);
+    }
+
+    private void selectCountFromTable() {
+        String sql = SqlSpeller.selectCountFromTableSQL(config.getDbName(), config.getTbPrefix(), 1);
+        executeQuery(sql);
+    }
+
+    private void selectAvgMinMaxFromTable() {
+        String sql = SqlSpeller.selectAvgMinMaxFromTableSQL("current", config.getDbName(), config.getTbPrefix(), 1);
+        executeQuery(sql);
+    }
+
+    private void selectFromSuperTableLimit() {
+        String sql = SqlSpeller.selectFromSuperTableLimitSQL(config.getDbName(), config.getStbName(), 10, 0);
+        executeQuery(sql);
+    }
+
+    private void selectCountFromSuperTable() {
+        String sql = SqlSpeller.selectCountFromSuperTableSQL(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectAvgMinMaxFromSuperTable() {
+        String sql = SqlSpeller.selectAvgMinMaxFromSuperTableSQL("current", config.getDbName(), config.getStbName());
         executeQuery(sql);
     }
 
@@ -215,7 +247,7 @@ public class JdbcTaosdemo {
     }
 
     private static void printSql(String sql, boolean succeed, long cost) {
-        logger.info("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
+        System.out.println("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
     }
 
     private void executeQuery(String sql) {
@@ -240,7 +272,7 @@ public class JdbcTaosdemo {
                 String value = resultSet.getString(i);
                 sb.append(columnLabel + ": " + value + "\t");
             }
-            logger.info(sb.toString());
+            System.out.println(sb.toString());
         }
     }
 
