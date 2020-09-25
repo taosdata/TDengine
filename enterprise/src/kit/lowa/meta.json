@@ -1,9 +1,9 @@
 {
-	"host": "192.168.1.200",
+	"host": "192.168.1.217",
 	"port": 6030,
 	"user": "root",
 	"password": "taosdata",
-	"thread_count": 10,
+	"thread_count": 1,
 	"databases": [{
 		"dbinfo": {
 			"name": "db01",
@@ -16,18 +16,19 @@
 			"maxtablesPerVnode":1000
 		},
 		"super_tables": [{
-			"name": "stb001",
-			"childtable_count": 1000,
-			"childtable_prefix": "stb001_",
+			"name": "stbtag",
+			"childtable_count": 15,
+			"childtable_prefix": "stbtag_",
 			"auto_create_table":"no",
 			"data_source": "rand",
 			"insert_mode": "taosc",
 			"insert_rate": 0,
-			"insert_rows": 1000,
+			"insert_rows": 10,
 			"timestamp_step":1000,
 			"start_timestamp": "2020-09-01 00:00:00.000",
 			"sample_format": "csv",
-			"sample_file": "/home/develop_2.0/sample.csv",
+			"sample_file": "/home/data/sample.csv",
+			"tags_file": "/home/data/tag.csv",
 			"columns": [{
 				"type": "FLOAT"
 			}, {
