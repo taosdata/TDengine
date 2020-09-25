@@ -1,4 +1,4 @@
-package com.taosdata.example.domain;
+package com.taosdata.example.jdbcTaosdemo.domain;
 
 public class JdbcTaosdemoConfig {
 
@@ -12,16 +12,12 @@ public class JdbcTaosdemoConfig {
     private String password = "taosdata";
     //Destination database. Default is 'test'
     private String dbName = "test";
-
-    //
+    //keep
     private int keep = 365 * 20;
-
+    //
     private int days = 30;
-
     //Super table Name. Default is 'meters'
     private String stbName = "meters";
-
-
     //Table name prefix. Default is 'd'
     private String tbPrefix = "d";
     //The number of threads. Default is 10.
@@ -33,6 +29,20 @@ public class JdbcTaosdemoConfig {
     //Delete data. Default is false
     private boolean deleteTable = true;
 
+    public static void printHelp() {
+        System.out.println("Usage: java -jar JDBCConnectorChecker.jar -h host [OPTION...]");
+        System.out.println("-p    port                       The TCP/IP port number to use for the connection. Default is 6030");
+        System.out.println("-u    user                       The TDengine user name to use when connecting to the server. Default is 'root'");
+        System.out.println("-P    password                   The password to use when connecting to the server.Default is 'taosdata'");
+        System.out.println("-d    database                   Destination database. Default is 'test'");
+        System.out.println("-m    tablePrefix                Table prefix name. Default is 'd'");
+        System.out.println("-T    num_of_threads             The number of threads. Default is 10");
+        System.out.println("-t    num_of_tables              The number of tables. Default is 10000");
+        System.out.println("-n    num_of_records_per_table   The number of records per table. Default is 100000");
+        System.out.println("-D    delete table               Delete data methods. Default is false");
+        System.out.println("--help                           Give this help list");
+    }
+
     /**
      * parse args from command line
      *
@@ -40,6 +50,7 @@ public class JdbcTaosdemoConfig {
      * @return JdbcTaosdemoConfig
      */
     public static JdbcTaosdemoConfig build(String[] args) {
+
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig();
         for (int i = 0; i < args.length; i++) {
             if ("-h".equals(args[i]) && i < args.length - 1) {
@@ -72,8 +83,8 @@ public class JdbcTaosdemoConfig {
             if ("-D".equals(args[i]) && i < args.length - 1) {
                 config.setDeleteTable(Boolean.parseBoolean(args[++i]));
             }
-
         }
+
         return config;
     }
 

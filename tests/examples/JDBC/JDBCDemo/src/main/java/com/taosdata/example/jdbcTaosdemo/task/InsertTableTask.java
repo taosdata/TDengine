@@ -1,7 +1,7 @@
-package com.taosdata.example.task;
+package com.taosdata.example.jdbcTaosdemo.task;
 
-import com.taosdata.example.JdbcTaosdemo;
-import com.taosdata.example.domain.JdbcTaosdemoConfig;
+import com.taosdata.example.jdbcTaosdemo.JdbcTaosdemo;
+import com.taosdata.example.jdbcTaosdemo.domain.JdbcTaosdemoConfig;
 import org.apache.log4j.Logger;
 
 import java.sql.Connection;
@@ -9,7 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 public class InsertTableTask implements Runnable {
-    private static Logger logger = Logger.getLogger(InsertTableTask.class);
+    private static final Logger logger = Logger.getLogger(InsertTableTask.class);
 
     private final JdbcTaosdemoConfig config;
     private final int startIndex;

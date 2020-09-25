@@ -1,10 +1,10 @@
-package com.taosdata.example;
+package com.taosdata.example.jdbcTaosdemo;
 
-import com.taosdata.example.domain.JdbcTaosdemoConfig;
-import com.taosdata.example.task.CreateTableTask;
-import com.taosdata.example.task.InsertTableDatetimeTask;
-import com.taosdata.example.task.InsertTableTask;
-import com.taosdata.example.utils.TimeStampUtil;
+import com.taosdata.example.jdbcTaosdemo.domain.JdbcTaosdemoConfig;
+import com.taosdata.example.jdbcTaosdemo.task.CreateTableTask;
+import com.taosdata.example.jdbcTaosdemo.task.InsertTableDatetimeTask;
+import com.taosdata.example.jdbcTaosdemo.task.InsertTableTask;
+import com.taosdata.example.jdbcTaosdemo.utils.TimeStampUtil;
 import com.taosdata.jdbc.TSDBDriver;
 import org.apache.log4j.Logger;
 
@@ -25,34 +25,20 @@ public class JdbcTaosdemo {
         this.config = config;
     }
 
-    private static void printHelp() {
-        System.out.println("Usage: java -jar JDBCConnectorChecker.jar -h host [OPTION...]");
-        System.out.println("-p    port                       The TCP/IP port number to use for the connection. Default is 6030");
-        System.out.println("-u    user                       The TDengine user name to use when connecting to the server. Default is 'root'");
-        System.out.println("-P    password                   The password to use when connecting to the server.Default is 'taosdata'");
-        System.out.println("-d    database                   Destination database. Default is 'test'");
-        System.out.println("-m    tablePrefix                Table prefix name. Default is 'd'");
-        System.out.println("-T    num_of_threads             The number of threads. Default is 10");
-        System.out.println("-t    num_of_tables              The number of tables. Default is 10000");
-        System.out.println("-n    num_of_records_per_table   The number of records per table. Default is 100000");
-        System.out.println("-D    delete table               Delete data methods. Default is false");
-        System.out.println("--help                           Give this help list");
-    }
 
     public static void main(String[] args) {
         JdbcTaosdemoConfig config = JdbcTaosdemoConfig.build(args);
 
         boolean isHelp = Arrays.asList(args).contains("--help");
         if (isHelp) {
-            printHelp();
+            JdbcTaosdemoConfig.printHelp();
             return;
         }
         if (config.getHost() == null) {
-            printHelp();
+            JdbcTaosdemoConfig.printHelp();
             return;
         }
 
-        boolean infinite = Arrays.asList().contains("--infinite");
         JdbcTaosdemo taosdemo = new JdbcTaosdemo(config);
         taosdemo.init();
         taosdemo.dropDatabase();
@@ -60,7 +46,10 @@ public class JdbcTaosdemo {
         taosdemo.useDatabase();
         taosdemo.createSuperTable();
         taosdemo.createTableMultiThreads();
+
+        boolean infinite = Arrays.asList(args).contains("--infinite");
         if (infinite) {
+            logger.info("!!! Infinite Insert Mode Started. !!!!");
             taosdemo.insertInfinite();
         } else {
             taosdemo.insertMultiThreads();
@@ -206,6 +195,17 @@ public class JdbcTaosdemo {
         return sql;
     }
 
+    public static String batchInsertSql(int tableIndex, long ts, int valueCnt, JdbcTaosdemoConfig config) {
+        float current = 10 + random.nextFloat();
+        int voltage = 200 + random.nextInt(20);
+        float phase = random.nextFloat();
+        StringBuilder sb = new StringBuilder();
+        sb.append("insert into " + config.getDbName() + "." + config.getTbPrefix() + "" + tableIndex + " " + "values");
+        for (int i = 0; i < valueCnt; i++) {
+            sb.append("(" + (ts + i) + ", " + current + ", " + voltage + ", " + phase + ") ");
+        }
+        return sb.toString();
+    }
 
     public static String createTableSql(int tableIndex, JdbcTaosdemoConfig config) {
         String location = locations[random.nextInt(locations.length)];
@@ -252,7 +252,7 @@ public class JdbcTaosdemo {
         }
     }
 
-    private void printSql(String sql, boolean succeed, long cost) {
+    private static void printSql(String sql, boolean succeed, long cost) {
         logger.info("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
     }
 
@@ -269,7 +269,7 @@ public class JdbcTaosdemo {
         }
     }
 
-    private void printResult(ResultSet resultSet) throws SQLException {
+    private static void printResult(ResultSet resultSet) throws SQLException {
         ResultSetMetaData metaData = resultSet.getMetaData();
         while (resultSet.next()) {
             StringBuilder sb = new StringBuilder();

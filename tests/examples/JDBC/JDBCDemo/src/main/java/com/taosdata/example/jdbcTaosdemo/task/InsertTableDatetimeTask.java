@@ -1,7 +1,7 @@
-package com.taosdata.example.task;
+package com.taosdata.example.jdbcTaosdemo.task;
 
-import com.taosdata.example.JdbcTaosdemo;
-import com.taosdata.example.domain.JdbcTaosdemoConfig;
+import com.taosdata.example.jdbcTaosdemo.JdbcTaosdemo;
+import com.taosdata.example.jdbcTaosdemo.domain.JdbcTaosdemoConfig;
 import org.apache.log4j.Logger;
 
 import java.sql.Connection;
@@ -29,9 +29,12 @@ public class InsertTableDatetimeTask implements Runnable {
     public void run() {
         try {
             Connection connection = JdbcTaosdemo.getConnection(config);
-            for (long ts = startDatetime; ts < finishedDatetime; ts++) {
+            int valueCnt = 100;
+            for (long ts = startDatetime; ts < finishedDatetime; ts+= valueCnt) {
                 for (int i = startTableIndex; i < startTableIndex + tableNumber; i++) {
-                    String sql = JdbcTaosdemo.insertSql(i + 1, ts, config);
+//                    String sql = JdbcTaosdemo.insertSql(i + 1, ts, config);
+
+                    String sql = JdbcTaosdemo.batchInsertSql(i + 1, ts, valueCnt, config);
                     Statement statement = connection.createStatement();
                     statement.execute(sql);
                     statement.close();

@@ -1,4 +1,4 @@
-package com.taosdata.example.utils;
+package com.taosdata.example.jdbcTaosdemo.utils;
 
 import java.sql.Date;
 import java.text.ParseException;
