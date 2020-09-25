@@ -97,6 +97,7 @@ typedef struct SSuperTable_S {
   char         startTimestamp[MAX_TB_NAME_SIZE];  // 
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
   char         sampleFile[MAX_FILE_NAME_LEN];
+  char         tagsFile[MAX_FILE_NAME_LEN];
 
   int          columnCount;
   SColumn      columns[MAX_COLUMN_COUNT];
@@ -110,6 +111,11 @@ typedef struct SSuperTable_S {
   char*        sampleDataBuf;
   int          sampleRowCount;
   int          sampleUsePos;
+
+  int          tagSource;    // 0: rand, 1: tag sample
+  char*        tagDataBuf;
+  int          tagSampleCount;
+  int          tagUsePos;
 } SSuperTable;
 
 typedef struct SDbCfg_S { 
@@ -444,7 +450,8 @@ static void printfMeta() {
       printf("      timeStampStep:     \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].timeStampStep);      
       printf("      startTimestamp:    \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].startTimestamp);             
       printf("      sampleFormat:      \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].sampleFormat);
-      printf("      sampleFile:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].sampleFile);  
+      printf("      sampleFile:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].sampleFile); 
+      printf("      tagsFile:          \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].tagsFile);   
     
       printf("      columnCount:       \033[33m%d\033[0m\n        ",  g_Dbs.db[i].supterTbls[j].columnCount);
       for (int k = 0; k < g_Dbs.db[i].supterTbls[j].columnCount; k++) {
@@ -612,6 +619,19 @@ void curlProceSql(char* host, char* sqlstr)
   //curl_global_cleanup();
  
   return;
+}
+
+char* getTagValueFromTagSample(        SSuperTable* stbInfo, int tagUsePos) {
+  char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
+  if (NULL == dataBuf) {
+    printf("calloc failed! size:%d\n", TSDB_MAX_SQL_LEN+1);
+    exit(-1);
+  }
+  
+  int    dataLen = 0;
+  dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, "(%s)", stbInfo->tagDataBuf + stbInfo->lenOfTagOfOneRow * tagUsePos);
+  
+  return dataBuf;
 }
 
 char* generateTagVaulesForStb(SSuperTable* stbInfo) {
@@ -834,7 +854,12 @@ void * createTable(void *sarg)
 
   //printf("Creating table from %d to %d\n", winfo->start_table_id, winfo->end_table_id);
   for (int i = winfo->start_table_id; i <= winfo->end_table_id; i++) {
-    char* tagsValBuf = generateTagVaulesForStb(superTblInfo);
+    char* tagsValBuf = NULL;
+    if (0 == superTblInfo->tagSource) {
+      tagsValBuf = generateTagVaulesForStb(superTblInfo);
+    } else {
+      tagsValBuf = getTagValueFromTagSample(superTblInfo, i % superTblInfo->tagSampleCount);
+    }
     snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s%d using %s.%s tags %s;", winfo->db_name, superTblInfo->childTblPrefix, i, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
     free(tagsValBuf);
     queryDB(winfo->taos, command);
@@ -899,6 +924,54 @@ static void createChildTables() {
       g_totalChildTables += g_Dbs.db[i].supterTbls[j].childTblCount;
     }    
   }
+}
+
+/*
+  Read 10000 lines at most. If more than 10000 lines, continue to read after using
+*/
+int readTagFromCsvFileToMem(SSuperTable  * supterTblInfo) {
+  size_t  n = 0;
+  ssize_t readLen = 0;
+  char *  line = NULL;
+  
+  FILE *fp = fopen(supterTblInfo->tagsFile, "r");
+  if (fp == NULL) {
+    printf("Failed to open tags file: %s, reason:%s\n", supterTblInfo->tagsFile, strerror(errno));
+    return -1;
+  }
+
+  if (supterTblInfo->tagDataBuf) {
+    free(supterTblInfo->tagDataBuf);
+    supterTblInfo->tagDataBuf = NULL;
+  }
+
+  supterTblInfo->tagDataBuf = calloc(supterTblInfo->lenOfTagOfOneRow * MAX_LINE_COUNT_IN_MEM, 1);
+  if (supterTblInfo->tagDataBuf == NULL) {
+    printf("Failed to calloc, reason:%s\n", strerror(errno));
+    fclose(fp);
+    return -1;
+  }
+  
+  while ((readLen = taosGetline(&line, &n, fp)) != -1) {
+    if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
+      line[--readLen] = 0;
+    }
+
+    if (readLen == 0) {
+      continue;
+    }
+
+    memcpy(supterTblInfo->tagDataBuf + supterTblInfo->tagSampleCount * supterTblInfo->lenOfTagOfOneRow, line, readLen);
+    supterTblInfo->tagSampleCount++;
+
+    if (supterTblInfo->tagSampleCount >= MAX_LINE_COUNT_IN_MEM) {
+      break;
+    }
+  }
+
+  free(line);
+  fclose(fp);
+  return 0;
 }
 
 int readSampleFromJsonFileToMem(SSuperTable  * supterTblInfo) {
@@ -1296,6 +1369,18 @@ static bool getMetaFromJsonFile(char* fileName) {
       } else {
         printf("failed to read json, sample_file not found");
         goto PARSE_OVER;
+      }          
+      
+      cJSON *tagsFile = cJSON_GetObjectItem(stbInfo, "tags_file");
+      if (tagsFile && tagsFile->type == cJSON_String && tagsFile->valuestring != NULL) {
+        strncpy(g_Dbs.db[i].supterTbls[j].tagsFile, tagsFile->valuestring, MAX_FILE_NAME_LEN);
+        g_Dbs.db[i].supterTbls[j].tagSource = 1;
+      } else if (!tagsFile) {
+        memset(g_Dbs.db[i].supterTbls[j].tagsFile, 0, MAX_FILE_NAME_LEN);
+        g_Dbs.db[i].supterTbls[j].tagSource = 0;
+      } else {
+        printf("failed to read json, tags_file not found");
+        goto PARSE_OVER;
       }    
     
       cJSON* insertRate = cJSON_GetObjectItem(stbInfo, "insert_rate");
@@ -1412,6 +1497,10 @@ void prePareSampleData() {
       if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].dataSource, "sample", 6)) {
         readSampleFromFileToMem(&g_Dbs.db[i].supterTbls[j]);
       }
+      
+      if (g_Dbs.db[i].supterTbls[j].tagsFile[0] != 0) {
+        readTagFromCsvFileToMem(&g_Dbs.db[i].supterTbls[j]);
+      }
 
       if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "resetful", 8)) {
         curl_global_init(CURL_GLOBAL_ALL);
@@ -1438,7 +1527,6 @@ void postFreeResource() {
     }
   }
 }
-
 
 int getRowDataFromSample(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* stbInfo, int sampleUsePos) {
   int    dataLen = 0;
@@ -1559,7 +1647,13 @@ void *syncWrite(void *sarg) {
         char *pstr = buffer;
 
         if (superTblInfo->autoCreateTable) {
-          char* tagsValBuf = generateTagVaulesForStb(superTblInfo);
+          char* tagsValBuf = NULL;
+          if (0 == superTblInfo->tagSource) {
+            tagsValBuf = generateTagVaulesForStb(superTblInfo);
+          } else {
+            tagsValBuf = getTagValueFromTagSample(superTblInfo, tID % superTblInfo->tagSampleCount);
+          }
+        
           len += snprintf(pstr + len, TSDB_MAX_SQL_LEN - len, "insert into %s.%s%d using %s.%s tags %s values", winfo->db_name, superTblInfo->childTblPrefix, tID, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
           free(tagsValBuf);
         } else {
@@ -1702,6 +1796,9 @@ int main(int argc, char *argv[]) {
   // create database and super tables
   (void)createDatabases();
 
+  // pretreatement
+  prePareSampleData();
+  
   double start;
   double end;
 
@@ -1711,8 +1808,6 @@ int main(int argc, char *argv[]) {
   end = getCurrentTime();
   printf("Spent %.4f seconds to create %d tables with %d thread(s)\n\n", end - start, g_totalChildTables, g_Dbs.threadCount);
 
-  // pretreatement
-  prePareSampleData();
 
   // create sub threads for inserting data
   start = getCurrentTime();
