@@ -805,17 +805,13 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableName, SSqlObj* pSql) {
   const char* msg1 = "name too long";
-  const char* msg2 = "current database or database name invalid";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
 
   // backup the old name in pTableMetaInfo
-  size_t size = strlen(pTableMetaInfo->name);
-  char*  oldName = NULL;
-  if (size > 0) {
-    oldName = strdup(pTableMetaInfo->name);
-  }
+  char oldName[TSDB_TABLE_FNAME_LEN] = {0};
+  tstrncpy(oldName, pTableMetaInfo->name, tListLen(oldName));
 
   if (hasSpecifyDB(pzTableName)) { // db has been specified in sql string so we ignore current db path
     code = setObjFullName(pTableMetaInfo->name, getAccountId(pSql), NULL, pzTableName, NULL);
@@ -836,23 +832,17 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    taosTFree(oldName);
     return code;
   }
 
   /*
-   * the old name exists and is not equalled to the new name. Release the metermeta/metricmeta
+   * the old name exists and is not equalled to the new name. Release the table meta
    * that are corresponding to the old name for the new table name.
    */
-  if (size > 0) {
-    if (strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
-      tscClearTableMetaInfo(pTableMetaInfo, false);
-    }
-  } else {
-    assert(pTableMetaInfo->pTableMeta == NULL);
+  if (strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
+    tscClearTableMetaInfo(pTableMetaInfo, false);
   }
 
-  taosTFree(oldName);
   return TSDB_CODE_SUCCESS;
 }
 
