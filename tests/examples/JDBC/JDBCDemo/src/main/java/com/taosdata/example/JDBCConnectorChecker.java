@@ -11,7 +11,6 @@ public class JDBCConnectorChecker {
     private static String tbName = "weather";
     private Connection connection;
 
-
     /**
      * get connection
      **/
@@ -169,6 +168,5 @@ public class JDBCConnectorChecker {
         checker.checkDropTable();
         checker.close();
     }
-
 
 }

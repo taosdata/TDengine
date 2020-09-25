@@ -276,14 +276,14 @@ SQL语句的解析和校验工作在客户端完成。解析SQL语句并生成�
 
 在TDengine中引入关键词interval来进行时间轴上固定长度时间窗口的切分，并按照时间窗口对数据进行聚合，对窗口范围内的数据按需进行聚合。例如：
 ```mysql
-select count(*) from d1001 interval(1h)；
+select count(*) from d1001 interval(1h);
 ```
 
 针对d1001设备采集的数据，按照1小时的时间窗口返回每小时存储的记录数量。
 
 在需要连续获得查询结果的应用场景下，如果给定的时间区间存在数据缺失，会导致该区间数据结果也丢失。TDengine提供策略针对时间轴聚合计算的结果进行插值，通过使用关键词Fill就能够对时间轴聚合结果进行插值。例如：
 ```mysql
-select count(*) from d1001 interval(1h) fill(prev)；
+select count(*) from d1001 interval(1h) fill(prev);
 ```
 
 针对d1001设备采集数据统计每小时记录数，如果某一个小时不存在数据，这返回之前一个小时的统计数据。TDengine提供前向插值(prev)、线性插值(linear)、NULL值填充(NULL)、特定值填充(value)。
