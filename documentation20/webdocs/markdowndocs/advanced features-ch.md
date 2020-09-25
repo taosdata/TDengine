@@ -39,7 +39,7 @@ create table D1002 using meters tags ("Beijing.Haidian", 2);
 我们已经知道，可以通过下面这条SQL语句以一分钟为时间窗口、30秒为前向增量统计这些电表的平均电压。
 
 ```sql
-select avg(voltage) from meters interval(1m) sliding(30s)；
+select avg(voltage) from meters interval(1m) sliding(30s);
 ```
 
 每次执行这条语句，都会重新计算所有数据。 
@@ -47,14 +47,14 @@ select avg(voltage) from meters interval(1m) sliding(30s)；
 可以把上面的语句改进成下面的样子，每次使用不同的 `startTime` 并定期执行：
 
 ```sql
-select avg(voltage) from meters where ts > {startTime} interval(1m) sliding(30s)；
+select avg(voltage) from meters where ts > {startTime} interval(1m) sliding(30s);
 ```
 
 这样做没有问题，但TDengine提供了更简单的方法，
 只要在最初的查询语句前面加上 `create table {tableName} as ` 就可以了, 例如：
 
 ```sql
-create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s)；
+create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s);
 ```
 
 会自动创建一个名为 `avg_vol` 的新表，然后每隔30秒，TDengine会增量执行 `as` 后面的 SQL 语句，
@@ -80,7 +80,7 @@ taos> select * from avg_vol;
 比如使用下面的SQL创建的连续查询将运行一小时，之后会自动停止。
 
 ```sql
-create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s)；
+create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s);
 ```
 
 需要说明的是，上面例子中的 `now` 是指创建连续查询的时间，而不是查询执行的时间，否则，查询就无法自动停止了。 
@@ -396,7 +396,7 @@ ts: 1597465200000	current: 11.2	voltage: 220	phase: 1	location: Beijing.Haidian	
 
 ```sql
 # taos
-taos> use power；
+taos> use power;
 taos> insert into d1001 values("2020-08-15 12:40:00.000", 12.4, 220, 1);
 ```
 
