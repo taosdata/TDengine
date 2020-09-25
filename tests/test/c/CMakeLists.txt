@@ -22,8 +22,8 @@ IF (TD_LINUX)
   #add_executable(importOneRow importOneRow.c)
   #target_link_libraries(importOneRow taos_static pthread)
 
-  add_executable(importPerTable importPerTable.c)
-  target_link_libraries(importPerTable taos_static pthread)
+  #add_executable(importPerTable importPerTable.c)
+  #target_link_libraries(importPerTable taos_static pthread)
 
   #add_executable(hashPerformance hashPerformance.c)
   #target_link_libraries(hashPerformance taos_static tutil common pthread)
