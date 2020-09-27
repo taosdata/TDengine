@@ -75,6 +75,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_SMALLINT_NULL         0x8000
 #define TSDB_DATA_INT_NULL              0x80000000
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+#define TSDB_DATA_TIMESTAMP_NULL        TSDB_DATA_BIGINT_NULL
 
 #define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN

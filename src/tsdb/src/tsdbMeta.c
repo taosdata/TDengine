@@ -86,7 +86,8 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   if (pTable != NULL) {
     tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
               TABLE_TID(pTable), TABLE_UID(pTable));
-    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    goto _err;
   }
 
   if (pCfg->type == TSDB_CHILD_TABLE) {
@@ -700,7 +701,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), SL_ALLOW_DUP_KEY, getTagIndexKey);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL, SL_ALLOW_DUP_KEY, getTagIndexKey);
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
@@ -745,7 +746,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
 
   T_REF_INC(pTable);
 
-  tsdbTrace("table %s tid %d uid %" PRIu64 " is created", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
+  tsdbDebug("table %s tid %d uid %" PRIu64 " is created", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
             TABLE_UID(pTable));
 
   return pTable;
@@ -1155,8 +1156,8 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-      pTable->pIndex =
-          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), SL_ALLOW_DUP_KEY, getTagIndexKey);
+      pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
+                                       SL_ALLOW_DUP_KEY, getTagIndexKey);
       if (pTable->pIndex == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tsdbFreeTable(pTable);

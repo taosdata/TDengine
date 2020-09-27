@@ -765,7 +765,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
       return -1;
     }
 
-    if (tsdbInsertRowToMem(pRepo, row, pTable) < 0) return -1;
+    if (tsdbUpdateRowInMem(pRepo, row, pTable) < 0) return -1;
 
     (*affectedrows)++;
     points++;

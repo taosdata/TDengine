@@ -39,16 +39,11 @@ typedef char *(*__sl_key_fn_t)(const void *);
 
 typedef struct SSkipListNode {
   uint8_t        level;
-  uint8_t        flags;
   void *         pData;
   struct SSkipListNode *forwards[];
 } SSkipListNode;
 
-#define SL_NODE_DELETED_FLAG (uint8_t)0x1
-
 #define SL_GET_NODE_DATA(n) (n)->pData
-#define SL_IS_NODE_DELETED(n) ((n)->flags & SL_NODE_DELETED_FLAG)
-#define SL_SET_NODE_DELETED(n) (n)->flags |= SL_NODE_DELETED_FLAG
 #define SL_NODE_GET_FORWARD_POINTER(n, l) (n)->forwards[(l)]
 #define SL_NODE_GET_BACKWARD_POINTER(n, l) (n)->forwards[(n)->level + (l)]
 
@@ -109,8 +104,7 @@ typedef struct SSkipList {
   uint8_t           flags;
   uint8_t           type;  // static info above
   uint8_t           level;
-  uint32_t          size;   // semantic meaning of size
-  uint32_t          tsize;  // # of all skiplist nodes in this SL
+  uint32_t          size;
   SSkipListNode *   pHead;  // point to the first element
   SSkipListNode *   pTail;  // point to the last element
 #if SKIP_LIST_RECORD_PERFORMANCE
@@ -131,13 +125,13 @@ typedef struct SSkipListIterator {
 #define SL_GET_MIN_KEY(s) SL_GET_NODE_KEY(s, SL_NODE_GET_FORWARD_POINTER((s)->pHead, 0))
 #define SL_GET_MAX_KEY(s) SL_GET_NODE_KEY((s), SL_NODE_GET_BACKWARD_POINTER((s)->pTail, 0))
 #define SL_SIZE(s) (s)->size
-#define SL_TSIZE(s) (s)->tsize
 
-SSkipList *    tSkipListCreate(uint8_t nMaxLevel, uint8_t keyType, uint16_t keyLen, uint8_t flags, __sl_key_fn_t fn);
-void           tSkipListDestroy(SSkipList *pSkipList);
-SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData);
-SArray *       tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
-void           tSkipListPrint(SSkipList *pSkipList, int16_t nlevel);
+SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
+                           __sl_key_fn_t fn);
+void       tSkipListDestroy(SSkipList *pSkipList);
+SSkipListNode *    tSkipListPut(SSkipList *pSkipList, void *pData);
+SArray *           tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
+void               tSkipListPrint(SSkipList *pSkipList, int16_t nlevel);
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList);
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order);
 bool               tSkipListIterNext(SSkipListIterator *iter);
@@ -145,8 +139,6 @@ SSkipListNode *    tSkipListIterGet(SSkipListIterator *iter);
 void *             tSkipListDestroyIter(SSkipListIterator *iter);
 uint32_t           tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
 void               tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode);
-SSkipListKey       tSkipListGetMinKey(SSkipList *pSkipList);
-SSkipListKey       tSkipListGetMaxKey(SSkipList *pSkipList);
 
 #ifdef __cplusplus
 }
