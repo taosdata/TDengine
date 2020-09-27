@@ -697,22 +697,41 @@ static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* p
 
     pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
     if (pCheckInfo->pDataCols == NULL) {
-      tsdbError("%p failed to malloc buf, %p", pQueryHandle, pQueryHandle->qinfo);
+      tsdbError("%p failed to malloc buf for pDataCols, %p", pQueryHandle, pQueryHandle->qinfo);
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      return terrno;
+      goto _error;
     }
   }
 
   STSchema* pSchema = tsdbGetTableSchema(pCheckInfo->pTableObj);
-  tdInitDataCols(pCheckInfo->pDataCols, pSchema);
-  tdInitDataCols(pQueryHandle->rhelper.pDataCols[0], pSchema);
-  tdInitDataCols(pQueryHandle->rhelper.pDataCols[1], pSchema);
+  int32_t code = tdInitDataCols(pCheckInfo->pDataCols, pSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%p failed to malloc buf for pDataCols, %p", pQueryHandle, pQueryHandle->qinfo);
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  code = tdInitDataCols(pQueryHandle->rhelper.pDataCols[0], pSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%p failed to malloc buf for rhelper.pDataCols[0], %p", pQueryHandle, pQueryHandle->qinfo);
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  code = tdInitDataCols(pQueryHandle->rhelper.pDataCols[1], pSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%p failed to malloc buf for rhelper.pDataCols[1], %p", pQueryHandle, pQueryHandle->qinfo);
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _error;
+  }
 
   int16_t* colIds = pQueryHandle->defaultLoadColumn->pData;
 
   int32_t ret = tsdbLoadBlockDataCols(&(pQueryHandle->rhelper), pBlock, pCheckInfo->pCompInfo, colIds, (int)(QH_GET_NUM_OF_COLS(pQueryHandle)));
   if (ret != TSDB_CODE_SUCCESS) {
-    return terrno;
+    int32_t c = terrno;
+    assert(c != TSDB_CODE_SUCCESS);
+    goto _error;
   }
 
   SDataBlockLoadInfo* pBlockLoadInfo = &pQueryHandle->dataBlockLoadInfo;
@@ -729,10 +748,16 @@ static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* p
   int64_t elapsedTime = (taosGetTimestampUs() - st);
   pQueryHandle->cost.blockLoadTime += elapsedTime;
 
-  tsdbDebug("%p load file block into buffer, index:%d, brange:%"PRId64"-%"PRId64" , rows:%d, elapsed time:%"PRId64 " us, %p",
+  tsdbDebug("%p load file block into buffer, index:%d, brange:%"PRId64"-%"PRId64", rows:%d, elapsed time:%"PRId64 " us, %p",
       pQueryHandle, slotIndex, pBlock->keyFirst, pBlock->keyLast, pBlock->numOfRows, elapsedTime, pQueryHandle->qinfo);
-
   return TSDB_CODE_SUCCESS;
+
+_error:
+  pBlock->numOfRows = 0;
+
+  tsdbError("%p error occurs in loading file block, index:%d, brange:%"PRId64"-%"PRId64", rows:%d, %p",
+            pQueryHandle, slotIndex, pBlock->keyFirst, pBlock->keyLast, pBlock->numOfRows, pQueryHandle->qinfo);
+  return terrno;
 }
 
 static int32_t getEndPosInDataBlock(STsdbQueryHandle* pQueryHandle, SDataBlockInfo* pBlockInfo);
@@ -1241,6 +1266,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
       cur->pos >= 0 && cur->pos < pBlock->numOfRows);
 
   TSKEY* tsArray = pCols->cols[0].pData;
+  assert(pCols->numOfRows == pBlock->numOfRows && tsArray[0] == pBlock->keyFirst && tsArray[pBlock->numOfRows-1] == pBlock->keyLast);
 
   // for search the endPos, so the order needs to reverse
   int32_t order = (pQueryHandle->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
