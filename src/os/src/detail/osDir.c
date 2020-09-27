@@ -126,12 +126,13 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   dstFp = gzdopen(fd, "wb6f");
   if (dstFp == NULL) {
     ret = -3;
+    close(fd);
     goto cmp_end;
   }
 
   while (!feof(srcFp)) {
     len = (int32_t)fread(data, 1, COMPRESS_STEP_SIZE, srcFp);
-    gzwrite(dstFp, data, len);
+    (void)gzwrite(dstFp, data, len);
   }
 
 cmp_end:
