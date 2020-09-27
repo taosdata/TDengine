@@ -671,7 +671,6 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
   int8_t     selfOldRole = nodeRole;
   int8_t     i, syncRequired = 0;
 
-  pNode->peerInfo[pNode->selfIndex]->version = nodeVersion;
   pPeer->role = newRole;
 
   sDebug("%s, own role:%s, new peer role:%s", pPeer->id, syncRole[nodeRole], syncRole[pPeer->role]);
@@ -923,7 +922,7 @@ static int syncReadPeerMsg(SSyncPeer *pPeer, SSyncHead *pHead, char *cont) {
 static int syncProcessPeerMsg(void *param, void *buffer) {
   SSyncPeer *pPeer = param;
   SSyncHead  head;
-  char *     cont = (char *)buffer;
+  char *     cont = buffer;
 
   SSyncNode *pNode = pPeer->pSyncNode;
   pthread_mutex_lock(&(pNode->mutex));
