@@ -91,7 +91,20 @@ static int32_t taosStartLog() {
   return 0;
 }
 
+static pthread_once_t     once = {0};
+
+static void taosLogBuffDestroy(SLogBuff *tLogBuff);
+
+static void exit_routine(void) {
+  taosLogBuffDestroy(tsLogObj.logHandle);
+}
+
+static void setup_atexit(void) {
+  atexit(exit_routine);
+}
+
 int32_t taosInitLog(char *logName, int numOfLogLines, int maxFiles) {
+  pthread_once(&once, setup_atexit);
   tsLogObj.logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
   if (taosOpenLogFile(logName, numOfLogLines, maxFiles) < 0) return -1;
@@ -519,7 +532,7 @@ _err:
   return NULL;
 }
 
-#if 0
+#if 1
 static void taosLogBuffDestroy(SLogBuff *tLogBuff) {
   tsem_destroy(&(tLogBuff->buffNotEmpty));
   pthread_mutex_destroy(&(tLogBuff->buffMutex));

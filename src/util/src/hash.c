@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef USE_EHASH
+
 #include "os.h"
 #include "hash.h"
 #include "tulog.h"
@@ -798,3 +800,213 @@ SHashNode *getNextHashNode(SHashMutableIterator *pIter) {
 
   return NULL;
 }
+
+#else
+
+#include "hash.h"
+
+#include "ehash.h"
+
+struct SHashNode {
+  ehash_node_t         *node;
+};
+
+struct SHashObj {
+  SHashLockTypeE        lock_type;
+  ehash_obj_t          *obj;
+};
+
+struct SHashMutableIterator {
+  ehash_iter_t         *iter;
+};
+
+SHashObj *taosHashInitX(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
+  SHashObj *obj = (SHashObj*)calloc(1, sizeof(*obj));
+  if (!obj) return NULL;
+
+  ehash_conf_t conf = {0};
+  conf.capacity          = capacity;
+  conf.fn                = fn;
+  conf.enableUpdate      = update;
+
+  obj->lock_type     = type;
+  obj->obj           = ehash_create(conf);
+
+  if (!obj->obj) {
+    free(obj);
+    return NULL;
+  }
+
+  return obj;
+}
+
+size_t taosHashGetSizeX(const SHashObj *pHashObj) {
+  return ehash_size(pHashObj->obj);
+}
+
+int32_t taosHashPutX(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+  ehash_node_val_t val = {0};
+  val.buf      = data;
+  val.blen     = size;
+  ehash_node_t *node = ehash_put(pHashObj->obj, key, keyLen, val);
+  if (!node) return -1;
+  ehash_node_release(node);
+  return 0;
+}
+
+void *taosHashGetX(SHashObj *pHashObj, const void *key, size_t keyLen) {
+  return taosHashGetCB(pHashObj, key, keyLen, NULL, NULL, 0);
+}
+
+typedef struct predict_s          predict_t;
+struct predict_s {
+  const void       *key;
+  size_t            keyLen;
+  SHashObj         *obj;
+};
+
+static int predict(ehash_obj_t *obj, void *arg, ehash_node_kv_t kv) {
+  predict_t *p = (predict_t*)arg;
+  if (kv.klen != p->keyLen) return 0;
+  if (!kv.key) return 0;
+  if (memcmp(kv.key, p->key, p->keyLen)) return 0;
+  return 1;
+}
+
+void* taosHashGetCBX(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
+  if (!key) return NULL;
+  if (keyLen == 0) return NULL;
+
+  predict_t arg = {0};
+  arg.obj       = pHashObj;
+  arg.key       = key;
+  arg.keyLen    = keyLen;
+
+  ehash_node_t *node = ehash_query(pHashObj->obj, predict, &arg);
+  if (!node) return NULL;
+
+  void *data = NULL;
+
+  do {
+    void *buf  = (void*)ehash_node_get_buf(node);
+    if (fp) {
+      fp(buf);
+    }
+    if (d != NULL) {
+      // copied from original code
+      // but what if dsize > ehash_node_get_blen(node)
+      memcpy(d, buf, dsize);
+    } else {
+      // copied from original code
+      // but what if node is to be released/removed by other thread later?
+      data = buf;
+    }
+  } while (0);
+
+  ehash_node_release(node);
+
+  return data;
+}
+
+int32_t taosHashRemoveX(SHashObj *pHashObj, const void *key, size_t keyLen) {
+  return taosHashRemoveWithData(pHashObj, key, keyLen, NULL, 0);
+}
+
+int32_t taosHashRemoveWithDataX(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize) {
+  if (!key || keyLen<=0) return -1;
+
+  do {
+    if (!data) break;
+
+    predict_t arg = {0};
+    arg.obj       = pHashObj;
+    arg.key       = key;
+    arg.keyLen    = keyLen;
+
+    ehash_node_t *node = ehash_query(pHashObj->obj, predict, &arg);
+    if (!node) return -1;
+
+    void  *buf  = (void*)ehash_node_get_buf(node);
+    size_t blen = ehash_node_get_blen(node);
+    memcpy(data, buf, dsize>blen ? blen : dsize);
+
+    ehash_node_release(node);
+  } while (0);
+
+  return ehash_remove(pHashObj->obj, key, keyLen);
+}
+
+typedef struct traverse_s    traverse_t;
+struct traverse_s {
+  void               *param;
+  bool (*fp)(void *param, void *data);
+};
+
+static void traverse(ehash_obj_t *obj, void *arg, ehash_node_kv_t kv, int *keep, int *stop) {
+  traverse_t *p = (traverse_t*)arg;
+  void *param   = p->param;
+  void *data    = (void*)kv.buf;
+  bool ok = p->fp(param, data);
+  *keep = ok ? 1 : 0;
+  *stop = 0;
+}
+
+int32_t taosHashCondTraverseX(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param) {
+  traverse_t arg = {0};
+  arg.param      = param;
+  arg.fp         = fp;
+
+  int r = ehash_traverse(pHashObj->obj, traverse, &arg);
+
+  return r ? -1 : 0;
+}
+
+void taosHashCleanupX(SHashObj *pHashObj) {
+  if (!pHashObj) return;
+  if (pHashObj->obj) ehash_destroy(pHashObj->obj);
+  pHashObj->obj = NULL;
+  free(pHashObj);
+}
+
+SHashMutableIterator* taosHashCreateIterX(SHashObj *pHashObj) {
+  SHashMutableIterator *iter = (SHashMutableIterator*)calloc(1, sizeof(*iter));
+  if (!iter) return NULL;
+
+  iter->iter = ehash_iter_create(pHashObj->obj);
+  if (!iter->iter) {
+    free(iter);
+    return NULL;
+  }
+
+  return iter;
+}
+
+bool taosHashIterNextX(SHashMutableIterator *iter) {
+  int r = ehash_iter_next(iter->iter, NULL);
+  return r ? true : false;
+}
+
+void *taosHashIterGetX(SHashMutableIterator *iter) {
+  ehash_node_t *node = ehash_iter_curr(iter->iter);
+  if (!node) return NULL;
+
+  void *data = (void*)ehash_node_get_buf(node);
+
+  ehash_node_release(node);
+
+  return data;
+}
+
+void* taosHashDestroyIterX(SHashMutableIterator* iter) {
+  ehash_iter_destroy(iter->iter);
+  free(iter);
+  return NULL;
+}
+
+int32_t taosHashGetMaxOverflowLinkLengthX(const SHashObj *pHashObj) {
+  size_t len = ehash_get_max_slot_length(pHashObj->obj);
+  return len;
+}
+
+#endif
+

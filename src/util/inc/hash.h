@@ -30,6 +30,14 @@ extern "C" {
 
 typedef void (*_hash_free_fn_t)(void *param);
 
+typedef enum SHashLockTypeE {
+  HASH_NO_LOCK     = 0,
+  HASH_ENTRY_LOCK  = 1,
+} SHashLockTypeE;
+
+
+#ifndef USE_EHASH
+
 typedef struct SHashNode {
   char             *key;
 //  struct SHashNode *prev;
@@ -38,11 +46,6 @@ typedef struct SHashNode {
   uint32_t          keyLen;   // length of the key
   char             *data;
 } SHashNode;
-
-typedef enum SHashLockTypeE {
-  HASH_NO_LOCK     = 0,
-  HASH_ENTRY_LOCK  = 1,
-} SHashLockTypeE;
 
 typedef struct SHashEntry {
   int32_t    num;      // number of elements in current entry
@@ -71,6 +74,16 @@ typedef struct SHashMutableIterator {
   size_t     numOfChecked;    // already check number of elements in hash table
   size_t     numOfEntries;    // number of entries while the iterator is created
 } SHashMutableIterator;
+
+#else
+
+typedef struct SHashNode                SHashNode;
+typedef struct SHashObj                 SHashObj;
+typedef struct SHashMutableIterator     SHashMutableIterator;
+
+#endif // USE_EHASH
+
+#ifndef USE_EHASH
 
 /**
  * init the hash table
@@ -174,6 +187,60 @@ void* taosHashDestroyIter(SHashMutableIterator* iter);
  * @return
  */
 int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
+
+#else
+
+#include "ehash.h"
+
+SHashObj *taosHashInitX(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type);
+size_t taosHashGetSizeX(const SHashObj *pHashObj);
+int32_t taosHashPutX(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size);
+void *taosHashGetX(SHashObj *pHashObj, const void *key, size_t keyLen);
+void* taosHashGetCBX(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
+int32_t taosHashRemoveX(SHashObj *pHashObj, const void *key, size_t keyLen);
+int32_t taosHashRemoveWithDataX(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize);
+int32_t taosHashCondTraverseX(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
+void taosHashCleanupX(SHashObj *pHashObj);
+SHashMutableIterator* taosHashCreateIterX(SHashObj *pHashObj);
+bool taosHashIterNextX(SHashMutableIterator *iter);
+void *taosHashIterGetX(SHashMutableIterator *iter);
+void* taosHashDestroyIterX(SHashMutableIterator* iter);
+int32_t taosHashGetMaxOverflowLinkLengthX(const SHashObj *pHashObj);
+
+// if you wanna trace hash calls, cmake -DTRACE_HASH=ON -B debug
+#ifdef TRACE_HASH
+#define taosHashInit(capacity, fn, update, type) (DTH(), taosHashInitX(capacity, fn, update, type))
+#define taosHashGetSize(pHashObj) (DTH(), taosHashGetSizeX(pHashObj))
+#define taosHashPut(pHashObj, key, keyLen, data, size) (DTH(), taosHashPutX(pHashObj, key, keyLen, data, size))
+#define taosHashGet(pHashObj, key, keyLen) (DTH(), taosHashGetX(pHashObj, key, keyLen))
+#define taosHashGetCB(pHashObj, key, keyLen, fp, d, dsize) (DTH(), taosHashGetCBX(pHashObj, key, keyLen, fp, d, dsize))
+#define taosHashRemove(pHashObj, key, keyLen) (DTH(), taosHashRemoveX(pHashObj, key, keyLen))
+#define taosHashRemoveWithData(pHashObj, key, keyLen, data, dsize) (DTH(), taosHashRemoveWithDataX(pHashObj, key, keyLen, data, dsize))
+#define taosHashCondTraverse(pHashObj, fp, param) (DTH(), taosHashCondTraverseX(pHashObj, fp, param))
+#define taosHashCleanup(pHashObj) (DTH(), taosHashCleanupX(pHashObj))
+#define taosHashCreateIter(pHashObj) (DTH(), taosHashCreateIterX(pHashObj))
+#define taosHashIterNext(iter) (DTH(), taosHashIterNextX(iter))
+#define taosHashIterGet(iter) (DTH(), taosHashIterGetX(iter))
+#define taosHashDestroyIter(iter) (DTH(), taosHashDestroyIterX(iter))
+#define taosHashGetMaxOverflowLinkLength(pHashObj) (DTH(), taosHashGetMaxOverflowLinkLengthX(pHashObj))
+#else
+#define taosHashInit(capacity, fn, update, type) (taosHashInitX(capacity, fn, update, type))
+#define taosHashGetSize(pHashObj) (taosHashGetSizeX(pHashObj))
+#define taosHashPut(pHashObj, key, keyLen, data, size) (taosHashPutX(pHashObj, key, keyLen, data, size))
+#define taosHashGet(pHashObj, key, keyLen) (taosHashGetX(pHashObj, key, keyLen))
+#define taosHashGetCB(pHashObj, key, keyLen, fp, d, dsize) (taosHashGetCBX(pHashObj, key, keyLen, fp, d, dsize))
+#define taosHashRemove(pHashObj, key, keyLen) (taosHashRemoveX(pHashObj, key, keyLen))
+#define taosHashRemoveWithData(pHashObj, key, keyLen, data, dsize) (taosHashRemoveWithDataX(pHashObj, key, keyLen, data, dsize))
+#define taosHashCondTraverse(pHashObj, fp, param) (taosHashCondTraverseX(pHashObj, fp, param))
+#define taosHashCleanup(pHashObj) (taosHashCleanupX(pHashObj))
+#define taosHashCreateIter(pHashObj) (taosHashCreateIterX(pHashObj))
+#define taosHashIterNext(iter) (taosHashIterNextX(iter))
+#define taosHashIterGet(iter) (taosHashIterGetX(iter))
+#define taosHashDestroyIter(iter) (taosHashDestroyIterX(iter))
+#define taosHashGetMaxOverflowLinkLength(pHashObj) (taosHashGetMaxOverflowLinkLengthX(pHashObj))
+#endif
+
+#endif // USE_EHASH
 
 #ifdef __cplusplus
 }

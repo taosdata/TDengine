@@ -5,4 +5,10 @@ IF (TD_LINUX)
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(demo demo.c)
   TARGET_LINK_LIBRARIES(demo taos_static trpc tutil pthread )
+
+  ADD_EXECUTABLE(coretest coretest.c
+                          hash.c
+                          cache.c
+                          ehash.c)
+  TARGET_LINK_LIBRARIES(coretest taos_static trpc tutil pthread)
 ENDIF ()

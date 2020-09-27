@@ -1,6 +1,19 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
+option(USE_EHASH "using ehash or not" ON)
+option(TRACE_HASH "tracing hash calls" OFF)
+
+IF (USE_EHASH)
+  message(STATUS "Using ehash")
+  ADD_DEFINITIONS(-DUSE_EHASH)
+ENDIF ()
+
+IF (TRACE_HASH)
+  message(STATUS "Tracing hash calls")
+  ADD_DEFINITIONS(-DTRACE_HASH)
+ENDIF ()
+
 IF (TD_ACCOUNT)
   ADD_DEFINITIONS(-D_ACCT)
 ENDIF ()
