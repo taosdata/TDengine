@@ -622,7 +622,7 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
   if (onlineNum <= replica * 0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
-      pNode->peerInfo[pNode->selfIndex]->role = nodeRole;
+      //pNode->peerInfo[pNode->selfIndex]->role = nodeRole;
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       sInfo("vgId:%d, change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, replica);
     }
@@ -671,7 +671,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
   int8_t     selfOldRole = nodeRole;
   int8_t     i, syncRequired = 0;
 
-  pNode->peerInfo[pNode->selfIndex]->version = nodeVersion;
+  //pNode->peerInfo[pNode->selfIndex]->version = nodeVersion;
   pPeer->role = newRole;
 
   sDebug("%s, own role:%s, new peer role:%s", pPeer->id, syncRole[nodeRole], syncRole[pPeer->role]);
@@ -923,7 +923,7 @@ static int syncReadPeerMsg(SSyncPeer *pPeer, SSyncHead *pHead, char *cont) {
 static int syncProcessPeerMsg(void *param, void *buffer) {
   SSyncPeer *pPeer = param;
   SSyncHead  head;
-  char *     cont = (char *)buffer;
+  char *     cont = buffer;
 
   SSyncNode *pNode = pPeer->pSyncNode;
   pthread_mutex_lock(&(pNode->mutex));
