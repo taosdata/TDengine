@@ -25,31 +25,32 @@ typedef struct {
   int       num;
   int       numOfReqs;
   int       msgSize;
-  tsem_t    rspSem; 
-  tsem_t   *pOverSem; 
+  tsem_t    rspSem;
+  tsem_t *  pOverSem;
   pthread_t thread;
-  void     *pRpc;
+  void *    pRpc;
 } SInfo;
 
 void processResponse(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->ahandle;
-  uDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
+  uDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
+         pMsg->code);
 
   if (pEpSet) pInfo->epSet = *pEpSet;
   rpcFreeCont(pMsg->pCont);
 
-  tsem_post(&pInfo->rspSem); 
+  tsem_post(&pInfo->rspSem);
 }
 
 int tcount = 0;
 
 void *sendRequest(void *param) {
-  SInfo  *pInfo = (SInfo *)param;
-  SRpcMsg rpcMsg = {0}; 
-  
+  SInfo * pInfo = (SInfo *)param;
+  SRpcMsg rpcMsg = {0};
+
   uDebug("thread:%d, start to send request", pInfo->index);
 
-  while ( pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
+  while (pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
     pInfo->num++;
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
     rpcMsg.contLen = pInfo->msgSize;
@@ -57,8 +58,9 @@ void *sendRequest(void *param) {
     rpcMsg.msgType = 1;
     uDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg);
-    if ( pInfo->num % 20000 == 0 ) 
+    if (pInfo->num % 20000 == 0) {
       uInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
+    }
     tsem_wait(&pInfo->rspSem);
   }
 
@@ -72,12 +74,12 @@ int main(int argc, char *argv[]) {
   SRpcInit  rpcInit;
   SRpcEpSet epSet;
   char      secret[TSDB_KEY_LEN] = "mypassword";
-  int      msgSize = 128;
-  int      numOfReqs = 0;
-  int      appThreads = 1;
-  char     serverIp[40] = "127.0.0.1";
-  struct   timeval systemTime;
-  int64_t  startTime, endTime;
+  int       msgSize = 128;
+  int       numOfReqs = 0;
+  int       appThreads = 1;
+  char      serverIp[40] = "127.0.0.1";
+  struct    timeval systemTime;
+  int64_t   startTime, endTime;
   pthread_attr_t thattr;
 
   // server info
@@ -102,30 +104,30 @@ int main(int argc, char *argv[]) {
   rpcInit.spi          = 1;
   rpcInit.connType     = TAOS_CONN_CLIENT;
 
-  for (int i=1; i<argc; ++i) { 
-    if (strcmp(argv[i], "-p")==0 && i < argc-1) {
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
       epSet.port[0] = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
-      strcpy(epSet.fqdn[0], argv[++i]); 
-    } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-i") == 0 && i < argc - 1) {
+      tstrncpy(epSet.fqdn[0], argv[++i], TSDB_FQDN_LEN);
+    } else if (strcmp(argv[i], "-t") == 0 && i < argc - 1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-m") == 0 && i < argc - 1) {
       msgSize = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-s")==0 && i < argc-1) {
-      rpcInit.sessions = atoi(argv[++i]); 
-    } else if (strcmp(argv[i], "-n")==0 && i < argc-1) {
-      numOfReqs = atoi(argv[++i]); 
-    } else if (strcmp(argv[i], "-a")==0 && i < argc-1) {
-      appThreads = atoi(argv[++i]); 
-    } else if (strcmp(argv[i], "-o")==0 && i < argc-1) {
-      tsCompressMsgSize = atoi(argv[++i]); 
-    } else if (strcmp(argv[i], "-u")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-s") == 0 && i < argc - 1) {
+      rpcInit.sessions = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-n") == 0 && i < argc - 1) {
+      numOfReqs = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-a") == 0 && i < argc - 1) {
+      appThreads = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-o") == 0 && i < argc - 1) {
+      tsCompressMsgSize = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-u") == 0 && i < argc - 1) {
       rpcInit.user = argv[++i];
-    } else if (strcmp(argv[i], "-k")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-k") == 0 && i < argc - 1) {
       rpcInit.secret = argv[++i];
-    } else if (strcmp(argv[i], "-spi")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-spi") == 0 && i < argc - 1) {
       rpcInit.spi = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-d") == 0 && i < argc - 1) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
@@ -157,14 +159,14 @@ int main(int argc, char *argv[]) {
   uInfo("client is initialized");
 
   gettimeofday(&systemTime, NULL);
-  startTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;
+  startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
-  SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo)*appThreads);
- 
+  SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo) * appThreads);
+
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  for (int i=0; i<appThreads; ++i) {
+  for (int i = 0; i < appThreads; ++i) {
     pInfo->index = i;
     pInfo->epSet = epSet;
     pInfo->numOfReqs = numOfReqs;
@@ -177,18 +179,16 @@ int main(int argc, char *argv[]) {
 
   do {
     usleep(1);
-  } while ( tcount < appThreads);
+  } while (tcount < appThreads);
 
   gettimeofday(&systemTime, NULL);
-  endTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;  
-  float usedTime = (endTime - startTime)/1000.0;  // mseconds
+  endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
+  float usedTime = (endTime - startTime) / 1000.0;  // mseconds
 
-  uInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
-  uInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
+  uInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs * appThreads);
+  uInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime, msgSize);
 
   taosCloseLog();
 
   return 0;
 }
-
-
