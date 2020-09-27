@@ -46,7 +46,7 @@ taos>
 5. 在第一个节点，使用CLI程序taos, 登录进TDengine系统, 使用命令:
 
    ```
-   CREATE DNODE "h2.taos.com:6030"； 
+   CREATE DNODE "h2.taos.com:6030"; 
    ```
 
    将新节点的End Point添加进集群的EP列表。**"fqdn:port"需要用双引号引起来**，否则出错。请注意将示例的“h2.taos.com:6030" 替换为你自己第一个节点的End Point
@@ -54,7 +54,7 @@ taos>
 6. 使用命令
 
    ```
-   SHOW DNODES；
+   SHOW DNODES;
    ```
 
    查看新节点是否被成功加入。
@@ -71,7 +71,7 @@ taos>
 ###添加节点
 执行CLI程序taos, 使用root账号登录进系统, 执行:
 ```
-CREATE DNODE "fqdn:port"； 
+CREATE DNODE "fqdn:port"; 
 ```
 将新节点的End Point添加进集群的EP列表。**"fqdn:port"需要用双引号引起来**，否则出错。一个节点对外服务的fqdn和port可以通过配置文件taos.cfg进行配置，缺省是自动获取。
 

@@ -262,7 +262,9 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 
   if (pIMem != NULL) {
     ASSERT(pRepo->commit);
+    tsdbDebug("vgId:%d waiting for the commit thread", REPO_ID(pRepo));
     code = pthread_join(pRepo->commitThread, NULL);
+    tsdbDebug("vgId:%d commit thread is finished", REPO_ID(pRepo));
     if (code != 0) {
       tsdbError("vgId:%d failed to thread join since %s", REPO_ID(pRepo), strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);

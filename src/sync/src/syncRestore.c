@@ -23,10 +23,10 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eindex) {
-  char       name[TSDB_FILENAME_LEN*2] = {0};
-  char       fname[TSDB_FILENAME_LEN*3] = {0};
-  uint32_t   magic; 
+static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex) {
+  char       name[TSDB_FILENAME_LEN * 2] = {0};
+  char       fname[TSDB_FILENAME_LEN * 3] = {0};
+  uint32_t   magic;
   uint64_t   fversion;
   int64_t    size;
   uint32_t   index = sindex;
@@ -40,12 +40,12 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, uint32_t sindex, uint32_t eind
     if (magic == 0) break;
 
     snprintf(fname, sizeof(fname), "%s/%s", pNode->path, name);
-    remove(fname);
+    (void)remove(fname);
     sDebug("%s, %s is removed", pPeer->id, fname);
 
     index++;
     if (index > eindex) break;
-  }        
+  }
 }
 
 static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
@@ -62,35 +62,36 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   while (1) {
     // read file info
     int ret = taosReadMsg(pPeer->syncFd, &(minfo), sizeof(minfo));
-    if (ret < 0 ) break;
+    if (ret < 0) break;
 
     // if no more file from master, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
       sDebug("%s, no more files to restore", pPeer->id);
 
       // remove extra files after the current index
-      syncRemoveExtraFile(pPeer, sinfo.index+1, TAOS_SYNC_MAX_INDEX);
-      code = 0; 
+      syncRemoveExtraFile(pPeer, sinfo.index + 1, TAOS_SYNC_MAX_INDEX);
+      code = 0;
       break;
     }
-   
+
     // remove extra files on slave between the current and last index
-    syncRemoveExtraFile(pPeer, pindex+1, minfo.index-1);
+    syncRemoveExtraFile(pPeer, pindex + 1, minfo.index - 1);
     pindex = minfo.index;
 
     // check the file info
     sinfo = minfo;
     sDebug("%s, get file info:%s", pPeer->id, minfo.name);
-    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size, &sinfo.fversion);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->ahandle, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size,
+                                        &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
     memset(&fileAck, 0, sizeof(fileAck));
-    fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1:0;
+    fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1 : 0;
 
     // send file ack
     ret = taosWriteMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
-    if (ret <0)  break;
- 
+    if (ret < 0) break;
+
     // if sync is not required, continue
     if (fileAck.sync == 0) {
       sDebug("%s, %s is the same", pPeer->id, minfo.name);
@@ -99,10 +100,11 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 
     // if sync is required, open file, receive from master, and write to file
     // get the full path to file
+    minfo.name[sizeof(minfo.name) - 1] = 0;
     snprintf(name, sizeof(name), "%s/%s", pNode->path, minfo.name);
 
     int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
-    if ( dfd < 0 ) {
+    if (dfd < 0) {
       sError("%s, failed to open file:%s", pPeer->id, name);
       break;
     }
@@ -110,16 +112,15 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     ret = taosCopyFds(pPeer->syncFd, dfd, minfo.size);
     fsync(dfd);
     close(dfd);
-    if (ret<0) break;
+    if (ret < 0) break;
 
     sDebug("%s, %s is received, size:%" PRId64, pPeer->id, minfo.name, minfo.size);
-
   }
 
   if (code == 0 && (minfo.fversion != sinfo.fversion)) {
-   // data file is changed, code shall be set to 1 
+    // data file is changed, code shall be set to 1
     *fversion = minfo.fversion;
-    code = 1;  
+    code = 1;
   }
 
   if (code < 0) {
@@ -130,8 +131,8 @@ static int syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 }
 
 static int syncRestoreWal(SSyncPeer *pPeer) {
-  SSyncNode  *pNode = pPeer->pSyncNode;
-  int         ret, code = -1;
+  SSyncNode *pNode = pPeer->pSyncNode;
+  int        ret, code = -1;
 
   void *buffer = calloc(1024000, 1);  // size for one record
   if (buffer == NULL) return -1;
@@ -140,18 +141,21 @@ static int syncRestoreWal(SSyncPeer *pPeer) {
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
-    if (ret <0)  break;
+    if (ret < 0) break;
 
-    if (pHead->len == 0) {code = 0; break;}  // wal sync over
-    
+    if (pHead->len == 0) {
+      code = 0;
+      break;
+    }  // wal sync over
+
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
-    if (ret <0)  break;
+    if (ret < 0) break;
 
     sDebug("%s, restore a record, ver:%" PRIu64, pPeer->id, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
-  if (code<0) {
+  if (code < 0) {
     sError("%s, failed to restore wal(%s)", pPeer->id, strerror(errno));
   }
 
@@ -159,10 +163,9 @@ static int syncRestoreWal(SSyncPeer *pPeer) {
   return code;
 }
 
-static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset)
-{
+static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SWalHead  *pHead = (SWalHead *) offset;
+  SWalHead * pHead = (SWalHead *)offset;
 
   (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
   offset += pHead->len + sizeof(SWalHead);
@@ -171,7 +174,7 @@ static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset)
 }
 
 static int syncProcessBufferedFwd(SSyncPeer *pPeer) {
-  SSyncNode   *pNode = pPeer->pSyncNode;
+  SSyncNode *  pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
   int          forwards = 0;
 
@@ -182,7 +185,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer) {
     offset = syncProcessOneBufferedFwd(pPeer, offset);
     forwards++;
   }
-  
+
   pthread_mutex_lock(&pNode->mutex);
 
   while (forwards < pRecv->forwards && pRecv->code == 0) {
@@ -199,7 +202,7 @@ static int syncProcessBufferedFwd(SSyncPeer *pPeer) {
 }
 
 int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
-  SSyncNode   *pNode = pPeer->pSyncNode;
+  SSyncNode *  pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
 
   if (pRecv == NULL) return -1;
@@ -259,9 +262,9 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer) {
     return -1;
   }
 
-  // if code > 0, data file is changed, notify app, and pass the version 
+  // if code > 0, data file is changed, notify app, and pass the version
   if (code > 0 && pNode->notifyFileSynced) {
-    if ( (*pNode->notifyFileSynced)(pNode->ahandle, fversion) < 0 ) {
+    if ((*pNode->notifyFileSynced)(pNode->ahandle, fversion) < 0) {
       sError("%s, app not in ready state", pPeer->id);
       return -1;
     }
@@ -296,8 +299,8 @@ void *syncRestoreData(void *param) {
 
   if (syncOpenRecvBuffer(pNode) < 0) {
     sError("%s, failed to allocate recv buffer", pPeer->id);
-  } else { 
-    if ( syncRestoreDataStepByStep(pPeer) == 0) {
+  } else {
+    if (syncRestoreDataStepByStep(pPeer) == 0) {
       sInfo("%s, it is synced successfully", pPeer->id);
       nodeRole = TAOS_SYNC_ROLE_SLAVE;
       syncBroadcastStatus(pNode);
@@ -311,7 +314,7 @@ void *syncRestoreData(void *param) {
   (*pNode->notifyRole)(pNode->ahandle, nodeRole);
 
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
-  taosClose(pPeer->syncFd)
+  taosClose(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
   syncDecPeerRef(pPeer);

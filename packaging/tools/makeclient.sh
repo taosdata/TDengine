@@ -97,6 +97,8 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/python ${install_dir}/examples
   cp -r ${examples_dir}/R      ${install_dir}/examples
   cp -r ${examples_dir}/go     ${install_dir}/examples
+  cp -r ${examples_dir}/nodejs ${install_dir}/examples
+  cp -r ${examples_dir}/C#     ${install_dir}/examples
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver 
@@ -111,8 +113,9 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector
   fi
   cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
-  cp -r ${connector_dir}/python  ${install_dir}/connector/
-  cp -r ${connector_dir}/go      ${install_dir}/connector
+  cp -r ${connector_dir}/python        ${install_dir}/connector/
+  cp -r ${connector_dir}/go            ${install_dir}/connector
+  cp -r ${connector_dir}/nodejs        ${install_dir}/connector
 fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}

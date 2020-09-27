@@ -3,7 +3,7 @@ PROJECT(TDengine)
 
 AUX_SOURCE_DIRECTORY(src SRC)
 ADD_LIBRARY(tutil ${SRC})
-TARGET_LINK_LIBRARIES(tutil pthread osdetail lz4)
+TARGET_LINK_LIBRARIES(tutil pthread osdetail lz4 z)
   
 IF (TD_LINUX)
   TARGET_LINK_LIBRARIES(tutil m rt)

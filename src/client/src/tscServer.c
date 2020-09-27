@@ -1495,43 +1495,29 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCMTableInfoMsg *pInfoMsg;
-  char *         pMsg;
-  int            msgLen = 0;
-
-  char *tmpData = NULL;
-  uint32_t len = pSql->cmd.payloadLen;
-  if (len > 0) {
-    if ((tmpData = calloc(1, len)) == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    // STagData is in binary format, strncpy is not available
-    memcpy(tmpData, pSql->cmd.payload, len);
-  }
-
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  pInfoMsg = (SCMTableInfoMsg *)pCmd->payload;
+  SCMTableInfoMsg* pInfoMsg = (SCMTableInfoMsg *)pCmd->payload;
   strcpy(pInfoMsg->tableId, pTableMetaInfo->name);
   pInfoMsg->createFlag = htons(pSql->cmd.autoCreated ? 1 : 0);
 
-  pMsg = (char*)pInfoMsg + sizeof(SCMTableInfoMsg);
+  char* pMsg = (char*)pInfoMsg + sizeof(SCMTableInfoMsg);
 
-  if (pSql->cmd.autoCreated && len > 0) {
-    memcpy(pInfoMsg->tags, tmpData, len);
-    pMsg += len;
+  size_t len = htonl(pCmd->tagData.dataLen);
+  if (pSql->cmd.autoCreated) {
+    if (len > 0) {
+      len += sizeof(pCmd->tagData.name) + sizeof(pCmd->tagData.dataLen);
+      memcpy(pInfoMsg->tags, &pCmd->tagData, len);
+      pMsg += len;
+    }
   }
 
   pCmd->payloadLen = (int32_t)(pMsg - (char*)pInfoMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLE_META;
 
-  taosTFree(tmpData);
-
-  assert(msgLen + minMsgSize() <= (int32_t)pCmd->allocSize);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2184,8 +2170,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
   tstrncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, sizeof(pNewMeterMetaInfo->name));
-  memcpy(pNew->cmd.payload, pSql->cmd.payload, pSql->cmd.payloadLen);  // tag information if table does not exists.
-  pNew->cmd.payloadLen = pSql->cmd.payloadLen;
+  memcpy(&pNew->cmd.tagData, &pSql->cmd.tagData, sizeof(pSql->cmd.tagData));
   tscDebug("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);
 
   pNew->fp = tscTableMetaCallBack;
