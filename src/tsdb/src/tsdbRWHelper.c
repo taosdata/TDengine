@@ -1592,7 +1592,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
 
     if (pMergeInfo->nOperations == 0) {
       // Do nothing
-      ASSERT(pMergeInfo->rowsDeleteFailed > 0);
+      ASSERT(pMergeInfo->rowsDeleteFailed >= 0);
       *(pCommitIter->pIter) = slIter;
       tblkIdx++;
     } else if (pCompBlock->numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed == 0) {
