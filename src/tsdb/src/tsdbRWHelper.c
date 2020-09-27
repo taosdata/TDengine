@@ -1065,7 +1065,7 @@ static int tsdbDeleteSuperBlock(SRWHelper *pHelper, int blkIdx) {
     int tsize = 0;
 
     if (compBlock.numOfSubBlocks > 1) {
-      tsize = pCompIdx->len - (compBlock.offset + sizeof(SCompBlock) * compBlock.numOfSubBlocks);
+      tsize = (int)(pCompIdx->len - (compBlock.offset + sizeof(SCompBlock) * compBlock.numOfSubBlocks));
 
       ASSERT(tsize > 0);
       memmove(POINTER_SHIFT(pHelper->pCompInfo, compBlock.offset),
@@ -1075,14 +1075,14 @@ static int tsdbDeleteSuperBlock(SRWHelper *pHelper, int blkIdx) {
       pCompIdx->len = pCompIdx->len - sizeof(SCompBlock) * compBlock.numOfSubBlocks;
     }
 
-    tsize = pCompIdx->len - POINTER_DISTANCE(blockAtIdx(pHelper, blkIdx + 1), pHelper->pCompInfo);
+    tsize = (int)(pCompIdx->len - POINTER_DISTANCE(blockAtIdx(pHelper, blkIdx + 1), pHelper->pCompInfo));
     ASSERT(tsize > 0);
     memmove((void *)blockAtIdx(pHelper, blkIdx), (void *)blockAtIdx(pHelper, blkIdx + 1), tsize);
 
     pCompIdx->len -= sizeof(SCompBlock);
 
     pCompIdx->numOfBlocks--;
-    pCompIdx->hasLast = blockAtIdx(pHelper, pCompIdx->numOfBlocks - 1)->last;
+    pCompIdx->hasLast = (uint32_t)(blockAtIdx(pHelper, pCompIdx->numOfBlocks - 1)->last);
     pCompIdx->maxKey = blockAtIdx(pHelper, pCompIdx->numOfBlocks - 1)->keyLast;
   }
 
