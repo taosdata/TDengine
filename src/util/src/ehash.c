@@ -649,7 +649,7 @@ static ehash_node_t* do_hash_put(ehash_obj_t *obj, uint32_t hashVal, const char 
 static void do_hash_push_to_slot(ehash_node_t *node) {
   ehash_obj_t *obj = node->obj;
 
-  int32_t idx = EHASH_INDEX(node->hashVal, obj->capacity);
+  size_t idx = EHASH_INDEX(node->hashVal, obj->capacity);
   ehash_slot_t *slot = obj->slots + idx;
 
   node->slot = slot;
