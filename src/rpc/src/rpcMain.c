@@ -323,14 +323,14 @@ void *rpcMallocCont(int contLen) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
   } else {
-    tDebug("malloc mem: %p", start);
+    tDebug("malloc msg: %p", start);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
 void rpcFreeCont(void *cont) {
-  if ( cont ) {
+  if (cont) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     free(temp);
     tDebug("free mem: %p", temp);
@@ -553,7 +553,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     free(temp);
-    tDebug("free mem: %p", temp);
+    tDebug("free msg: %p", temp);
   }
 }
 

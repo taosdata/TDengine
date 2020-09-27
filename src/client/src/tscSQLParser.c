@@ -820,20 +820,20 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
   if (hasSpecifyDB(pzTableName)) {
     // db has been specified in sql string so we ignore current db path
     code = setObjFullName(pTableMetaInfo->name, getAccountId(pSql), NULL, pzTableName, NULL);
-    if (code != 0) {
+    if (code != TSDB_CODE_SUCCESS) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   } else {  // get current DB name first, then set it into path
     SStrToken t = {0};
     getCurrentDBName(pSql, &t);
     if (t.n == 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    }
-
-    code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
-    if (code != 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
+      code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    } else {
+      code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+    } 
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -5755,7 +5755,7 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
   char msg[512] = {0};
 
   if (pCreate->walLevel != -1 && (pCreate->walLevel < TSDB_MIN_WAL_LEVEL || pCreate->walLevel > TSDB_MAX_WAL_LEVEL)) {
-    snprintf(msg, tListLen(msg), "invalid db option walLevel: %d, only 0-2 allowed", pCreate->walLevel);
+    snprintf(msg, tListLen(msg), "invalid db option walLevel: %d, only 1-2 allowed", pCreate->walLevel);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 

@@ -186,6 +186,12 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
     return code; 
   }
 
+  code = walAlter(pVnode->wal, &pVnode->walCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    pVnode->status = TAOS_VN_STATUS_READY;
+    return code;
+  }
+
   code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
   if (code != TSDB_CODE_SUCCESS) {
     pVnode->status = TAOS_VN_STATUS_READY;
@@ -390,6 +396,7 @@ void vnodeRelease(void *pVnodeRaw) {
     if (0 == tsEnableVnodeBak) {
       vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
     } else {
+      taosRemoveDir(newDir);
       taosRename(rootDir, newDir);
     }
 
