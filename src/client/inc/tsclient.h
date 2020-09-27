@@ -89,7 +89,7 @@ typedef struct STableComInfo {
 
 typedef struct SCMCorVgroupInfo {
   int32_t version;
-  int8_t inUse;
+  int8_t  inUse;
   int8_t  numOfEps;
   SEpAddr epAddr[TSDB_MAX_REPLICA];
 } SCMCorVgroupInfo;
@@ -99,6 +99,7 @@ typedef struct STableMeta {
   uint8_t        tableType;
   int16_t        sversion;
   int16_t        tversion;
+  char           sTableId[TSDB_TABLE_FNAME_LEN];
   SCMVgroupInfo  vgroupInfo;
   SCMCorVgroupInfo  corVgroupInfo;
   STableId       id;
@@ -106,7 +107,7 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct STableMetaInfo {
-  STableMeta *  pTableMeta;      // table meta, cached in client side and acquired by name
+  STableMeta   *pTableMeta;      // table meta, cached in client side and acquired by name
   SVgroupsInfo *vgroupList;
   SArray       *pVgroupTables;   // SArray<SVgroupTableInfo>
   
@@ -260,7 +261,7 @@ typedef struct {
   };
 
   int32_t      insertType;
-  int32_t      clauseIndex;   // index of multiple subclause query
+  int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
@@ -275,7 +276,8 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  int8_t       submitSchema;  // submit block is built with table schema
+  int8_t       submitSchema; // submit block is built with table schema
+  STagData     tagData;
   SHashObj    *pTableList;   // referred table involved in sql
   SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
 } SSqlCmd;

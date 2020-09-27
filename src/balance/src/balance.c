@@ -389,6 +389,7 @@ void balanceReset() {
     pDnode->lastAccess = 0;
     if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
       pDnode->status = TAOS_DN_STATUS_OFFLINE;
+      pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
     }
 
     mnodeDecDnodeRef(pDnode);
@@ -551,6 +552,7 @@ static void balanceCheckDnodeAccess() {
     if (tsAccessSquence - pDnode->lastAccess > 3) {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
+        pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;
         mInfo("dnode:%d, set to offline state", pDnode->dnodeId);
         balanceSetVgroupOffline(pDnode);
       }

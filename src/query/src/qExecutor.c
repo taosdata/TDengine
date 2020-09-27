@@ -2120,7 +2120,7 @@ static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDat
       }
     }
 
-    // no statistics data
+    // no statistics data, load the true data block
     if (index == -1) {
       return true;
     }
@@ -2130,8 +2130,17 @@ static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDat
       return true;
     }
 
-    // all points in current column are NULL, no need to check its boundary value
+    // all data in current column are NULL, no need to check its boundary value
     if (pDataStatis[index].numOfNull == numOfRows) {
+
+      // if isNULL query exists, load the null data column
+      for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
+        SColumnFilterElem *pFilterElem = &pFilterInfo->pFilters[j];
+        if (pFilterElem->fp == isNull_filter) {
+          return true;
+        }
+      }
+
       continue;
     }
 
@@ -2957,11 +2966,10 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
     STableQueryInfo *item = taosArrayGetP(pGroup, i);
 
     SIDList list = getDataBufPagesIdList(pRuntimeEnv->pResultBuf, TSDB_TABLEID(item->pTable)->tid);
-    pageList = list;
-    tid = TSDB_TABLEID(item->pTable)->tid;
-
     if (taosArrayGetSize(list) > 0 && item->windowResInfo.size > 0) {
       pTableList[numOfTables++] = item;
+      tid = TSDB_TABLEID(item->pTable)->tid;
+      pageList = list;
     }
   }
 

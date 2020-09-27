@@ -122,11 +122,8 @@ void taos_init_imp(void) {
   tscInitMsgsFp();
   int queueSize = tsMaxConnections*2;
 
-  if (tscEmbedded == 0) {
-    tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / 2.0);
-  } else {
-    tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / 4.0);
-  }
+  double factor = (tscEmbedded == 0)? 2.0:4.0;
+  tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
 
   if (tscNumOfThreads < 2) tscNumOfThreads = 2;
 
@@ -140,11 +137,8 @@ void taos_init_imp(void) {
   if(0 == tscEmbedded){
     taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
-  
-  int64_t refreshTime = tsTableMetaKeepTimer;
-  refreshTime = refreshTime > 10 ? 10 : refreshTime;
-  refreshTime = refreshTime < 10 ? 10 : refreshTime;
 
+  int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL, "tableMeta");
     tscObjCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, refreshTime/2, false, tscFreeSqlObjInCache, "sqlObj");

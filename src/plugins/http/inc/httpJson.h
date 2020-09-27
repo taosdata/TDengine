@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define JSON_BUFFER_SIZE 10240
+#define JSON_BUFFER_SIZE 16384
 struct HttpContext;
 
 enum { JsonNumber, JsonString, JsonBoolean, JsonArray, JsonObject, JsonNull };

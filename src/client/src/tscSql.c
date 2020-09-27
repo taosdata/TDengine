@@ -156,10 +156,7 @@ SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     *taos = pObj;
   }
 
-  T_REF_INC(pSql->pTscObj);
-
-  uint64_t key = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &key, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
+  registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
   return pSql;
@@ -236,13 +233,21 @@ TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t us
   return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
 }
 
+static void asyncConnCallback(void *param, TAOS_RES *tres, int code) {
+  SSqlObj *pSql = (SSqlObj *) tres;
+  assert(pSql != NULL);
+  
+  pSql->fetchFp(pSql->param, tres, code);
+}
+
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-  SSqlObj* pSql = taosConnectImpl(ip, user, pass, NULL, db, port, fp, param, taos);
+  SSqlObj* pSql = taosConnectImpl(ip, user, pass, NULL, db, port, asyncConnCallback, param, taos);
   if (pSql == NULL) {
     return NULL;
   }
   
+  pSql->fetchFp = fp;
   pSql->res.code = tscProcessSql(pSql);
   tscDebug("%p DB async connection is opening", taos);
   return taos;
@@ -255,32 +260,16 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  if (pObj->pHb != NULL) {
-    if (pObj->pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
-      rpcCancelRequest(pObj->pHb->pRpcCtx);
+  SSqlObj* pHb = pObj->pHb;
+  if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
+    if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
+      rpcCancelRequest(pHb->pRpcCtx);
+      pHb->pRpcCtx = NULL;
     }
 
-    tscSetFreeHeatBeat(pObj);
-    tscFreeSqlObj(pObj->pHb);
+    tscDebug("%p HB is freed", pHb);
+    taos_free_result(pHb);
   }
-
-  // free all sqlObjs created by using this connect before free the STscObj
-//  while(1) {
-//    pthread_mutex_lock(&pObj->mutex);
-//    void* p = pObj->sqlList;
-//    pthread_mutex_unlock(&pObj->mutex);
-//
-//    if (p == NULL) {
-//      break;
-//    }
-//
-//    tscDebug("%p waiting for sqlObj to be freed, %p", pObj, p);
-//    taosMsleep(100);
-//
-//    // todo fix me!! two threads call taos_free_result will cause problem.
-//    tscDebug("%p free :%p", pObj, p);
-//    taos_free_result(p);
-//  }
 
   int32_t ref = T_REF_DEC(pObj);
   assert(ref >= 0);
@@ -485,6 +474,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
        pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
        pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
        pCmd->command == TSDB_SQL_SERV_STATUS ||
@@ -795,13 +786,16 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+
   pSql->pTscObj = taos;
   pSql->signature = pSql;
+
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   
   pRes->numOfTotal = 0;
   pRes->numOfClauseTotal = 0;
+
 
   tscDebug("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
@@ -838,11 +832,12 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     tsem_wait(&pSql->rspSem);
     code = pSql->res.code;
   }
+
   if (code != TSDB_CODE_SUCCESS) {
     tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(taos), pObj);
   }
-  taos_free_result(pSql);
 
+  taos_free_result(pSql);
   return code;
 }
 
@@ -941,12 +936,12 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   pSql->pTscObj = taos;
   pSql->signature = pSql;
+
   SSqlRes *pRes = &pSql->res;
 
+  pRes->code = 0;
   pRes->numOfTotal = 0;  // the number of getting table meta from server
   pRes->numOfClauseTotal = 0;
-
-  pRes->code = 0;
 
   assert(pSql->fp == NULL);
   tscDebug("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
@@ -954,21 +949,19 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   int32_t tblListLen = (int32_t)strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
     tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
-    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    taosTFree(pSql);
-    return pRes->code;
+    tscFreeSqlObj(pSql);
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   char *str = calloc(1, tblListLen + 1);
   if (str == NULL) {
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
-    taosTFree(pSql);
-    return pRes->code;
+    tscFreeSqlObj(pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strtolower(str, tableNameList);
-  pRes->code = (uint8_t)tscParseTblNameList(pSql, str, tblListLen);
+  int32_t code = (uint8_t) tscParseTblNameList(pSql, str, tblListLen);
 
   /*
    * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
@@ -978,17 +971,17 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   pRes->qhandle = 0;
   free(str);
 
-  if (pRes->code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
-    return pRes->code;
+    return code;
   }
 
   tscDoQuery(pSql);
 
-  tscDebug("%p load multi metermeta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscPartiallyFreeSqlObj(pSql);
+  tscDebug("%p load multi table meta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+  if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
+    tscFreeSqlObj(pSql);
   }
 
-  return pRes->code;
+  return code;
 }
