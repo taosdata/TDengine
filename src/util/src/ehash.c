@@ -56,8 +56,8 @@ typedef struct ehash_slot_s              ehash_slot_t;
 
 struct ehash_node_s {
   char             *key;
-  uint32_t          klen;
-  uint32_t          hashVal;
+  size_t            klen;
+  size_t            hashVal;
   char             *data;
   size_t            size;
 
@@ -418,7 +418,7 @@ int ehash_traverse(ehash_obj_t *obj, void (*fp)(ehash_obj_t *obj, void *arg, eha
 }
 
 void ehash_destroy(ehash_obj_t *obj) {
-  int64_t me = (int64_t)pthread_self();
+  int64_t me = taosGetPthreadId();
   if (atomic_val_compare_exchange_64(&obj->destroying_thread, 0, me)) {
     DILE();
     return; // never reached here
@@ -567,7 +567,7 @@ void ehash_iter_destroy(ehash_iter_t* iter) {
 }
 
 static int lock_wr(ehash_obj_t *obj) {
-  int64_t me = (int64_t)pthread_self();
+  int64_t me = taosGetPthreadId();
   int64_t destroying_thread = atomic_val_compare_exchange_64(&obj->destroying_thread, me, me);
   if (destroying_thread && destroying_thread != me) {
     return 0;
