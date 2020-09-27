@@ -171,7 +171,6 @@ void  syncBroadcastStatus(SSyncNode *pNode);
 void  syncAddPeerRef(SSyncPeer *pPeer);
 int   syncDecPeerRef(SSyncPeer *pPeer);
 
-
 #ifdef __cplusplus
 }
 #endif
