@@ -821,7 +821,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
     SStrToken t = {0};
     getCurrentDBName(pSql, &t);
     if (t.n == 0) {  // current database not available or not specified
-      code = TSDB_CODE_MND_DB_NOT_SELECTED;
+      code = TSDB_CODE_TSC_DB_NOT_SELECTED;
     } else {
       code = setObjFullName(pTableMetaInfo->name, NULL, &t, pzTableName, NULL);
       if (code != 0) {

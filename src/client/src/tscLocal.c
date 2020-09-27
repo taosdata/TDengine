@@ -430,7 +430,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
   SSqlObj* pSql = builder->pInterSql;
 
   if (row == NULL) {
-   return TSDB_CODE_MND_INVALID_TABLE_NAME;
+   return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
   int32_t* lengths = taos_fetch_lengths(pSql);  
@@ -458,7 +458,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
   }  
 
   if (0 == strlen(result)) {
-   return TSDB_CODE_MND_INVALID_TABLE_NAME; 
+   return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -554,7 +554,7 @@ int32_t tscRebuildCreateTableStatement(void *param,char *result) {
 static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
   TAOS_ROW row = tscFetchRow(builder);
   if (row == NULL) {
-   return TSDB_CODE_MND_DB_NOT_SELECTED; 
+   return TSDB_CODE_TSC_DB_NOT_SELECTED;
   }
   const char *showColumns[] = {"REPLICA", "QUORUM", "DAYS", "KEEP", "BLOCKS", NULL};
 
@@ -586,7 +586,7 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
   } while (row != NULL);
 
   if (0 == strlen(result)) {
-   return TSDB_CODE_MND_DB_NOT_SELECTED; 
+   return TSDB_CODE_TSC_DB_NOT_SELECTED;
   }
 
   return TSDB_CODE_SUCCESS;
