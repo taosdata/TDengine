@@ -933,7 +933,7 @@ int32_t taosHashRemoveWithDataX(SHashObj *pHashObj, const void *key, size_t keyL
     ehash_node_release(node);
   } while (0);
 
-  return ehash_remove(pHashObj->obj, key, keyLen);
+  return (int32_t)ehash_remove(pHashObj->obj, key, keyLen);
 }
 
 typedef struct traverse_s    traverse_t;
@@ -1005,7 +1005,7 @@ void* taosHashDestroyIterX(SHashMutableIterator* iter) {
 
 int32_t taosHashGetMaxOverflowLinkLengthX(const SHashObj *pHashObj) {
   size_t len = ehash_get_max_slot_length(pHashObj->obj);
-  return len;
+  return (int32_t)len;
 }
 
 #endif
