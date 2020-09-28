@@ -13,22 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <assert.h>
-#ifndef _ALPINE
-  #include <error.h>
-#endif
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <wordexp.h>
 #include <iconv.h>
-#include <time.h>
-
 #include "os.h"
 #include "taos.h"
 #include "taosdef.h"
