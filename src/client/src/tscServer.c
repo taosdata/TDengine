@@ -53,7 +53,10 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
   assert(pSql != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
 
   SRpcEpSet* pEpSet = &pSql->epSet;
-  pEpSet->inUse = 0;
+
+  // Issue the query to one of the vnode among a vgroup randomly.
+  // change the inUse property would not affect the isUse attribute of STableMeta
+  pEpSet->inUse = rand() % pVgroupInfo->numOfEps;
 
   // apply the FQDN string length check here
   bool hasFqdn = false;
