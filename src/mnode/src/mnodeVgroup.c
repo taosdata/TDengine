@@ -434,7 +434,8 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   int maxVgroupsPerDb = tsMaxVgroupsPerDb;
   if (maxVgroupsPerDb <= 0) {
     maxVgroupsPerDb = mnodeGetOnlinDnodesCpuCoreNum();
-    maxVgroupsPerDb = MAX(maxVgroupsPerDb, 2);
+    maxVgroupsPerDb = MAX(maxVgroupsPerDb, TSDB_MIN_VNODES_PER_DB);
+    maxVgroupsPerDb = MIN(maxVgroupsPerDb, TSDB_MAX_VNODES_PER_DB);
   }
 
   int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;

@@ -179,7 +179,7 @@ public class TSDBDriver implements java.sql.Driver {
         }
 
         //load taos.cfg start
-        if (info.getProperty(TSDBDriver.PROPERTY_KEY_HOST) == null && info.getProperty(TSDBDriver.PROPERTY_KEY_PORT) == null){
+        if (info.getProperty(TSDBDriver.PROPERTY_KEY_HOST) == null && info.getProperty(TSDBDriver.PROPERTY_KEY_PORT) == null) {
             File cfgDir = loadConfigDir(info.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR));
             File cfgFile = cfgDir.listFiles((dir, name) -> "taos.cfg".equalsIgnoreCase(name))[0];
             List<String> endpoints = loadConfigEndpoints(cfgFile);
@@ -244,7 +244,7 @@ public class TSDBDriver implements java.sql.Driver {
     }
 
     public boolean acceptsURL(String url) throws SQLException {
-        return (url != null && url.length() > 0 && url.trim().length() > 0) && url.toLowerCase().startsWith(URL_PREFIX);
+        return (url != null && url.length() > 0 && url.trim().length() > 0) && url.startsWith(URL_PREFIX);
     }
 
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
@@ -291,7 +291,6 @@ public class TSDBDriver implements java.sql.Driver {
             return null;
         }
 
-//        String lowerUrl = url.toLowerCase();
         if (!url.startsWith(URL_PREFIX) && !url.startsWith(URL_PREFIX1)) {
             return null;
         }

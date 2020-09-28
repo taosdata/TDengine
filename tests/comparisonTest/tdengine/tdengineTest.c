@@ -278,7 +278,7 @@ void writeData() {
 
   free(threads);
 
-  printf("---- Spent %f seconds to insert %ld records, speed: %f Rows/Second\n", seconds, statis.totalRows, rs);
+  printf("---- Spent %f seconds to insert %" PRId64 " records, speed: %f Rows/Second\n", seconds, statis.totalRows, rs);
 }
 
 void readDataImp(void *param)

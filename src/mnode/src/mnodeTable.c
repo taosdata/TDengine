@@ -2093,11 +2093,11 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
   tstrncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_FNAME_LEN);
-  if (pTable->superTable) {
+  if (pTable->superTable != NULL) {
     tstrncpy(pMeta->sTableId, pTable->superTable->info.tableId, TSDB_TABLE_FNAME_LEN);
   }
 
-  if (pTable->info.type == TSDB_CHILD_TABLE) {
+  if (pTable->info.type == TSDB_CHILD_TABLE && pTable->superTable != NULL) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
     pMeta->tversion     = htons(pTable->superTable->tversion);
     pMeta->numOfTags    = (int8_t)pTable->superTable->numOfTags;

@@ -790,7 +790,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sql += index;
 
     tscAllocPayload(pCmd, sizeof(STagData));
-    STagData *pTag = (STagData *) pCmd->payload;
+    STagData *pTag = &pCmd->tagData;
 
     memset(pTag, 0, sizeof(STagData));
     
@@ -945,7 +945,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
-    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen) + pTag->dataLen;
     pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {

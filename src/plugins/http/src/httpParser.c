@@ -153,10 +153,10 @@ static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target
   for (int32_t i = 0; i < HTTP_MAX_URL; i++) {
     char *pSeek = strchr(pStart, '/');
     if (pSeek == NULL) {
-      httpAppendString(pParser->path + i, pStart, strlen(pStart));
+      (void)httpAppendString(pParser->path + i, pStart, strlen(pStart));
       break;
     } else {
-      httpAppendString(pParser->path + i, pStart, (int32_t)(pSeek - pStart));
+      (void)httpAppendString(pParser->path + i, pStart, (int32_t)(pSeek - pStart));
     }
     pStart = pSeek + 1;
   }
@@ -485,10 +485,10 @@ void httpClearParser(HttpParser *parser) {
 }
 
 void httpDestroyParser(HttpParser *parser) {
+  if (!parser) return;
+
   HttpContext *pContext = parser->pContext;
   httpTrace("context:%p, fd:%d, destroy parser", pContext, pContext->fd);
-
-  if (!parser) return;
 
   free(parser->method);         parser->method          = NULL;
   free(parser->target);         parser->target          = NULL;
@@ -684,23 +684,28 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
       break;
     }
 
-    if (c!='0' && c!='1') {
+    if (c != '0' && c != '1' && c != '2') {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;
       httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
+
     if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
       httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
-    
-    if (c == '0') parser->httpVersion = HTTP_VERSION_10;
-    else if (c == '1') parser->httpVersion = HTTP_VERSION_11;
-    else if (c == '2') parser->httpVersion = HTTP_VERSION_12;
-    else parser->httpVersion = HTTP_INVALID_VERSION;
+
+    if (c == '0')
+      parser->httpVersion = HTTP_VERSION_10;
+    else if (c == '1')
+      parser->httpVersion = HTTP_VERSION_11;
+    else if (c == '2')
+      parser->httpVersion = HTTP_VERSION_12;
+    else {
+    }
 
     parser->version = strdup(parser->str.str);
     if (!parser->version) {

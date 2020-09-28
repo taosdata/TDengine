@@ -60,6 +60,28 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static char*   mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole);
 
+static char* offlineReason[] = {
+  "",
+  "status msg timeout",
+  "status not received",
+  "status reset by mnode",
+  "version not match",
+  "dnodeId not match",
+  "clusterId not match",
+  "numOfMnodes not match",
+  "balance not match",
+  "mnEqualVn not match",
+  "offThreshold not match",
+  "interval not match",
+  "maxTabPerVn not match",
+  "maxVgPerDb not match",
+  "arbitrator not match",
+  "timezone not match",
+  "locale not match",
+  "charset not match",
+  "unknown",
+};
+
 static int32_t mnodeDnodeActionDestroy(SSdbOper *pOper) {
   taosTFree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
@@ -70,6 +92,7 @@ static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
     pDnode->lastAccess = tsAccessSquence;
+    pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
   }
 
   mInfo("dnode:%d, fqdn:%s ep:%s port:%d, do insert action", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
@@ -334,74 +357,85 @@ static void mnodeProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
   mInfo("cfg dnode rsp is received");
 }
 
-static bool mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
+static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
   if (clusterCfg->numOfMnodes != htonl(tsNumOfMnodes)) {
     mError("\"numOfMnodes\"[%d - %d] cfg parameters inconsistent", clusterCfg->numOfMnodes, htonl(tsNumOfMnodes));
-    return false;
-  }  
-  if (clusterCfg->enableBalance      != htonl(tsEnableBalance)) {
+    return TAOS_DN_OFF_NUM_OF_MNODES_NOT_MATCH;
+  }
+  if (clusterCfg->enableBalance != htonl(tsEnableBalance)) {
     mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, htonl(tsEnableBalance));
-    return false;
+    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
   }
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) {
-    mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg parameters inconsistent", clusterCfg->mnodeEqualVnodeNum, htonl(tsMnodeEqualVnodeNum));
-    return false;
+    mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg parameters inconsistent", clusterCfg->mnodeEqualVnodeNum,
+           htonl(tsMnodeEqualVnodeNum));
+    return TAOS_DN_OFF_MN_EQUAL_VN_NOT_MATCH;
   }
-  if (clusterCfg->offlineThreshold   != htonl(tsOfflineThreshold)) {
-    mError("\"offlineThreshold\"[%d - %d] cfg parameters inconsistent", clusterCfg->offlineThreshold, htonl(tsOfflineThreshold));
-    return false;
+  if (clusterCfg->offlineThreshold != htonl(tsOfflineThreshold)) {
+    mError("\"offlineThreshold\"[%d - %d] cfg parameters inconsistent", clusterCfg->offlineThreshold,
+           htonl(tsOfflineThreshold));
+    return TAOS_DN_OFF_OFFLINE_THRESHOLD_NOT_MATCH;
   }
-  if (clusterCfg->statusInterval     != htonl(tsStatusInterval)) {
-    mError("\"statusInterval\"[%d - %d] cfg parameters inconsistent", clusterCfg->statusInterval, htonl(tsStatusInterval));
-    return false;
+  if (clusterCfg->statusInterval != htonl(tsStatusInterval)) {
+    mError("\"statusInterval\"[%d - %d] cfg parameters inconsistent", clusterCfg->statusInterval,
+           htonl(tsStatusInterval));
+    return TAOS_DN_OFF_STATUS_INTERVAL_NOT_MATCH;
   }
-  if (clusterCfg->maxtablesPerVnode  != htonl(tsMaxTablePerVnode)) {
-    mError("\"maxTablesPerVnode\"[%d - %d] cfg parameters inconsistent", clusterCfg->maxtablesPerVnode, htonl(tsMaxTablePerVnode));
-    return false;
+  if (clusterCfg->maxtablesPerVnode != htonl(tsMaxTablePerVnode)) {
+    mError("\"maxTablesPerVnode\"[%d - %d] cfg parameters inconsistent", clusterCfg->maxtablesPerVnode,
+           htonl(tsMaxTablePerVnode));
+    return TAOS_DN_OFF_MAX_TAB_PER_VN_NOT_MATCH;
   }
-  if (clusterCfg->maxVgroupsPerDb    != htonl(tsMaxVgroupsPerDb)) {
-    mError("\"maxVgroupsPerDb\"[%d - %d]  cfg parameters inconsistent", clusterCfg->maxVgroupsPerDb, htonl(tsMaxVgroupsPerDb));
-    return false;
+  if (clusterCfg->maxVgroupsPerDb != htonl(tsMaxVgroupsPerDb)) {
+    mError("\"maxVgroupsPerDb\"[%d - %d]  cfg parameters inconsistent", clusterCfg->maxVgroupsPerDb,
+           htonl(tsMaxVgroupsPerDb));
+    return TAOS_DN_OFF_MAX_VG_PER_DB_NOT_MATCH;
   }
   if (0 != strncasecmp(clusterCfg->arbitrator, tsArbitrator, strlen(tsArbitrator))) {
     mError("\"arbitrator\"[%s - %s]  cfg parameters inconsistent", clusterCfg->arbitrator, tsArbitrator);
-    return false;
+    return TAOS_DN_OFF_ARBITRATOR_NOT_MATCH;
   }
 
   int64_t checkTime = 0;
-  char timestr[32] = "1970-01-01 00:00:00.00";
+  char    timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  if ((0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) && (checkTime != clusterCfg->checkTime)) {
-    mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64"] cfg parameters inconsistent", clusterCfg->timezone, tsTimezone, clusterCfg->checkTime, checkTime);
-    return false;
+  if ((0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) &&
+      (checkTime != clusterCfg->checkTime)) {
+    mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64 "] cfg parameters inconsistent", clusterCfg->timezone,
+           tsTimezone, clusterCfg->checkTime, checkTime);
+    return TAOS_DN_OFF_TIME_ZONE_NOT_MATCH;
   }
 
   if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
     mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
-    return false;
+    return TAOS_DN_OFF_LOCALE_NOT_MATCH;
   }
   if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
     mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
-    return false;
+    return TAOS_DN_OFF_CHARSET_NOT_MATCH;
   }
-    
-  return true;
+
+  return 0;
 }
 
 static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
+  SDnodeObj *pDnode     = NULL;
   SDMStatusMsg *pStatus = pMsg->rpcMsg.pCont;
   pStatus->dnodeId      = htonl(pStatus->dnodeId);
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
-  
+
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
-    mError("status msg version:%d not equal with mnode:%d", version, tsVersion);
+    pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
+    if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
+      pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;
+    }
+    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, version, tsVersion);
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
-  SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode == NULL) {
@@ -411,7 +445,11 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   } else {
     pDnode = mnodeGetDnode(pStatus->dnodeId);
     if (pDnode == NULL) {
-      mError("dnode id:%d, %s not exist", pStatus->dnodeId, pStatus->dnodeEp);
+      pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
+      if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
+        pDnode->offlineReason = TAOS_DN_OFF_DNODE_ID_NOT_MATCH;
+      }
+      mError("dnode:%d, %s not exist", pStatus->dnodeId, pStatus->dnodeEp);
       return TSDB_CODE_MND_DNODE_NOT_EXIST;
     }
   }
@@ -426,6 +464,9 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     mDebug("dnode:%d %s, first access, set clusterId %s", pDnode->dnodeId, pDnode->dnodeEp, mnodeGetClusterId());
   } else {
     if (strncmp(pStatus->clusterId, mnodeGetClusterId(), TSDB_CLUSTER_ID_LEN - 1) != 0) {
+      if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
+        pDnode->offlineReason = TAOS_DN_OFF_CLUSTER_ID_NOT_MATCH;
+      }
       mError("dnode:%d, input clusterId %s not match with exist %s", pDnode->dnodeId, pStatus->clusterId,
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
@@ -469,16 +510,19 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
 
   if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
     // Verify whether the cluster parameters are consistent when status change from offline to ready
-    bool ret = mnodeCheckClusterCfgPara(&(pStatus->clusterCfg));
-    if (false == ret) {
+    int32_t ret = mnodeCheckClusterCfgPara(&(pStatus->clusterCfg));
+    if (0 != ret) {
+      pDnode->offlineReason = ret;
       mnodeDecDnodeRef(pDnode);
       rpcFreeCont(pRsp);
-      mError("dnode:%d, %s cluster cfg parameters inconsistent", pDnode->dnodeId, pStatus->dnodeEp);
+      mError("dnode:%d, %s cluster cfg parameters inconsistent, reason:%s", pDnode->dnodeId, pStatus->dnodeEp,
+             offlineReason[ret]);
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }
-    
+
     mDebug("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
+    pDnode->offlineReason = TAOS_DN_OFF_ONLINE;
     balanceSyncNotify();
     balanceAsyncNotify();
   }
@@ -529,6 +573,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
   pDnode->createdTime = taosGetTimestampMs();
   pDnode->status = TAOS_DN_STATUS_OFFLINE; 
+  pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
   tstrncpy(pDnode->dnodeEp, ep, TSDB_EP_LEN);
   taosGetFqdnPortFromEp(ep, pDnode->dnodeFqdn, &pDnode->dnodePort);
 
@@ -654,13 +699,13 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 6 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = 5 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "role");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -669,6 +714,12 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "offline reason");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -731,8 +782,11 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     *(int64_t *)pWrite = pDnode->createdTime;
     cols++;
 
- 
-    numOfRows++;
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
+    cols++;
+
+     numOfRows++;
     mnodeDecDnodeRef(pDnode);
   }
 

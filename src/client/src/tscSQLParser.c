@@ -233,7 +233,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
         assert(pInfo->pDCLInfo->nTokens == 1);
 
-        if((code = tscSetTableFullName(pTableMetaInfo, pzName, pSql)) != TSDB_CODE_SUCCESS) {
+        code = tscSetTableFullName(pTableMetaInfo, pzName, pSql);
+        if(code != TSDB_CODE_SUCCESS) {
           return code; 
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {

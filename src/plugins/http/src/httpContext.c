@@ -67,7 +67,7 @@ static void httpDestroyContext(void *data) {
 }
 
 bool httpInitContexts() {
-  tsHttpServer.contextCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 2, true, httpDestroyContext, "restc");
+  tsHttpServer.contextCache = taosCacheInit(TSDB_CACHE_PTR_KEY, 2, true, httpDestroyContext, "restc");
   if (tsHttpServer.contextCache == NULL) {
     httpError("failed to init context cache");
     return false;
@@ -117,8 +117,9 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->state = HTTP_CONTEXT_STATE_READY;
   pContext->parser = httpCreateParser(pContext);
 
-  uint64_t handleVal = (uint64_t)pContext;
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(int64_t), &pContext, sizeof(int64_t), 3000);
+  TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pContext;
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pContext,
+                                         sizeof(TSDB_CACHE_PTR_TYPE), 3000);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
@@ -129,8 +130,8 @@ HttpContext *httpCreateContext(int32_t fd) {
 }
 
 HttpContext *httpGetContext(void *ptr) {
-  uint64_t handleVal = (uint64_t)ptr;
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
+  TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)ptr;
+  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE));
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;

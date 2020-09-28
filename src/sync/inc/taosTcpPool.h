@@ -38,7 +38,6 @@ void       taosCloseTcpThreadPool(ttpool_h);
 void      *taosAllocateTcpConn(void *, void *ahandle, int connFd);
 void       taosFreeTcpConn(void *);
 
-
 #ifdef __cplusplus
 }
 #endif

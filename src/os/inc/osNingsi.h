@@ -129,8 +129,6 @@ void*   atomic_exchange_ptr_impl( void **ptr, void *val );
 #define atomic_fetch_xor_64(ptr, val) __sync_fetch_and_xor((ptr), (val))
 #define atomic_fetch_xor_ptr(ptr, val) __sync_fetch_and_xor((ptr), (val))
 
-
-
 #ifdef __cplusplus
 }
 #endif
