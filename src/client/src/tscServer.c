@@ -642,14 +642,14 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
   if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
-    tscError("%p illegal value of numOfCols in query msg: %"PRIu64", table cols:%d", pSql, numOfSrcCols,
+    tscError("%p illegal value of numOfCols in query msg: %" PRIu64 ", table cols:%d", pSql, (int64_t)numOfSrcCols,
         tscGetNumOfColumns(pTableMeta));
 
     return TSDB_CODE_TSC_INVALID_SQL;
   }
   
   if (pQueryInfo->interval.interval < 0) {
-    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->interval.interval);
+    tscError("%p illegal value of aggregation time interval in query msg: %" PRId64, pSql, (int64_t)pQueryInfo->interval.interval);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
   

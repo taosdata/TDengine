@@ -28,6 +28,10 @@ extern "C" {
 #include "osArm64.h"
 #endif
 
+#ifdef _TD_ARM_32_
+#include "osArm32.h"
+#endif
+
 #ifdef _TD_LINUX_64
 #include "osLinux64.h"
 #endif

@@ -51,8 +51,6 @@
 extern "C" {
 #endif
 
-#define TAOS_OS_FUNC_ATOMIC
-
 #define TAOS_OS_FUNC_LZ4
   int32_t BUILDIN_CLZL(uint64_t val);
   int32_t BUILDIN_CLZ(uint32_t val);
