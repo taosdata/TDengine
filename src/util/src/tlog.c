@@ -616,5 +616,6 @@ static void *taosAsyncOutputLog(void *param) {
     if (tLogBuff->stop) break;
   }
 
+
   return NULL;
 }
