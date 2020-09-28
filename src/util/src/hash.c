@@ -738,7 +738,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   int64_t et = taosGetTimestampUs();
 
-  uDebug("hash table resize completed, new capacity:%"PRId64", load factor:%f, elapsed time:%fms", pHashObj->capacity,
+  uDebug("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", (int32_t)pHashObj->capacity,
            ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
 }
 

@@ -113,7 +113,7 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
       httpTrace("context:%p, fd:%d, no data need dump", buf->pContext, buf->pContext->fd);
       return 0;  // there is no data to dump.
     } else {
-      int32_t len = sprintf(sLen, "%lx\r\n", srcLen);
+      int32_t len = sprintf(sLen, "%" PRIx64 "\r\n", srcLen);
       httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", response:\n%s", buf->pContext, buf->pContext->fd,
                 srcLen, buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
@@ -267,9 +267,9 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
   ptm = localtime(&tt);
   int32_t length = (int32_t) strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
   if (us) {
-    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
   } else {
-    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
   }
 
   httpJsonString(buf, ts, length);
@@ -287,9 +287,9 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us) {
   ptm = localtime(&tt);
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
   if (us) {
-    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
   } else {
-    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
   }
   length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
 

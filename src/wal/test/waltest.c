@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
       printf("  [-t total]: total wal files, default is:%d\n", total);
       printf("  [-r rows]: rows of records per wal file, default is:%d\n", rows);
       printf("  [-k keep]: keep the wal after closing, default is:%d\n", keep);
-      printf("  [-v version]: initial version, default is:%ld\n", ver);
+      printf("  [-v version]: initial version, default is:%" PRId64 "\n", ver);
       printf("  [-d debugFlag]: debug flag, default:%d\n", dDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
 
-  printf("version starts from:%ld\n", ver);
+  printf("version starts from:%" PRId64 "\n", ver);
   
   int contLen = sizeof(SWalHead) + size;
   SWalHead *pHead = (SWalHead *) malloc(contLen);
