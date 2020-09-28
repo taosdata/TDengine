@@ -1,6 +1,5 @@
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
-import lombok.extern.slf4j.Slf4j;
 
 import net.opentsdb.core.TSDB;
 import net.opentsdb.uid.NoSuchUniqueName;
@@ -40,13 +39,19 @@ import java.util.concurrent.*;
 import java.math.*;
 import java.lang.reflect.Method;
 
+import org.apache.log4j.Logger;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Level;
+
 
 public class OpentsdbTest{
-
   //static { System.setProperty("logback.configurationFile", "/home/ubuntu/fang/opentsdb/opentsdbtest/logback.xml");}
   static { System.setProperty("logback.configurationFile", "/etc/opentsdb/logback.xml");}
 
   public static void main(String args[]) {  
+
+    Logger logger = LogManager.getLogger(OpentsdbTest.class);
+    logger.setLevel(Level.OFF);
     // begin to parse argument
     String datadir = "/home/ubuntu/testdata";
     String sqlchoice  = "q1";
@@ -156,7 +161,7 @@ public class OpentsdbTest{
           }
           switch (sqlchoice) {
             case "q1":
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               /*
               get_url = get_url + "start=1563249700&m=none:temperature{devgroup=";
               get_url = get_url + String.valueOf(ig-10) +"}";
@@ -193,7 +198,7 @@ public class OpentsdbTest{
             case "q2":
               //count
               startTime = System.currentTimeMillis();
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               httpPost = new HttpPost(get_url);
               qjson = "  {\n" +
               "   \"start\": 1563249700,\n" +
@@ -346,7 +351,7 @@ public class OpentsdbTest{
               break;
             case "q3":
               startTime = System.currentTimeMillis();
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               httpPost = new HttpPost(get_url);
               qjson = "  {\n" +
               "   \"start\": 1563249700,\n" +
@@ -406,7 +411,7 @@ public class OpentsdbTest{
               break;
             case "q4":
               startTime = System.currentTimeMillis();
-              get_url = "http://192.168.1.114:4242/api/query?";
+              get_url = "http://127.0.0.1:4242/api/query?";
               httpPost = new HttpPost(get_url);
               qjson = "  {\n" +
               "   \"start\": 1563249700,\n" +

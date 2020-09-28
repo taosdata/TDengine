@@ -1,0 +1,11 @@
+run unique/account/account_create.sim
+run unique/account/account_delete.sim
+run unique/account/account_len.sim
+run unique/account/authority.sim
+run unique/account/basic.sim
+run unique/account/paras.sim
+run unique/account/pass_alter.sim
+run unique/account/pass_len.sim
+run unique/account/usage.sim
+run unique/account/user_create.sim
+run unique/account/user_len.sim

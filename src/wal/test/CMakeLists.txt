@@ -1,0 +1,13 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
+
+IF (TD_LINUX)
+  INCLUDE_DIRECTORIES(../inc)
+
+  LIST(APPEND WALTEST_SRC ./waltest.c)
+  ADD_EXECUTABLE(waltest ${WALTEST_SRC})
+  TARGET_LINK_LIBRARIES(waltest twal osdetail tutil)
+
+ENDIF ()
+
+

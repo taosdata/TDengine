@@ -1,8 +1,5 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+
+#include "os.h"
 #include "tkey.h"
 
 #define ENCRYPTION_MODE 1
@@ -18,6 +15,7 @@ void generate_key(unsigned char* key);
 void generate_sub_keys(unsigned char* main_key, key_set* key_sets);
 void process_message(unsigned char* message_piece, unsigned char* processed_piece, key_set* key_sets, int mode);
 
+#if 0
 int64_t taosDesGenKey() {
   unsigned int iseed = (unsigned int)time(NULL);
   srand(iseed);
@@ -27,12 +25,13 @@ int64_t taosDesGenKey() {
 
   return *((int64_t*)key);
 }
+#endif
 
 char* taosDesImp(unsigned char* key, char* src, unsigned int len, int process_mode) {
   unsigned int  number_of_blocks = len / 8;
   unsigned char data_block[9] = {0};
   unsigned char processed_block[9] = {0};
-  key_set       key_sets[17] = {0};
+  key_set       key_sets[17]; memset(key_sets, 0, sizeof(key_sets));
   char*         dest = calloc(len + 1, 1);
   generate_sub_keys(key, key_sets);
 
@@ -138,7 +137,7 @@ void print_char_as_binary(char input) {
 void generate_key(unsigned char* key) {
   int i;
   for (i = 0; i < 8; i++) {
-    key[i] = rand() % 255;
+    key[i] = taosRand() % 255;
   }
 }
 

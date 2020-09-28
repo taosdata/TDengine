@@ -13,12 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "tlog.h"
+#include "os.h"
+#include "tulog.h"
 #include "tmempool.h"
 #include "tutil.h"
 
@@ -37,13 +33,13 @@ mpool_h taosMemPoolInit(int numOfBlock, int blockSize) {
   pool_t *pool_p;
 
   if (numOfBlock <= 1 || blockSize <= 1) {
-    pError("invalid parameter in memPoolInit\n");
+    uError("invalid parameter in memPoolInit\n");
     return NULL;
   }
 
   pool_p = (pool_t *)malloc(sizeof(pool_t));
   if (pool_p == NULL) {
-    pError("mempool malloc failed\n");
+    uError("mempool malloc failed\n");
     return NULL;
   } else {
     memset(pool_p, 0, sizeof(pool_t));
@@ -55,10 +51,10 @@ mpool_h taosMemPoolInit(int numOfBlock, int blockSize) {
   pool_p->freeList = (int *)malloc(sizeof(int) * (size_t)numOfBlock);
 
   if (pool_p->pool == NULL || pool_p->freeList == NULL) {
-    pError("failed to allocate memory\n");
-    tfree(pool_p->freeList);
-    tfree(pool_p->pool);
-    tfree(pool_p);
+    uError("failed to allocate memory\n");
+    taosTFree(pool_p->freeList);
+    taosTFree(pool_p->pool);
+    taosTFree(pool_p);
     return NULL;
   }
 
@@ -88,7 +84,7 @@ char *taosMemPoolMalloc(mpool_h handle) {
 
   pthread_mutex_unlock(&(pool_p->mutex));
 
-  if (pos == NULL) pTrace("mempool: out of memory");
+  if (pos == NULL) uDebug("mempool: out of memory");
   return pos;
 }
 
@@ -100,13 +96,13 @@ void taosMemPoolFree(mpool_h handle, char *pMem) {
 
   index = (int)(pMem - pool_p->pool) % pool_p->blockSize;
   if (index != 0) {
-    pError("invalid free address:%p\n", pMem);
+    uError("invalid free address:%p\n", pMem);
     return;
   }
 
   index = (int)((pMem - pool_p->pool) / pool_p->blockSize);
   if (index < 0 || index >= pool_p->numOfBlock) {
-    pError("mempool: error, invalid address:%p\n", pMem);
+    uError("mempool: error, invalid address:%p\n", pMem);
     return;
   }
 

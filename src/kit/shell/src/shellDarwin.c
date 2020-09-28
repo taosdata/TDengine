@@ -32,16 +32,16 @@ void insertChar(Command *cmd, char *c, int size);
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("taos shell is used to test the TDEngine database\n");
+  printf("taos shell is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDEngine server IP address to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");
   printf("%s%s%s\n", indent, indent, "The TCP/IP port number to use for the connection");
   printf("%s%s\n", indent, "-u");
-  printf("%s%s%s\n", indent, indent, "The TDEngine user name to use when connecting to the server.");
+  printf("%s%s%s\n", indent, indent, "The user name to use when connecting to the server.");
   printf("%s%s\n", indent, "-c");
   printf("%s%s%s\n", indent, indent, "Configuration directory.");
   printf("%s%s\n", indent, "-s");
@@ -62,7 +62,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
+void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   wordexp_t full_path;
   for (int i = 1; i < argc; i++) {
     // for host
@@ -81,7 +81,7 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
       // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
-        tsMgmtShellPort = atoi(argv[++i]);
+        arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
         exit(EXIT_FAILURE);
@@ -96,8 +96,12 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {
-        strcpy(configDir, argv[++i]);
+      if (i < argc - 1) { 
+        if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
+          fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
+          exit(EXIT_FAILURE);
+        }
+        strcpy(configDir, argv[i]);
       } else {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);
@@ -225,8 +229,8 @@ void shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           if (isReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
-            tfree(cmd.buffer);
-            tfree(cmd.command);
+            taosTFree(cmd.buffer);
+            taosTFree(cmd.command);
             return;
           } else {
             updateBuffer(&cmd);
@@ -335,52 +339,18 @@ void *shellLoopQuery(void *arg) {
       tscError("failed to malloc command");
       return NULL;
     }
-    while (1) {
-      // Read command from shell.
 
+    do {
+      // Read command from shell.
       memset(command, 0, MAX_COMMAND_SIZE);
       set_terminal_mode();
       shellReadCommand(con, command);
       reset_terminal_mode();
-
-      // Run the command
-      shellRunCommand(con, command);
-    }
+    } while (shellRunCommand(con, command) == 0);
 
   pthread_cleanup_pop(1);
 
   return NULL;
-}
-
-void shellPrintNChar(char *str, int width, bool printMode) {
-  int col_left = width;
-  wchar_t wc;
-  while (col_left > 0) {
-    if (*str == '\0') break;
-    char *tstr = str;
-    int byte_width = mbtowc(&wc, tstr, MB_CUR_MAX);
-    if (byte_width <= 0) break;
-    int col_width = wcwidth(wc);
-    if (col_width <= 0) {
-      str += byte_width;
-      continue;
-    }
-    if (col_left < col_width) break;
-    printf("%lc", wc);
-    str += byte_width;
-    col_left -= col_width;
-  }
-
-  while (col_left > 0) {
-    printf(" ");
-    col_left--;
-  }
-
-  if (!printMode) {
-    printf("|");
-  } else {
-    printf("\n");
-  }
 }
 
 int get_old_terminal_mode(struct termios *tio) {

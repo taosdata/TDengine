@@ -68,15 +68,15 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 	}
 
 	public boolean nullsAreSortedLow() throws SQLException {
-		return false;
+		return !nullsAreSortedHigh();
 	}
 
 	public boolean nullsAreSortedAtStart() throws SQLException {
-		return false;
+		return true;
 	}
 
 	public boolean nullsAreSortedAtEnd() throws SQLException {
-		return false;
+		return !nullsAreSortedAtStart();
 	}
 
 	public String getDatabaseProductName() throws SQLException {
@@ -527,8 +527,9 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 
 	public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types)
 			throws SQLException {
-		if (conn != null && !conn.isClosed()) {
-			Statement stmt = conn.createStatement();
+		Statement stmt = null;
+		if (null != conn && !conn.isClosed()) {
+			stmt = conn.createStatement();
 			if (catalog == null || catalog.length() < 1) {
 				catalog = conn.getCatalog();
 			}

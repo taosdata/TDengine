@@ -21,6 +21,7 @@ inc_dir="/usr/local/taos/include"
 cfg_install_dir="/etc/taos"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
+lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 
 service_config_dir="/etc/systemd/system"
@@ -74,27 +75,30 @@ function install_include() {
 
 function install_lib() {
     ${csudo} rm -f ${lib_link_dir}/libtaos* || :
+    ${csudo} rm -f ${lib64_link_dir}/libtaos* || :
     
     ${csudo} ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    
+    ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
+    ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
 }
 
 function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+    ${csudo} rm -f ${bin_link_dir}/set_core || :
 
     ${csudo} chmod 0555 ${bin_dir}/*
 
     #Make link
     [ -x ${bin_dir}/taos ] && ${csudo} ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo} ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
-    [ -x ${bin_dir}/taosdump ] && ${csudo} ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/taosdemo ] && ${csudo} ln -s ${bin_dir}/taosdemo ${bin_link_dir}/taosdemo || :
-#   [ -x ${bin_dir}/remove.sh ] && ${csudo} ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos || :
+    [ -x ${bin_dir}/set_core.sh ] && ${csudo} ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
 }
 
 function install_config() {
@@ -106,6 +110,31 @@ function install_config() {
 
     ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
+    #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+    #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
+    #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
+    #FQDN_PATTERN=":[0-9]{1,5}$"
+
+    # first full-qualified domain name (FQDN) for TDengine cluster system
+    echo
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo
+    echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
+    read firstEp
+    while true; do
+        if [ ! -z "$firstEp" ]; then
+            # check the format of the firstEp
+            #if [[ $firstEp == $FQDN_PATTERN ]]; then
+                # Write the first FQDN to configuration file                    
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg    
+                break
+            #else
+            #    read -p "Please enter the correct FQDN:port: " firstEp
+            #fi
+        else
+            break
+        fi
+    done	
 }
 
 function clean_service_on_sysvinit() {
@@ -227,8 +256,8 @@ function install_TDengine() {
     install_config	
 
     # Ask if to start the service
-    echo
-    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    #echo
+    #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
     echo
     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
@@ -241,7 +270,13 @@ function install_TDengine() {
     fi
 
     echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-
+    
+    if [ ! -z "$firstEp" ]; then
+        echo		    
+	echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+	echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+        echo
+    fi
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }

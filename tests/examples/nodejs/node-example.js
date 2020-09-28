@@ -1,7 +1,7 @@
 /* This example is to show the preferred way to use the td-connector */
 /* To run, enter node path/to/node-example.js */
 // Get the td-connector package
-const taos = require('td-connector');
+const taos = require('td2.0-connector');
 
 /* We will connect to TDengine by passing an object comprised of connection options to taos.connect and store the
  * connection to the variable conn
@@ -22,8 +22,9 @@ var c1 = conn.cursor();
 // c1.query(query) will return a TaosQuery object, of which then we can execute. The execute function then returns a promise
 // Let's create a database named db
 try {
-  var query = c1.query('create database db;');
-  query.execute();
+	c1.execute('create database if not exists db;');
+  //var query = c1.query('create database if not exists db;');
+  //query.execute();
 }
 catch(err) {
   conn.close();
@@ -71,6 +72,28 @@ catch (err) {
   throw err;
 }
 
+
+Date.prototype.Format = function(fmt){
+    var o = {
+    	'M+': this.getMonth() + 1,
+    	'd+': this.getDate(),
+    	'H+': this.getHours(),
+    	'm+': this.getMinutes(),
+        's+': this.getSeconds(),
+    	'S+': this.getMilliseconds()
+	};
+	if (/(y+)/.test(fmt)) {
+		fmt = fmt.replace(RegExp.$1, (this.getFullYear() + '').substr(4 - RegExp.$1.length));
+    }
+    for (var k in o) {
+		if (new RegExp('(' + k + ')').test(fmt)) {
+			fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (('00' + o[k]).substr(String(o[k]).length)));
+        }
+    }
+    return fmt;
+}
+
+
 // Let's try to insert some random generated data to test with
 // We will use the bind function of the TaosQuery object to easily bind values to question marks in the query
 // For Timestamps, a normal Datetime object or TaosTimestamp or milliseconds can be passed in through the bind function
@@ -79,17 +102,21 @@ let interval = 1000;
 try {
   for (let i = 0; i < 1000; i++) {
     stime.setMilliseconds(stime.getMilliseconds() + interval);
+    
+    //console.log(stime.Format('yyyy-MM-dd HH:mm:ss.SSS'));    
+
     let insertData = [stime,
                       parseInt(Math.random()*100),
                       parseInt(Math.random()*300),
                       parseFloat(Math.random()*10 + 30),
-                      "\"random note!\""];
+                      "Note"];
     //c1.execute('insert into db.weather values(' + insertData.join(',') + ' );');
-    var query = c1.query('insert into db.weather values(?, ?, ?, ?, ?);').bind(insertData);
-    query.execute();
+    
+    //var query = c1.query('insert into db.weather values(?, ?, ?, ?, ?);').bind(insertData);
+    //query.execute();
+    c1.execute('insert into db.weather values(\"'+stime.Format('yyyy-MM-dd HH:mm:ss.SSS')+'\",'+parseInt(Math.random() * 100)+','+parseInt(Math.random() * 300)+','+parseFloat(Math.random()*10 + 30)+',"Note");');
   }
-}
-catch (err) {
+}catch (err) {
   conn.close();
   throw err;
 }
@@ -98,7 +125,8 @@ catch (err) {
 var retrievedData;
 try {
   c1.query('select * from db.weather limit 5 offset 100;', true).then(function(result){
-    result.pretty();
+    //result.pretty();
+	console.log('=========>'+JSON.stringify(result));
     // Neat!
   });
 

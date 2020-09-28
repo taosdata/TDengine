@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tlosertree.h"
 #include "os.h"
 #include "taosmsg.h"
-#include "tlog.h"
-#include "tlosertree.h"
+#include "tulog.h"
 
 // set initial value for loser tree
 void tLoserTreeInit(SLoserTreeInfo* pTree) {
@@ -40,13 +40,13 @@ void tLoserTreeDisplay(SLoserTreeInfo* pTree) {
   printf("\n");
 }
 
-uint8_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* param, __merge_compare_fn_t compareFn) {
+uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* param, __merge_compare_fn_t compareFn) {
   int32_t totalEntries = numOfEntries << 1;
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
-    pError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   (*pTree)->pNode = (SLoserTreeNode*)(((char*)(*pTree)) + sizeof(SLoserTreeInfo));
@@ -54,7 +54,7 @@ uint8_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* par
   (*pTree)->numOfEntries = numOfEntries;
   (*pTree)->totalEntries = totalEntries;
   (*pTree)->param = param;
-  (*pTree)->comparaFn = compareFn;
+  (*pTree)->comparFn = compareFn;
 
   // set initial value for loser tree
   tLoserTreeInit(*pTree);
@@ -95,7 +95,7 @@ void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
       return;
     }
 
-    int32_t ret = pTree->comparaFn(&pTree->pNode[parentId], &kLeaf, pTree->param);
+    int32_t ret = pTree->comparFn(&pTree->pNode[parentId], &kLeaf, pTree->param);
     if (ret < 0) {
       SLoserTreeNode t = pTree->pNode[parentId];
       pTree->pNode[parentId] = kLeaf;

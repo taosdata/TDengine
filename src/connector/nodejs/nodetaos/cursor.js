@@ -98,7 +98,7 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
   if (this._connection == null) {
     throw new errors.ProgrammingError('Cursor is not connected');
   }
-  this._connection._clearResultSet();
+
   this._reset_result();
 
   let stmt = operation;
@@ -111,18 +111,18 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
     });
     obs.observe({ entryTypes: ['measure'] });
     performance.mark('A');
-    res = this._chandle.query(this._connection._conn, stmt);
+    this._result = this._chandle.query(this._connection._conn, stmt);
     performance.mark('B');
     performance.measure('query', 'A', 'B');
   }
   else {
-    res = this._chandle.query(this._connection._conn, stmt);
+    this._result = this._chandle.query(this._connection._conn, stmt);
   }
-
+  res = this._chandle.errno(this._result);
   if (res == 0) {
-    let fieldCount = this._chandle.fieldsCount(this._connection._conn);
+    let fieldCount = this._chandle.fieldsCount(this._result);
     if (fieldCount == 0) {
-      let affectedRowCount = this._chandle.affectedRows(this._connection._conn);
+      let affectedRowCount = this._chandle.affectedRows(this._result);
       let response = this._createAffectedResponse(affectedRowCount, time)
       if (options['quiet'] != true) {
         console.log(response);
@@ -131,16 +131,15 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
       return affectedRowCount; //return num of affected rows, common with insert, use statements
     }
     else {
-      let resAndField = this._chandle.useResult(this._connection._conn, fieldCount)
-      this._result = resAndField.result;
-      this._fields = resAndField.fields;
-      this.fields = resAndField.fields;
+      this._fields = this._chandle.useResult(this._result);
+      this.fields = this._fields;
       wrapCB(callback);
+
       return this._result; //return a pointer to the result
     }
   }
   else {
-    throw new errors.ProgrammingError(this._chandle.errStr(this._connection._conn))
+    throw new errors.ProgrammingError(this._chandle.errStr(this._result))
   }
 
 }
@@ -198,18 +197,18 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
   while(true) {
 
     let blockAndRows = this._chandle.fetchBlock(this._result, this._fields);
-
     let block = blockAndRows.blocks;
     let num_of_rows = blockAndRows.num_of_rows;
-
     if (num_of_rows == 0) {
       break;
     }
     this._rowcount += num_of_rows;
+    let numoffields = this._fields.length;
     for (let i = 0; i < num_of_rows; i++) {
       data.push([]);
-      let rowBlock = new Array(this._fields.length);
-      for (let j = 0; j < this._fields.length; j++) {
+      
+      let rowBlock = new Array(numoffields);
+      for (let j = 0; j < numoffields; j++) {
         rowBlock[j] = block[j][i];
       }
       data[data.length-1] = (rowBlock);
@@ -221,7 +220,7 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
   let response = this._createSetResponse(this._rowcount, time)
   console.log(response);
 
-  this._connection._clearResultSet();
+ // this._connection._clearResultSet();
   let fields = this.fields;
   this._reset_result();
   this.data = data;
@@ -266,13 +265,15 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     }
 
     if (resCode >= 0) {
-      let fieldCount = cr._chandle.numFields(res2);
-      if (fieldCount == 0) {
-        cr._chandle.freeResult(res2);
-      }
-      else {
-        return res2;
-      }
+//      let fieldCount = cr._chandle.numFields(res2);
+//      if (fieldCount == 0) {
+//        //cr._chandle.freeResult(res2);
+//        return res2;
+//      } 
+//      else {
+//        return res2;
+//      }
+      return res2;
 
     }
     else {
@@ -381,6 +382,9 @@ TDengineCursor.prototype.stopQuery = function stopQuery(result) {
 }
 TDengineCursor.prototype._reset_result = function _reset_result() {
   this._rowcount = -1;
+  if (this._result != null) {
+    this._chandle.freeResult(this._result);
+  }
   this._result = null;
   this._fields = null;
   this.data = [];
@@ -405,18 +409,16 @@ TDengineCursor.prototype.getClientInfo = function getClientInfo() {
 /**
  * Subscribe to a table from a database in TDengine.
  * @param {Object} config - A configuration object containing the configuration options for the subscription
- * @param {string} config.host - The host to subscribe to
- * @param {string} config.user - The user to subscribe as
- * @param {string} config.password - The password for the said user
- * @param {string} config.db - The db containing the table to subscribe to
- * @param {string} config.table - The name of the table to subscribe to
- * @param {number} config.time - The start time to start a subscription session
- * @param {number} config.mseconds - The pulling period of the subscription session
+ * @param {string} config.restart - whether or not to continue a subscription if it already exits, otherwise start from beginning
+ * @param {string} config.topic - The unique identifier of a subscription
+ * @param {string} config.sql - A sql statement for data query
+ * @param {string} config.interval - The pulling interval
  * @return {Buffer} A buffer pointing to the subscription session handle
  * @since 1.3.0
  */
 TDengineCursor.prototype.subscribe = function subscribe(config) {
-  return this._chandle.subscribe(config.host, config.user, config.password, config.db, config.table, config.time, config.mseconds);
+  let restart = config.restart ? 1 : 0;
+  return this._chandle.subscribe(this._connection._conn, restart, config.topic, config.sql, config.interval);
 };
 /**
  * An infinite loop that consumes the latest data and calls a callback function that is provided.
@@ -426,18 +428,8 @@ TDengineCursor.prototype.subscribe = function subscribe(config) {
  */
 TDengineCursor.prototype.consumeData = async function consumeData(subscription, callback) {
   while (true) {
-    let res = this._chandle.consume(subscription);
-    let data = [];
-    let num_of_rows = res.blocks[0].length;
-    for (let j = 0; j < num_of_rows; j++) {
-      data.push([]);
-      let rowBlock = new Array(res.fields.length);
-      for (let k = 0; k < res.fields.length; k++) {
-        rowBlock[k] = res.blocks[k][j];
-      }
-      data[data.length-1] = rowBlock;
-    }
-    callback(data, res.fields, subscription);
+    let { data, fields, result} = this._chandle.consume(subscription);
+    callback(data, fields, result);
   }
 }
 /**

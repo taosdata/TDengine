@@ -14,14 +14,16 @@
  */
 
 #include "os.h"
-#include "tlog.h"
+#include "taosdef.h"
+#include "tutil.h"
+#include "tulog.h"
 #include "tsched.h"
 #include "ttimer.h"
 
 #define DUMP_SCHEDULER_TIME_WINDOW 30000 //every 30sec, take a snap shot of task queue.
 
 typedef struct {
-  char            label[16];
+  char            label[TSDB_LABEL_LEN];
   tsem_t          emptySem;
   tsem_t          fullSem;
   pthread_mutex_t queueMutex;
@@ -31,7 +33,7 @@ typedef struct {
   int             numOfThreads;
   pthread_t *     qthread;
   SSchedMsg *     queue;
-  
+  bool            stop;
   void*           pTmrCtrl;
   void*           pTimer;
 } SSchedQueue;
@@ -40,66 +42,68 @@ static void *taosProcessSchedQueue(void *param);
 static void taosDumpSchedulerStatus(void *qhandle, void *tmrId);
 
 void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
-  pthread_attr_t attr;
-  SSchedQueue *  pSched = (SSchedQueue *)malloc(sizeof(SSchedQueue));
+  SSchedQueue *pSched = (SSchedQueue *)calloc(sizeof(SSchedQueue), 1);
   if (pSched == NULL) {
-    pError("%s: no enough memory for pSched, reason: %s", label, strerror(errno));
-    goto _error;
+    uError("%s: no enough memory for pSched", label);
+    return NULL;
   }
 
-  memset(pSched, 0, sizeof(SSchedQueue));
+  pSched->queue = (SSchedMsg *)calloc(sizeof(SSchedMsg), queueSize);
+  if (pSched->queue == NULL) {
+    uError("%s: no enough memory for queue", label);
+    taosCleanUpScheduler(pSched);
+    return NULL;
+  }
+
+  pSched->qthread = calloc(sizeof(pthread_t), numOfThreads);
+  if (pSched->qthread == NULL) {
+    uError("%s: no enough memory for qthread", label);
+    taosCleanUpScheduler(pSched);
+    return NULL;
+  }
+
   pSched->queueSize = queueSize;
-  strncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
-  pSched->label[sizeof(pSched->label)-1] = '\0';
+  tstrncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
 
-  if (pthread_mutex_init(&pSched->queueMutex, NULL) < 0) {
-    pError("init %s:queueMutex failed, reason:%s", pSched->label, strerror(errno));
-    goto _error;
-  }
-
-  if (tsem_init(&pSched->emptySem, 0, (unsigned int)pSched->queueSize) != 0) {
-    pError("init %s:empty semaphore failed, reason:%s", pSched->label, strerror(errno));
-    goto _error;
-  }
-
-  if (tsem_init(&pSched->fullSem, 0, 0) != 0) {
-    pError("init %s:full semaphore failed, reason:%s", pSched->label, strerror(errno));
-    goto _error;
-  }
-
-  if ((pSched->queue = (SSchedMsg *)malloc((size_t)pSched->queueSize * sizeof(SSchedMsg))) == NULL) {
-    pError("%s: no enough memory for queue, reason:%s", pSched->label, strerror(errno));
-    goto _error;
-  }
-
-  memset(pSched->queue, 0, (size_t)pSched->queueSize * sizeof(SSchedMsg));
   pSched->fullSlot = 0;
   pSched->emptySlot = 0;
 
-  pSched->qthread = malloc(sizeof(pthread_t) * (size_t)numOfThreads);
-  if (pSched->qthread == NULL) {
-    pError("%s: no enough memory for qthread, reason: %s", pSched->label, strerror(errno));
-    goto _error;
+  if (pthread_mutex_init(&pSched->queueMutex, NULL) < 0) {
+    uError("init %s:queueMutex failed(%s)", label, strerror(errno));
+    taosCleanUpScheduler(pSched);
+    return NULL;
   }
 
-  pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+  if (tsem_init(&pSched->emptySem, 0, (unsigned int)pSched->queueSize) != 0) {
+    uError("init %s:empty semaphore failed(%s)", label, strerror(errno));
+    taosCleanUpScheduler(pSched);
+    return NULL;
+  }
 
+  if (tsem_init(&pSched->fullSem, 0, 0) != 0) {
+    uError("init %s:full semaphore failed(%s)", label, strerror(errno));
+    taosCleanUpScheduler(pSched);
+    return NULL;
+  }
+
+  pSched->stop = false;
   for (int i = 0; i < numOfThreads; ++i) {
-    if (pthread_create(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched) != 0) {
-      pError("%s: failed to create rpc thread, reason:%s", pSched->label, strerror(errno));
-      goto _error;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    int code = pthread_create(pSched->qthread + i, &attr, taosProcessSchedQueue, (void *)pSched);
+    pthread_attr_destroy(&attr);
+    if (code != 0) {
+      uError("%s: failed to create rpc thread(%s)", label, strerror(errno));
+      taosCleanUpScheduler(pSched);
+      return NULL;
     }
     ++pSched->numOfThreads;
   }
 
-  pTrace("%s scheduler is initialized, numOfThreads:%d", pSched->label, pSched->numOfThreads);
+  uDebug("%s scheduler is initialized, numOfThreads:%d", label, pSched->numOfThreads);
 
   return (void *)pSched;
-
-_error:
-  taosCleanUpScheduler(pSched);
-  return NULL;
 }
 
 void *taosInitSchedulerWithInfo(int queueSize, int numOfThreads, const char *label, void *tmrCtrl) {
@@ -119,26 +123,24 @@ void *taosProcessSchedQueue(void *param) {
 
   while (1) {
     if (tsem_wait(&pSched->fullSem) != 0) {
-      if (errno == EINTR) {
-        /* sem_wait is interrupted by interrupt, ignore and continue */
-        pTrace("wait %s fullSem was interrupted", pSched->label);
-        continue;
-      }
-      pError("wait %s fullSem failed, errno:%d, reason:%s", pSched->label, errno, strerror(errno));
+      uError("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+    }
+    if (pSched->stop) {
+      break;
     }
 
     if (pthread_mutex_lock(&pSched->queueMutex) != 0)
-      pError("lock %s queueMutex failed, reason:%s", pSched->label, strerror(errno));
+      uError("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
 
     msg = pSched->queue[pSched->fullSlot];
     memset(pSched->queue + pSched->fullSlot, 0, sizeof(SSchedMsg));
     pSched->fullSlot = (pSched->fullSlot + 1) % pSched->queueSize;
 
     if (pthread_mutex_unlock(&pSched->queueMutex) != 0)
-      pError("unlock %s queueMutex failed, reason:%s\n", pSched->label, strerror(errno));
+      uError("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
 
     if (tsem_post(&pSched->emptySem) != 0)
-      pError("post %s emptySem failed, reason:%s\n", pSched->label, strerror(errno));
+      uError("post %s emptySem failed(%s)", pSched->label, strerror(errno));
 
     if (msg.fp)
       (*(msg.fp))(&msg);
@@ -152,28 +154,25 @@ void *taosProcessSchedQueue(void *param) {
 int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
   SSchedQueue *pSched = (SSchedQueue *)qhandle;
   if (pSched == NULL) {
-    pError("sched is not ready, msg:%p is dropped", pMsg);
+    uError("sched is not ready, msg:%p is dropped", pMsg);
     return 0;
   }
 
-  while (tsem_wait(&pSched->emptySem) != 0) {
-    if (errno != EINTR) {
-      pError("wait %s emptySem failed, reason:%s", pSched->label, strerror(errno));
-      break;
-    }
-    pTrace("wait %s emptySem was interrupted", pSched->label);
+  if (tsem_wait(&pSched->emptySem) != 0) {
+    uError("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
   }
 
   if (pthread_mutex_lock(&pSched->queueMutex) != 0)
-    pError("lock %s queueMutex failed, reason:%s", pSched->label, strerror(errno));
+    uError("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
 
   pSched->queue[pSched->emptySlot] = *pMsg;
   pSched->emptySlot = (pSched->emptySlot + 1) % pSched->queueSize;
 
   if (pthread_mutex_unlock(&pSched->queueMutex) != 0)
-    pError("unlock %s queueMutex failed, reason:%s", pSched->label, strerror(errno));
+    uError("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
 
-  if (tsem_post(&pSched->fullSem) != 0) pError("post %s fullSem failed, reason:%s", pSched->label, strerror(errno));
+  if (tsem_post(&pSched->fullSem) != 0) 
+    uError("post %s fullSem failed(%s)", pSched->label, strerror(errno));
 
   return 0;
 }
@@ -182,11 +181,16 @@ void taosCleanUpScheduler(void *param) {
   SSchedQueue *pSched = (SSchedQueue *)param;
   if (pSched == NULL) return;
 
+  pSched->stop = true;
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    pthread_cancel(pSched->qthread[i]);
+  if (taosCheckPthreadValid(pSched->qthread[i])) {
+      tsem_post(&pSched->fullSem);
+    }
   }
   for (int i = 0; i < pSched->numOfThreads; ++i) {
-    pthread_join(pSched->qthread[i], NULL);
+    if (taosCheckPthreadValid(pSched->qthread[i])) {
+      pthread_join(pSched->qthread[i], NULL);
+    }
   }
 
   tsem_destroy(&pSched->emptySem);
@@ -197,8 +201,8 @@ void taosCleanUpScheduler(void *param) {
     taosTmrStopA(&pSched->pTimer);
   }
 
-  free(pSched->queue);
-  free(pSched->qthread);
+  if (pSched->queue) free(pSched->queue);
+  if (pSched->qthread) free(pSched->qthread);
   free(pSched); // fix memory leak
 }
 
@@ -211,7 +215,7 @@ void taosDumpSchedulerStatus(void *qhandle, void *tmrId) {
   
   int32_t size = ((pSched->emptySlot - pSched->fullSlot) + pSched->queueSize) % pSched->queueSize;
   if (size > 0) {
-    pTrace("scheduler:%s, current tasks in queue:%d, task thread:%d", pSched->label, size, pSched->numOfThreads);
+    uDebug("scheduler:%s, current tasks in queue:%d, task thread:%d", pSched->label, size, pSched->numOfThreads);
   }
   
   taosTmrReset(taosDumpSchedulerStatus, DUMP_SCHEDULER_TIME_WINDOW, pSched, pSched->pTmrCtrl, &pSched->pTimer);

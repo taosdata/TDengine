@@ -1,22 +1,22 @@
 # 超级表STable：多表聚合
 
-TDengine要求每个数据采集点单独建表，这样能极大提高数据的插入/查询性能，但是导致系统中表的数量猛增，让应用对表的维护以及聚合、统计操作难度加大。为降低应用的开发难度，TDengine引入了超级表STable (Super Table)的概念。
+TDengine要求每个数据采集点单独建表。独立建表的模式能够避免写入过程中的同步加锁，因此能够极大地提升数据的插入/查询性能。但是独立建表意味着系统中表的数量与采集点的数量在同一个量级。如果采集点众多，将导致系统中表的数量也非常庞大，让应用对表的维护以及聚合、统计操作难度加大。为降低应用的开发难度，TDengine引入了超级表(Super Table, 简称为STable)的概念。
 
 ## 什么是超级表
 
-STable是同一类型数据采集点的抽象，是同类型采集实例的集合，包含多张数据结构一样的子表。每个STable为其子表定义了表结构和一组标签：表结构即表中记录的数据列及其数据类型；标签名和数据类型由STable定义，标签值记录着每个子表的静态信息，用以对子表进行分组过滤。子表本质上就是普通的表，由一个时间戳主键和若干个数据列组成，每行记录着具体的数据，数据查询操作与普通表完全相同；但子表与普通表的区别在于每个子表从属于一张超级表，并带有一组由STable定义的标签值。每种类型的采集设备可以定义一个STable。数据模型定义表的每列数据的类型，如温度、压力、电压、电流、GPS实时位置等，而标签信息属于Meta Data，如采集设备的序列号、型号、位置等，是静态的，是表的元数据。用户在创建表（数据采集点）时指定STable(采集类型)外，还可以指定标签的值，也可事后增加或修改。
+超级表是同一类型数据采集点的抽象，是同类型采集实例的集合，包含多张数据结构一样的子表。每个STable为其子表定义了表结构和一组标签：表结构即表中记录的数据列及其数据类型；标签名和数据类型由STable定义，标签值记录着每个子表的静态信息，用以对子表进行分组过滤。子表本质上就是普通的表，由一个时间戳主键和若干个数据列组成，每行记录着具体的数据，数据查询操作与普通表完全相同；但子表与普通表的区别在于每个子表从属于一张超级表，并带有一组由STable定义的标签值。每种类型的采集设备可以定义一个STable。数据模型定义表的每列数据的类型，如温度、压力、电压、电流、GPS实时位置等，而标签信息属于Meta Data，如采集设备的序列号、型号、位置等，是静态的，是表的元数据。用户在创建表（数据采集点）时指定STable(采集类型)外，还可以指定标签的值，也可事后增加或修改。
 
 TDengine扩展标准SQL语法用于定义STable，使用关键词tags指定标签信息。语法如下：
 
 ```mysql
-CREATE TABLE <stable_name> (<field_name> TIMESTAMP, field_name1 field_type,…)   TAGS(tag_name tag_type, …) 
+CREATE TABLE <stable_name> (<field_name> TIMESTAMP, field_name1 field_type,…) TAGS(tag_name tag_type, …) 
 ```
 
-其中tag_name是标签名，tag_type是标签的数据类型。标签可以使用时间戳之外的其他TDengine支持的数据类型，标签的个数最多为6个，名字不能与系统关键词相同，也不能与其他列名相同。如：
+其中tag_name是标签名，tag_type是标签的数据类型。标签可以使用时间戳之外的其他TDengine支持的数据类型，标签的个数最多为32个，名字不能与系统关键词相同，也不能与其他列名相同。如：
 
 ```mysql
-create table thermometer (ts timestamp, degree float) 
-tags (location binary(20), type int)
+CREATE TABLE thermometer (ts timestamp, degree float) 
+TAGS (location binary(20), type int)
 ```
 
 上述SQL创建了一个名为thermometer的STable，带有标签location和标签type。
@@ -30,7 +30,7 @@ CREATE TABLE <tb_name> USING <stb_name> TAGS (tag_value1,...)
 沿用上面温度计的例子，使用超级表thermometer建立单个温度计数据表的语句如下：
 
 ```mysql
-create table t1 using thermometer tags ('beijing', 10)
+CREATE TABLE t1 USING thermometer TAGS ('beijing', 10)
 ```
 
 上述SQL以thermometer为模板，创建了名为t1的表，这张表的Schema就是thermometer的Schema，但标签location值为'beijing'，标签type值为10。
@@ -53,10 +53,11 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
 
     说明：
 
-    1. TAGS列总长度不能超过512 bytes；
+    1. TAGS列总长度不能超过16k bytes；
     2. TAGS列的数据类型不能是timestamp；
     3. TAGS列名不能与其他列名相同;
     4. TAGS列名不能为预留关键字. 
+    5. TAGS总数的上限是128.
 
 - 显示已创建的超级表
 
@@ -72,7 +73,7 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
     DROP TABLE <stable_name>
     ```
 
-    Note: 删除STable不会级联删除通过STable创建的表；相反删除STable时要求通过该STable创建的表都已经被删除。
+    Note: 删除STable时，所有通过该STable创建的表都将被删除。
 
 - 查看属于某STable并满足查询条件的表
 
@@ -114,7 +115,7 @@ INSERT INTO <tb1_name> USING <stb1_name> TAGS (<tag1_value1>, ...) VALUES (<fiel
     ALTER TABLE <stable_name> ADD TAG <new_tag_name> <TYPE>
     ```
 
-    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过6个。
+    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过128个。
 
 - 删除标签
 
@@ -202,7 +203,7 @@ INSERT INTO therm4 VALUES ('2018-01-01 00:00:00.000', 23);
 
 ###3:按标签聚合查询
 
-查询位于北京(beijing)和天津(tianjing)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
+查询位于北京(beijing)和天津(tianjin)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
 
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)

@@ -1,0 +1,74 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== show users
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data22
+print $data20 $data11 $data22
+
+sql_error show accounts;
+sql_error create account a pass "a"
+sql_error drop account a
+sql_error drop account root
+
+print =============== create user1
+sql create user user1 PASS 'user1'
+sql show users
+if $rows != 4 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data22
+print $data20 $data11 $data22
+print $data30 $data31 $data32
+
+print =============== create user2
+sql create user user2 PASS 'user2'
+sql show users
+if $rows != 5 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data22
+print $data20 $data11 $data22
+print $data30 $data31 $data32
+print $data40 $data41 $data42
+
+print =============== drop user1
+sql drop user user1
+sql show users
+if $rows != 4 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data22
+print $data20 $data11 $data22
+print $data30 $data31 $data32
+
+print =============== restart taosd
+system sh/exec.sh -n dnode1 -s stop
+sleep 1000
+system sh/exec.sh -n dnode1 -s start
+
+print =============== show users
+sql show users
+if $rows != 4 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data10 $data11 $data22
+print $data20 $data11 $data22
+print $data30 $data31 $data32
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

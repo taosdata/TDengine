@@ -1,11 +1,20 @@
 EXPORTS
 taos_init
+taos_cleanup
 taos_options
 taos_connect
+taos_connect_auth
 taos_close
+taos_stmt_init
+taos_stmt_prepare
+taos_stmt_bind_param
+taos_stmt_add_batch
+taos_stmt_execute
+taos_stmt_use_result
+taos_stmt_close
 taos_query
-taos_use_result
 taos_fetch_row
+taos_result_precision
 taos_free_result
 taos_field_count
 taos_num_fields
@@ -14,6 +23,9 @@ taos_fetch_fields
 taos_select_db
 taos_print_row
 taos_stop_query
+taos_fetch_block
+taos_validate_sql
+taos_fetch_lengths
 taos_get_server_info
 taos_get_client_info
 taos_errstr
@@ -27,5 +39,5 @@ taos_unsubscribe
 taos_open_stream
 taos_close_stream
 taos_fetch_block
-taos_result_precision
+taos_load_table_info
 

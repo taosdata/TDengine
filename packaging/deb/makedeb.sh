@@ -47,7 +47,6 @@ cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
-cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
@@ -55,9 +54,10 @@ cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
 cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
-cp -r ${top_dir}/src/connector/grafana              ${pkg_dir}${install_home_path}/connector
+cp -r ${top_dir}/src/connector/grafanaplugin        ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
+cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector
 cp ${compile_dir}/build/lib/taos-jdbcdriver*dist.*  ${pkg_dir}${install_home_path}/connector
 
 cp -r ${compile_dir}/../packaging/deb/DEBIAN        ${pkg_dir}/
@@ -72,10 +72,10 @@ sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
 
 if [ "$verMode" == "cluster" ]; then
   debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
-elif [ "$verMode" == "lite" ]; then
+elif [ "$verMode" == "edge" ]; then
   debname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
 else
-  echo "unknow verMode, nor cluster or lite"
+  echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 

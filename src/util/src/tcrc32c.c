@@ -736,7 +736,7 @@ static uint32_t table[16][256] = {
      0x9c221d09, 0x6e2e10f7, 0x7dd67004, 0x8fda7dfa}
 
 };
-
+#ifndef _TD_ARM_
 static uint32_t long_shifts[4][256] = {
     {0x00000000, 0xe040e0ac, 0xc56db7a9, 0x252d5705, 0x8f3719a3, 0x6f77f90f,
      0x4a5aae0a, 0xaa1a4ea6, 0x1b8245b7, 0xfbc2a51b, 0xdeeff21e, 0x3eaf12b2,
@@ -1090,7 +1090,7 @@ static uint32_t short_shifts[4][256] = {
      0x3c3f083d, 0x1984fde6, 0x7748e38b, 0x52f31650, 0xaad0df51, 0x8f6b2a8a,
      0xe1a734e7, 0xc41cc13c, 0x140cd014, 0x31b725cf, 0x5f7b3ba2, 0x7ac0ce79,
      0x82e30778, 0xa758f2a3, 0xc994ecce, 0xec2f1915}};
-
+#endif
 #if 0
 static uint32_t append_trivial(uint32_t crc, crc_stream input, size_t length) {
   for (size_t i = 0; i < length; ++i) {
@@ -1187,13 +1187,13 @@ uint32_t crc32c_sf(uint32_t crci, crc_stream input, size_t length) {
   }
   return (uint32_t)crc ^ 0xffffffff;
 }
-
+#ifndef _TD_ARM_
 /* Apply the zeros operator table to crc. */
 static uint32_t shift_crc(uint32_t shift_table[][256], uint32_t crc) {
   return shift_table[0][crc & 0xff] ^ shift_table[1][(crc >> 8) & 0xff] ^
          shift_table[2][(crc >> 16) & 0xff] ^ shift_table[3][crc >> 24];
 }
-
+#endif
 /* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
    version.  Otherwise, use the software version. */
 uint32_t (*crc32c)(uint32_t crci, crc_stream bytes, size_t len) = crc32c_sf;
@@ -1353,12 +1353,12 @@ uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
 #endif // #ifndef _TD_ARM_
 
 void taosResolveCRC() {
-#ifndef _TD_ARM_
+#if defined _TD_ARM_ || defined WINDOWS
+  crc32c = crc32c_sf;
+#else
   int sse42;
   SSE42(sse42);
   crc32c = sse42 ? crc32c_hw : crc32c_sf;
-#else
-  crc32c = crc32c_sf;
 #endif  
   /* return sse42 ? crc32c_hw(crci, bytes, len) : crc32c_sf(crci, bytes, len);
    */

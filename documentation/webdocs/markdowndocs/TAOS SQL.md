@@ -39,8 +39,8 @@ The full list of data types is listed below.  For string types of data, we will 
 | 6    |   DOUBLE    |    8    | A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308]​ |
 | 7    |    BOOL     |    1    | A nullable boolean type, [**`true`**, **`false`**]           |
 | 8    |  TIMESTAMP  |    8    | A nullable timestamp type with the same usage as the primary column timestamp |
-| 9    | BINARY(*M*) |   *M*   | A nullable string type whose length is *M*, any exceeded chars will be automatically truncated. This type of string only supports ASCii encoded chars. |
-| 10   | NCHAR(*M*)  | 4 * *M* | A nullable string type whose length is *M*, any exceeded chars will be truncated. The **`NCHAR`** type supports Unicode encoded chars. |
+| 9    | BINARY(*M*) |   *M*   | A nullable string type whose length is *M*, error should be threw with exceeded chars, the maximum length of *M* is 16374, but as maximum row size is 16K bytes, the actual upper limit will generally less than 16374. This type of string only supports ASCii encoded chars. |
+| 10   | NCHAR(*M*)  | 4 * *M* | A nullable string type whose length is *M*, error should be threw with exceeded chars. The **`NCHAR`** type supports Unicode encoded chars. |
 
 All the keywords in a SQL statement are case-insensitive, but strings values are case-sensitive and must be quoted by a pair of `'` or `"`. To quote a `'` or a `"` , you can use the escape character `\`.
 
@@ -86,7 +86,7 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
     
     1) The first column must be a `timestamp`, and the system will set it as the primary key.
     
-    2) The record size is limited to 4096 bytes
+    2) The record size is limited to 16k bytes
     
     3) For `binary` or `nchar` data types, the length must be specified. For example, binary(20) means a binary data type with 20 bytes.
 
@@ -181,9 +181,10 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
                 tb2_name (tb2_field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)
     ```
 
-Note: For a table, the new record must have a timestamp bigger than the last data record, otherwise, it will be discarded and not inserted. If the timestamp is 0, the time stamp will be set to the system time on the server.
-
-**IMPORT**: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. If you want to import a batch of historical records, the records must be ordered by the timestamp, otherwise, TDengine won't handle it in the right way.
+Note: 1. For a table, the new record must have a timestamp bigger than the last data record, otherwise, it will be discarded and not inserted. If the timestamp is 0, the time stamp will be set to the system time on the server.
+      2.The timestamp of the oldest record allowed to be inserted is relative to the current server time, minus the configured keep value (the number of days the data is retained), and the timestamp of the latest record allowed to be inserted is relative to the current server time, plus the configured days value (the time span in which the data file stores data, in days). Both keep and days can be specified when creating the database. The default values are 3650 days and 10 days, respectively.
+ 
+**IMPORT**: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. 
 
 ## Data Query
 
@@ -288,10 +289,10 @@ TDengine supports aggregations over numerical values, they are listed below:
     Applied to: table/STable. 
 
 
-- **WAVG**
+- **TWA**
   
     ```mysql
-    SELECT WAVG(field_name) FROM tb_name WHERE clause
+    SELECT TWA(field_name) FROM tb_name WHERE clause
     ```
     Function: return the time-weighted average value of a specific column  
     Return Data Type: `double`  
@@ -323,7 +324,7 @@ TDengine supports aggregations over numerical values, they are listed below:
 
 - **LEASTSQUARES**
     ```mysql
-    SELECT LEASTSQUARES(field_name) FROM tb_name [WHERE clause]
+    SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
     ```
     Function: performs a linear fit to the primary timestamp and the specified column. 
     Return Data Type: return a string of the coefficient and the interception of the fitted line.  
@@ -411,11 +412,20 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
     ```
     Function: the value of the specified column below which `P` percent of the data points fall.  
-    Return Data Type: the same data type.  
+    Return Data Type: double.  
     Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`. 
     Applied to: table/STable.  
     Note: The range of `P` is `[0, 100]`. When `P=0` , `PERCENTILE` returns the equal value as `MIN`; when `P=100`, `PERCENTILE` returns the equal value as `MAX`. 
 
+- **APERCENTILE**
+    ```mysql
+    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    Function: the value of the specified column below which `P` percent of the data points fall, it returns approximate value of percentile.
+    Return Data Type: double.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`. 
+    Applied to: table/STable.  
+    Note: The range of `P` is `[0, 100]`. When `P=0` , `APERCENTILE` returns the equal value as `MIN`; when `P=100`, `APERCENTILE` returns the equal value as `MAX`. `APERCENTILE` has a much better performance than `PERCENTILE`.
 
 - **LAST_ROW**
     ```mysql
@@ -445,7 +455,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause]
     ```
     Function: return the difference between the maximum and the mimimum value.  
-    Return Data Type: the same data type.  
+    Return Data Type: double.  
     Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable.  
     Note: spread gives the range of data variation in a table/supertable; it is equivalent to `MAX()` - `MIN()`

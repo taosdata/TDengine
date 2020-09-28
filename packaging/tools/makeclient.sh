@@ -12,6 +12,7 @@ cpuType=$4
 osType=$5
 verMode=$6
 verType=$7
+pagMode=$8
 
 if [ "$osType" != "Darwin" ]; then
     script_dir="$(dirname $(readlink -f $0))"
@@ -39,11 +40,17 @@ fi
 # Directories and files.
 
 if [ "$osType" != "Darwin" ]; then
-    bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove_client.sh"
-    lib_files="${build_dir}/lib/libtaos.so.${version}"
-else
+  if [ "$pagMode" == "lite" ]; then
+    #strip ${build_dir}/bin/taosd 
+    strip ${build_dir}/bin/taos
     bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
-    lib_files="${build_dir}/lib/libtaos.${version}.dylib"
+  else  
+    bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdemo ${script_dir}/remove_client.sh ${script_dir}/set_core.sh"
+  fi
+  lib_files="${build_dir}/lib/libtaos.so.${version}"
+else
+  bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
+  lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
@@ -74,18 +81,25 @@ if [ "$osType" == "Darwin" ]; then
     sed 's/osType=Linux/osType=Darwin/g' ${install_dir}/install_client.sh >> install_client_temp.sh
     mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
+if [ "$pagMode" == "lite" ]; then
+    sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >> install_client_temp.sh
+    mv install_client_temp.sh ${install_dir}/install_client.sh
+fi
 chmod a+x ${install_dir}/install_client.sh
 
 # Copy example code
 mkdir -p ${install_dir}/examples
 examples_dir="${top_dir}/tests/examples"
 cp -r ${examples_dir}/c      ${install_dir}/examples
-cp -r ${examples_dir}/JDBC   ${install_dir}/examples
-cp -r ${examples_dir}/matlab ${install_dir}/examples
-cp -r ${examples_dir}/python ${install_dir}/examples
-cp -r ${examples_dir}/R      ${install_dir}/examples
-cp -r ${examples_dir}/go     ${install_dir}/examples
-
+if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+  cp -r ${examples_dir}/JDBC   ${install_dir}/examples
+  cp -r ${examples_dir}/matlab ${install_dir}/examples
+  cp -r ${examples_dir}/python ${install_dir}/examples
+  cp -r ${examples_dir}/R      ${install_dir}/examples
+  cp -r ${examples_dir}/go     ${install_dir}/examples
+  cp -r ${examples_dir}/nodejs ${install_dir}/examples
+  cp -r ${examples_dir}/C#     ${install_dir}/examples
+fi
 # Copy driver
 mkdir -p ${install_dir}/driver 
 cp ${lib_files} ${install_dir}/driver
@@ -94,13 +108,15 @@ cp ${lib_files} ${install_dir}/driver
 connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 
-if [ "$osType" != "Darwin" ]; then
+if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+  if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector
+  fi
+  cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
+  cp -r ${connector_dir}/python        ${install_dir}/connector/
+  cp -r ${connector_dir}/go            ${install_dir}/connector
+  cp -r ${connector_dir}/nodejs        ${install_dir}/connector
 fi
-cp -r ${connector_dir}/grafana ${install_dir}/connector/
-cp -r ${connector_dir}/python  ${install_dir}/connector/
-cp -r ${connector_dir}/go      ${install_dir}/connector
-
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
 
@@ -110,11 +126,15 @@ cd ${release_dir}
 
 if [ "$verMode" == "cluster" ]; then
   pkg_name=${install_dir}-${version}-${osType}-${cpuType}
-elif [ "$verMode" == "lite" ]; then
+elif [ "$verMode" == "edge" ]; then
   pkg_name=${install_dir}-${version}-${osType}-${cpuType}
 else
-  echo "unknow verMode, nor cluster or lite"
+  echo "unknow verMode, nor cluster or edge"
   exit 1
+fi
+
+if [ "$pagMode" == "lite" ]; then
+  pkg_name=${pkg_name}-Lite
 fi
 
 if [ "$verType" == "beta" ]; then

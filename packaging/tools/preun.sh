@@ -8,6 +8,7 @@ NC='\033[0m'
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
+lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 
 data_link_dir="/usr/local/taos/data"
@@ -104,10 +105,12 @@ ${csudo} rm -f ${bin_link_dir}/taos       || :
 ${csudo} rm -f ${bin_link_dir}/taosd      || :
 ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
 ${csudo} rm -f ${bin_link_dir}/taosdump   || :
+${csudo} rm -f ${bin_link_dir}/set_core   || :
 ${csudo} rm -f ${cfg_link_dir}/*          || :
 ${csudo} rm -f ${inc_link_dir}/taos.h     || :
-${csudo} rm -f ${inc_link_dir}/taoserror.h     || :
-${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
+${csudo} rm -f ${inc_link_dir}/taoserror.h || :
+${csudo} rm -f ${lib_link_dir}/libtaos.*   || :
+${csudo} rm -f ${lib64_link_dir}/libtaos.* || :
 
 ${csudo} rm -f ${log_link_dir}            || :
 ${csudo} rm -f ${data_link_dir}           || :

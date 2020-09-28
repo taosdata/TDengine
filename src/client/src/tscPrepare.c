@@ -12,18 +12,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
 #include "taos.h"
 #include "tsclient.h"
-#include "tscSQLParser.h"
 #include "tscUtil.h"
 #include "ttimer.h"
 #include "taosmsg.h"
 #include "tstrbuild.h"
-
+#include "tscLog.h"
+#include "tscSubquery.h"
 
 int tsParseInsertSql(SSqlObj *pSql);
-int taos_query_imp(STscObj* pObj, SSqlObj* pSql);
 
 ////////////////////////////////////////////////////////////////////////////////
 // functions for normal statement preparation
@@ -61,7 +61,7 @@ static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_
     size *= 2;
     void* tmp = realloc(stmt->parts, sizeof(SNormalStmtPart) * size);
     if (tmp == NULL) {
-      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     stmt->sizeParts = size;
     stmt->parts = (SNormalStmtPart*)tmp;
@@ -132,7 +132,7 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
       case TSDB_DATA_TYPE_NCHAR:
         var->pz = (char*)malloc((*tb->length) + 1);
         if (var->pz == NULL) {
-          return TSDB_CODE_CLI_OUT_OF_MEMORY;
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
         memcpy(var->pz, tb->buffer, (*tb->length));
         var->pz[*tb->length] = 0;
@@ -140,8 +140,8 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       default:
-        tscTrace("param %d: type mismatch or invalid", i);
-        return TSDB_CODE_INVALID_VALUE;
+        tscDebug("param %d: type mismatch or invalid", i);
+        return TSDB_CODE_TSC_INVALID_VALUE;
     }
   }
   
@@ -155,7 +155,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
   uint32_t i = 0, start = 0;
 
   while (sql[i] != 0) {
-    SSQLToken token = {0};
+    SStrToken token = {0};
     token.n = tSQLGetToken(sql + i, &token.type);
 
     if (token.type == TK_QUESTION) {
@@ -186,7 +186,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
   if (normal->numParams > 0) {
     normal->params = calloc(normal->numParams, sizeof(tVariant));
     if (normal->params == NULL) {
-      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
 
@@ -195,7 +195,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
 
 static char* normalStmtBuildSql(STscStmt* stmt) {
   SNormalStmt* normal = &stmt->normal;
-  SStringBuilder sb = {0};
+  SStringBuilder sb; memset(&sb, 0, sizeof(sb));
 
   if (taosStringBuilderSetJmp(&sb) != 0) {
     taosStringBuilderDestroy(&sb);
@@ -263,12 +263,16 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
 
 static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
   if (bind->is_null != NULL && *(bind->is_null)) {
-    setNull(data, param->type, param->bytes);
+    if (param->type == TSDB_DATA_TYPE_BINARY || param->type == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(data + param->offset, param->type);
+    } else {
+      setNull(data + param->offset, param->type, param->bytes);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
   if (bind->buffer_type != param->type) {
-    return TSDB_CODE_INVALID_VALUE;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   short size = 0;
@@ -294,21 +298,24 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       break;
 
     case TSDB_DATA_TYPE_BINARY:
-      if ((*bind->length) > param->bytes) {
-        return TSDB_CODE_INVALID_VALUE;
+      if ((*bind->length) > (uintptr_t)param->bytes) {
+        return TSDB_CODE_TSC_INVALID_VALUE;
       }
       size = (short)*bind->length;
-      break;
-    
-    case TSDB_DATA_TYPE_NCHAR:
-      if (!taosMbsToUcs4(bind->buffer, *bind->length, data + param->offset, param->bytes)) {
-        return TSDB_CODE_INVALID_VALUE;
-      }
+      STR_WITH_SIZE_TO_VARSTR(data + param->offset, bind->buffer, size);
       return TSDB_CODE_SUCCESS;
-
+    
+    case TSDB_DATA_TYPE_NCHAR: {
+      size_t output = 0;
+      if (!taosMbsToUcs4(bind->buffer, *bind->length, varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }      
+      varDataSetLen(data + param->offset, output);
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       assert(false);
-      return TSDB_CODE_INVALID_VALUE;
+      return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   memcpy(data + param->offset, bind->buffer, size);
@@ -324,31 +331,32 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     binded = pCmd->batchSize / 2;
   }
 
-  for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
-    STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
-    uint32_t          totalDataSize = pBlock->size - sizeof(SShellSubmitBlock);
+  size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+  for (int32_t i = 0; i < size; ++i) {
+    STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
+    uint32_t          totalDataSize = pBlock->size - sizeof(SSubmitBlk);
     uint32_t          dataSize = totalDataSize / alloced;
     assert(dataSize * alloced == totalDataSize);
 
     if (alloced == binded) {
-      totalDataSize += dataSize + sizeof(SShellSubmitBlock);
+      totalDataSize += dataSize + sizeof(SSubmitBlk);
       if (totalDataSize > pBlock->nAllocSize) {
         const double factor = 1.5;
         void* tmp = realloc(pBlock->pData, (uint32_t)(totalDataSize * factor));
         if (tmp == NULL) {
-          return TSDB_CODE_CLI_OUT_OF_MEMORY;
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
         pBlock->pData = (char*)tmp;
         pBlock->nAllocSize = (uint32_t)(totalDataSize * factor);
       }
     }
 
-    char* data = pBlock->pData + sizeof(SShellSubmitBlock) + dataSize * binded;
+    char* data = pBlock->pData + sizeof(SSubmitBlk) + dataSize * binded;
     for (uint32_t j = 0; j < pBlock->numOfParams; ++j) {
       SParamInfo* param = pBlock->params + j;
       int code = doBindParam(data, param, bind + param->idx);
       if (code != TSDB_CODE_SUCCESS) {
-        tscTrace("param %d: type mismatch or invalid", param->idx);
+        tscDebug("param %d: type mismatch or invalid", param->idx);
         return code;
       }
     }
@@ -363,13 +371,14 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     return TSDB_CODE_SUCCESS;
   }
 
-  for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
-    STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
+  size_t total = taosArrayGetSize(pCmd->pDataBlocks);
+  for (int32_t i = 0; i < total; ++i) {
+    STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
 
-    uint32_t totalDataSize = pBlock->size - sizeof(SShellSubmitBlock);
+    uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
     pBlock->size += totalDataSize / alloced;
 
-    SShellSubmitBlock* pSubmit = (SShellSubmitBlock*)pBlock->pData;
+    SSubmitBlk* pSubmit = (SSubmitBlk*)pBlock->pData;
     pSubmit->numOfRows += pSubmit->numOfRows / alloced;
   }
 
@@ -384,62 +393,56 @@ static int insertStmtAddBatch(STscStmt* stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int insertStmtPrepare(STscStmt* stmt) {
-  SSqlObj *pSql = stmt->pSql;
-  pSql->cmd.numOfParams = 0;
-  pSql->cmd.batchSize = 0;
-
-  return tsParseInsertSql(pSql);
-}
-
 static int insertStmtReset(STscStmt* pStmt) {
   SSqlCmd* pCmd = &pStmt->pSql->cmd;
   if (pCmd->batchSize > 2) {
     int32_t alloced = (pCmd->batchSize + 1) / 2;
-    for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
-      STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
 
-      uint32_t totalDataSize = pBlock->size - sizeof(SShellSubmitBlock);
-      pBlock->size = sizeof(SShellSubmitBlock) + totalDataSize / alloced;
+    size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+    for (int32_t i = 0; i < size; ++i) {
+      STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
 
-      SShellSubmitBlock* pSubmit = (SShellSubmitBlock*)pBlock->pData;
+      uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
+      pBlock->size = sizeof(SSubmitBlk) + totalDataSize / alloced;
+
+      SSubmitBlk* pSubmit = (SSubmitBlk*)pBlock->pData;
       pSubmit->numOfRows = pSubmit->numOfRows / alloced;
     }
   }
   pCmd->batchSize = 0;
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  pMeterMetaInfo->vnodeIndex = 0;
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  pTableMetaInfo->vgroupIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
 
 static int insertStmtExecute(STscStmt* stmt) {
   SSqlCmd* pCmd = &stmt->pSql->cmd;
   if (pCmd->batchSize == 0) {
-    return TSDB_CODE_INVALID_VALUE;
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
   if ((pCmd->batchSize % 2) == 1) {
     ++pCmd->batchSize;
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
-  
-  if (pCmd->pDataBlocks->nSize > 0) {
+
+  if (taosArrayGetSize(pCmd->pDataBlocks) > 0) {
     // merge according to vgid
     int code = tscMergeTableDataBlocks(stmt->pSql, pCmd->pDataBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];
+    STableDataBlocks *pDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
     code = tscCopyDataBlockToPayload(stmt->pSql, pDataBlock);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     // set the next sent data vnode index in data block arraylist
-    pMeterMetaInfo->vnodeIndex = 1;
+    pTableMetaInfo->vgroupIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
@@ -448,19 +451,20 @@ static int insertStmtExecute(STscStmt* stmt) {
   SSqlRes *pRes = &pSql->res;
   pRes->numOfRows = 0;
   pRes->numOfTotal = 0;
-  pRes->numOfTotalInCurrentClause = 0;
+  pRes->numOfClauseTotal = 0;
   
   pRes->qhandle = 0;
-  pSql->thandle = NULL;
+
+  pSql->cmd.insertType = 0;
+  pSql->fetchFp    = waitForQueryRsp;
+  pSql->fp         = (void(*)())tscHandleMultivnodeInsert;
 
   tscDoQuery(pSql);
 
-  // tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
-  if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObjPartial(pSql);
-  }
+  // wait for the callback function to post the semaphore
+  tsem_wait(&pSql->rspSem);
+  return pSql->res.code;
 
-  return pRes->code;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -469,30 +473,31 @@ static int insertStmtExecute(STscStmt* stmt) {
 TAOS_STMT* taos_stmt_init(TAOS* taos) {
   STscObj* pObj = (STscObj*)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    globalCode = TSDB_CODE_DISCONNECTED;
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("connection disconnected");
     return NULL;
   }
 
   STscStmt* pStmt = calloc(1, sizeof(STscStmt));
   if (pStmt == NULL) {
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("failed to allocate memory for statement");
     return NULL;
   }
+  pStmt->taos = pObj;
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     free(pStmt);
-    globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("failed to allocate memory for statement");
     return NULL;
   }
 
   tsem_init(&pSql->rspSem, 0, 0);
-  tsem_init(&pSql->emptyRspSem, 0, 1);
-  pSql->signature = pSql;
-  pSql->pTscObj = pObj;
+  pSql->signature     = pSql;
+  pSql->pTscObj       = pObj;
+  pSql->maxRetry      = TSDB_MAX_REPLICA;
 
   pStmt->pSql = pSql;
   return pStmt;
@@ -500,22 +505,57 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
 
 int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  if (length == 0) {
-    length = strlen(sql);
-  }
-  char* sqlstr = (char*)malloc(length + 1);
-  if (sqlstr == NULL) {
-    tscError("failed to malloc sql string buffer");
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-  memcpy(sqlstr, sql, length);
-  sqlstr[length] = 0;
-  strtolower(sqlstr, sqlstr);
 
-  pStmt->pSql->sqlstr = sqlstr;
-  if (tscIsInsertOrImportData(sqlstr)) {
+  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  SSqlObj* pSql = pStmt->pSql;
+  size_t   sqlLen = strlen(sql);
+  
+  //doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
+  SSqlCmd *pCmd    = &pSql->cmd;
+  SSqlRes *pRes    = &pSql->res;
+  pSql->param      = (void*) pSql;
+  pSql->fp         = waitForQueryRsp;
+  pSql->cmd.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
+    tscError("%p failed to malloc payload buffer", pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
+  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  
+  if (pSql->sqlstr == NULL) {
+    tscError("%p failed to malloc sql string buffer", pSql);
+    free(pCmd->payload);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
+  pRes->qhandle = 0;
+  pRes->numOfRows = 1;
+  
+  strtolower(pSql->sqlstr, sql);
+  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
+
+  if (tscIsInsertData(pSql->sqlstr)) {  
     pStmt->isInsert = true;
-    return insertStmtPrepare(pStmt);
+    
+    pSql->cmd.numOfParams = 0;
+    pSql->cmd.batchSize   = 0;
+
+    registerSqlObj(pSql);
+
+    int32_t code = tsParseSql(pSql, true);
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+      // wait for the callback function to post the semaphore
+      tsem_wait(&pSql->rspSem);
+      return pSql->res.code;
+    }
+    
+    return code;
   }
 
   pStmt->isInsert = false;
@@ -536,7 +576,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     free(normal->sql);
   }
 
-  tscFreeSqlObj(pStmt->pSql);
+  taos_free_result(pStmt->pSql);
   free(pStmt);
   return TSDB_CODE_SUCCESS;
 }
@@ -554,7 +594,7 @@ int taos_stmt_add_batch(TAOS_STMT* stmt) {
   if (pStmt->isInsert) {
     return insertStmtAddBatch(pStmt);
   }
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  return TSDB_CODE_COM_OPS_NOT_SUPPORT;
 }
 
 int taos_stmt_reset(TAOS_STMT* stmt) {
@@ -573,11 +613,15 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
   } else {
     char* sql = normalStmtBuildSql(pStmt);
     if (sql == NULL) {
-      ret = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
-      tfree(pStmt->pSql->sqlstr);
-      pStmt->pSql->sqlstr = sql;
-      ret = taos_query_imp(pStmt->taos, pStmt->pSql);
+      if (pStmt->pSql != NULL) {
+        taos_free_result(pStmt->pSql);
+        pStmt->pSql = NULL;
+      }
+      pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
+      ret = taos_errno(pStmt->pSql);
+      free(sql);
     }
   }
   return ret;

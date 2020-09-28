@@ -1,0 +1,6 @@
+run general/user/basic1.sim
+run general/user/monitor.sim
+run general/user/pass_alter.sim
+run general/user/pass_len.sim
+run general/user/user_create.sim
+run general/user/user_len.sim

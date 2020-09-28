@@ -15,26 +15,14 @@
 
 #include "os.h"
 #include "shell.h"
-#include "tsclient.h"
-#include "tutil.h"
+#include "tnettest.h"
 
-TAOS*     con;
 pthread_t pid;
-int32_t   TIMESTAMP_OUTPUT_LENGTH = 22;
 
-// TODO: IMPLEMENT INTERRUPT HANDLER.
-void interruptHandler(int signum) {
+void shellQueryInterruptHandler(int signum) {
 #ifdef LINUX
-  TAOS_RES* res = taos_use_result(con);
-  taos_stop_query(res);
-  if (res != NULL) {
-    /*
-     * we need to free result in async model, in order to avoid free
-     * results while the master thread is waiting for server response.
-     */
-    tscQueueAsyncFreeResult(res);
-  }
-  result = NULL;
+  void* pResHandle = atomic_val_compare_exchange_64(&result, result, 0);
+  taos_stop_query(pResHandle);
 #else
   printf("\nReceive ctrl+c or other signal, quit shell.\n");
   exit(0);
@@ -62,7 +50,7 @@ int checkVersion() {
 }
 
 // Global configurations
-struct arguments args = {
+SShellArguments args = {
   .host = NULL,
   .password = NULL,
   .user = NULL,
@@ -73,7 +61,10 @@ struct arguments args = {
   .file = "\0",
   .dir = "\0",
   .threadNum = 5,
-  .commands = NULL
+  .commands = NULL,  
+  .endPort = 6042,
+  .pktLen = 1000,
+  .netTestRole = NULL
 };
 
 /*
@@ -88,16 +79,22 @@ int main(int argc, char* argv[]) {
 
   shellParseArgument(argc, argv, &args);
 
+  if (args.netTestRole && args.netTestRole[0] != 0) {
+    taosNetTest(args.host, (uint16_t)args.port, (uint16_t)args.endPort, args.pktLen, args.netTestRole);
+    exit(0);
+  }
+
   /* Initialize the shell */
-  con = shellInit(&args);
+  TAOS* con = shellInit(&args);
   if (con == NULL) {
-    taos_error(con);
     exit(EXIT_FAILURE);
   }
 
-  /* Interupt handler. */
+  /* Interrupt handler. */
   struct sigaction act;
-  act.sa_handler = interruptHandler;
+  memset(&act, 0, sizeof(struct sigaction));
+  
+  act.sa_handler = shellQueryInterruptHandler;
   sigaction(SIGTERM, &act, NULL);
   sigaction(SIGINT, &act, NULL);
 
@@ -109,5 +106,4 @@ int main(int argc, char* argv[]) {
     pthread_create(&pid, NULL, shellLoopQuery, con);
     pthread_join(pid, NULL);
   }
-  return 0;
 }

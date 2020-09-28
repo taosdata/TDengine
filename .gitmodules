@@ -1,0 +1,6 @@
+[submodule "src/connector/go"]
+	path = src/connector/go
+	url = https://github.com/taosdata/driver-go
+[submodule "src/connector/grafanaplugin"]
+	path = src/connector/grafanaplugin
+	url = https://github.com/taosdata/grafanaplugin

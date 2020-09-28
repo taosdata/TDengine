@@ -1,0 +1,24 @@
+1.编译
+将main.go编译成可执行文件，telegrafTest
+2.执行
+./telegrafTest
+3.参数 telegraf.json的配置文件
+  hostIp TDengine机器IP地址
+  machineNum 模拟的机器数量
+  loopNum 每个机器发送请求的次数
+  dbName 创建的数据库名称
+  dataBegin 生成模拟数据的开始时间戳
+4.telegraf.req（通常不变）
+  1）替换panshi-gsl和1536750380000这两个字符串，生成http请求
+  2）通过http发送给TDengine
+5.注意
+  1）修改配置文件/etc/taos/taos.cfg
+  httpDebugFlag 设置为131（131-httpDebug,135-httpDebug）
+  httpMaxThreads 按照机器情况设置，设置范围为（1-cpu cores)
+  httpCacheSessions 设置为可能的http连接的2倍
+  maxVnodeConnections 设置为100000
+  maxMeterConnections 设置为100000
+  maxShellConns 设置为100000
+  maxMgmtConnections 设置为100000
+  2）设置linux参数，例如
+  ulimit -n 600000

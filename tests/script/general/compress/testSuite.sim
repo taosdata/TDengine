@@ -1,0 +1,4 @@
+run general/compress/commitlog.sim
+run general/compress/compress2.sim
+run general/compress/compress.sim
+run general/compress/uncompress.sim

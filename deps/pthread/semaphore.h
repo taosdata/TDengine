@@ -99,6 +99,8 @@
 #endif
 #endif /* PTW32_SEMAPHORE_LEVEL >= PTW32_SEMAPHORE_LEVEL_MAX */
 
+#include "sys/msvcTypes.h"
+
 #define _POSIX_SEMAPHORES
 
 #if defined(__cplusplus)

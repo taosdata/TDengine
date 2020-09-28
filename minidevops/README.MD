@@ -7,8 +7,10 @@
 - grafana/grafana                                         Grafana的镜像，一个广泛应用的开源可视化监控软件
 - telegraf:latest                                            一个广泛应用的开源数据采集程序
 - prom/prometheus:latest                           一个广泛应用的k8s领域的开源数据采集程序
+
 ## 说明
 本文中的图片链接在Github上显示不出来，建议将MD文件下载后用vscode或其他md文件浏览工具进行查看
+
 ## 前提条件
 1. 一台linux服务器或运行linux操作系统的虚拟机或者运行MacOS的计算机
 2. 安装了Docker软件。Docker软件的安装方法请参考linux下安装Docker
@@ -216,4 +218,8 @@ use telegraf；
 使用telegraf这个数据库。然后执行show tables，describe table等命令详细查询下telegraf这个库里保存了些什么数据。
 具体TDengine的查询语句可以参考[TDengine官方文档](https://www.taosdata.com/cn/documentation/taos-sql/)
 ## 接入多个监控对象
+<<<<<<< HEAD
 就像前面原理介绍的，这个miniDevops的小系统，已经提供了一个时序数据库和可视化系统，对于多台机器的监控，只需要将每台机器的telegraf或prometheus配置按上面所述修改，就可以完成监控数据采集和可视化呈现了。
+=======
+就像前面原理介绍的，这个miniDevops的小系统，已经提供了一个时序数据库和可视化系统，对于多台机器的监控，只需要将每台机器的telegraf或prometheus配置按上面所述修改，就可以完成监控数据采集和可视化呈现了。
+>>>>>>> 740f82af58c4ecc2deecfa36fb1de4ef5ee55efc

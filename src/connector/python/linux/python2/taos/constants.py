@@ -28,6 +28,6 @@ class FieldType(object):
     C_FLOAT_NULL = float('nan')
     C_DOUBLE_NULL = float('nan')
     C_BINARY_NULL = bytearray([int('0xff', 16)])
-    # Time precision definition
+    # Timestamp precision definition
     C_TIMESTAMP_MILLI = 0
     C_TIMESTAMP_MICRO = 1

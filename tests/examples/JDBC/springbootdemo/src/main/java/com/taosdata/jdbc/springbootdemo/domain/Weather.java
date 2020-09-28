@@ -1,9 +1,12 @@
 package com.taosdata.jdbc.springbootdemo.domain;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.sql.Timestamp;
 
 public class Weather {
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
     private Timestamp ts;
 
     private int temperature;

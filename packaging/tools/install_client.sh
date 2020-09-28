@@ -9,6 +9,7 @@ set -e
 # -----------------------Variables definition---------------------
 
 osType=Linux
+pagMode=full
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -30,6 +31,7 @@ cfg_install_dir="/etc/taos"
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
     lib_link_dir="/usr/lib"
+    lib64_link_dir="/usr/lib64"
     inc_link_dir="/usr/include"
 else
     bin_link_dir="/usr/local/bin"
@@ -44,7 +46,7 @@ install_main_dir="/usr/local/taos"
 bin_dir="/usr/local/taos/bin"
 
 # v1.5 jar dir
-v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/taos"
 
 # Color setting
 RED='\033[0;31m'
@@ -83,18 +85,20 @@ function install_bin() {
   # Remove links
   ${csudo} rm -f ${bin_link_dir}/taos         || :
   if [ "$osType" == "Darwin" ]; then
-      ${csudo} rm -f ${bin_link_dir}/taosdump || :
+      ${csudo} rm -f ${bin_link_dir}/taosdemo || :
   fi
   ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
+  ${csudo} rm -f ${bin_link_dir}/set_core     || :
 
   ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
-    #Make link
+  #Make link
   [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
   if [ "$osType" == "Darwin" ]; then
-      [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+      [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
+  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 }
 
 function clean_lib() {
@@ -105,17 +109,25 @@ function clean_lib() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
-    ${csudo} rm -rf ${v15_java_app_dir}                         || :
+    ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
+    #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+        
+        if [ -d "${lib64_link_dir}" ]; then
+	        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+	        ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+	      fi
     else
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
+    
+    ${csudo} ldconfig
 }
 
 function install_header() {
@@ -180,7 +192,9 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     install_bin
     install_config
@@ -205,7 +219,9 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     install_bin
     install_config

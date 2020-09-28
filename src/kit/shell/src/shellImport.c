@@ -13,13 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
-#include "ttime.h"
+#include "tglobal.h"
 #include "tutil.h"
 
 static char **shellSQLFiles = NULL;
@@ -71,7 +72,7 @@ static void shellParseDirectory(const char *directoryName, const char *prefix, c
   }
 
   int fileNum = 0;
-  while (fscanf(fp, "%s", fileArray[fileNum++])) {
+  while (fscanf(fp, "%128s", fileArray[fileNum++])) {
     if (strcmp(fileArray[fileNum-1], shellTablesSQLFile) == 0) {
       fileNum--;
     }
@@ -134,18 +135,25 @@ static void shellGetDirectoryFileList(char *inputDir)
 static void shellSourceFile(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
-  char *    cmd = malloc(MAX_COMMAND_SIZE);
+  char *    cmd = malloc(tsMaxSQLStringLen);
   size_t    cmd_len = 0;
   char *    line = NULL;
   size_t    line_len = 0;
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
+    free(cmd);
     return;
   }
 
   char *fname = full_path.we_wordv[0];
-  
+  if (fname == NULL) {
+    fprintf(stderr, "ERROR: invalid filename\n");
+    free(cmd);
+    return;
+  }
+
+  /*
   if (access(fname, F_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
     
@@ -161,11 +169,13 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     free(cmd);
     return;
   }
+  */
 
   FILE *f = fopen(fname, "r");
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 
@@ -174,7 +184,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   int lineNo = 0;
   while ((read_len = getline(&line, &line_len, f)) != -1) {
     ++lineNo;
-    if (read_len >= MAX_COMMAND_SIZE) continue;
+    if (read_len >= tsMaxSQLStringLen) continue;
     line[--read_len] = '\0';
 
     if (read_len == 0 || isCommentLine(line)) {  // line starts with #
@@ -189,12 +199,16 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     }
 
     memcpy(cmd + cmd_len, line, read_len);
-    if (taos_query(con, cmd)) {
+    
+    TAOS_RES* pSql = taos_query(con, cmd);
+    int32_t code = taos_errno(pSql);
+    
+    if (code != 0) {
       fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(con), fname, lineNo);
-      /* free local resouce: allocated memory/metric-meta refcnt */
-      TAOS_RES *pRes = taos_use_result(con);
-      taos_free_result(pRes);
     }
+    
+    /* free local resouce: allocated memory/metric-meta refcnt */
+    taos_free_result(pSql);
 
     memset(cmd, 0, MAX_COMMAND_SIZE);
     cmd_len = 0;
@@ -219,7 +233,7 @@ void* shellImportThreadFp(void *arg)
   return NULL;
 }
 
-static void shellRunImportThreads(struct arguments* args)
+static void shellRunImportThreads(SShellArguments* args)
 {
   pthread_attr_t thattr;
   ShellThreadObj *threadObj = (ShellThreadObj *)calloc(args->threadNum, sizeof(ShellThreadObj));
@@ -227,7 +241,7 @@ static void shellRunImportThreads(struct arguments* args)
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
     pThread->totalThreads = args->threadNum;
-    pThread->taos = taos_connect(args->host, args->user, args->password, args->database, tsMgmtShellPort);
+    pThread->taos = taos_connect(args->host, args->user, args->password, args->database, tsDnodeShellPort);
     if (pThread->taos == NULL) {
       fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, taos_errstr(pThread->taos));
       exit(0);
@@ -252,7 +266,7 @@ static void shellRunImportThreads(struct arguments* args)
   free(threadObj);
 }
 
-void source_dir(TAOS* con, struct arguments* args) {
+void source_dir(TAOS* con, SShellArguments* args) {
   shellGetDirectoryFileList(args->dir);
   int64_t start = taosGetTimestampMs();
 

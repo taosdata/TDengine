@@ -5,7 +5,7 @@
 */
 
 // Get the td-connector package
-const taos = require('td-connector');
+const taos = require('td2.0-connector');
 
 /* We will connect to TDengine by passing an object comprised of connection options to taos.connect and store the
  * connection to the variable conn
@@ -26,7 +26,7 @@ var c1 = conn.cursor();
 // c1.execute(query) will execute the query
 // Let's create a database named db
 try {
-  c1.execute('create database db;');
+  c1.execute('create database if not exists db;');
 }
 catch(err) {
   conn.close();

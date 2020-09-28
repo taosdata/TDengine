@@ -1,0 +1,88 @@
+#!/bin/bash 
+#
+# Modified from original source: Elastic Search
+# https://github.com/elasticsearch/elasticsearch
+# Thank you to the Elastic Search authors
+#
+# chkconfig: 2345 99 01
+#
+### BEGIN INIT INFO
+# Provides:          PowerDB
+# Required-Start:    $local_fs $network $syslog
+# Required-Stop:     $local_fs $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts PowerDB powerd
+# Description:       Starts PowerDB powerd, a time-series database engine
+### END INIT INFO
+
+set -e
+
+PATH="/bin:/usr/bin:/sbin:/usr/sbin"
+NAME="PowerDB"
+USER="root"
+GROUP="root"
+DAEMON="/usr/local/power/bin/powerd"
+DAEMON_OPTS=""
+PID_FILE="/var/run/$NAME.pid"
+APPARGS=""
+
+# Maximum number of open files
+MAX_OPEN_FILES=65535
+
+. /lib/lsb/init-functions
+
+case "$1" in
+    start)
+
+        log_action_begin_msg "Starting PowerDB..."
+        if start-stop-daemon --test --start --chuid "$USER:$GROUP" --background --make-pidfile --pidfile "$PID_FILE" --exec "$DAEMON" -- $APPARGS &> /dev/null; then
+
+            touch "$PID_FILE" && chown "$USER":"$GROUP" "$PID_FILE"
+
+            if [ -n "$MAX_OPEN_FILES" ]; then
+                ulimit -n $MAX_OPEN_FILES
+            fi
+
+            start-stop-daemon --start --chuid "$USER:$GROUP" --background --make-pidfile --pidfile "$PID_FILE" --exec "$DAEMON" -- $APPARGS
+
+            log_end_msg $?
+        fi
+        ;;
+
+    stop)
+        log_action_begin_msg "Stopping PowerDB..."
+        set +e
+        if [ -f "$PID_FILE" ]; then
+            start-stop-daemon --stop --pidfile "$PID_FILE" --user "$USER" --retry=TERM/120/KILL/5 > /dev/null
+            if [ $? -eq 1 ]; then
+                log_action_cont_msg "TSD is not running but pid file exists, cleaning up"
+            elif [ $? -eq 3 ]; then
+                PID="`cat $PID_FILE`"
+                log_failure_msg "Failed to stop PowerDB (pid $PID)"
+                exit 1
+            fi
+            rm -f "$PID_FILE"
+        else
+            log_action_cont_msg "PowerDB was not running"
+        fi
+        log_action_end_msg 0
+        set -e
+        ;;
+
+    restart|force-reload)
+        if [ -f "$PID_FILE" ]; then
+            $0 stop
+            sleep 1
+        fi
+        $0 start
+        ;;
+    status)
+        status_of_proc -p "$PID_FILE" "$DAEMON" "$NAME"
+        ;;
+    *)
+        exit 1
+        ;;
+esac
+
+exit 0
