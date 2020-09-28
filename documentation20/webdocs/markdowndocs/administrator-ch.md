@@ -234,6 +234,12 @@ ALTER USER <user_name> PASS <'password'>;
 修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
 
 ```
+ALTER USER <user_name> PRIVILEDGE <'super'|'write'|'read'>;
+```
+
+修改用户权限为：super/write/read。 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
+
+```
 SHOW USERS;
 ```
 

@@ -145,7 +145,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
             len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d,", fields[i].name, *((int32_t *)row[i]));
             break;
           case TSDB_DATA_TYPE_BIGINT:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%ld", fields[i].name, *((int64_t *)row[i]));
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%" PRId64, fields[i].name, *((int64_t *)row[i]));
             break;
           case TSDB_DATA_TYPE_FLOAT:
             len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.5f", fields[i].name, *((float *)row[i]));
