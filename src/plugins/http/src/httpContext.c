@@ -130,7 +130,7 @@ HttpContext *httpCreateContext(int32_t fd) {
 
 HttpContext *httpGetContext(void *ptr) {
   uint64_t handleVal = (uint64_t)ptr;
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(HttpContext *));
+  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(uint64_t));
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;
