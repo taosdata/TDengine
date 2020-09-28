@@ -229,7 +229,6 @@ typedef struct SQueryInfo {
   // TODO refactor
   STimeWindow      window;        // query time window
   SInterval        interval;
-  int32_t          tz;            // query client timezone
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
