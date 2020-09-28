@@ -118,7 +118,8 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->parser = httpCreateParser(pContext);
 
   TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pContext;
-  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, TSDB_CACHE_PTR_LEN, &pContext, TSDB_CACHE_PTR_LEN, 3000);
+  HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pContext,
+                                         sizeof(TSDB_CACHE_PTR_TYPE), 3000);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
@@ -130,7 +131,7 @@ HttpContext *httpCreateContext(int32_t fd) {
 
 HttpContext *httpGetContext(void *ptr) {
   TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)ptr;
-  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, TSDB_CACHE_PTR_LEN);
+  HttpContext **ppContext = taosCacheAcquireByKey(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE));
 
   if (ppContext) {
     HttpContext *pContext = *ppContext;

@@ -27,11 +27,9 @@ extern "C" {
 #if defined(_TD_ARM_32) 
   #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_INT
   #define TSDB_CACHE_PTR_TYPE int32_t
-  #define TSDB_CACHE_PTR_LEN  sizeof(int32_t)
 #else
   #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_BIGINT  
   #define TSDB_CACHE_PTR_TYPE int64_t
-  #define TSDB_CACHE_PTR_LEN  sizeof(int64_t)
 #endif
 
 typedef void (*__cache_free_fn_t)(void*);
