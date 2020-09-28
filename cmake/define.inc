@@ -57,7 +57,7 @@ IF (TD_LINUX_32)
   ADD_DEFINITIONS(-D_TD_LINUX_32)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "linux32 is defined")
-  SET(COMMON_FLAGS "-std=gnu99 -Wall -Werror -fPIC -g -fsigned-char -munaligned-access -fpack-struct=8 -latomic -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
+  SET(COMMON_FLAGS "-std=gnu99 -Wall -Werror -fPIC -g -fsigned-char -munaligned-access -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
 ENDIF ()
 
 IF (TD_ARM_64)
