@@ -385,9 +385,10 @@ static void walRelease(SWal *pWal) {
 
 static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
   char *name = pWal->name;
+  int size = 1024 * 1024; // default 1M buffer size
 
   terrno = 0;
-  char *buffer = malloc(1024000);  // size for one record
+  char *buffer = malloc(size);
   if (buffer == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);   
     return terrno;
@@ -395,7 +396,7 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
 
   SWalHead *pHead = (SWalHead *)buffer;
 
-  int fd = open(name, O_RDONLY);
+  int fd = open(name, O_RDWR);
   if (fd < 0) {
     wError("wal:%s, failed to open for restore(%s)", name, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -405,28 +406,57 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
 
   wDebug("wal:%s, start to restore", name);
 
+  size_t offset = 0;
   while (1) {
     int ret = taosTRead(fd, pHead, sizeof(SWalHead));
-    if ( ret == 0)  break;  
+    if (ret == 0) break;
 
-    if (ret != sizeof(SWalHead)) {
-      wWarn("wal:%s, failed to read head, skip, ret:%d(%s)", name, ret, strerror(errno));
+    if (ret < 0) {
+      wError("wal:%s, failed to read wal head part since %s", name, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
+      break;
+    }
+
+    if (ret < sizeof(SWalHead)) {
+      wError("wal:%s, failed to read head, ret:%d, skip the rest of file", name, ret);
+      taosFtruncate(fd, offset);
+      fsync(fd);
       break;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      ASSERT(false);
       break;
-    } 
+    }
+
+    if (pHead->len > size - sizeof(SWalHead)) {
+      size = sizeof(SWalHead) + pHead->len;
+      buffer = realloc(buffer, size);
+      if (buffer == NULL) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        break;
+      }
+
+      pHead = (SWalHead *)buffer;
+    }
 
     ret = taosTRead(fd, pHead->cont, pHead->len);
-    if ( ret != pHead->len) {
-      wWarn("wal:%s, failed to read body, skip, len:%d ret:%d", name, pHead->len, ret);
+    if (ret < 0) {
+      wError("wal:%s failed to read wal body part since %s", name, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       break;
     }
+
+    if (ret < pHead->len) {
+      wError("wal:%s, failed to read body, len:%d ret:%d, skip the rest of file", name, pHead->len, ret);
+      taosFtruncate(fd, offset);
+      fsync(fd);
+      break;
+    }
+
+    offset = offset + sizeof(SWalHead) + pHead->len;
 
     if (pWal->keep) pWal->version = pHead->version;
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);

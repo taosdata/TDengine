@@ -240,7 +240,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   size_t size = sizeof(SRpcConn) * pRpc->sessions;
   pRpc->connList = (SRpcConn *)calloc(1, size);
   if (pRpc->connList == NULL) {
-    tError("%s failed to allocate memory for taos connections, size:%ld", pRpc->label, size);
+    tError("%s failed to allocate memory for taos connections, size:%" PRId64, pRpc->label, (int64_t)size);
     rpcClose(pRpc);
     return NULL;
   }
@@ -323,14 +323,14 @@ void *rpcMallocCont(int contLen) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
   } else {
-    tDebug("malloc mem: %p", start);
+    tDebug("malloc msg: %p", start);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
 void rpcFreeCont(void *cont) {
-  if ( cont ) {
+  if (cont) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     free(temp);
     tDebug("free mem: %p", temp);
@@ -553,7 +553,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     free(temp);
-    tDebug("free mem: %p", temp);
+    tDebug("free msg: %p", temp);
   }
 }
 

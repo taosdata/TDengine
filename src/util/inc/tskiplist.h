@@ -136,6 +136,7 @@ typedef struct SSkipListIterator {
   SSkipListNode *cur;
   int32_t        step;          // the number of nodes that have been checked already
   int32_t        order;         // order of the iterator
+  SSkipListNode *next;          // next points to the true qualified node in skip list
 } SSkipListIterator;
 
 /**

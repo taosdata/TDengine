@@ -17,6 +17,9 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "zlib.h"
+
+#define COMPRESS_STEP_SIZE 163840
 
 void taosRemoveDir(char *rootDir) {
   DIR *dir = opendir(rootDir);
@@ -73,11 +76,11 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
     if (de->d_type & DT_DIR) {
       continue;
     } else {
-      // struct stat fState;
-      // if (stat(fname, &fState) < 0) {
-      //   continue;
-      // }
       int32_t len = (int32_t)strlen(filename);
+      if (len > 3 && strcmp(filename + len - 3, ".gz") == 0) {
+        len -= 3;
+      }
+
       int64_t fileSec = 0;
       for (int i = len - 1; i >= 0; i--) {
         if (filename[i] == '.') {
@@ -99,4 +102,47 @@ void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
 
   closedir(dir);
   rmdir(rootDir);
+}
+
+int32_t taosCompressFile(char *srcFileName, char *destFileName) {
+  int32_t ret = 0;
+  int32_t len = 0;
+  char *  data = malloc(COMPRESS_STEP_SIZE);
+  FILE *  srcFp = NULL;
+  gzFile  dstFp = NULL;
+
+  srcFp = fopen(srcFileName, "r");
+  if (srcFp == NULL) {
+    ret = -1;
+    goto cmp_end;
+  }
+
+  int32_t fd = open(destFileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (fd < 0) {
+    ret = -2;
+    goto cmp_end;
+  }
+
+  dstFp = gzdopen(fd, "wb6f");
+  if (dstFp == NULL) {
+    ret = -3;
+    close(fd);
+    goto cmp_end;
+  }
+
+  while (!feof(srcFp)) {
+    len = (int32_t)fread(data, 1, COMPRESS_STEP_SIZE, srcFp);
+    (void)gzwrite(dstFp, data, len);
+  }
+
+cmp_end:
+  if (srcFp) {
+    fclose(srcFp);
+  }
+  if (dstFp) {
+    gzclose(dstFp);
+  }
+  free(data);
+
+  return ret;
 }

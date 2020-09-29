@@ -278,6 +278,7 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/balancex.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
 ./test.sh -f unique/dnode/remove2.sim
 ./test.sh -f unique/dnode/vnode_clean.sim
@@ -302,8 +303,8 @@ cd ../../../debug; make
 ./test.sh -f unique/mnode/mgmt22.sim
 ./test.sh -f unique/mnode/mgmt23.sim
 ./test.sh -f unique/mnode/mgmt24.sim
-./test.sh -f unique/mnode/mgmt25.sim
-./test.sh -f unique/mnode/mgmt26.sim
+#./test.sh -f unique/mnode/mgmt25.sim
+#./test.sh -f unique/mnode/mgmt26.sim
 ./test.sh -f unique/mnode/mgmt33.sim
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim

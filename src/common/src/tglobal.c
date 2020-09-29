@@ -1014,7 +1014,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsLogKeepDays;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
+  cfg.minValue = -365000;
   cfg.maxValue = 365000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;

@@ -43,17 +43,12 @@ typedef struct SNormalStmt {
   tVariant*        params;
 } SNormalStmt;
 
-//typedef struct SInsertStmt {
-//
-//} SInsertStmt;
-
 typedef struct STscStmt {
   bool isInsert;
   STscObj* taos;
   SSqlObj* pSql;
   SNormalStmt normal;
 } STscStmt;
-
 
 static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_t len) {
   uint16_t size = stmt->numParts + 1;
@@ -514,7 +509,6 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   SSqlObj* pSql = pStmt->pSql;
   size_t   sqlLen = strlen(sql);
   
-  //doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
   SSqlCmd *pCmd    = &pSql->cmd;
   SSqlRes *pRes    = &pSql->res;
   pSql->param      = (void*) pSql;
@@ -545,10 +539,8 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     
     pSql->cmd.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
-    
-    uint64_t handle = (uint64_t) pSql;
-    pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
-    T_REF_INC(pSql->pTscObj);
+
+    registerSqlObj(pSql);
 
     int32_t code = tsParseSql(pSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {

@@ -709,7 +709,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
             return -1;
           }
 
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
           //memcpy(&payload, &value, sizeof(float));
           float fv = (float)value;
           SET_FLOAT_VAL_ALIGN(payload, &fv);
@@ -718,7 +718,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
 #endif
         }
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
         //memcpy(&payload, &pVariant->i64Key, sizeof(float));
         float fv = (float)pVariant->i64Key;
         SET_FLOAT_VAL_ALIGN(payload, &fv);
@@ -726,7 +726,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
         *((float *)payload) = (float)pVariant->i64Key;
 #endif
       } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
         //memcpy(&payload, &pVariant->dKey, sizeof(float));
         float fv = (float)pVariant->dKey;
         SET_FLOAT_VAL_ALIGN(payload, &fv);
@@ -738,7 +738,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
         return 0;
       }
 
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
       float fv = GET_FLOAT_VAL(payload);
       if (isinf(fv) || isnan(fv) || fv > FLT_MAX || fv < -FLT_MAX) {
         return -1;
@@ -765,21 +765,21 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
             return -1;
           }
 
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
           SET_DOUBLE_VAL_ALIGN(payload, &value);
 #else
           *((double *)payload) = value;
 #endif
         }
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
         double dv = (double)(pVariant->i64Key);
         SET_DOUBLE_VAL_ALIGN(payload, &dv);
 #else
         *((double *)payload) = (double)pVariant->i64Key;
 #endif
       } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
         double dv = (double)(pVariant->dKey);
         SET_DOUBLE_VAL_ALIGN(payload, &dv);
 #else
@@ -790,7 +790,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
         return 0;
       }
 
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
       double dv = GET_DOUBLE_VAL(payload);
       if (isinf(dv) || isnan(dv) || dv > DBL_MAX || dv < -DBL_MAX) {
         return -1;

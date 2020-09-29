@@ -398,8 +398,8 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.interval < minIntervalTime) {
-    tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64, pSql, pStream,
-            pQueryInfo->interval.interval, minIntervalTime);
+    tscWarn("%p stream:%p, original sample interval:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
+            (int64_t)pQueryInfo->interval.interval, minIntervalTime);
     pQueryInfo->interval.interval = minIntervalTime;
   }
 
@@ -510,9 +510,7 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
     return;
   }
 
-  uint64_t handle = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
-  T_REF_INC(pSql->pTscObj);
+  registerSqlObj(pSql);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
