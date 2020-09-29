@@ -7142,6 +7142,7 @@ int32_t getDataBlocksForMeters(STableQuerySupportObj *pSupporter, SQuery *pQuery
   // sequentially scan this header file to extract the compHeader info
   for (int32_t j = 0; j < numOfMeters; ++j) {
     SMeterObj *pMeterObj = pMeterDataInfo[j]->pMeterObj;
+    pMeterDataInfo[j]->numOfBlocks = 0;
 
     lseek(pVnodeFileInfo->headerFd, pMeterDataInfo[j]->offsetInHeaderFile, SEEK_SET);
 
@@ -7345,7 +7346,7 @@ int32_t createDataBlocksInfoEx(SMeterDataInfo **pMeterDataInfo, int32_t numOfMet
 
   dTrace("QInfo %p create data blocks info struct completed", addr);
 
-  assert(cnt == numOfCompBlocks && numOfQualMeters <= numOfMeters);  // the pMeterDataInfo[j]->numOfBlocks may be 0
+  assert(cnt <= numOfCompBlocks && numOfQualMeters <= numOfMeters);  // the pMeterDataInfo[j]->numOfBlocks may be 0
   supporter.numOfMeters = numOfQualMeters;
   SLoserTreeInfo *pTree = NULL;
 
