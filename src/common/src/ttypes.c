@@ -235,15 +235,10 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
   double csum = 0;
   csum = GET_DOUBLE_VAL((const char *)sum);
   csum += dsum;
-#ifdef _TD_ARM_32
-  SET_DOUBLE_VAL_ALIGN((const char *)sum, &csum);
-  SET_DOUBLE_VAL_ALIGN((const char *)max, &fmax);
-  SET_DOUBLE_VAL_ALIGN((const char *)min, &fmin);
-#else
-  *(double*)sum = csum;
-  *(double*)max = fmax;
-  *(double*)min = fmin;
-#endif
+
+  SET_DOUBLE_VAL(sum, csum);
+  SET_DOUBLE_VAL(max, fmax);
+  SET_DOUBLE_VAL(min, fmin);
 }
 
 static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
@@ -281,16 +276,9 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
   csum = GET_DOUBLE_VAL((const char *)sum);
   csum += dsum;
 
-
-#ifdef _TD_ARM_32
-  SET_DOUBLE_VAL_ALIGN(sum, &csum);
-  SET_DOUBLE_VAL_ALIGN(max, &dmax);
-  SET_DOUBLE_VAL_ALIGN(min, &dmin);
-#else
-  *(double*) sum = csum;
-  *(double*) max = dmax;
-  *(double*) min = dmin;
-#endif
+  SET_DOUBLE_PTR(sum, &csum);
+  SET_DOUBLE_PTR(max, &dmax);
+  SET_DOUBLE_PTR(min, &dmin);
 }
 
 static void getStatics_bin(const TSKEY *primaryKey, const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
@@ -493,46 +481,29 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       *((int32_t *)val) = GET_INT32_VAL(src);
       break;
     }
-    case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32
-      float fv = GET_FLOAT_VAL(src);
-      SET_FLOAT_VAL_ALIGN(val, &fv);
-#else
-      *((float *)val) = GET_FLOAT_VAL(src);
-#endif
+    case TSDB_DATA_TYPE_FLOAT:
+      SET_FLOAT_VAL(val, GET_FLOAT_VAL(src));
       break;
-    };
-    case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32
-      double dv = GET_DOUBLE_VAL((const char *)src);
-      SET_DOUBLE_VAL_ALIGN(val, &dv);
-#else
-      *((double *)val) = GET_DOUBLE_VAL(src);
-#endif
+    case TSDB_DATA_TYPE_DOUBLE:
+      SET_DOUBLE_VAL(val, GET_DOUBLE_VAL(src));
       break;
-    };
     case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_BIGINT: {
+    case TSDB_DATA_TYPE_BIGINT:
       *((int64_t *)val) = GET_INT64_VAL(src);
       break;
-    };
-    case TSDB_DATA_TYPE_SMALLINT: {
+    case TSDB_DATA_TYPE_SMALLINT:
       *((int16_t *)val) = GET_INT16_VAL(src);
       break;
-    };
     case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_TINYINT: {
+    case TSDB_DATA_TYPE_TINYINT:
       *((int8_t *)val) = GET_INT8_VAL(src);
       break;
-    };
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
       varDataCopy(val, src);
       break;
-    };
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
       varDataCopy(val, src);
       break;
-    };
     default: {
       memcpy(val, src, len);
       break;

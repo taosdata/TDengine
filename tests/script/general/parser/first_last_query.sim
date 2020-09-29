@@ -14,12 +14,14 @@ $i = 0
 $db = $dbPrefix . $i
 $stb = $stbPrefix . $i
 
+print use $db
 sql use $db
 
 ##### select first/last from table
 ## TBASE-331
 print ====== select first/last from table
 $tb = $tbPrefix . 0
+print select first(*) from $tb
 sql select first(*) from $tb
 if $rows != 1 then
   return -1
@@ -58,6 +60,7 @@ if $data09 != NCHAR then
   return -1
 endi
 
+print select last(*) from $tb
 sql select last(*) from $tb
 if $rows != 1 then
   return -1

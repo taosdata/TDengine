@@ -132,21 +132,30 @@ do { \
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
 #ifdef _TD_ARM_32
-  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
-
-  float  taos_align_get_float(const char* pBuf);
-  double taos_align_get_double(const char* pBuf);
 
   //#define __float_align_declear()  float __underlyFloat = 0.0;
   //#define __float_align_declear()
   //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
   // notes: src must be float or double type variable !!!
-  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
-  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+  //#define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  //#define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
+
+  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
+  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
+  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
+  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
 #else
-  #define GET_FLOAT_VAL(x)  (*(float *)(x))
-  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+  #define GET_FLOAT_VAL(x)       (*(float *)(x))
+  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
+  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
+  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
+  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
+  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
 typedef struct tDataTypeDescriptor {
