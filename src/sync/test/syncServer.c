@@ -109,7 +109,6 @@ int processRpcMsg(void *item) {
 
   if (pCfg->quorum <= 1) {
     rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(item);
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = rpcMallocCont(msgSize);
@@ -117,6 +116,7 @@ int processRpcMsg(void *item) {
     rpcMsg.handle = pMsg->handle;
     rpcMsg.code = code;
     rpcSendResponse(&rpcMsg);
+    taosFreeQitem(item);
   }
 
   return code;
@@ -386,7 +386,7 @@ int main(int argc, char *argv[]) {
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
       printf("  [-w write]: write received data to file(0, 1, 2), default is:%d\n", commit);
-      printf("  [-v version]: initial node version, default is:%ld\n", syncInfo.version);
+      printf("  [-v version]: initial node version, default is:%" PRId64 "\n", syncInfo.version);
       printf("  [-r replica]: replicacation number, default is:%d\n", pCfg->replica);
       printf("  [-q quorum]: quorum, default is:%d\n", pCfg->quorum);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);

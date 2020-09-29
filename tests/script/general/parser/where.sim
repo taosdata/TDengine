@@ -94,7 +94,11 @@ endi
 
 ## select specified columns
 
+print select c1 from $mt
 sql select c1 from $mt
+
+print rows $rows
+print totalNum $totalNum
 if $rows != $totalNum then
   return -1
 endi

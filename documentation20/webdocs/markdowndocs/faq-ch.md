@@ -21,7 +21,7 @@
 
 ## 5. 遇到错误"Unable to establish connection", 我怎么办？
 
-客户端遇到链接故障，请按照下面的步骤进行检查：
+客户端遇到连接故障，请按照下面的步骤进行检查：
 
 1. 检查网络环境
     * 云服务器：检查云服务器的安全组是否打开TCP/UDP 端口6030-6042的访问权限
@@ -45,7 +45,7 @@
 9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
    检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
    检查服务器侧TCP端口连接是否工作：`nc -l {port}`
-   检查客户端侧TCP端口链接是否工作：`nc {hostIP} {port}`
+   检查客户端侧TCP端口连接是否工作：`nc {hostIP} {port}`
    
 10. 也可以使用taos程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 
@@ -57,7 +57,7 @@
 1. 请检查连接的服务器的FQDN是否正确,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 2. 如果网络配置有DNS server, 请检查是否正常工作
 3. 如果网络没有配置DNS server, 请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址。
-4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法链接服务器的
+4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法连接服务器的
 
 
 ## 7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误
@@ -108,4 +108,8 @@ Connection = DriverManager.getConnection(url, properties);
 
 附上必要的问题描述，以及发生该问题的执行操作，出现问题的表征及大概的时间，在<a href='https://github.com/taosdata/TDengine'> GitHub</a>提交Issue。
 
-为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。
+为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。也可以通过如下SQL语句，临时设置taosd的日志级别。
+```
+    alter dnode <dnode_id> debugFlag 135;
+```
+但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。

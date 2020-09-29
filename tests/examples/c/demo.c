@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <taos.h>  // TAOS header file
 
 int main(int argc, char *argv[]) {
@@ -67,7 +68,7 @@ int main(int argc, char *argv[]) {
   // insert 10 records
   int i = 0;
   for (i = 0; i < 10; ++i) {
-    sprintf(qstr, "insert into m1 values (%ld, %d, %d, %d, %d, %f, %lf, '%s')", 1546300800000 + i * 1000, i, i, i, i*10000000, i*1.0, i*2.0, "hello");
+    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", 1546300800000 + i * 1000, i, i, i, i*10000000, i*1.0, i*2.0, "hello");
     printf("qstr: %s\n", qstr);
     if (taos_query(taos, qstr)) {
       printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));

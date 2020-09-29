@@ -1788,8 +1788,8 @@ void registerSqlObj(SSqlObj* pSql) {
   int32_t ref = T_REF_INC(pSql->pTscObj);
   tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
 
-  uint64_t p = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &p, sizeof(uint64_t), &p, sizeof(uint64_t), DEFAULT_LIFE_TIME);
+  TSDB_CACHE_PTR_TYPE p = (TSDB_CACHE_PTR_TYPE) pSql;
+  pSql->self = taosCachePut(tscObjCache, &p, sizeof(TSDB_CACHE_PTR_TYPE), &p, sizeof(TSDB_CACHE_PTR_TYPE), DEFAULT_LIFE_TIME);
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
