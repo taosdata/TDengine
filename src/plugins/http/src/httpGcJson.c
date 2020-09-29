@@ -210,7 +210,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          httpJsonFloat(jsonBuf, *((float *)row[i]));
+          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[i]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
           httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[i]));

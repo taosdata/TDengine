@@ -739,13 +739,13 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
                       ((((int)(*((char *)row[i]))) == 1) ? "1" : "0"));
               break;
             case TSDB_DATA_TYPE_TINYINT:
-              sprintf(value, "%d", (int)(*((char *)row[i])));
+              sprintf(value, "%d", *((int8_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_SMALLINT:
-              sprintf(value, "%d", (int)(*((short *)row[i])));
+              sprintf(value, "%d", *((int16_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_INT:
-              sprintf(value, "%d", *((int *)row[i]));
+              sprintf(value, "%d", *((int32_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_BIGINT:
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
