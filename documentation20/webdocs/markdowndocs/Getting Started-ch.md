@@ -68,7 +68,7 @@ systemctl status taosd
 taos
 ```
 
-如果TDengine终端链接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考[FAQ](https://www.taosdata.com/cn/faq/)来解决终端链接服务端失败的问题）。TDengine终端的提示符号如下：
+如果TDengine终端连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考[FAQ](https://www.taosdata.com/cn/faq/)来解决终端连接服务端失败的问题）。TDengine终端的提示符号如下：
 
 ```cmd
 taos>
@@ -99,8 +99,8 @@ Query OK, 2 row(s) in set (0.001700s)
 - -c, --config-dir: 指定配置文件目录，默认为_/etc/taos_
 - -h, --host: 指定服务的IP地址，默认为本地服务
 - -s, --commands: 在不进入终端的情况下运行TDengine命令
-- -u, -- user:  链接TDengine服务器的用户名，缺省为root
-- -p, --password: 链接TDengine服务器的密码，缺省为taosdata
+- -u, -- user:  连接TDengine服务器的用户名，缺省为root
+- -p, --password: 连接TDengine服务器的密码，缺省为taosdata
 - -?, --help: 打印出所有命令行参数
 
 示例：
