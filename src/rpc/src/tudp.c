@@ -124,9 +124,9 @@ void taosProcessMonitorTimer(void *param, void *tmrId) {
     char *data = malloc((size_t)pMonitor->dataLen);
     memcpy(data, pMonitor->data, (size_t)pMonitor->dataLen);
 
-    tTrace("%s monitor timer is expired, update the link status", pSet->label);
+    tTrace("%s monitor timer is expired, update the link status, pConn:%p", pSet->label, pMonitor->pConn);
     (*pSet->fp)(data, pMonitor->dataLen, pMonitor->ip, 0, pSet->shandle, NULL, NULL);
-    taosTmrReset(taosProcessMonitorTimer, 200, pMonitor, pSet->tmrCtrl, &pMonitor->pTimer);
+    taosTmrReset(taosProcessMonitorTimer, 100, pMonitor, pSet->tmrCtrl, &pMonitor->pTimer);
   } else {
     taosTmrStopA(&pMonitor->pTimer);
     free(pMonitor);
@@ -196,8 +196,8 @@ int taosReceivePacketViaTcp(uint32_t ip, STaosHeader *pHead, SUdpConn *pConn) {
   pthread_attr_t thattr;
   pthread_t      thread;
 
-  tTrace("%s receive packet via TCP, handle:0x%x, source:0x%08x dest:0x%08x tranId:%d", pSet->label, pInfo->handle,
-         pHead->sourceId, pHead->destId, pHead->tranId);
+  tTrace("%s receive packet via TCP, handle:0x%x, source:0x%08x dest:0x%08x tranId:%d, pConn:%p", pSet->label, pInfo->handle,
+         pHead->sourceId, pHead->destId, pHead->tranId, pConn);
 
   SMonitor *pMonitor = (SMonitor *)calloc(1, sizeof(SMonitor));
   pMonitor->dataLen = sizeof(STaosHeader) + sizeof(SPacketInfo);
