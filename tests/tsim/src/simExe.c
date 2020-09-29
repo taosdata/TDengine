@@ -739,36 +739,22 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
                       ((((int)(*((char *)row[i]))) == 1) ? "1" : "0"));
               break;
             case TSDB_DATA_TYPE_TINYINT:
-              sprintf(value, "%d", (int)(*((char *)row[i])));
+              sprintf(value, "%d", *((int8_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_SMALLINT:
-              sprintf(value, "%d", (int)(*((short *)row[i])));
+              sprintf(value, "%d", *((int16_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_INT:
-              sprintf(value, "%d", *((int *)row[i]));
+              sprintf(value, "%d", *((int32_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_BIGINT:
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
               break;
-            case TSDB_DATA_TYPE_FLOAT:{
-#ifdef _TD_ARM_32
-              float fv = 0;
-              *(int32_t*)(&fv) = *(int32_t*)row[i];
-              sprintf(value, "%.5f", fv);
-#else
-              sprintf(value, "%.5f", *((float *)row[i]));
-#endif
-            }
+            case TSDB_DATA_TYPE_FLOAT:
+              sprintf(value, "%.5f", GET_FLOAT_VAL(row[i]));
               break;
-            case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32
-              double dv = 0;
-              *(int64_t*)(&dv) = *(int64_t*)row[i];
-              sprintf(value, "%.9lf", dv);
-#else
-              sprintf(value, "%.9lf", *((double *)row[i]));
-#endif
-            }
+            case TSDB_DATA_TYPE_DOUBLE:
+              sprintf(value, "%.9lf", GET_DOUBLE_VAL(row[i]));
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
