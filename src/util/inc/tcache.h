@@ -24,6 +24,14 @@ extern "C" {
 #include "tlockfree.h"
 #include "hash.h"
 
+#if defined(_TD_ARM_32) 
+  #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_INT
+  #define TSDB_CACHE_PTR_TYPE int32_t
+#else
+  #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_BIGINT  
+  #define TSDB_CACHE_PTR_TYPE int64_t
+#endif
+
 typedef void (*__cache_free_fn_t)(void*);
 
 typedef struct SCacheStatis {

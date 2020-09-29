@@ -131,7 +131,7 @@ do { \
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
   #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
   #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
 

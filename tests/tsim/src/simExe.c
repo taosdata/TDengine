@@ -751,7 +751,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_FLOAT:{
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
               float fv = 0;
               *(int32_t*)(&fv) = *(int32_t*)row[i];
               sprintf(value, "%.5f", fv);
@@ -761,7 +761,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
             }
               break;
             case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
+#ifdef _TD_ARM_32
               double dv = 0;
               *(int64_t*)(&dv) = *(int64_t*)row[i];
               sprintf(value, "%.9lf", dv);

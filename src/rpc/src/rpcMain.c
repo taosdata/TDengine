@@ -240,7 +240,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   size_t size = sizeof(SRpcConn) * pRpc->sessions;
   pRpc->connList = (SRpcConn *)calloc(1, size);
   if (pRpc->connList == NULL) {
-    tError("%s failed to allocate memory for taos connections, size:%ld", pRpc->label, size);
+    tError("%s failed to allocate memory for taos connections, size:%" PRId64, pRpc->label, (int64_t)size);
     rpcClose(pRpc);
     return NULL;
   }
