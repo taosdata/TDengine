@@ -219,7 +219,7 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
     }
     
     float fv = 0;
-    fv = GET_FLOAT_VAL(&(data[i]));
+    fv = GET_FLOAT_VAL((const char*)&(data[i]));
     dsum += fv;
     if (fmin > fv) {
       fmin = fv;
@@ -233,7 +233,7 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
   }
   
   double csum = 0;
-  csum = GET_DOUBLE_VAL(sum);
+  csum = GET_DOUBLE_VAL((const char *)sum);
   csum += dsum;
 
   SET_DOUBLE_VAL(sum, csum);
@@ -259,7 +259,7 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
     }
     
     double dv = 0;
-    dv = GET_DOUBLE_VAL(&(data[i]));
+    dv = GET_DOUBLE_VAL((const char*)&(data[i]));
     dsum += dv;
     if (dmin > dv) {
       dmin = dv;
@@ -273,7 +273,7 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
   }
   
   double csum = 0;
-  csum = GET_DOUBLE_VAL(sum);
+  csum = GET_DOUBLE_VAL((const char *)sum);
   csum += dsum;
 
   SET_DOUBLE_PTR(sum, &csum);
