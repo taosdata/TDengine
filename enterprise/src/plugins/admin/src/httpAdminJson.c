@@ -124,10 +124,10 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
           httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          httpJsonFloat(jsonBuf, *((float *)row[i]));
+          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[i]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          httpJsonDouble(jsonBuf, *((double *)row[i]));
+          httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[i]));
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
@@ -199,10 +199,10 @@ bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
           httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          httpJsonFloat(jsonBuf, *((float *)row[i]));
+          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[i]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          httpJsonDouble(jsonBuf, *((double *)row[i]));
+          httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[i]));
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
