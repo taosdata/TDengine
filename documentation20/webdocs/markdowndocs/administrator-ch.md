@@ -130,8 +130,24 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vnode个数。
-- arbitrator: 系统中裁决器的end point，缺省为空
+- arbitrator: 系统中裁决器的end point，缺省为空。
 - timezone、locale、charset 的配置见客户端配置。
+
+为方便调试，可通过SQL语句临时调整每个dnode的日志配置，系统重启后会失效：
+
+```mysql
+ALTER DNODE <dnode_id> <config>
+```
+
+- dnode_id: 可以通过SQL语句"SHOW DNODES"命令获取
+- config: 要调整的日志参数，在如下列表中取值    
+    > resetlog 截断旧日志文件，创建一个新日志文件    
+    > debugFlag  < 131 | 135 | 143 > 设置debugFlag为131、135或者143
+
+例如：
+```
+    alter dnode 1 debugFlag 135;
+```
 
 ## 客户端配置 
 
@@ -392,5 +408,5 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
 
-
+##
 
