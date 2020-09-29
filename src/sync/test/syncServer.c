@@ -109,7 +109,6 @@ int processRpcMsg(void *item) {
 
   if (pCfg->quorum <= 1) {
     rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(item);
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = rpcMallocCont(msgSize);
@@ -117,6 +116,7 @@ int processRpcMsg(void *item) {
     rpcMsg.handle = pMsg->handle;
     rpcMsg.code = code;
     rpcSendResponse(&rpcMsg);
+    taosFreeQitem(item);
   }
 
   return code;
