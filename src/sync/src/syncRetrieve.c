@@ -325,7 +325,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index) {
       // if all data up to fversion is read out, it is over
       if (pPeer->sversion >= fversion && fversion > 0) {
         code = 0;
-        sDebug("%s, data up to fversion:%ld has been read out, bytes:%d", pPeer->id, fversion, bytes);
+        sDebug("%s, data up to fversion:%" PRId64 " has been read out, bytes:%d", pPeer->id, fversion, bytes);
         break;
       }
 
