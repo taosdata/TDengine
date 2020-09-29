@@ -145,8 +145,8 @@ do { \
 
   #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
   #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
-  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)z); }
-  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)z); }
+  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
+  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
   #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
   #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
 #else
