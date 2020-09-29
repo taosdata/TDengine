@@ -144,6 +144,10 @@ ALTER DNODE <dnode_id> <config>
     > resetlog 截断旧日志文件，创建一个新日志文件    
     > debugFlag  < 131 | 135 | 143 > 设置debugFlag为131、135或者143
 
+例如：
+```
+    alter dnode 1 debugFlag 135;
+```
 
 ## 客户端配置 
 
