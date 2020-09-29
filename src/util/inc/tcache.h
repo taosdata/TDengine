@@ -54,6 +54,7 @@ typedef struct SCacheDataNode {
   uint32_t           size;         // allocated size for current SCacheDataNode
   T_REF_DECLARE()
   char              *key;
+  unsigned int       data_freed:2;
   char               data[];
 } SCacheDataNode;
 

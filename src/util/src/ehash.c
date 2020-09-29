@@ -170,6 +170,7 @@ ehash_obj_t *ehash_create(ehash_conf_t conf) {
 }
 
 size_t ehash_size(const ehash_obj_t *obj) {
+  if (!obj) return 0;
   return obj->size;
 }
 
@@ -189,6 +190,7 @@ static size_t do_ehash_get_max_slot_length(ehash_obj_t *obj) {
 }
 
 size_t ehash_get_max_slot_length(ehash_obj_t *obj) {
+  if (!obj) return 0;
   if (!locking_obj(obj)) return 0;
   lock_rd(obj);
   size_t r = do_ehash_get_max_slot_length(obj);
@@ -230,6 +232,7 @@ static ehash_node_t* do_ehash_put(ehash_obj_t *obj, const char *key, size_t klen
 }
 
 ehash_node_t* ehash_put(ehash_obj_t *obj, const char *key, size_t klen, ehash_node_val_t val) {
+  if (!obj) return NULL;
   if (!locking_obj(obj)) return NULL;
   if (!lock_wr(obj)) return NULL;
   ehash_node_t *node = do_ehash_put(obj, key, klen, &val);
@@ -256,6 +259,7 @@ static ehash_node_t* do_ehash_get(ehash_obj_t *obj, const char *key, size_t klen
 }
 
 ehash_node_t* ehash_get(ehash_obj_t *obj, const char *key, size_t klen) {
+  if (!obj) return NULL;
   if (!locking_obj(obj)) return NULL;
   lock_rd(obj);
   ehash_node_t *node = do_ehash_get(obj, key, klen);
@@ -272,6 +276,7 @@ static ehash_node_t* do_ehash_node_acquire(ehash_node_t *node) {
 }
 
 ehash_node_t*   ehash_node_acquire(ehash_node_t *node) {
+  if (!node) return NULL;
   ehash_obj_t *obj = node->obj;
   if (!locking_obj(obj)) return NULL;
   lock_rd(obj);
@@ -302,12 +307,14 @@ static ehash_node_t* do_ehash_query(ehash_obj_t *obj, int (*predict)(ehash_obj_t
 }
 
 ehash_node_t* ehash_query(ehash_obj_t *obj, int (*predict)(ehash_obj_t *obj, void *arg, ehash_node_kv_t kv), void *arg) {
+  if (!obj) return NULL;
   if (!predict) return NULL;
   ehash_node_t *node = do_ehash_query(obj, predict, arg);
   return node;
 }
 
 ehash_node_t* ehash_iter_curr(ehash_iter_t *iter) {
+  if (!iter) return NULL;
   ehash_obj_t *obj = iter->obj;
   if (!locking_obj(obj)) {
     DILE();
@@ -347,6 +354,7 @@ static int do_ehash_node_release(ehash_node_t *node) {
 }
 
 int ehash_node_release(ehash_node_t *node) {
+  if (!node) return -1;
   ehash_obj_t *obj = node->obj;
   if (!locking_obj(obj)) {
     DILE();
@@ -383,6 +391,7 @@ static int do_ehash_remove(ehash_obj_t *obj, const char *key, size_t klen) {
 }
 
 int ehash_remove(ehash_obj_t *obj, const char *key, size_t klen) {
+  if (!obj) return -1;
   if (!locking_obj(obj)) return -1;
   if (!lock_wr(obj)) return -1;
   int r = do_ehash_remove(obj, key, klen);
@@ -413,11 +422,13 @@ static int do_ehash_traverse(ehash_obj_t *obj, void (*fp)(ehash_obj_t *obj, void
 }
 
 int ehash_traverse(ehash_obj_t *obj, void (*fp)(ehash_obj_t *obj, void *arg, ehash_node_kv_t kv, int *keep, int *stop), void *arg) {
+  if (!obj) return -1;
   int r = do_ehash_traverse(obj, fp, arg);
   return r;
 }
 
 void ehash_destroy(ehash_obj_t *obj) {
+  if (!obj) return;
   int64_t me = taosGetPthreadId();
   if (atomic_val_compare_exchange_64(&obj->destroying_thread, 0, me)) {
     DILE();
@@ -468,6 +479,7 @@ static ehash_iter_t* do_ehash_iter_create(ehash_obj_t *obj) {
 }
 
 ehash_iter_t* ehash_iter_create(ehash_obj_t *obj) {
+  if (!obj) return NULL;
   if (!locking_obj(obj)) return NULL;
   if (!lock_wr(obj)) return NULL;
   ehash_iter_t *iter = do_ehash_iter_create(obj);
@@ -524,6 +536,7 @@ static int do_ehash_iter_next(ehash_iter_t *iter, ehash_node_kv_t *kv) {
 }
 
 int ehash_iter_next(ehash_iter_t *iter, ehash_node_kv_t *kv) {
+  if (!iter) return -1;
   ehash_obj_t *obj = iter->obj;
   if (!locking_obj(obj)) {
     DILE();
@@ -560,6 +573,7 @@ static void do_ehash_iter_destroy(ehash_iter_t* iter) {
 }
 
 void ehash_iter_destroy(ehash_iter_t* iter) {
+  if (!iter) return;
   ehash_obj_t *obj = iter->obj;
   if (!locking_obj(obj)) return;
   do_ehash_iter_destroy(iter);

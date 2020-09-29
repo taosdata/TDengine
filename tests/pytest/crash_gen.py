@@ -2258,11 +2258,17 @@ class SvcManager:
 
             # Find if there's already a taosd service, and then kill it
             for proc in psutil.process_iter():
-                if proc.name() == 'taosd':
-                    print("Killing an existing TAOSD process in 2 seconds... press CTRL-C to interrupe")
-                    time.sleep(2.0)
-                    proc.kill()
-                # print("Process: {}".format(proc.name()))
+                if gConfig.valgrind:
+                    if proc.name() == 'valgrind':
+                        print("Killing an existing valgrind'd TAOSD process in 2 seconds... press CTRL-C to interrupe")
+                        time.sleep(2.0)
+                        proc.kill()
+                else:
+                    if proc.name() == 'taosd':
+                        print("Killing an existing TAOSD process in 2 seconds... press CTRL-C to interrupe")
+                        time.sleep(2.0)
+                        proc.kill()
+                        # print("Process: {}".format(proc.name()))
             
             self.svcMgrThread = ServiceManagerThread()  # create the object
             print("Attempting to start TAOS service started, printing out output...")
@@ -2317,10 +2323,15 @@ class SvcManager:
 class ServiceManagerThread:
     MAX_QUEUE_SIZE = 10000
 
+    _fValgrindErr = None
+
     def __init__(self):
         self._tdeSubProcess = None
         self._thread = None
         self._status = None
+
+        if gConfig.log_valgrind and gConfig.valgrind:
+            self._fValgrindErr = open("valgrind.err", "a")
 
     def getStatus(self):
         return self._status
@@ -2502,6 +2513,12 @@ class ServiceManagerThread:
     def svcErrorReader(self, err: IO, queue):
         for line in iter(err.readline, b''):
             print("\nTDengine Service (taosd) ERROR (from stderr): {}".format(line))
+            if self._fValgrindErr is not None:
+                try:
+                    line = line.decode("utf-8").rstrip()
+                except UnicodeError:
+                    print("\nNon-UTF8 server stderr: {}\n".format(line))
+                self._fValgrindErr.write("{}\n".format(line))
 
 
 class TdeSubProcess:
@@ -2554,8 +2571,11 @@ class TdeSubProcess:
             logger.info("Saving old log files to: {}".format(logPathSaved))
             os.rename(logPath, logPathSaved)
         # os.mkdir(logPath) # recreate, no need actually, TDengine will auto-create with proper perms
-            
-        svcCmd = [taosdPath, '-c', cfgPath]
+
+        if gConfig.valgrind:
+            svcCmd = ["valgrind", '--leak-check=full', '--show-leak-kinds=all', '-s', taosdPath, '-c', cfgPath]
+        else:
+            svcCmd = [taosdPath, '-c', cfgPath]
         # svcCmdSingle = "{} -c {}".format(taosdPath, cfgPath)
         # svcCmd = ['vmstat', '1']
         if self.subProcess:  # already there
@@ -2850,7 +2870,7 @@ def main():
 
             '''))
 
-    # parser.add_argument('-a', '--auto-start-service', action='store_true',                        
+    # parser.add_argument('-a', '--auto-start-service', action='store_true',
     #                     help='Automatically start/stop the TDengine service (default: false)')
     # parser.add_argument('-c', '--connector-type', action='store', default='native', type=str,
     #                     help='Connector type to use: native, rest, or mixed (default: 10)')
@@ -2858,6 +2878,10 @@ def main():
     #                     help='Turn on DEBUG mode for more logging (default: false)')
     # parser.add_argument('-e', '--run-tdengine', action='store_true',                        
     #                     help='Run TDengine service in foreground (default: false)')
+    # parser.add_argument('-E', '--log-valgrind', action='store_true',
+    #                     help='Write stderr if --valgrind is set (default: false)')
+    # parser.add_argument('-g', '--valgrind', action='store_true',
+    #                     help='Start the TDengine service with valgrind (default: false)')
     # parser.add_argument('-l', '--larger-data', action='store_true',                        
     #                     help='Write larger amount of data during write operations (default: false)')
     # parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
@@ -2893,6 +2917,16 @@ def main():
         '--run-tdengine',
         action='store_true',
         help='Run TDengine service in foreground (default: false)')
+    parser.add_argument(
+        '-E',
+        '--log-valgrind',
+        action='store_true',
+        help='Write stderr if --valgrind is set (default: false)')
+    parser.add_argument(
+        '-g',
+        '--valgrind',
+        action='store_true',
+        help='Start the TDengine service with valgrind (default: false)')
     parser.add_argument(
         '-l',
         '--larger-data',
@@ -2947,6 +2981,11 @@ def main():
         logger.setLevel(logging.INFO)
 
     Dice.seed(0)  # initial seeding of dice
+
+    if gConfig.log_valgrind:
+        fErr = open("valgrind.err", "w")
+        if (fErr is not None):
+            fErr.close()
 
     # Run server or client
     mExec = MainExec()

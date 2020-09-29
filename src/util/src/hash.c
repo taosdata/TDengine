@@ -841,10 +841,13 @@ SHashObj *taosHashInitX(size_t capacity, _hash_fn_t fn, bool update, SHashLockTy
 }
 
 size_t taosHashGetSizeX(const SHashObj *pHashObj) {
+  if (pHashObj==0) return 0;
   return ehash_size(pHashObj->obj);
 }
 
 int32_t taosHashPutX(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+  if (!pHashObj) return -1;
+  if (!key || keyLen==0 || !data || size==0) return -1;
   ehash_node_val_t val = {0};
   val.buf      = data;
   val.blen     = size;
@@ -876,6 +879,7 @@ static int predict(ehash_obj_t *obj, void *arg, ehash_node_kv_t kv) {
 void* taosHashGetCBX(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
   if (!key) return NULL;
   if (keyLen == 0) return NULL;
+  if (!key || keyLen==0) return NULL;
 
   predict_t arg = {0};
   arg.obj       = pHashObj;
@@ -888,13 +892,15 @@ void* taosHashGetCBX(SHashObj *pHashObj, const void *key, size_t keyLen, void (*
   void *data = NULL;
 
   do {
-    void *buf  = (void*)ehash_node_get_buf(node);
+    void   *buf  = (void*)ehash_node_get_buf(node);
+    size_t  blen = ehash_node_get_blen(node);
     if (fp) {
       fp(buf);
     }
     if (d != NULL) {
       // copied from original code
       // but what if dsize > ehash_node_get_blen(node)
+      if (blen < dsize) dsize = blen;
       memcpy(d, buf, dsize);
     } else {
       // copied from original code
@@ -952,6 +958,7 @@ static void traverse(ehash_obj_t *obj, void *arg, ehash_node_kv_t kv, int *keep,
 }
 
 int32_t taosHashCondTraverseX(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param) {
+  if (!pHashObj) return -1;
   traverse_t arg = {0};
   arg.param      = param;
   arg.fp         = fp;
@@ -969,6 +976,7 @@ void taosHashCleanupX(SHashObj *pHashObj) {
 }
 
 SHashMutableIterator* taosHashCreateIterX(SHashObj *pHashObj) {
+  if (!pHashObj) return NULL;
   SHashMutableIterator *iter = (SHashMutableIterator*)calloc(1, sizeof(*iter));
   if (!iter) return NULL;
 
@@ -982,11 +990,13 @@ SHashMutableIterator* taosHashCreateIterX(SHashObj *pHashObj) {
 }
 
 bool taosHashIterNextX(SHashMutableIterator *iter) {
+  if (!iter) return false;
   int r = ehash_iter_next(iter->iter, NULL);
   return r ? true : false;
 }
 
 void *taosHashIterGetX(SHashMutableIterator *iter) {
+  if (!iter) return NULL;
   ehash_node_t *node = ehash_iter_curr(iter->iter);
   if (!node) return NULL;
 
@@ -998,12 +1008,15 @@ void *taosHashIterGetX(SHashMutableIterator *iter) {
 }
 
 void* taosHashDestroyIterX(SHashMutableIterator* iter) {
+  if (!iter) return NULL;
   ehash_iter_destroy(iter->iter);
+  iter->iter = NULL;
   free(iter);
   return NULL;
 }
 
 int32_t taosHashGetMaxOverflowLinkLengthX(const SHashObj *pHashObj) {
+  if (!pHashObj) return 0;
   size_t len = ehash_get_max_slot_length(pHashObj->obj);
   return (int32_t)len;
 }

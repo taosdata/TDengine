@@ -17,6 +17,7 @@
 #define TDENGINE_EHASH_H
 
 #include "hashfunc.h"
+#include "tglobal.h"
 #include "tlog.h"
 
 #include <stdlib.h>
@@ -26,7 +27,12 @@
 extern "C" {
 #endif
 
-#define DD(fmt, ...) taosPrintLog("EHS ", DEBUG_SCREEN, "%s[%d]:%s() "fmt, basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
+#define DD(fmt, ...)                                                  \
+  taosPrintLog("EHS ", tscEmbedded ? 255 : uDebugFlag,                \
+               "%s[%d]:%s() " fmt "",                                 \
+               basename((char*)__FILE__), __LINE__, __func__,         \
+               ##__VA_ARGS__)
+
 #define D() DD(".")
 #define DILE()                       \
 do {                                 \

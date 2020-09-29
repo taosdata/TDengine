@@ -101,7 +101,10 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
-    pCacheObj->freeFp(pNode->data);
+    if (!pNode->data_freed) {
+      pCacheObj->freeFp(pNode->data);
+      pNode->data_freed = 1;
+    }
   }
 
   free(pNode);
@@ -126,11 +129,19 @@ static FORCE_INLINE void doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem
 }
 
 static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem *pElem) {
+  if (!pCacheObj) return;
+  if (!pElem) return;
+  if (!pElem->pData) return;
+
   if (pCacheObj->freeFp) {
-    pCacheObj->freeFp(pElem->pData->data);
+    if (!pElem->pData->data_freed) {
+      pCacheObj->freeFp(pElem->pData->data);
+      pElem->pData->data_freed = 1;
+    }
   }
 
   free(pElem->pData);
+  pElem->pData = NULL;
   free(pElem);
 }
 
@@ -217,7 +228,10 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       if (ret == 0) {
         if (T_REF_VAL_GET(p) == 0) {
           if (pCacheObj->freeFp) {
-            pCacheObj->freeFp(p->data);
+            if (!p->data_freed) {
+              pCacheObj->freeFp(p->data);
+              p->data_freed = 1;
+            }
           }
 
           taosTFree(p);
@@ -420,7 +434,10 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
                    pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
             if (pCacheObj->freeFp) {
-              pCacheObj->freeFp(pNode->data);
+              if (!pNode->data_freed) {
+                pCacheObj->freeFp(pNode->data);
+                pNode->data_freed = 1;
+              }
             }
 
             free(pNode);
@@ -620,7 +637,10 @@ bool travHashTableFn(void* param, void* data) {
   }
 
   if (ps->fp) {
-    (ps->fp)(pNode->data);
+    if (!pNode->data_freed) {
+      (ps->fp)(pNode->data);
+      pNode->data_freed = 1;
+    }
   }
 
   // do not remove element in hash table
