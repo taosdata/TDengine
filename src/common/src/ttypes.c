@@ -219,7 +219,7 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
     }
     
     float fv = 0;
-    fv = GET_FLOAT_VAL(&(data[i]));
+    fv = GET_FLOAT_VAL((const char*)&(data[i]));
     dsum += fv;
     if (fmin > fv) {
       fmin = fv;
@@ -233,12 +233,12 @@ static void getStatics_f(const TSKEY *primaryKey, const void *pData, int32_t num
   }
   
   double csum = 0;
-  csum = GET_DOUBLE_VAL(sum);
+  csum = GET_DOUBLE_VAL((const char *)sum);
   csum += dsum;
 #ifdef _TD_ARM_32
-  SET_DOUBLE_VAL_ALIGN(sum, &csum);
-  SET_DOUBLE_VAL_ALIGN(max, &fmax);
-  SET_DOUBLE_VAL_ALIGN(min, &fmin);
+  SET_DOUBLE_VAL_ALIGN((const char *)sum, &csum);
+  SET_DOUBLE_VAL_ALIGN((const char *)max, &fmax);
+  SET_DOUBLE_VAL_ALIGN((const char *)min, &fmin);
 #else
   *(double*)sum = csum;
   *(double*)max = fmax;
@@ -264,7 +264,7 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
     }
     
     double dv = 0;
-    dv = GET_DOUBLE_VAL(&(data[i]));
+    dv = GET_DOUBLE_VAL((const char*)&(data[i]));
     dsum += dv;
     if (dmin > dv) {
       dmin = dv;
@@ -278,7 +278,7 @@ static void getStatics_d(const TSKEY *primaryKey, const void *pData, int32_t num
   }
   
   double csum = 0;
-  csum = GET_DOUBLE_VAL(sum);
+  csum = GET_DOUBLE_VAL((const char *)sum);
   csum += dsum;
 
 
@@ -504,7 +504,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
     };
     case TSDB_DATA_TYPE_DOUBLE: {
 #ifdef _TD_ARM_32
-      double dv = GET_DOUBLE_VAL(src);
+      double dv = GET_DOUBLE_VAL((const char *)src);
       SET_DOUBLE_VAL_ALIGN(val, &dv);
 #else
       *((double *)val) = GET_DOUBLE_VAL(src);
