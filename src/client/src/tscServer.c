@@ -147,12 +147,13 @@ void tscPrintMgmtEp() {
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
   if (pObj == NULL) return;
+
   if (pObj != pObj->signature) {
     tscError("heart beat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
     return;
   }
 
-  SSqlObj *pSql = pObj->pHb;
+  SSqlObj *pSql = tres;
   SSqlRes *pRes = &pSql->res;
 
   if (code == 0) {
@@ -173,10 +174,17 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscDebug("heart beat failed, code:%s", tstrerror(code));
+    tscDebug("heartbeat failed, code:%s", tstrerror(code));
   }
 
-  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  if (pObj->pHb != NULL) {
+    int64_t waitingDuring = tsShellActivityTimer * 500;
+    tscDebug("%p start heartbeat in %"PRId64"ms", pSql, waitingDuring);
+
+    taosTmrReset(tscProcessActivityTimer, waitingDuring, pObj, tscTmr, &pObj->pTimer);
+  } else {
+    tscDebug("%p start to close tscObj:%p, not send heartbeat again", pSql, pObj);
+  }
 }
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
