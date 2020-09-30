@@ -26,7 +26,7 @@ extern "C" {
 #define COMP_OVERFLOW_BYTES 2
 #define BITS_PER_BYTE 8
 // Masks
-#define INT64MASK(_x) ((1ul << _x) - 1)
+#define INT64MASK(_x) ((((uint64_t)1) << _x) - 1)
 #define INT32MASK(_x) (((uint32_t)1 << _x) - 1)
 #define INT8MASK(_x) (((uint8_t)1 << _x) - 1)
 // Compression algorithm
