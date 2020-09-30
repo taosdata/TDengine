@@ -64,7 +64,7 @@ extern const int32_t TYPE_BYTES[11];
 // TODO: replace and remove code below
 #define CHAR_BYTES   sizeof(char)
 #define SHORT_BYTES  sizeof(int16_t)
-#define INT_BYTES    sizeof(int)
+#define INT_BYTES    sizeof(int32_t)
 #define LONG_BYTES   sizeof(int64_t)
 #define FLOAT_BYTES  sizeof(float)
 #define DOUBLE_BYTES sizeof(double)
@@ -73,7 +73,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_BOOL_NULL             0x02
 #define TSDB_DATA_TINYINT_NULL          0x80
 #define TSDB_DATA_SMALLINT_NULL         0x8000
-#define TSDB_DATA_INT_NULL              0x80000000
+#define TSDB_DATA_INT_NULL              0x80000000L
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
 
 #define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
@@ -304,7 +304,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MIN_VNODES           64
 #define TSDB_MAX_VNODES           2048
 #define TSDB_MIN_VNODES_PER_DB    2
-#define TSDB_MAX_VNODES_PER_DB    16
+#define TSDB_MAX_VNODES_PER_DB    64
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1
