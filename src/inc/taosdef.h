@@ -304,7 +304,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MIN_VNODES           64
 #define TSDB_MAX_VNODES           2048
 #define TSDB_MIN_VNODES_PER_DB    2
-#define TSDB_MAX_VNODES_PER_DB    16
+#define TSDB_MAX_VNODES_PER_DB    64
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1
