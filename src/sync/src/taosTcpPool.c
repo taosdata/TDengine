@@ -219,7 +219,10 @@ static void *taosProcessTcpData(void *param) {
           continue;
         }
       }
+
     }
+
+    if (pThread->stop) break;
   }
 
   uDebug("%p TCP epoll thread exits", pThread);
