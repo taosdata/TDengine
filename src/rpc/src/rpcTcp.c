@@ -205,7 +205,14 @@ void taosStopTcpServer(void *handle) {
 
   if (pServerObj == NULL) return;
   if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
-  if (taosCheckPthreadValid(pServerObj->thread)) pthread_join(pServerObj->thread, NULL);
+
+  if (taosCheckPthreadValid(pServerObj->thread)) {
+    if (pServerObj->thread == pthread_self()) {
+      pthread_detach(pthread_self());
+    } else {
+      pthread_join(pServerObj->thread, NULL);
+    }
+  }
 
   tDebug("%s TCP server is stopped", pServerObj->label);
 }
