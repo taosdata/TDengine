@@ -261,6 +261,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   assert(*pSql->self == pSql);
+  pSql->pRpcCtx = NULL;
 
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
@@ -398,7 +399,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   rpcFreeCont(rpcMsg->pCont);
-
 }
 
 int doProcessSql(SSqlObj *pSql) {
