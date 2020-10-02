@@ -720,15 +720,15 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += sprintf(str + len, "%d", *((char *)row[i]));
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += sprintf(str + len, "%d", *((short *)row[i]));
+        len += sprintf(str + len, "%d", *((int16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += sprintf(str + len, "%d", *((int *)row[i]));
+        len += sprintf(str + len, "%d", *((int32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:

@@ -32,9 +32,9 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-client"
+    install_dir="${release_dir}/TDengine-enterprise-client-${version}"
 else
-    install_dir="${release_dir}/TDengine-client"
+    install_dir="${release_dir}/TDengine-client-${version}"
 fi
 
 # Directories and files.
@@ -125,9 +125,9 @@ fi
 cd ${release_dir} 
 
 if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${osType}-${cpuType}
 elif [ "$verMode" == "edge" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${osType}-${cpuType}
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1

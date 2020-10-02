@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include <sys/types.h>
+
 // TAOS_OS_FUNC_DIR
 void taosRemoveDir(char *rootDir);
 int  taosMkDir(const char *pathname, mode_t mode); 

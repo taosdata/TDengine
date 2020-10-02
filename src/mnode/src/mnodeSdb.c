@@ -185,7 +185,11 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("open sdb wal for restore");
-  walRestore(tsSdbObj.wal, NULL, sdbWrite);
+  int code = walRestore(tsSdbObj.wal, NULL, sdbWrite);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbError("failed to open wal for restore, reason:%s", tstrerror(code));
+    return -1;
+  }
   return 0;
 }
 

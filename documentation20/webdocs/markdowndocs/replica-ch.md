@@ -66,21 +66,21 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 数据实时复制有三个主要流程：选主、数据转发、数据恢复。后续做详细讨论。
 
-## 虚拟节点之间的网络链接
+## 虚拟节点之间的网络连接
 
-虚拟节点之间通过TCP进行链接，节点之间的状态交换、数据包的转发都是通过这个TCP链接(peerFd)进行。为避免竞争，两个虚拟节点之间的TCP链接，总是由IP地址(UINT32)小的节点作为TCP客户端发起。一旦TCP链接被中断，虚拟节点能通过TCP socket自动检测到，将对方标为offline。如果监测到任何错误（比如数据恢复流程），虚拟节点将主动重置该链接。
+虚拟节点之间通过TCP进行连接，节点之间的状态交换、数据包的转发都是通过这个TCP连接(peerFd)进行。为避免竞争，两个虚拟节点之间的TCP连接，总是由IP地址(UINT32)小的节点作为TCP客户端发起。一旦TCP连接被中断，虚拟节点能通过TCP socket自动检测到，将对方标为offline。如果监测到任何错误（比如数据恢复流程），虚拟节点将主动重置该连接。
 
-一旦作为客户端的节点链接不成或中断，它将周期性的每隔一秒钟去试图去链接一次。因为TCP本身有心跳机制，虚拟节点之间不再另行提供心跳。
+一旦作为客户端的节点连接不成或中断，它将周期性的每隔一秒钟去试图去连接一次。因为TCP本身有心跳机制，虚拟节点之间不再另行提供心跳。
 
-如果一个unsynced节点要发起数据恢复流程，它与Master将建立起专有的TCP链接(syncFd)。数据恢复完成后，该链接会被关闭。而且为限制资源的使用，系统只容许一定数量(配置参数tsMaxSyncNum)的数据恢复的socket存在。如果超过这个数字，系统会将新的数据恢复请求延后处理。
+如果一个unsynced节点要发起数据恢复流程，它与Master将建立起专有的TCP连接(syncFd)。数据恢复完成后，该连接会被关闭。而且为限制资源的使用，系统只容许一定数量(配置参数tsMaxSyncNum)的数据恢复的socket存在。如果超过这个数字，系统会将新的数据恢复请求延后处理。
 
-任意一个节点，无论有多少虚拟节点，都会启动而且只会启动一个TCP server, 来接受来自其他虚拟节点的上述两类TCP的链接请求。当TCP socket建立起来，客户端侧发送的消息体里会带有vgId（全局唯一的vgroup ID), TCP 服务器侧会检查该vgId是否已经在该节点启动运行。如果已经启动运行，就接受其请求。如果不存在，就直接将链接请求关闭。在TDengine代码里，mnode group的vgId设置为1。 
+任意一个节点，无论有多少虚拟节点，都会启动而且只会启动一个TCP server, 来接受来自其他虚拟节点的上述两类TCP的连接请求。当TCP socket建立起来，客户端侧发送的消息体里会带有vgId（全局唯一的vgroup ID), TCP 服务器侧会检查该vgId是否已经在该节点启动运行。如果已经启动运行，就接受其请求。如果不存在，就直接将连接请求关闭。在TDengine代码里，mnode group的vgId设置为1。 
 
 ## 选主流程
 
 当同一组的两个虚拟节点之间(vnode A, vnode B)建立连接后，他们互换status消息。status消息里包含本地存储的同一虚拟节点组内所有虚拟节点的role和version。
 
-如果一个虚拟节点(vnode A)检测到与同一虚拟节点组内另外一虚拟节点（vnode B）的链接中断，vnode A将立即把vnode B的role设置为offline。无论是接收到另外一虚拟节点发来的status消息，还是检测与另外一虚拟节点的链接中断，该虚拟节点都将进入状态处理流程。状态处理流程的规则如下：
+如果一个虚拟节点(vnode A)检测到与同一虚拟节点组内另外一虚拟节点（vnode B）的连接中断，vnode A将立即把vnode B的role设置为offline。无论是接收到另外一虚拟节点发来的status消息，还是检测与另外一虚拟节点的连接中断，该虚拟节点都将进入状态处理流程。状态处理流程的规则如下：
 
 1. 如果检测到在线的节点数没有超过一半，则将自己的状态设置为unsynced.
 2. 如果在线的虚拟节点数超过一半，会检查master节点是否存在，如果存在，则会决定是否将自己状态改为slave或启动数据恢复流程
@@ -118,7 +118,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 9. 如果quorum为1，上述6，7，8步不会发生。
 10. 如果要等待slave的确认，master会启动2秒的定时器（可配置），如果超时，则认为失败。
 
-对于回复确认，sync模块提供的是异步回调函数，因此APP在调用syncForwardToPeer之后，无需等待，可以处理下一个操作。在Master与Slave的TCP链接管道里，可能有多个Forward消息，这些消息是严格按照应用提供的顺序排好的。对于Forward Response也是一样，TCP管道里存在多个，但都是排序好的。这个顺序，SYNC模块并没有做特别的事情，是由APP单线程顺序写来保证的(TDengine里每个vnode的写数据，都是单线程）。
+对于回复确认，sync模块提供的是异步回调函数，因此APP在调用syncForwardToPeer之后，无需等待，可以处理下一个操作。在Master与Slave的TCP连接管道里，可能有多个Forward消息，这些消息是严格按照应用提供的顺序排好的。对于Forward Response也是一样，TCP管道里存在多个，但都是排序好的。这个顺序，SYNC模块并没有做特别的事情，是由APP单线程顺序写来保证的(TDengine里每个vnode的写数据，都是单线程）。
 
 ## 数据恢复流程
 
@@ -142,9 +142,9 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 <center> <img src="../assets/replica-restore.png"> </center>
 
-1. 通过已经建立的TCP链接，发送sync req给master节点
-2. master收到sync req后，以client的身份，向vnode B主动建立一新的专用于同步的TCP链接（syncFd)
-3. 新的TCP链接建立成功后，master将开始retrieve流程，对应的，vnode B将同步启动restore流程
+1. 通过已经建立的TCP连接，发送sync req给master节点
+2. master收到sync req后，以client的身份，向vnode B主动建立一新的专用于同步的TCP连接（syncFd)
+3. 新的TCP连接建立成功后，master将开始retrieve流程，对应的，vnode B将同步启动restore流程
 4. Retrieve/Restore流程里，先处理所有archived data (vnode里的data, head, last文件），后处理WAL data。
 5. 对于archived data，master将通过回调函数getFileInfo获取数据文件的基本信息，包括文件名、magic以及文件大小。
 6. master 将获得的文件名、magic以及文件大小发给vnode B
@@ -157,7 +157,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 1. master节点调用回调函数getWalInfo，获取WAL的文件名。
 2. 如果getWalInfo返回值大于0，表示该文件还不是最后一个WAL，因此master调用sendfile一下把该文件发送给vnode B
 3. 如果getWalInfo返回时为0，表示该文件是最后一个WAL，因为文件可能还处于写的状态中，sync模块要根据WAL Head的定义逐条读出记录，然后发往vnode B。
-4. vnode A读取TCP链接传来的数据，按照WAL Head，逐条读取，如果版本号比现有的大，调用回调函数writeToCache，交给应用处理。如果小，直接扔掉。
+4. vnode A读取TCP连接传来的数据，按照WAL Head，逐条读取，如果版本号比现有的大，调用回调函数writeToCache，交给应用处理。如果小，直接扔掉。
 5. 上述流程循环，直到所有WAL文件都被处理完。处理完后，master就会将新来的数据包通过Forward消息转发给slave。
 
 从同步文件启动起，sync模块会通过inotify监控所有处理过的file以及wal。一旦发现被处理过的文件有更新变化，同步流程将中止，会重新启动。因为有可能落盘操作正在进行（比如历史数据导入，内存数据落盘），把已经处理过的文件进行了修改，需要重新同步才行。
@@ -194,15 +194,15 @@ sync模块通过inotify监控LastWal文件的更新和关闭操作。而且在�
 
 因为写入失败，客户端会重新写入数据。但对于TDengine而言，是OK的。因为时序数据都是有时间戳的，时间戳相同的数据更新操作，第一次会执行，但第二次会自动扔掉。对于Meta Data(增加、删除库、表等等）的操作，也是OK的。一张表、库已经被创建或删除，再创建或删除，不会被执行的。
 
-在TDengine的设计里，虚拟节点与虚拟节点之间，是一个TCP链接，是一个pipeline，数据块一个接一个按顺序在这个pipeline里等待处理。一旦某个数据块的处理失败，这个链接会被重置，后续的数据块的处理都会失败。因此不会存在Pipeline里一个数据块更新失败，但下一个数据块成功的可能。
+在TDengine的设计里，虚拟节点与虚拟节点之间，是一个TCP连接，是一个pipeline，数据块一个接一个按顺序在这个pipeline里等待处理。一旦某个数据块的处理失败，这个连接会被重置，后续的数据块的处理都会失败。因此不会存在Pipeline里一个数据块更新失败，但下一个数据块成功的可能。
 
 ## Split Brain的问题
 
 选举流程中，有个强制要求，那就是一定有超过半数的虚拟节点在线。但是如果replication正好是偶数，这个时候，完全可能存在splt brain问题。
 
-为解决这个问题，TDengine提供Arbitrator的解决方法。Arbitrator是一个节点，它的任务就是接受任何虚拟节点的链接请求，并保持它。
+为解决这个问题，TDengine提供Arbitrator的解决方法。Arbitrator是一个节点，它的任务就是接受任何虚拟节点的连接请求，并保持它。
 
-在启动复制模块实例时，在配置参数中，应用可以提供Arbitrator的IP地址。如果是奇数个副本，复制模块不会与这个arbitrator去建立链接，但如果是偶数个副本，就会主动去建立链接。
+在启动复制模块实例时，在配置参数中，应用可以提供Arbitrator的IP地址。如果是奇数个副本，复制模块不会与这个arbitrator去建立连接，但如果是偶数个副本，就会主动去建立连接。
 
 Arbitrator的程序tarbitrator.c在复制模块的同一目录, 编译整个系统时，会在bin目录生成。命令行参数“-？”查看可以配置的参数，比如绑定的IP地址，监听的端口号。
 
