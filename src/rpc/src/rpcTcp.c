@@ -196,7 +196,7 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     }
   }
 
-  if (taosCheckPthreadValid(pThreadObj->thread)) pthread_join(pThreadObj->thread, NULL);
+  if (taosCheckPthreadValid(pThreadObj->thread) && pThreadObj->pollFd >= 0) pthread_join(pThreadObj->thread, NULL);
   if (fd != -1) taosCloseSocket(fd);
 }
 
