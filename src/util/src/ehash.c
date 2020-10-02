@@ -80,6 +80,7 @@ struct ehash_slot_s {
   ehash_node_t        *tail;
 
   size_t               count;
+  size_t               alives;
 };
 
 struct ehash_obj_s {
@@ -179,9 +180,9 @@ static size_t do_ehash_get_max_slot_length(ehash_obj_t *obj) {
   if (obj->slots) {
     for (size_t i=0; i<obj->capacity; ++i) {
       ehash_slot_t *slot = obj->slots + i;
-      size_t count = slot->count;
-      if (longest < count) {
-        longest = count;
+      size_t alives = slot->alives;
+      if (longest < alives) {
+        longest = alives;
       }
     }
   }
@@ -453,7 +454,9 @@ void ehash_destroy(ehash_obj_t *obj) {
   }
 
   for (ehash_node_t *node = obj->head; node;) {
+    DASSERT(GET_NODE_REF(node)==0);
     ehash_node_t *next = node->next;
+    set_node_zombie(node);
     do_free_node(node);
     node = next;
   }
@@ -676,7 +679,8 @@ static void do_hash_push_to_slot(ehash_node_t *node) {
   }
   slot->tail = node;
 
-  slot->count += 1;
+  slot->count  += 1;
+  slot->alives += 1;
 }
 
 static int is_node_zombie(ehash_node_t *node) {
@@ -685,7 +689,11 @@ static int is_node_zombie(ehash_node_t *node) {
 
 static void set_node_zombie(ehash_node_t *node) {
   if (node->zombie) return;
-  node->zombie = 1;
+  node->zombie  = 1;
+  if (node->slot) {
+    node->slot->alives -= 1;
+    DASSERT(node->slot->alives>=0);
+  }
 }
 
 static void do_remove_from_slot(ehash_node_t *node) {
@@ -702,6 +710,7 @@ static void do_remove_from_slot(ehash_node_t *node) {
   else      slot->tail         = prev;
 
   slot->count -= 1;
+  DASSERT(slot->count>=0);
 
   node->slot = NULL;
 }

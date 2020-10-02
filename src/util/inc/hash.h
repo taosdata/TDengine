@@ -75,7 +75,7 @@ typedef struct SHashMutableIterator {
   size_t     numOfEntries;    // number of entries while the iterator is created
 } SHashMutableIterator;
 
-#else
+#else // USE_EHASH
 
 typedef struct SHashNode                SHashNode;
 typedef struct SHashObj                 SHashObj;
@@ -188,7 +188,7 @@ void* taosHashDestroyIter(SHashMutableIterator* iter);
  */
 int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
 
-#else
+#else // USE_EHASH
 
 #include "ehash.h"
 #include "tlog.h"
@@ -224,7 +224,7 @@ int32_t taosHashGetMaxOverflowLinkLengthX(const SHashObj *pHashObj);
 #define taosHashIterGet(iter) (DD("taosHashIterGet[%p]", iter), taosHashIterGetX(iter))
 #define taosHashDestroyIter(iter) (DD("taosHashDestroyIter[%p]", iter), taosHashDestroyIterX(iter))
 #define taosHashGetMaxOverflowLinkLength(pHashObj) (DD("taosHashGetMaxOverflowLinkLength[%p]", pHashObj), taosHashGetMaxOverflowLinkLengthX(pHashObj))
-#else
+#else // TRACE_HASH
 #define taosHashInit(capacity, fn, update, type) (taosHashInitX(capacity, fn, update, type))
 #define taosHashGetSize(pHashObj) (taosHashGetSizeX(pHashObj))
 #define taosHashPut(pHashObj, key, keyLen, data, size) (taosHashPutX(pHashObj, key, keyLen, data, size))
@@ -239,7 +239,7 @@ int32_t taosHashGetMaxOverflowLinkLengthX(const SHashObj *pHashObj);
 #define taosHashIterGet(iter) (taosHashIterGetX(iter))
 #define taosHashDestroyIter(iter) (taosHashDestroyIterX(iter))
 #define taosHashGetMaxOverflowLinkLength(pHashObj) (taosHashGetMaxOverflowLinkLengthX(pHashObj))
-#endif
+#endif // TRACE_HASH
 
 #endif // USE_EHASH
 
