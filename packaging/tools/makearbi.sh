@@ -25,9 +25,9 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-arbitrator"
+    install_dir="${release_dir}/TDengine-enterprise-arbitrator-${version}"
 else
-    install_dir="${release_dir}/TDengine-arbitrator"
+    install_dir="${release_dir}/TDengine-arbitrator-${version}"
 fi
 
 # Directories and files.
@@ -48,9 +48,9 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}
 cd ${release_dir} 
 
 if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${osType}-${cpuType}
 elif [ "$verMode" == "edge" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${osType}-${cpuType}
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1

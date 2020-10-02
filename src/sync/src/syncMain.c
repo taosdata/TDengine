@@ -491,7 +491,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   uint32_t ip = taosGetIpFromFqdn(pInfo->nodeFqdn);
   if (ip == -1) return NULL;
 
-  SSyncPeer *pPeer = (SSyncPeer *)calloc(1, sizeof(SSyncPeer));
+  SSyncPeer *pPeer = calloc(1, sizeof(SSyncPeer));
   if (pPeer == NULL) return NULL;
 
   pPeer->nodeId = pInfo->nodeId;
@@ -499,7 +499,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   pPeer->fqdn[sizeof(pPeer->fqdn) - 1] = 0;
-  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d peer:%s:%d", pNode->vgId, pPeer->fqdn, pPeer->port);
+  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d peer:%s:%u", pNode->vgId, pPeer->fqdn, pPeer->port);
 
   pPeer->peerFd = -1;
   pPeer->syncFd = -1;
