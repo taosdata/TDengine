@@ -135,7 +135,7 @@ static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem 
   if (!pElem->pData) return;
 
   if (pCacheObj->freeFp) {
-    DASSERT(pNode->data_freed==0);
+    DASSERT(pElem->pData->data_freed==0);
     if (!pElem->pData->data_freed || 1) {
       pCacheObj->freeFp(pElem->pData->data);
       pElem->pData->data_freed = 1;
@@ -230,7 +230,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       if (ret == 0) {
         if (T_REF_VAL_GET(p) == 0) {
           if (pCacheObj->freeFp) {
-            DASSERT(pNode->data_freed==0);
+            DASSERT(p->data_freed==0);
             if (!p->data_freed || 1) {
               pCacheObj->freeFp(p->data);
               p->data_freed = 1;

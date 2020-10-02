@@ -63,16 +63,17 @@ struct ehash_node_s {
 
   void (*free_cb)(ehash_obj_t *obj, const char *buf, size_t blen);
 
-  ehash_obj_t         *obj;
-  ehash_node_t        *prev;
-  ehash_node_t        *next;
+  ehash_obj_t        *obj;
+  ehash_node_t       *prev;
+  ehash_node_t       *next;
 
   ehash_slot_t       *slot;
-  ehash_node_t        *prev_in_slot;
-  ehash_node_t        *next_in_slot;
+  ehash_node_t       *prev_in_slot;
+  ehash_node_t       *next_in_slot;
 
-  int32_t         refcount;
-  unsigned int      zombie:2;
+  int32_t             refcount;
+  unsigned int        zombie:2;
+  unsigned int        dying:2;
 };
 
 struct ehash_slot_s {
@@ -226,9 +227,9 @@ static ehash_node_t* do_ehash_put(ehash_obj_t *obj, const char *key, size_t klen
       }
     }
     node = do_hash_put(obj, hashVal, key, klen, val);
-    INC_OBJ_REF(obj);
   } while (0);
 
+  if (node) INC_OBJ_REF(obj);
   return node;
 }
 
@@ -411,7 +412,9 @@ static int do_ehash_traverse(ehash_obj_t *obj, void (*fp)(ehash_obj_t *obj, void
       int keep = 1, stop = 0;
       fp(obj, arg, kv, &keep, &stop);
       if (!keep) {
+        DASSERT(lock_wr(obj));
         set_node_zombie(iter->curr);
+        unlock_wr(obj);
       }
       if (stop) break;
     }
@@ -739,6 +742,8 @@ static void do_free_node(ehash_node_t *node) {
     DILE();
     return; // never reached here
   }
+  DASSERT(!node->dying);
+  node->dying = 1;
   do_remove_from_slot(node);
   do_remove_from_hash(node);
   if (node->free_cb) {
