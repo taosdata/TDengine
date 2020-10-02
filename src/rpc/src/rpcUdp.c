@@ -146,7 +146,7 @@ void taosStopUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     if (taosCheckPthreadValid(pConn->thread)) {
-      if (pConn->thread == pthread_self()) {
+      if (taosComparePthread(pConn->thread, pthread_self())) {
         pthread_detach(pthread_self());
       } else {
         pthread_join(pConn->thread, NULL);
