@@ -102,7 +102,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
 
   if (pCacheObj->freeFp) {
     DASSERT(pNode->data_freed==0);
-    if (!pNode->data_freed || 1) {
+    if (!pNode->data_freed) {
       pCacheObj->freeFp(pNode->data);
       pNode->data_freed = 1;
     }
@@ -136,7 +136,7 @@ static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem 
 
   if (pCacheObj->freeFp) {
     DASSERT(pElem->pData->data_freed==0);
-    if (!pElem->pData->data_freed || 1) {
+    if (!pElem->pData->data_freed) {
       pCacheObj->freeFp(pElem->pData->data);
       pElem->pData->data_freed = 1;
     }
@@ -231,7 +231,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
         if (T_REF_VAL_GET(p) == 0) {
           if (pCacheObj->freeFp) {
             DASSERT(p->data_freed==0);
-            if (!p->data_freed || 1) {
+            if (!p->data_freed) {
               pCacheObj->freeFp(p->data);
               p->data_freed = 1;
             }
@@ -438,7 +438,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 
             if (pCacheObj->freeFp) {
               DASSERT(pNode->data_freed==0);
-              if (!pNode->data_freed || 1) {
+              if (!pNode->data_freed) {
                 pCacheObj->freeFp(pNode->data);
                 pNode->data_freed = 1;
               }
