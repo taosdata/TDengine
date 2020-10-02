@@ -1688,7 +1688,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (pItem->pNode->pParam != NULL) {
         tSQLExprItem* pParamElem = &pItem->pNode->pParam->a[0];
         SStrToken* pToken = &pParamElem->pNode->colInfo;
-        short sqlOptr = pParamElem->pNode->nSQLOptr;
+        int16_t sqlOptr = pParamElem->pNode->nSQLOptr;
         if ((pToken->z == NULL || pToken->n == 0) 
             && (TK_INTEGER != sqlOptr)) /*select count(1) from table*/ {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);

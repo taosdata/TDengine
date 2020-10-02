@@ -245,9 +245,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
-  uint64_t handle = (uint64_t) rpcMsg->ahandle;
-
-  void** p = taosCacheAcquireByKey(tscObjCache, &handle, sizeof(uint64_t));
+  TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
+  void** p = taosCacheAcquireByKey(tscObjCache, &handle, sizeof(TSDB_CACHE_PTR_TYPE));
   if (p == NULL) {
     rpcFreeCont(rpcMsg->pCont);
     return;
