@@ -238,6 +238,13 @@ if $data11 != @19-01-01 09:10:00.000@ then
 endi
 
 sql create table tb_where_NULL (ts timestamp, c1 float, c2 binary(10))
+
+print ===================>td-1604
+sql_error insert into tb_where_NULL values(?, ?, ?)
+sql_error insert into tb_where_NULL values(now, 1, ?)
+sql_error insert into tb_where_NULL values(?, 1, '')
+sql_error insert into tb_where_NULL values(now, ?, '12')
+
 sql insert into tb_where_NULL values ('2019-01-01 09:00:00.000', 1, 'val1')
 sql insert into tb_where_NULL values ('2019-01-01 09:00:01.000', NULL, NULL)
 sql insert into tb_where_NULL values ('2019-01-01 09:00:02.000', 2, 'val2')
@@ -333,5 +340,6 @@ sql select * from wh_mt0 where c3 is not null and tbname in ('test_null_filter')
 if $rows != 0 then
   return -1
 endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
