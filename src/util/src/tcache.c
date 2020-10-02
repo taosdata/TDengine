@@ -101,7 +101,8 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
-    if (!pNode->data_freed) {
+    DASSERT(pNode->data_freed==0);
+    if (!pNode->data_freed || 1) {
       pCacheObj->freeFp(pNode->data);
       pNode->data_freed = 1;
     }
@@ -134,7 +135,8 @@ static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem 
   if (!pElem->pData) return;
 
   if (pCacheObj->freeFp) {
-    if (!pElem->pData->data_freed) {
+    DASSERT(pNode->data_freed==0);
+    if (!pElem->pData->data_freed || 1) {
       pCacheObj->freeFp(pElem->pData->data);
       pElem->pData->data_freed = 1;
     }
@@ -228,7 +230,8 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       if (ret == 0) {
         if (T_REF_VAL_GET(p) == 0) {
           if (pCacheObj->freeFp) {
-            if (!p->data_freed) {
+            DASSERT(pNode->data_freed==0);
+            if (!p->data_freed || 1) {
               pCacheObj->freeFp(p->data);
               p->data_freed = 1;
             }
@@ -434,7 +437,8 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
                    pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
             if (pCacheObj->freeFp) {
-              if (!pNode->data_freed) {
+              DASSERT(pNode->data_freed==0);
+              if (!pNode->data_freed || 1) {
                 pCacheObj->freeFp(pNode->data);
                 pNode->data_freed = 1;
               }
@@ -637,10 +641,7 @@ bool travHashTableFn(void* param, void* data) {
   }
 
   if (ps->fp) {
-    if (!pNode->data_freed) {
-      (ps->fp)(pNode->data);
-      pNode->data_freed = 1;
-    }
+    (ps->fp)(pNode->data);
   }
 
   // do not remove element in hash table
