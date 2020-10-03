@@ -196,7 +196,10 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     }
   }
 
-  if (taosCheckPthreadValid(pThreadObj->thread) && pThreadObj->pollFd >= 0) pthread_join(pThreadObj->thread, NULL);
+  if (taosCheckPthreadValid(pThreadObj->thread) && pThreadObj->pollFd >= 0) {
+     pthread_join(pThreadObj->thread, NULL);
+  }
+
   if (fd != -1) taosCloseSocket(fd);
 }
 
@@ -225,7 +228,6 @@ void taosCleanUpTcpServer(void *handle) {
   for (int i = 0; i < pServerObj->numOfThreads; ++i) {
     pThreadObj = pServerObj->pThreadObj[i];
     taosStopTcpThread(pThreadObj);
-    pthread_mutex_destroy(&(pThreadObj->mutex));
   }
 
   tDebug("%s TCP server is cleaned up", pServerObj->label);
@@ -526,6 +528,7 @@ static void *taosProcessTcpData(void *param) {
     taosFreeFdObj(pFdObj);
   }
 
+  pthread_mutex_destroy(&(pThreadObj->mutex));
   tDebug("%s TCP thread exits ...", pThreadObj->label);
   taosTFree(pThreadObj);
 

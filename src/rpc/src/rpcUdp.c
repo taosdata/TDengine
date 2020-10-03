@@ -140,18 +140,15 @@ void taosStopUdpConnection(void *handle) {
     pConn = pSet->udpConn + i;
     if (pConn->fd >=0) shutdown(pConn->fd, SHUT_RDWR);
     if (pConn->fd >=0) taosCloseSocket(pConn->fd);
-    pConn->fd = -1;
   }
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     if (taosCheckPthreadValid(pConn->thread)) {
-      if (taosComparePthread(pConn->thread, pthread_self())) {
-        pthread_detach(pthread_self());
-      } else {
-        pthread_join(pConn->thread, NULL);
-      }
+      pthread_join(pConn->thread, NULL);
     }
+    taosTFree(pConn->buffer);
+    // tTrace("%s UDP thread is closed, index:%d", pConn->label, i);
   }
 
   tDebug("%s UDP is stopped", pSet->label);
@@ -232,9 +229,6 @@ static void *taosRecvUdpData(void *param) {
     recvInfo.connType = 0;
     (*(pConn->processData))(&recvInfo);
   }
-
-  taosTFree(pConn->buffer);
-  tDebug("%s UDP recv thread exits", pConn->label);
 
   return NULL;
 }
