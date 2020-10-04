@@ -2141,7 +2141,7 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
     
     int32_t length = taosUcs4ToMbs(pRes->tsrow[columnIndex], pRes->length[columnIndex], pRes->buffer[columnIndex]);
     if ( length >= 0 ) {
-      pRes->tsrow[columnIndex] = pRes->buffer[columnIndex];
+      pRes->tsrow[columnIndex] = (unsigned char*)pRes->buffer[columnIndex];
       pRes->length[columnIndex] = length;
     } else {
       tscError("%p charset:%s to %s. val:%s convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)pRes->tsrow[columnIndex]);
@@ -2169,7 +2169,7 @@ static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) 
   return pSupport->data[index] + pSupport->offset * pExpr->resBytes;
 }
 
-void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
+TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -2222,7 +2222,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
 
       tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
           TSDB_ORDER_ASC, getArithemicInputSrc);
-      pRes->tsrow[i] = pRes->buffer[i];
+      pRes->tsrow[i] = (unsigned char*)pRes->buffer[i];
     }
   }
 

@@ -306,7 +306,7 @@ typedef struct {
   int32_t               numOfGroups;
   SResRec *             pGroupRec;
   char *                data;
-  void **               tsrow;
+  TAOS_ROW              tsrow;
   int32_t*              length;  // length for each field for current row
   char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex *        pColumnIndex;
@@ -439,7 +439,7 @@ void tscFreeSqlObjInCache(void *pSql);
 void tscCloseTscObj(STscObj *pObj);
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
-                     void *param, void **taos);
+                     void *param, TAOS **taos);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
@@ -471,11 +471,11 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
       pData = pInfo->pSqlExpr->param[1].pz;
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
-      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : pData;
+      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
     } else {
       assert(bytes == tDataTypeDesc[type].nSize);
 
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : &pInfo->pSqlExpr->param[1].i64Key;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64Key;
       pRes->length[columnIndex] = bytes;
     }
   } else {
@@ -483,7 +483,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
       int32_t realLen = varDataLen(pData);
       assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
-      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : ((tstr *)pData)->data;
+      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : (unsigned char*)((tstr *)pData)->data;
       if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
         *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
       }
@@ -492,7 +492,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
     } else {
       assert(bytes == tDataTypeDesc[type].nSize);
 
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : pData;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)pData;
       pRes->length[columnIndex] = bytes;
     }
   }

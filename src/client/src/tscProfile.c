@@ -20,8 +20,10 @@
 #include "tutil.h"
 #include "taosmsg.h"
 
+#include "taos.h"
+
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
-void *tscSlowQueryConn = NULL;
+TAOS *tscSlowQueryConn = NULL;
 bool  tscSlowQueryConnInitialized = false;
 
 void tscInitConnCb(void *param, TAOS_RES *result, int code) {
