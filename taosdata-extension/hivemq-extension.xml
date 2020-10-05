@@ -1,0 +1,8 @@
+<hivemq-extension>
+    <id>${artifactId}</id>
+    <name>${extension.name}</name>
+    <version>${version}</version>
+    <priority>1000</priority>
+    <start-priority>1000</start-priority>
+    <author>${author.name}</author>
+</hivemq-extension>

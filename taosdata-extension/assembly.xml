@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ ~ Copyright 2018-present HiveMQ GmbH
+ ~
+ ~  Licensed under the Apache License, Version 2.0 (the "License");
+ ~  you may not use this file except in compliance with the License.
+ ~  You may obtain a copy of the License at
+ ~
+ ~        http://www.apache.org/licenses/LICENSE-2.0
+ ~
+ ~  Unless required by applicable law or agreed to in writing, software
+ ~  distributed under the License is distributed on an "AS IS" BASIS,
+ ~  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ ~  See the License for the specific language governing permissions and
+ ~  limitations under the License.
+ -->
+
+<assembly xmlns="http://maven.apache.org/xsd/assembly-1.1.2.xsd"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+    <id>distribution</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <files>
+        <file>
+            <source>target/LICENSE.txt</source>
+            <outputDirectory>/${artifactId}/</outputDirectory>
+        </file>
+        <file>
+            <source>target/README.html</source>
+            <outputDirectory>/${artifactId}/</outputDirectory>
+        </file>
+        <file>
+            <source>README.adoc</source>
+            <destName>README.txt</destName>
+            <outputDirectory>/${artifactId}/</outputDirectory>
+        </file>
+        <file>
+            <source>src/main/resources/hivemq-extension.xml</source>
+            <outputDirectory>/${artifactId}/</outputDirectory>
+            <filtered>true</filtered>
+        </file>
+        <file>
+            <source>target/${artifactId}-${version}.jar</source>
+            <destName>${artifactId}-${version}.jar</destName>
+            <outputDirectory>/${artifactId}/</outputDirectory>
+        </file>
+    </files>
+    <includeBaseDirectory>false</includeBaseDirectory>
+</assembly>

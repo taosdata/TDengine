@@ -1,0 +1,62 @@
+:hivemq-link: http://www.hivemq.com
+:hivemq-extension-docs-link: http://www.hivemq.com/docs/extensions/latest/
+:hivemq-extension-docs-archetype-link: http://www.hivemq.com/docs/extensions/latest/#maven-archetype-chapter
+:hivemq-blog-tools: http://www.hivemq.com/mqtt-toolbox
+:maven-documentation-profile-link: http://maven.apache.org/guides/introduction/introduction-to-profiles.html
+:hivemq-support: http://www.hivemq.com/support/
+:hivemq-testcontainer: https://github.com/hivemq/hivemq-testcontainer
+:hivemq-mqtt-client: https://github.com/hivemq/hivemq-mqtt-client
+
+== HiveMQ 4 Hello World Extension
+
+*Type*: Demonstration Extension
+
+*Version*: 4.4.0
+
+*License*: Apache License Version 2.0
+
+=== Purpose
+
+This TAOS extension sets a ClientLifecycleEventListener which logs
+the MQTT Version and identifier of every connecting and disconnecting client and
+registers a PublishInboundInterceptor to save the payload of every Publish with the specific topics to TAOS database.
+
+There is {hivemq-extension-docs-archetype-link}[a Maven Archetype available]
+to generate a basic extension from the IDE.
+
+We strongly recommend to read the {hivemq-extension-docs-link}[HiveMQ Extension Documentation]
+to grasp the core concepts of HiveMQ extension development.
+
+=== Installation
+
+. Clone this repository into a Java 11 maven project.
+. Run `mvn package` goal from Maven to build the extension.
+. Move the file: "target/taos-extension-0.1.0-distribution.zip" to the directory: "HIVEMQ_HOME/extensions"
+. copy the configuration files: "taos.properties" & "taos.yml"  to the directory: "HIVEMQ_HOME/extensions"
+. modify the configuration files according to real env.
+. Unzip the file.
+. Start HiveMQ.
+
+=== SAMPLE MQTT message
+
+{
+  "t": 1601805363333,
+  "id": "diablo",
+  "v1": 888,
+  "v2": 1.1,
+  "v3": "test"
+}
+
+==== Manual Testing
+
+Connect with an {hivemq-blog-tools}[MQTT client] of your choice. You should see a log message with its identifier and MQTT version.
+
+==== Automatic Testing
+
+=== Next steps
+
+Awesome, you got your TAOS HiveMQ 4 extension working.
+
+=== Need help?
+
+If you encounter any problems, we are happy to help. The best place to get in contact is coldljy@163.com.
