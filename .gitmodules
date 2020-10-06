@@ -7,3 +7,6 @@
 [submodule "src/connector/hivemq-tdengine-extension"]
 	path = src/connector/hivemq-tdengine-extension
 	url = https://github.com/huskar-t/hivemq-tdengine-extension.git
+[submodule "src/connector/hivemq-tdengine-jdsl-extension"]
+	path = src/connector/hivemq-tdengine-jdsl-extension
+	url = git@github.com:huskar-t/hivemq-tdengine-jdsl-extension.git
