@@ -53,7 +53,10 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SCMVgroupInfo* pVgroupInfo) {
   assert(pSql != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
 
   SRpcEpSet* pEpSet = &pSql->epSet;
-  pEpSet->inUse = 0;
+
+  // Issue the query to one of the vnode among a vgroup randomly.
+  // change the inUse property would not affect the isUse attribute of STableMeta
+  pEpSet->inUse = rand() % pVgroupInfo->numOfEps;
 
   // apply the FQDN string length check here
   bool hasFqdn = false;
@@ -144,12 +147,13 @@ void tscPrintMgmtEp() {
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
   if (pObj == NULL) return;
+
   if (pObj != pObj->signature) {
     tscError("heart beat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
     return;
   }
 
-  SSqlObj *pSql = pObj->pHb;
+  SSqlObj *pSql = tres;
   SSqlRes *pRes = &pSql->res;
 
   if (code == 0) {
@@ -170,10 +174,17 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscDebug("heart beat failed, code:%s", tstrerror(code));
+    tscDebug("heartbeat failed, code:%s", tstrerror(code));
   }
 
-  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  if (pObj->pHb != NULL) {
+    int32_t waitingDuring = tsShellActivityTimer * 500;
+    tscDebug("%p start heartbeat in %dms", pSql, waitingDuring);
+
+    taosTmrReset(tscProcessActivityTimer, waitingDuring, pObj, tscTmr, &pObj->pTimer);
+  } else {
+    tscDebug("%p start to close tscObj:%p, not send heartbeat again", pSql, pObj);
+  }
 }
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
@@ -234,9 +245,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
-  uint64_t handle = (uint64_t) rpcMsg->ahandle;
-
-  void** p = taosCacheAcquireByKey(tscObjCache, &handle, sizeof(uint64_t));
+  TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
+  void** p = taosCacheAcquireByKey(tscObjCache, &handle, sizeof(TSDB_CACHE_PTR_TYPE));
   if (p == NULL) {
     rpcFreeCont(rpcMsg->pCont);
     return;
@@ -250,6 +260,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   assert(*pSql->self == pSql);
+  pSql->pRpcCtx = NULL;
 
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
@@ -258,8 +269,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
-
-  pSql->pRpcCtx = NULL;    // clear the rpcCtx
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
@@ -475,6 +484,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
     pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     if (pSub->pRpcCtx != NULL) {
       rpcCancelRequest(pSub->pRpcCtx);
+      pSub->pRpcCtx = NULL;
     }
 
     tscQueueAsyncRes(pSub); // async res? not other functions?

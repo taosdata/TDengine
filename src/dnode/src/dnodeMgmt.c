@@ -464,7 +464,14 @@ void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
   dInfo("mnode EP list for peer is changed, numOfEps:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
   for (int i = 0; i < pEpSet->numOfEps; ++i) {
     pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
-    dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i])
+    dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
+
+    if (!mnodeIsRunning()) {
+      if (strcmp(pEpSet->fqdn[i], tsLocalFqdn) == 0 && pEpSet->port[i] == tsServerPort) {
+        dInfo("mnode index:%d %s:%u should work as master", i, pEpSet->fqdn[i], pEpSet->port[i]);
+        sdbUpdateSync();
+      }
+    }
   }
 
   tsDMnodeEpSet = *pEpSet;

@@ -306,16 +306,16 @@ static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengt
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: 
-      sprintf(result, "%s", ((((int)(*((char *)val))) == 1) ? "true" : "false"));
+      sprintf(result, "%s", ((((int32_t)(*((char *)val))) == 1) ? "true" : "false"));
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      sprintf(result, "%d", (int)(*((char *)val)));
+      sprintf(result, "%d", *((int8_t *)val));
       break;
     case TSDB_DATA_TYPE_SMALLINT: 
-      sprintf(result, "%d", (int)(*((short *)val)));
+      sprintf(result, "%d", *((int16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
-      sprintf(result, "%d", *((int *)val));
+      sprintf(result, "%d", *((int32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT: 
       sprintf(result, "%"PRId64, *((int64_t *)val)); 
@@ -430,7 +430,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
   SSqlObj* pSql = builder->pInterSql;
 
   if (row == NULL) {
-   return TSDB_CODE_MND_INVALID_TABLE_NAME;
+   return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
   int32_t* lengths = taos_fetch_lengths(pSql);  
@@ -458,7 +458,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
   }  
 
   if (0 == strlen(result)) {
-   return TSDB_CODE_MND_INVALID_TABLE_NAME; 
+   return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -554,7 +554,7 @@ int32_t tscRebuildCreateTableStatement(void *param,char *result) {
 static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
   TAOS_ROW row = tscFetchRow(builder);
   if (row == NULL) {
-   return TSDB_CODE_MND_DB_NOT_SELECTED; 
+   return TSDB_CODE_TSC_DB_NOT_SELECTED;
   }
   const char *showColumns[] = {"REPLICA", "QUORUM", "DAYS", "KEEP", "BLOCKS", NULL};
 
@@ -586,7 +586,7 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
   } while (row != NULL);
 
   if (0 == strlen(result)) {
-   return TSDB_CODE_MND_DB_NOT_SELECTED; 
+   return TSDB_CODE_TSC_DB_NOT_SELECTED;
   }
 
   return TSDB_CODE_SUCCESS;
