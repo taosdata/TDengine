@@ -1,0 +1,5 @@
+[TAOS_DSN]
+Description=Connection to TAOS
+Driver=TAOS
+Server=localhost:1234
+
