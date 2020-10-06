@@ -481,7 +481,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     start = (int64_t)(mktime(&tm) * TSDB_TICK_PER_SECOND(precision));
   } else {
     int64_t delta = t - pInterval->interval;
-    int32_t factor = delta > 0 ? 1 : -1;
+    int32_t factor = (delta >= 0) ? 1 : -1;
 
     start = (delta / pInterval->sliding + factor) * pInterval->sliding;
 
