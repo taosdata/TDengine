@@ -4,3 +4,6 @@
 [submodule "src/connector/grafanaplugin"]
 	path = src/connector/grafanaplugin
 	url = https://github.com/taosdata/grafanaplugin
+[submodule "src/connector/hivemq-tdengine-bridge-extension"]
+	path = src/connector/hivemq-tdengine-bridge-extension
+	url = https://github.com/veevonvon/hivemq-tdengine-bridge-extension.git
