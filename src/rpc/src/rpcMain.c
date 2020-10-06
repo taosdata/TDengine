@@ -881,6 +881,20 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   pConn->outType = 0;
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
+  SRpcReqContext *pContext = pConn->pContext;
+
+  if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
+    if (rpcContLenFromMsg(pHead->msgLen) < sizeof(SRpcEpSet)) {
+      // if EpSet is not included in the msg, treat it as NOT_READY
+      pHead->code = TSDB_CODE_RPC_NOT_READY; 
+    } else {
+      pContext->redirect++;
+      if (pContext->redirect > TSDB_MAX_REPLICA) {
+        pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+        tWarn("%s, too many redirects, quit", pConn->info);
+      }
+    }
+  } 
 
   return TSDB_CODE_SUCCESS;
 }
@@ -950,12 +964,6 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
         SRpcReqContext *pContext = pConn->pContext;
         *ppContext = pContext;
         pConn->pContext = NULL;
-        pConn->pReqMsg = NULL;
-
-        // for UDP, port may be changed by server, the port in epSet shall be used for cache
-        if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
-          rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->epSet.port[pContext->epSet.inUse], pConn->connType);    
-        } 
       }
     }
   }
@@ -1083,9 +1091,9 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.code = pHead->code; 
-  rpcMsg.ahandle = pConn->ahandle;
    
   if ( rpcIsReq(pHead->msgType) ) {
+    rpcMsg.ahandle = pConn->ahandle;
     if (rpcMsg.contLen > 0) {
       rpcMsg.handle = pConn;
       rpcAddRef(pRpc);  // add the refCount for requests
@@ -1103,23 +1111,13 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
   } else {
     // it's a response
     rpcMsg.handle = pContext;
+    rpcMsg.ahandle = pContext->ahandle;
 
     // for UDP, port may be changed by server, the port in epSet shall be used for cache
-    if (pHead->code == TSDB_CODE_RPC_TOO_SLOW) {
+    if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
+      rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->epSet.port[pContext->epSet.inUse], pConn->connType);    
+    } else {
       rpcCloseConn(pConn);
-    }
-
-    if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
-      if (rpcMsg.contLen < sizeof(SRpcEpSet)) {
-        // if EpSet is not included in the msg, treat it as NOT_READY
-        pHead->code = TSDB_CODE_RPC_NOT_READY; 
-      } else {
-        pContext->redirect++;
-        if (pContext->redirect > TSDB_MAX_REPLICA) {
-          pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
-          tWarn("%s, too many redirects, quit", pConn->info);
-        }
-      }
     }
 
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) {
