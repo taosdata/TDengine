@@ -53,16 +53,19 @@ typedef struct sql_s             sql_t;
 
 
 struct env_s {
+  uint64_t                refcount;
   unsigned int            destroying:1;
 };
 
 struct conn_s {
+  uint64_t                refcount;
   env_t                  *env;
 
   TAOS                   *taos;
 };
 
 struct sql_s {
+  uint64_t                refcount;
   conn_t                 *conn;
 
   TAOS_RES               *rs;
@@ -81,6 +84,8 @@ SQLRETURN  SQL_API SQLAllocEnv(SQLHENV *EnvironmentHandle) {
   env_t *env = (env_t*)calloc(1, sizeof(*env));
   if (!env) return SQL_ERROR;
 
+  DASSERT(INC_REF(env)>0);
+
   *EnvironmentHandle = env;
 
   return SQL_SUCCESS;
@@ -90,10 +95,14 @@ SQLRETURN  SQL_API SQLFreeEnv(SQLHENV EnvironmentHandle) {
   env_t *env = (env_t*)EnvironmentHandle;
   if (!env) return SQL_ERROR;
   
+  DASSERT(GET_REF(env)==1);
+
   DASSERT(!env->destroying);
 
   env->destroying = 1;
   DASSERT(env->destroying == 1);
+
+  DASSERT(DEC_REF(env)==0);
 
   free(env);
 
@@ -105,6 +114,8 @@ SQLRETURN  SQL_API SQLAllocConnect(SQLHENV EnvironmentHandle,
   env_t *env = (env_t*)EnvironmentHandle;
   if (!env) return SQL_ERROR;
 
+  DASSERT(INC_REF(env)>1);
+
   conn_t *conn = NULL;
   do {
     conn = (conn_t*)calloc(1, sizeof(*conn));
@@ -112,20 +123,34 @@ SQLRETURN  SQL_API SQLAllocConnect(SQLHENV EnvironmentHandle,
 
     conn->env = env;
     *ConnectionHandle = conn;
+
+    DASSERT(INC_REF(conn)>0);
+
+    return SQL_SUCCESS;
   } while (0);
 
-  return conn ? SQL_SUCCESS : SQL_ERROR;
+  DASSERT(DEC_REF(env)>0);
+
+  return SQL_ERROR;
 }
 
 SQLRETURN  SQL_API SQLFreeConnect(SQLHDBC ConnectionHandle) {
   conn_t *conn = (conn_t*)ConnectionHandle;
   if (!conn) return SQL_ERROR;
 
+  DASSERT(GET_REF(conn)==1);
+
+  DASSERT(conn->env);
+
   do {
     if (conn->taos) {
       taos_close(conn->taos);
       conn->taos = NULL;
     }
+
+    DASSERT(DEC_REF(conn->env)>0);
+    DASSERT(DEC_REF(conn)==0);
+
     conn->env = NULL;
     free(conn);
   } while (0);
@@ -142,8 +167,9 @@ SQLRETURN  SQL_API SQLConnect(SQLHDBC ConnectionHandle,
   
   if (conn->taos) return SQL_ERROR;
 
+  // TODO: data-race
   conn->taos = taos_connect("localhost", (const char*)UserName, (const char*)Authentication, NULL, 0);
-    
+
   return conn->taos ? SQL_SUCCESS : SQL_ERROR;
 }
 
@@ -164,13 +190,23 @@ SQLRETURN  SQL_API SQLAllocStmt(SQLHDBC ConnectionHandle,
   conn_t *conn = (conn_t*)ConnectionHandle;
   if (!conn) return SQL_ERROR;
 
-  sql_t *sql = (sql_t*)calloc(1, sizeof(*sql));
-  if (!sql) return SQL_ERROR;
+  DASSERT(INC_REF(conn)>1);
 
-  sql->conn = conn;
-  *StatementHandle = sql;
+  do {
+    sql_t *sql = (sql_t*)calloc(1, sizeof(*sql));
+    if (!sql) break;
 
-  return SQL_SUCCESS;
+    sql->conn = conn;
+    DASSERT(INC_REF(sql)>0);
+
+    *StatementHandle = sql;
+
+    return SQL_SUCCESS;
+  } while (0);
+
+  DASSERT(DEC_REF(conn)>0);
+
+  return SQL_ERROR;
 }
 
 SQLRETURN  SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
@@ -178,11 +214,18 @@ SQLRETURN  SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
   sql_t *sql = (sql_t*)StatementHandle;
   if (!sql) return SQL_ERROR;
 
+  DASSERT(GET_REF(sql)==1);
+
   if (sql->rs) {
     taos_free_result(sql->rs);
     sql->rs = NULL;
   }
+
+  DASSERT(DEC_REF(sql->conn)>0);
+  DASSERT(DEC_REF(sql)==0);
+
   sql->conn = NULL;
+
   free(sql);
 
   return SQL_SUCCESS;
