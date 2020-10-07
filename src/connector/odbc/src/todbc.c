@@ -201,11 +201,8 @@ SQLRETURN  SQL_API SQLExecDirect(SQLHSTMT StatementHandle,
     sql->row = NULL;
   }
   sql->rs = taos_query(sql->conn->taos, (const char*)StatementText);
-  if (sql->rs) {
-    sql->row = taos_fetch_row(sql->rs);
-  }
 
-  return sql->row ? SQL_SUCCESS : SQL_NO_DATA;
+  return sql->rs ? SQL_SUCCESS : SQL_NO_DATA;
 }
 
 SQLRETURN  SQL_API SQLNumResultCols(SQLHSTMT StatementHandle,
