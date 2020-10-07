@@ -969,10 +969,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
         pConn->pIdleTimer = taosTmrStart(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl);
     } else {
       terrno = rpcProcessRspHead(pConn, pHead);
-
-      SRpcReqContext *pContext = pConn->pContext;
-      *ppContext = pContext;
-      pConn->pContext = NULL;
+      *ppContext = pConn->pContext;
     }
   }
 
