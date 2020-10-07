@@ -16,6 +16,7 @@
 #include "taos.h"
 
 #include "os.h"
+#include "taoserror.h"
 
 #include <sql.h>
 #include <sqlext.h>
@@ -45,16 +46,73 @@ do {                                                             \
 #define LOCK(obj)   pthread_mutex_lock(&obj->lock);
 #define UNLOCK(obj) pthread_mutex_unlock(&obj->lock);
 
+#define SET_ERROR(obj, sqlstate, eno, err_fmt, ...)                                    \
+do {                                                                                   \
+  obj->err.err_no = eno;                                                               \
+  const char* estr = tstrerror(eno);                                                   \
+  if (!estr) estr = "Unknown error";                                                   \
+  int n = snprintf(NULL, 0, "[%x]%s: " err_fmt "", eno, estr, ##__VA_ARGS__);          \
+  if (n<0) break;                                                                      \
+  char *err_str = (char*)realloc(obj->err.err_str, n+1);                               \
+  if (!err_str) break;                                                                 \
+  obj->err.err_str = err_str;                                                          \
+  snprintf(obj->err.err_str, n+1, "[%x]%s: " err_fmt "", eno, estr, ##__VA_ARGS__);    \
+  snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);     \
+} while (0)
+
+#define CLR_ERROR(obj)                                                          \
+do {                                                                            \
+  obj->err.err_no = TSDB_CODE_SUCCESS;                                          \
+  if (obj->err.err_str) obj->err.err_str[0] = '\0';                             \
+  obj->err.sql_state[0] = '\0';                                                 \
+} while (0)
+
+#define FILL_ERROR(obj)                                                             \
+do {                                                                                \
+  size_t n = sizeof(obj->err.sql_state);                                            \
+  if (Sqlstate) strncpy((char*)Sqlstate, (char*)obj->err.sql_state, n);             \
+  if (NativeError) *NativeError = obj->err.err_no;                                  \
+  snprintf((char*)MessageText, BufferLength, "%s", obj->err.err_str);               \
+  if (TextLength && obj->err.err_str) *TextLength = strlen(obj->err.err_str);       \
+} while (0)
+
+#define FREE_ERROR(obj)                    \
+do {                                       \
+  obj->err.err_no = TSDB_CODE_SUCCESS;     \
+  if (obj->err.err_str) {                  \
+    free(obj->err.err_str);                \
+    obj->err.err_str = NULL;               \
+  }                                        \
+  obj->err.sql_state[0] = '\0';            \
+} while (0)
+
+#define SDUP(s,n)      (s ? (s[n] ? (const char*)strndup((const char*)s,n) : (const char*)s) : strdup(""))
+#define SFRE(x,s,n)               \
+do {                              \
+  if (x==(const char*)s) break;   \
+  if (x) {                        \
+    free((char*)x);               \
+    x = NULL;                     \
+  }                               \
+} while (0)
 
 typedef struct env_s             env_t;
 typedef struct conn_s            conn_t;
 typedef struct sql_s             sql_t;
+typedef struct taos_error_s      taos_error_t;
 
+struct taos_error_s {
+  char            *err_str;
+  int              err_no;
 
+  SQLCHAR          sql_state[6];
+};
 
 struct env_s {
   uint64_t                refcount;
   unsigned int            destroying:1;
+
+  taos_error_t            err;
 };
 
 struct conn_s {
@@ -62,14 +120,19 @@ struct conn_s {
   env_t                  *env;
 
   TAOS                   *taos;
+
+  taos_error_t            err;
 };
 
 struct sql_s {
   uint64_t                refcount;
   conn_t                 *conn;
 
+  TAOS_STMT              *stmt;
   TAOS_RES               *rs;
   TAOS_ROW                row;
+
+  taos_error_t            err;
 };
 
 static pthread_once_t          init_once         = PTHREAD_ONCE_INIT;
@@ -88,6 +151,7 @@ SQLRETURN  SQL_API SQLAllocEnv(SQLHENV *EnvironmentHandle) {
 
   *EnvironmentHandle = env;
 
+  CLR_ERROR(env);
   return SQL_SUCCESS;
 }
 
@@ -104,6 +168,7 @@ SQLRETURN  SQL_API SQLFreeEnv(SQLHENV EnvironmentHandle) {
 
   DASSERT(DEC_REF(env)==0);
 
+  FREE_ERROR(env);
   free(env);
 
   return SQL_SUCCESS;
@@ -119,7 +184,10 @@ SQLRETURN  SQL_API SQLAllocConnect(SQLHENV EnvironmentHandle,
   conn_t *conn = NULL;
   do {
     conn = (conn_t*)calloc(1, sizeof(*conn));
-    if (!conn) break;
+    if (!conn) {
+      SET_ERROR(env, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to alloc connection handle");
+      break;
+    }
 
     conn->env = env;
     *ConnectionHandle = conn;
@@ -152,6 +220,7 @@ SQLRETURN  SQL_API SQLFreeConnect(SQLHDBC ConnectionHandle) {
     DASSERT(DEC_REF(conn)==0);
 
     conn->env = NULL;
+    FREE_ERROR(conn);
     free(conn);
   } while (0);
 
@@ -161,14 +230,36 @@ SQLRETURN  SQL_API SQLFreeConnect(SQLHDBC ConnectionHandle) {
 SQLRETURN  SQL_API SQLConnect(SQLHDBC ConnectionHandle,
                               SQLCHAR *ServerName, SQLSMALLINT NameLength1,
                               SQLCHAR *UserName, SQLSMALLINT NameLength2,
-                                  SQLCHAR *Authentication, SQLSMALLINT NameLength3) {
+                              SQLCHAR *Authentication, SQLSMALLINT NameLength3) {
   conn_t *conn = (conn_t*)ConnectionHandle;
   if (!conn) return SQL_ERROR;
   
-  if (conn->taos) return SQL_ERROR;
+  if (conn->taos) {
+    SET_ERROR(conn, "HY000", TSDB_CODE_TSC_APP_ERROR, "connection still in use");
+    return SQL_ERROR;
+  }
 
-  // TODO: data-race
-  conn->taos = taos_connect("localhost", (const char*)UserName, (const char*)Authentication, NULL, 0);
+  const char *serverName = SDUP(ServerName,     NameLength1);
+  const char *userName   = SDUP(UserName,       NameLength2);
+  const char *auth       = SDUP(Authentication, NameLength3);
+
+  do {
+    if (!serverName || !userName || !auth) {
+      SET_ERROR(conn, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to connect to database");
+      break;
+    }
+    // TODO: data-race
+    // TODO: shall receive ip/port from odbc.ini
+    conn->taos = taos_connect("localhost", userName, auth, NULL, 0);
+    if (!conn->taos) {
+      SET_ERROR(conn, "HY000", terrno, "failed to connect to database");
+      break;
+    }
+  } while (0);
+
+  SFRE(serverName, ServerName,     NameLength1);
+  SFRE(userName,   UserName,       NameLength2);
+  SFRE(auth,       Authentication, NameLength3);
 
   return conn->taos ? SQL_SUCCESS : SQL_ERROR;
 }
@@ -194,7 +285,10 @@ SQLRETURN  SQL_API SQLAllocStmt(SQLHDBC ConnectionHandle,
 
   do {
     sql_t *sql = (sql_t*)calloc(1, sizeof(*sql));
-    if (!sql) break;
+    if (!sql) {
+      SET_ERROR(conn, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to alloc statement handle");
+      break;
+    }
 
     sql->conn = conn;
     DASSERT(INC_REF(sql)>0);
@@ -214,6 +308,12 @@ SQLRETURN  SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
   sql_t *sql = (sql_t*)StatementHandle;
   if (!sql) return SQL_ERROR;
 
+  if (Option != SQL_DROP) {
+    D("Option: [%d][%x]", Option, Option);
+    SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "failed to free statement");
+    return SQL_ERROR;
+  }
+
   DASSERT(GET_REF(sql)==1);
 
   if (sql->rs) {
@@ -221,11 +321,17 @@ SQLRETURN  SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
     sql->rs = NULL;
   }
 
+  if (sql->stmt) {
+    taos_stmt_close(sql->stmt);
+    sql->stmt = NULL;
+  }
+
   DASSERT(DEC_REF(sql->conn)>0);
   DASSERT(DEC_REF(sql)==0);
 
   sql->conn = NULL;
 
+  FREE_ERROR(sql);
   free(sql);
 
   return SQL_SUCCESS;
@@ -243,7 +349,27 @@ SQLRETURN  SQL_API SQLExecDirect(SQLHSTMT StatementHandle,
     sql->rs = NULL;
     sql->row = NULL;
   }
-  sql->rs = taos_query(sql->conn->taos, (const char*)StatementText);
+
+  if (sql->stmt) {
+    taos_stmt_close(sql->stmt);
+    sql->stmt = NULL;
+  }
+
+  const char *stxt = SDUP(StatementText, TextLength);
+
+  do {
+    if (!stxt) {
+      SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to query");
+      break;
+    }
+    sql->rs = taos_query(sql->conn->taos, stxt);
+    if (!sql->rs) {
+      SET_ERROR(sql, "HY000", terrno, "failed to query");
+      break;
+    }
+  } while (0);
+
+  SFRE(stxt, StatementText, TextLength);
 
   return sql->rs ? SQL_SUCCESS : SQL_NO_DATA;
 }
@@ -351,12 +477,112 @@ SQLRETURN  SQL_API SQLFetch(SQLHSTMT StatementHandle) {
 
 SQLRETURN  SQL_API SQLPrepare(SQLHSTMT StatementHandle,
                               SQLCHAR *StatementText, SQLINTEGER TextLength) {
-  return SQL_ERROR;
+  sql_t *sql = (sql_t*)StatementHandle;
+  if (!sql) return SQL_ERROR;
+  if (!sql->conn) return SQL_ERROR;
+  if (!sql->conn->taos) return SQL_ERROR;
+
+  if (sql->rs) {
+    taos_free_result(sql->rs);
+    sql->rs = NULL;
+    sql->row = NULL;
+  }
+
+  if (sql->stmt) {
+    taos_stmt_close(sql->stmt);
+    sql->stmt = NULL;
+  }
+
+  do {
+    sql->stmt = taos_stmt_init(sql->conn->taos);
+    if (!sql->stmt) {
+      SET_ERROR(sql, "HY000", terrno, "failed to initialize statement internally");
+      break;
+    }
+
+    int r = taos_stmt_prepare(sql->stmt, (const char *)StatementText, TextLength);
+    if (r) {
+      SET_ERROR(sql, "HY000", r, "failed to prepare a statement");
+      taos_stmt_close(sql->stmt);
+      sql->stmt = NULL;
+      break;
+    }
+  } while (0);
+
+  return sql->stmt ? SQL_SUCCESS : SQL_ERROR;
 }
 
 SQLRETURN  SQL_API SQLExecute(SQLHSTMT StatementHandle) {
+  sql_t *sql = (sql_t*)StatementHandle;
+  if (!sql) return SQL_ERROR;
+  if (!sql->conn) return SQL_ERROR;
+  if (!sql->conn->taos) return SQL_ERROR;
+  if (!sql->stmt) return SQL_ERROR;
+
+  if (sql->rs) {
+    taos_free_result(sql->rs);
+    sql->rs = NULL;
+    sql->row = NULL;
+  }
+
+  int r = 0;
+
+  r = taos_stmt_execute(sql->stmt);
+  if (r) {
+    SET_ERROR(sql, "HY000", r, "failed to execute statement");
+    return SQL_ERROR;
+  }
+
+  sql->rs = taos_stmt_use_result(sql->stmt);
+  if (!sql->rs) {
+    SET_ERROR(sql, "HY000", r, "failed to fetch result");
+    return SQL_ERROR;
+  }
+
+  return sql->rs ? SQL_SUCCESS : SQL_ERROR;
+}
+
+SQLRETURN  SQL_API SQLGetDiagField(SQLSMALLINT HandleType, SQLHANDLE Handle,
+                                   SQLSMALLINT RecNumber, SQLSMALLINT DiagIdentifier,
+                                   SQLPOINTER DiagInfo, SQLSMALLINT BufferLength,
+                                   SQLSMALLINT *StringLength) {
+  // if this function is not exported, isql will never call SQLGetDiagRec
   return SQL_ERROR;
 }
+
+SQLRETURN  SQL_API SQLGetDiagRec(SQLSMALLINT HandleType, SQLHANDLE Handle,
+                                 SQLSMALLINT RecNumber, SQLCHAR *Sqlstate,
+                                 SQLINTEGER *NativeError, SQLCHAR *MessageText,
+                                 SQLSMALLINT BufferLength, SQLSMALLINT *TextLength) {
+  if (RecNumber>1) return SQL_NO_DATA;
+  switch (HandleType) {
+    case SQL_HANDLE_ENV: {
+      env_t *env = (env_t*)Handle;
+      if (!env) break;
+      FILL_ERROR(env);
+      return SQL_SUCCESS;
+    } break;
+    case SQL_HANDLE_DBC: {
+      conn_t *conn = (conn_t*)Handle;
+      if (!conn) break;
+      FILL_ERROR(conn);
+      return SQL_SUCCESS;
+    } break;
+    case SQL_HANDLE_STMT: {
+      sql_t *sql = (sql_t*)Handle;
+      if (!sql) break;
+      FILL_ERROR(sql);
+      return SQL_SUCCESS;
+    } break;
+    default: {
+    } break;
+  }
+
+  return SQL_ERROR;
+}
+
+
+
 
 static void init_routine(void) {
   taos_init();
