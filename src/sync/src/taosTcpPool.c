@@ -219,7 +219,10 @@ static void *taosProcessTcpData(void *param) {
           continue;
         }
       }
+
     }
+
+    if (pThread->stop) break;
   }
 
   uDebug("%p TCP epoll thread exits", pThread);
@@ -321,5 +324,5 @@ static void taosStopPoolThread(SThreadObj *pThread) {
   }
 
   pthread_join(thread, NULL);
-  taosClose(fd);
+  if (fd >= 0) taosClose(fd);
 }

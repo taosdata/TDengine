@@ -83,10 +83,16 @@ sudo dnf install -y maven
 
 ## Get the source codes
 
-- github:
+First of all, you may clone the source codes from github:
 ```bash
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine
+```
+
+The connectors for go & grafana have been moved to separated repositories,
+so you should run this command in the TDengine directory to install them:
+```bash
+git submodule update --init --recursive
 ```
 
 ## Build TDengine
