@@ -195,7 +195,7 @@ static void  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
 static void  rpcSendReqHead(SRpcConn *pConn);
 
 static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv);
-static void  rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead);
+static void  rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext);
 static void  rpcProcessConnError(void *param, void *id);
 static void  rpcProcessRetryTimer(void *, void *);
 static void  rpcProcessIdleTimer(void *param, void *tmrId);
@@ -881,17 +881,32 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   pConn->outType = 0;
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
+  SRpcReqContext *pContext = pConn->pContext;
+
+  if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
+    if (rpcContLenFromMsg(pHead->msgLen) < sizeof(SRpcEpSet)) {
+      // if EpSet is not included in the msg, treat it as NOT_READY
+      pHead->code = TSDB_CODE_RPC_NOT_READY; 
+    } else {
+      pContext->redirect++;
+      if (pContext->redirect > TSDB_MAX_REPLICA) {
+        pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+        tWarn("%s, too many redirects, quit", pConn->info);
+      }
+    }
+  } 
 
   return TSDB_CODE_SUCCESS;
 }
 
-static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
+static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqContext **ppContext) {
   int32_t    sid;
   SRpcConn  *pConn = NULL;
 
   SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
   sid = htonl(pHead->destId);
+  *ppContext = NULL;
 
   if (pHead->msgType >= TSDB_MSG_TYPE_MAX || pHead->msgType <= 0) {
     tDebug("%s sid:%d, invalid message type:%d", pRpc->label, sid, pHead->msgType);
@@ -945,6 +960,11 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
         pConn->pIdleTimer = taosTmrStart(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl);
     } else {
       terrno = rpcProcessRspHead(pConn, pHead);
+      if (terrno == 0) {
+        SRpcReqContext *pContext = pConn->pContext;
+        *ppContext = pContext;
+        pConn->pContext = NULL;
+      }
     }
   }
 
@@ -1009,7 +1029,8 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   }
 
   terrno = 0;
-  pConn = rpcProcessMsgHead(pRpc, pRecv);
+  SRpcReqContext *pContext;
+  pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
 
   if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
     tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
@@ -1029,7 +1050,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
-      rpcProcessIncomingMsg(pConn, pHead);
+      rpcProcessIncomingMsg(pConn, pHead, pContext);
     }
   }
 
@@ -1060,7 +1081,7 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   rpcFreeCont(pContext->pCont); 
 }
 
-static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
+static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext) {
 
   SRpcInfo *pRpc = pConn->pRpc;
   SRpcMsg   rpcMsg;
@@ -1070,9 +1091,9 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.code = pHead->code; 
-  rpcMsg.ahandle = pConn->ahandle;
    
   if ( rpcIsReq(pHead->msgType) ) {
+    rpcMsg.ahandle = pConn->ahandle;
     if (rpcMsg.contLen > 0) {
       rpcMsg.handle = pConn;
       rpcAddRef(pRpc);  // add the refCount for requests
@@ -1089,29 +1110,14 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     }
   } else {
     // it's a response
-    SRpcReqContext *pContext = pConn->pContext;
     rpcMsg.handle = pContext;
-    pConn->pContext = NULL;
-    pConn->pReqMsg = NULL;
+    rpcMsg.ahandle = pContext->ahandle;
 
     // for UDP, port may be changed by server, the port in epSet shall be used for cache
     if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
       rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->epSet.port[pContext->epSet.inUse], pConn->connType);    
     } else {
       rpcCloseConn(pConn);
-    }
-
-    if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
-      if (rpcMsg.contLen < sizeof(SRpcEpSet)) {
-        // if EpSet is not included in the msg, treat it as NOT_READY
-        pHead->code = TSDB_CODE_RPC_NOT_READY; 
-      } else {
-        pContext->redirect++;
-        if (pContext->redirect > TSDB_MAX_REPLICA) {
-          pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
-          tWarn("%s, too many redirects, quit", pConn->info);
-        }
-      }
     }
 
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) {

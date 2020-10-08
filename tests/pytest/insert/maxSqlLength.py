@@ -55,15 +55,15 @@ class TDTestCase:
         
         tdDnodes.stop(1)             
         tdDnodes.setTestCluster(False)
-        tdDnodes.setValgrind(False)
-        tdDnodes.addSimExtraCfg("maxSQLLength", "1048576")        
-        tdDnodes.deploy(1)                  
-        tdDnodes.cfg(1, "maxSQLLength", "1048576")
+        tdDnodes.setValgrind(False)        
+        tdDnodes.deploy(1)                    
         tdLog.sleep(20)
         tdDnodes.start(1)
+        tdDnodes.addSimExtraCfg("maxSQLLength", "1048576")
         
-
-        tdSql.prepare()    
+        
+        tdSql.close()
+        tdSql.prepare()  
         tdSql.execute("create table tb(ts timestamp, name1 binary(1000), name2 binary(1000), name3 binary(1000))")
         
         sql = "insert into tb values"
@@ -74,15 +74,15 @@ class TDTestCase:
         
         tdSql.query("select * from tb")
         tdSql.checkRows(43)
+            
+        self.ts += 43
+        for i in range(330):
+            value = self.get_random_string(1000)
+            sql += "(%d, '%s', '%s', '%s')" % (self.ts + i, value, value, value)        
+        tdSql.execute(sql)
 
-        # self.ts += 43
-        # for i in range(330):
-        #     value = self.get_random_string(1000)
-        #     sql += "(%d, '%s', '%s', '%s')" % (self.ts + i, value, value, value)        
-        # tdSql.execute(sql)
-
-        # tdSql.query("select * from tb")
-        # tdSql.checkRows(379)
+        tdSql.query("select * from tb")
+        tdSql.checkRows(379)
                 
     def stop(self):
         tdSql.close()
