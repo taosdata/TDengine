@@ -729,14 +729,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.b)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -770,14 +762,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.v1)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -811,14 +795,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.v2)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -852,14 +828,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.v4)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -893,14 +861,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.v8)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -934,14 +894,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.f4)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -975,14 +927,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.f8)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -1016,14 +960,6 @@ SQLRETURN SQL_API SQLBindParameter(
       }
       // LengthPrecision ignored;
       // ParameterScale ignored;
-      // if (LengthPrecision != sizeof(v.v8)) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -1060,10 +996,6 @@ SQLRETURN SQL_API SQLBindParameter(
         return SQL_ERROR;
       }
       // ParameterScale ignored;
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {
@@ -1100,10 +1032,6 @@ SQLRETURN SQL_API SQLBindParameter(
         return SQL_ERROR;
       }
       // ParameterScale ignored;
-      // if (ParameterScale != 0) {
-      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
-      //   return SQL_ERROR;
-      // }
       param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
       TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
       if (!ar || !binds) {

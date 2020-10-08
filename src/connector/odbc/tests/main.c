@@ -58,7 +58,7 @@ static int do_insert(SQLHSTMT stmt, data_t data) {
   SQLLEN    lblob;
 
   const char *statement = "insert into t values (?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
-  int ignore = 0;
+  int ignored = 0;
 
   do {
     fprintf(stderr, "prepare [%s]\n", statement);
@@ -66,46 +66,46 @@ static int do_insert(SQLHSTMT stmt, data_t data) {
     if (r) break;
 
     fprintf(stderr, "bind 1 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_TIMESTAMP, ignore, ignore, &data.ts, ignore, NULL);
+    r = SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_TIMESTAMP, ignored, ignored, &data.ts, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 2 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_BIT, SQL_BIT, ignore, ignore, &data.b, ignore, NULL);
+    r = SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_BIT, SQL_BIT, ignored, ignored, &data.b, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 3 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_TINYINT, SQL_TINYINT, ignore, ignore, &data.v1, ignore, NULL);
+    r = SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_TINYINT, SQL_TINYINT, ignored, ignored, &data.v1, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 4 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_SHORT, SQL_SMALLINT, ignore, ignore, &data.v2, ignore, NULL);
+    r = SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_SHORT, SQL_SMALLINT, ignored, ignored, &data.v2, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 5 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER, ignore, ignore, &data.v4, ignore, NULL);
+    r = SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER, ignored, ignored, &data.v4, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 6 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_BIGINT, ignore, ignore, &data.v8, ignore, NULL);
+    r = SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_BIGINT, ignored, ignored, &data.v8, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 7 [%s]\n", statement);
-    r = SQLBindParameter(stmt, 7, SQL_PARAM_INPUT, SQL_C_FLOAT, SQL_FLOAT, ignore, ignore, &data.f4, ignore, NULL);
+    r = SQLBindParameter(stmt, 7, SQL_PARAM_INPUT, SQL_C_FLOAT, SQL_FLOAT, ignored, ignored, &data.f4, ignored, NULL);
     if (r) break;
 
     fprintf(stderr, "bind 8 [%s]\n", statement);
     SQLLEN l8 = SQL_NULL_DATA;
-    r = SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, ignore, ignore, &data.f8, ignore, &l8);
+    r = SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, ignored, ignored, &data.f8, ignored, &l8);
     if (r) break;
 
     fprintf(stderr, "bind 9 [%s]\n", statement);
     lbin = SQL_NTS;
-    r = SQLBindParameter(stmt, 9, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARBINARY, sizeof(data.bin)-1, ignore, &data.bin, ignore, &lbin);
+    r = SQLBindParameter(stmt, 9, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARBINARY, sizeof(data.bin)-1, ignored, &data.bin, ignored, &lbin);
     if (r) break;
 
     fprintf(stderr, "bind 10 [%s]\n", statement);
     lblob = SQL_NTS;
-    r = SQLBindParameter(stmt, 10, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR, sizeof(data.blob)-1, ignore, &data.blob, ignore, &lblob);
+    r = SQLBindParameter(stmt, 10, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR, sizeof(data.blob)-1, ignored, &data.blob, ignored, &lblob);
     if (r) break;
 
     fprintf(stderr, "execute [%s]\n", statement);
