@@ -47,18 +47,18 @@ do {                                                             \
 #define LOCK(obj)   pthread_mutex_lock(&obj->lock);
 #define UNLOCK(obj) pthread_mutex_unlock(&obj->lock);
 
-#define SET_ERROR(obj, sqlstate, eno, err_fmt, ...)                                                   \
-do {                                                                                                  \
-  obj->err.err_no = eno;                                                                              \
-  const char* estr = tstrerror(eno);                                                                  \
-  if (!estr) estr = "Unknown error";                                                                  \
-  int n = snprintf(NULL, 0, "@[%d][%x]%s: " err_fmt "", __LINE__, eno, estr, ##__VA_ARGS__);          \
-  if (n<0) break;                                                                                     \
-  char *err_str = (char*)realloc(obj->err.err_str, n+1);                                              \
-  if (!err_str) break;                                                                                \
-  obj->err.err_str = err_str;                                                                         \
-  snprintf(obj->err.err_str, n+1, "@[%d][%x]%s: " err_fmt "", __LINE__, eno, estr, ##__VA_ARGS__);    \
-  snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);                    \
+#define SET_ERROR(obj, sqlstate, eno, err_fmt, ...)                                                       \
+do {                                                                                                      \
+  obj->err.err_no = eno;                                                                                  \
+  const char* estr = tstrerror(eno);                                                                      \
+  if (!estr) estr = "Unknown error";                                                                      \
+  int n = snprintf(NULL, 0, "%s: @[%d][TSDB:%x]" err_fmt "", estr, __LINE__, eno, ##__VA_ARGS__);         \
+  if (n<0) break;                                                                                         \
+  char *err_str = (char*)realloc(obj->err.err_str, n+1);                                                  \
+  if (!err_str) break;                                                                                    \
+  obj->err.err_str = err_str;                                                                             \
+  snprintf(obj->err.err_str, n+1, "%s: @[%d][TSDB:%x]" err_fmt "", estr, __LINE__, eno, ##__VA_ARGS__);   \
+  snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);                        \
 } while (0)
 
 #define CLR_ERROR(obj)                                                          \

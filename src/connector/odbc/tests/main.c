@@ -37,14 +37,30 @@ static const char *pro_stmts[] = {
   // "drop database db"
 };
 
+#define CHK_RESULT(r, ht, h)                                                    \
+do {                                                                            \
+  if (r==0) break;                                                              \
+  SQLCHAR      ss[10];                                                          \
+  SQLINTEGER   ne = 0;                                                          \
+  SQLCHAR      es[4096];                                                        \
+  SQLSMALLINT  n  = 0;                                                          \
+  ss[0] = '\0';                                                                 \
+  es[0] = '\0';                                                                 \
+  SQLRETURN ret = SQLGetDiagRec(ht, h, 1, ss, &ne, es, sizeof(es), &n);         \
+  if (ret) break;                                                               \
+  fprintf(stderr, "%s%s\n", ss, es);                                            \
+} while (0)
+
 static int do_statement(SQLHSTMT stmt, const char *statement) {
   SQLRETURN r = 0;
   do {
     fprintf(stderr, "prepare [%s]\n", statement);
     r = SQLPrepare(stmt, (SQLCHAR*)statement, strlen(statement));
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
     fprintf(stderr, "execute [%s]\n", statement);
     r = SQLExecute(stmt);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
     fprintf(stderr, "done\n");
   } while (0);
@@ -63,53 +79,65 @@ static int do_insert(SQLHSTMT stmt, data_t data) {
   do {
     fprintf(stderr, "prepare [%s]\n", statement);
     r = SQLPrepare(stmt, (SQLCHAR*)statement, strlen(statement));
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 1 [%s]\n", statement);
     r = SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_TIMESTAMP, ignored, ignored, &data.ts, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 2 [%s]\n", statement);
     r = SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_BIT, SQL_BIT, ignored, ignored, &data.b, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 3 [%s]\n", statement);
     r = SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_TINYINT, SQL_TINYINT, ignored, ignored, &data.v1, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 4 [%s]\n", statement);
     r = SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_SHORT, SQL_SMALLINT, ignored, ignored, &data.v2, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 5 [%s]\n", statement);
     r = SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER, ignored, ignored, &data.v4, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 6 [%s]\n", statement);
     r = SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_SBIGINT, SQL_BIGINT, ignored, ignored, &data.v8, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 7 [%s]\n", statement);
     r = SQLBindParameter(stmt, 7, SQL_PARAM_INPUT, SQL_C_FLOAT, SQL_FLOAT, ignored, ignored, &data.f4, ignored, NULL);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 8 [%s]\n", statement);
     SQLLEN l8 = SQL_NULL_DATA;
     r = SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, ignored, ignored, &data.f8, ignored, &l8);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 9 [%s]\n", statement);
     lbin = SQL_NTS;
     r = SQLBindParameter(stmt, 9, SQL_PARAM_INPUT, SQL_C_BINARY, SQL_VARBINARY, sizeof(data.bin)-1, ignored, &data.bin, ignored, &lbin);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "bind 10 [%s]\n", statement);
     lblob = SQL_NTS;
     r = SQLBindParameter(stmt, 10, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR, sizeof(data.blob)-1, ignored, &data.blob, ignored, &lblob);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     fprintf(stderr, "execute [%s]\n", statement);
     r = SQLExecute(stmt);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
     // ts += 1;
@@ -136,11 +164,13 @@ int main(int argc, char *argv[]) {
   if (r!=SQL_SUCCESS) return 1;
   do {
     r = SQLAllocConnect(env, &conn);
+    CHK_RESULT(r, SQL_HANDLE_ENV, env);
     if (r!=SQL_SUCCESS) break;
     do {
       r = SQLConnect(conn, (SQLCHAR*)dsn, strlen(dsn),
                            (SQLCHAR*)uid, strlen(uid),
                            (SQLCHAR*)pwd, strlen(pwd));
+      CHK_RESULT(r, SQL_HANDLE_DBC, conn);
       if (r!=SQL_SUCCESS) break;
       do {
         SQLHSTMT stmt = {0};

@@ -27,7 +27,7 @@ IF (TD_LINUX_64)
       ADD_SUBDIRECTORY(tests)
     endif()
   ELSE ()
-    message(WARNING "unixodbc is not installed yet, you may install it under ubuntu by typing: sudo apt install unixodbc-dev")
+    message(WARNING "unixodbc is not installed yet, you may install it under ubuntu by typing: sudo apt install unixodbc")
   ENDIF ()
 ENDIF ()
 
