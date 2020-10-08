@@ -180,7 +180,7 @@ SQLRETURN  SQL_API SQLAllocEnv(SQLHENV *EnvironmentHandle) {
 SQLRETURN  SQL_API SQLFreeEnv(SQLHENV EnvironmentHandle) {
   env_t *env = (env_t*)EnvironmentHandle;
   if (!env) return SQL_ERROR;
-  
+
   DASSERT(GET_REF(env)==1);
 
   DASSERT(!env->destroying);
@@ -255,7 +255,7 @@ SQLRETURN  SQL_API SQLConnect(SQLHDBC ConnectionHandle,
                               SQLCHAR *Authentication, SQLSMALLINT NameLength3) {
   conn_t *conn = (conn_t*)ConnectionHandle;
   if (!conn) return SQL_ERROR;
-  
+
   if (conn->taos) {
     SET_ERROR(conn, "HY000", TSDB_CODE_TSC_APP_ERROR, "connection still in use");
     return SQL_ERROR;
