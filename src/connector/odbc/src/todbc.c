@@ -46,18 +46,18 @@ do {                                                             \
 #define LOCK(obj)   pthread_mutex_lock(&obj->lock);
 #define UNLOCK(obj) pthread_mutex_unlock(&obj->lock);
 
-#define SET_ERROR(obj, sqlstate, eno, err_fmt, ...)                                    \
-do {                                                                                   \
-  obj->err.err_no = eno;                                                               \
-  const char* estr = tstrerror(eno);                                                   \
-  if (!estr) estr = "Unknown error";                                                   \
-  int n = snprintf(NULL, 0, "[%x]%s: " err_fmt "", eno, estr, ##__VA_ARGS__);          \
-  if (n<0) break;                                                                      \
-  char *err_str = (char*)realloc(obj->err.err_str, n+1);                               \
-  if (!err_str) break;                                                                 \
-  obj->err.err_str = err_str;                                                          \
-  snprintf(obj->err.err_str, n+1, "[%x]%s: " err_fmt "", eno, estr, ##__VA_ARGS__);    \
-  snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);     \
+#define SET_ERROR(obj, sqlstate, eno, err_fmt, ...)                                                   \
+do {                                                                                                  \
+  obj->err.err_no = eno;                                                                              \
+  const char* estr = tstrerror(eno);                                                                  \
+  if (!estr) estr = "Unknown error";                                                                  \
+  int n = snprintf(NULL, 0, "@[%d][%x]%s: " err_fmt "", __LINE__, eno, estr, ##__VA_ARGS__);          \
+  if (n<0) break;                                                                                     \
+  char *err_str = (char*)realloc(obj->err.err_str, n+1);                                              \
+  if (!err_str) break;                                                                                \
+  obj->err.err_str = err_str;                                                                         \
+  snprintf(obj->err.err_str, n+1, "@[%d][%x]%s: " err_fmt "", __LINE__, eno, estr, ##__VA_ARGS__);    \
+  snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);                    \
 } while (0)
 
 #define CLR_ERROR(obj)                                                          \
@@ -96,10 +96,29 @@ do {                              \
   }                               \
 } while (0)
 
+#define CHK_RS(r_091c, sql_091c, fmt_091c, ...)               \
+do {                                                          \
+  r_091c = SQL_ERROR;                                         \
+  int e = sql_091c->rs ? taos_errno(sql_091c->rs) : terrno;   \
+  if (e != TSDB_CODE_SUCCESS) {                               \
+    SET_ERROR(sql_091c, "HY000", e, fmt_091c, ##__VA_ARGS__); \
+    break;                                                    \
+  }                                                           \
+  r_091c = SQL_SUCCESS;                                       \
+} while (0)
+
 typedef struct env_s             env_t;
 typedef struct conn_s            conn_t;
 typedef struct sql_s             sql_t;
 typedef struct taos_error_s      taos_error_t;
+typedef struct param_bind_s      param_bind_t;
+
+struct param_bind_s {
+  SQLUSMALLINT      ParameterNumber;
+  SQLPOINTER        ParameterValue;
+  SQLLEN           *StrLen_or_Ind;
+  unsigned int      valid;
+};
 
 struct taos_error_s {
   char            *err_str;
@@ -129,6 +148,9 @@ struct sql_s {
   conn_t                 *conn;
 
   TAOS_STMT              *stmt;
+  TAOS_BIND              *binds;
+  param_bind_t           *params;
+  int                     n_params;
   TAOS_RES               *rs;
   TAOS_ROW                row;
 
@@ -309,7 +331,6 @@ SQLRETURN  SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
   if (!sql) return SQL_ERROR;
 
   if (Option != SQL_DROP) {
-    D("Option: [%d][%x]", Option, Option);
     SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "failed to free statement");
     return SQL_ERROR;
   }
@@ -325,6 +346,17 @@ SQLRETURN  SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
     taos_stmt_close(sql->stmt);
     sql->stmt = NULL;
   }
+
+  if (sql->binds) {
+    free(sql->binds);
+    sql->binds = NULL;
+  }
+  if (sql->params) {
+    free(sql->params);
+    sql->params = NULL;
+  }
+  sql->n_params = 0;
+
 
   DASSERT(DEC_REF(sql->conn)>0);
   DASSERT(DEC_REF(sql)==0);
@@ -355,23 +387,32 @@ SQLRETURN  SQL_API SQLExecDirect(SQLHSTMT StatementHandle,
     sql->stmt = NULL;
   }
 
+  if (sql->binds) {
+    free(sql->binds);
+    sql->binds = NULL;
+  }
+
+  if (sql->params) {
+    free(sql->params);
+    sql->params = NULL;
+  }
+  sql->n_params = 0;
+
   const char *stxt = SDUP(StatementText, TextLength);
 
+  SQLRETURN r = SQL_ERROR;
   do {
     if (!stxt) {
       SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to query");
       break;
     }
     sql->rs = taos_query(sql->conn->taos, stxt);
-    if (!sql->rs) {
-      SET_ERROR(sql, "HY000", terrno, "failed to query");
-      break;
-    }
+    CHK_RS(r, sql, "failed to query");
   } while (0);
 
   SFRE(stxt, StatementText, TextLength);
 
-  return sql->rs ? SQL_SUCCESS : SQL_NO_DATA;
+  return r;
 }
 
 SQLRETURN  SQL_API SQLNumResultCols(SQLHSTMT StatementHandle,
@@ -455,8 +496,12 @@ SQLRETURN  SQL_API SQLGetData(SQLHSTMT StatementHandle,
 
   switch (TargetType) {
     case SQL_CHAR: {
-      do_convert(TargetValue, BufferLength, StrLen_or_Ind, field, sql->row[ColumnNumber-1]);
-      *StrLen_or_Ind = SQL_NTS;
+      if (sql->row[ColumnNumber-1]) {
+        do_convert(TargetValue, BufferLength, StrLen_or_Ind, field, sql->row[ColumnNumber-1]);
+        *StrLen_or_Ind = SQL_NTS;
+      } else {
+        *StrLen_or_Ind = SQL_NULL_DATA;
+      }
     } break;
     default: {
       return SQL_ERROR;
@@ -493,6 +538,16 @@ SQLRETURN  SQL_API SQLPrepare(SQLHSTMT StatementHandle,
     sql->stmt = NULL;
   }
 
+  if (sql->binds) {
+    free(sql->binds);
+    sql->binds = NULL;
+  }
+  if (sql->params) {
+    free(sql->params);
+    sql->params = NULL;
+  }
+  sql->n_params = 0;
+
   do {
     sql->stmt = taos_stmt_init(sql->conn->taos);
     if (!sql->stmt) {
@@ -527,19 +582,83 @@ SQLRETURN  SQL_API SQLExecute(SQLHSTMT StatementHandle) {
 
   int r = 0;
 
+  for (int i=0; i<sql->n_params; ++i) {
+    param_bind_t *pb = sql->params + i;
+    if (!pb->valid) {
+      SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "default parameter [@%d] not supported yet", i+1);
+      return SQL_ERROR;
+    }
+    TAOS_BIND *b = sql->binds + i;
+    int yes = 1;
+    int no  = 0;
+    if (pb->StrLen_or_Ind && *pb->StrLen_or_Ind == SQL_NULL_DATA) {
+      b->is_null = &yes;
+    } else {
+      b->is_null = &no;
+      switch (b->buffer_type) {
+        case TSDB_DATA_TYPE_BOOL:
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_TIMESTAMP: {
+          b->length = &b->buffer_length;
+          b->buffer = pb->ParameterValue;
+        } break;
+        case TSDB_DATA_TYPE_BINARY:
+        case TSDB_DATA_TYPE_NCHAR: {
+          if (!pb->StrLen_or_Ind) {
+            SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "value [@%d] bad StrLen_or_Ind", i+1);
+            return SQL_ERROR;
+          }
+          size_t n = *pb->StrLen_or_Ind;
+          if (n == SQL_NTS) {
+            n = strlen(pb->ParameterValue);
+          } else if (n < 0 || n > b->buffer_length) {
+            SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "value [@%d] bad StrLen_or_Ind", i+1);
+            return SQL_ERROR;
+          }
+
+          b->buffer_length = n;
+          b->length = &b->buffer_length;
+          b->buffer = pb->ParameterValue;
+        } break;
+        default: {
+          SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "value [@%d] not supported yet", i+1);
+          return SQL_ERROR;
+        } break;
+      }
+    }
+  }
+
+  if (sql->n_params > 0) {
+    r = taos_stmt_bind_param(sql->stmt, sql->binds);
+    if (r) {
+      SET_ERROR(sql, "HY000", r, "failed to bind parameters");
+      return SQL_ERROR;
+    }
+
+    r = taos_stmt_add_batch(sql->stmt);
+    if (r) {
+      SET_ERROR(sql, "HY000", r, "failed to add batch");
+      return SQL_ERROR;
+    }
+  }
+
   r = taos_stmt_execute(sql->stmt);
   if (r) {
     SET_ERROR(sql, "HY000", r, "failed to execute statement");
     return SQL_ERROR;
   }
 
-  sql->rs = taos_stmt_use_result(sql->stmt);
-  if (!sql->rs) {
-    SET_ERROR(sql, "HY000", r, "failed to fetch result");
-    return SQL_ERROR;
-  }
+  SQLRETURN ret = SQL_ERROR;
 
-  return sql->rs ? SQL_SUCCESS : SQL_ERROR;
+  sql->rs = taos_stmt_use_result(sql->stmt);
+  CHK_RS(ret, sql, "failed to use result");
+
+  return ret;
 }
 
 SQLRETURN  SQL_API SQLGetDiagField(SQLSMALLINT HandleType, SQLHANDLE Handle,
@@ -581,6 +700,443 @@ SQLRETURN  SQL_API SQLGetDiagRec(SQLSMALLINT HandleType, SQLHANDLE Handle,
   return SQL_ERROR;
 }
 
+SQLRETURN SQL_API SQLBindParameter(
+    SQLHSTMT           StatementHandle,
+    SQLUSMALLINT       ParameterNumber,
+    SQLSMALLINT        fParamType,
+    SQLSMALLINT        ValueType,
+    SQLSMALLINT        ParameterType,
+    SQLULEN            LengthPrecision,
+    SQLSMALLINT        ParameterScale,
+    SQLPOINTER         ParameterValue,
+    SQLLEN             cbValueMax, // ignore for now, since only SQL_PARAM_INPUT is supported now
+    SQLLEN 		      *StrLen_or_Ind) {
+  sql_t *sql = (sql_t*)StatementHandle;
+  if (!sql) return SQL_ERROR;
+  if (!sql->conn) return SQL_ERROR;
+  if (!sql->conn->taos) return SQL_ERROR;
+  if (!sql->stmt) return SQL_ERROR;
+
+  if (fParamType != SQL_PARAM_INPUT) {
+    SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "non-input parameter [@%d] not supported yet", ParameterNumber);
+    return SQL_ERROR;
+  }
+  switch (ParameterType) {
+    case SQL_BIT: { // TSDB_DATA_TYPE_BOOL
+      if (ValueType!=SQL_C_BIT) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.b)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_BOOL;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_TINYINT: { // TSDB_DATA_TYPE_TINYINT
+      if (ValueType!=SQL_C_TINYINT) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.v1)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_TINYINT;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_SMALLINT: { // TSDB_DATA_TYPE_SMALLINT
+      if (ValueType!=SQL_C_SHORT) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.v2)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_SMALLINT;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_INTEGER: { // TSDB_DATA_TYPE_INT
+      if (ValueType!=SQL_C_LONG) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.v4)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_INT;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_BIGINT: { // TSDB_DATA_TYPE_BIGINT
+      if (ValueType!=SQL_C_SBIGINT) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.v8)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_BIGINT;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_FLOAT: { // TSDB_DATA_TYPE_FLOAT
+      if (ValueType!=SQL_C_FLOAT) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.f4)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_FLOAT;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_DOUBLE: { // TSDB_DATA_TYPE_DOUBLE
+      if (ValueType!=SQL_C_DOUBLE) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.f8)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_DOUBLE;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_TIMESTAMP: { // TSDB_DATA_TYPE_TIMESTAMP
+      if (ValueType!=SQL_C_SBIGINT) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // LengthPrecision ignored;
+      // ParameterScale ignored;
+      // if (LengthPrecision != sizeof(v.v8)) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_TIMESTAMP;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_VARBINARY: { // TSDB_DATA_TYPE_BINARY
+      if (ValueType!=SQL_C_BINARY) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      if (LengthPrecision <=0) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // ParameterScale ignored;
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_BINARY;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    case SQL_VARCHAR: { // TSDB_DATA_TYPE_NCHAR
+      if (ValueType!=SQL_C_CHAR) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching value type", ParameterNumber);
+        return SQL_ERROR;
+      }
+      if (LengthPrecision <=0) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] not matching length precision", ParameterNumber);
+        return SQL_ERROR;
+      }
+      // ParameterScale ignored;
+      // if (ParameterScale != 0) {
+      //   SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "parameter [@%d] scale not supported yet", ParameterNumber);
+      //   return SQL_ERROR;
+      // }
+      param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
+      TAOS_BIND *binds = (TAOS_BIND*)(sql->n_params>=ParameterNumber ? sql->binds : realloc(sql->binds, ParameterNumber * sizeof(*binds)));
+      if (!ar || !binds) {
+        SET_ERROR(sql, "HY000", TSDB_CODE_COM_OUT_OF_MEMORY, "failed to bind parameter [@%d]", ParameterNumber);
+        if (ar) sql->params = ar;
+        if (binds) sql->binds = binds;
+        return SQL_ERROR;
+      }
+      sql->params = ar;
+      sql->binds = binds;
+      if (sql->n_params<ParameterNumber) {
+        sql->n_params = ParameterNumber;
+      }
+      param_bind_t *pb = ar + ParameterNumber - 1;
+      TAOS_BIND *b = binds + ParameterNumber - 1;
+      b->buffer_type   = TSDB_DATA_TYPE_NCHAR;
+      b->buffer_length = LengthPrecision;
+      b->buffer        = NULL;
+      b->length        = NULL;
+      b->is_null       = NULL;
+      b->is_unsigned   = 0;
+      b->error         = NULL;
+      pb->ParameterValue   = ParameterValue;
+      pb->StrLen_or_Ind    = StrLen_or_Ind;
+      pb->valid            = 1;
+    } break;
+    default: {
+      SET_ERROR(sql, "HY000", TSDB_CODE_COM_OPS_NOT_SUPPORT, "xdoes not support parameter type[%x]", ParameterType);
+      return SQL_ERROR;
+		} break;
+  }
+  return SQL_SUCCESS;
+}
 
 
 
