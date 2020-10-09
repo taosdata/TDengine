@@ -740,6 +740,7 @@ typedef struct {
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
+  uint64_t qHandle;
 } SQueryDesc;
 
 typedef struct {

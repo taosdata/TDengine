@@ -242,6 +242,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pQdesc->stime = htobe64(pSql->stime);
     pQdesc->queryId = htonl(pSql->queryId);
     pQdesc->useconds = htobe64(pSql->res.useconds);
+    pQdesc->qHandle = htobe64(pSql->res.qhandle);
 
     pHeartbeat->numOfQueries++;
     pQdesc++;
