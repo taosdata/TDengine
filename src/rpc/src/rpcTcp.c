@@ -342,8 +342,8 @@ void taosCleanUpTcpClient(void *chandle) {
   SThreadObj *pThreadObj = chandle;
   if (pThreadObj == NULL) return;
 
+  tDebug ("%s TCP client will be cleaned up", pThreadObj->label);
   taosStopTcpThread(pThreadObj);
-  tDebug ("%s TCP client is cleaned up", pThreadObj->label);
 }
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
@@ -378,7 +378,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
 
 void taosCloseTcpConnection(void *chandle) {
   SFdObj *pFdObj = chandle;
-  if (pFdObj == NULL) return;
+  if (pFdObj == NULL || pFdObj->signature != pFdObj) return;
 
   SThreadObj *pThreadObj = pFdObj->pThreadObj;
   tDebug("%s %p TCP connection will be closed, FD:%p", pThreadObj->label, pFdObj->thandle, pFdObj); 
@@ -391,7 +391,7 @@ void taosCloseTcpConnection(void *chandle) {
 int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle) {
   SFdObj *pFdObj = chandle;
 
-  if (chandle == NULL) return -1;
+  if (pFdObj == NULL || pFdObj->signature != pFdObj) return -1;
 
   return taosWriteMsg(pFdObj->fd, data, len);
 }
@@ -438,7 +438,7 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
     tError("%s %p TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);
     return -1;
   } else {
-    tDebug("TCP malloc mem: %p", buffer);
+    tTrace("TCP malloc mem: %p", buffer);
   }
 
   msg = buffer + tsRpcOverhead;
