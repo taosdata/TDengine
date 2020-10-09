@@ -91,7 +91,6 @@ typedef struct {
 } SSdbWriteWorkerPool;
 
 extern void *     tsMnodeTmr;
-static void *     tsUpdateSyncTmr;
 static SSdbObject tsSdbObj = {0};
 static taos_qset  tsSdbWriteQset;
 static taos_qall  tsSdbWriteQall;
@@ -298,16 +297,12 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   taosFreeQitem(pOper);
 }
 
-static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(); }
-
 void sdbUpdateSync() {
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync info later");
-    if (dnodeCheckMnodeStarting()) {
-      taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
-    }
     return;
   }
+
   mDebug("update sync info in sdb");
 
   SSyncCfg syncCfg = {0};
