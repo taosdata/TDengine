@@ -29,50 +29,29 @@ Query OK, 2 row(s) in set (0.001100s)
 具体的查询语法请看<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>。
 
 ## 多表聚合查询
-以温度传感器采集时序数据作为例，示范Stable超级表多表聚合查询的使用。
+物联网场景中，往往同一个类型的数据采集点有多个。TDengine采用超级表(STable)的概念来描述某一个类型的数据采集点，一张普通的表来描述一个具体的数据采集点。同时TDengine使用标签来描述数据采集点的静态属性，一个具体的数据采集点有具体的标签值。通过指定标签的过滤条件，TDengine提供了一高效的方法将超级表(某一类型的数据采集点)所属的子表进行聚合查询。对普通表的聚合函数以及绝大部分操作都适用于超级表，语法完全一样。
 
-在这个例子中，对每个温度计都会建立一张表，表名为温度计的ID，温度计读数的时刻记为ts，采集的值记为degree。通过tags给每个采集器打上不同的标签，其中记录温度计的地区和类型，以方便我们后面的查询。所有温度计的采集量都一样，因此我们用STable来定义表结构。
+**示例1**：在TAOS Shell，查找北京所有智能电表采集的电压平均值，并按照location分组
+```mysql
+taos> SELECT AVG(voltage) FROM meters GROUP BY location;
+       avg(voltage)        |            location            |
+=============================================================
+             222.000000000 | Beijing.Haidian                |
+             219.200000000 | Beijing.Chaoyang               |
+Query OK, 2 row(s) in set (0.002136s)
+```
 
-**定义STable表结构并使用它创建子表**
-创建STable语句如下：
-```mysql
-	CREATE TABLE thermometer (ts timestamp, degree double) 
-	TAGS(location binary(20), type int)
-```
-假设有北京，天津和上海三个地区的采集器共4个，温度采集器有3种类型，我们就可以对每个采集器建表如下：
-```mysql
-	CREATE TABLE therm1 USING thermometer TAGS (’beijing’, 1);
-	CREATE TABLE therm2 USING thermometer TAGS (’beijing’, 2);
-	CREATE TABLE therm3 USING thermometer TAGS (’tianjin’, 1);
-	CREATE TABLE therm4 USING thermometer TAGS (’shanghai’, 3);
-```
-其中therm1，therm2，therm3，therm4是超级表thermometer四个具体的子表，也即普通的Table。以therm1为例，它表示采集器therm1的数据，表结构完全由thermometer定义，标签location=”beijing”, type=1表示therm1的地区是北京，类型是第1类的温度计。
+**示例2**：在TAOS shell, 查找groupId为2的所有智能电表过去24小时的记录条数，电流的最大值
 
-**写入数据**
-注意，写入数据时不能直接对STable操作，而是要对每张子表进行操作。我们分别向四张表therm1，therm2， therm3， therm4写入一条数据，写入语句如下：
 ```mysql
-	INSERT INTO therm1 VALUES (’2018-01-01 00:00:00.000’, 20);
-	INSERT INTO therm2 VALUES (’2018-01-01 00:00:00.000’, 21);
-	INSERT INTO therm3 VALUES (’2018-01-01 00:00:00.000’, 24);
-	INSERT INTO therm4 VALUES (’2018-01-01 00:00:00.000’, 23);
+taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
+     cunt(*)  |    max(current)  |
+==================================
+            5 |             13.4 |
+Query OK, 1 row(s) in set (0.002136s)
 ```
-**按标签聚合查询**
-查询位于北京(beijing)地区的型号为1的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
-```mysql
- 	SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
- 	FROM thermometer
- 	WHERE location=’beijing’ and type = 1
- 	GROUP BY location
-```
-**按时间周期聚合查询**
-查询仅位于北京以外地区的温度传感器最近24小时(24h)采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)和最低温度min(degree)，将采集结果按照10分钟为周期进行聚合，并将结果按所处地域(location)和传感器类型(type)再次进行聚合。
-```mysql
-	SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
-	FROM thermometer
-	WHERE name<>’beijing’ and ts>=now-1d
-	INTERVAL(10M)
-	GROUP BY location, type
-```
+
+TDengine仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>一章，查询类操作都会注明是否支持超级表。
 
 ## 降采样查询、插值
 
@@ -85,9 +64,9 @@ taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
  2018-10-03 14:38:10.000 |              24.900000572 |
 Query OK, 2 row(s) in set (0.000883s)
 ```
-降采样操作也适用于超级表，比如：将所有智能电表采集的电流值每秒钟求和
+降采样操作也适用于超级表，比如：将北京所有智能电表采集的电流值每秒钟求和
 ```mysql
-taos> SELECT SUM(current) FROM meters INTERVAL(1s);
+taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |
