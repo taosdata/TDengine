@@ -187,6 +187,7 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
 }
 
 void dnodeDispatchNonRspMsg(void *pVnode, SReadMsg *pRead, int32_t code) {
+  rpcFreeCont(pRead->rpcMsg.pCont);
   vnodeRelease(pVnode);
   return;
 }

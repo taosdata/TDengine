@@ -65,7 +65,7 @@ endi
 
 print ============== step4
 sql drop dnode $hostname2
-sleep 16000
+sleep 10000
 
 sql show mnodes
 $dnode1Role = $data2_1
