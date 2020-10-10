@@ -698,8 +698,10 @@ void taos_stop_query(TAOS_RES *res) {
     tscKillSTableQuery(pSql);
   } else {
     if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-      assert(pSql->pRpcCtx != NULL);
-      rpcCancelRequest(pSql->pRpcCtx);
+      if (pSql->pRpcCtx != NULL) {
+        rpcCancelRequest(pSql->pRpcCtx);
+        pSql->pRpcCtx = NULL;
+      }
     }
   }
 
