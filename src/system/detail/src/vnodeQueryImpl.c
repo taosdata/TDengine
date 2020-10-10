@@ -7157,7 +7157,7 @@ int32_t getDataBlocksForMeters(STableQuerySupportObj *pSupporter, SQuery *pQuery
     }
 
     if (compInfo.numOfBlocks <= 0 || compInfo.uid != pMeterDataInfo[j]->pMeterObj->uid) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
       continue;
     }
 
@@ -7346,7 +7346,7 @@ int32_t createDataBlocksInfoEx(SMeterDataInfo **pMeterDataInfo, int32_t numOfMet
 
   dTrace("QInfo %p create data blocks info struct completed", addr);
 
-  assert(cnt <= numOfCompBlocks && numOfQualMeters <= numOfMeters);  // the pMeterDataInfo[j]->numOfBlocks may be 0
+  assert(cnt == numOfCompBlocks && numOfQualMeters <= numOfMeters);  // the pMeterDataInfo[j]->numOfBlocks may be 0
   supporter.numOfMeters = numOfQualMeters;
   SLoserTreeInfo *pTree = NULL;
 
