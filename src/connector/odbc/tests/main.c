@@ -118,8 +118,7 @@ static int do_insert(SQLHSTMT stmt, data_t data) {
     if (r) break;
 
     fprintf(stderr, "bind 8 [%s]\n", statement);
-    SQLLEN l8 = SQL_NULL_DATA;
-    r = SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, ignored, ignored, &data.f8, ignored, &l8);
+    r = SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, ignored, ignored, &data.f8, ignored, NULL);
     CHK_RESULT(r, SQL_HANDLE_STMT, stmt);
     if (r) break;
 
@@ -196,6 +195,7 @@ int main(int argc, char *argv[]) {
             memset(data.blob, 0, sizeof(data.blob));
             snprintf(data.bin, sizeof(data.bin), "hello");
             snprintf(data.blob, sizeof(data.blob), "world");
+            snprintf(data.blob, sizeof(data.blob), "wo人rld");
             SQLHSTMT stmt = {0};
             r = SQLAllocHandle(SQL_HANDLE_STMT, conn, &stmt);
             if (r!=SQL_SUCCESS) break;
