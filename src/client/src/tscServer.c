@@ -198,7 +198,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     return;
   }
 
-  void** p = taosCacheAcquireByKey(tscObjCache, &pHB->self, sizeof(TSDB_CACHE_PTR_TYPE));
+  void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
   if (p == NULL) {
     tscWarn("%p HB object has been released already", pHB);
     return;
