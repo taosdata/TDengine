@@ -1516,9 +1516,6 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   SSqlObj *pParentSql = trsupport->pParentSql;
 
   assert(pSql == pParentSql->pSubs[index]);
-  pParentSql->pSubs[index] = NULL;
-
-  taos_free_result(pSql);
   taosTFree(trsupport->localBuffer);
   taosTFree(trsupport);
 }
@@ -1907,10 +1904,6 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     pParentObj->res.code = pSql->res.code;
   }
 
-  assert(pParentObj->pSubs[pSupporter->index] == tres);
-
-  pParentObj->pSubs[pSupporter->index] = 0;
-  taos_free_result(tres);
   taosTFree(pSupporter);
 
   if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
