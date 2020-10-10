@@ -196,7 +196,7 @@ TDengine是基于硬件、软件系统不可靠、一定会有故障的假设进
 
 **对外服务地址**：TDengine集群可以容纳单台、多台甚至几千台物理节点。应用只需要向集群中任何一个物理节点的publicIp发起连接即可。启动CLI应用taos时，选项-h需要提供的就是publicIp。
 
-**master/secondIp**：每一个dnode都需要配置一个masterIp。dnode启动后，将对配置的masterIp发起加入集群的连接请求。masterIp是已经创建的集群中的任何一个节点的privateIp，对于集群中的第一个节点，就是它自己的privateIp。为保证连接成功，每个dnode还可配置secondIp, 该IP地址也是已创建的集群中的任何一个节点的privateIp。如果一个节点连接masterIp失败,它将试图链接secondIp。
+**master/secondIp**：每一个dnode都需要配置一个masterIp。dnode启动后，将对配置的masterIp发起加入集群的连接请求。masterIp是已经创建的集群中的任何一个节点的privateIp，对于集群中的第一个节点，就是它自己的privateIp。为保证连接成功，每个dnode还可配置secondIp, 该IP地址也是已创建的集群中的任何一个节点的privateIp。如果一个节点连接masterIp失败,它将试图连接secondIp。
 
 dnode启动后，会获知集群的mnode IP列表，并且定时向mnode发送状态信息。
 

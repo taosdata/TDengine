@@ -108,7 +108,7 @@ extern "C" {
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
-#define MAX_INTERVAL_TIME_WINDOW 10000000
+#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
 #define TOP_BOTTOM_QUERY_LIMIT   100
 
 enum {
@@ -177,7 +177,7 @@ typedef struct SQLFunctionCtx {
   int16_t      outputType;
   int16_t      outputBytes;  // size of results, determined by function and input column data type
   bool         hasNull;      // null value exist in current block
-  bool         requireNull;    // require null in some function
+  bool         requireNull;  // require null in some function
   int16_t      functionId;   // function id
   void *       aInputElemBuf;
   char *       aOutputBuf;            // final result output buffer, point to sdata->data

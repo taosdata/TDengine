@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "taos.h"
+#include "tsclient.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "ttimer.h"
@@ -30,10 +31,12 @@
 #include "tlog.h"
 #include "twal.h"
 
-#define cError(...) { if (cqDebugFlag & DEBUG_ERROR) { taosPrintLog("ERROR CQ  ", cqDebugFlag, __VA_ARGS__); }}
-#define cWarn(...)  { if (cqDebugFlag & DEBUG_WARN)  { taosPrintLog("WARN CQ  ", cqDebugFlag, __VA_ARGS__); }}
+#define cFatal(...) { if (cqDebugFlag & DEBUG_FATAL) { taosPrintLog("CQ  FATAL ", 255, __VA_ARGS__); }}
+#define cError(...) { if (cqDebugFlag & DEBUG_ERROR) { taosPrintLog("CQ  ERROR ", 255, __VA_ARGS__); }}
+#define cWarn(...)  { if (cqDebugFlag & DEBUG_WARN)  { taosPrintLog("CQ  WARN ", 255, __VA_ARGS__); }}
+#define cInfo(...)  { if (cqDebugFlag & DEBUG_INFO)  { taosPrintLog("CQ  ", 255, __VA_ARGS__); }}
+#define cDebug(...) { if (cqDebugFlag & DEBUG_DEBUG) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
 #define cTrace(...) { if (cqDebugFlag & DEBUG_TRACE) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
-#define cPrint(...) { taosPrintLog("CQ  ", 255, __VA_ARGS__); }
 
 typedef struct {
   int      vgId;
@@ -62,8 +65,6 @@ typedef struct SCqObj {
   struct SCqObj *next;
   SCqContext *   pContext;
 } SCqObj;
-
-int cqDebugFlag = 135;
 
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row); 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
@@ -94,7 +95,7 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
   pthread_mutex_init(&pContext->mutex, NULL);
 
-  cTrace("vgId:%d, CQ is opened", pContext->vgId);
+  cInfo("vgId:%d, CQ is opened", pContext->vgId);
 
   return pContext;
 }
@@ -125,7 +126,7 @@ void cqClose(void *handle) {
   taosTmrCleanUp(pContext->tmrCtrl);
   pContext->tmrCtrl = NULL;
 
-  cTrace("vgId:%d, CQ is closed", pContext->vgId);
+  cInfo("vgId:%d, CQ is closed", pContext->vgId);
   free(pContext);
 }
 
@@ -133,7 +134,7 @@ void cqStart(void *handle) {
   SCqContext *pContext = handle;
   if (pContext->dbConn || pContext->master) return;
 
-  cTrace("vgId:%d, start all CQs", pContext->vgId);
+  cInfo("vgId:%d, start all CQs", pContext->vgId);
   pthread_mutex_lock(&pContext->mutex);
 
   pContext->master = 1;
@@ -149,7 +150,7 @@ void cqStart(void *handle) {
 
 void cqStop(void *handle) {
   SCqContext *pContext = handle;
-  cTrace("vgId:%d, stop all CQs", pContext->vgId);
+  cInfo("vgId:%d, stop all CQs", pContext->vgId);
   if (pContext->dbConn == NULL || pContext->master == 0) return;
 
   pthread_mutex_lock(&pContext->mutex);
@@ -160,7 +161,7 @@ void cqStop(void *handle) {
     if (pObj->pStream) {
       taos_close_stream(pObj->pStream);
       pObj->pStream = NULL;
-      cTrace("vgId:%d, id:%d CQ:%s is closed", pContext->vgId, pObj->tid, pObj->sqlStr);
+      cInfo("vgId:%d, id:%d CQ:%s is closed", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {
       taosTmrStop(pObj->tmrId);
       pObj->tmrId = 0;
@@ -188,7 +189,7 @@ void *cqCreate(void *handle, uint64_t uid, int tid, char *sqlStr, STSchema *pSch
   pObj->pSchema = tdDupSchema(pSchema);
   pObj->rowSize = schemaTLen(pSchema);
 
-  cTrace("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->tid, pObj->sqlStr);
+  cInfo("vgId:%d, id:%d CQ:%s is created", pContext->vgId, pObj->tid, pObj->sqlStr);
 
   pthread_mutex_lock(&pContext->mutex);
 
@@ -228,7 +229,7 @@ void cqDrop(void *handle) {
     pObj->tmrId = 0;
   }
 
-  cTrace("vgId:%d, id:%d CQ:%s is dropped", pContext->vgId, pObj->tid, pObj->sqlStr); 
+  cInfo("vgId:%d, id:%d CQ:%s is dropped", pContext->vgId, pObj->tid, pObj->sqlStr); 
   tdFreeSchema(pObj->pSchema);
   free(pObj->sqlStr);
   free(pObj);
@@ -236,24 +237,31 @@ void cqDrop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
+static void doCreateStream(void *param, TAOS_RES *result, int code) {
+  SCqObj* pObj = (SCqObj*)param;
+  SCqContext* pContext = pObj->pContext;
+  SSqlObj* pSql = (SSqlObj*)result;
+  pContext->dbConn = pSql->pTscObj;
+  cqCreateStream(pContext, pObj);
+}
+
 static void cqProcessCreateTimer(void *param, void *tmrId) {
   SCqObj* pObj = (SCqObj*)param;
   SCqContext* pContext = pObj->pContext;
 
   if (pContext->dbConn == NULL) {
-    pContext->dbConn = taos_connect("localhost", pContext->user, pContext->pass, pContext->db, 0);
-    if (pContext->dbConn == NULL) {
-      cError("vgId:%d, failed to connect to TDengine(%s)", pContext->vgId, tstrerror(terrno));
-    }
+    cDebug("vgId:%d, try connect to TDengine", pContext->vgId);
+    taos_connect_a(NULL, pContext->user, pContext->pass, pContext->db, 0, doCreateStream, param, NULL);
+  } else {
+    cqCreateStream(pContext, pObj);
   }
-  
-  cqCreateStream(pContext, pObj);
 }
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pContext = pContext;
 
   if (pContext->dbConn == NULL) {
+    cDebug("vgId:%d, create dbConn after 1000 ms", pContext->vgId);
     pObj->tmrId = taosTmrStart(cqProcessCreateTimer, 1000, pObj, pContext->tmrCtrl);
     return;
   }
@@ -262,7 +270,7 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, 0, pObj, NULL);
   if (pObj->pStream) {
     pContext->num++;
-    cTrace("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
+    cInfo("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
   } else {
     cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->tid, pObj->sqlStr);
   }
@@ -278,7 +286,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   STSchema   *pSchema = pObj->pSchema;
   if (pObj->pStream == NULL) return;
 
-  cTrace("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
+  cDebug("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
   int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#ifdef _TD_NINGSI_60_
+#ifdef _TD_NINGSI_60
 void* atomic_exchange_ptr_impl(void** ptr, void* val ) {
   void *old;
   do {

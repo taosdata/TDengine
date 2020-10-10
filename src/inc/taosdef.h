@@ -64,7 +64,7 @@ extern const int32_t TYPE_BYTES[11];
 // TODO: replace and remove code below
 #define CHAR_BYTES   sizeof(char)
 #define SHORT_BYTES  sizeof(int16_t)
-#define INT_BYTES    sizeof(int)
+#define INT_BYTES    sizeof(int32_t)
 #define LONG_BYTES   sizeof(int64_t)
 #define FLOAT_BYTES  sizeof(float)
 #define DOUBLE_BYTES sizeof(double)
@@ -73,7 +73,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_BOOL_NULL             0x02
 #define TSDB_DATA_TINYINT_NULL          0x80
 #define TSDB_DATA_SMALLINT_NULL         0x8000
-#define TSDB_DATA_INT_NULL              0x80000000
+#define TSDB_DATA_INT_NULL              0x80000000L
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
 
 #define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
@@ -101,6 +101,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
 #define TSDB_TIME_PRECISION_NANO  2
+#define TSDB_TICK_PER_SECOND(precision) ((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L))
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
@@ -130,22 +131,31 @@ do { \
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
-#ifdef _TD_ARM_32_
-  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
-
-  float  taos_align_get_float(const char* pBuf);
-  double taos_align_get_double(const char* pBuf);
+#ifdef _TD_ARM_32
 
   //#define __float_align_declear()  float __underlyFloat = 0.0;
   //#define __float_align_declear()
   //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
   // notes: src must be float or double type variable !!!
-  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
-  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+  //#define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  //#define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
+
+  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
+  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
+  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
+  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
 #else
-  #define GET_FLOAT_VAL(x)  (*(float *)(x))
-  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+  #define GET_FLOAT_VAL(x)       (*(float *)(x))
+  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
+  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
+  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
+  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
+  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
 typedef struct tDataTypeDescriptor {
@@ -198,7 +208,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 void* getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
-void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
+void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
@@ -209,21 +219,24 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_RELATION_GREATER_EQUAL 5
 #define TSDB_RELATION_NOT_EQUAL   6
 #define TSDB_RELATION_LIKE        7
-#define TSDB_RELATION_IN          8
+#define TSDB_RELATION_ISNULL      8
+#define TSDB_RELATION_NOTNULL     9
+#define TSDB_RELATION_IN          10
 
-#define TSDB_RELATION_AND         9
-#define TSDB_RELATION_OR          10
-#define TSDB_RELATION_NOT         11
+#define TSDB_RELATION_AND         11
+#define TSDB_RELATION_OR          12
+#define TSDB_RELATION_NOT         13
 
-#define TSDB_BINARY_OP_ADD        12
-#define TSDB_BINARY_OP_SUBTRACT   13
-#define TSDB_BINARY_OP_MULTIPLY   14
-#define TSDB_BINARY_OP_DIVIDE     15
-#define TSDB_BINARY_OP_REMAINDER  16
+#define TSDB_BINARY_OP_ADD        30
+#define TSDB_BINARY_OP_SUBTRACT   31
+#define TSDB_BINARY_OP_MULTIPLY   32
+#define TSDB_BINARY_OP_DIVIDE     33
+#define TSDB_BINARY_OP_REMAINDER  34
 #define TS_PATH_DELIMITER_LEN     1
 
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
+
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation
 // including the terminator zero
@@ -241,7 +254,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN     256
-#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
+#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024U)          // sql length should be less than 8mb
 
 #define TSDB_MAX_BYTES_PER_ROW    16384
 #define TSDB_MAX_TAGS_LEN         16384
@@ -290,6 +303,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           64
 #define TSDB_MAX_VNODES           2048
+#define TSDB_MIN_VNODES_PER_DB    2
+#define TSDB_MAX_VNODES_PER_DB    64
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1

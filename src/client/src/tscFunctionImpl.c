@@ -117,6 +117,10 @@ typedef struct SFirstLastInfo {
 typedef struct SFirstLastInfo SLastrowInfo;
 typedef struct SPercentileInfo {
   tMemBucket *pMemBucket;
+  int32_t     stage;
+  double      minval;
+  double      maxval;
+  int64_t     numOfElems;
 } SPercentileInfo;
 
 typedef struct STopBotInfo {
@@ -302,7 +306,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_PERCT) {
     *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
     *bytes = (int16_t)sizeof(double);
-    *interBytes = (int16_t)sizeof(double);
+    *interBytes = (int16_t)sizeof(SPercentileInfo);
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE;  // string
@@ -322,7 +326,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_LAST_ROW) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = dataBytes + sizeof(SLastrowInfo);
+    *interBytes = dataBytes;
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -521,7 +525,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
       *retVal += pCtx->preAggVals.statis.sum;
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
       double *retVal = (double*) pCtx->aOutputBuf;
-      *retVal += GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.sum));
+      *retVal += GET_DOUBLE_VAL((const char*)&(pCtx->preAggVals.statis.sum));
     }
   } else {  // computing based on the true data block
     void *pData = GET_INPUT_CHAR(pCtx);
@@ -707,13 +711,16 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY en
   if (pCtx->aOutputBuf == NULL) {
     return BLK_DATA_ALL_NEEDED;
   }
-  
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+
+  return BLK_DATA_ALL_NEEDED;
+  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
+  // is invalid
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {  // data in current block is not earlier than current result
+//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
@@ -726,12 +733,16 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end
     return BLK_DATA_ALL_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {
-    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  return BLK_DATA_ALL_NEEDED;
+  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
+  // is invalid
+
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {
+//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -757,7 +768,7 @@ static void avg_function(SQLFunctionCtx *pCtx) {
     if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
       *pVal += pCtx->preAggVals.statis.sum;
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      *pVal += GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.sum));
+      *pVal += GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.sum));
     }
   } else {
     void *pData = GET_INPUT_CHAR(pCtx);
@@ -1832,8 +1843,10 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
     pInfo1->hasResult = DATA_SET_FLAG;
     
     DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
+  } else {
+    DO_UPDATE_TAG_COLUMNS(pCtx, pCtx->ptsList[pCtx->size - 1]);
   }
-  
+
   SET_VAL(pCtx, pCtx->size, 1);
 }
 
@@ -2428,12 +2441,14 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   if (!function_setup(pCtx)) {
     return false;
   }
-  
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
 
-  ((SPercentileInfo *)(pResInfo->interResultBuf))->pMemBucket =
-      tMemBucketCreate(pCtx->inputBytes, pCtx->inputType);
-  
+  // in the first round, get the min-max value of all involved data
+  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo *pInfo = pResInfo->interResultBuf;
+  pInfo->minval = DBL_MAX;
+  pInfo->maxval = -DBL_MAX;
+  pInfo->numOfElems = 0;
+
   return true;
 }
 
@@ -2442,7 +2457,65 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   
   SResultInfo *    pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = pResInfo->interResultBuf;
-  
+
+  // the first stage, only acquire the min/max value
+  if (pInfo->stage == 0) {
+    if (pCtx->preAggVals.isSet) {
+      if (pInfo->minval > pCtx->preAggVals.statis.min) {
+        pInfo->minval = (double)pCtx->preAggVals.statis.min;
+      }
+
+      if (pInfo->maxval < pCtx->preAggVals.statis.max) {
+        pInfo->maxval = (double)pCtx->preAggVals.statis.max;
+      }
+
+      pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
+    } else {
+      for (int32_t i = 0; i < pCtx->size; ++i) {
+        char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
+        if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+          continue;
+        }
+
+        // TODO extract functions
+        double v = 0;
+        switch (pCtx->inputType) {
+          case TSDB_DATA_TYPE_TINYINT:
+            v = GET_INT8_VAL(data);
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            v = GET_INT16_VAL(data);
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+            v = (double)(GET_INT64_VAL(data));
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            v = GET_FLOAT_VAL(data);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            v = GET_DOUBLE_VAL(data);
+            break;
+          default:
+            v = GET_INT32_VAL(data);
+            break;
+        }
+
+        if (v < pInfo->minval) {
+          pInfo->minval = v;
+        }
+
+        if (v > pInfo->maxval) {
+          pInfo->maxval = v;
+        }
+
+        pInfo->numOfElems += 1;
+      }
+    }
+
+    return;
+  }
+
+  // the second stage, calculate the true percentile value
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_CHAR_INDEX(pCtx, i);
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
@@ -2462,10 +2535,47 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
   }
-  
+
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   SPercentileInfo *pInfo = (SPercentileInfo *)pResInfo->interResultBuf;
+
+  if (pInfo->stage == 0) {
+    // TODO extract functions
+    double v = 0;
+    switch (pCtx->inputType) {
+      case TSDB_DATA_TYPE_TINYINT:
+        v = GET_INT8_VAL(pData);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        v = GET_INT16_VAL(pData);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        v = (double)(GET_INT64_VAL(pData));
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        v = GET_FLOAT_VAL(pData);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        v = GET_DOUBLE_VAL(pData);
+        break;
+      default:
+        v = GET_INT32_VAL(pData);
+        break;
+    }
+
+    if (v < pInfo->minval) {
+      pInfo->minval = v;
+    }
+
+    if (v > pInfo->maxval) {
+      pInfo->maxval = v;
+    }
+
+    pInfo->numOfElems += 1;
+    return;
+  }
+  
   tMemBucketPut(pInfo->pMemBucket, pData, 1);
   
   SET_VAL(pCtx, 1, 1);
@@ -2486,6 +2596,23 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   
   tMemBucketDestroy(pMemBucket);
   doFinalizer(pCtx);
+}
+
+static void percentile_next_step(SQLFunctionCtx *pCtx) {
+  SResultInfo *    pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo *pInfo = pResInfo->interResultBuf;
+
+  if (pInfo->stage == 0) {
+    // all data are null, set it completed
+    if (pInfo->numOfElems == 0) {
+      pResInfo->complete = true;
+    }
+
+    pInfo->stage += 1;
+    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+  } else {
+    pResInfo->complete = true;
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -3389,12 +3516,12 @@ static void spread_function(SQLFunctionCtx *pCtx) {
         pInfo->max = (double)pCtx->preAggVals.statis.max;
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      if (pInfo->min > GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.min))) {
-        pInfo->min = GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.min));
+      if (pInfo->min > GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.min))) {
+        pInfo->min = GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.min));
       }
       
-      if (pInfo->max < GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.max))) {
-        pInfo->max = GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.max));
+      if (pInfo->max < GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.max))) {
+        pInfo->max = GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.max));
       }
     }
     
@@ -4513,7 +4640,7 @@ SQLAggFuncElem aAggs[] = {{
                               percentile_function_setup,
                               percentile_function,
                               percentile_function_f,
-                              no_next_step,
+                              percentile_next_step,
                               percentile_finalizer,
                               noop1,
                               noop1,

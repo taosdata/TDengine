@@ -18,6 +18,7 @@
 
 #include "tnote.h"
 #include "trpc.h"
+#include "tcache.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscLocalMerge.h"
@@ -40,6 +41,8 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
   pSql->signature = pSql;
   pSql->param     = param;
   pSql->pTscObj   = pObj;
@@ -47,6 +50,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
+
+  registerSqlObj(pSql);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
@@ -59,7 +64,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
   tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
-  pSql->cmd.curSql = pSql->sqlstr;
+  pCmd->curSql = pSql->sqlstr;
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
@@ -69,7 +74,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
     tscQueueAsyncRes(pSql);
     return;
   }
-  
+
   tscDoQuery(pSql);
 }
 
@@ -504,7 +509,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           goto _error;
         }
 
-        if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT)) {
+        if (pCmd->insertType == TSDB_QUERY_TYPE_STMT_INSERT) {
           STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {

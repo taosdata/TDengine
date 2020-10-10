@@ -77,6 +77,9 @@ cd ../../../debug; make
 ./test.sh -f general/field/smallint.sim
 ./test.sh -f general/field/tinyint.sim
 
+./test.sh -f general/http/autocreate.sim
+./test.sh -f general/http/chunked.sim
+./test.sh -f general/http/gzip.sim
 ./test.sh -f general/http/restful.sim
 ./test.sh -f general/http/restful_insert.sim
 ./test.sh -f general/http/restful_limit.sim
@@ -275,6 +278,7 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/balancex.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
 ./test.sh -f unique/dnode/remove2.sim
 ./test.sh -f unique/dnode/vnode_clean.sim

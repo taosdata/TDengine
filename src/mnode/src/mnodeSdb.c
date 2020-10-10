@@ -91,7 +91,6 @@ typedef struct {
 } SSdbWriteWorkerPool;
 
 extern void *     tsMnodeTmr;
-static void *     tsUpdateSyncTmr;
 static SSdbObject tsSdbObj = {0};
 static taos_qset  tsSdbWriteQset;
 static taos_qall  tsSdbWriteQall;
@@ -185,7 +184,11 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("open sdb wal for restore");
-  walRestore(tsSdbObj.wal, NULL, sdbWrite);
+  int code = walRestore(tsSdbObj.wal, NULL, sdbWrite);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbError("failed to open wal for restore, reason:%s", tstrerror(code));
+    return -1;
+  }
   return 0;
 }
 
@@ -294,16 +297,12 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   taosFreeQitem(pOper);
 }
 
-static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(); }
-
 void sdbUpdateSync() {
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync info later");
-    if (dnodeCheckMnodeStarting()) {
-      taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
-    }
     return;
   }
+
   mDebug("update sync info in sdb");
 
   SSyncCfg syncCfg = {0};

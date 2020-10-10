@@ -1516,6 +1516,8 @@ class Task():
         if errno in [
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 # 0x200, # invalid SQL， TODO: re-examine with TD-934
+                0x217, # "db not selected", client side defined error code
+                0x218, # "Table does not exist" client side defined error code
                 0x360, 0x362, 
                 0x369, # tag already exists
                 0x36A, 0x36B, 0x36D,
@@ -1763,8 +1765,8 @@ class TaskCreateDb(StateTransitionTask):
         return state.canCreateDb()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        # self.execWtSql(wt, "create database db replica {}".format(Dice.throw(3)+1))
         self.execWtSql(wt, "create database db")
-
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
@@ -1832,7 +1834,7 @@ class TdSuperTable:
         return dbc.query("SELECT * FROM db.{}".format(self._stName)) > 0
 
     def ensureTable(self, dbc: DbConn, regTableName: str):
-        sql = "select tbname from {} where tbname in ('{}')".format(self._stName, regTableName)
+        sql = "select tbname from db.{} where tbname in ('{}')".format(self._stName, regTableName)
         if dbc.query(sql) >= 1 : # reg table exists already
             return
         sql = "CREATE TABLE {} USING {} tags ({})".format(
@@ -1916,9 +1918,9 @@ class TaskReadData(StateTransitionTask):
                 'max(speed)', 
                 'first(speed)', 
                 'last(speed)',
-                # 'top(speed)', # TODO: not supported?
-                # 'bottom(speed)', # TODO: not supported?
-                # 'percentile(speed, 10)', # TODO: TD-1316
+                'top(speed, 50)', # TODO: not supported?
+                'bottom(speed, 50)', # TODO: not supported?
+                'apercentile(speed, 10)', # TODO: TD-1316
                 'last_row(speed)',
                 # Transformation Functions
                 # 'diff(speed)', # TODO: no supported?!
@@ -1928,7 +1930,9 @@ class TaskReadData(StateTransitionTask):
                 None
             ])
             try:
+                # Run the query against the regular table first
                 dbc.execute("select {} from db.{}".format(aggExpr, rTbName))
+                # Then run it against the super table
                 if aggExpr not in ['stddev(speed)']: #TODO: STDDEV not valid for super tables?!
                     dbc.execute("select {} from db.{}".format(aggExpr, sTable.getName()))
             except taos.error.ProgrammingError as err:                    
@@ -2022,7 +2026,7 @@ class TaskRestartService(StateTransitionTask):
             return state.canDropFixedSuperTable()  # Basicallly when we have the super table
         return False # don't run this otherwise
 
-    CHANCE_TO_RESTART_SERVICE = 100
+    CHANCE_TO_RESTART_SERVICE = 200
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         if not gConfig.auto_start_service: # only execute when we are in -a mode
             print("_a", end="", flush=True)

@@ -114,26 +114,26 @@ typedef struct {
 } SSyncFwds;
 
 typedef struct SsyncPeer {
-  int32_t     nodeId;
-  uint32_t    ip;
-  uint16_t    port;
-  char        fqdn[TSDB_FQDN_LEN];  // peer ip string
-  char        id[TSDB_EP_LEN+16];   // peer vgId + end point
-  int8_t      role;
-  int8_t      sstatus;    // sync status
-  uint64_t    version;
-  uint64_t    sversion;   // track the peer version in retrieve process 
-  int         syncFd;
-  int         peerFd;     // forward FD
-  int         numOfRetrieves; // number of retrieves tried 
-  int         fileChanged;    // a flag to indicate file is changed during retrieving process
-  void       *timer;
-  void       *pConn;
-  int         notifyFd;
-  int         watchNum;
-  int        *watchFd;
-  int8_t      refCount;   // reference count
-  struct SSyncNode *pSyncNode;
+  int32_t  nodeId;
+  uint32_t ip;
+  uint16_t port;
+  char     fqdn[TSDB_FQDN_LEN];   // peer ip string
+  char     id[TSDB_EP_LEN + 32];  // peer vgId + end point
+  int8_t   role;
+  int8_t   sstatus;   // sync status
+  uint64_t version;
+  uint64_t sversion;  // track the peer version in retrieve process
+  int      syncFd;
+  int      peerFd;          // forward FD
+  int      numOfRetrieves;  // number of retrieves tried
+  int      fileChanged;     // a flag to indicate file is changed during retrieving process
+  void *   timer;
+  void *   pConn;
+  int      notifyFd;
+  int      watchNum;
+  int *    watchFd;
+  int8_t   refCount;  // reference count
+  struct   SSyncNode *pSyncNode;
 } SSyncPeer;
 
 typedef struct SSyncNode {
@@ -170,7 +170,6 @@ void  syncRestartConnection(SSyncPeer *pPeer);
 void  syncBroadcastStatus(SSyncNode *pNode);
 void  syncAddPeerRef(SSyncPeer *pPeer);
 int   syncDecPeerRef(SSyncPeer *pPeer);
-
 
 #ifdef __cplusplus
 }

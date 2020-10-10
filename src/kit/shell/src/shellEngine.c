@@ -419,16 +419,16 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      fprintf(fp, "%d", ((((int)(*((char *)val))) == 1) ? 1 : 0));
+      fprintf(fp, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      fprintf(fp, "%d", (int)(*((char *)val)));
+      fprintf(fp, "%d", *((int8_t *)val));
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      fprintf(fp, "%d", (int)(*((short *)val)));
+      fprintf(fp, "%d", *((int16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
-      fprintf(fp, "%d", *((int *)val));
+      fprintf(fp, "%d", *((int32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
       fprintf(fp, "%" PRId64, *((int64_t *)val));
@@ -559,16 +559,16 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      printf("%*s", width, ((((int)(*((char *)val))) == 1) ? "true" : "false"));
+      printf("%*s", width, ((((int32_t)(*((char *)val))) == 1) ? "true" : "false"));
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      printf("%*d", width, (int)(*((char *)val)));
+      printf("%*d", width, *((int8_t *)val));
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      printf("%*d", width, (int)(*((short *)val)));
+      printf("%*d", width, *((int16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
-      printf("%*d", width, *((int *)val));
+      printf("%*d", width, *((int32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
       printf("%*" PRId64, width, *((int64_t *)val));
@@ -765,7 +765,9 @@ void read_history() {
   FILE *f = fopen(f_history, "r");
   if (f == NULL) {
 #ifndef WINDOWS
-    fprintf(stderr, "Failed to open file %s\n", f_history);
+    if (errno != ENOENT) {
+      fprintf(stderr, "Failed to open file %s, reason:%s\n", f_history, strerror(errno));
+    }
 #endif    
     return;
   }
@@ -792,7 +794,7 @@ void write_history() {
   FILE *f = fopen(f_history, "w");
   if (f == NULL) {
 #ifndef WINDOWS    
-    fprintf(stderr, "Failed to open file %s for write\n", f_history);
+    fprintf(stderr, "Failed to open file %s for write, reason:%s\n", f_history, strerror(errno));
 #endif    
     return;
   }

@@ -739,36 +739,22 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
                       ((((int)(*((char *)row[i]))) == 1) ? "1" : "0"));
               break;
             case TSDB_DATA_TYPE_TINYINT:
-              sprintf(value, "%d", (int)(*((char *)row[i])));
+              sprintf(value, "%d", *((int8_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_SMALLINT:
-              sprintf(value, "%d", (int)(*((short *)row[i])));
+              sprintf(value, "%d", *((int16_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_INT:
-              sprintf(value, "%d", *((int *)row[i]));
+              sprintf(value, "%d", *((int32_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_BIGINT:
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
               break;
-            case TSDB_DATA_TYPE_FLOAT:{
-#ifdef _TD_ARM_32_
-              float fv = 0;
-              *(int32_t*)(&fv) = *(int32_t*)row[i];
-              sprintf(value, "%.5f", fv);
-#else
-              sprintf(value, "%.5f", *((float *)row[i]));
-#endif
-            }
+            case TSDB_DATA_TYPE_FLOAT:
+              sprintf(value, "%.5f", GET_FLOAT_VAL(row[i]));
               break;
-            case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
-              double dv = 0;
-              *(int64_t*)(&dv) = *(int64_t*)row[i];
-              sprintf(value, "%.9lf", dv);
-#else
-              sprintf(value, "%.9lf", *((double *)row[i]));
-#endif
-            }
+            case TSDB_DATA_TYPE_DOUBLE:
+              sprintf(value, "%.9lf", GET_DOUBLE_VAL(row[i]));
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
@@ -913,6 +899,47 @@ bool simExecuteSqlCmd(SScript *script, char *rest) {
 bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
   bool isSlow = true;
   return simExecuteSqlImpCmd(script, rest, isSlow);
+}
+
+bool simExecuteRestfulCmd(SScript *script, char *rest) {
+  FILE *fp = NULL;
+  char filename[256];
+  sprintf(filename, "%s/tmp.sql", tsScriptDir);  
+  fp = fopen(filename, "w");
+  if (fp == NULL) {
+    fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
+    return false;
+  }
+
+  char db[64] = {0};
+  char tb[64] = {0};
+  char gzip[32] = {0};
+  int32_t ts;
+  int32_t times;
+  sscanf(rest, "%s %s %d %d %s", db, tb, &ts, &times, gzip);
+  
+  fprintf(fp, "insert into %s.%s values ", db, tb);
+  for (int i = 0; i < times; ++i) {
+    fprintf(fp, "(%d000, %d)", ts + i, ts);
+  }
+  fprintf(fp, "  \n");
+  fflush(fp);
+  fclose(fp);
+
+  char cmd[1024] = {0};
+  if (strcmp(gzip, "gzip") == 0) {
+    sprintf(cmd,
+            "curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' --header "
+            "--compressed --data-ascii @%s 127.0.0.1:7111/rest/sql",
+            filename);
+  } else {
+    sprintf(cmd,
+            "curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' --header "
+            "'Transfer-Encoding: chunked' --data-ascii @%s 127.0.0.1:7111/rest/sql",
+            filename);
+  }
+
+  return simExecuteSystemCmd(script, cmd);
 }
 
 bool simExecuteSqlErrorCmd(SScript *script, char *rest) {

@@ -29,7 +29,7 @@ bool httpCheckUsedbSql(char *sql) {
   return false;
 }
 
-void httpTimeToString(time_t t, char *buf, int buflen) {
+void httpTimeToString(time_t t, char *buf, int32_t buflen) {
   memset(buf, 0, (size_t)buflen);
   char ts[32] = {0};
 
@@ -44,13 +44,13 @@ int32_t httpAddToSqlCmdBuffer(HttpContext *pContext, const char *const format, .
   HttpSqlCmds *cmd = pContext->multiCmds;
   if (cmd->buffer == NULL) return -1;
 
-  int remainLength = cmd->bufferSize - cmd->bufferPos;
+  int32_t remainLength = cmd->bufferSize - cmd->bufferPos;
   if (remainLength < 4096) {
     if (!httpReMallocMultiCmdsBuffer(pContext, cmd->bufferSize * 2)) return -1;
   }
 
-  char *buffer = cmd->buffer + cmd->bufferPos;
-  int   len = 0;
+  char *  buffer = cmd->buffer + cmd->bufferPos;
+  int32_t len = 0;
 
   va_list argpointer;
   va_start(argpointer, format);
@@ -76,13 +76,13 @@ int32_t httpAddToSqlCmdBufferNoTerminal(HttpContext *pContext, const char *const
   HttpSqlCmds *cmd = pContext->multiCmds;
   if (cmd->buffer == NULL) return -1;
 
-  int remainLength = cmd->bufferSize - cmd->bufferPos;
+  int32_t remainLength = cmd->bufferSize - cmd->bufferPos;
   if (remainLength < 4096) {
     if (!httpReMallocMultiCmdsBuffer(pContext, cmd->bufferSize * 2)) return -1;
   }
 
-  char *buffer = cmd->buffer + cmd->bufferPos;
-  int   len = 0;
+  char *  buffer = cmd->buffer + cmd->bufferPos;
+  int32_t len = 0;
 
   va_list argpointer;
   va_start(argpointer, format);
@@ -107,7 +107,7 @@ int32_t httpAddToSqlCmdBufferTerminal(HttpContext *pContext) {
   HttpSqlCmds *cmd = pContext->multiCmds;
   if (cmd->buffer == NULL) return -1;
 
-  int remainLength = cmd->bufferSize - cmd->bufferPos;
+  int32_t remainLength = cmd->bufferSize - cmd->bufferPos;
   if (remainLength < 4096) {
     if (!httpReMallocMultiCmdsBuffer(pContext, cmd->bufferSize * 2)) return -1;
   }
@@ -124,7 +124,7 @@ int32_t httpAddToSqlCmdBufferTerminal(HttpContext *pContext) {
   return (int32_t)(buffer - cmd->buffer);
 }
 
-int32_t httpAddToSqlCmdBufferWithSize(HttpContext *pContext, int mallocSize) {
+int32_t httpAddToSqlCmdBufferWithSize(HttpContext *pContext, int32_t mallocSize) {
   HttpSqlCmds *cmd = pContext->multiCmds;
   if (cmd->buffer == NULL) return -1;
 
@@ -139,18 +139,17 @@ int32_t httpAddToSqlCmdBufferWithSize(HttpContext *pContext, int mallocSize) {
   return (int32_t)(buffer - cmd->buffer);
 }
 
-bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
+bool httpMallocMultiCmds(HttpContext *pContext, int32_t cmdSize, int32_t bufferSize) {
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, cmdSize, HTTP_MAX_CMD_SIZE);
+    httpError("context:%p, fd:%d, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd, pContext->user,
+              cmdSize, HTTP_MAX_CMD_SIZE);
     return false;
   }
 
   if (pContext->multiCmds == NULL) {
     pContext->multiCmds = (HttpSqlCmds *)malloc(sizeof(HttpSqlCmds));
     if (pContext->multiCmds == NULL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, malloc multiCmds error", pContext, pContext->fd, pContext->ipstr,
-                pContext->user);
+      httpError("context:%p, fd:%d, user:%s, malloc multiCmds error", pContext, pContext->fd, pContext->user);
       return false;
     }
     memset(pContext->multiCmds, 0, sizeof(HttpSqlCmds));
@@ -161,7 +160,7 @@ bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
     free(multiCmds->cmds);
     multiCmds->cmds = (HttpSqlCmd *)malloc((size_t)cmdSize * sizeof(HttpSqlCmd));
     if (multiCmds->cmds == NULL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->ipstr,
+      httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd,
                 pContext->user, cmdSize);
       return false;
     }
@@ -172,8 +171,8 @@ bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
     free(multiCmds->buffer);
     multiCmds->buffer = (char *)malloc((size_t)bufferSize);
     if (multiCmds->buffer == NULL) {
-      httpError("context:%p, fd:%d, ip:%s, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->ipstr,
-                pContext->user, bufferSize);
+      httpError("context:%p, fd:%d, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->user,
+                bufferSize);
       return false;
     }
     multiCmds->bufferSize = bufferSize;
@@ -187,19 +186,18 @@ bool httpMallocMultiCmds(HttpContext *pContext, int cmdSize, int bufferSize) {
   return true;
 }
 
-bool httpReMallocMultiCmdsSize(HttpContext *pContext, int cmdSize) {
+bool httpReMallocMultiCmdsSize(HttpContext *pContext, int32_t cmdSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd,
-              pContext->ipstr, pContext->user, cmdSize, HTTP_MAX_CMD_SIZE);
+    httpError("context:%p, fd:%d, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd, pContext->user,
+              cmdSize, HTTP_MAX_CMD_SIZE);
     return false;
   }
 
   multiCmds->cmds = (HttpSqlCmd *)realloc(multiCmds->cmds, (size_t)cmdSize * sizeof(HttpSqlCmd));
   if (multiCmds->cmds == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, cmdSize);
+    httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->user, cmdSize);
     return false;
   }
   memset(multiCmds->cmds + multiCmds->maxSize, 0, (size_t)(cmdSize - multiCmds->maxSize) * sizeof(HttpSqlCmd));
@@ -208,19 +206,18 @@ bool httpReMallocMultiCmdsSize(HttpContext *pContext, int cmdSize) {
   return true;
 }
 
-bool httpReMallocMultiCmdsBuffer(HttpContext *pContext, int bufferSize) {
+bool httpReMallocMultiCmdsBuffer(HttpContext *pContext, int32_t bufferSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
   if (bufferSize > HTTP_MAX_BUFFER_SIZE) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, mulitcmd buffer size:%d large then %d",
-              pContext, pContext->fd, pContext->ipstr, pContext->user, bufferSize, HTTP_MAX_BUFFER_SIZE);
+    httpError("context:%p, fd:%d, user:%s, mulitcmd buffer size:%d large then %d", pContext, pContext->fd,
+              pContext->user, bufferSize, HTTP_MAX_BUFFER_SIZE);
     return false;
   }
 
   multiCmds->buffer = (char *)realloc(multiCmds->buffer, (size_t)bufferSize);
   if (multiCmds->buffer == NULL) {
-    httpError("context:%p, fd:%d, ip:%s, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->ipstr,
-              pContext->user, bufferSize);
+    httpError("context:%p, fd:%d, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->user, bufferSize);
     return false;
   }
   memset(multiCmds->buffer + multiCmds->bufferSize, 0, (size_t)(bufferSize - multiCmds->bufferSize));
@@ -261,7 +258,7 @@ bool httpCompareMethod(HttpDecodeMethod *pSrc, HttpDecodeMethod *pCmp) {
 }
 
 void httpAddMethod(HttpServer *pServer, HttpDecodeMethod *pMethod) {
-  int pos = 0;
+  int32_t pos = 0;
   for (pos = 0; pos < pServer->methodScannerLen; ++pos) {
     if (httpCompareMethod(pServer->methodScanner[pos], pMethod)) {
       break;
@@ -296,13 +293,13 @@ HttpSqlCmd *httpCurrSqlCmd(HttpContext *pContext) {
   return multiCmds->cmds + multiCmds->size - 1;
 }
 
-int httpNextSqlCmdPos(HttpContext *pContext) {
+int32_t httpNextSqlCmdPos(HttpContext *pContext) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   return multiCmds->size;
 }
 
 void httpTrimTableName(char *name) {
-  for (int i = 0; name[i] != 0; i++) {
+  for (int32_t i = 0; name[i] != 0; i++) {
     if (name[i] == ' ' || name[i] == ':' || name[i] == '.' || name[i] == '-' || name[i] == '/' || name[i] == '\'')
       name[i] = '_';
     if (i == TSDB_TABLE_NAME_LEN) {
@@ -312,9 +309,9 @@ void httpTrimTableName(char *name) {
   }
 }
 
-int httpShrinkTableName(HttpContext *pContext, int pos, char *name) {
-  int len = 0;
-  for (int i = 0; name[i] != 0; i++) {
+int32_t httpShrinkTableName(HttpContext *pContext, int32_t pos, char *name) {
+  int32_t len = 0;
+  for (int32_t i = 0; name[i] != 0; i++) {
     if (name[i] == ' ' || name[i] == ':' || name[i] == '.' || name[i] == '-' || name[i] == '/' || name[i] == '\'' ||
         name[i] == '\"')
       name[i] = '_';
@@ -330,7 +327,7 @@ int httpShrinkTableName(HttpContext *pContext, int pos, char *name) {
   MD5Update(&context, (uint8_t *)name, (uint32_t)len);
   MD5Final(&context);
 
-  int table_name = httpAddToSqlCmdBuffer(
+  int32_t table_name = httpAddToSqlCmdBuffer(
       pContext, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
       context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
       context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
@@ -343,7 +340,7 @@ int httpShrinkTableName(HttpContext *pContext, int pos, char *name) {
   return table_name;
 }
 
-char *httpGetCmdsString(HttpContext *pContext, int pos) {
+char *httpGetCmdsString(HttpContext *pContext, int32_t pos) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
   if (pos < 0 || pos >= multiCmds->bufferSize) {
     return "";
@@ -352,8 +349,8 @@ char *httpGetCmdsString(HttpContext *pContext, int pos) {
   return multiCmds->buffer + pos;
 }
 
-int httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData) {
-  int err = 0;
+int32_t httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData) {
+  int32_t err = 0;
   z_stream gzipStream = {0};
 
   static char dummyHead[2] = {
@@ -396,7 +393,7 @@ int httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t 
   return 0;
 }
 
-int httpGzipCompressInit(HttpContext *pContext) {
+int32_t httpGzipCompressInit(HttpContext *pContext) {
   pContext->gzipStream.zalloc = (alloc_func) 0;
   pContext->gzipStream.zfree = (free_func) 0;
   pContext->gzipStream.opaque = (voidpf) 0;
@@ -407,16 +404,22 @@ int httpGzipCompressInit(HttpContext *pContext) {
   return 0;
 }
 
-int httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData, bool isTheLast) {
-  int err = 0;
+int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData, bool isTheLast) {
+  int32_t err = 0;
+  int32_t lastTotalLen = (int32_t) (pContext->gzipStream.total_out);
   pContext->gzipStream.next_in = (Bytef *) srcData;
   pContext->gzipStream.avail_in = (uLong) nSrcData;
   pContext->gzipStream.next_out = (Bytef *) destData;
   pContext->gzipStream.avail_out = (uLong) (*nDestData);
 
-  while (pContext->gzipStream.avail_in != 0 && pContext->gzipStream.total_out < (uLong) (*nDestData)) {
+  while (pContext->gzipStream.avail_in != 0) {
     if (deflate(&pContext->gzipStream, Z_FULL_FLUSH) != Z_OK) {
       return -1;
+    }
+
+    int32_t cacheLen = pContext->gzipStream.total_out - lastTotalLen;
+    if (cacheLen >= *nDestData) {
+      return -2;
     }
   }
 
@@ -430,15 +433,33 @@ int httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, cha
         break;
       }
       if (err != Z_OK) {
-        return -2;
+        return -3;
       }
     }
 
     if (deflateEnd(&pContext->gzipStream) != Z_OK) {
-      return -3;
+      return -4;
     }
   }
 
-  *nDestData = (int32_t) (pContext->gzipStream.total_out);
+  *nDestData = (int32_t) (pContext->gzipStream.total_out) - lastTotalLen;
   return 0;
+}
+
+bool httpUrlMatch(HttpContext* pContext, int32_t pos, char* cmp) {
+  HttpParser* pParser = pContext->parser;
+
+  if (pos < 0 || pos >= HTTP_MAX_URL) {
+    return false;
+  }
+
+  if (pParser->path[pos].pos <= 0) {
+    return false;
+  }
+
+  if (strcmp(pParser->path[pos].str, cmp) != 0) {
+    return false;
+  }
+
+  return true;
 }

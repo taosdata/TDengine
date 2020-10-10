@@ -313,13 +313,13 @@ void dataColSetOffset(SDataCol *pCol, int nEle) {
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
   SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols));
   if (pCols == NULL) {
-    uDebug("malloc failure, size:%"PRId64" failed, reason:%s", sizeof(SDataCols), strerror(errno));
+    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCols), strerror(errno));
     return NULL;
   }
 
   pCols->cols = (SDataCol *)calloc(maxCols, sizeof(SDataCol));
   if (pCols->cols == NULL) {
-    uDebug("malloc failure, size:%"PRId64" failed, reason:%s", sizeof(SDataCol) * maxCols, strerror(errno));
+    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCol) * maxCols, strerror(errno));
     tdFreeDataCols(pCols);
     return NULL;
   }
@@ -331,7 +331,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
 
   pCols->buf = malloc(pCols->bufSize);
   if (pCols->buf == NULL) {
-    uDebug("malloc failure, size:%"PRId64" failed, reason:%s", sizeof(SDataCol) * maxCols, strerror(errno));
+    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCol) * maxCols, strerror(errno));
     tdFreeDataCols(pCols);
     return NULL;
   }

@@ -2,6 +2,7 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
 sleep 3000
@@ -93,7 +94,11 @@ endi
 
 ## select specified columns
 
+print select c1 from $mt
 sql select c1 from $mt
+
+print rows $rows
+print totalNum $totalNum
 if $rows != $totalNum then
   return -1
 endi
@@ -233,6 +238,13 @@ if $data11 != @19-01-01 09:10:00.000@ then
 endi
 
 sql create table tb_where_NULL (ts timestamp, c1 float, c2 binary(10))
+
+print ===================>td-1604
+sql_error insert into tb_where_NULL values(?, ?, ?)
+sql_error insert into tb_where_NULL values(now, 1, ?)
+sql_error insert into tb_where_NULL values(?, 1, '')
+sql_error insert into tb_where_NULL values(now, ?, '12')
+
 sql insert into tb_where_NULL values ('2019-01-01 09:00:00.000', 1, 'val1')
 sql insert into tb_where_NULL values ('2019-01-01 09:00:01.000', NULL, NULL)
 sql insert into tb_where_NULL values ('2019-01-01 09:00:02.000', 2, 'val2')
@@ -307,14 +319,27 @@ sleep 2000
 
 system sh/exec.sh -n dnode1 -s start
 
-sql select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
+sql_error select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
+
+sql select * from wh_mt0 where c3 = '1' and tbname in ('test_null_filter');
 if $row != 0 then
   return -1
 endi
 
-sql select * from wh_mt0 where c3 = 'abc' and tbname in ('test_null_filter');
-if $row != 0 then
+sql select * from wh_mt0 where c3 = '1';
+if $row == 0 then
   return -1
 endi
+
+sql select * from wh_mt0 where c3 is null and tbname in ('test_null_filter');
+if $rows != 10000 then
+  return -1
+endi
+
+sql select * from wh_mt0 where c3 is not null and tbname in ('test_null_filter');
+if $rows != 0 then
+  return -1
+endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

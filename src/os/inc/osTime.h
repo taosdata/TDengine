@@ -30,8 +30,6 @@ extern "C" {
 #define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
 #define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
 #define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
-#define MILLISECOND_PER_MONTH  (MILLISECOND_PER_DAY * 30)
-#define MILLISECOND_PER_YEAR   (MILLISECOND_PER_DAY * 365)
 
 //@return timestamp in second
 int32_t taosGetTimestampSec();
@@ -63,8 +61,23 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
   }
 }
 
-int32_t getTimestampInUsFromStr(char* token, int32_t tokenlen, int64_t* ts);
-int32_t parseDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit);
+
+typedef struct SInterval {
+  int32_t tz;            // query client timezone
+  char    intervalUnit;
+  char    slidingUnit;
+  char    offsetUnit;
+  int64_t interval;
+  int64_t sliding;
+  int64_t offset;
+} SInterval;
+
+int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
+int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision);
+int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision);
+
+int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* ts);
+int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit);
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 void deltaToUtcInitOnce();

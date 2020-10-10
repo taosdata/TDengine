@@ -139,14 +139,22 @@ static void taosUnLockFile(int32_t fd) {
 }
 
 static void taosKeepOldLog(char *oldName) {
-  if (tsLogKeepDays <= 0) return;
+  if (tsLogKeepDays == 0) return;
 
   int64_t fileSec = taosGetTimestampSec();
   char    fileName[LOG_FILE_NAME_LEN + 20];
   snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
 
   taosRename(oldName, fileName);
-  taosRemoveOldLogFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays < 0) {
+    char compressFileName[LOG_FILE_NAME_LEN + 20];
+    snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
+    if (taosCompressFile(fileName, compressFileName) == 0) {
+      (void)remove(fileName);
+    }
+  }
+
+  taosRemoveOldLogFiles(tsLogDir, ABS(tsLogKeepDays));
 }
 
 static void *taosThreadToOpenNewFile(void *param) {
@@ -433,7 +441,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
-  int32_t            len;
+  int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
   time_t         curTime;

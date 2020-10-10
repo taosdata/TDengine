@@ -42,9 +42,11 @@ $count = 2
 while $count < 102
   $db = d . $count
   $tb = $db . .t
+  $tb2 = $db . .t2
   sql create database $db replica 3 cache 1 blocks 3
   sql create table $tb (ts timestamp, i int)
   sql insert into $tb values(now, 1)
+  sql create table $tb2 as select count(*) from $tb interval(10s)
   $count = $count + 1
   print insert into $tb values(now, 1) ==> finished
 endw
@@ -74,7 +76,7 @@ print ============================== step6
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 10000
 
 print ============================== step7
 

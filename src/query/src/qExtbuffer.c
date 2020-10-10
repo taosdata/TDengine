@@ -502,22 +502,22 @@ FORCE_INLINE int32_t compare_sd(tOrderDescriptor *pDescriptor, int32_t numOfRows
   return compare_d(pDescriptor, numOfRows, idx1, data, numOfRows, idx2, data);
 }
 
-static void swap(SColumnModel *pColumnModel, int32_t count, int32_t s1, char *data1, int32_t s2) {
+static void swap(SColumnModel *pColumnModel, int32_t count, int32_t s1, char *data1, int32_t s2, void* buf) {
   for (int32_t i = 0; i < pColumnModel->numOfCols; ++i) {
     void *first = COLMODEL_GET_VAL(data1, pColumnModel, count, s1, i);
     void *second = COLMODEL_GET_VAL(data1, pColumnModel, count, s2, i);
 
     SSchema* pSchema = &pColumnModel->pFields[i].field;
-    tsDataSwap(first, second, pSchema->type, pSchema->bytes);
+    tsDataSwap(first, second, pSchema->type, pSchema->bytes, buf);
   }
 }
 
 static void tColDataInsertSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
-                               __col_compar_fn_t compareFn) {
+                               __col_compar_fn_t compareFn, void* buf) {
   for (int32_t i = start + 1; i <= end; ++i) {
     for (int32_t j = i; j > start; --j) {
       if (compareFn(pDescriptor, numOfRows, j, j - 1, data) == -1) {
-        swap(pDescriptor->pColumnModel, numOfRows, j - 1, data, j);
+        swap(pDescriptor->pColumnModel, numOfRows, j - 1, data, j, buf);
       } else {
         break;
       }
@@ -553,7 +553,7 @@ static void UNUSED_FUNC tSortDataPrint(int32_t type, char *prefix, char *startx,
 }
 
 static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
-                   __col_compar_fn_t compareFn) {
+                   __col_compar_fn_t compareFn, void* buf) {
   int32_t midIdx = ((end - start) >> 1) + start;
 
 #if defined(_DEBUG_VIEW)
@@ -567,15 +567,16 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].field.type, "before", startx, midx, endx);
 #endif
 
+  SColumnModel* pModel = pDescriptor->pColumnModel;
   if (compareFn(pDescriptor, numOfRows, midIdx, start, data) == 1) {
-    swap(pDescriptor->pColumnModel, numOfRows, start, data, midIdx);
+    swap(pModel, numOfRows, start, data, midIdx, buf);
   }
 
   if (compareFn(pDescriptor, numOfRows, midIdx, end, data) == 1) {
-    swap(pDescriptor->pColumnModel, numOfRows, midIdx, data, start);
-    swap(pDescriptor->pColumnModel, numOfRows, midIdx, data, end);
+    swap(pModel, numOfRows, midIdx, data, start, buf);
+    swap(pModel, numOfRows, midIdx, data, end, buf);
   } else if (compareFn(pDescriptor, numOfRows, start, end, data) == 1) {
-    swap(pDescriptor->pColumnModel, numOfRows, start, data, end);
+    swap(pModel, numOfRows, start, data, end, buf);
   }
 
   assert(compareFn(pDescriptor, numOfRows, midIdx, start, data) <= 0 &&
@@ -626,31 +627,19 @@ static UNUSED_FUNC void tRowModelDisplay(tOrderDescriptor *pDescriptor, int32_t 
   printf("\n");
 }
 
-static int32_t qsort_call = 0;
-
-void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
-                   int32_t orderType) {
-  // short array sort, incur another sort procedure instead of quick sort process
-  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
-
-  if (end - start + 1 <= 8) {
-    tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn);
-    return;
-  }
-
+static void columnwiseQSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
+                                int32_t orderType, __col_compar_fn_t compareFn, void* buf) {
 #ifdef _DEBUG_VIEW
-//  printf("before sort:\n");
-//  tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+  printf("before sort:\n");
+  tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
 
   int32_t s = start, e = end;
-  median(pDescriptor, numOfRows, start, end, data, compareFn);
+  median(pDescriptor, numOfRows, start, end, data, compareFn, buf);
 
 #ifdef _DEBUG_VIEW
-//  printf("%s called: %d\n", __FUNCTION__, qsort_call++);
+  //  printf("%s called: %d\n", __FUNCTION__, qsort_call++);
 #endif
-
-  UNUSED(qsort_call);
 
   int32_t end_same = end;
   int32_t start_same = start;
@@ -663,17 +652,17 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
       }
 
       if (ret == 0 && e != end_same) {
-        swap(pDescriptor->pColumnModel, numOfRows, e, data, end_same--);
+        swap(pDescriptor->pColumnModel, numOfRows, e, data, end_same--, buf);
       }
       e--;
     }
 
     if (e != s) {
-      swap(pDescriptor->pColumnModel, numOfRows, s, data, e);
+      swap(pDescriptor->pColumnModel, numOfRows, s, data, e, buf);
     }
 
 #ifdef _DEBUG_VIEW
-//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+    //    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
 
     while (s < e) {
@@ -683,16 +672,16 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
       }
 
       if (ret == 0 && s != start_same) {
-        swap(pDescriptor->pColumnModel, numOfRows, s, data, start_same++);
+        swap(pDescriptor->pColumnModel, numOfRows, s, data, start_same++, buf);
       }
       s++;
     }
 
     if (s != e) {
-      swap(pDescriptor->pColumnModel, numOfRows, s, data, e);
+      swap(pDescriptor->pColumnModel, numOfRows, s, data, e, buf);
     }
 #ifdef _DEBUG_VIEW
-//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+    //    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
   }
 
@@ -702,14 +691,14 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     int32_t right = end;
 
     while (right > end_same && left <= end_same) {
-      swap(pDescriptor->pColumnModel, numOfRows, left++, data, right--);
+      swap(pDescriptor->pColumnModel, numOfRows, left++, data, right--, buf);
     }
 
     // (pivotal+1) + steps of number that are identical pivotal
     rightx += (end - end_same);
 
 #ifdef _DEBUG_VIEW
-//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+    //    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
   }
 
@@ -719,24 +708,50 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     int32_t right = e - 1;
 
     while (left < start_same && right >= start_same) {
-      swap(pDescriptor->pColumnModel, numOfRows, left++, data, right--);
+      swap(pDescriptor->pColumnModel, numOfRows, left++, data, right--, buf);
     }
 
     // (pivotal-1) - steps of number that are identical pivotal
     leftx -= (start_same - start);
 
 #ifdef _DEBUG_VIEW
-//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+    //    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
   }
 
   if (leftx > start) {
-    tColDataQSort(pDescriptor, numOfRows, start, leftx, data, orderType);
+    columnwiseQSortImpl(pDescriptor, numOfRows, start, leftx, data, orderType, compareFn, buf);
   }
 
   if (rightx < end) {
-    tColDataQSort(pDescriptor, numOfRows, rightx, end, data, orderType);
+    columnwiseQSortImpl(pDescriptor, numOfRows, rightx, end, data, orderType, compareFn, buf);
   }
+}
+
+void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t order) {
+  // short array sort, incur another sort procedure instead of quick sort process
+  __col_compar_fn_t compareFn = (order == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
+
+  SColumnModel* pModel = pDescriptor->pColumnModel;
+
+  size_t width = 0;
+  for(int32_t i = 0; i < pModel->numOfCols; ++i) {
+    SSchema* pSchema = &pModel->pFields[i].field;
+    if (width < pSchema->bytes) {
+      width = pSchema->bytes;
+    }
+  }
+
+  char* buf = malloc(width);
+  assert(width > 0 && buf != NULL);
+
+  if (end - start + 1 <= 8) {
+    tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
+  } else {
+    columnwiseQSortImpl(pDescriptor, numOfRows, start, end, data, order, compareFn, buf);
+  }
+
+  free(buf);
 }
 
 /*

@@ -80,6 +80,7 @@ cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0); 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
 cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
+
 %type dbPrefix {SStrToken}
 dbPrefix(A) ::=.                   {A.n = 0; A.type = 0;}
 dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
@@ -87,6 +88,15 @@ dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 %type cpxName {SStrToken}
 cpxName(A) ::= .             {A.n = 0;  }
 cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
+
+cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
+   setDCLSQLElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
+}    
+
+cmd ::= SHOW CREATE DATABASE ids(X). {
+  setDCLSQLElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);
+} 
 
 cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
@@ -458,9 +468,10 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 %type tmvar {SStrToken}
 tmvar(A) ::= VARIABLE(X).   {A = X;}
 
-%type interval_opt {SStrToken}
-interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
-interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
+%type interval_opt {SIntervalVal}
+interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0; N.offset.z = NULL; N.offset.type = 0;}
+interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(O) RP.    {N.interval = E; N.offset = O;}
+interval_opt(N) ::= .                           {memset(&N, 0, sizeof(N));}
 
 %type fill_opt {tVariantList*}
 %destructor fill_opt {tVariantListDestroy($$);}
@@ -567,53 +578,53 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 %type expr {tSQLExpr*}
 %destructor expr {tSQLExprDestroy($$);}
 
-expr(A) ::= LP expr(X) RP.   {A = X; }
+expr(A) ::= LP expr(X) RP.       {A = X; }
 
-expr(A) ::= ID(X).           {A = tSQLExprIdValueCreate(&X, TK_ID);}
-expr(A) ::= ID(X) DOT ID(Y). {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ID);}
-expr(A) ::= ID(X) DOT STAR(Y). {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ALL);}
+expr(A) ::= ID(X).               {A = tSQLExprIdValueCreate(&X, TK_ID);}
+expr(A) ::= ID(X) DOT ID(Y).     {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ID);}
+expr(A) ::= ID(X) DOT STAR(Y).   {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ALL);}
 
-expr(A) ::= INTEGER(X).      {A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
+expr(A) ::= INTEGER(X).          {A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). {X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
 expr(A) ::= PLUS(X)  INTEGER(Y). {X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= FLOAT(X).        {A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= MINUS(X) FLOAT(Y).       {X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= PLUS(X) FLOAT(Y).        {X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= STRING(X).       {A = tSQLExprIdValueCreate(&X, TK_STRING);}
-expr(A) ::= NOW(X).          {A = tSQLExprIdValueCreate(&X, TK_NOW); }
-expr(A) ::= VARIABLE(X).     {A = tSQLExprIdValueCreate(&X, TK_VARIABLE);}
-expr(A) ::= BOOL(X).         {A = tSQLExprIdValueCreate(&X, TK_BOOL);}
-// normal functions: min(x)
-expr(A) ::= ID(X) LP exprlist(Y) RP(E). {
-  A = tSQLExprCreateFunction(Y, &X, &E, X.type);
-}
+expr(A) ::= FLOAT(X).            {A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
+expr(A) ::= MINUS(X) FLOAT(Y).   {X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
+expr(A) ::= PLUS(X) FLOAT(Y).    {X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
+expr(A) ::= STRING(X).           {A = tSQLExprIdValueCreate(&X, TK_STRING);}
+expr(A) ::= NOW(X).              {A = tSQLExprIdValueCreate(&X, TK_NOW); }
+expr(A) ::= VARIABLE(X).         {A = tSQLExprIdValueCreate(&X, TK_VARIABLE);}
+expr(A) ::= BOOL(X).             {A = tSQLExprIdValueCreate(&X, TK_BOOL);}
 
-// this is for: count(*)/first(*)/last(*) operation
-expr(A) ::= ID(X) LP STAR RP(Y). {
-  A = tSQLExprCreateFunction(NULL, &X, &Y, X.type);
-}
+// ordinary functions: min(x), max(x), top(k, 20)
+expr(A) ::= ID(X) LP exprlist(Y) RP(E). { A = tSQLExprCreateFunction(Y, &X, &E, X.type); }
 
-//binary expression: a+2, b+3
-expr(A) ::= expr(X) AND expr(Y).   {A = tSQLExprCreate(X, Y, TK_AND);}
-expr(A) ::= expr(X) OR  expr(Y).   {A = tSQLExprCreate(X, Y, TK_OR); }
+// for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
+expr(A) ::= ID(X) LP STAR RP(Y).     { A = tSQLExprCreateFunction(NULL, &X, &Y, X.type); }
 
-//binary relational expression
-expr(A) ::= expr(X) LT expr(Y).    {A = tSQLExprCreate(X, Y, TK_LT);}
-expr(A) ::= expr(X) GT expr(Y).    {A = tSQLExprCreate(X, Y, TK_GT);}
-expr(A) ::= expr(X) LE expr(Y).    {A = tSQLExprCreate(X, Y, TK_LE);}
-expr(A) ::= expr(X) GE expr(Y).    {A = tSQLExprCreate(X, Y, TK_GE);}
-expr(A) ::= expr(X) NE expr(Y).    {A = tSQLExprCreate(X, Y, TK_NE);}
-expr(A) ::= expr(X) EQ expr(Y).    {A = tSQLExprCreate(X, Y, TK_EQ);}
+// is (not) null expression
+expr(A) ::= expr(X) IS NULL.           {A = tSQLExprCreate(X, NULL, TK_ISNULL);}
+expr(A) ::= expr(X) IS NOT NULL.       {A = tSQLExprCreate(X, NULL, TK_NOTNULL);}
 
-//binary arithmetic expression
+// relational expression
+expr(A) ::= expr(X) LT expr(Y).      {A = tSQLExprCreate(X, Y, TK_LT);}
+expr(A) ::= expr(X) GT expr(Y).      {A = tSQLExprCreate(X, Y, TK_GT);}
+expr(A) ::= expr(X) LE expr(Y).      {A = tSQLExprCreate(X, Y, TK_LE);}
+expr(A) ::= expr(X) GE expr(Y).      {A = tSQLExprCreate(X, Y, TK_GE);}
+expr(A) ::= expr(X) NE expr(Y).      {A = tSQLExprCreate(X, Y, TK_NE);}
+expr(A) ::= expr(X) EQ expr(Y).      {A = tSQLExprCreate(X, Y, TK_EQ);}
+
+expr(A) ::= expr(X) AND expr(Y).     {A = tSQLExprCreate(X, Y, TK_AND);}
+expr(A) ::= expr(X) OR  expr(Y).     {A = tSQLExprCreate(X, Y, TK_OR); }
+
+// binary arithmetic expression
 expr(A) ::= expr(X) PLUS  expr(Y).   {A = tSQLExprCreate(X, Y, TK_PLUS);  }
 expr(A) ::= expr(X) MINUS expr(Y).   {A = tSQLExprCreate(X, Y, TK_MINUS); }
 expr(A) ::= expr(X) STAR  expr(Y).   {A = tSQLExprCreate(X, Y, TK_STAR);  }
 expr(A) ::= expr(X) SLASH expr(Y).   {A = tSQLExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSQLExprCreate(X, Y, TK_REM);   }
 
-//like expression
-expr(A) ::= expr(X) LIKE  expr(Y).   {A = tSQLExprCreate(X, Y, TK_LIKE);  }
+// like expression
+expr(A) ::= expr(X) LIKE expr(Y).    {A = tSQLExprCreate(X, Y, TK_LIKE);  }
 
 //in expression
 expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSQLExprCreate(X, (tSQLExpr*)Y, TK_IN); }
@@ -625,9 +636,9 @@ expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSQLExprCreate(X, (tSQLExpr*)Y,
 %destructor expritem {tSQLExprDestroy($$);}
 
 exprlist(A) ::= exprlist(X) COMMA expritem(Y). {A = tSQLExprListAppend(X,Y,0);}
-exprlist(A) ::= expritem(X).            {A = tSQLExprListAppend(0,X,0);}
-expritem(A) ::= expr(X).                {A = X;}
-expritem(A) ::= .                       {A = 0;}
+exprlist(A) ::= expritem(X).                   {A = tSQLExprListAppend(0,X,0);}
+expritem(A) ::= expr(X).                       {A = X;}
+expritem(A) ::= .                              {A = 0;}
 
 ///////////////////////////////////reset query cache//////////////////////////////////////
 cmd ::= RESET QUERY CACHE.  { setDCLSQLElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}

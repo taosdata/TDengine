@@ -464,7 +464,30 @@ void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
   dInfo("mnode EP list for peer is changed, numOfEps:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
   for (int i = 0; i < pEpSet->numOfEps; ++i) {
     pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
-    dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i])
+    dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
+
+    if (!mnodeIsRunning()) {
+      if (strcmp(pEpSet->fqdn[i], tsLocalFqdn) == 0 && pEpSet->port[i] == tsServerPort) {
+        dInfo("mnode index:%d %s:%u should work as mnode", i, pEpSet->fqdn[i], pEpSet->port[i]);
+        bool find = false;
+        for (int i = 0; i < tsDMnodeInfos.nodeNum; ++i) {
+          if (tsDMnodeInfos.nodeInfos[i].nodeId == dnodeGetDnodeId()) {
+            dInfo("localEp found in mnode infos");
+            find = true;
+            break;
+          }
+        }
+
+        if (!find) {
+          dInfo("localEp not found in mnode infos, will set into mnode infos");
+          tstrncpy(tsDMnodeInfos.nodeInfos[tsDMnodeInfos.nodeNum].nodeEp, tsLocalEp, TSDB_EP_LEN);
+          tsDMnodeInfos.nodeInfos[tsDMnodeInfos.nodeNum].nodeId = dnodeGetDnodeId();
+          tsDMnodeInfos.nodeNum++;
+        }
+
+        dnodeStartMnode();
+      }
+    }
   }
 
   tsDMnodeEpSet = *pEpSet;

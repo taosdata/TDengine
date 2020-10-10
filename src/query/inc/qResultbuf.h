@@ -73,12 +73,11 @@ typedef struct SDiskbasedResultBuf {
   bool      comp;                // compressed before flushed to disk
   int32_t   nextPos;             // next page flush position
 
-  const void*      handle;        // for debug purpose
+  const void*      handle;       // for debug purpose
   SResultBufStatis statis;
 } SDiskbasedResultBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE  (4096L)
-#define DEFAULT_INMEM_BUF_PAGES       10
+#define DEFAULT_INTERN_BUF_PAGE_SIZE  (256L)                          // in bytes
 #define PAGE_INFO_INITIALIZER         (SPageDiskInfo){-1, -1}
 
 /**

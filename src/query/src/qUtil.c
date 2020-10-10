@@ -54,7 +54,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  pWindowResInfo->interval = pRuntimeEnv->pQuery->intervalTime;
+  pWindowResInfo->interval = pRuntimeEnv->pQuery->interval.interval;
 
   pSummary->internalSupSize += sizeof(SWindowResult) * threshold;
   pSummary->internalSupSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
@@ -126,11 +126,26 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   
   int32_t numOfClosed = numOfClosedTimeWindow(pWindowResInfo);
   assert(num >= 0 && num <= numOfClosed);
-  
+
+  int16_t type = pWindowResInfo->type;
+
+  char *key = NULL;
+  int16_t bytes = -1;
+
   for (int32_t i = 0; i < num; ++i) {
     SWindowResult *pResult = &pWindowResInfo->pResult[i];
     if (pResult->closed) {  // remove the window slot from hash table
-      taosHashRemove(pWindowResInfo->hashList, (const char *)&pResult->skey, pWindowResInfo->type);
+
+      // todo refactor
+      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+        key = varDataVal(pResult->key);
+        bytes = varDataLen(pResult->key);
+      } else {
+        key = (char*) &pResult->win.skey;
+        bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
+      }
+
+      taosHashRemove(pWindowResInfo->hashList, (const char *)key, bytes);
     } else {
       break;
     }
@@ -150,15 +165,24 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   }
   
   pWindowResInfo->size = remain;
+
   for (int32_t k = 0; k < pWindowResInfo->size; ++k) {
     SWindowResult *pResult = &pWindowResInfo->pResult[k];
-    int32_t *p = (int32_t *)taosHashGet(pWindowResInfo->hashList, (const char *)&pResult->skey,
-        tDataTypeDesc[pWindowResInfo->type].nSize);
+
+    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+      key = varDataVal(pResult->key);
+      bytes = varDataLen(pResult->key);
+    } else {
+      key = (char*) &pResult->win.skey;
+      bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
+    }
+
+    int32_t *p = (int32_t *)taosHashGet(pWindowResInfo->hashList, (const char *)key, bytes);
     assert(p != NULL); 
+
     int32_t  v = (*p - num);
     assert(v >= 0 && v <= pWindowResInfo->size);
-    taosHashPut(pWindowResInfo->hashList, (char *)&pResult->skey, tDataTypeDesc[pWindowResInfo->type].nSize,
-        (char *)&v, sizeof(int32_t));
+    taosHashPut(pWindowResInfo->hashList, (char *)key, bytes, (char *)&v, sizeof(int32_t));
   }
   
   pWindowResInfo->curIndex = -1;
@@ -207,20 +231,19 @@ void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_
   }
 
   // get the result order
-  int32_t resultOrder = (pWindowResInfo->pResult[0].skey < pWindowResInfo->pResult[1].skey)? 1:-1;
-
+  int32_t resultOrder = (pWindowResInfo->pResult[0].win.skey < pWindowResInfo->pResult[1].win.skey)? 1:-1;
   if (order != resultOrder) {
     return;
   }
 
   int32_t i = 0;
   if (order == QUERY_ASC_FORWARD_STEP) {
-    TSKEY ekey = pWindowResInfo->pResult[i].skey + pWindowResInfo->interval;
+    TSKEY ekey = pWindowResInfo->pResult[i].win.ekey;
     while (i < pWindowResInfo->size && (ekey < lastKey)) {
       ++i;
     }
   } else if (order == QUERY_DESC_FORWARD_STEP) {
-    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].skey > lastKey)) {
+    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].win.skey > lastKey)) {
       ++i;
     }
   }
@@ -258,7 +281,7 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
   pWindowRes->numOfRows = 0;
   pWindowRes->pos = (SPosInfo){-1, -1};
   pWindowRes->closed = false;
-  pWindowRes->skey = TSKEY_INITIAL_VAL;
+  pWindowRes->win = TSWINDOW_INITIALIZER;
 }
 
 /**
@@ -268,7 +291,7 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
  */
 void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, const SWindowResult *src) {
   dst->numOfRows = src->numOfRows;
-  dst->skey   = src->skey;
+  dst->win   = src->win;
   dst->closed = src->closed;
   
   int32_t nOutputCols = pRuntimeEnv->pQuery->numOfOutput;

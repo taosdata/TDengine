@@ -569,7 +569,6 @@ int taosSystem(const char *cmd) {
   }
 }
 
-int _sysctl(struct __sysctl_args *args );
 void taosSetCoreDump() {
   if (0 == tsEnableCoreFile) {
     return;

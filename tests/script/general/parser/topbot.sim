@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 200
 
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 1000
 sql connect
 
 $dbPrefix = tb_db
@@ -25,7 +25,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db cache 16
+sql create database $db cache 16 maxrows 4096 keep 36500
 print ====== create tables
 sql use $db
 sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
@@ -132,15 +132,15 @@ sleep 5000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 3000
+sleep 1000
 
 sql select count(*) from t1.test where ts>10000 and ts<90000 interval(5000a)
 if $rows != 3 then
  return -1
 endi
 
-print =========>td-1308
-sql create database db;
+print ==============>td-1308
+sql create database db keep 36500;
 sql use db;
 
 sql create table stb (ts timestamp, c1 int, c2 binary(10)) tags(t1 binary(10));
@@ -155,6 +155,110 @@ endi
 sql create table tb4 using stb tags('a4');
 sql select count(*) from stb where ts > '2020-09-03 15:30:44' interval(4s);
 if $rows != 1 then
+  return -1
+endi
+
+print =======================>td-1446
+sql create table t(ts timestamp, k int)
+$ts = 6000
+while $ts < 7000
+  sql insert into t values ( $ts , $ts )
+  $ts = $ts + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 1000
+sql use db;
+
+$ts = 1000
+while $ts < 5096
+  sql insert into t values ( $ts , $ts )
+  $ts = $ts + 1
+endw
+
+sql select * from t where ts < 6500
+if $rows != 4596 then
+  print expect 4596, actual: $rows
+  return -1
+endi
+
+sql select * from t where ts < 7000
+if $rows != 5096 then
+  return -1
+endi
+
+sql select * from t where ts <= 6000
+if $rows != 4097 then
+  return -1
+endi
+
+sql select * from t where ts <= 6001
+if $rows != 4098 then
+  return -1
+endi
+
+print ======================>td-1454
+sql select count(*)/10, count(*)+99 from t
+if $rows != 1  then
+  return -1
+endi
+
+if $data00 != 509.600000000 then
+  return -1
+endi
+
+if $data01 != 5195.000000000 then
+  return -1
+endi
+
+print =======================>td-1596
+sql create table t2(ts timestamp, k int)
+sql insert into t2 values('2020-1-2 1:1:1', 1);
+sql insert into t2 values('2020-2-2 1:1:1', 1);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 1000
+
+sql use db
+sql select count(*), first(ts), last(ts) from t2 interval(1d);
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-02 00:00:00.000@ then
+  print expect 20-01-02 00:00:00.000, actual: $data00
+  return -1
+endi
+
+if $data10 != @20-02-02 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data02 != @20-01-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data12 != @20-02-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data03 != @20-01-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data13 != @20-02-02 01:01:01.000@ then
   return -1
 endi
 
