@@ -305,6 +305,8 @@ typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char msgVersion[TSDB_VERSION_LEN];
   char db[TSDB_TABLE_FNAME_LEN];
+  char appName[TSDB_APPNAME_LEN];
+  int32_t pid;
 } SCMConnectMsg;
 
 typedef struct {
@@ -756,8 +758,10 @@ typedef struct {
 
 typedef struct {
   uint32_t connId;
+  int32_t  pid;
   int32_t  numOfQueries;
   int32_t  numOfStreams;
+  char     appName[TSDB_APPNAME_LEN];
   char     pData[];
 } SCMHeartBeatMsg;
 

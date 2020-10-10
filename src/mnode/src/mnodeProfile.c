@@ -72,7 +72,7 @@ void mnodeCleanupProfile() {
   }
 }
 
-SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
+SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port, int32_t pid, const char* app) {
 #if 0
   int32_t connSize = taosHashGetSize(tsMnodeConnCache->pHashTable);
   if (connSize > tsMaxShellConns) {
@@ -90,10 +90,13 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port) {
     .ip     = ip,
     .port   = port,
     .connId = connId,
-    .stime  = taosGetTimestampMs()
+    .stime  = taosGetTimestampMs(),
+    .pid    = pid,
   };
 
-  tstrncpy(connObj.user, user, sizeof(connObj.user));
+  tstrncpy(connObj.user, user, tListLen(connObj.user));
+  tstrncpy(connObj.appName, app, tListLen(connObj.appName));
+
   connObj.lastAccess = connObj.stime;
 
   SConnObj *pConn = taosCachePut(tsMnodeConnCache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), CONN_KEEP_TIME * 1000);
@@ -177,6 +180,20 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  // app name
+  pShow->bytes[cols] = TSDB_APPNAME_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "app_name");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  // app pid
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "pid");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
@@ -185,13 +202,13 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "login time");
+  strcpy(pSchema[cols].name, "login_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "last access");
+  strcpy(pSchema[cols].name, "last_access");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -230,6 +247,16 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->user, pShow->bytes[cols]);
     cols++;
 
+    // app name
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConnObj->appName, pShow->bytes[cols]);
+    cols++;
+
+    // app pid
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t*)pWrite = pConnObj->pid;
+    cols++;
+
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     snprintf(ipStr, sizeof(ipStr), "%s:%u", taosIpStr(pConnObj->ip), pConnObj->port);
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, pShow->bytes[cols]);
@@ -248,8 +275,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 5;
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
   
   return numOfRows;
 }
