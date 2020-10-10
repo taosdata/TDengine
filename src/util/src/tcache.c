@@ -107,11 +107,13 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   free(pNode);
 }
 
-static FORCE_INLINE void doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem *pElem) {
+static FORCE_INLINE STrashElem* doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != (uint64_t) pElem->pData) {
     uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", pElem->pData->signature, pElem->pData);
-    return;
+    return NULL;
   }
+
+  STrashElem* next = pElem->next;
 
   pCacheObj->numOfElemsInTrash--;
   if (pElem->prev) {
@@ -120,9 +122,15 @@ static FORCE_INLINE void doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem
     pCacheObj->pTrash = pElem->next;
   }
 
-  if (pElem->next) {
-    pElem->next->prev = pElem->prev;
+  if (next) {
+    next->prev = pElem->prev;
   }
+
+  if (pCacheObj->numOfElemsInTrash == 0) {
+    assert(pCacheObj->pTrash == NULL);
+  }
+
+  return next;
 }
 
 static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem *pElem) {
@@ -580,9 +588,7 @@ void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
              pCacheObj->numOfElemsInTrash - 1);
 
       STrashElem *p = pElem;
-      pElem = pElem->next;
-
-      doRemoveElemInTrashcan(pCacheObj, p);
+      pElem = doRemoveElemInTrashcan(pCacheObj, p);
       doDestroyTrashcanElem(pCacheObj, p);
     } else {
       pElem = pElem->next;
