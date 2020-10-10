@@ -1516,9 +1516,9 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   SSqlObj *pParentSql = trsupport->pParentSql;
 
   assert(pSql == pParentSql->pSubs[index]);
-//  pParentSql->pSubs[index] = NULL;
-//
-//  taos_free_result(pSql);
+  pParentSql->pSubs[index] = NULL;
+
+  taos_free_result(pSql);
   taosTFree(trsupport->localBuffer);
   taosTFree(trsupport);
 }

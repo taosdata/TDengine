@@ -415,7 +415,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   tscDebug("%p start to free sqlObj", pSql);
 
-  tscFreeSubobj(pSql);
+//  tscFreeSubobj(pSql);
   tscPartiallyFreeSqlObj(pSql);
 
   pSql->signature = NULL;
