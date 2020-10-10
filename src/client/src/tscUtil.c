@@ -1516,13 +1516,6 @@ void tscSetFreeHeatBeat(STscObj* pObj) {
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 }
 
-bool tscShouldFreeHeartBeat(SSqlObj* pHb) {
-  assert(pHb == pHb->signature);
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pHb->cmd, 0);
-  return pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE;
-}
-
 /*
  * the following four kinds of SqlObj should not be freed
  * 1. SqlObj for stream computing

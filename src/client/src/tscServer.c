@@ -198,15 +198,19 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     return;
   }
 
-  if (tscShouldFreeHeartBeat(pHB)) {
-    tscDebug("%p free HB object and release connection", pHB);
-    pObj->pHb = 0;
-    taos_free_result(pHB);
-  } else {
-    int32_t code = tscProcessSql(pHB);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
-    }
+  void** p = taosCacheAcquireByKey(tscObjCache, &pHB->self, sizeof(TSDB_CACHE_PTR_TYPE));
+  if (p == NULL) {
+    tscWarn("%p HB object has been released already", pHB);
+    return;
+  }
+
+  assert(*pHB->self == pHB);
+
+  int32_t code = tscProcessSql(pHB);
+  taosCacheRelease(tscObjCache, (void**) &p, false);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
   }
 }
 
