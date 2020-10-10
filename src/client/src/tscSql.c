@@ -459,6 +459,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlRes *pRes = &pSql->res;
   
   if (pRes->qhandle == 0 ||
+      pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
@@ -696,9 +697,8 @@ void taos_stop_query(TAOS_RES *res) {
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->pRpcCtx == NULL);
     tscKillSTableQuery(pSql);
-  } else {
-    if (pSql->cmd.command < TSDB_SQL_LOCAL) {
-      assert(pSql->pRpcCtx != NULL);
+  } else { // TODO multithreads bug
+    if (pSql->cmd.command < TSDB_SQL_LOCAL && pSql->pRpcCtx != NULL) {
       rpcCancelRequest(pSql->pRpcCtx);
     }
   }
