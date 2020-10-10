@@ -42,6 +42,10 @@ TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
 
 LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
 
+# Now getting ready to execute Python
+# The following is the default of our standard dev env (Ubuntu 20.04), modify/adjust at your own risk
+PYTHON_EXEC=python3.8
+
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
 export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3:$(pwd)
 
@@ -57,9 +61,15 @@ if [[ $1 == '--valgrind' ]]; then
   valgrind  \
     --leak-check=yes \
     --suppressions=crash_gen/valgrind_taos.supp \
-    python3.8 \
+    $PYTHON_EXEC \
+    ./crash_gen/crash_gen.py $@
+elif [[ $1 == '--helgrind' ]]; then
+  shift
+  valgrind  \
+    --tool=helgrind \
+    $PYTHON_EXEC \
     ./crash_gen/crash_gen.py $@
 else
-  python3.8 ./crash_gen/crash_gen.py $@
+  $PYTHON_EXEC ./crash_gen/crash_gen.py $@
 fi
 

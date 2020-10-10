@@ -421,6 +421,7 @@ class ThreadCoordinator:
                 errno2 = Helper.convertErrno(err.errno)  # correct error scheme
                 errMsg = "Transition failed: errno=0x{:X}, msg: {}".format(errno2, err)
                 logger.info(errMsg)
+                traceback.print_exc()
                 self._execStats.registerFailure(errMsg)
 
             # Then we move on to the next step
