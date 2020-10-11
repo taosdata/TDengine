@@ -1,0 +1,59 @@
+:hivemq-link: http://www.hivemq.com
+:hivemq-extension-docs-link: http://www.hivemq.com/docs/extensions/latest/
+:hivemq-extension-docs-archetype-link: http://www.hivemq.com/docs/extensions/latest/#maven-archetype-chapter
+:hivemq-blog-tools: http://www.hivemq.com/mqtt-toolbox
+:maven-documentation-profile-link: http://maven.apache.org/guides/introduction/introduction-to-profiles.html
+:hivemq-support: http://www.hivemq.com/support/
+:hivemq-testcontainer: https://github.com/hivemq/hivemq-testcontainer
+:hivemq-mqtt-client: https://github.com/hivemq/hivemq-mqtt-client
+
+== HiveMQ 4 Hello World Extension
+
+*Type*: Demonstration Extension
+
+*Version*: 4.3.1
+
+*License*: Apache License Version 2.0
+
+=== Purpose
+
+This Hello World extension sets a ClientLifecycleEventListener which logs
+the MQTT Version and identifier of every connecting and disconnecting client and
+registers a PublishInboundInterceptor to modify the payload of every Publish with the topic 'hello/world' to 'Hello World!'.
+
+There is {hivemq-extension-docs-archetype-link}[a Maven Archetype available]
+to generate a basic extension from the IDE.
+
+We strongly recommend to read the {hivemq-extension-docs-link}[HiveMQ Extension Documentation]
+to grasp the core concepts of HiveMQ extension development.
+
+=== Installation
+
+. Clone this repository into a Java 11 maven project.
+. Run `mvn package` goal from Maven to build the extension.
+. Move the file: "target/hivemq-hello-world-extension-4.3.1-distribution.zip" to the directory: "HIVEMQ_HOME/extensions"
+. Unzip the file.
+. Start HiveMQ.
+
+=== First Steps
+
+==== Manual Testing
+
+Connect with an {hivemq-blog-tools}[MQTT client] of your choice. You should see a log message with its identifier and MQTT version.
+
+==== Automatic Testing
+
+Execute the `HelloWorldInterceptorIT` for automatic testing of the extension.
+It uses the {hivemq-testcontainer}[HiveMQ Testcontainer] to automatically package, deploy and run the extension inside a HiveMQ docker container.
+The test creates a {hivemq-mqtt-client}[HiveMQ MQTT Client] to publish and receive a message with the topic 'hello/world'.
+It checks whether the payload has been changed correctly to 'Hello World!'.
+
+=== Next steps
+
+Awesome, you got your first HiveMQ 4 extension working.
+
+Now read the {hivemq-extension-docs-link}[HiveMQ Extension Documentation] to see what extensions can do.
+
+=== Need help?
+
+If you encounter any problems, we are happy to help. The best place to get in contact is our {hivemq-support}[support].
