@@ -226,7 +226,7 @@ static void *dnodeProcessMgmtQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
-      dDebug("dnode mgmt got no message from qset, exit ...");
+      dDebug("qset:%p, dnode mgmt got no message from qset, exit", tsMgmtQset);
       break;
     }
 

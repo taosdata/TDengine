@@ -158,7 +158,7 @@ static void *dnodeProcessMnodeWriteQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMWriteQset, &type, (void **)&pWrite, &unUsed) == 0) {
-      dDebug("dnodeProcessMnodeWriteQueue: got no message from qset, exiting...");
+      dDebug("qset:%p, mnode write got no message from qset, exiting", tsMWriteQset);
       break;
     }
 
