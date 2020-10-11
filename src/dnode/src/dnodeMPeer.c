@@ -148,7 +148,7 @@ static void *dnodeProcessMnodePeerQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMPeerQset, &type, (void **)&pPeerMsg, &unUsed) == 0) {
-      dDebug("dnodeProcessMnodePeerQueue: got no message from qset, exiting...");
+      dDebug("qset:%p, mnode peer got no message from qset, exiting", tsMPeerQset);
       break;
     }
 

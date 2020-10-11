@@ -147,7 +147,7 @@ static int32_t mnodeDnodeActionRestored() {
     mnodeCreateDnode(tsLocalEp, NULL);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
     if (pDnode != NULL) {
-      mnodeAddMnode(pDnode->dnodeId);
+      mnodeCreateMnode(pDnode->dnodeId, pDnode->dnodeEp, false);
       mnodeDecDnodeRef(pDnode);
     }
   }

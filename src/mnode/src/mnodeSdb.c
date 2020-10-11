@@ -1038,7 +1038,7 @@ static void *sdbWorkerFp(void *param) {
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(tsSdbWriteQset, tsSdbWriteQall, &unUsed);
     if (numOfMsgs == 0) {
-      sdbDebug("sdbWorkerFp: got no message from qset, exiting...");
+      sdbDebug("qset:%p, sdb got no message from qset, exiting", tsSdbWriteQset);
       break;
     }
 
