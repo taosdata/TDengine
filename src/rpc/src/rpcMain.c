@@ -542,10 +542,7 @@ void rpcCancelRequest(void *handle) {
 
   if (pContext->pConn) {
     tDebug("%s, app tries to cancel request", pContext->pConn->info);
-    pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
-    pContext->pConn = NULL;
-    rpcFreeCont(pContext->pCont);
   }
 }
 
@@ -613,8 +610,10 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);  // do not use rpcFreeMsg
   } else {
     // if there is an outgoing message, free it
-    if (pConn->outType && pConn->pReqMsg) 
+    if (pConn->outType && pConn->pReqMsg) {
+      if (pConn->pContext) pConn->pContext->pConn = NULL; 
       rpcFreeMsg(pConn->pReqMsg);
+    }
   }
 
   // memset could not be used, since lockeBy can not be reset
