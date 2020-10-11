@@ -215,6 +215,9 @@ void syncStop(void *param) {
 
   pthread_mutex_lock(&(pNode->mutex));
 
+  if (vgIdHash) taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
+  if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
+
   for (int i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
     if (pPeer) syncRemovePeer(pPeer);
@@ -222,9 +225,6 @@ void syncStop(void *param) {
 
   pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pPeer) syncRemovePeer(pPeer);
-
-  if (vgIdHash) taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
-  if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
 
   pthread_mutex_unlock(&(pNode->mutex));
 
@@ -1191,6 +1191,8 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
 static void syncMonitorFwdInfos(void *param, void *tmrId) {
   SSyncNode *pNode = param;
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
+  if (pSyncFwds == NULL) return;
+
   uint64_t   time = taosGetTimestampMs();
 
   if (pSyncFwds->fwds > 0) {
