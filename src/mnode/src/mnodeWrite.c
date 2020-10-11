@@ -54,7 +54,7 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("app:%p:%p, msg:%s in write queue, will be redireced, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle, pMsg,
+    mDebug("app:%p:%p, msg:%s in write queue, will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle, pMsg,
            taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
     for (int32_t i = 0; i < epSet->numOfEps; ++i) {
       if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {

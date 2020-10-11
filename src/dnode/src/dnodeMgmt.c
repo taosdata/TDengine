@@ -74,14 +74,16 @@ static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
+static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg);
 static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 
 int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = dnodeProcessAlterVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeProcessCreateMnodeMsg;
 
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP,  dnodeProcessStatusRsp);
   dnodeReadDnodeCfg();
@@ -451,8 +453,26 @@ static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
-  SMDCfgDnodeMsg *pCfg = (SMDCfgDnodeMsg *)pMsg->pCont;
+  SMDCfgDnodeMsg *pCfg = pMsg->pCont;
   return taosCfgDynamicOptions(pCfg->config);
+}
+
+static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
+  SMDCreateMnodeMsg *pCfg = pMsg->pCont;
+  if (pCfg->dnodeId != dnodeGetDnodeId()) {
+    dError("dnodeId:%d in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
+    return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
+  }
+
+  if (strcmp(pCfg->dnodeEp, tsLocalEp) != 0) {
+    dError("dnodeEp:%s in create mnode msg is not equal with saved dnodeEp:%s", pCfg->dnodeEp, tsLocalEp);
+    return TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED;
+  }
+
+  dDebug("dnodeId:%d, create mnode msg is received", pCfg->dnodeId);
+  dnodeStartMnode();
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
@@ -466,9 +486,10 @@ void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
     pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
 
+#if 0
     if (!mnodeIsRunning()) {
       if (strcmp(pEpSet->fqdn[i], tsLocalFqdn) == 0 && pEpSet->port[i] == tsServerPort) {
-        dInfo("mnode index:%d %s:%u should work as mnode", i, pEpSet->fqdn[i], pEpSet->port[i]);
+        dInfo("mnode index:%d %s:%u self should work as mnode", i, pEpSet->fqdn[i], pEpSet->port[i]);
         bool find = false;
         for (int i = 0; i < tsDMnodeInfos.nodeNum; ++i) {
           if (tsDMnodeInfos.nodeInfos[i].nodeId == dnodeGetDnodeId()) {
@@ -488,6 +509,7 @@ void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
         dnodeStartMnode();
       }
     }
+#endif    
   }
 
   tsDMnodeEpSet = *pEpSet;

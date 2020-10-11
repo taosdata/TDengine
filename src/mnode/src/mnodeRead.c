@@ -52,7 +52,7 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
     SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
     mnodeGetMnodeEpSetForShell(epSet);
 
-    mDebug("%p, msg:%s in mread queue, will be redireced, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
+    mDebug("%p, msg:%s in mread queue will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
            taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
     for (int32_t i = 0; i < epSet->numOfEps; ++i) {
       if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
