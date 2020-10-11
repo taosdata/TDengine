@@ -1121,9 +1121,13 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
       SRpcEpSet *pEpSet = (SRpcEpSet*)pHead->content;
       if (pEpSet->numOfEps > 0) {
         memcpy(&pContext->epSet, pHead->content, sizeof(pContext->epSet));
-        tDebug("%s, redirect is received, numOfEps:%d", pConn->info, pContext->epSet.numOfEps);
-        for (int i=0; i<pContext->epSet.numOfEps; ++i) 
+        tDebug("%s, redirect is received, numOfEps:%d inUse:%d", pConn->info, pContext->epSet.numOfEps,
+               pContext->epSet.inUse);
+        for (int i = 0; i < pContext->epSet.numOfEps; ++i) {
           pContext->epSet.port[i] = htons(pContext->epSet.port[i]);
+          tDebug("%s, redirect is received, index:%d ep:%s:%u", pConn->info, i, pContext->epSet.fqdn[i],
+                 pContext->epSet.port[i]);
+        }
       }
       rpcSendReqToServer(pRpc, pContext);
       rpcFreeCont(rpcMsg.pCont);
