@@ -771,6 +771,7 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
     mnodeDecVgroupRef(pVgroup);
     numOfRows++;
   }
+  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
 
   pShow->numOfReads += numOfRows;
   mnodeDecTableRef(pTable);
