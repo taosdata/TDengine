@@ -56,13 +56,16 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 if [[ $1 == '--valgrind' ]]; then
   shift
   export PYTHONMALLOC=malloc
+  VALGRIND_OUT=valgrind.out 
+  VALGRIND_ERR=valgrind.err
   # How to generate valgrind suppression file: https://stackoverflow.com/questions/17159578/generating-suppressions-for-memory-leaks
   # valgrind --leak-check=full --gen-suppressions=all --log-fd=9 python3.8 ./crash_gen.py $@ 9>>memcheck.log
+  echo Executing under VALGRIND, with STDOUT/ERR going to $VALGRIND_OUT and $VALGRIND_ERR, please watch them from a different terminal.
   valgrind  \
     --leak-check=yes \
     --suppressions=crash_gen/valgrind_taos.supp \
     $PYTHON_EXEC \
-    ./crash_gen/crash_gen.py $@
+    ./crash_gen/crash_gen.py $@ > $VALGRIND_OUT 2> $VALGRIND_ERR 
 elif [[ $1 == '--helgrind' ]]; then
   shift
   valgrind  \
