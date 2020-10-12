@@ -54,11 +54,17 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("app:%p:%p, msg:%s will be redireced inUse:%d", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType],
-           epSet->inUse);
+    mDebug("app:%p:%p, msg:%s in write queue, will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle, pMsg,
+           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
     for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      mDebug("app:%p:%p, mnode index:%d ep:%s:%d", pMsg->rpcMsg.ahandle, pMsg, i, epSet->fqdn[i],
-             htons(epSet->port[i]));
+      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
+        epSet->inUse = (i + 1) % epSet->numOfEps;
+        mDebug("app:%p:%p, mnode index:%d ep:%s:%d, set inUse to %d", pMsg->rpcMsg.ahandle, pMsg, i, epSet->fqdn[i],
+               htons(epSet->port[i]), epSet->inUse);
+      } else {
+        mDebug("app:%p:%p, mnode index:%d ep:%s:%d", pMsg->rpcMsg.ahandle, pMsg, i, epSet->fqdn[i],
+               htons(epSet->port[i]));
+      }
     }
 
     return TSDB_CODE_RPC_REDIRECT;

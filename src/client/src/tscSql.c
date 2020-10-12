@@ -20,6 +20,7 @@
 #include "tcache.h"
 #include "tnote.h"
 #include "trpc.h"
+#include "ttimer.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
@@ -259,6 +260,9 @@ void taos_close(TAOS *taos) {
   if (pObj == NULL || pObj->signature != pObj)  {
     return;
   }
+
+  pObj->signature = NULL;
+  taosTmrStopA(&(pObj->pTimer));
 
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
