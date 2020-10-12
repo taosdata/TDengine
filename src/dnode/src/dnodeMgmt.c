@@ -581,6 +581,7 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   }
 
   dnodeSaveMnodeInfos();
+  sdbUpdateAsync();
 }
 
 static bool dnodeReadMnodeInfos() {
