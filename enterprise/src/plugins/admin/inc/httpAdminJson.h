@@ -63,18 +63,18 @@
 #define ADMIN_JSON_DNODES_TYPE  5
 
 void adminStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
-void adminBuildSqlAffectRowJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows);
-bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
-bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+void adminBuildSqlAffectRowJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t affect_rows);
+bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
+bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
 void adminStopSqlJson(HttpContext *pContext, HttpSqlCmd *cmd);
 
 void adminInitInfoJson(HttpContext *pContext);
-bool adminBuildInfoJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool adminBuildInfoJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
 void adminStopInfoJson(HttpContext *pContext, HttpSqlCmd *cmd);
 void adminCleanInfoJson(HttpContext *pContext);
 
 void adminStartMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
-bool adminBuildMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
+bool adminBuildMetaJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows);
 void adminStopMetaJson(HttpContext *pContext, HttpSqlCmd *cmd);
 
 void adminInitSqlsJson(HttpContext *pContext);

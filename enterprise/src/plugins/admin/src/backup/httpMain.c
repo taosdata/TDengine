@@ -30,7 +30,7 @@ void signal_handler(int signum) {
 
 int main(int argc, char *argv[]) {
   // Set global configuration file
-  for (int i = 1; i < argc; ++i) {
+  for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {       
         if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {

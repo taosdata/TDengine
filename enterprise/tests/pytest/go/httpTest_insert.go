@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	//"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -147,11 +148,22 @@ func getToken() (string, error) {
 
 func exec(client *http.Client, sql string) {
 	for times := 0; times < 10; times++ {
+		//if (1) {
+			// var zBuf bytes.Buffer
+			// zw := gzip.NewWriter(&zBuf)
+			// zw.Write([]byte(sql))
+			// zw.Close()
+			// req, err1 := http.NewRequest("POST", url, &zBuf)
+			// req.Header.Set("Content-Encoding", "gzip")
+			// req.Header.Set("Transfer-Encoding", "gzip")
+		//} else {
+			req, err1 := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))	
+		//}
 
-		req, err1 := http.NewRequest("POST", url, bytes.NewReader([]byte(sql)))
 		if err1 != nil {
 			continue
 		}
+		
 		req.Header.Add("Authorization", "Taosd "+token)
 
 		begin := time.Now()
@@ -190,8 +202,18 @@ func exec(client *http.Client, sql string) {
 			requestAvg := float64(period) / float64(1000000) / float64(request)
 			qps := float64(1000) / float64(requestAvg) * float64(config.ConnNum)
 			dps := qps * float64(config.DataBatch)
-			fmt.Println("====== req:", request, ", error:", errorNum, ", qps:", int64(qps), ", wait:", int64(requestAvg), "ms", ", data per second:", int64(dps))
+			fmt.Println(time.Now(), ", ====== req:", request, ", error:", errorNum, ", qps:", int64(qps), ", wait:", int64(requestAvg), "ms", ", data per second:", int64(dps))
 		}
+
+		if request > 10000 {
+			requestAvg := period / request;
+			if spend > requestAvg*100 {
+				fmt.Println(time.Now(), ", requestAvg:", float64(requestAvg) / float64(1000000), ", this time:", float64(spend) / float64(1000000))
+				fmt.Println(sql)
+				os.Exit(0)
+			}
+		}
+
 		return
 	}
 	fmt.Println("xxxx>sql:", sql, ", retryTimes:", 10)

@@ -17,10 +17,11 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "cJSON.h"
 #include "httpLog.h"
-#include "opJson.h"
-#include "opHandle.h"
+#include "httpOpJson.h"
+#include "httpOpHandle.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
 static HttpEncodeMethod opPutSummaryMethod = {
@@ -50,43 +51,42 @@ void opInitHandle(HttpServer *pServer) {
 }
 
 bool opGetUserFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_USER_URL_POS].len >= TSDB_USER_LEN || pParser->path[OP_USER_URL_POS].len <= 0) {
+  HttpParser *pParser = pContext->parser;
+  if (pParser->path[OP_USER_URL_POS].pos >= TSDB_USER_LEN || pParser->path[OP_USER_URL_POS].pos <= 0) {
     return false;
   }
 
-  strcpy(pContext->user, pParser->path[OP_USER_URL_POS].pos);
+  strcpy(pContext->user, pParser->path[OP_USER_URL_POS].str);
   return true;
 }
 
 bool opGetPassFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_PASS_URL_POS].len > TSDB_PASSWORD_LEN || pParser->path[OP_PASS_URL_POS].len <= 0) {
+  HttpParser *pParser = pContext->parser;
+  if (pParser->path[OP_PASS_URL_POS].pos > TSDB_PASSWORD_LEN || pParser->path[OP_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  strcpy(pContext->pass, pParser->path[OP_PASS_URL_POS].pos);
+  strcpy(pContext->pass, pParser->path[OP_PASS_URL_POS].str);
   return true;
 }
 
 char *opGetDbFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->parser;
-  if (pParser->path[OP_DB_URL_POS].len <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_DB_NOT_INPUT);
+  HttpParser *pParser = pContext->parser;
+  if (pParser->path[OP_DB_URL_POS].pos <= 0) {
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_DB_NOT_INPUT);
     return NULL;
   }
 
-  if (pParser->path[OP_DB_URL_POS].len >= TSDB_DB_NAME_LEN) {
-    httpSendErrorResp(pContext, HTTP_OP_DB_TOO_LONG);
+  if (pParser->path[OP_DB_URL_POS].pos >= TSDB_DB_NAME_LEN) {
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_DB_TOO_LONG);
     return NULL;
   }
 
-  return pParser->path[OP_DB_URL_POS].pos;
+  return pParser->path[OP_DB_URL_POS].str;
 }
 
 bool opProcessLoginRequest(HttpContext *pContext) {
-  httpDebug("context:%p, fd:%d, ip:%s, user:%s, process opentsdb login msg", pContext, pContext->fd, pContext->ipstr,
-            pContext->user);
+  httpDebug("context:%p, fd:%d, user:%s, process opentsdb login msg", pContext, pContext->fd, pContext->user);
   pContext->reqType = HTTP_REQTYPE_LOGIN;
   return true;
 }
@@ -107,100 +107,100 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // metric name
   cJSON *name = cJSON_GetObjectItem(metric, "metric");
   if (name == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_NULL);
     return false;
   }
   if (name->type != cJSON_String) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_TYPE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_TYPE);
     return false;
   }
   if (name->valuestring == NULL || strlen(name->valuestring) == 0) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
   if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 11) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
 
   // timestamp
   cJSON *timestamp = cJSON_GetObjectItem(metric, "timestamp");
   if (timestamp == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_TIMESTAMP_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TIMESTAMP_NULL);
     return false;
   }
   if (timestamp->type != cJSON_Number) {
-    httpSendErrorResp(pContext, HTTP_OP_TIMESTAMP_TYPE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TIMESTAMP_TYPE);
     return false;
   }
   if (timestamp->valueint <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_TIMESTAMP_VAL_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TIMESTAMP_VAL_NULL);
     return false;
   }
 
   // value
   cJSON *value = cJSON_GetObjectItem(metric, "value");
   if (value == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_VALUE_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_VALUE_NULL);
     return false;
   }
   if (value->type != cJSON_Number && value->type != cJSON_String && value->type != cJSON_False &&
       value->type != cJSON_True) {
-    httpSendErrorResp(pContext, HTTP_OP_VALUE_TYPE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_VALUE_TYPE);
     return false;
   }
 
   // tags
   cJSON *tags = cJSON_GetObjectItem(metric, "tags");
   if (tags == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_TAGS_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAGS_NULL);
     return false;
   }
 
-  int tagsSize = cJSON_GetArraySize(tags);
+  int32_t tagsSize = cJSON_GetArraySize(tags);
   if (tagsSize <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_TAGS_SIZE_0);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAGS_SIZE_0);
     return false;
   }
 
   if (tagsSize > TSDB_MAX_TAGS) {
-    httpSendErrorResp(pContext, HTTP_OP_TAGS_SIZE_LONG);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAGS_SIZE_LONG);
     return false;
   }
 
   // tags detail
-  for (int i = 0; i < tagsSize; i++) {
+  for (int32_t i = 0; i < tagsSize; i++) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     if (tag == NULL) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_NULL);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_NULL);
       return false;
     }
     if (tag->string == NULL || strlen(tag->string) == 0) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_NULL);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_NAME_NULL);
       return false;
     }
     if (strlen(tag->string) >= TSDB_COL_NAME_LEN - 1) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_SIZE);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_NAME_SIZE);
       return false;
     }
 
     if (tag->type != cJSON_Number && tag->type != cJSON_String && tag->type != cJSON_False && tag->type != cJSON_True) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_TYPE);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_TYPE);
       return false;
     }
 
     if (tag->type == cJSON_String) {
       if (tag->valuestring == NULL) {
-        httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_NULL);
         return false;
       }
-      int len = (int)strlen(tag->valuestring);
+      int32_t len = (int32_t)strlen(tag->valuestring);
       if (len == 0) {
-        httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_NULL);
         return false;
       }
       if (len > 64) {
-        httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_TOO_LONG);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG);
         return false;
       }
     }
@@ -209,7 +209,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // assembling cmds
   HttpSqlCmd *stable_cmd = httpNewSqlCmd(pContext);
   if (stable_cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   stable_cmd->cmdType = HTTP_CMD_TYPE_CREATE_STBALE;
@@ -217,19 +217,19 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
   HttpSqlCmd *table_cmd = httpNewSqlCmd(pContext);
   if (table_cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   table_cmd->cmdType = HTTP_CMD_TYPE_INSERT;
 
   // order by tag name
-  cJSON *orderedTags[12] = {0};
-  int    orderTagsLen = 0;
+  cJSON * orderedTags[12] = {0};
+  int32_t orderTagsLen = 0;
   tagsSize = MIN(tagsSize, 12);
-  for (int t1 = 0; t1 < tagsSize; ++t1) {
+  for (int32_t t1 = 0; t1 < tagsSize; ++t1) {
     cJSON *tag = cJSON_GetArrayItem(tags, t1);
     orderedTags[orderTagsLen++] = tag;
-    for (int t2 = orderTagsLen - 1; t2 >= 1; --t2) {
+    for (int32_t t2 = orderTagsLen - 1; t2 >= 1; --t2) {
       cJSON *tag1 = orderedTags[t2];
       cJSON *tag2 = orderedTags[t2 - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
@@ -255,7 +255,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpAddToSqlCmdBufferNoTerminal(pContext, "n");
   httpAddToSqlCmdBufferNoTerminal(pContext, "_");
 
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "b");
@@ -271,7 +271,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
       httpShrinkTableName(pContext, table_cmd->stable, httpGetCmdsString(pContext, table_cmd->stable));
 
   // stable tag for detail
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     stable_cmd->tagNames[i] = table_cmd->tagNames[i] = httpAddToSqlCmdBuffer(pContext, tag->string);
 
@@ -288,7 +288,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // table name
   table_cmd->table = stable_cmd->table =
       httpAddToSqlCmdBufferNoTerminal(pContext, "%s", httpGetCmdsString(pContext, table_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
@@ -316,7 +316,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   else {
   }
   httpAddToSqlCmdBufferNoTerminal(pContext, ",%s %s) tags(", value->string, field_type);
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     char * tag_type = "double";
     if (tag->type == cJSON_String)
@@ -336,7 +336,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   table_cmd->sql = httpAddToSqlCmdBufferNoTerminal(pContext, "import into %s.%s using %s.%s tags(", db,
                                                    httpGetCmdsString(pContext, table_cmd->table), db,
                                                    httpGetCmdsString(pContext, table_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (i != tagsSize - 1) {
       if (tag->type == cJSON_Number)
@@ -428,45 +428,44 @@ request from opentsdb
 ]
 */
 bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, ip:%s, process opentsdb put detail msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process opentsdb put detail msg", pContext, pContext->fd);
 
-  HttpParser *pParser = &pContext->parser;
-  char *      filter = pParser->data.pos;
+  char *filter = pContext->parser->body.str;
   if (filter == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_MSG_INPUT);
     return false;
   }
 
   cJSON *root = cJSON_Parse(filter);
   if (root == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_INVALID_JSON);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_INVALID_JSON);
     return false;
   }
 
-  int size = cJSON_GetArraySize(root);
-  httpDebug("context:%p, fd:%d, ip:%s, metrics:%d at one time", pContext, pContext->fd, pContext->ipstr, size);
+  int32_t size = cJSON_GetArraySize(root);
+  httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_METRICS_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRICS_NULL);
     cJSON_Delete(root);
     return false;
   }
 
-  int cmdSize = size * 2 + 1;
+  int32_t cmdSize = size * 2 + 1;
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
-    httpSendErrorResp(pContext, HTTP_OP_METRICS_SIZE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRICS_SIZE);
     cJSON_Delete(root);
     return false;
   }
 
   if (!httpMallocMultiCmds(pContext, cmdSize, HTTP_BUFFER_SIZE)) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     cJSON_Delete(root);
     return false;
   }
 
   HttpSqlCmd *cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     cJSON_Delete(root);
     return false;
   }
@@ -474,7 +473,7 @@ bool opProcessPutDetailRequest(HttpContext *pContext, char *db) {
   cmd->cmdReturnType = HTTP_CMD_RETURN_TYPE_NO_RETURN;
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "create database if not exists %s", db);
 
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     cJSON *metric = cJSON_GetArrayItem(root, i);
     if (metric != NULL) {
       if (!opProcessPutDetailMetric(pContext, metric, db)) {
@@ -498,100 +497,100 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // metric name
   cJSON *name = cJSON_GetObjectItem(metric, "metric");
   if (name == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_NULL);
     return false;
   }
   if (name->type != cJSON_String) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_TYPE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_TYPE);
     return false;
   }
   if (name->valuestring == NULL || strlen(name->valuestring) == 0) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
   if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 11) {
-    httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
 
   // timestamp
   cJSON *timestamp = cJSON_GetObjectItem(metric, "timestamp");
   if (timestamp == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_TIMESTAMP_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TIMESTAMP_NULL);
     return false;
   }
   if (timestamp->type != cJSON_Number) {
-    httpSendErrorResp(pContext, HTTP_OP_TIMESTAMP_TYPE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TIMESTAMP_TYPE);
     return false;
   }
   if (timestamp->valueint <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_TIMESTAMP_VAL_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TIMESTAMP_VAL_NULL);
     return false;
   }
 
   // value
   cJSON *value = cJSON_GetObjectItem(metric, "value");
   if (value == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_VALUE_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_VALUE_NULL);
     return false;
   }
   if (value->type != cJSON_Number && value->type != cJSON_String && value->type != cJSON_False &&
       value->type != cJSON_True) {
-    httpSendErrorResp(pContext, HTTP_OP_VALUE_TYPE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_VALUE_TYPE);
     return false;
   }
 
   // tags
   cJSON *tags = cJSON_GetObjectItem(metric, "tags");
   if (tags == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_TAGS_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAGS_NULL);
     return false;
   }
 
-  int tagsSize = cJSON_GetArraySize(tags);
+  int32_t tagsSize = cJSON_GetArraySize(tags);
   if (tagsSize <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_TAGS_SIZE_0);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAGS_SIZE_0);
     return false;
   }
 
   if (tagsSize > TSDB_MAX_TAGS) {
-    httpSendErrorResp(pContext, HTTP_OP_TAGS_SIZE_LONG);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAGS_SIZE_LONG);
     return false;
   }
 
   // tags detail
-  for (int i = 0; i < tagsSize; i++) {
+  for (int32_t i = 0; i < tagsSize; i++) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     if (tag == NULL) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_NULL);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_NULL);
       return false;
     }
     if (tag->string == NULL || strlen(tag->string) == 0) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_NULL);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_NAME_NULL);
       return false;
     }
     if (strlen(tag->string) >= TSDB_COL_NAME_LEN - 1) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_NAME_SIZE);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_NAME_SIZE);
       return false;
     }
 
     if (tag->type != cJSON_Number && tag->type != cJSON_String && tag->type != cJSON_False && tag->type != cJSON_True) {
-      httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_TYPE);
+      httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_TYPE);
       return false;
     }
 
     if (tag->type == cJSON_String) {
       if (tag->valuestring == NULL) {
-        httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_NULL);
         return false;
       }
-      int len = (int)strlen(tag->valuestring);
+      int32_t len = (int32_t)strlen(tag->valuestring);
       if (len == 0) {
-        httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_NULL);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_NULL);
         return false;
       }
       if (len > 64) {
-        httpSendErrorResp(pContext, HTTP_OP_TAG_VALUE_TOO_LONG);
+        httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG);
         return false;
       }
     }
@@ -600,7 +599,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // assembling cmds
   HttpSqlCmd *stable_cmd = httpNewSqlCmd(pContext);
   if (stable_cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     return false;
   }
   stable_cmd->cmdType = HTTP_CMD_TYPE_CREATE_STBALE;
@@ -608,11 +607,11 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
   // order by tag name
   cJSON *orderedTags[6] = {0};
-  int    orderTagsLen = 0;
-  for (int i = 0; i < tagsSize; ++i) {
+  int32_t orderTagsLen = 0;
+  for (int32_t i = 0; i < tagsSize; ++i) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     orderedTags[orderTagsLen++] = tag;
-    for (int j = orderTagsLen - 1; j >= 1; --j) {
+    for (int32_t j = orderTagsLen - 1; j >= 1; --j) {
       cJSON *tag1 = orderedTags[j];
       cJSON *tag2 = orderedTags[j - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
@@ -634,7 +633,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpAddToSqlCmdBufferNoTerminal(pContext, "n");
   httpAddToSqlCmdBufferNoTerminal(pContext, "_");
 
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "b");
@@ -651,7 +650,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
   // table name
   stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s", httpGetCmdsString(pContext, stable_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
@@ -679,7 +678,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
   }
 
   httpAddToSqlCmdBufferNoTerminal(pContext, ",%s %s) tags(", value->string, field_type);
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     char * tag_type = "double";
     if (tag->type == cJSON_String)
@@ -707,16 +706,16 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
   cJSON *value = cJSON_GetObjectItem(metric, "value");
 
   // tags
-  cJSON *tags = cJSON_GetObjectItem(metric, "tags");
-  int    tagsSize = cJSON_GetArraySize(tags);
+  cJSON * tags = cJSON_GetObjectItem(metric, "tags");
+  int32_t tagsSize = cJSON_GetArraySize(tags);
 
   // order by tag name
-  cJSON *orderedTags[6] = {0};
-  int    orderTagsLen = 0;
-  for (int i = 0; i < tagsSize; ++i) {
+  cJSON * orderedTags[6] = {0};
+  int32_t orderTagsLen = 0;
+  for (int32_t i = 0; i < tagsSize; ++i) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     orderedTags[orderTagsLen++] = tag;
-    for (int j = orderTagsLen - 1; j >= 1; --j) {
+    for (int32_t j = orderTagsLen - 1; j >= 1; --j) {
       cJSON *tag1 = orderedTags[j];
       cJSON *tag2 = orderedTags[j - 1];
       if (strcmp(tag1->string, tag2->string) < 0) {
@@ -730,7 +729,7 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
   httpAddToSqlCmdBufferNoTerminal(pContext, " %s.%s using %s.%s tags(", db,
                                   httpGetCmdsString(pContext, table_cmd->table), db,
                                   httpGetCmdsString(pContext, table_cmd->stable));
-  for (int i = 0; i < orderTagsLen; ++i) {
+  for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (i != tagsSize - 1) {
       if (tag->type == cJSON_Number)
@@ -774,45 +773,44 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
 
 // summary parse
 bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
-  httpDebug("context:%p, fd:%d, ip:%s, process opentsdb put summary msg", pContext, pContext->fd, pContext->ipstr);
+  httpDebug("context:%p, fd:%d, process opentsdb put summary msg", pContext, pContext->fd);
 
-  HttpParser *pParser = &pContext->parser;
-  char *      filter = pParser->data.pos;
+  char *filter = pContext->parser->body.str;
   if (filter == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_MSG_INPUT);
     return false;
   }
 
   cJSON *root = cJSON_Parse(filter);
   if (root == NULL) {
-    httpSendErrorResp(pContext, HTTP_OP_INVALID_JSON);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_INVALID_JSON);
     return false;
   }
 
-  int size = cJSON_GetArraySize(root);
-  httpDebug("context:%p, fd:%d, ip:%s, metrics:%d at one time", pContext, pContext->fd, pContext->ipstr, size);
+  int32_t size = cJSON_GetArraySize(root);
+  httpDebug("context:%p, fd:%d, metrics:%d at one time", pContext, pContext->fd, size);
   if (size <= 0) {
-    httpSendErrorResp(pContext, HTTP_OP_METRICS_NULL);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRICS_NULL);
     cJSON_Delete(root);
     return false;
   }
 
-  int cmdSize = size + 5;
+  int32_t cmdSize = size + 5;
   if (cmdSize > HTTP_MAX_CMD_SIZE) {
-    httpSendErrorResp(pContext, HTTP_OP_METRICS_SIZE);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_OP_METRICS_SIZE);
     cJSON_Delete(root);
     return false;
   }
 
   if (!httpMallocMultiCmds(pContext, cmdSize, HTTP_BUFFER_SIZE)) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     cJSON_Delete(root);
     return false;
   }
 
   HttpSqlCmd *cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     cJSON_Delete(root);
     return false;
   }
@@ -820,7 +818,7 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   cmd->cmdReturnType = HTTP_CMD_RETURN_TYPE_NO_RETURN;
   cmd->sql = httpAddToSqlCmdBuffer(pContext, "create database if not exists %s", db);
 
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     cJSON *metric = cJSON_GetArrayItem(root, i);
     if (metric != NULL) {
       if (!opProcessPutSummaryMetric(pContext, metric, db)) {
@@ -833,22 +831,22 @@ bool opProcessPutSummaryRequest(HttpContext *pContext, char *db) {
   // batch insert sql
   cmd = httpNewSqlCmd(pContext);
   if (cmd == NULL) {
-    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
     cJSON_Delete(root);
     return false;
   }
   cmd->cmdType = HTTP_CMD_TYPE_INSERT;
   cmd->sql = httpAddToSqlCmdBufferNoTerminal(pContext, "import into", db);
 
-  for (int i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; i++) {
     cJSON *metric = cJSON_GetArrayItem(root, i);
     if (metric != NULL) {
-      int sqlLen = pContext->multiCmds->bufferPos - cmd->sql;
+      int32_t sqlLen = pContext->multiCmds->bufferPos - cmd->sql;
       if (sqlLen > 50000) {
         httpAddToSqlCmdBuffer(pContext, "");
         cmd = httpNewSqlCmd(pContext);
         if (cmd == NULL) {
-          httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+          httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
           cJSON_Delete(root);
           return false;
         }
@@ -886,7 +884,7 @@ bool opProcessRequest(struct HttpContext *pContext) {
   }
 
   if (strlen(pContext->user) == 0 || strlen(pContext->pass) == 0) {
-    httpSendErrorResp(pContext, HTTP_PARSE_USR_ERROR);
+    httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_AUTH_INFO);
     return false;
   }
 
@@ -906,6 +904,6 @@ bool opProcessRequest(struct HttpContext *pContext) {
   } else {
   }
 
-  httpSendErrorResp(pContext, HTTP_PARSE_URL_ERROR);
+  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVLALID_URL);
   return false;
 }

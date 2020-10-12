@@ -3,3 +3,4 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(taosdump)
 ADD_SUBDIRECTORY(taosmigrate)
+ADD_SUBDIRECTORY(lowa)

@@ -13,22 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <assert.h>
-#ifndef _ALPINE
-  #include <error.h>
-#endif
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <wordexp.h>
 #include <iconv.h>
-#include <time.h>
-
 #include "os.h"
 #include "taos.h"
 #include "taosdef.h"
@@ -923,16 +908,16 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
   
     switch (fields[0].type) {
       case TSDB_DATA_TYPE_BOOL:
-        sprintf(tableDes->cols[i].note, "%d", ((((int)(*((char *)row[0]))) == 1) ? 1 : 0));
+        sprintf(tableDes->cols[i].note, "%d", ((((int32_t)(*((char *)row[0]))) == 1) ? 1 : 0));
         break;
       case TSDB_DATA_TYPE_TINYINT:
-        sprintf(tableDes->cols[i].note, "%d", (int)(*((char *)row[0])));
+        sprintf(tableDes->cols[i].note, "%d", *((int8_t *)row[0]));
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        sprintf(tableDes->cols[i].note, "%d", (int)(*((short *)row[0])));
+        sprintf(tableDes->cols[i].note, "%d", *((int16_t *)row[0]));
         break;
       case TSDB_DATA_TYPE_INT:
-        sprintf(tableDes->cols[i].note, "%d", *((int *)row[0]));
+        sprintf(tableDes->cols[i].note, "%d", *((int32_t *)row[0]));
         break;
       case TSDB_DATA_TYPE_BIGINT:
         sprintf(tableDes->cols[i].note, "%" PRId64 "", *((int64_t *)row[0]));
@@ -1542,16 +1527,16 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
 
       switch (fields[col].type) {
         case TSDB_DATA_TYPE_BOOL:
-          pstr += sprintf(pstr, "%d", ((((int)(*((char *)row[col]))) == 1) ? 1 : 0));
+          pstr += sprintf(pstr, "%d", ((((int32_t)(*((char *)row[col]))) == 1) ? 1 : 0));
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          pstr += sprintf(pstr, "%d", (int)(*((char *)row[col])));
+          pstr += sprintf(pstr, "%d", *((int8_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          pstr += sprintf(pstr, "%d", (int)(*((short *)row[col])));
+          pstr += sprintf(pstr, "%d", *((int16_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_INT:
-          pstr += sprintf(pstr, "%d", *((int *)row[col]));
+          pstr += sprintf(pstr, "%d", *((int32_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
           pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));

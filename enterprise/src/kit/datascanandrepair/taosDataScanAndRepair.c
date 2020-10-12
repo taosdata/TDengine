@@ -259,12 +259,8 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
   }
 
   fseek(fp, TSDB_FILE_HEADER_LEN * 1 / 4, SEEK_SET);
-#ifdef _TD_ARM_32_
-  fscanf(fp, "%lld %lld %lld ", &(pInfo->lastCreate), &(pInfo->lastRemove), &(pInfo->version));
-  fscanf(fp, "%lld %d %d ", &(pInfo->lastKeyOnFile), &(pInfo->fileId), &(pInfo->numOfFiles));
-#else
-  fscanf(fp, "%ld %ld %ld ", &(pInfo->lastCreate), &(pInfo->lastRemove), &(pInfo->version));
-  fscanf(fp, "%ld %d %d ", &(pInfo->lastKeyOnFile), &(pInfo->fileId), &(pInfo->numOfFiles));
+  fscanf(fp, "%" PRId64 " %" PRId64 " %" PRId64, &(pInfo->lastCreate), &(pInfo->lastRemove), &(pInfo->version));
+  fscanf(fp, "%" PRId64 " %d %d ", &(pInfo->lastKeyOnFile), &(pInfo->fileId), &(pInfo->numOfFiles));
 #endif
 
   fseek(fp, TSDB_FILE_HEADER_LEN * 2 / 4, SEEK_SET);

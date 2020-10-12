@@ -19,14 +19,14 @@ echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir
 # git checkout $branchName
 # git checkout -- .
-git pull
-git checkout -- .
+# git pull
+# git checkout -- .
 rm -rf release/*
 
 cd $enterpriseDir
 # git checkout $branchName
 # git checkout -- .
-git pull
+# git pull
 
 cd $communityDir
 ./packaging/release.sh -v cluster -n $version -m $versionComp -V $verType
