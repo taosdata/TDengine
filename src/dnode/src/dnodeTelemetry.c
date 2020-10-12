@@ -41,7 +41,7 @@ static pthread_t tsTelemetryThread;
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT 80
-#define REPORT_INTERVAL 86400 
+#define REPORT_INTERVAL 100 // 86400 
 
 static void beginObject(SBufferWriter* bw) {
   tbufWriteChar(bw, '{');
@@ -177,7 +177,8 @@ static void addMemoryInfo(SBufferWriter* bw) {
 static void addVersionInfo(SBufferWriter* bw) {
   addStringField(bw, "version", version);
   addStringField(bw, "buildInfo", buildinfo);
-  addStringField(bw, "gitInfo", gitinfo);
+  addStringField(bw, "gitInfo", gitinfo);  
+  addStringField(bw, "email", tsEmail);  
 }
 
 static void addRuntimeInfo(SBufferWriter* bw) {
@@ -243,7 +244,7 @@ static void sendTelemetryReport() {
 static void* telemetryThread(void* param) {
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
-  end.tv_sec += 300; // wait 5 minutes before send first report
+  end.tv_sec += 10; //300; // wait 5 minutes before send first report
 
   while (1) {
     if (sem_timedwait(&tsExitSem, &end) == 0) {
@@ -261,10 +262,24 @@ static void* telemetryThread(void* param) {
   return NULL;
 }
 
+static void dnodeGetEmail(char* filepath) {
+  int fd = open(filepath, O_RDONLY);
+  if (fd < 0) {
+    return;
+  }
+  
+  if (taosTRead(fd, (void *)tsEmail, TSDB_FQDN_LEN) < 0) {
+    dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
+  }    
+}
+
+
 int32_t dnodeInitTelemetry() {
   if (!tsEnableTelemetryReporting) {
     return 0;
   }
+
+  dnodeGetEmail("/usr/local/taos/email");  
 
   if (tsem_init(&tsExitSem, 0, 0) == -1) {
     // just log the error, it is ok for telemetry to fail
