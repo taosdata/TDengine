@@ -270,7 +270,9 @@ static void dnodeGetEmail(char* filepath) {
   
   if (taosTRead(fd, (void *)tsEmail, TSDB_FQDN_LEN) < 0) {
     dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
-  }    
+  } 
+
+  close(fd);   
 }
 
 
