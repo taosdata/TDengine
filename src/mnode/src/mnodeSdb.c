@@ -360,7 +360,7 @@ void sdbUpdateSync(void *pMnodes) {
   }
 
   if (!hasThisDnode) {
-    sdbError("update sync config, this dnode not exist");
+    sdbDebug("update sync config, this dnode not exist");
     return;
   }
 

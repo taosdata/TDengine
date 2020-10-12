@@ -535,7 +535,9 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   }
 
   vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
-  dnodeProcessModuleStatus(pCfg->moduleStatus);
+
+  // will not set mnode in status msg
+  // dnodeProcessModuleStatus(pCfg->moduleStatus);
   dnodeUpdateDnodeCfg(pCfg);
 
   dnodeUpdateMnodeInfos(pMnodes);
