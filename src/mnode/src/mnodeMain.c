@@ -109,7 +109,7 @@ int32_t mnodeStartSystem() {
 
   mInfo("mnode is initialized successfully");
 
-  sdbUpdateSync();
+  sdbUpdateSync(NULL);
 
   return 0;
 }

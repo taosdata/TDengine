@@ -722,6 +722,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
+  SDMMnodeInfos mnodes;
 } SMDCreateMnodeMsg;
 
 typedef struct {

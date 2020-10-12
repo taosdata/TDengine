@@ -25,7 +25,7 @@ sql create dnode $hostname2
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 4000
+	sleep 2000
 	if $x == 5 then 
 		return -1
 	endi

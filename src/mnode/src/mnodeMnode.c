@@ -276,8 +276,20 @@ static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
   if (pCreate == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
-    pCreate->dnodeId = dnodeId;
+    pCreate->dnodeId = htonl(dnodeId);
     tstrncpy(pCreate->dnodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
+    pCreate->mnodes = tsMnodeInfos;
+    bool found = false;
+    for (int i = 0; i < pCreate->mnodes.nodeNum; ++i) {
+      if (pCreate->mnodes.nodeInfos[i].nodeId == htonl(dnodeId)) {
+        found = true;
+      }
+    }
+    if (!found) {
+      pCreate->mnodes.nodeInfos[pCreate->mnodes.nodeNum].nodeId = htonl(dnodeId);
+      tstrncpy(pCreate->mnodes.nodeInfos[pCreate->mnodes.nodeNum].nodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
+      pCreate->mnodes.nodeNum++;
+    }
   }
 
   SRpcMsg rpcMsg = {0};
@@ -291,6 +303,8 @@ static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
 
   if (rpcRsp.code != TSDB_CODE_SUCCESS) {
     mError("dnode:%d, failed to send create mnode msg, ep:%s reason:%s", dnodeId, dnodeEp, tstrerror(rpcRsp.code));
+  } else {
+    mDebug("dnode:%d, create mnode msg is disposed, mnode is created in dnode", dnodeId);
   }
 
   rpcFreeCont(rpcRsp.pCont);
@@ -301,8 +315,9 @@ static int32_t mnodeCreateMnodeCb(SMnodeMsg *pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("failed to create mnode, reason:%s", tstrerror(code));
   } else {
-    mDebug("mnode is created");
+    mDebug("mnode is created successfully");
     mnodeUpdateMnodeEpSet();
+    sdbUpdateSync(NULL);
   }
 
   return code;
@@ -314,9 +329,9 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
   pMnode->createdTime = taosGetTimestampMs();
 
   SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
+    .type  = SDB_OPER_GLOBAL,
     .table = tsMnodeSdb,
-    .pObj = pMnode,
+    .pObj  = pMnode,
     .writeCb = mnodeCreateMnodeCb
   };
 
@@ -346,6 +361,7 @@ void mnodeDropMnodeLocal(int32_t dnodeId) {
   }
 
   mnodeUpdateMnodeEpSet();
+  sdbUpdateSync(NULL);
 }
 
 int32_t mnodeDropMnode(int32_t dnodeId) {
@@ -365,6 +381,7 @@ int32_t mnodeDropMnode(int32_t dnodeId) {
   sdbDecRef(tsMnodeSdb, pMnode);
 
   mnodeUpdateMnodeEpSet();
+  sdbUpdateSync(NULL);
 
   return code;
 }

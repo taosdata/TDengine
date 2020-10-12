@@ -459,18 +459,24 @@ static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
 
 static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
   SMDCreateMnodeMsg *pCfg = pMsg->pCont;
+  pCfg->dnodeId = htonl(pCfg->dnodeId);
   if (pCfg->dnodeId != dnodeGetDnodeId()) {
-    dError("dnodeId:%d in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
+    dError("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
     return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
   }
 
   if (strcmp(pCfg->dnodeEp, tsLocalEp) != 0) {
-    dError("dnodeEp:%s in create mnode msg is not equal with saved dnodeEp:%s", pCfg->dnodeEp, tsLocalEp);
+    dError("dnodeEp:%s, in create mnode msg is not equal with saved dnodeEp:%s", pCfg->dnodeEp, tsLocalEp);
     return TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED;
   }
 
-  dDebug("dnodeId:%d, create mnode msg is received", pCfg->dnodeId);
-  dnodeStartMnode();
+  dDebug("dnodeId:%d, create mnode msg is received from mnodes, numOfMnodes:%d", pCfg->dnodeId, pCfg->mnodes.nodeNum);
+  for (int i = 0; i < pCfg->mnodes.nodeNum; ++i) {
+    pCfg->mnodes.nodeInfos[i].nodeId = htonl(pCfg->mnodes.nodeInfos[i].nodeId);
+    dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.nodeInfos[i].nodeId, pCfg->mnodes.nodeInfos[i].nodeEp);
+  }
+
+  dnodeStartMnode(&pCfg->mnodes);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -485,31 +491,6 @@ void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
   for (int i = 0; i < pEpSet->numOfEps; ++i) {
     pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
-
-#if 0
-    if (!mnodeIsRunning()) {
-      if (strcmp(pEpSet->fqdn[i], tsLocalFqdn) == 0 && pEpSet->port[i] == tsServerPort) {
-        dInfo("mnode index:%d %s:%u self should work as mnode", i, pEpSet->fqdn[i], pEpSet->port[i]);
-        bool find = false;
-        for (int i = 0; i < tsDMnodeInfos.nodeNum; ++i) {
-          if (tsDMnodeInfos.nodeInfos[i].nodeId == dnodeGetDnodeId()) {
-            dInfo("localEp found in mnode infos");
-            find = true;
-            break;
-          }
-        }
-
-        if (!find) {
-          dInfo("localEp not found in mnode infos, will set into mnode infos");
-          tstrncpy(tsDMnodeInfos.nodeInfos[tsDMnodeInfos.nodeNum].nodeEp, tsLocalEp, TSDB_EP_LEN);
-          tsDMnodeInfos.nodeInfos[tsDMnodeInfos.nodeNum].nodeId = dnodeGetDnodeId();
-          tsDMnodeInfos.nodeNum++;
-        }
-
-        dnodeStartMnode();
-      }
-    }
-#endif    
   }
 
   tsDMnodeEpSet = *pEpSet;
@@ -598,7 +579,6 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   }
 
   dnodeSaveMnodeInfos();
-  sdbUpdateSync();
 }
 
 static bool dnodeReadMnodeInfos() {

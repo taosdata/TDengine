@@ -297,27 +297,19 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   taosFreeQitem(pOper);
 }
 
-void sdbUpdateSync() {
+void sdbUpdateSync(void *pMnodes) {
+  SDMMnodeInfos *mnodes = pMnodes;
   if (!mnodeIsRunning()) {
-    mDebug("mnode not start yet, update sync info later");
+    mDebug("mnode not start yet, update sync config later");
     return;
   }
 
-  mDebug("update sync info in sdb");
+  mDebug("update sync config in sync module, mnodes:%p", pMnodes);
 
   SSyncCfg syncCfg = {0};
   int32_t  index = 0;
 
-  SDMMnodeInfos *mnodes = dnodeGetMnodeInfos();
-  for (int32_t i = 0; i < mnodes->nodeNum; ++i) {
-    SDMMnodeInfo *node = &mnodes->nodeInfos[i];
-    syncCfg.nodeInfo[i].nodeId = node->nodeId;
-    taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[i].nodeFqdn, &syncCfg.nodeInfo[i].nodePort);
-    syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
-    index++;
-  }
-
-  if (index == 0) {
+  if (mnodes == NULL) {
     void *pIter = NULL;
     while (1) {
       SMnodeObj *pMnode = NULL;
@@ -337,9 +329,19 @@ void sdbUpdateSync() {
       mnodeDecMnodeRef(pMnode);
     }
     sdbFreeIter(pIter);
+    syncCfg.replica = index;
+    mDebug("mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
+  } else {
+    for (index = 0; index < mnodes->nodeNum; ++index) {
+      SDMMnodeInfo *node = &mnodes->nodeInfos[index];
+      syncCfg.nodeInfo[index].nodeId = node->nodeId;
+      taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
+      syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
+    }
+    syncCfg.replica = index;
+    mDebug("mnodes info input, numOfMnodes:%d", syncCfg.replica);
   }
 
-  syncCfg.replica = index;
   syncCfg.quorum = (syncCfg.replica == 1) ? 1 : 2;
 
   bool hasThisDnode = false;
@@ -350,8 +352,15 @@ void sdbUpdateSync() {
     }
   }
 
-  if (!hasThisDnode) return;
-  if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) return;
+  if (!hasThisDnode) {
+    sdbError("update sync config, this dnode not exist");
+    return;
+  }
+
+  if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) {
+    sdbDebug("update sync config, info not changed");
+    return;
+  }
 
   sdbInfo("work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
