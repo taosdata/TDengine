@@ -23,11 +23,12 @@ extern "C" {
  * @file
  * A simple subscriber program that performs automatic reconnections.
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include "mqtt.h"
-#include "taos.h"
+
+#define QOS                1
+#define TIMEOUT            10000L
+#define MQTT_SEND_BUF_SIZE 102400
+#define MQTT_RECV_BUF_SIZE 102400
 
 /**
  * @brief A structure that I will use to keep track of some data needed
@@ -36,18 +37,12 @@ extern "C" {
  * An instance of this struct will be created in my \c main(). Then, whenever
  * \ref mqttReconnectClient is called, this instance will be passed.
  */
-struct reconnect_state_t {
-  char*    hostname;
-  char*    port;
-  char*    topic;
-  char*    client_id;
-  char*    user_name;
-  char*    password;
+typedef struct SMqttReconnectState {
   uint8_t* sendbuf;
   size_t   sendbufsz;
   uint8_t* recvbuf;
   size_t   recvbufsz;
-};
+} SMqttReconnectState;
 
 /**
  * @brief My reconnect callback. It will reestablish the connection whenever
@@ -58,7 +53,7 @@ void mqttReconnectClient(struct mqtt_client* client, void** reconnect_state_vptr
 /**
  * @brief The function will be called whenever a PUBLISH message is received.
  */
-void mqtt_PublishCallback(void** unused, struct mqtt_response_publish* published);
+void mqttPublishCallback(void** unused, struct mqtt_response_publish* published);
 
 /**
  * @brief The client's refresher. This function triggers back-end routines to
@@ -73,12 +68,7 @@ void* mqttClientRefresher(void* client);
 /**
  * @brief Safelty closes the \p sockfd and cancels the \p client_daemon before \c exit.
  */
-
-void mqttCleanup(int status, int sockfd, pthread_t* client_daemon);
-void mqttInitConnCb(void* param, TAOS_RES* result, int32_t code);
-void mqttQueryInsertCallback(void* param, TAOS_RES* result, int32_t code);
-#define QOS 1
-#define TIMEOUT 10000L
+void mqttCleanupRes(int status, int sockfd, pthread_t* client_daemon);
 
 #ifdef __cplusplus
 }

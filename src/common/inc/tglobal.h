@@ -104,8 +104,12 @@ extern int32_t  tsTelegrafUseFieldNum;
 
 // mqtt
 extern int32_t tsEnableMqttModule;
-extern char    tsMqttBrokerAddress[];
-extern char    tsMqttBrokerClientId[];
+extern char tsMqttHostName[];
+extern char tsMqttPort[];
+extern char tsMqttUser[];
+extern char tsMqttPass[];
+extern char tsMqttClientId[];
+extern char tsMqttTopic[];
 
 // monitor
 extern int32_t tsEnableMonitorModule;
@@ -154,6 +158,7 @@ extern char buildinfo[];
 // log
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
+extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;
@@ -169,6 +174,7 @@ extern int32_t rpcDebugFlag;
 extern int32_t odbcDebugFlag;
 extern int32_t qDebugFlag;
 extern int32_t wDebugFlag;
+extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)

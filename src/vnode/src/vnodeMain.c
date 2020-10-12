@@ -47,7 +47,19 @@ static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
+#ifndef _SYNC
+tsync_h syncStart(const SSyncInfo *info) { return NULL; }
+int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
+void    syncStop(tsync_h shandle) {}
+int32_t syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
+int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
+void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
+#endif
+
 int32_t vnodeInitResources() {
+  int code = syncInit();
+  if (code != 0) return code;
+
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
@@ -61,11 +73,12 @@ int32_t vnodeInitResources() {
 }
 
 void vnodeCleanupResources() {
-
   if (tsDnodeVnodesHash != NULL) {
     taosHashCleanup(tsDnodeVnodesHash);
     tsDnodeVnodesHash = NULL;
   }
+
+  syncCleanUp();
 }
 
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
@@ -171,6 +184,12 @@ int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
   if (code != TSDB_CODE_SUCCESS) {
     pVnode->status = TAOS_VN_STATUS_READY;
     return code; 
+  }
+
+  code = walAlter(pVnode->wal, &pVnode->walCfg);
+  if (code != TSDB_CODE_SUCCESS) {
+    pVnode->status = TAOS_VN_STATUS_READY;
+    return code;
   }
 
   code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
@@ -289,12 +308,16 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
   pVnode->sync = syncStart(&syncInfo);
 
+#ifndef _SYNC
+  pVnode->role = TAOS_SYNC_ROLE_MASTER;
+#else
   if (pVnode->sync == NULL) {
     vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
     vnodeCleanUp(pVnode);
     return terrno;
   }
+#endif  
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
   if (pVnode->qMgmt == NULL) {
@@ -369,7 +392,14 @@ void vnodeRelease(void *pVnodeRaw) {
     char newDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
     sprintf(newDir, "%s/vnode%d", tsVnodeBakDir, vgId);
-    taosRename(rootDir, newDir);
+
+    if (0 == tsEnableVnodeBak) {
+      vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
+    } else {
+      taosRemoveDir(newDir);
+      taosRename(rootDir, newDir);
+    }
+
     taosRemoveDir(rootDir);
     dnodeSendStatusMsgToMnode();
   }
@@ -658,9 +688,13 @@ static int32_t vnodeSaveCfg(SMDCreateVnodeMsg *pVnodeCfg) {
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pVnodeCfg->cfg.quorum);
 
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
+
+  vInfo("vgId:%d, save vnode cfg, replica:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.replications);
   for (int32_t i = 0; i < pVnodeCfg->cfg.replications; i++) {
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", pVnodeCfg->nodes[i].nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", pVnodeCfg->nodes[i].nodeEp);
+    vInfo("vgId:%d, save vnode cfg, nodeId:%d nodeEp:%s", pVnodeCfg->cfg.vgId, pVnodeCfg->nodes[i].nodeId,
+          pVnodeCfg->nodes[i].nodeEp);
 
     if (i < pVnodeCfg->cfg.replications - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");

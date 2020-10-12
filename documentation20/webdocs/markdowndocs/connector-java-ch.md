@@ -228,7 +228,8 @@ resultSet.close();
 stmt.close();
 conn.close();
 ```
-> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
+> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。  
+
 ## 与连接池使用
 
 **HikariCP**

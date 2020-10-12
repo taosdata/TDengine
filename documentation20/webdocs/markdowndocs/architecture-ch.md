@@ -67,7 +67,7 @@ TDengine 分布式架构的逻辑结构图如下：
 <center> 图 1 TDengine架构示意图  </center>
 一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点(dnode)、TDengine客户端(taosc)以及应用(app)。系统中存在一到多个数据节点，这些数据节点组成一个集群(cluster)。应用通过taosc的API与TDengine集群进行互动。下面对每个逻辑单元进行简要介绍。
 
-**物理节点(pnode):** pnode是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有OS的物理机、虚拟机或容器。物理节点由其配置的 FQDN(Fully Qualified Domain Name)来标识。
+**物理节点(pnode):** pnode是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有OS的物理机、虚拟机或容器。物理节点由其配置的 FQDN(Fully Qualified Domain Name)来标识。TDengine完全依赖FQDN来进行网络通讯，如果不了解FQDN，请看博文《[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)》。
 
 **数据节点(dnode):** dnode 是 TDengine 服务器侧执行代码 taosd 在物理节点上的一个运行实例，一个工作的系统必须有至少一个数据节点。dnode包含零到多个逻辑的虚拟节点(VNODE)，零或者至多一个逻辑的管理节点(mnode)。dnode在系统中的唯一标识由实例的End Point (EP )决定。EP是dnode所在物理节点的FQDN (Fully Qualified Domain Name)和系统所配置的网络端口号(Port)的组合。通过配置不同的端口，一个物理节点(一台物理机、虚拟机或容器）可以运行多个实例，或有多个数据节点。
 
@@ -84,17 +84,17 @@ TDengine 分布式架构的逻辑结构图如下：
 
 **FQDN配置**：一个数据节点有一个或多个FQDN，可以在系统配置文件taos.cfg通过参数“fqdn"进行指定，如果没有指定，系统将自动获取FQDN。如果节点没有配置FQDN，可以直接将该节点的配置参数fqdn设置为它的IP地址。但不建议使用IP，因为IP地址可变，一旦变化，将让集群无法正常工作。一个数据节点的EP(End Point)由FQDN + Port组成。采用FQDN，需要保证DNS服务正常工作，或者在节点以及应用所在的节点配置好hosts文件。
 
-**端口配置：**一个数据节点对外的端口由TDengine的系统配置参数serverPort决定，对集群内部通讯的端口是serverPort+5。集群内数据节点之间的数据复制操作还占有一个TCP端口，是serverPort+10. 为支持多线程高效的处理UDP数据，每个对内和对外的UDP链接，都需要占用5个连续的端口。因此一个数据节点总的端口范围为serverPort到serverPort + 10，总共11个TCP/UDP端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的serverPort。
+**端口配置：**一个数据节点对外的端口由TDengine的系统配置参数serverPort决定，对集群内部通讯的端口是serverPort+5。集群内数据节点之间的数据复制操作还占有一个TCP端口，是serverPort+10. 为支持多线程高效的处理UDP数据，每个对内和对外的UDP连接，都需要占用5个连续的端口。因此一个数据节点总的端口范围为serverPort到serverPort + 10，总共11个TCP/UDP端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的serverPort。
 
-**集群对外链接:** TDengine集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，链接需要提供的网络参数是一数据节点的End Point(FQDN加配置的端口号）。通过命令行CLI启动应用taos时，可以通过选项-h来指定数据节点的FQDN, -P来指定其配置的端口号，如果端口不配置，将采用TDengine的系统配置参数serverPort。
+**集群对外连接:** TDengine集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，连接需要提供的网络参数是一数据节点的End Point(FQDN加配置的端口号）。通过命令行CLI启动应用taos时，可以通过选项-h来指定数据节点的FQDN, -P来指定其配置的端口号，如果端口不配置，将采用TDengine的系统配置参数serverPort。
 
-**集群内部通讯**: 各个数据节点之间通过TCP/UDP进行链接。一个数据节点启动时，将获取mnode所在的dnode的EP信息，然后与系统中的mnode建立起链接，交换信息。获取mnode的EP信息有三步，1：检查mnodeEpList文件是否存在，如果不存在或不能正常打开获得mnode EP信息，进入第二步；2：检查系统配置文件taos.cfg, 获取mnode EP配置参数first, second，如果不存在或者taos.cfg里没有这两个配置参数，或无效，进入第三步；3：将自己的EP设为mnode EP, 并独立运行起来。获取mnode EP列表后，数据节点发起链接，如果链接成功，则成功加入进工作的集群，如果不成功，则尝试mnode EP列表中的下一个。如果都尝试了，但链接都仍然失败，则休眠几秒后，再进行尝试。
+**集群内部通讯**: 各个数据节点之间通过TCP/UDP进行连接。一个数据节点启动时，将获取mnode所在的dnode的EP信息，然后与系统中的mnode建立起连接，交换信息。获取mnode的EP信息有三步，1：检查mnodeEpList文件是否存在，如果不存在或不能正常打开获得mnode EP信息，进入第二步；2：检查系统配置文件taos.cfg, 获取mnode EP配置参数first, second，如果不存在或者taos.cfg里没有这两个配置参数，或无效，进入第三步；3：将自己的EP设为mnode EP, 并独立运行起来。获取mnode EP列表后，数据节点发起连接，如果连接成功，则成功加入进工作的集群，如果不成功，则尝试mnode EP列表中的下一个。如果都尝试了，但连接都仍然失败，则休眠几秒后，再进行尝试。
 
 **MNODE的选择:** TDengine逻辑上有管理节点，但没有单独的执行代码，服务器侧只有一套执行代码taosd。那么哪个数据节点会是管理节点呢？这是系统自动决定的，无需任何人工干预。原则如下：一个数据节点启动时，会检查自己的End Point, 并与获取的mnode EP List进行比对，如果在其中，该数据节点认为自己应该启动mnode模块，成为mnode。如果自己的EP不在mnode EP List里，则不启动mnode模块。在系统的运行过程中，由于负载均衡、宕机等原因，mnode有可能迁移至新的dnode，但一切都是透明的，无需人工干预，配置参数的修改，是mnode自己根据资源做出的决定。
 
-**新数据节点的加入**：系统有了一个数据节点后，就已经成为一个工作的系统。添加新的节点进集群时，有两个步骤，第一步：使用TDengine CLI链接到现有工作的数据节点，然后用命令”create dnode"将新的数据节点的End Point添加进去; 第二步：在新的数据节点的系统配置参数文件taos.cfg里，将first, second参数设置为现有集群中任意两个数据节点的EP即可。具体添加的详细步骤请见详细的用户手册。这样就把集群一步一步的建立起来。
+**新数据节点的加入**：系统有了一个数据节点后，就已经成为一个工作的系统。添加新的节点进集群时，有两个步骤，第一步：使用TDengine CLI连接到现有工作的数据节点，然后用命令”create dnode"将新的数据节点的End Point添加进去; 第二步：在新的数据节点的系统配置参数文件taos.cfg里，将first, second参数设置为现有集群中任意两个数据节点的EP即可。具体添加的详细步骤请见详细的用户手册。这样就把集群一步一步的建立起来。
 
-**重定向**：无论是dnode还是taosc，最先都是要发起与mnode的链接，但mnode是系统自动创建并维护的，因此对于用户来说，并不知道哪个dnode在运行mnode。TDengine只要求向系统中任何一个工作的dnode发起链接即可。因为任何一个正在运行的dnode，都维护有目前运行的mnode EP List。当收到一个来自新启动的dnode或taosc的链接请求，如果自己不是mnode，则将mnode EP List回复给对方，taosc或新启动的dnode收到这个list, 就重新尝试建立链接。当mnode EP List发生改变，通过节点之间的消息交互，各个数据节点就很快获取最新列表，并通知taosc。
+**重定向**：无论是dnode还是taosc，最先都是要发起与mnode的连接，但mnode是系统自动创建并维护的，因此对于用户来说，并不知道哪个dnode在运行mnode。TDengine只要求向系统中任何一个工作的dnode发起连接即可。因为任何一个正在运行的dnode，都维护有目前运行的mnode EP List。当收到一个来自新启动的dnode或taosc的连接请求，如果自己不是mnode，则将mnode EP List回复给对方，taosc或新启动的dnode收到这个list, 就重新尝试建立连接。当mnode EP List发生改变，通过节点之间的消息交互，各个数据节点就很快获取最新列表，并通知taosc。
 
 ### 一个典型的消息流程
 为解释vnode, mnode, taosc和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
@@ -197,7 +197,7 @@ Master Vnode遵循下面的写入流程：
 ### 主从选择
 Vnode会保持一个数据版本号(Version)，对内存数据进行持久化存储时，对该版本号也进行持久化存储。每个数据更新操作，无论是采集的时序数据还是元数据，这个版本号将增一。
 
-一个vnode启动时，角色(master、slave) 是不定的，数据是处于未同步状态，它需要与虚拟节点组内其他节点建立TCP链接，并互相交换status，其中包括version和自己的角色。通过status的交换，系统进入选主流程，规则如下：
+一个vnode启动时，角色(master、slave) 是不定的，数据是处于未同步状态，它需要与虚拟节点组内其他节点建立TCP连接，并互相交换status，其中包括version和自己的角色。通过status的交换，系统进入选主流程，规则如下：
 
 1. 如果只有一个副本，该副本永远就是master
 2. 所有副本都在线时，版本最高的被选为master
@@ -276,14 +276,14 @@ SQL语句的解析和校验工作在客户端完成。解析SQL语句并生成�
 
 在TDengine中引入关键词interval来进行时间轴上固定长度时间窗口的切分，并按照时间窗口对数据进行聚合，对窗口范围内的数据按需进行聚合。例如：
 ```mysql
-select count(*) from d1001 interval(1h)；
+select count(*) from d1001 interval(1h);
 ```
 
 针对d1001设备采集的数据，按照1小时的时间窗口返回每小时存储的记录数量。
 
 在需要连续获得查询结果的应用场景下，如果给定的时间区间存在数据缺失，会导致该区间数据结果也丢失。TDengine提供策略针对时间轴聚合计算的结果进行插值，通过使用关键词Fill就能够对时间轴聚合结果进行插值。例如：
 ```mysql
-select count(*) from d1001 interval(1h) fill(prev)；
+select count(*) from d1001 interval(1h) fill(prev);
 ```
 
 针对d1001设备采集数据统计每小时记录数，如果某一个小时不存在数据，这返回之前一个小时的统计数据。TDengine提供前向插值(prev)、线性插值(linear)、NULL值填充(NULL)、特定值填充(value)。

@@ -43,17 +43,12 @@ typedef struct SNormalStmt {
   tVariant*        params;
 } SNormalStmt;
 
-//typedef struct SInsertStmt {
-//
-//} SInsertStmt;
-
 typedef struct STscStmt {
   bool isInsert;
   STscObj* taos;
   SSqlObj* pSql;
   SNormalStmt normal;
 } STscStmt;
-
 
 static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_t len) {
   uint16_t size = stmt->numParts + 1;
@@ -514,7 +509,6 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   SSqlObj* pSql = pStmt->pSql;
   size_t   sqlLen = strlen(sql);
   
-  //doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
   SSqlCmd *pCmd    = &pSql->cmd;
   SSqlRes *pRes    = &pSql->res;
   pSql->param      = (void*) pSql;
@@ -545,7 +539,9 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     
     pSql->cmd.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
-    
+
+    registerSqlObj(pSql);
+
     int32_t code = tsParseSql(pSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       // wait for the callback function to post the semaphore
@@ -574,7 +570,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     free(normal->sql);
   }
 
-  tscFreeSqlObj(pStmt->pSql);
+  taos_free_result(pStmt->pSql);
   free(pStmt);
   return TSDB_CODE_SUCCESS;
 }

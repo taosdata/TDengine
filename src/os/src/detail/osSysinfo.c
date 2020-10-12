@@ -569,7 +569,6 @@ int taosSystem(const char *cmd) {
   }
 }
 
-int _sysctl(struct __sysctl_args *args );
 void taosSetCoreDump() {
   if (0 == tsEnableCoreFile) {
     return;
@@ -579,7 +578,11 @@ void taosSetCoreDump() {
   struct rlimit rlim;
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    #ifndef _ALPINE
     uInfo("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    #else
+    uInfo("the old unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
+    #endif
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
@@ -591,7 +594,11 @@ void taosSetCoreDump() {
   }
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    #ifndef _ALPINE
     uInfo("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    #else
+    uInfo("the new unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
+    #endif
   }
 
 #ifndef _TD_ARM_

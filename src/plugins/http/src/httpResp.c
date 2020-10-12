@@ -19,7 +19,6 @@
 #include "taosmsg.h"
 #include "httpLog.h"
 #include "httpResp.h"
-#include "httpCode.h"
 #include "httpJson.h"
 #include "httpContext.h"
 
@@ -45,155 +44,112 @@ const char *httpRespTemplate[] = {
     "%s 200 OK\r\nAccess-Control-Allow-Origin:*\r\n%sAccess-Control-Allow-Methods:POST, GET, OPTIONS, DELETE, PUT\r\nAccess-Control-Allow-Headers:Accept, Content-Type\r\nContent-Type: application/json;charset=utf-8\r\nContent-Length: %d\r\n\r\n"
 };
 
-static void httpSendErrorRespImp(HttpContext *pContext, int httpCode, char *httpCodeStr, int errNo, char *desc) {
-  httpError("context:%p, fd:%d, ip:%s, code:%d, error:%s", pContext, pContext->fd, pContext->ipstr, httpCode, desc);
+static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *httpCodeStr, int32_t errNo, const char *desc) {
+  httpError("context:%p, fd:%d, code:%d, error:%s", pContext, pContext->fd, httpCode, desc);
 
   char head[512] = {0};
   char body[512] = {0};
 
-  int bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_ERROR], errNo, desc);
-  int headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[pContext->httpVersion], httpCode,
-                        httpCodeStr, httpKeepAliveStr[pContext->httpKeepAlive], bodyLen);
+  int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_ERROR], errNo, desc);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[pContext->parser->httpVersion],
+                            httpCode, httpCodeStr, httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
   httpCloseContextByApp(pContext);
 }
 
-void httpSendErrorRespWithDesc(HttpContext *pContext, int errNo, char *desc) {
-  int   httpCode = 500;
-  char *httpCodeStr = "Internal Server Error";
-  switch (errNo) {
-    case HTTP_SUCCESS:
-      httpCode = 200;
-      httpCodeStr = "OK";
-      break;
-    case HTTP_SERVER_OFFLINE:
-    case HTTP_UNSUPPORT_URL:
-      httpCode = 404;
-      httpCodeStr = "Not Found";
-      break;
-    case HTTP_PARSE_HTTP_METHOD_ERROR:
-      httpCode = 405;
-      httpCodeStr = "Method Not Allowed";
-      break;
-    case HTTP_PARSE_HTTP_VERSION_ERROR:
-      httpCode = 505;
-      httpCodeStr = "HTTP Version Not Supported";
-      break;
-    case HTTP_PARSE_HEAD_ERROR:
-      httpCode = 406;
-      httpCodeStr = "Not Acceptable";
-      break;
-    case HTTP_REQUSET_TOO_BIG:
-      httpCode = 413;
-      httpCodeStr = "Request Entity Too Large";
-      break;
-    case HTTP_PARSE_BODY_ERROR:
-    case HTTP_PARSE_CHUNKED_BODY_ERROR:
-      httpCode = 409;
-      httpCodeStr = "Conflict";
-      break;
-    case HTTP_PARSE_URL_ERROR:
-      httpCode = 414;
-      httpCodeStr = "Request-URI Invalid";
-      break;
-    case HTTP_INVALID_AUTH_TOKEN:
-    case HTTP_PARSE_USR_ERROR:
-      httpCode = 401;
-      httpCodeStr = "Unauthorized";
-      break;
-    case HTTP_NO_SQL_INPUT:
-      httpCode = 400;
-      httpCodeStr = "Bad Request";
-      break;
-    case HTTP_SESSION_FULL:
-      httpCode = 421;
-      httpCodeStr = "Too many connections";
-      break;
-    case HTTP_NO_ENOUGH_MEMORY:
-    case HTTP_GEN_TAOSD_TOKEN_ERR:
-      httpCode = 507;
-      httpCodeStr = "Insufficient Storage";
-      break;
-    case HTTP_INVALID_DB_TABLE:
-    case HTTP_NO_EXEC_USEDB:
-    case HTTP_PARSE_GC_REQ_ERROR:
-    case HTTP_INVALID_MULTI_REQUEST:
-    case HTTP_NO_MSG_INPUT:
-      httpCode = 400;
-      httpCodeStr = "Bad Request";
-      break;
-    case HTTP_NO_ENOUGH_SESSIONS:
-      httpCode = 421;
-      httpCodeStr = "Too many connections";
-      break;
-    // telegraf
-    case HTTP_TG_DB_NOT_INPUT:
-    case HTTP_TG_DB_TOO_LONG:
-    case HTTP_TG_INVALID_JSON:
-    case HTTP_TG_METRICS_NULL:
-    case HTTP_TG_METRICS_SIZE:
-    case HTTP_TG_METRIC_NULL:
-    case HTTP_TG_METRIC_TYPE:
-    case HTTP_TG_METRIC_NAME_NULL:
-    case HTTP_TG_METRIC_NAME_LONG:
-    case HTTP_TG_TIMESTAMP_NULL:
-    case HTTP_TG_TIMESTAMP_TYPE:
-    case HTTP_TG_TIMESTAMP_VAL_NULL:
-    case HTTP_TG_TAGS_NULL:
-    case HTTP_TG_TAGS_SIZE_0:
-    case HTTP_TG_TAGS_SIZE_LONG:
-    case HTTP_TG_TAG_NULL:
-    case HTTP_TG_TAG_NAME_NULL:
-    case HTTP_TG_TAG_NAME_SIZE:
-    case HTTP_TG_TAG_VALUE_TYPE:
-    case HTTP_TG_TAG_VALUE_NULL:
-    case HTTP_TG_TABLE_NULL:
-    case HTTP_TG_TABLE_SIZE:
-    case HTTP_TG_FIELDS_NULL:
-    case HTTP_TG_FIELDS_SIZE_0:
-    case HTTP_TG_FIELDS_SIZE_LONG:
-    case HTTP_TG_FIELD_NULL:
-    case HTTP_TG_FIELD_NAME_NULL:
-    case HTTP_TG_FIELD_NAME_SIZE:
-    case HTTP_TG_FIELD_VALUE_TYPE:
-    case HTTP_TG_FIELD_VALUE_NULL:
-    case HTTP_INVALID_BASIC_AUTH_TOKEN:
-    case HTTP_INVALID_TAOSD_AUTH_TOKEN:
-    case HTTP_TG_HOST_NOT_STRING:
-    // grafana
-    case HTTP_GC_QUERY_NULL:
-    case HTTP_GC_QUERY_SIZE:
-      httpCode = 400;
-      httpCodeStr = "Bad Request";
-      break;
-    default:
-      httpError("context:%p, fd:%d, ip:%s, error:%d not recognized", pContext, pContext->fd, pContext->ipstr, errNo);
-      break;
+void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
+  int32_t httpCode = 500;
+  if (errNo == TSDB_CODE_SUCCESS)
+    httpCode = 200;
+  else if (errNo == TSDB_CODE_HTTP_SERVER_OFFLINE)
+    httpCode = 404;
+  else if (errNo == TSDB_CODE_HTTP_UNSUPPORT_URL)
+    httpCode = 404;
+  else if (errNo == TSDB_CODE_HTTP_INVLALID_URL)
+    httpCode = 404;
+  else if (errNo == TSDB_CODE_HTTP_NO_ENOUGH_MEMORY)
+    httpCode = 507;
+  else if (errNo == TSDB_CODE_HTTP_REQUSET_TOO_BIG)
+    httpCode = 413;
+  else if (errNo == TSDB_CODE_HTTP_NO_AUTH_INFO)
+    httpCode = 401;
+  else if (errNo == TSDB_CODE_HTTP_NO_MSG_INPUT)
+    httpCode = 400;
+  else if (errNo == TSDB_CODE_HTTP_NO_SQL_INPUT)
+    httpCode = 400;
+  else if (errNo == TSDB_CODE_HTTP_NO_EXEC_USEDB)
+    httpCode = 400;
+  else if (errNo == TSDB_CODE_HTTP_SESSION_FULL)
+    httpCode = 421;
+  else if (errNo == TSDB_CODE_HTTP_GEN_TAOSD_TOKEN_ERR)
+    httpCode = 507;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_MULTI_REQUEST)
+    httpCode = 400;
+  else if (errNo == TSDB_CODE_HTTP_CREATE_GZIP_FAILED)
+    httpCode = 507;
+  else if (errNo == TSDB_CODE_HTTP_FINISH_GZIP_FAILED)
+    httpCode = 507;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_VERSION)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_CONTENT_LENGTH)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_AUTH_TYPE)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_AUTH_FORMAT)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_BASIC_AUTH)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_TAOSD_AUTH)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_METHOD_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_TARGET_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_VERSION_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_SP_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_STATUS_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_PHRASE_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_CRLF_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_HEADER_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_CHUNK_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_END_FAILED)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_INVALID_STATE)
+    httpCode = 406;
+  else if (errNo == TSDB_CODE_HTTP_PARSE_ERROR_STATE)
+    httpCode = 406;
+  else
+    httpCode = 400;
+
+  if (pContext->parser->httpCode != 0) {
+    httpCode = pContext->parser->httpCode;
   }
 
-  if (desc == NULL) {
-    httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo + 5000, httpMsg[errNo]);
-  } else {
-    httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo + 5000, desc);
-  }
+  char *httpCodeStr = httpGetStatusDesc(httpCode);
+  httpSendErrorRespImp(pContext, httpCode, httpCodeStr, errNo & 0XFFFF, tstrerror(errNo));
 }
 
-void httpSendErrorResp(HttpContext *pContext, int errNo) { httpSendErrorRespWithDesc(pContext, errNo, NULL); }
+void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
+  int32_t httpCode = 400;
+  char    temp[512] = {0};
+  int32_t len = sprintf(temp, "invalid SQL: %s", errMsg);
 
-void httpSendTaosdErrorResp(HttpContext *pContext, int errCode) {
-  int httpCode = 400;
-  
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", errCode & 0XFFFF, (char*)tstrerror(errCode));
-}
-
-void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {
-  int httpCode = 400;
-  char temp[512] = {0};
-  int len = sprintf(temp, "invalid SQL: %s", errMsg);
-
-  for (int i = 0; i < len; ++i) {
+  for (int32_t i = 0; i < len; ++i) {
     if (temp[i] == '\"') {
       temp[i] = '\'';
     } else if (temp[i] == '\n') {
@@ -208,9 +164,9 @@ void httpSendSuccResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
-  int bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], HTTP_SUCCESS, desc);
-  int headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[pContext->httpVersion],
-                        httpKeepAliveStr[pContext->httpKeepAlive], bodyLen);
+  int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], TSDB_CODE_SUCCESS, desc);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[pContext->parser->httpVersion],
+                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
@@ -221,9 +177,9 @@ void httpSendOptionResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
-  int bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], HTTP_SUCCESS, desc);
-  int headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[pContext->httpVersion],
-                        httpKeepAliveStr[pContext->httpKeepAlive], bodyLen);
+  int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], TSDB_CODE_SUCCESS, desc);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[pContext->parser->httpVersion],
+                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);

@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 system sh/deploy.sh -n dnode1 -i 1
 
 print ========= start dnodes
@@ -50,7 +51,7 @@ $tbPrefix = t
 $i = 0
 while $i < 10
   $db = db . $i
-  sql create database $db maxTables 4
+  sql create database $db
   sql use $db
 
   sql create table st (ts timestamp, i int) tags(j int);

@@ -86,8 +86,6 @@ print ========== insert data by multi-format
 sql create table abc.tk_mt (ts timestamp, a int, b binary(16), c bool, d float, e double, f nchar(16)) tags (t1 int, t2 binary(16))
 
 sql create table abc.tk_subt001 using tk_mt tags(1, 'subt001')
-sql insert into abc.tk_subt001                  values (now-1y, 1, 'binary_1', true,  1.001, 2.001, 'nchar_1')
-sql insert into abc.tk_subt001                  values (now-1n, 2, 'binary_2', true,  1.002, 2.002, 'nchar_2') 
 sql insert into abc.tk_subt001                  values (now-1w, 3, 'binary_3', true,  1.003, 2.003, 'nchar_3')
 sql insert into abc.tk_subt001 (ts, a, c, e, f) values (now-1d, 4,             false,        2.004, 'nchar_4')
 sql insert into abc.tk_subt001 (ts, a, c, e, f) values (now-1h, 5,             false,        2.005, 'nchar_5')
@@ -95,35 +93,29 @@ sql insert into abc.tk_subt001 (ts, b, d)       values (now-1m,    'binary_6',  
 sql insert into abc.tk_subt001 (ts, b, d)       values (now-1s,    'binary_7',        1.007)
 sql insert into abc.tk_subt001 (ts, b, d)       values (now-1a,    'binary_8',        1.008)
 sql select * from tk_subt001
-if $rows != 8 then 
-  print ==== expect rows is 8, but actually is $rows
+if $rows != 6 then 
+  print ==== expect rows is 6, but actually is $rows
   return -1
 endi
 
-sql insert into abc.tk_subt002 using tk_mt tags (22,'subt002x')  values (now-2y, 2008, 'binary_2008', false, 2008.001, 2008.001, 'nchar_2008')
-sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now-1y, 2007, 'binary_2007', false, 2007.001, 2007.001, 'nchar_2007')
-sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now-1n, 2006, 'binary_2006', true,  2006.001, 2006.001, 'nchar_2006')
-sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1s, 2001, 'binary_2001', true,  2001.001, 2001.001, 'nchar_2001')
+sql insert into abc.tk_subt002 using tk_mt tags (22, 'subt002x')   values (now+1s, 2001, 'binary_2001', true,  2001.001, 2001.001, 'nchar_2001')
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1m, 2002, 'binary_2002', false, 2002.001, 2002.001, 'nchar_2002')  
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1h, 2003, 'binary_2003', false, 2003.001, 2003.001, 'nchar_2003')
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1d, 2004, 'binary_2004', true,  2004.001, 2004.001, 'nchar_2004')
 sql insert into abc.tk_subt002 using tk_mt tags (2, 'subt002')   values (now+1w, 2005, 'binary_2005', false, 2005.001, 2005.001, 'nchar_2005')
 sql select * from tk_subt002
-if $rows != 8 then 
-  print ==== expect rows is 8, but actually is $rows
+if $rows != 5 then 
+  print ==== expect rows is 5, but actually is $rows
   return -1
 endi
 
-sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-5y,  3001,                false, 3001.001,           'nchar_3001')
-sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-4y,  3002,                false, 3002.001,           'nchar_3002')
-sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-3y,  3003,                true , 3003.001,           'nchar_3003')
-sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-2y,  3004,                false, 3004.001,           'nchar_3004')
-sql insert into abc.tk_subt003                                                     values (now-37d, 3005, 'binary_3005', false, 3005.001, 3005.001, 'nchar_3005')
+sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-38d, 3004,                false, 3004.001,           'nchar_3004')
+sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (3, 'subt003')    values (now-37d, 3005,                false, 3005.001,           'nchar_3005')
 sql insert into abc.tk_subt003                                                     values (now-36d, 3006, 'binary_3006', true,  3006.001, 3006.001, 'nchar_3006')
 sql insert into abc.tk_subt003 (ts, a, c, e, f) using tk_mt tags (33, 'subt003x')  values (now-35d, 3007,                false, 3007.001,           'nchar_3007')
 sql select * from tk_subt003
-if $rows != 7 then 
-  print ==== expect rows is 7, but actually is $rows
+if $rows != 4 then 
+  print ==== expect rows is 4, but actually is $rows
   return -1
 endi
 

@@ -16,11 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
+#include "taosmsg.h"
 #include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
 #include "tmqtt.h"
 #include "monitor.h"
+#include "dnode.h"
 #include "dnodeInt.h"
 #include "dnodeModule.h"
 
@@ -62,6 +64,7 @@ static void dnodeAllocModules() {
     dnodeSetModuleStatus(TSDB_MOD_HTTP);
   }
 
+#ifdef _MQTT
   tsModule[TSDB_MOD_MQTT].enable = (tsEnableMqttModule == 1);
   tsModule[TSDB_MOD_MQTT].name = "mqtt";
   tsModule[TSDB_MOD_MQTT].initFp = mqttInitSystem;
@@ -71,6 +74,7 @@ static void dnodeAllocModules() {
   if (tsEnableMqttModule) {
     dnodeSetModuleStatus(TSDB_MOD_MQTT);
   }
+#endif  
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";
@@ -127,17 +131,31 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   for (int32_t module = TSDB_MOD_MNODE; module < TSDB_MOD_HTTP; ++module) {
     bool enableModule = moduleStatus & (1 << module);
     if (!tsModule[module].enable && enableModule) {
-      dInfo("module status:%u is received, start %s module", tsModuleStatus, tsModule[module].name);
+      dInfo("module status:%u is set, start %s module", moduleStatus, tsModule[module].name);
       tsModule[module].enable = true;
       dnodeSetModuleStatus(module);
       (*tsModule[module].startFp)();
     }
 
     if (tsModule[module].enable && !enableModule) {
-      dInfo("module status:%u is received, stop %s module", tsModuleStatus, tsModule[module].name);
+      dInfo("module status:%u is set, stop %s module", moduleStatus, tsModule[module].name);
       tsModule[module].enable = false;
       dnodeUnSetModuleStatus(module);
       (*tsModule[module].stopFp)();
     }
   }
+}
+
+bool dnodeStartMnode() {
+  if (tsModuleStatus & (1 << TSDB_MOD_MNODE)) {
+    dDebug("mnode module is already started, module status:%d", tsModuleStatus);
+    return false;
+  }
+
+  uint32_t moduleStatus = tsModuleStatus | (1 << TSDB_MOD_MNODE);
+  dInfo("start mnode module, module status:%d, new status:%d", tsModuleStatus, moduleStatus);
+  dnodeProcessModuleStatus(moduleStatus);
+
+  sdbUpdateSync();
+  return true;
 }

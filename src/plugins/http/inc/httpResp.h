@@ -32,9 +32,7 @@ enum _httpRespTempl {
 
 extern const char *httpRespTemplate[];
 
-void httpSendErrorResp(HttpContext *pContext, int errNo);
-void httpSendErrorRespWithDesc(HttpContext *pContext, int errNo, char *desc);
-void httpSendTaosdErrorResp(HttpContext *pContext, int errCode);
+void httpSendErrorResp(HttpContext *pContext, int32_t errNo);
 void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg);
 void httpSendSuccResp(HttpContext *pContext, char *desc);
 void httpSendOptionResp(HttpContext *pContext, char *desc);

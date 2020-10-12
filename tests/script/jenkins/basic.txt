@@ -77,6 +77,9 @@ cd ../../../debug; make
 ./test.sh -f general/field/smallint.sim
 ./test.sh -f general/field/tinyint.sim
 
+./test.sh -f general/http/autocreate.sim
+./test.sh -f general/http/chunked.sim
+./test.sh -f general/http/gzip.sim
 ./test.sh -f general/http/restful.sim
 ./test.sh -f general/http/restful_insert.sim
 ./test.sh -f general/http/restful_limit.sim
@@ -253,6 +256,7 @@ cd ../../../debug; make
 ./test.sh -f unique/cluster/balance2.sim
 ./test.sh -f unique/cluster/balance3.sim
 ./test.sh -f unique/cluster/cache.sim
+./test.sh -f unique/cluster/vgroup100.sim
 
 ./test.sh -f unique/column/replica3.sim
 
@@ -274,6 +278,7 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/balancex.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
 ./test.sh -f unique/dnode/remove2.sim
 ./test.sh -f unique/dnode/vnode_clean.sim
@@ -293,6 +298,7 @@ cd ../../../debug; make
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
 
+./test.sh -f unique/mnode/mgmt20.sim
 ./test.sh -f unique/mnode/mgmt21.sim
 ./test.sh -f unique/mnode/mgmt22.sim
 ./test.sh -f unique/mnode/mgmt23.sim

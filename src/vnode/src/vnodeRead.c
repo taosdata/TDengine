@@ -58,7 +58,8 @@ int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
     return TSDB_CODE_APP_NOT_READY;
 
   // TODO: Later, let slave to support query
-  if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+  // if (pVnode->syncCfg.replica > 1 && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+  if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) { 
     vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[msgType], pVnode->syncCfg.replica, pVnode->role);
     return TSDB_CODE_APP_NOT_READY;
   }
@@ -93,11 +94,12 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void* pVnode, void** handle, 
       vDebug("QInfo:%p exec completed, free handle:%d", *handle, *freeHandle);
     }
   } else {
-    SRetrieveTableRsp* pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRsp, 0, sizeof(SRetrieveTableRsp));
     pRsp->completed = true;
 
     pRet->rsp = pRsp;
+    pRet->len = sizeof(SRetrieveTableRsp);
     *freeHandle = true;
   }
 
@@ -270,6 +272,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   if (code != TSDB_CODE_SUCCESS) {
     //TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    pRet->len = sizeof(SRetrieveTableRsp);
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
     freeHandle = true;
   } else { // result is not ready, return immediately

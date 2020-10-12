@@ -35,6 +35,16 @@ system sh/cfg.sh -n dnode6 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode7 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode8 -c mnodeEqualVnodeNum -v 0
 
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode5 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode6 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode7 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode8 -c maxTablesPerVnode -v 4
+
+
 print ============== step1
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
@@ -47,7 +57,7 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep 4001
 
-sql create database c_b2_d1 replica 2 maxTables 4
+sql create database c_b2_d1 replica 2 
 sql use c_b2_d1
 sql create table c_b2_t1 (t timestamp, i int)
 sql insert into c_b2_t1 values(1520000020015, 15)
@@ -56,7 +66,7 @@ sql insert into c_b2_t1 values(1520000022013, 13)
 sql insert into c_b2_t1 values(1520000023012, 12)
 sql insert into c_b2_t1 values(1520000024011, 11)
 
-sql create database c_b2_d2 replica 2 maxTables 4
+sql create database c_b2_d2 replica 2 
 sql use c_b2_d2
 sql create table c_b2_t2 (t timestamp, i int)
 sql insert into c_b2_t2 values(1520000020025, 25)
@@ -65,7 +75,7 @@ sql insert into c_b2_t2 values(1520000022023, 23)
 sql insert into c_b2_t2 values(1520000023022, 22)
 sql insert into c_b2_t2 values(1520000024021, 21)
 
-sql create database c_b2_d3 replica 2 maxTables 4
+sql create database c_b2_d3 replica 2 
 sql use c_b2_d3
 sql create table c_b2_t3 (t timestamp, i int)
 sql insert into c_b2_t3 values(1520000020035, 35)

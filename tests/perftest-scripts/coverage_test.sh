@@ -53,7 +53,7 @@ function buildTDengine {
 function runGeneralCaseOneByOne {
 	while read -r line; do
 		if [[ $line =~ ^./test.sh* ]]; then
-			case=`echo $line | grep -w "general\|unique\/mnode\/mgmt33.sim\|unique\/stable\/dnode3.sim\|unique\/cluster\/balance3.sim\|unique\/arbitrator\/offline_replica2_alterTable_online.sim"|awk '{print $NF}'`
+			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
 			if [ -n "$case" ]; then
 				./test.sh -f $case > /dev/null 2>&1 && \
@@ -74,21 +74,36 @@ function runTest {
 
 	runGeneralCaseOneByOne jenkins/basic.txt
 
-	totalSuccess=`grep 'success' $TDENGINE_COVERAGE_REPORT | wc -l`
+	sed -i "1i\SIM cases test result" $TDENGINE_COVERAGE_REPORT
 
+	totalSuccess=`grep 'success' $TDENGINE_COVERAGE_REPORT | wc -l`
 	if [ "$totalSuccess" -gt "0" ]; then
-		echo -e "\n${GREEN} ### Total $totalSuccess coverage test case(s) succeed! ### ${NC}" | tee -a $TDENGINE_COVERAGE_REPORT
+		sed -i -e "2i\ ### Total $totalSuccess SIM test case(s) succeed! ###"  $TDENGINE_COVERAGE_REPORT
 	fi
 
 	totalFailed=`grep 'failed\|fault' $TDENGINE_COVERAGE_REPORT | wc -l`
 	if [ "$totalFailed" -ne "0" ]; then
-		echo -e "${RED} ### Total $totalFailed coverage test case(s) failed! ### ${NC}\n" | tee -a $TDENGINE_COVERAGE_REPORT
-#  exit $totalPyFailed
+		sed -i '3i\### Total $totalFailed SIM test case(s) failed! ###'  $TDENGINE_COVERAGE_REPORT
+	else
+		sed -i '3i\\n'  $TDENGINE_COVERAGE_REPORT
 	fi
 
 	cd $TDENGINE_DIR/tests
 	rm -rf ../sim
 	./test-all.sh full python | tee -a $TDENGINE_COVERAGE_REPORT
+	
+	sed -i "4i\Python cases test result" $TDENGINE_COVERAGE_REPORT
+	totalPySuccess=`grep 'python case(s) succeed!' $TDENGINE_COVERAGE_REPORT | awk '{print $4}'`
+	if [ "$totalPySuccess" -gt "0" ]; then
+                sed -i -e "5i\ ### Total $totalPySuccess Python test case(s) succeed! ###"  $TDENGINE_COVERAGE_REPORT
+        fi
+
+	totalPyFailed=`grep 'python case(s) failed!' $TDENGINE_COVERAGE_REPORT | awk '{print $4}'`
+        if [ -z $totalPyFailed ]; then
+		sed -i '6i\\n'  $TDENGINE_COVERAGE_REPORT
+        else
+		sed -i '6i\### Total $totalPyFailed Python test case(s) failed! ###'  $TDENGINE_COVERAGE_REPORT
+        fi
 
 	# Test Connector
 	stopTaosd

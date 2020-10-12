@@ -3,9 +3,10 @@ PROJECT(TDengine)
 
 AUX_SOURCE_DIRECTORY(src SRC)
 ADD_LIBRARY(tutil ${SRC})
+TARGET_LINK_LIBRARIES(tutil pthread osdetail lz4 z)
   
 IF (TD_LINUX)
-  TARGET_LINK_LIBRARIES(tutil pthread osdetail m rt lz4)
+  TARGET_LINK_LIBRARIES(tutil m rt)
   ADD_SUBDIRECTORY(tests)
 
   FIND_PATH(ICONV_INCLUDE_EXIST iconv.h /usr/include/ /usr/local/include/)
@@ -24,7 +25,7 @@ IF (TD_LINUX)
   ENDIF ()
 
 ELSEIF (TD_WINDOWS)
-  TARGET_LINK_LIBRARIES(tutil iconv regex pthread osdetail winmm IPHLPAPI ws2_32 lz4 wepoll)
+  TARGET_LINK_LIBRARIES(tutil iconv regex winmm IPHLPAPI ws2_32 wepoll)
 ELSEIF(TD_DARWIN)
-  TARGET_LINK_LIBRARIES(tutil iconv pthread osdetail lz4)
+  TARGET_LINK_LIBRARIES(tutil iconv)
 ENDIF()

@@ -850,6 +850,8 @@ if $rows != 12 then
   return -1
 endi
 
+print =====================>td-1442
+sql_error select count(*) from m_fl_tb0 interval(1s) fill(prev);
 
 print =============== clear
 sql drop database $db

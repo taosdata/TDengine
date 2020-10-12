@@ -11,7 +11,7 @@ TDengine能够与开源数据可视化系统[Grafana](https://www.grafana.com/)�
 
 ### 配置Grafana
 
-TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录下。
+TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin目录下。
 
 以CentOS 7.2操作系统为例，将tdengine目录拷贝到/var/lib/grafana/plugins目录下，重新启动grafana即可。
 

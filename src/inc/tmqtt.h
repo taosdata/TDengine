@@ -19,11 +19,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <stdint.h>
+
 int32_t mqttInitSystem();
 int32_t mqttStartSystem();
-void mqttStopSystem();
-void mqttCleanUpSystem();
+void    mqttStopSystem();
+void    mqttCleanUpSystem();
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,13 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
+
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
+
+
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1
 system sh/cfg.sh -n dnode3 -c wallevel -v 1
@@ -27,7 +34,7 @@ sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sleep 3000
 
-sql create database d1 replica 2 maxTables 4
+sql create database d1 replica 2 
 sql create table d1.t1(ts timestamp, i int)
 sql insert into d1.t1 values(1588262400001, 1)
 

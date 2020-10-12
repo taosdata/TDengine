@@ -69,7 +69,8 @@ typedef struct SDnodeObj {
   int16_t    cpuAvgUsage;      // calc from sys.cpu
   int16_t    memoryAvgUsage;   // calc from sys.mem
   int16_t    bandwidthUsage;   // calc from sys.band
-  int8_t     reserved2[2];
+  int8_t     offlineReason;
+  int8_t     reserved2[1];
 } SDnodeObj;
 
 typedef struct SMnodeObj {

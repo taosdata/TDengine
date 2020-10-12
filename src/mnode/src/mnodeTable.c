@@ -1384,6 +1384,9 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   }
 
   pShow->numOfReads += numOfRows;
+  const int32_t NUM_OF_COLUMNS = 5;
+
+  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;
@@ -1711,14 +1714,20 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
       mnodeDestroyChildTable(pTable);
       return TSDB_CODE_MND_INVALID_TABLE_NAME;
     }
-    
+
     pTable->suid = pMsg->pSTable->uid;
-    pTable->uid  = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                  (sdbGetVersion() & ((1ul << 16) - 1ul));
+    pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 24) +
+                  ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     pTable->superTable = pMsg->pSTable;
   } else {
-    pTable->uid = (((uint64_t)pTable->vgId) << 40) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                  (sdbGetVersion() & ((1ul << 16) - 1ul));
+    if (pTable->info.type == TSDB_SUPER_TABLE) {
+      int64_t us = taosGetTimestampUs();
+      pTable->uid = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    } else {
+      pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 24) +
+                    ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    }
+
     pTable->sversion     = 0;
     pTable->numOfColumns = htons(pCreate->numOfColumns);
     pTable->sqlLen       = htons(pCreate->sqlLen);
@@ -2084,8 +2093,11 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
   tstrncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_FNAME_LEN);
+  if (pTable->superTable != NULL) {
+    tstrncpy(pMeta->sTableId, pTable->superTable->info.tableId, TSDB_TABLE_FNAME_LEN);
+  }
 
-  if (pTable->info.type == TSDB_CHILD_TABLE) {
+  if (pTable->info.type == TSDB_CHILD_TABLE && pTable->superTable != NULL) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
     pMeta->tversion     = htons(pTable->superTable->tversion);
     pMeta->numOfTags    = (int8_t)pTable->superTable->numOfTags;
@@ -2116,8 +2128,8 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   }
   pMeta->vgroup.vgId = htonl(pMsg->pVgroup->vgId);
 
-  mDebug("app:%p:%p, table:%s, uid:%" PRIu64 " table meta is retrieved", pMsg->rpcMsg.ahandle, pMsg,
-         pTable->info.tableId, pTable->uid);
+  mDebug("app:%p:%p, table:%s, uid:%" PRIu64 " table meta is retrieved, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg,
+         pTable->info.tableId, pTable->uid, pTable->vgId, pTable->sid);
 
   return TSDB_CODE_SUCCESS;
 }

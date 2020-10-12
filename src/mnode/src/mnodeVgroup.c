@@ -434,7 +434,8 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   int maxVgroupsPerDb = tsMaxVgroupsPerDb;
   if (maxVgroupsPerDb <= 0) {
     maxVgroupsPerDb = mnodeGetOnlinDnodesCpuCoreNum();
-    maxVgroupsPerDb = MAX(maxVgroupsPerDb, 2);
+    maxVgroupsPerDb = MAX(maxVgroupsPerDb, TSDB_MIN_VNODES_PER_DB);
+    maxVgroupsPerDb = MIN(maxVgroupsPerDb, TSDB_MAX_VNODES_PER_DB);
   }
 
   int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
@@ -660,13 +661,13 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   for (int32_t i = 0; i < pShow->maxReplica; ++i) {
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    strcpy(pSchema[cols].name, "dnode");
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "dnode%d", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "vstatus");
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%dstatus", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }

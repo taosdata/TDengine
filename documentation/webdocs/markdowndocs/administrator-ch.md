@@ -128,24 +128,84 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vnode个数。
 - arbitrator: 系统中裁决器的end point，缺省为空
-- timezone：时区。从系统中动态获取当前的时区设置。
-- locale：系统区位信息及编码格式。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
-- charset：字符集编码。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
+- timezone、locale、charset 的配置见客户端配置。
 
 ## 客户端配置 
 
-TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。更多taos的使用方法请见[Shell命令行程序](#_TDengine_Shell命令行程序)。本节主要讲解taos客户端应用在配置文件taos.cfg文件中使用到的参数。
+TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
 
 客户端配置参数列表及解释
 
 - firstEp: taos启动时，主动连接的集群中第一个taosd实例的end point, 缺省值为 localhost:6030。
 - secondEp: taos启动时，如果first连接不上，尝试连接集群中第二个taosd实例的end point, 缺省值为空。
-- charset：字符集编码。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
-- locale：系统区位信息及编码格式。系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 
-日志的配置参数，与server的配置参数完全一样。
+- locale
 
-启动taos时，也可以从命令行指定一个taosd实例的end point，否则就从taos.cfg读取。
+    > 默认值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置
+
+TDengine为存储中文、日文、韩文等非ASCII编码的宽字符，提供一种专门的字段类型nchar。写入nchar字段的数据将统一采用UCS4-LE格式进行编码并发送到服务器。需要注意的是，编码正确性是客户端来保证。因此，如果用户想要正常使用nchar字段来存储诸如中文、日文、韩文等非ASCII字符，需要正确设置客户端的编码格式。
+
+客户端的输入的字符均采用操作系统当前默认的编码格式，在Linux系统上多为UTF-8，部分中文系统编码则可能是GB18030或GBK等。在docker环境中默认的编码是POSIX。在中文版Windows系统中，编码则是CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证nchar中的数据正确转换为UCS4-LE编码格式。
+
+在 Linux 中 locale 的命名规则为: <语言>_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh代表中文，CN代表大陆地区，UTF-8表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux系统与 Mac OSX 系统可以通过设置locale来确定系统的字符编码，由于Windows使用的locale中不是POSIX标准的locale格式，因此在Windows下需要采用另一个配置参数charset来指定字符编码。在Linux 系统中也可以使用charset来指定字符编码。
+
+- charset
+
+    > 默认值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置
+
+如果配置文件中不设置charset，在Linux系统中，taos在启动时候，自动读取系统当前的locale信息，并从locale信息中解析提取charset编码格式。如果自动读取locale信息失败，则尝试读取charset配置，如果读取charset配置也失败，则中断启动过程。
+
+在Linux系统中，locale信息包含了字符编码信息，因此正确设置了Linux系统locale以后可以不用再单独设置charset。例如：
+```
+    locale zh_CN.UTF-8
+```
+在Windows系统中，无法从locale获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos默认设置为字符编码为CP936。其等效在配置文件中添加如下配置：
+```
+    charset CP936
+```
+如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
+
+在Linux系统中，如果用户同时设置了locale和字符集编码charset，并且locale和charset的不一致，后设置的值将覆盖前面设置的值。
+```
+    locale zh_CN.UTF-8
+    charset GBK
+```
+则charset的有效值是GBK。
+```
+    charset GBK
+    locale zh_CN.UTF-8
+```
+charset的有效值是UTF-8。
+
+日志的配置参数，与server 的配置参数完全一样。
+
+- timezone
+
+    默认值：从系统中动态获取当前的时区设置
+
+客户端运行系统所在的时区。为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
+
+在Linux系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
+```
+    timezone UTC-8
+    timezone GMT-8
+    timezone Asia/Shanghai
+```
+均是合法的设置东八区时区的格式。
+
+时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
+```
+    SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+```
+在东八区，SQL语句等效于
+```
+    SELECT count(*) FROM table_name WHERE TS<1554955268000;
+```
+在UTC时区，SQL语句等效于
+```
+    SELECT count(*) FROM table_name WHERE TS<1554984068000;
+```
+为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，2013-04-12T15:52:01.123+08:00或者ISO-8601格式时间戳字符串2013-04-12T15:52:01.123+0800。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
 
 ## 用户管理
 

@@ -17,8 +17,9 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "zlib.h"
 
-#ifndef TAOS_OS_FUNC_DIR
+#define COMPRESS_STEP_SIZE 163840
 
 void taosRemoveDir(char *rootDir) {
   DIR *dir = opendir(rootDir);
@@ -51,18 +52,97 @@ int taosMkDir(const char *path, mode_t mode) {
 }
 
 void taosRename(char* oldName, char *newName) {
-  if (0 == tsEnableVnodeBak) {
-    uInfo("vnode backup not enabled");
-    return;
-  }
-
   // if newName in not empty, rename return fail. 
   // the newName must be empty or does not exist
   if (rename(oldName, newName)) {
-    uError("%s is modify to %s fail, reason:%s", oldName, newName, strerror(errno));
+    uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   } else {
-    uInfo("%s is modify to %s success!", oldName, newName);
+    uInfo("successfully to rename file %s to %s", oldName, newName);
   }
 }
 
-#endif
+void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
+  DIR *dir = opendir(rootDir);
+  if (dir == NULL) return;
+
+  int64_t sec = taosGetTimestampSec();
+  struct dirent *de = NULL;
+
+  while ((de = readdir(dir)) != NULL) {
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+
+    char filename[1024];
+    snprintf(filename, 1023, "%s/%s", rootDir, de->d_name);
+    if (de->d_type & DT_DIR) {
+      continue;
+    } else {
+      int32_t len = (int32_t)strlen(filename);
+      if (len > 3 && strcmp(filename + len - 3, ".gz") == 0) {
+        len -= 3;
+      }
+
+      int64_t fileSec = 0;
+      for (int i = len - 1; i >= 0; i--) {
+        if (filename[i] == '.') {
+          fileSec = atoll(filename + i + 1);
+          break;
+        }
+      }
+
+      if (fileSec <= 100) continue;
+      int32_t days = (int32_t)(ABS(sec - fileSec) / 86400 + 1);
+      if (days > keepDays) {
+        (void)remove(filename);
+        uInfo("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
+      } else {
+        uTrace("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
+      }
+    }
+  }
+
+  closedir(dir);
+  rmdir(rootDir);
+}
+
+int32_t taosCompressFile(char *srcFileName, char *destFileName) {
+  int32_t ret = 0;
+  int32_t len = 0;
+  char *  data = malloc(COMPRESS_STEP_SIZE);
+  FILE *  srcFp = NULL;
+  gzFile  dstFp = NULL;
+
+  srcFp = fopen(srcFileName, "r");
+  if (srcFp == NULL) {
+    ret = -1;
+    goto cmp_end;
+  }
+
+  int32_t fd = open(destFileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  if (fd < 0) {
+    ret = -2;
+    goto cmp_end;
+  }
+
+  dstFp = gzdopen(fd, "wb6f");
+  if (dstFp == NULL) {
+    ret = -3;
+    close(fd);
+    goto cmp_end;
+  }
+
+  while (!feof(srcFp)) {
+    len = (int32_t)fread(data, 1, COMPRESS_STEP_SIZE, srcFp);
+    (void)gzwrite(dstFp, data, len);
+  }
+
+cmp_end:
+  if (srcFp) {
+    fclose(srcFp);
+  }
+  if (dstFp) {
+    gzclose(dstFp);
+  }
+  free(data);
+
+  return ret;
+}

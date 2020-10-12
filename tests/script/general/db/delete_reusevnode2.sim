@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
@@ -8,7 +9,7 @@ sql connect
 
 print ======== step1
 
-sql create database db maxTables 4;
+sql create database db;
 sql use db
 
 $tbPrefix = t

@@ -24,6 +24,14 @@ extern "C" {
 #include "tlockfree.h"
 #include "hash.h"
 
+#if defined(_TD_ARM_32) 
+  #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_INT
+  #define TSDB_CACHE_PTR_TYPE int32_t
+#else
+  #define TSDB_CACHE_PTR_KEY  TSDB_DATA_TYPE_BIGINT  
+  #define TSDB_CACHE_PTR_TYPE int64_t
+#endif
+
 typedef void (*__cache_free_fn_t)(void*);
 
 typedef struct SCacheStatis {
@@ -42,7 +50,7 @@ typedef struct SCacheDataNode {
   uint64_t           signature;
   struct STrashElem *pTNodeHeader; // point to trash node head
   uint16_t           keySize: 15;  // max key size: 32kb
-  bool               inTrashCan: 1;// denote if it is in trash or not
+  bool               inTrashcan: 1;// denote if it is in trash or not
   uint32_t           size;         // allocated size for current SCacheDataNode
   T_REF_DECLARE()
   char              *key;

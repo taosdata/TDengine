@@ -39,6 +39,11 @@ void mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg) {
 }
 
 int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
+  if (pMsg->pUser != NULL) {
+    mDebug("app:%p:%p, user info already inited", pMsg->rpcMsg.ahandle, pMsg);
+    return TSDB_CODE_SUCCESS;
+  }
+
   pMsg->pUser = mnodeGetUserFromConn(pMsg->rpcMsg.handle);
   if (pMsg->pUser == NULL) {
     return TSDB_CODE_MND_INVALID_USER;

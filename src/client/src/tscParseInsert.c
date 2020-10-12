@@ -142,7 +142,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
       return tscInvalidSQLErrMsg(error, "value expected in timestamp", sToken.z);
     }
 
-    if (getTimestampInUsFromStr(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
+    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -406,7 +406,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, char *error,
+int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, SSqlCmd* pCmd,
                       int16_t timePrec, int32_t *code, char *tmpTokenBuf) {
   int32_t index = 0;
   SStrToken sToken = {0};
@@ -426,12 +426,17 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     *str += index;
 
     if (sToken.type == TK_QUESTION) {
+      if (pCmd->insertType != TSDB_QUERY_TYPE_STMT_INSERT) {
+        *code = tscSQLSyntaxErrMsg(pCmd->payload, "? only allowed in binding insertion", *str);
+        return -1;
+      }
+
       uint32_t offset = (uint32_t)(start - pDataBlocks->pData);
       if (tscAddParamToDataBlock(pDataBlocks, pSchema->type, (uint8_t)timePrec, pSchema->bytes, offset) != NULL) {
         continue;
       }
 
-      strcpy(error, "client out of memory");
+      strcpy(pCmd->payload, "client out of memory");
       *code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return -1;
     }
@@ -439,8 +444,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     int16_t type = sToken.type;
     if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
          type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
-      tscSQLSyntaxErrMsg(error, "invalid data or symbol", sToken.z);
-      *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      *code = tscSQLSyntaxErrMsg(pCmd->payload, "invalid data or symbol", sToken.z);
       return -1;
     }
 
@@ -470,14 +474,14 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     }
 
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
-    int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, error, str, isPrimaryKey, timePrec);
+    int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, pCmd->payload, str, isPrimaryKey, timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
       *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       return -1;  // NOTE: here 0 mean error!
     }
 
     if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
-      tscInvalidSQLErrMsg(error, "client time/server time can not be mixed up", sToken.z);
+      tscInvalidSQLErrMsg(pCmd->payload, "client time/server time can not be mixed up", sToken.z);
       *code = TSDB_CODE_TSC_INVALID_TIME_STAMP;
       return -1;
     }
@@ -522,11 +526,11 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
 }
 
 int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMeta, int maxRows,
-                  SParsedDataColInfo *spd, char *error, int32_t *code, char *tmpTokenBuf) {
+                  SParsedDataColInfo *spd, SSqlCmd* pCmd, int32_t *code, char *tmpTokenBuf) {
   int32_t   index = 0;
   SStrToken sToken;
 
-  int16_t numOfRows = 0;
+  int32_t numOfRows = 0;
 
   SSchema *pSchema = tscGetTableSchema(pTableMeta);
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
@@ -534,8 +538,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
   int32_t  precision = tinfo.precision;
 
   if (spd->hasVal[0] == false) {
-    strcpy(error, "primary timestamp column can not be null");
-    *code = TSDB_CODE_TSC_INVALID_SQL;
+    *code = tscInvalidSQLErrMsg(pCmd->payload, "primary timestamp column can not be null", *str);
     return -1;
   }
 
@@ -547,17 +550,17 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
     *str += index;
     if (numOfRows >= maxRows || pDataBlock->size + tinfo.rowSize >= pDataBlock->nAllocSize) {
       int32_t tSize;
-      int32_t retcode = tscAllocateMemIfNeed(pDataBlock, tinfo.rowSize, &tSize);
-      if (retcode != TSDB_CODE_SUCCESS) {  //TODO pass the correct error code to client
-        strcpy(error, "client out of memory");
-        *code = retcode;
+      *code = tscAllocateMemIfNeed(pDataBlock, tinfo.rowSize, &tSize);
+      if (*code != TSDB_CODE_SUCCESS) {  //TODO pass the correct error code to client
+        strcpy(pCmd->payload, "client out of memory");
         return -1;
       }
+
       ASSERT(tSize > maxRows);
       maxRows = tSize;
     }
 
-    int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, error, precision, code, tmpTokenBuf);
+    int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, pCmd, precision, code, tmpTokenBuf);
     if (len <= 0) {  // error message has been set in tsParseOneRowData
       return -1;
     }
@@ -568,7 +571,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
     sToken = tStrGetToken(*str, &index, false, 0, NULL);
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      tscSQLSyntaxErrMsg(error, ") expected", *str);
+      tscSQLSyntaxErrMsg(pCmd->payload, ") expected", *str);
       *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       return -1;
     }
@@ -577,7 +580,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
   }
 
   if (numOfRows <= 0) {
-    strcpy(error, "no any data points");
+    strcpy(pCmd->payload, "no any data points");
     *code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     return -1;
   } else {
@@ -704,7 +707,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  int32_t numOfRows = tsParseValues(str, dataBuf, pTableMeta, maxNumOfRows, spd, pCmd->payload, &code, tmpTokenBuf);
+  int32_t numOfRows = tsParseValues(str, dataBuf, pTableMeta, maxNumOfRows, spd, pCmd, &code, tmpTokenBuf);
   free(tmpTokenBuf);
   if (numOfRows <= 0) {
     return code;
@@ -724,10 +727,6 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   dataBuf->vgId = pTableMeta->vgroupInfo.vgId;
   dataBuf->numOfTables = 1;
 
-  /*
-   * the value of pRes->numOfRows does not affect the true result of AFFECTED ROWS,
-   * which is actually returned from server.
-   */
   *totalNum += numOfRows;
   return TSDB_CODE_SUCCESS;
 }
@@ -791,7 +790,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sql += index;
 
     tscAllocPayload(pCmd, sizeof(STagData));
-    STagData *pTag = (STagData *) pCmd->payload;
+    STagData *pTag = &pCmd->tagData;
 
     memset(pTag, 0, sizeof(STagData));
     
@@ -946,7 +945,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
-    pCmd->payloadLen = sizeof(pTag->name) + sizeof(pTag->dataLen) + pTag->dataLen;
     pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
@@ -1192,8 +1190,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         str += index;
 
         if (TK_STRING == sToken.type) {
-          strdequote(sToken.z);
-          sToken.n = (uint32_t)strtrim(sToken.z);
+          tscDequoteAndTrimToken(&sToken);
         }
 
         if (sToken.type == TK_RP) {
@@ -1460,8 +1457,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     char *lineptr = line;
     strtolower(line, line);
 
-    int32_t len =
-        tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, tinfo.precision, &code, tokenBuf);
+    int32_t len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd, tinfo.precision, &code, tokenBuf);
     if (len <= 0 || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;

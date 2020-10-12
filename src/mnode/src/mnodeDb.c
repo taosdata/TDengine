@@ -242,6 +242,7 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
+#if 0
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
     mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
@@ -251,6 +252,7 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, TSDB_MIN_KEEP, pCfg->daysToKeep2);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
+#endif
 
   if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
     mError("invalid db option maxRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->maxRowsPerFileBlock,
@@ -309,6 +311,13 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
            TSDB_MAX_DB_REPLICA_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
+
+#ifndef _SYNC
+  if (pCfg->replications != 1) {
+    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -751,6 +760,8 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
   }
 
   pShow->numOfReads += numOfRows;
+  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
+
   mnodeDecUserRef(pUser);
   return numOfRows;
 }
@@ -901,13 +912,13 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   }
 
   if (walLevel > 0 && walLevel != pDb->cfg.walLevel) {
-    mError("db:%s, can't alter walLevel option", pDb->name);
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    mDebug("db:%s, walLevel:%d change to %d", pDb->name, pDb->cfg.walLevel, walLevel);
+    newCfg.walLevel = walLevel;
   }
 
   if (fsyncPeriod >= 0 && fsyncPeriod != pDb->cfg.fsyncPeriod) {
-    mError("db:%s, can't alter fsyncPeriod option", pDb->name);
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    mDebug("db:%s, fsyncPeriod:%d change to %d", pDb->name, pDb->cfg.fsyncPeriod, fsyncPeriod);
+    newCfg.fsyncPeriod = fsyncPeriod;
   }
 
   if (replications > 0 && replications != pDb->cfg.replications) {
