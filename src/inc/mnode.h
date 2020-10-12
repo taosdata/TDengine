@@ -60,6 +60,7 @@ int32_t mnodeInitSystem();
 int32_t mnodeStartSystem();
 void    mnodeCleanupSystem();
 void    mnodeStopSystem();
+void    sdbUpdateAsync();
 void    sdbUpdateSync(void *pMnodes);
 bool    mnodeIsRunning();
 int32_t mnodeProcessRead(SMnodeMsg *pMsg);

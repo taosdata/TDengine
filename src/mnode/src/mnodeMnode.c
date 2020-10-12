@@ -317,7 +317,7 @@ static int32_t mnodeCreateMnodeCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     mDebug("mnode is created successfully");
     mnodeUpdateMnodeEpSet();
-    sdbUpdateSync(NULL);
+    sdbUpdateAsync();
   }
 
   return code;
@@ -361,7 +361,7 @@ void mnodeDropMnodeLocal(int32_t dnodeId) {
   }
 
   mnodeUpdateMnodeEpSet();
-  sdbUpdateSync(NULL);
+  sdbUpdateAsync();
 }
 
 int32_t mnodeDropMnode(int32_t dnodeId) {
@@ -381,7 +381,7 @@ int32_t mnodeDropMnode(int32_t dnodeId) {
   sdbDecRef(tsMnodeSdb, pMnode);
 
   mnodeUpdateMnodeEpSet();
-  sdbUpdateSync(NULL);
+  sdbUpdateAsync();
 
   return code;
 }
