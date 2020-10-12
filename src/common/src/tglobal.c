@@ -42,6 +42,7 @@ int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfMnodes = 3;
 int32_t  tsEnableVnodeBak = 1;
 int32_t  tsEnableTelemetryReporting = 1;
+char     tsEmail[TSDB_FQDN_LEN] = {0};
 
 // common
 int32_t tsRpcTimer = 1000;
