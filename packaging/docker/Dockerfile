@@ -2,9 +2,11 @@ FROM centos:7
 
 WORKDIR /root
 
+ARG version
+RUN echo $version
 COPY tdengine.tar.gz /root/
 RUN tar -zxf tdengine.tar.gz
-WORKDIR /root/TDengine-server/
+WORKDIR /root/TDengine-server-$version/
 RUN sh install.sh -e no
 
 
