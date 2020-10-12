@@ -41,7 +41,7 @@ static pthread_t tsTelemetryThread;
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT 80
-#define REPORT_INTERVAL 100 // 86400 
+#define REPORT_INTERVAL 86400 
 
 static void beginObject(SBufferWriter* bw) {
   tbufWriteChar(bw, '{');
@@ -244,7 +244,7 @@ static void sendTelemetryReport() {
 static void* telemetryThread(void* param) {
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
-  end.tv_sec += 10; //300; // wait 5 minutes before send first report
+  end.tv_sec += 300; // wait 5 minutes before send first report
 
   while (1) {
     if (sem_timedwait(&tsExitSem, &end) == 0) {
