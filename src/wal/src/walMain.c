@@ -427,7 +427,7 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      ASSERT(false);
+      // ASSERT(false);
       break;
     }
 
