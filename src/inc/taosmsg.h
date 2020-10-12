@@ -59,7 +59,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY5, "dummy5" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_MNODE, "create-mnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
 
@@ -718,6 +718,12 @@ typedef struct SCMShowRsp {
 typedef struct {
   char     ep[TSDB_EP_LEN];  // end point, hostname:port
 } SCMCreateDnodeMsg, SCMDropDnodeMsg;
+
+typedef struct {
+  int32_t dnodeId;
+  char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
+  SDMMnodeInfos mnodes;
+} SMDCreateMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;

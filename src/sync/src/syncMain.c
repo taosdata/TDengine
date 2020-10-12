@@ -215,6 +215,9 @@ void syncStop(void *param) {
 
   pthread_mutex_lock(&(pNode->mutex));
 
+  if (vgIdHash) taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
+  if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
+
   for (int i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
     if (pPeer) syncRemovePeer(pPeer);
@@ -222,9 +225,6 @@ void syncStop(void *param) {
 
   pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pPeer) syncRemovePeer(pPeer);
-
-  if (vgIdHash) taosHashRemove(vgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
-  if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
 
   pthread_mutex_unlock(&(pNode->mutex));
 
@@ -313,6 +313,8 @@ int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype) {
 
   // always update version
   nodeVersion = pWalHead->version;
+  sDebug("replica:%d nodeRole:%d qtype:%d", pNode->replica, nodeRole, qtype);
+
   if (pNode->replica == 1 || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
 
   // only pkt from RPC or CQ can be forwarded
@@ -1189,6 +1191,8 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
 static void syncMonitorFwdInfos(void *param, void *tmrId) {
   SSyncNode *pNode = param;
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
+  if (pSyncFwds == NULL) return;
+
   uint64_t   time = taosGetTimestampMs();
 
   if (pSyncFwds->fwds > 0) {
