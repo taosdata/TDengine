@@ -59,7 +59,7 @@ pipeline {
           agent{label "185"}
           steps {
             sh '''
-            date
+            
             cd ${WKC}
             git checkout develop
             git pull
