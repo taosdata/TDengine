@@ -261,9 +261,8 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   tscDebug("%p start to launch secondary subqueries, total:%d, only:%d needs to query", pSql, pSql->subState.numOfSub, numOfSub);
 
   //the subqueries that do not actually launch the secondary query to virtual node is set as completed.
-//  SSubqueryState* pState = pSupporter->pState;
-//  pState->numOfSub = pSql->subState.numOfSub;
-//  pSql->numOfRemain = numOfSub;
+  SSubqueryState* pState = &pSql->subState;
+  pState->numOfRemain = pState->numOfSub;
 
   bool success = true;
   
@@ -1151,7 +1150,6 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   pSql->res.qhandle = 0x1;
   assert(pSql->res.numOfRows == 0);
 
-  int32_t index = 0;
   if (pSql->pSubs == NULL) {
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
     if (pSql->pSubs == NULL) {
@@ -1164,8 +1162,8 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   
-  pSql->pSubs[index++] = pNew;
-  assert(index <= pSql->subState.numOfSub);
+  pSql->pSubs[pSql->subState.numOfRemain++] = pNew;
+  assert(pSql->subState.numOfRemain <= pSql->subState.numOfSub);
   
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     addGroupInfoForSubquery(pSql, pNew, 0, tableIndex);
