@@ -33,7 +33,8 @@ typedef struct {
 } SMPeerWorker;
 
 typedef struct {
-  int32_t       num;
+  int32_t curNum;
+  int32_t maxNum;
   SMPeerWorker *peerWorker;
 } SMPeerWorkerPool;
 
@@ -46,37 +47,44 @@ static void *dnodeProcessMnodePeerQueue(void *param);
 int32_t dnodeInitMnodePeer() {
   tsMPeerQset = taosOpenQset();
   
-  tsMPeerPool.num = 1;
-  tsMPeerPool.peerWorker = (SMPeerWorker *)calloc(sizeof(SMPeerWorker), tsMPeerPool.num);
+  tsMPeerPool.maxNum = 1;
+  tsMPeerPool.curNum = 0;
+  tsMPeerPool.peerWorker = (SMPeerWorker *)calloc(sizeof(SMPeerWorker), tsMPeerPool.maxNum);
 
   if (tsMPeerPool.peerWorker == NULL) return -1;
-  for (int32_t i = 0; i < tsMPeerPool.num; ++i) {
+  for (int32_t i = 0; i < tsMPeerPool.maxNum; ++i) {
     SMPeerWorker *pWorker = tsMPeerPool.peerWorker + i;
     pWorker->workerId = i;
+    dDebug("dnode mpeer worker:%d is created", i);
   }
 
-  dInfo("dnode mpeer is opened");
+  dDebug("dnode mpeer is opened, workers:%d qset:%p", tsMPeerPool.maxNum, tsMPeerQset);
   return 0;
 }
 
 void dnodeCleanupMnodePeer() {
-  for (int32_t i = 0; i < tsMPeerPool.num; ++i) {
+  for (int32_t i = 0; i < tsMPeerPool.maxNum; ++i) {
     SMPeerWorker *pWorker = tsMPeerPool.peerWorker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(tsMPeerQset);
     }
+    dDebug("dnode mpeer worker:%d is closed", i);
   }
 
-  for (int32_t i = 0; i < tsMPeerPool.num; ++i) {
+  for (int32_t i = 0; i < tsMPeerPool.maxNum; ++i) {
     SMPeerWorker *pWorker = tsMPeerPool.peerWorker + i;
+    dDebug("dnode mpeer worker:%d start to join", i);
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
     }
+    dDebug("dnode mpeer worker:%d join success", i);
   }
 
+  dDebug("dnode mpeer is closed, qset:%p", tsMPeerQset);
+
   taosCloseQset(tsMPeerQset);
+  tsMPeerQset = NULL;
   taosTFree(tsMPeerPool.peerWorker);
-  dInfo("dnode mpeer is closed");
 }
 
 int32_t dnodeAllocateMnodePqueue() {
@@ -85,7 +93,7 @@ int32_t dnodeAllocateMnodePqueue() {
 
   taosAddIntoQset(tsMPeerQset, tsMPeerQueue, NULL);
 
-  for (int32_t i = 0; i < tsMPeerPool.num; ++i) {
+  for (int32_t i = tsMPeerPool.curNum; i < tsMPeerPool.maxNum; ++i) {
     SMPeerWorker *pWorker = tsMPeerPool.peerWorker + i;
     pWorker->workerId = i;
 
@@ -98,7 +106,9 @@ int32_t dnodeAllocateMnodePqueue() {
     }
 
     pthread_attr_destroy(&thAttr);
-    dDebug("dnode mpeer worker:%d is launched, total:%d", pWorker->workerId, tsMPeerPool.num);
+
+    tsMPeerPool.curNum = i + 1;
+    dDebug("dnode mpeer worker:%d is launched, total:%d", pWorker->workerId, tsMPeerPool.maxNum);
   }
 
   dDebug("dnode mpeer queue:%p is allocated", tsMPeerQueue);
@@ -106,6 +116,7 @@ int32_t dnodeAllocateMnodePqueue() {
 }
 
 void dnodeFreeMnodePqueue() {
+  dDebug("dnode mpeer queue:%p is freed", tsMPeerQueue);
   taosCloseQueue(tsMPeerQueue);
   tsMPeerQueue = NULL;
 }
@@ -148,7 +159,7 @@ static void *dnodeProcessMnodePeerQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMPeerQset, &type, (void **)&pPeerMsg, &unUsed) == 0) {
-      dDebug("dnodeProcessMnodePeerQueue: got no message from qset, exiting...");
+      dDebug("qset:%p, mnode peer got no message from qset, exiting", tsMPeerQset);
       break;
     }
 

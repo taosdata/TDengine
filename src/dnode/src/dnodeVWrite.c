@@ -222,7 +222,7 @@ static void *dnodeProcessWriteQueue(void *param) {
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
     if (numOfMsgs == 0) {
-      dDebug("dnodeProcessWriteQueee: got no message from qset, exiting...");
+      dDebug("qset:%p, dnode write got no message from qset, exiting", pWorker->qset);
       break;
     }
 

@@ -957,11 +957,16 @@ static void balanceMonitorDnodeModule() {
       continue;
     }
 
-    mLInfo("dnode:%d, numOfMnodes:%d expect:%d, add mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMnodes);
-    mnodeAddMnode(pDnode->dnodeId);
-    
+    mLInfo("dnode:%d, numOfMnodes:%d expect:%d, create mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMnodes);
+    mnodeCreateMnode(pDnode->dnodeId, pDnode->dnodeEp, true);
+
+#if 0
+    // Only create one mnode each time
+    return;
+#else
     numOfMnodes = mnodeGetMnodesNum();
     if (numOfMnodes >= tsNumOfMnodes) return;
+#endif
   }
 }
 

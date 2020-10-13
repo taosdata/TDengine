@@ -272,6 +272,29 @@ function install_config() {
             break
         fi
     done	
+
+    # user email 
+    #EMAIL_PATTERN='^[A-Za-z0-9\u4e00-\u9fa5]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$'
+    #EMAIL_PATTERN='^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$'
+    #EMAIL_PATTERN="^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$"
+    echo
+    echo -e -n "${GREEN}Enter your email address for priority support or enter empty to skip${NC}: "
+    read emailAddr
+    while true; do
+        if [ ! -z "$emailAddr" ]; then
+            # check the format of the emailAddr
+            #if [[ "$emailAddr" =~ $EMAIL_PATTERN ]]; then
+                # Write the email address to temp file                    
+                email_file="${install_main_dir}/email" 
+                ${csudo} bash -c "echo $emailAddr > ${email_file}"
+                break         
+            #else
+            #    read -p "Please enter the correct email address: " emailAddr   
+            #fi
+        else
+            break
+        fi
+    done	
 }
 
 

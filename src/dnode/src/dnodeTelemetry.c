@@ -177,7 +177,8 @@ static void addMemoryInfo(SBufferWriter* bw) {
 static void addVersionInfo(SBufferWriter* bw) {
   addStringField(bw, "version", version);
   addStringField(bw, "buildInfo", buildinfo);
-  addStringField(bw, "gitInfo", gitinfo);
+  addStringField(bw, "gitInfo", gitinfo);  
+  addStringField(bw, "email", tsEmail);  
 }
 
 static void addRuntimeInfo(SBufferWriter* bw) {
@@ -261,10 +262,26 @@ static void* telemetryThread(void* param) {
   return NULL;
 }
 
+static void dnodeGetEmail(char* filepath) {
+  int fd = open(filepath, O_RDONLY);
+  if (fd < 0) {
+    return;
+  }
+  
+  if (taosTRead(fd, (void *)tsEmail, TSDB_FQDN_LEN) < 0) {
+    dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
+  } 
+
+  close(fd);   
+}
+
+
 int32_t dnodeInitTelemetry() {
   if (!tsEnableTelemetryReporting) {
     return 0;
   }
+
+  dnodeGetEmail("/usr/local/taos/email");  
 
   if (tsem_init(&tsExitSem, 0, 0) == -1) {
     // just log the error, it is ok for telemetry to fail

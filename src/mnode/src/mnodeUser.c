@@ -385,6 +385,7 @@ static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, voi
     numOfRows++;
     mnodeDecUserRef(pUser);
   }
+  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
