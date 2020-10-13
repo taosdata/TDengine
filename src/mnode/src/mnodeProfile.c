@@ -275,7 +275,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
   }
 
   pShow->numOfReads += numOfRows;
-  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   
   return numOfRows;
 }
@@ -426,7 +426,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
   }
 
   pShow->numOfReads += numOfRows;
-  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
 }
 
@@ -554,8 +554,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 8;
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
 }
 

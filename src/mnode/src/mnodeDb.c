@@ -760,7 +760,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
   }
 
   pShow->numOfReads += numOfRows;
-  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
 
   mnodeDecUserRef(pUser);
   return numOfRows;

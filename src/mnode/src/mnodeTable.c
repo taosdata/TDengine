@@ -1384,9 +1384,8 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 5;
 
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;
@@ -2679,7 +2678,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
   pShow->numOfReads += numOfRows;
 
-  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
   free(pattern);
 
@@ -2877,9 +2876,8 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 4;
 
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;
