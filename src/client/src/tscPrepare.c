@@ -637,3 +637,59 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
   pStmt->pSql = NULL;
   return result;
 }
+
+int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  SSqlObj* pSql = pStmt->pSql;
+  SSqlCmd *pCmd    = &pSql->cmd;
+
+  *nums = pCmd->numOfParams;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  SSqlObj* pSql = pStmt->pSql;
+  SSqlCmd *pCmd    = &pSql->cmd;
+  STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
+
+  assert(pCmd->numOfParams == pBlock->numOfParams);
+  if (idx < 0 || idx >= pBlock->numOfParams) return -1;
+
+  SParamInfo* param = pBlock->params + idx;
+  if (type) *type = param->type;
+  if (bytes) *bytes = param->bytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+const char *taos_data_type(int type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:            return "TSDB_DATA_TYPE_NULL";
+    case TSDB_DATA_TYPE_BOOL:            return "TSDB_DATA_TYPE_BOOL";
+    case TSDB_DATA_TYPE_TINYINT:         return "TSDB_DATA_TYPE_TINYINT";
+    case TSDB_DATA_TYPE_SMALLINT:        return "TSDB_DATA_TYPE_SMALLINT";
+    case TSDB_DATA_TYPE_INT:             return "TSDB_DATA_TYPE_INT";
+    case TSDB_DATA_TYPE_BIGINT:          return "TSDB_DATA_TYPE_BIGINT";
+    case TSDB_DATA_TYPE_FLOAT:           return "TSDB_DATA_TYPE_FLOAT";
+    case TSDB_DATA_TYPE_DOUBLE:          return "TSDB_DATA_TYPE_DOUBLE";
+    case TSDB_DATA_TYPE_BINARY:          return "TSDB_DATA_TYPE_BINARY";
+    case TSDB_DATA_TYPE_TIMESTAMP:       return "TSDB_DATA_TYPE_TIMESTAMP";
+    case TSDB_DATA_TYPE_NCHAR:           return "TSDB_DATA_TYPE_NCHAR";
+    default: return "UNKNOWN";
+  }
+}
+

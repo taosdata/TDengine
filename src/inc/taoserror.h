@@ -355,6 +355,16 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2101, "out of mem
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_UNDEF,              0, 0x2102, "convertion undefined")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_TRUNC,              0, 0x2103, "convertion truncated")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_SUPPORT,        0, 0x2104, "convertion not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OUT_OF_RANGE,            0, 0x2105, "out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NOT_SUPPORT,             0, 0x2106, "not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_HANDLE,          0, 0x2107, "invalid handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_RESULT,               0, 0x2108, "no result set")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_FIELDS,               0, 0x2109, "no fields returned")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_CURSOR,          0, 0x2110, "invalid cursor")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x2111, "statement not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x2112, "connection still busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x2113, "bad connection string")
+
 
 #ifdef TAOS_ERROR_C
 };

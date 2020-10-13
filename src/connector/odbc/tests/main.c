@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
             data.f8      = 9999999.999999;
             memset(data.bin, 0, sizeof(data.bin));
             memset(data.blob, 0, sizeof(data.blob));
-            snprintf(data.bin, sizeof(data.bin), "hello");
+            snprintf(data.bin, sizeof(data.bin), "hel我lo");
             snprintf(data.blob, sizeof(data.blob), "world");
             snprintf(data.blob, sizeof(data.blob), "wo人rld");
             SQLHSTMT stmt = {0};
