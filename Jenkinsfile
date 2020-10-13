@@ -59,7 +59,7 @@ pipeline {
           agent{label "185"}
           steps {
             sh '''
-            date
+            
             cd ${WKC}
             git checkout develop
             git pull
@@ -68,7 +68,7 @@ pipeline {
             git checkout develop
             git pull
             export TZ=Asia/Harbin
-            date
+            
             rm -rf ${WK}/debug
             mkdir debug
             cd debug
