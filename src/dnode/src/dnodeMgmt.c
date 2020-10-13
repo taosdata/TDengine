@@ -74,14 +74,16 @@ static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
+static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg);
 static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 
 int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE] = dnodeProcessAlterVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeProcessCreateMnodeMsg;
 
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP,  dnodeProcessStatusRsp);
   dnodeReadDnodeCfg();
@@ -226,7 +228,7 @@ static void *dnodeProcessMgmtQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
-      dDebug("dnode mgmt got no message from qset, exit ...");
+      dDebug("qset:%p, dnode mgmt got no message from qset, exit", tsMgmtQset);
       break;
     }
 
@@ -451,8 +453,32 @@ static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
-  SMDCfgDnodeMsg *pCfg = (SMDCfgDnodeMsg *)pMsg->pCont;
+  SMDCfgDnodeMsg *pCfg = pMsg->pCont;
   return taosCfgDynamicOptions(pCfg->config);
+}
+
+static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
+  SMDCreateMnodeMsg *pCfg = pMsg->pCont;
+  pCfg->dnodeId = htonl(pCfg->dnodeId);
+  if (pCfg->dnodeId != dnodeGetDnodeId()) {
+    dError("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
+    return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
+  }
+
+  if (strcmp(pCfg->dnodeEp, tsLocalEp) != 0) {
+    dError("dnodeEp:%s, in create mnode msg is not equal with saved dnodeEp:%s", pCfg->dnodeEp, tsLocalEp);
+    return TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED;
+  }
+
+  dDebug("dnodeId:%d, create mnode msg is received from mnodes, numOfMnodes:%d", pCfg->dnodeId, pCfg->mnodes.nodeNum);
+  for (int i = 0; i < pCfg->mnodes.nodeNum; ++i) {
+    pCfg->mnodes.nodeInfos[i].nodeId = htonl(pCfg->mnodes.nodeInfos[i].nodeId);
+    dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.nodeInfos[i].nodeId, pCfg->mnodes.nodeInfos[i].nodeEp);
+  }
+
+  dnodeStartMnode(&pCfg->mnodes);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
@@ -465,29 +491,6 @@ void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
   for (int i = 0; i < pEpSet->numOfEps; ++i) {
     pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
-
-    if (!mnodeIsRunning()) {
-      if (strcmp(pEpSet->fqdn[i], tsLocalFqdn) == 0 && pEpSet->port[i] == tsServerPort) {
-        dInfo("mnode index:%d %s:%u should work as mnode", i, pEpSet->fqdn[i], pEpSet->port[i]);
-        bool find = false;
-        for (int i = 0; i < tsDMnodeInfos.nodeNum; ++i) {
-          if (tsDMnodeInfos.nodeInfos[i].nodeId == dnodeGetDnodeId()) {
-            dInfo("localEp found in mnode infos");
-            find = true;
-            break;
-          }
-        }
-
-        if (!find) {
-          dInfo("localEp not found in mnode infos, will set into mnode infos");
-          tstrncpy(tsDMnodeInfos.nodeInfos[tsDMnodeInfos.nodeNum].nodeEp, tsLocalEp, TSDB_EP_LEN);
-          tsDMnodeInfos.nodeInfos[tsDMnodeInfos.nodeNum].nodeId = dnodeGetDnodeId();
-          tsDMnodeInfos.nodeNum++;
-        }
-
-        dnodeStartMnode();
-      }
-    }
   }
 
   tsDMnodeEpSet = *pEpSet;
@@ -532,7 +535,9 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   }
 
   vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
-  dnodeProcessModuleStatus(pCfg->moduleStatus);
+
+  // will not set mnode in status msg
+  // dnodeProcessModuleStatus(pCfg->moduleStatus);
   dnodeUpdateDnodeCfg(pCfg);
 
   dnodeUpdateMnodeInfos(pMnodes);
@@ -576,7 +581,7 @@ static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
   }
 
   dnodeSaveMnodeInfos();
-  sdbUpdateSync();
+  sdbUpdateAsync();
 }
 
 static bool dnodeReadMnodeInfos() {

@@ -525,7 +525,7 @@ static void *taosProcessTcpData(void *param) {
   while (pThreadObj->pHead) {
     SFdObj *pFdObj = pThreadObj->pHead;
     pThreadObj->pHead = pFdObj->next;
-    taosFreeFdObj(pFdObj);
+    taosReportBrokenLink(pFdObj);
   }
 
   pthread_mutex_destroy(&(pThreadObj->mutex));

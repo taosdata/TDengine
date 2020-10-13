@@ -42,11 +42,37 @@ TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
 
 LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
 
+# Now getting ready to execute Python
+# The following is the default of our standard dev env (Ubuntu 20.04), modify/adjust at your own risk
+PYTHON_EXEC=python3.8
+
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
-export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
+export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3:$(pwd)
 
 # Then let us set up the library path so that our compiled SO file can be loaded by Python
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 
 # Now we are all let, and let's see if we can find a crash. Note we pass all params
-python3.8 ./crash_gen.py $@
+if [[ $1 == '--valgrind' ]]; then
+  shift
+  export PYTHONMALLOC=malloc
+  VALGRIND_OUT=valgrind.out 
+  VALGRIND_ERR=valgrind.err
+  # How to generate valgrind suppression file: https://stackoverflow.com/questions/17159578/generating-suppressions-for-memory-leaks
+  # valgrind --leak-check=full --gen-suppressions=all --log-fd=9 python3.8 ./crash_gen.py $@ 9>>memcheck.log
+  echo Executing under VALGRIND, with STDOUT/ERR going to $VALGRIND_OUT and $VALGRIND_ERR, please watch them from a different terminal.
+  valgrind  \
+    --leak-check=yes \
+    --suppressions=crash_gen/valgrind_taos.supp \
+    $PYTHON_EXEC \
+    ./crash_gen/crash_gen.py $@ > $VALGRIND_OUT 2> $VALGRIND_ERR 
+elif [[ $1 == '--helgrind' ]]; then
+  shift
+  valgrind  \
+    --tool=helgrind \
+    $PYTHON_EXEC \
+    ./crash_gen/crash_gen.py $@
+else
+  $PYTHON_EXEC ./crash_gen/crash_gen.py $@
+fi
+

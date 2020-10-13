@@ -26,6 +26,7 @@
 #include "tsclient.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "ttimer.h"
 #include "tscProfile.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
@@ -568,16 +569,8 @@ static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  if (pQueryInfo == NULL) {
+  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return true;
-  }
-
-  if (pSql->pRpcCtx != NULL) {
-    rpcCancelRequest(pSql->pRpcCtx);
-    pSql->pRpcCtx = NULL;
-    return true;
-  } else {
-    pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -705,10 +698,12 @@ void taos_stop_query(TAOS_RES *res) {
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->pRpcCtx == NULL);
     tscKillSTableQuery(pSql);
-  } else { // TODO multithreads bug
-    if (pSql->cmd.command < TSDB_SQL_LOCAL && pSql->pRpcCtx != NULL) {
-      rpcCancelRequest(pSql->pRpcCtx);
-      pSql->pRpcCtx = NULL;
+  } else {
+    if (pSql->cmd.command < TSDB_SQL_LOCAL) {
+      if (pSql->pRpcCtx != NULL) {
+        rpcCancelRequest(pSql->pRpcCtx);
+        pSql->pRpcCtx = NULL;
+      }
     }
   }
 
