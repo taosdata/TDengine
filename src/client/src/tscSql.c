@@ -523,7 +523,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pRes->numOfClauseTotal = 0;
     pRes->rspType = 0;
 
-    pSql->numOfSubs = 0;
+    pSql->subState.numOfSub = 0;
     taosTFree(pSql->pSubs);
 
     assert(pSql->fp == NULL);
@@ -559,7 +559,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 // send free message to vnode to free qhandle and corresponding resources in vnode
-static bool tscKillQueryInDnode(SSqlObj* pSql) {
+static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
@@ -568,8 +568,16 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (pQueryInfo == NULL) {
     return true;
+  }
+
+  if (pSql->pRpcCtx != NULL) {
+    rpcCancelRequest(pSql->pRpcCtx);
+    pSql->pRpcCtx = NULL;
+    return true;
+  } else {
+    pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -700,6 +708,7 @@ void taos_stop_query(TAOS_RES *res) {
   } else { // TODO multithreads bug
     if (pSql->cmd.command < TSDB_SQL_LOCAL && pSql->pRpcCtx != NULL) {
       rpcCancelRequest(pSql->pRpcCtx);
+      pSql->pRpcCtx = NULL;
     }
   }
 

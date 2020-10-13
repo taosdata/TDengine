@@ -1603,8 +1603,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSchema* pSchema, SConvertFunc cvtFunc, char* aliasName,
-                                       int32_t resColIdx, SColumnIndex* pColIndex) {
+static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSchema* pSchema, SConvertFunc cvtFunc,
+    char* aliasName, int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult) {
   const char* msg1 = "not support column types";
 
   int16_t type = 0;
@@ -1650,8 +1650,13 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   SColumnIndex index = {.tableIndex = pColIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
   tscColumnListInsert(pQueryInfo->colList, &index);
 
+  // if it is not in the final result, do not add it
   SColumnList ids = getColumnList(1, pColIndex->tableIndex, pColIndex->columnIndex);
-  insertResultField(pQueryInfo, resColIdx, &ids, bytes, (int8_t)type, columnName, pExpr);
+  if (finalResult) {
+    insertResultField(pQueryInfo, resColIdx, &ids, bytes, (int8_t)type, columnName, pExpr);
+  } else {
+    tscColumnListInsert(pQueryInfo->colList, &(ids.ids[0]));
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1926,7 +1931,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
               index.columnIndex = j;
-              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex++, &index) != 0) {
+              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex++, &index, finalResult) != 0) {
                 return TSDB_CODE_TSC_INVALID_SQL;
               }
             }
@@ -1943,7 +1948,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             if ((index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) || (index.columnIndex < 0)) {
               return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
             }
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex + i, &index) != 0) {
+
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex + i, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -1980,7 +1986,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           for (int32_t i = 0; i < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
             SColumnIndex index = {.tableIndex = j, .columnIndex = i};
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex, &index) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 

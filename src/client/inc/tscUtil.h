@@ -66,7 +66,6 @@ typedef struct STidTags {
 #pragma pack(pop)
 
 typedef struct SJoinSupporter {
-  SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
   SInterval       interval;

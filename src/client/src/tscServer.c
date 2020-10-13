@@ -24,7 +24,6 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "tlockfree.h"
 
 SRpcCorEpSet  tscMgmtEpSet;
@@ -478,20 +477,29 @@ void tscKillSTableQuery(SSqlObj *pSql) {
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
-  for (int i = 0; i < pSql->numOfSubs; ++i) {
+  for (int i = 0; i < pSql->subState.numOfSub; ++i) {
     // NOTE: pSub may have been released already here
     SSqlObj *pSub = pSql->pSubs[i];
     if (pSub == NULL) {
       continue;
     }
 
-    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSub->pRpcCtx != NULL) {
-      rpcCancelRequest(pSub->pRpcCtx);
-      pSub->pRpcCtx = NULL;
+    void** p = taosCacheAcquireByKey(tscObjCache, &pSub, sizeof(TSDB_CACHE_PTR_TYPE));
+    if (p == NULL) {
+      continue;
     }
 
-    tscQueueAsyncRes(pSub); // async res? not other functions?
+    SSqlObj* pSubObj = (SSqlObj*) (*p);
+    assert(pSubObj->self == (SSqlObj**) p);
+
+    pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+    if (pSubObj->pRpcCtx != NULL) {
+      rpcCancelRequest(pSubObj->pRpcCtx);
+      pSubObj->pRpcCtx = NULL;
+    }
+
+    tscQueueAsyncRes(pSubObj); // async res? not other functions?
+    taosCacheRelease(tscObjCache, (void**) &p, false);
   }
 
   tscDebug("%p super table query cancelled", pSql);
@@ -1455,7 +1463,7 @@ int tscProcessLocalRetrieveRsp(SSqlObj *pSql) {
 
 int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlCmd* pCmd = &pSql->cmd;
 
   int32_t code = pRes->code;
   if (pRes->code != TSDB_CODE_SUCCESS) {
