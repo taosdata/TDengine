@@ -366,6 +366,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_CURSOR,          0, 0x2110, "invalid cu
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x2111, "statement not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x2112, "connection still busy")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x2113, "bad connection string")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_ARG,                 0, 0x2114, "bad argument")
 
 
 #ifdef TAOS_ERROR_C

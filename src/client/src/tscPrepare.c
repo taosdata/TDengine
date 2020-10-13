@@ -638,6 +638,19 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT* stmt) {
   return result;
 }
 
+int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  if (insert) *insert = pStmt->isInsert;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
@@ -646,12 +659,14 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  SSqlObj* pSql = pStmt->pSql;
-  SSqlCmd *pCmd    = &pSql->cmd;
-
-  *nums = pCmd->numOfParams;
-
-  return TSDB_CODE_SUCCESS;
+  if (pStmt->isInsert) {
+    SSqlObj* pSql = pStmt->pSql;
+    SSqlCmd *pCmd    = &pSql->cmd;
+    *nums = pCmd->numOfParams;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
 }
 
 int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
@@ -662,18 +677,22 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  SSqlObj* pSql = pStmt->pSql;
-  SSqlCmd *pCmd    = &pSql->cmd;
-  STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
+  if (pStmt->isInsert) {
+    SSqlObj* pSql = pStmt->pSql;
+    SSqlCmd *pCmd    = &pSql->cmd;
+    STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
 
-  assert(pCmd->numOfParams == pBlock->numOfParams);
-  if (idx < 0 || idx >= pBlock->numOfParams) return -1;
+    assert(pCmd->numOfParams == pBlock->numOfParams);
+    if (idx < 0 || idx >= pBlock->numOfParams) return -1;
 
-  SParamInfo* param = pBlock->params + idx;
-  if (type) *type = param->type;
-  if (bytes) *bytes = param->bytes;
+    SParamInfo* param = pBlock->params + idx;
+    if (type) *type = param->type;
+    if (bytes) *bytes = param->bytes;
 
-  return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
 }
 
 const char *taos_data_type(int type) {

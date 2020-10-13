@@ -759,6 +759,11 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
     return SQL_ERROR;
   }
 
+  if (TargetValue == NULL) {
+    SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "NULL TargetValue not allowed for col [%d]", ColumnNumber);
+    return SQL_ERROR;
+  }
+
   TAOS_FIELD *field = fields + ColumnNumber-1;
   void *row = sql->row[ColumnNumber-1];
 
@@ -1563,33 +1568,34 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
 
 static SQLRETURN do_execute(sql_t *sql, TAOS_BIND *binds)
 {
-  SQLRETURN r = SQL_SUCCESS;
+  int tr = TSDB_CODE_SUCCESS;
   for (int i=0; i<sql->n_params; ++i) {
-    r = do_bind_param_value(sql, i, sql->params+i, binds+i);
+    SQLRETURN r = do_bind_param_value(sql, i, sql->params+i, binds+i);
     if (r==SQL_SUCCESS) continue;
     return r;
   }
 
   if (sql->n_params > 0) {
-    PROFILE(r = taos_stmt_bind_param(sql->stmt, binds));
-    if (r) {
-      SET_ERROR(sql, "HY000", r, "failed to bind parameters[%d in total]", sql->n_params);
+    PROFILE(tr = taos_stmt_bind_param(sql->stmt, binds));
+    if (tr) {
+      SET_ERROR(sql, "HY000", tr, "failed to bind parameters[%d in total]", sql->n_params);
       return SQL_ERROR;
     }
 
-    PROFILE(r = taos_stmt_add_batch(sql->stmt));
-    if (r) {
-      SET_ERROR(sql, "HY000", r, "failed to add batch");
-      return SQL_ERROR;
-    }
+    // PROFILE(r = taos_stmt_add_batch(sql->stmt));
+    // if (r) {
+    //   SET_ERROR(sql, "HY000", r, "failed to add batch");
+    //   return SQL_ERROR;
+    // }
   }
 
-  PROFILE(r = taos_stmt_execute(sql->stmt));
-  if (r) {
-    SET_ERROR(sql, "HY000", r, "failed to execute statement");
+  PROFILE(tr = taos_stmt_execute(sql->stmt));
+  if (tr) {
+    SET_ERROR(sql, "HY000", tr, "failed to execute statement");
     return SQL_ERROR;
   }
 
+  SQLRETURN r = SQL_SUCCESS;
   PROFILE(sql->rs = taos_stmt_use_result(sql->stmt));
   CHK_RS(r, sql, "failed to use result");
 
@@ -1933,6 +1939,10 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
   if (NameLength) {
     *NameLength = strnlen(field->name, sizeof(field->name));
   }
+  if (ColumnSize) {
+    *ColumnSize = field->bytes;
+  }
+
   if (DataType) {
     switch (field->type) {
       case TSDB_DATA_TYPE_BOOL: {
@@ -1969,10 +1979,12 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
 
       case TSDB_DATA_TYPE_NCHAR: {
         *DataType = SQL_C_CHAR; // unicode ?
+        if (ColumnSize) *ColumnSize -= VARSTR_HEADER_SIZE;
       } break;
 
       case TSDB_DATA_TYPE_BINARY: {
         *DataType = SQL_C_BINARY;
+        if (ColumnSize) *ColumnSize -= VARSTR_HEADER_SIZE;
       } break;
 
       default:
@@ -1981,9 +1993,6 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
         return SQL_ERROR;
         break;
     }
-  }
-  if (ColumnSize) {
-    *ColumnSize = field->bytes;
   }
   if (DecimalDigits) {
     if (field->type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -2026,8 +2035,19 @@ static SQLRETURN doSQLNumParams(SQLHSTMT hstmt, SQLSMALLINT *pcpar)
     return SQL_ERROR;
   }
 
+  int insert = 0;
+  int r = taos_stmt_is_insert(sql->stmt, &insert);
+  if (r) {
+    SET_ERROR(sql, "HY000", terrno, "");
+    return SQL_ERROR;
+  }
+  if (!insert) {
+    SET_ERROR(sql, "HY000", terrno, "taos does not provide count of parameters for statement other than insert");
+    return SQL_ERROR;
+  }
+
   int params = 0;
-  int r = taos_stmt_num_params(sql->stmt, &params);
+  r = taos_stmt_num_params(sql->stmt, &params);
   if (r) {
     SET_ERROR(sql, "HY000", terrno, "fetch num of statement params failed");
     return SQL_ERROR;
@@ -2110,49 +2130,49 @@ static int do_field_display_size(TAOS_FIELD *field) {
 static SQLRETURN conv_tsdb_bool_to_c_bit(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   int8_t v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bool_to_c_tinyint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   int8_t v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bool_to_c_short(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   int16_t v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bool_to_c_long(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   int32_t v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bool_to_c_sbigint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   int64_t v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bool_to_c_float(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   float v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bool_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t b)
 {
   double v = b;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2160,11 +2180,9 @@ static SQLRETURN conv_tsdb_bool_to_c_char(sql_t *sql, c_target_t *target, TAOS_F
 {
   DASSERT(target->len>0);
   *target->soi = 1;
-  if (target->ptr) {
-    target->ptr[0] = '0' + b;
-    if (target->len>1) {
-      target->ptr[1] = '\0';
-    }
+  target->ptr[0] = '0' + b;
+  if (target->len>1) {
+    target->ptr[1] = '\0';
   }
 
   return SQL_SUCCESS;
@@ -2181,42 +2199,42 @@ static SQLRETURN conv_tsdb_bool_to_c_binary(sql_t *sql, c_target_t *target, TAOS
 static SQLRETURN conv_tsdb_v1_to_c_tinyint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t v1)
 {
   int8_t v = v1;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v1_to_c_short(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t v1)
 {
   int16_t v = v1;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v1_to_c_long(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t v1)
 {
   int32_t v = v1;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v1_to_c_sbigint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t v1)
 {
   int64_t v = v1;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v1_to_c_float(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t v1)
 {
   float v = v1;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v1_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int8_t v1)
 {
   double v = v1;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2226,7 +2244,7 @@ static SQLRETURN conv_tsdb_v1_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = snprintf(buf, sizeof(buf), "%d", v1);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
+  strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_TINYINT -> SQL_C_BIT");
   return SQL_SUCCESS_WITH_INFO;
@@ -2238,7 +2256,7 @@ static SQLRETURN conv_tsdb_v1_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
   int n = snprintf(buf, sizeof(buf), "%d", v1);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>target->len ? target->len : n));
+  strncpy(target->ptr, buf, (n>target->len ? target->len : n));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_TINYINT -> SQL_C_BIT");
   return SQL_SUCCESS_WITH_INFO;
@@ -2247,35 +2265,35 @@ static SQLRETURN conv_tsdb_v1_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_v2_to_c_short(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int16_t v2)
 {
   int16_t v = v2;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v2_to_c_long(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int16_t v2)
 {
   int32_t v = v2;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v2_to_c_sbigint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int16_t v2)
 {
   int64_t v = v2;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v2_to_c_float(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int16_t v2)
 {
   float v = v2;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v2_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int16_t v2)
 {
   double v = v2;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2285,7 +2303,7 @@ static SQLRETURN conv_tsdb_v2_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = snprintf(buf, sizeof(buf), "%d", v2);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
+  strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_SMALLINT -> SQL_C_CHAR");
   return SQL_SUCCESS_WITH_INFO;
@@ -2297,7 +2315,7 @@ static SQLRETURN conv_tsdb_v2_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
   int n = snprintf(buf, sizeof(buf), "%d", v2);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>target->len ? target->len : n));
+  strncpy(target->ptr, buf, (n>target->len ? target->len : n));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_SMALLINT -> SQL_C_CHAR");
   return SQL_SUCCESS_WITH_INFO;
@@ -2307,28 +2325,28 @@ static SQLRETURN conv_tsdb_v2_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_v4_to_c_long(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int32_t v4)
 {
   int32_t v = v4;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v4_to_c_sbigint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int32_t v4)
 {
   int64_t v = v4;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v4_to_c_float(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int32_t v4)
 {
   float v = v4;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v4_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int32_t v4)
 {
   double v = v4;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2338,7 +2356,7 @@ static SQLRETURN conv_tsdb_v4_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = snprintf(buf, sizeof(buf), "%d", v4);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
+  strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_INTEGER -> SQL_C_CHAR");
   return SQL_SUCCESS_WITH_INFO;
@@ -2350,7 +2368,7 @@ static SQLRETURN conv_tsdb_v4_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
   int n = snprintf(buf, sizeof(buf), "%d", v4);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>target->len ? target->len : n));
+  strncpy(target->ptr, buf, (n>target->len ? target->len : n));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_INTEGER -> SQL_C_BINARY");
   return SQL_SUCCESS_WITH_INFO;
@@ -2360,21 +2378,21 @@ static SQLRETURN conv_tsdb_v4_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_v8_to_c_sbigint(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int64_t v8)
 {
   int64_t v = v8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v8_to_c_float(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int64_t v8)
 {
   float v = v8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_v8_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int64_t v8)
 {
   double v = v8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2384,7 +2402,7 @@ static SQLRETURN conv_tsdb_v8_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = snprintf(buf, sizeof(buf), "%ld", v8);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
+  strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_BIGINT -> SQL_C_CHAR");
   return SQL_SUCCESS_WITH_INFO;
@@ -2396,7 +2414,7 @@ static SQLRETURN conv_tsdb_v8_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
   int n = snprintf(buf, sizeof(buf), "%ld", v8);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>target->len ? target->len : n));
+  strncpy(target->ptr, buf, (n>target->len ? target->len : n));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_BIGINT -> SQL_C_BINARY");
   return SQL_SUCCESS_WITH_INFO;
@@ -2406,14 +2424,14 @@ static SQLRETURN conv_tsdb_v8_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_f4_to_c_float(sql_t *sql, c_target_t *target, TAOS_FIELD *field, float f4)
 {
   float v = f4;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_f4_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, float f4)
 {
   double v = f4;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2423,7 +2441,7 @@ static SQLRETURN conv_tsdb_f4_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = snprintf(buf, sizeof(buf), "%g", f4);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
+  strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_FLOAT -> SQL_C_CHAR");
   return SQL_SUCCESS_WITH_INFO;
@@ -2435,7 +2453,7 @@ static SQLRETURN conv_tsdb_f4_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
   int n = snprintf(buf, sizeof(buf), "%g", f4);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>target->len ? target->len : n));
+  strncpy(target->ptr, buf, (n>target->len ? target->len : n));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_FLOAT -> SQL_C_BINARY");
   return SQL_SUCCESS_WITH_INFO;
@@ -2445,7 +2463,7 @@ static SQLRETURN conv_tsdb_f4_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_f8_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, double f8)
 {
   double v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2455,7 +2473,7 @@ static SQLRETURN conv_tsdb_f8_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = snprintf(buf, sizeof(buf), "%.6f", f8);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
+  strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_DOUBLE -> SQL_C_CHAR");
   return SQL_SUCCESS_WITH_INFO;
@@ -2467,7 +2485,7 @@ static SQLRETURN conv_tsdb_f8_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
   int n = snprintf(buf, sizeof(buf), "%g", f8);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, buf, (n>target->len ? target->len : n));
+  strncpy(target->ptr, buf, (n>target->len ? target->len : n));
   if (n<=target->len) return SQL_SUCCESS;
   SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_DOUBLE -> SQL_C_BINARY");
   return SQL_SUCCESS_WITH_INFO;
@@ -2488,7 +2506,7 @@ static SQLRETURN conv_tsdb_ts_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIELD
   int64_t v = (int64_t)t;
   v *= 1000;
   v += ts->fraction % 1000;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
@@ -2508,9 +2526,7 @@ static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIEL
 
   *target->soi = n;
 
-  if (target->ptr) {
-    snprintf(target->ptr, target->len, "%s.%03d", buf, ts->fraction);
-  }
+  snprintf(target->ptr, target->len, "%s.%03d", buf, ts->fraction);
 
   if (n <= target->len) {
     return SQL_SUCCESS;
@@ -2536,7 +2552,7 @@ static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIEL
 
   *target->soi = n;
 
-  if (target->ptr) memcpy(target->ptr, buf, (n>target->len ? target->len : n));
+  memcpy(target->ptr, buf, (n>target->len ? target->len : n));
 
   if (n <= target->len) {
     return SQL_SUCCESS;
@@ -2548,31 +2564,55 @@ static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIEL
 
 static SQLRETURN conv_tsdb_ts_to_c_ts(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts)
 {
-  if (target->ptr) memcpy(target->ptr, ts, sizeof(*ts));
+  memcpy(target->ptr, ts, sizeof(*ts));
   return SQL_SUCCESS;
 }
 
 static SQLRETURN conv_tsdb_bin_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const unsigned char *bin)
 {
-  size_t n = field->bytes;
-  n = strlen((const char*)bin);
-  *target->soi = n;
-  if (target->ptr) memcpy(target->ptr, bin, (n>target->len ? target->len : n));
-  if (n <= target->len) return SQL_SUCCESS;
+  if (target->len<1) {
+    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  size_t field_bytes = field->bytes - VARSTR_HEADER_SIZE;
+  size_t n = strnlen((const char*)bin, field_bytes);
 
-  SET_ERROR(sql, "01004", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_BINARY -> SQL_C_CHAR");
+  if (n < target->len) {
+    memcpy(target->ptr, bin, n);
+    target->ptr[n] = '\0';
+    *target->soi = n;
+    return SQL_SUCCESS;
+  }
+  n = target->len - 1;
+  *target->soi = n;
+  if (n > 0) {
+    memcpy(target->ptr, bin, n-1);
+    target->ptr[n-1] = '\0';
+  }
+  SET_ERROR(sql, "01004", TSDB_CODE_ODBC_CONV_TRUNC, "");
   return SQL_SUCCESS_WITH_INFO;
 }
 
 static SQLRETURN conv_tsdb_bin_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const unsigned char *bin)
 {
-  size_t n = field->bytes;
-  n = strlen((const char*)bin);
-  *target->soi = n;
-  if (target->ptr) memcpy(target->ptr, bin, (n>target->len ? target->len : n));
-  if (n <= target->len) return SQL_SUCCESS;
+  if (target->len<1) {
+    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  size_t field_bytes = field->bytes - VARSTR_HEADER_SIZE;
+  size_t n = strnlen((const char*)bin, field_bytes);
 
-  SET_ERROR(sql, "01004", TSDB_CODE_ODBC_CONV_UNDEF, "TSDB_DATA_TYPE_BINARY -> SQL_C_CHAR");
+  if (n <= target->len) {
+    memcpy(target->ptr, bin, n);
+    if (n<target->len) target->ptr[n] = '\0';
+    *target->soi = n;
+    return SQL_SUCCESS;
+  }
+
+  n = target->len;
+  memcpy(target->ptr, bin, n);
+  *target->soi = n;
+  SET_ERROR(sql, "01004", TSDB_CODE_ODBC_CONV_TRUNC, "");
   return SQL_SUCCESS_WITH_INFO;
 }
 
@@ -2583,7 +2623,7 @@ static SQLRETURN conv_tsdb_str_to_c_bit(sql_t *sql, c_target_t *target, TAOS_FIE
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   int8_t v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 1;
 
@@ -2622,7 +2662,7 @@ static SQLRETURN conv_tsdb_str_to_c_v1(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   int8_t v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 1;
 
@@ -2652,7 +2692,7 @@ static SQLRETURN conv_tsdb_str_to_c_v2(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   int16_t v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 2;
 
@@ -2682,7 +2722,7 @@ static SQLRETURN conv_tsdb_str_to_c_v4(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   int32_t v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 4;
 
@@ -2712,7 +2752,7 @@ static SQLRETURN conv_tsdb_str_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   int64_t v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 8;
 
@@ -2742,7 +2782,7 @@ static SQLRETURN conv_tsdb_str_to_c_f4(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   float v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 4;
 
@@ -2761,7 +2801,7 @@ static SQLRETURN conv_tsdb_str_to_c_f8(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = sscanf(str, "%lf%n", &f8, &bytes);
 
   float v = f8;
-  if (target->ptr) memcpy(target->ptr, &v, sizeof(v));
+  memcpy(target->ptr, &v, sizeof(v));
 
   *target->soi = 8;
 
@@ -2775,25 +2815,11 @@ static SQLRETURN conv_tsdb_str_to_c_f8(sql_t *sql, c_target_t *target, TAOS_FIEL
 
 static SQLRETURN conv_tsdb_str_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const char *str)
 {
-  size_t n = strlen(str);
-  *target->soi = n;
-  if (target->ptr) strncpy(target->ptr, str, (n < target->len ? n+1 : target->len));
-
-  if (n < target->len) return SQL_SUCCESS;
-
-  SET_ERROR(sql, "01004", TSDB_CODE_ODBC_CONV_TRUNC, "TSDB_DATA_TYPE_NCHAR -> SQL_C_CHAR");
-  return SQL_SUCCESS_WITH_INFO;
+  return conv_tsdb_bin_to_c_str(sql, target, field, (const unsigned char*)str);
 }
 
 static SQLRETURN conv_tsdb_str_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const char *str)
 {
-  size_t n = strlen(str);
-  *target->soi = n;
-  if (target->ptr) memcpy(target->ptr, str, (n < target->len ? n : target->len));
-
-  if (n <= target->len) return SQL_SUCCESS;
-
-  SET_ERROR(sql, "01004", TSDB_CODE_ODBC_CONV_TRUNC, "TSDB_DATA_TYPE_NCHAR -> SQL_C_BINARY");
-  return SQL_SUCCESS_WITH_INFO;
+  return conv_tsdb_bin_to_c_bin(sql, target, field, (const unsigned char*)str);
 }
 
