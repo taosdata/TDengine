@@ -50,7 +50,7 @@ pipeline {
             make > /dev/null
             cd ${WKC}/tests
             #./test-all.sh smoke
-            sh test-all.sh b1
+            ./test-all.sh b1
             date'''
           }
         }
@@ -59,7 +59,7 @@ pipeline {
           agent{label "185"}
           steps {
             sh '''
-            date
+            
             cd ${WKC}
             git checkout develop
             git pull
@@ -68,17 +68,17 @@ pipeline {
             git checkout develop
             git pull
             export TZ=Asia/Harbin
-            date
+            
             rm -rf ${WK}/debug
             mkdir debug
             cd debug
             cmake .. > /dev/null
             make > /dev/null
             cd ${WKC}/tests/pytest
-            sh crash_gen.sh -a -p -t 4 -s 2000
+            ./crash_gen.sh -a -p -t 4 -s 2000
             date
             cd ${WKC}/tests
-            sh test-all.sh b2
+            ./test-all.sh b2
             date
             '''
           }
@@ -104,7 +104,7 @@ pipeline {
             cmake .. > /dev/null
             make > /dev/null
             cd ${WKC}/tests/pytest
-            sh start_valgrind.sh 2>&1 > mem-error-out.log
+            ./valgrind-test.sh 2>&1 > mem-error-out.log
             grep \'start to execute\\|ERROR SUMMARY\' mem-error-out.log|grep -v \'grep\'|uniq|tee uniq-mem-error-out.log
 
             for memError in `grep \'ERROR SUMMARY\' uniq-mem-error-out.log | awk \'{print $4}\'`
@@ -130,8 +130,8 @@ pipeline {
               fi
             done
             date
-            cd ${WORKSPACE}/tests
-            sh test-all.sh b3
+            cd ${WKC}/tests
+            ./test-all.sh b3
             date'''
           }
         }
