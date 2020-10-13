@@ -444,6 +444,7 @@ static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void 
     mnodeDecAcctRef(pAcct);
   }
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
