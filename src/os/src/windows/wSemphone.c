@@ -49,6 +49,6 @@ int32_t taosGetCurrentAPPName(char *name, int32_t* len) {
   strcpy(name, filepath);
 
   if (len != NULL) {
-    len = strlen(filepath);
+    *len = strlen(filepath);
   }
 }
