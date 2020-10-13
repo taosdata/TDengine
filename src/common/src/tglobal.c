@@ -308,6 +308,8 @@ bool taosCfgDynamicOptions(char *msg) {
 
 static void doInitGlobalConfig(void) {
   osInit();
+  srand(taosSafeRand());
+
   SGlobalCfg cfg = {0};
   
   // ip address
