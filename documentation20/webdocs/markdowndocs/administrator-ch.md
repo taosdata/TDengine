@@ -172,28 +172,28 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
     如果配置文件中不设置charset，在Linux系统中，taos在启动时候，自动读取系统当前的locale信息，并从locale信息中解析提取charset编码格式。如果自动读取locale信息失败，则尝试读取charset配置，如果读取charset配置也失败，则中断启动过程。
 
     在Linux系统中，locale信息包含了字符编码信息，因此正确设置了Linux系统locale以后可以不用再单独设置charset。例如：
-```
+    ```
     locale zh_CN.UTF-8
-```
-   在Windows系统中，无法从locale获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos默认设置为字符编码为CP936。其等效在配置文件中添加如下配置：
-```
+    ```
+    在Windows系统中，无法从locale获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos默认设置为字符编码为CP936。其等效在配置文件中添加如下配置：
+    ```
     charset CP936
-```
-   如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
+    ```
+    如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
 
-   在Linux系统中，如果用户同时设置了locale和字符集编码charset，并且locale和charset的不一致，后设置的值将覆盖前面设置的值。
-```
+    在Linux系统中，如果用户同时设置了locale和字符集编码charset，并且locale和charset的不一致，后设置的值将覆盖前面设置的值。
+    ```
     locale zh_CN.UTF-8
     charset GBK
-```
-   则charset的有效值是GBK。
-```
+    ```
+    则charset的有效值是GBK。
+    ```
     charset GBK
     locale zh_CN.UTF-8
-```
-   charset的有效值是UTF-8。
+    ```
+    charset的有效值是UTF-8。
 
-   日志的配置参数，与server 的配置参数完全一样。
+    日志的配置参数，与server 的配置参数完全一样。
 
 - timezone
 
@@ -202,32 +202,32 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
     客户端运行系统所在的时区。为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
 
     在Linux系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
-```
+    ```
     timezone UTC-8
     timezone GMT-8
     timezone Asia/Shanghai
-```
-   均是合法的设置东八区时区的格式。
+    ```
+    均是合法的设置东八区时区的格式。
 
-   时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
-```
+    时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
+    ```
     SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
-```
-   在东八区，SQL语句等效于
-```
+    ```
+    在东八区，SQL语句等效于
+    ```
     SELECT count(*) FROM table_name WHERE TS<1554955268000;
-```
-   在UTC时区，SQL语句等效于
-```
+    ```
+    在UTC时区，SQL语句等效于
+    ```
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
-```
-   为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，2013-04-12T15:52:01.123+08:00或者ISO-8601格式时间戳字符串2013-04-12T15:52:01.123+0800。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
+    ```
+    为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，2013-04-12T15:52:01.123+08:00或者ISO-8601格式时间戳字符串2013-04-12T15:52:01.123+0800。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
 
-   启动taos时，也可以从命令行指定一个taosd实例的end point，否则就从taos.cfg读取。
+    启动taos时，也可以从命令行指定一个taosd实例的end point，否则就从taos.cfg读取。
    
 - maxBinaryDisplayWidth
 
-   Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn 动态修改此选项。
+    Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn 动态修改此选项。
    
 
 ## 用户管理
