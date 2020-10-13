@@ -104,7 +104,7 @@ pipeline {
             cmake .. > /dev/null
             make > /dev/null
             cd ${WKC}/tests/pytest
-            ./start_valgrind.sh 2>&1 > mem-error-out.log
+            ./valgrind-test.sh 2>&1 > mem-error-out.log
             grep \'start to execute\\|ERROR SUMMARY\' mem-error-out.log|grep -v \'grep\'|uniq|tee uniq-mem-error-out.log
 
             for memError in `grep \'ERROR SUMMARY\' uniq-mem-error-out.log | awk \'{print $4}\'`
