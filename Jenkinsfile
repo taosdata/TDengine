@@ -105,30 +105,8 @@ pipeline {
             make > /dev/null
             cd ${WKC}/tests/pytest
             ./valgrind-test.sh 2>&1 > mem-error-out.log
-            grep \'start to execute\\|ERROR SUMMARY\' mem-error-out.log|grep -v \'grep\'|uniq|tee uniq-mem-error-out.log
-
-            for memError in `grep \'ERROR SUMMARY\' uniq-mem-error-out.log | awk \'{print $4}\'`
-            do
-              if [ -n "$memError" ]; then
-                if [ "$memError" -gt 12 ]; then
-                  echo -e "${RED} ## Memory errors number valgrind reports is $memError.\\
-                          More than our threshold! ## ${NC}"
-                  travis_terminate $memError
-                fi
-              fi
-            done
-
-            grep \'start to execute\\|definitely lost:\' mem-error-out.log|grep -v \'grep\'|uniq|tee uniq-definitely-lost-out.log
-            for defiMemError in `grep \'definitely lost:\' uniq-definitely-lost-out.log | awk \'{print $7}\'`
-            do
-              if [ -n "$defiMemError" ]; then
-                if [ "$defiMemError" -gt 13 ]; then
-                  echo -e "${RED} ## Memory errors number valgrind reports \\
-                          Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
-                  travis_terminate $defiMemError
-                fi
-              fi
-            done
+            ./handle_val_log.sh
+          
             date
             cd ${WKC}/tests
             ./test-all.sh b3
