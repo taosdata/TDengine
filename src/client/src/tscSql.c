@@ -27,6 +27,7 @@
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tscProfile.h"
+#include "ttimer.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -256,9 +257,20 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
 void taos_close(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
 
-  if (pObj == NULL || pObj->signature != pObj)  {
+  if (pObj == NULL) {
+    tscDebug("(null) try to free tscObj and close dnodeConn");
     return;
   }
+
+  tscDebug("%p try to free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
+  if (pObj->signature != pObj) {
+    tscDebug("%p already closed or invalid tscObj", pObj);
+    return;
+  }
+
+  // make sure that the close connection can only be executed once.
+  pObj->signature = NULL;
+  taosTmrStopA(&(pObj->pTimer));
 
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
