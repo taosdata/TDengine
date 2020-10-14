@@ -475,6 +475,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
     return;
   }
 
+  // set the master sqlObj flag to cancel query
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   for (int i = 0; i < pSql->subState.numOfSub; ++i) {
@@ -498,7 +499,7 @@ void tscKillSTableQuery(SSqlObj *pSql) {
       pSubObj->pRpcCtx = NULL;
     }
 
-    tscQueueAsyncRes(pSubObj); // async res? not other functions?
+//    tscQueueAsyncRes(pSubObj); // async res? not other functions?
     taosCacheRelease(tscObjCache, (void**) &p, false);
   }
 
