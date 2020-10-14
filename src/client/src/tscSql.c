@@ -763,6 +763,8 @@ void taos_stop_query(TAOS_RES *res) {
         rpcCancelRequest(pSql->pRpcCtx);
         pSql->pRpcCtx = NULL;
       }
+
+      tscQueueAsyncRes(pSql);
     }
   }
 
