@@ -558,8 +558,8 @@ void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pCacheObj->numOfElemsInTrash++;
   __cache_unlock(pCacheObj);
 
-  uDebug("cache:%s key:%p, %p move to trashcan, numOfElem in trashcan:%d", pCacheObj->name, pNode->key, pNode->data,
-      pCacheObj->numOfElemsInTrash);
+  uDebug("cache:%s key:%p, %p move to trashcan, pTrashElem:%p, numOfElem in trashcan:%d", pCacheObj->name,
+      pNode->key, pNode->data, pElem, pCacheObj->numOfElemsInTrash);
 }
 
 void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {

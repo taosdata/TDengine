@@ -258,11 +258,11 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   assert(numOfSub > 0);
   
   // scan all subquery, if one sub query has only ts, ignore it
-  tscDebug("%p start to launch secondary subqueries, total:%d, only:%d needs to query", pSql, pSql->subState.numOfSub, numOfSub);
+  tscDebug("%p start to launch secondary subqueries, %d out of %d needs to query", pSql, numOfSub, pSql->subState.numOfSub);
 
   //the subqueries that do not actually launch the secondary query to virtual node is set as completed.
   SSubqueryState* pState = &pSql->subState;
-  pState->numOfRemain = pState->numOfSub;
+  pState->numOfRemain = numOfSub;
 
   bool success = true;
   
