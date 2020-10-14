@@ -77,11 +77,10 @@ maven 项目中使用如下 pom.xml 配置即可：
 通过指定的jdbcUrl获取连接，如下所示：
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
-String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/log?user=root&password=taosdata";
+String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata";
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
-以上示例，建立了到hostname为taosdemo.com，端口为6030，database为log的连接。
-> 端口 6030 为默认连接端口，JDBC URL 中的 log 为系统本身的监控数据库，user和password参数指定了用户名和密码
+以上示例，建立了到hostname为taosdemo.com，端口为6030（TDengine的默认端口），数据库名为test的连接。这个url中指定用户名（user）为root，密码（password）为taosdata。
 
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:TAOS://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
@@ -99,7 +98,7 @@ url中的配置参数如下：
 ```java
 public Connection getConn() throws Exception{
   Class.forName("com.taosdata.jdbc.TSDBDriver");
-  String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/log?user=root&password=taosdata";
+  String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata";
   Properties connProps = new Properties();
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
@@ -108,7 +107,7 @@ public Connection getConn() throws Exception{
   return conn;
 }
 ```
-以上示例，建立一个到hostname为taosdemo.com，端口为6030，数据库为log的连接。这个连接在jdbcUrl中指定了用户名和密码，并在connProps中指定了使用的字符集、语言环境、时区等信息。
+以上示例，建立一个到hostname为taosdemo.com，端口为6030，数据库名为test的连接。这个连接在url中指定了用户名(user)为root，密码（password）为taosdata，并在connProps中指定了使用的字符集、语言环境、时区等信息。
 
 properties中的配置参数如下：
 * TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 root。
@@ -119,13 +118,13 @@ properties中的配置参数如下：
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE：客户端使用的时区，默认值为系统当前时区。
 
 #### 使用客户端配置文件建立连接
-当使用JDBC连接TDengine集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的firstEp、SecondEp参数。
+当使用JDBC连接TDengine集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的firstEp、secondEp参数。
 如下所示：
 1. 在java中不指定hostname和port
 ```java
 public Connection getConn() throws Exception{
   Class.forName("com.taosdata.jdbc.TSDBDriver");
-  String jdbcUrl = "jdbc:TAOS://:/log?user=root&password=taosdata";
+  String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
   Properties connProps = new Properties();
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
@@ -149,10 +148,10 @@ secondEp              cluster_node2:6030
 # locale                en_US.UTF-8
 ```
 
-以上示例，jdbc会使用客户端的配置文件，建立到hostname为cluster_node1，端口为6030的连接。当集群中firstEp节点失效时，JDBC会尝试使用secondEp连接集群。
-TDengine中，只要firstEp和secondEp中任何一个节点为有效连接，TDengine就可以通过该节点，找到集群的master。因此，只要保证firstEp和secondEp中一个节点有效，就可以正常建立到集群的连接。
+以上示例，jdbc会使用客户端的配置文件，建立到hostname为cluster_node1，端口为6030，数据库名为test的连接。当集群中firstEp节点失效时，JDBC会尝试使用secondEp连接集群。
+TDengine中，只要保证firstEp和secondEp中一个节点有效，就可以正常建立到集群的连接。
 
-> 注意：这里的配置文件指的是调用JDBC Connector的应用程序所在的机器上的配置文件，Linux OS 上默认值 /etc/taos ，Windows OS 上默认值 C:/TDengine/cfg。
+> 注意：这里的配置文件指的是调用JDBC Connector的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 #### 配置参数的优先级
 通过以上3种方式获取连接，如果配置参数在url、Properties、客户端配置文件中有重复，则参数的`优先级由高到低`分别如下：
