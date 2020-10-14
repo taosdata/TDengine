@@ -480,8 +480,8 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
 
     mnodeDecMnodeRef(pMnode);
   }
-  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
 
   return numOfRows;

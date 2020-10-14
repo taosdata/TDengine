@@ -334,6 +334,12 @@ typedef struct STscObj {
   T_REF_DECLARE()
 } STscObj;
 
+typedef struct SSubqueryState {
+  int32_t          numOfRemain;         // the number of remain unfinished subquery
+  int32_t          numOfSub;            // the number of total sub-queries
+  uint64_t         numOfRetrievedRows;  // total number of points in this query
+} SSubqueryState;
+
 typedef struct SSqlObj {
   void            *signature;
   pthread_t        owner;        // owner of sql object, by which it is executed
@@ -355,10 +361,11 @@ typedef struct SSqlObj {
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
-  uint16_t         numOfSubs;
-  struct SSqlObj **pSubs;
-  struct SSqlObj * prev, *next;
 
+  SSubqueryState   subState;
+  struct SSqlObj **pSubs;
+
+  struct SSqlObj  *prev, *next;
   struct SSqlObj **self;
 } SSqlObj;
 

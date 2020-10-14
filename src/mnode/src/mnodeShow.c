@@ -186,7 +186,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
     rowsToRead = pShow->numOfRows - pShow->numOfReads;
   }
 
-  /* return no more than 100 meters in one round trip */
+  /* return no more than 100 tables in one round trip */
   if (rowsToRead > 100) rowsToRead = 100;
 
   /*
@@ -244,7 +244,8 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   int32_t connId = htonl(pHBMsg->connId);
   SConnObj *pConn = mnodeAccquireConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort);
   if (pConn == NULL) {
-    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+    pHBMsg->pid = htonl(pHBMsg->pid);
+    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pHBMsg->pid, pHBMsg->appName);
   }
 
   if (pConn == NULL) {
@@ -325,7 +326,8 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     goto connect_over;
   }
 
-  SConnObj *pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  pConnectMsg->pid = htonl(pConnectMsg->pid);
+  SConnObj *pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pConnectMsg->pid, pConnectMsg->appName);
   if (pConn == NULL) {
     code = terrno;
   } else {

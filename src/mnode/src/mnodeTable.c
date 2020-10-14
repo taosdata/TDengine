@@ -63,27 +63,27 @@ static int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t
 static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
  
-static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *mnodeMsg);
+static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg);
 
-static int32_t mnodeProcessDropTableMsg(SMnodeMsg *mnodeMsg);
+static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg);
 
-static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *mnodeMsg);
-static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *mnodeMsg);
-static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *mnodeMsg);
+static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg);
 
-static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *mnodeMsg);
+static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg);
 static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg);
 static int32_t mnodeGetChildTableMeta(SMnodeMsg *pMsg);
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg);
 
-static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *mnodeMsg);
+static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg);
 
 static int32_t mnodeFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colName);
@@ -1384,9 +1384,8 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 5;
 
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;
@@ -2543,6 +2542,25 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 8; // table uid
+  pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
+  strcpy(pSchema[cols].name, "uid");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "tid");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "vgId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
@@ -2568,6 +2586,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     return 0;
   }
 
+  int32_t cols       = 0;
   int32_t numOfRows  = 0;
   SChildTableObj *pTable = NULL;
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
@@ -2608,8 +2627,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
       continue;
     }
 
-    int32_t cols = 0;
-
+    cols = 0;
     char *pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tableName, pShow->bytes[cols]);
@@ -2638,14 +2656,29 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
     
     cols++;
 
+    // uid
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t*) pWrite = pTable->uid;
+    cols++;
+
+
+    // tid
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t*) pWrite = pTable->sid;
+    cols++;
+
+    //vgid
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t*) pWrite = pTable->vgId;
+    cols++;
+
     numOfRows++;
     mnodeDecTableRef(pTable);
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 4;
 
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
   free(pattern);
 
@@ -2843,9 +2876,8 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   }
 
   pShow->numOfReads += numOfRows;
-  const int32_t NUM_OF_COLUMNS = 4;
 
-  mnodeVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
 
   return numOfRows;
