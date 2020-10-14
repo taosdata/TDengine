@@ -723,8 +723,16 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextVgroup(pShow->pIter, &pVgroup);
     if (pVgroup == NULL) break;
-    if (pVgroup->pDb != pDb) continue;
-    if (!mnodeFilterVgroups(pVgroup, pTable)) continue;
+
+    if (pVgroup->pDb != pDb) {
+      mnodeDecVgroupRef(pVgroup);
+      continue;
+    }
+
+    if (!mnodeFilterVgroups(pVgroup, pTable)) {
+      mnodeDecVgroupRef(pVgroup);
+      continue;
+    }
 
     cols = 0;
 
