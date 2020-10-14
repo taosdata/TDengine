@@ -20,13 +20,13 @@
 #include "tcache.h"
 #include "tnote.h"
 #include "trpc.h"
-#include "ttimer.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "ttimer.h"
 #include "tscProfile.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
@@ -261,9 +261,6 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  pObj->signature = NULL;
-  taosTmrStopA(&(pObj->pTimer));
-
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
     if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
@@ -463,6 +460,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlRes *pRes = &pSql->res;
   
   if (pRes->qhandle == 0 ||
+      pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
@@ -526,7 +524,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pRes->numOfClauseTotal = 0;
     pRes->rspType = 0;
 
-    pSql->numOfSubs = 0;
+    pSql->subState.numOfSub = 0;
     taosTFree(pSql->pSubs);
 
     assert(pSql->fp == NULL);
