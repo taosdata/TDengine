@@ -311,6 +311,16 @@ int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype) {
 
   if (pNode == NULL) return 0;
 
+  if (nodeRole == TAOS_SYNC_ROLE_SLAVE && pWalHead->version != nodeVersion + 1) {
+    sError("vgId:%d, received ver:%" PRIu64 ", inconsistent with last ver:%" PRIu64 ", restart connection", pNode->vgId,
+           pWalHead->version, nodeVersion);
+    for (int i = 0; i < pNode->replica; ++i) {
+      pPeer = pNode->peerInfo[i];
+      syncRestartConnection(pPeer);
+    }
+    return TSDB_CODE_SYN_INVALID_VERSION;
+  }
+
   // always update version
   nodeVersion = pWalHead->version;
   sDebug("vgId:%d, replica:%d nodeRole:%s qtype:%d ver:%" PRIu64, pNode->vgId, pNode->replica, syncRole[nodeRole],

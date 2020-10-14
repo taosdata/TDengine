@@ -77,8 +77,7 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     }
 
     // assign version
-    pVnode->version++;
-    pHead->version = pVnode->version;
+    pHead->version = pVnode->version + 1;
     if (pVnode->delay) usleep(pVnode->delay * 1000);
 
   } else {  // from wal or forward
@@ -86,16 +85,16 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     if (pHead->version <= pVnode->version) return 0;
   }
 
-  pVnode->version = pHead->version;
+  // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
+  int32_t syncCode = 0;
+  syncCode = syncForwardToPeer(pVnode->sync, pHead, item, qtype);
+  if (syncCode < 0) return syncCode;
 
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
   if (code < 0) return code;
 
-  // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
-  int32_t syncCode = 0;
-  syncCode = syncForwardToPeer(pVnode->sync, pHead, item, qtype);
-  if (syncCode < 0) return syncCode;
+  pVnode->version = pHead->version;
 
   // write data locally
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
