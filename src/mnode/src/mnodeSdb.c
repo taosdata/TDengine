@@ -594,7 +594,7 @@ static int sdbWrite(void *param, void *data, int type) {
       pthread_mutex_unlock(&tsSdbObj.mutex);
       sdbError("table:%s, failed to restore %s record:%s from source(%d), ver:%" PRId64 " too large, sdb ver:%" PRId64,
                pTable->tableName, sdbGetActionStr(action), sdbGetKeyStr(pTable, pHead->cont), type, pHead->version, tsSdbObj.version);
-      return TSDB_CODE_MND_APP_ERROR;
+      return TSDB_CODE_SYN_INVALID_VERSION;
     } else {
       tsSdbObj.version = pHead->version;
     }
