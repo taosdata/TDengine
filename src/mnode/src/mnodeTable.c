@@ -460,12 +460,14 @@ static int32_t mnodeSuperTableActionUpdate(SSdbOper *pOper) {
     void *oldSchema = pTable->schema;
     void *oldVgHash = pTable->vgHash;
     int32_t oldRefCount = pTable->refCount;
+    int32_t oldNumOfTables = pTable->numOfTables;
 
     memcpy(pTable, pNew, sizeof(SSuperTableObj));
 
     pTable->vgHash = oldVgHash;
     pTable->refCount = oldRefCount;
     pTable->schema = pNew->schema;
+    pTable->numOfTables = oldNumOfTables;
     free(pNew);
     free(oldTableId);
     free(oldSchema);
