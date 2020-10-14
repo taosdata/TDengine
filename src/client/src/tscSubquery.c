@@ -1563,6 +1563,11 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
 }
 
 void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numOfRows) {
+  // it has been freed already
+  if (pSql->param != trsupport || pSql->param == NULL) {
+    return;
+  }
+
   SSqlObj *pParentSql = trsupport->pParentSql;
   int32_t  subqueryIndex = trsupport->subqueryIndex;
   
@@ -1709,13 +1714,20 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
 }
 
 static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
+  SSqlObj *pSql = (SSqlObj *)tres;
+  assert(pSql != NULL);
+
+  // this query has been freed already
   SRetrieveSupport *trsupport = (SRetrieveSupport *)param;
+  if (pSql->param == NULL || param == NULL) {
+    tscDebug("%p already freed in dnodecallback", pSql);
+    assert(pSql->res.code == TSDB_CODE_TSC_QUERY_CANCELLED);
+    return;
+  }
+
   tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
   int32_t           idx   = trsupport->subqueryIndex;
   SSqlObj *         pParentSql = trsupport->pParentSql;
-
-  SSqlObj *pSql = (SSqlObj *)tres;
-  assert(pSql != NULL && trsupport == pSql->param);
 
   SSubqueryState* pState = &pParentSql->subState;
   assert(pState->numOfRemain <= pState->numOfSub && pState->numOfRemain >= 0);

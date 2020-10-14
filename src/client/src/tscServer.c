@@ -467,45 +467,6 @@ int tscProcessSql(SSqlObj *pSql) {
   return doProcessSql(pSql);
 }
 
-void tscKillSTableQuery(SSqlObj *pSql) {
-  SSqlCmd* pCmd = &pSql->cmd;
-  
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    return;
-  }
-
-  // set the master sqlObj flag to cancel query
-  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-
-  for (int i = 0; i < pSql->subState.numOfSub; ++i) {
-    // NOTE: pSub may have been released already here
-    SSqlObj *pSub = pSql->pSubs[i];
-    if (pSub == NULL) {
-      continue;
-    }
-
-    void** p = taosCacheAcquireByKey(tscObjCache, &pSub, sizeof(TSDB_CACHE_PTR_TYPE));
-    if (p == NULL) {
-      continue;
-    }
-
-    SSqlObj* pSubObj = (SSqlObj*) (*p);
-    assert(pSubObj->self == (SSqlObj**) p);
-
-    pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSubObj->pRpcCtx != NULL) {
-      rpcCancelRequest(pSubObj->pRpcCtx);
-      pSubObj->pRpcCtx = NULL;
-    }
-
-//    tscQueueAsyncRes(pSubObj); // async res? not other functions?
-    taosCacheRelease(tscObjCache, (void**) &p, false);
-  }
-
-  tscDebug("%p super table query cancelled", pSql);
-}
-
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
   pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
