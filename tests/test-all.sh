@@ -121,7 +121,7 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
-  elif [ "$1" == "b1" ]; then
+  elif [ "$1" == "pytest" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then

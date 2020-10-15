@@ -28,6 +28,7 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
+#include "ttimer.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -893,6 +894,8 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pSql->fp = asyncCallback;
   pSql->fetchFp = asyncCallback;
   pSql->param = pSql;
+
+  registerSqlObj(pSql);
   int code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tsem_wait(&pSql->rspSem);

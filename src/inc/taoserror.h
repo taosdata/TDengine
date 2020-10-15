@@ -193,6 +193,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_DISK_PERMISSIONS,      0, 0x0506, "No write p
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR,      0, 0x0507, "Missing data file")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_OUT_OF_MEMORY,            0, 0x0508, "Out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "Unexpected generic error in vnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VRESION_FILE,     0, 0x050A, "Invalid version file")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               0, 0x0511, "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Write operation denied")
 
@@ -247,6 +248,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            0, 0x080B, "CPU cores 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "Invalid Sync Configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "Sync module not enabled")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_VERSION,          0, 0x0902, "Invalid Sync version")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "Unexpected generic error in wal")

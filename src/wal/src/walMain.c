@@ -63,7 +63,7 @@ static void walRelease(SWal *pWal);
 
 static void walModuleInitFunc() {
   walTmrCtrl = taosTmrInit(1000, 100, 300000, "WAL");
-  if (walTmrCtrl == NULL) 
+  if (walTmrCtrl == NULL)
     walModuleInit = PTHREAD_ONCE_INIT;
   else
     wDebug("WAL module is initialized");
@@ -90,7 +90,7 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     return NULL;
   }
 
-  atomic_add_fetch_32(&tsWalNum, 1);    
+  atomic_add_fetch_32(&tsWalNum, 1);
   pWal->fd = -1;
   pWal->max = pCfg->wals;
   pWal->id = 0;
@@ -117,18 +117,17 @@ void *walOpen(const char *path, const SWalCfg *pCfg) {
     walRelease(pWal);
     pWal = NULL;
   }
-     
+
   if (pCfg->keep == 1) return pWal;
 
-  if (walHandleExistingFiles(path) == 0) 
-    walRenew(pWal);
+  if (walHandleExistingFiles(path) == 0) walRenew(pWal);
 
-  if (pWal && pWal->fd <0) {
+  if (pWal && pWal->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("wal:%s, failed to open(%s)", path, strerror(errno));
     walRelease(pWal);
     pWal = NULL;
-  } 
+  }
 
   if (pWal) wDebug("wal:%s, it is open, level:%d fsyncPeriod:%d", path, pWal->level, pWal->fsyncPeriod);
   return pWal;
@@ -154,7 +153,7 @@ int walAlter(twalh wal, const SWalCfg *pCfg) {
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
   if (walNeedFsyncTimer(pWal)) {
     wInfo("wal:%s, reset fsync timer, walLevel:%d fsyncPeriod:%d", pWal->name, pWal->level, pWal->fsyncPeriod);
-    taosTmrReset(walProcessFsyncTimer, pWal->fsyncPeriod, pWal, &pWal->timer,walTmrCtrl);
+    taosTmrReset(walProcessFsyncTimer, pWal->fsyncPeriod, pWal, &pWal->timer, walTmrCtrl);
   } else {
     wInfo("wal:%s, stop fsync timer, walLevel:%d fsyncPeriod:%d", pWal->name, pWal->level, pWal->fsyncPeriod);
     taosTmrStop(pWal->timer);
@@ -167,16 +166,16 @@ int walAlter(twalh wal, const SWalCfg *pCfg) {
 
 void walClose(void *handle) {
   if (handle == NULL) return;
-  
-  SWal *pWal = handle;  
+
+  SWal *pWal = handle;
   taosClose(pWal->fd);
   if (pWal->timer) taosTmrStopA(&pWal->timer);
 
   if (pWal->keep == 0) {
     // remove all files in the directory
-    for (int i=0; i<pWal->num; ++i) {
-      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", pWal->path, walPrefix, pWal->id-i);
-      if (remove(pWal->name) <0) {
+    for (int i = 0; i < pWal->num; ++i) {
+      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", pWal->path, walPrefix, pWal->id - i);
+      if (remove(pWal->name) < 0) {
         wError("wal:%s, failed to remove", pWal->name);
       } else {
         wDebug("wal:%s, it is removed", pWal->name);
@@ -197,7 +196,7 @@ int walRenew(void *handle) {
 
   pthread_mutex_lock(&pWal->mutex);
 
-  if (pWal->fd >=0) {
+  if (pWal->fd >= 0) {
     close(pWal->fd);
     pWal->id++;
     wDebug("wal:%s, it is closed", pWal->name);
@@ -218,7 +217,7 @@ int walRenew(void *handle) {
       // remove the oldest wal file
       char name[TSDB_FILENAME_LEN * 3];
       snprintf(name, sizeof(name), "%s/%s%d", pWal->path, walPrefix, pWal->id - pWal->max);
-      if (remove(name) <0) {
+      if (remove(name) < 0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
       } else {
         wDebug("wal:%s, it is removed", name);
@@ -226,8 +225,8 @@ int walRenew(void *handle) {
 
       pWal->num--;
     }
-  }  
-  
+  }
+
   pthread_mutex_unlock(&pWal->mutex);
 
   return terrno;
@@ -239,7 +238,7 @@ int walWrite(void *handle, SWalHead *pHead) {
 
   terrno = 0;
 
-  // no wal  
+  // no wal
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
   if (pHead->version <= pWal->version) return 0;
 
@@ -247,7 +246,7 @@ int walWrite(void *handle, SWalHead *pHead) {
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
   int contLen = pHead->len + sizeof(SWalHead);
 
-  if(taosTWrite(pWal->fd, pHead, contLen) != contLen) {
+  if (taosTWrite(pWal->fd, pHead, contLen) != contLen) {
     wError("wal:%s, failed to write(%s)", pWal->name, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
   } else {
@@ -258,7 +257,6 @@ int walWrite(void *handle, SWalHead *pHead) {
 }
 
 void walFsync(void *handle) {
-
   SWal *pWal = handle;
   if (pWal == NULL || pWal->level != TAOS_WAL_FSYNC || pWal->fd < 0) return;
 
@@ -276,12 +274,11 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
   uint32_t maxId = 0, minId = -1, index =0;
 
   terrno = 0;
-  int   plen = strlen(walPrefix);
-  char  opath[TSDB_FILENAME_LEN+5];
-   
+  int  plen = strlen(walPrefix);
+  char opath[TSDB_FILENAME_LEN + 5];
+
   int slen = snprintf(opath, sizeof(opath), "%s", pWal->path);
-  if ( pWal->keep == 0) 
-    strcpy(opath+slen, "/old");
+  if (pWal->keep == 0) strcpy(opath + slen, "/old");
 
   DIR *dir = opendir(opath);
   if (dir == NULL && errno == ENOENT) return 0;
@@ -290,8 +287,8 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     return terrno;
   }
 
-  while ((ent = readdir(dir))!= NULL) {
-    if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
+  while ((ent = readdir(dir)) != NULL) {
+    if (strncmp(ent->d_name, walPrefix, plen) == 0) {
       index = atol(ent->d_name + plen);
       if (index > maxId) maxId = index;
       if (index < minId) minId = index;
@@ -306,13 +303,13 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     return terrno;
   }
 
-  if ( count != (maxId-minId+1) ) {
+  if (count != (maxId - minId + 1)) {
     wError("wal:%s, messed up, count:%d max:%d min:%d", opath, count, maxId, minId);
     terrno = TSDB_CODE_WAL_APP_ERROR;
   } else {
     wDebug("wal:%s, %d files will be restored", opath, count);
 
-    for (index = minId; index<=maxId; ++index) {
+    for (index = minId; index <= maxId; ++index) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", opath, walPrefix, index);
       terrno = walRestoreWalFile(pWal, pVnode, writeFp);
       if (terrno < 0) break;
@@ -328,7 +325,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
           terrno = TAOS_SYSTEM_ERROR(errno);
         }
       }
-    } else { 
+    } else {
       // open the existing WAL file in append mode
       pWal->num = count;
       pWal->id = maxId;
@@ -345,9 +342,9 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
 }
 
 int walGetWalFile(void *handle, char *name, uint32_t *index) {
-  SWal   *pWal = handle;
+  SWal *  pWal = handle;
   int     code = 1;
-  int32_t first = 0; 
+  int32_t first = 0;
 
   name[0] = 0;
   if (pWal == NULL || pWal->num == 0) return 0;
@@ -359,18 +356,17 @@ int walGetWalFile(void *handle, char *name, uint32_t *index) {
 
   if (*index < first && *index > pWal->id) {
     code = -1;  // index out of range
-  } else { 
+  } else {
     sprintf(name, "wal/%s%d", walPrefix, *index);
-    code = (*index == pWal->id) ? 0:1;
+    code = (*index == pWal->id) ? 0 : 1;
   }
 
   pthread_mutex_unlock(&(pWal->mutex));
 
   return code;
-}  
+}
 
 static void walRelease(SWal *pWal) {
-
   pthread_mutex_destroy(&pWal->mutex);
   pWal->signature = NULL;
   free(pWal);
@@ -385,12 +381,12 @@ static void walRelease(SWal *pWal) {
 
 static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
   char *name = pWal->name;
-  int size = 1024 * 1024; // default 1M buffer size
+  int   size = 1024 * 1024;  // default 1M buffer size
 
   terrno = 0;
   char *buffer = malloc(size);
   if (buffer == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);   
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
 
@@ -487,21 +483,21 @@ int walHandleExistingFiles(const char *path) {
   } else {
     // move all files to old directory
     int count = 0;
-    while ((ent = readdir(dir))!= NULL) {  
-      if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
+    while ((ent = readdir(dir)) != NULL) {
+      if (strncmp(ent->d_name, walPrefix, plen) == 0) {
         snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
         snprintf(nname, sizeof(nname), "%s/old/%s", path, ent->d_name);
         if (taosMkDir(opath, 0755) != 0) {
           wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
           terrno = TAOS_SYSTEM_ERROR(errno);
-          break; 
+          break;
         }
 
         if (rename(oname, nname) < 0) {
           wError("wal:%s, failed to move to new:%s", oname, nname);
           terrno = TAOS_SYSTEM_ERROR(errno);
           break;
-        } 
+        }
 
         count++;
       }
@@ -509,34 +505,34 @@ int walHandleExistingFiles(const char *path) {
 
     wDebug("wal:%s, %d files are moved for restoration", path, count);
   }
-  
+
   closedir(dir);
   return terrno;
 }
 
 static int walRemoveWalFiles(const char *path) {
-  int    plen = strlen(walPrefix);
-  char   name[TSDB_FILENAME_LEN * 3];
- 
+  int  plen = strlen(walPrefix);
+  char name[TSDB_FILENAME_LEN * 3];
+
   terrno = 0;
 
   struct dirent *ent;
-  DIR   *dir = opendir(path);
+  DIR *dir = opendir(path);
   if (dir == NULL && errno == ENOENT) return 0;
   if (dir == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
-  }  
+  }
 
-  while ((ent = readdir(dir))!= NULL) {
-    if ( strncmp(ent->d_name, walPrefix, plen) == 0) {
+  while ((ent = readdir(dir)) != NULL) {
+    if (strncmp(ent->d_name, walPrefix, plen) == 0) {
       snprintf(name, sizeof(name), "%s/%s", path, ent->d_name);
-      if (remove(name) <0) {
+      if (remove(name) < 0) {
         wError("wal:%s, failed to remove(%s)", name, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
       }
     }
-  } 
+  }
 
   closedir(dir);
 
@@ -560,4 +556,11 @@ static void walProcessFsyncTimer(void *param, void *tmrId) {
     taosTmrStop(pWal->timer);
     pWal->timer = NULL;
   }
+}
+
+int64_t walGetVersion(twalh param) {
+  SWal *pWal = param;
+  if (pWal == 0) return 0;
+
+  return pWal->version;
 }

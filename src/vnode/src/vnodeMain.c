@@ -239,8 +239,10 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   code = vnodeReadVersion(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
-    vnodeCleanUp(pVnode);
-    return code;
+    vError("vgId:%d, failed to read version, generate it from data file", pVnode->vgId);
+    // Allow vnode start even when read version fails, set version as walVersion or zero
+    // vnodeCleanUp(pVnode);
+    // return code;
   }
 
   pVnode->fversion = pVnode->version;
@@ -292,6 +294,9 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
+  if (pVnode->version == 0) {
+    pVnode->version = walGetVersion(pVnode->wal);
+  }
 
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
@@ -947,6 +952,7 @@ static int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
+  fflush(fp);
   fclose(fp);
 
   vInfo("vgId:%d, save vnode version:%" PRId64 " succeed", pVnode->vgId, pVnode->fversion);
@@ -960,7 +966,7 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   cJSON  *root = NULL;
   int     maxLen = 100;
 
-  terrno = TSDB_CODE_VND_APP_ERROR;
+  terrno = TSDB_CODE_VND_INVALID_VRESION_FILE;
   sprintf(versionFile, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
   FILE *fp = fopen(versionFile, "r");
   if (!fp) {
@@ -974,7 +980,7 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   }
 
   content = calloc(1, maxLen + 1);
-  int   len = fread(content, 1, maxLen, fp);
+  int len = fread(content, 1, maxLen, fp);
   if (len <= 0) {
     vError("vgId:%d, failed to read vnode version, content is null", pVnode->vgId);
     goto PARSE_OVER;
@@ -999,6 +1005,6 @@ static int32_t vnodeReadVersion(SVnodeObj *pVnode) {
 PARSE_OVER:
   taosTFree(content);
   cJSON_Delete(root);
-  if(fp) fclose(fp);
+  if (fp) fclose(fp);
   return terrno;
 }
