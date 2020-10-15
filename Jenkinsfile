@@ -29,6 +29,31 @@ pipeline {
 
     stage('Parallel test stage') {
       parallel {
+        stage('pytest') {
+          agent{label 'master'}
+          steps {
+            sh '''
+            date
+            cd ${WKC}
+            git checkout develop
+            git pull
+            git submodule update
+            cd ${WK}
+            git checkout develop
+            git pull
+            export TZ=Asia/Harbin
+            date
+            rm -rf ${WK}/debug
+            mkdir debug
+            cd debug
+            cmake .. > /dev/null
+            make > /dev/null
+            cd ${WKC}/tests
+            #./test-all.sh smoke
+            ./test-all.sh pytest
+            date'''
+          }
+        }
         stage('test_b1') {
           agent{label '184'}
           steps {
@@ -118,4 +143,5 @@ pipeline {
     }
 
   }
+  
 }
