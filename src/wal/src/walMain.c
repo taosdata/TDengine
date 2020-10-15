@@ -240,10 +240,7 @@ int walWrite(void *handle, SWalHead *pHead) {
 
   // no wal
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
-  if (pHead->version <= pWal->version) {
-    wError("wal:%s, failed to write ver:%" PRIu64 ", last ver:%" PRIu64, pWal->name, pHead->version, pWal->version);
-    return 0;
-  }
+  if (pHead->version <= pWal->version) return 0;
 
   pHead->signature = walSignature;
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
@@ -559,4 +556,11 @@ static void walProcessFsyncTimer(void *param, void *tmrId) {
     taosTmrStop(pWal->timer);
     pWal->timer = NULL;
   }
+}
+
+int64_t walGetVersion(twalh param) {
+  SWal *pWal = param;
+  if (pWal == 0) return 0;
+
+  return pWal->version;
 }
