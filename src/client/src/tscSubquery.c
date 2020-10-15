@@ -1491,9 +1491,16 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
-  tscDebug("%p start to free subquery obj", pSql);
+static void tscFreeRetrieveSup(SSqlObj *pSql) {
+  SRetrieveSupport *trsupport = pSql->param;
 
+  void* p = atomic_val_compare_exchange_ptr(&pSql->param, trsupport, 0);
+  if (p == NULL) {
+    tscDebug("%p retrieve supp already released", pSql);
+    return;
+  }
+
+  tscDebug("%p start to free subquery supp obj:%p", pSql, trsupport);
 //  int32_t  index = trsupport->subqueryIndex;
 //  SSqlObj *pParentSql = trsupport->pParentSql;
 
@@ -1556,17 +1563,18 @@ static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, in
 }
 
 void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numOfRows) {
+  // it has been freed already
+  if (pSql->param != trsupport || pSql->param == NULL) {
+    return;
+  }
+
   SSqlObj *pParentSql = trsupport->pParentSql;
   int32_t  subqueryIndex = trsupport->subqueryIndex;
   
   assert(pSql != NULL);
-  SSubqueryState* pState = &pParentSql->subState;
-  int32_t remain = pState->numOfRemain;
-  int32_t sub = pState->numOfSub;
-  UNUSED(remain);
-  UNUSED(sub);
 
-  assert(pParentSql->subState.numOfRemain <= pState->numOfSub && pParentSql->subState.numOfRemain >= 0);
+  SSubqueryState* pState = &pParentSql->subState;
+  assert(pState->numOfRemain <= pState->numOfSub && pState->numOfRemain >= 0);
 
   // retrieved in subquery failed. OR query cancelled in retrieve phase.
   if (taos_errno(pSql) == TSDB_CODE_SUCCESS && pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -1597,12 +1605,12 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     }
   }
 
-  remain = -1;
-  if ((remain = atomic_sub_fetch_32(&pParentSql->subState.numOfRemain, 1)) > 0) {
+  int32_t remain = -1;
+  if ((remain = atomic_sub_fetch_32(&pState->numOfRemain, 1)) > 0) {
     tscDebug("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pParentSql, pSql, trsupport->subqueryIndex,
         pState->numOfSub - remain);
 
-    tscFreeSubSqlObj(trsupport, pSql);
+    tscFreeRetrieveSup(pSql);
     return;
   }
   
@@ -1614,7 +1622,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   tscLocalReducerEnvDestroy(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor, trsupport->pFinalColModel,
                             pState->numOfSub);
   
-  tscFreeSubSqlObj(trsupport, pSql);
+  tscFreeRetrieveSup(pSql);
 
   // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, 0);
@@ -1674,7 +1682,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
     tscDebug("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pParentSql, pSql, trsupport->subqueryIndex,
         pState->numOfSub - remain);
 
-    tscFreeSubSqlObj(trsupport, pSql);
+    tscFreeRetrieveSup(pSql);
     return;
   }
   
@@ -1694,7 +1702,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   pParentSql->res.numOfRows = 0;
   pParentSql->res.row = 0;
   
-  tscFreeSubSqlObj(trsupport, pSql);
+  tscFreeRetrieveSup(pSql);
 
   // set the command flag must be after the semaphore been correctly set.
   pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
@@ -1706,13 +1714,20 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
 }
 
 static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
+  SSqlObj *pSql = (SSqlObj *)tres;
+  assert(pSql != NULL);
+
+  // this query has been freed already
   SRetrieveSupport *trsupport = (SRetrieveSupport *)param;
+  if (pSql->param == NULL || param == NULL) {
+    tscDebug("%p already freed in dnodecallback", pSql);
+    assert(pSql->res.code == TSDB_CODE_TSC_QUERY_CANCELLED);
+    return;
+  }
+
   tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
   int32_t           idx   = trsupport->subqueryIndex;
   SSqlObj *         pParentSql = trsupport->pParentSql;
-
-  assert(tres != NULL);
-  SSqlObj *pSql = (SSqlObj *)tres;
 
   SSubqueryState* pState = &pParentSql->subState;
   assert(pState->numOfRemain <= pState->numOfSub && pState->numOfRemain >= 0);

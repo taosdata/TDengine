@@ -742,6 +742,7 @@ void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDe
                                int32_t numOfVnodes) {
   destroyColumnModel(pFinalModel);
   tOrderDescDestroy(pDesc);
+
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pMemBuffer[i] = destoryExtMemBuffer(pMemBuffer[i]);
   }
