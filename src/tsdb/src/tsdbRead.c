@@ -72,7 +72,6 @@ typedef struct STableCheckInfo {
   SCompInfo*    pCompInfo;
   int32_t       compSize;
   int32_t       numOfBlocks;    // number of qualified data blocks not the original blocks
-  SDataCols*    pDataCols;
   int32_t       chosen;         // indicate which iterator should move forward
   bool          initBuf;        // whether to initialize the in-memory skip list iterator or not
   SSkipListIterator* iter;      // mem buffer skip list iterator
@@ -117,10 +116,12 @@ typedef struct STsdbQueryHandle {
   SFileGroupIter fileIter;
   SRWHelper      rhelper;
   STableBlockInfo* pDataBlockInfo;
+
+  SDataCols     *pDataCols;        // in order to hold current file data block
   int32_t        allocSize;        // allocated data block size
-  SMemTable*     mem;              // mem-table
-  SMemTable*     imem;             // imem-table, acquired from snapshot
-  SArray*        defaultLoadColumn;// default load column
+  SMemTable     *mem;              // mem-table
+  SMemTable     *imem;             // imem-table, acquired from snapshot
+  SArray        *defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
   SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
 
@@ -281,6 +282,13 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   
   taosArraySort(pQueryHandle->pTableCheckInfo, tsdbCheckInfoCompar);
   pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
+
+  pQueryHandle->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pQueryHandle->pTsdb->config.maxRowsPerFileBlock);
+  if (pQueryHandle->pDataCols == NULL) {
+    tsdbError("%p failed to malloc buf for pDataCols, %p", pQueryHandle, pQueryHandle->qinfo);
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto out_of_memory;
+  }
 
   tsdbDebug("%p total numOfTable:%" PRIzu " in query, %p", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo), pQueryHandle->qinfo);
 
@@ -689,22 +697,10 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
 }
 
 static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo, int32_t slotIndex) {
-  STsdbRepo *pRepo = pQueryHandle->pTsdb;
-  int64_t    st = taosGetTimestampUs();
+  int64_t st = taosGetTimestampUs();
 
-  if (pCheckInfo->pDataCols == NULL) {
-    STsdbMeta* pMeta = tsdbGetMeta(pRepo);
-
-    pCheckInfo->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pRepo->config.maxRowsPerFileBlock);
-    if (pCheckInfo->pDataCols == NULL) {
-      tsdbError("%p failed to malloc buf for pDataCols, %p", pQueryHandle, pQueryHandle->qinfo);
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      goto _error;
-    }
-  }
-
-  STSchema* pSchema = tsdbGetTableSchema(pCheckInfo->pTableObj);
-  int32_t code = tdInitDataCols(pCheckInfo->pDataCols, pSchema);
+  STSchema *pSchema = tsdbGetTableSchema(pCheckInfo->pTableObj);
+  int32_t   code = tdInitDataCols(pQueryHandle->pDataCols, pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p failed to malloc buf for pDataCols, %p", pQueryHandle, pQueryHandle->qinfo);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -2686,8 +2682,6 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
       STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
       destroyTableMemIterator(pTableCheckInfo);
 
-      tdFreeDataCols(pTableCheckInfo->pDataCols);
-      pTableCheckInfo->pDataCols = NULL;
       taosTFree(pTableCheckInfo->pCompInfo);
     }
     taosArrayDestroy(pQueryHandle->pTableCheckInfo);
@@ -2710,6 +2704,9 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
+
+  tdFreeDataCols(pQueryHandle->pDataCols);
+  pQueryHandle->pDataCols = NULL;
 
   SIOCostSummary* pCost = &pQueryHandle->cost;
   tsdbDebug("%p :io-cost summary: statis-info:%"PRId64" us, datablock:%" PRId64" us, check data:%"PRId64" us, %p",
