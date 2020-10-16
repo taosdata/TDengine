@@ -1347,6 +1347,32 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
   insertResultField(pQueryInfo, startPos, &ids, pExpr->resBytes, (int8_t)pExpr->resType, pExpr->aliasName, pExpr);
 }
 
+static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
+  // primary timestamp column has been added already
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return;
+    }
+  }
+
+  SColumnIndex index = {0};
+
+  // set the constant column value always attached to first table.
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, PRIMARYKEY_TIMESTAMP_COL_INDEX);
+
+  // add the timestamp column into the output columns
+  int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
+  tscAddSpecialColumnForSelect(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL);
+
+  SFieldSupInfo* pSupInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, numOfCols);
+  pSupInfo->visible = false;
+
+  pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
+}
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
@@ -1400,20 +1426,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
   if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
-    SColumnIndex index = {0};
-
-    // set the constant column value always attached to first table.
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, clauseIndex, 0);
-    SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, PRIMARYKEY_TIMESTAMP_COL_INDEX);
-
-    // add the timestamp column into the output columns
-    int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
-    tscAddSpecialColumnForSelect(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL);
-
-    SFieldSupInfo* pSupInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, numOfCols);
-    pSupInfo->visible = false;
-
-    pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
+    addPrimaryTsColIntoResult(pQueryInfo);
   }
 
   if (!functionCompatibleCheck(pQueryInfo, joinQuery)) {
@@ -4482,6 +4495,11 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
       } else {
         pQueryInfo->order.order = pSortorder->a[0].sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+
+        // orderby ts query on super table
+        if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+          addPrimaryTsColIntoResult(pQueryInfo);
+        }
       }
     }
 

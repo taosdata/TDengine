@@ -554,27 +554,40 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
     numOfGroupByCols++;
   }
 
-  int32_t *orderIdx = (int32_t *)calloc(numOfGroupByCols, sizeof(int32_t));
-  if (orderIdx == NULL) {
+  int32_t *orderColIndexList = (int32_t *)calloc(numOfGroupByCols, sizeof(int32_t));
+  if (orderColIndexList == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   if (numOfGroupByCols > 0) {
-    int32_t startCols = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
-    // tags value locate at the last columns
-    for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
-      orderIdx[i] = startCols++;
-    }
+    if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
+      int32_t startCols = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
-    if (pQueryInfo->interval.interval != 0) {
-      // the first column is the timestamp, handles queries like "interval(10m) group by tags"
-      orderIdx[numOfGroupByCols - 1] = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+      // the last "pQueryInfo->groupbyExpr.numOfGroupCols" columns are order-by columns
+      for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
+        orderColIndexList[i] = startCols++;
+      }
+
+      if (pQueryInfo->interval.interval != 0) {
+        // the first column is the timestamp, handles queries like "interval(10m) group by tags"
+        orderColIndexList[numOfGroupByCols - 1] = PRIMARYKEY_TIMESTAMP_COL_INDEX; //TODO ???
+      }
+    } else { // it is the orderby ts asc/desc projection query for super table
+      size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+      for (int32_t i = 0; i < size; ++i) {
+        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+        if (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+          orderColIndexList[0] = i;
+        }
+      }
+
+      assert(pQueryInfo->order.orderColId == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     }
   }
 
-  *pOrderDesc = tOrderDesCreate(orderIdx, numOfGroupByCols, pModel, pQueryInfo->order.order);
-  taosTFree(orderIdx);
+  *pOrderDesc = tOrderDesCreate(orderColIndexList, numOfGroupByCols, pModel, pQueryInfo->order.order);
+  taosTFree(orderColIndexList);
 
   if (*pOrderDesc == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -606,7 +619,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
     return true;
   }
 
-  if (orderInfo->pData[numOfCols - 1] == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if (orderInfo->colIndex[numOfCols - 1] == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     /*
      * super table interval query
      * if the order columns is the primary timestamp, all result data belongs to one group
@@ -620,7 +633,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
   }
 
   // only one row exists
-  int32_t index = orderInfo->pData[0];
+  int32_t index = orderInfo->colIndex[0];
   int32_t offset = (pOrderDesc->pColumnModel)->pFields[index].offset;
 
   int32_t ret = memcmp(pPrev + offset, tmpBuffer->data + offset, pOrderDesc->pColumnModel->rowSize - offset);
@@ -661,7 +674,6 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
     pSchema[i].bytes = pExpr->resBytes;
     pSchema[i].type = (int8_t)pExpr->resType;
-
     rlen += pExpr->resBytes;
   }
 

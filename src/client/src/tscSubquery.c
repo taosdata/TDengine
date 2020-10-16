@@ -1393,9 +1393,10 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
-  pSql->subState.numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
-  assert(pSql->subState.numOfSub > 0);
+  SSubqueryState *pState = &pSql->subState;
+
+  pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
+  assert(pState->numOfSub > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
   if (ret != 0) {
@@ -1405,24 +1406,24 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return ret;
   }
   
-  pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
+  pSql->pSubs = calloc(pState->numOfSub, POINTER_BYTES);
 
-  tscDebug("%p retrieved query data from %d vnode(s)", pSql, pSql->subState.numOfSub);
+  tscDebug("%p retrieved query data from %d vnode(s)", pSql, pState->numOfSub);
 
   if (pSql->pSubs == NULL) {
     taosTFree(pSql->pSubs);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->subState.numOfSub);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pState->numOfSub);
 
     tscQueueAsyncRes(pSql);
     return ret;
   }
 
-  pSql->subState.numOfRemain = pSql->subState.numOfSub;
+  pState->numOfRemain = pState->numOfSub;
   pRes->code = TSDB_CODE_SUCCESS;
   
   int32_t i = 0;
-  for (; i < pSql->subState.numOfSub; ++i) {
+  for (; i < pState->numOfSub; ++i) {
     SRetrieveSupport *trs = (SRetrieveSupport *)calloc(1, sizeof(SRetrieveSupport));
     if (trs == NULL) {
       tscError("%p failed to malloc buffer for SRetrieveSupport, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
@@ -1461,22 +1462,22 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     tscDebug("%p sub:%p create subquery success. orderOfSub:%d", pSql, pNew, trs->subqueryIndex);
   }
   
-  if (i < pSql->subState.numOfSub) {
+  if (i < pState->numOfSub) {
     tscError("%p failed to prepare subquery structure and launch subqueries", pSql);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->subState.numOfSub);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pState->numOfSub);
     doCleanupSubqueries(pSql, i);
     return pRes->code;   // free all allocated resource
   }
   
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pSql->subState.numOfSub);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pState->numOfSub);
     doCleanupSubqueries(pSql, i);
     return pRes->code;
   }
   
-  for(int32_t j = 0; j < pSql->subState.numOfSub; ++j) {
+  for(int32_t j = 0; j < pState->numOfSub; ++j) {
     SSqlObj* pSub = pSql->pSubs[j];
     SRetrieveSupport* pSupport = pSub->param;
     
