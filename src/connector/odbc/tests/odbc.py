@@ -113,3 +113,11 @@ while row:
     row = cursor.fetchone()
 cursor.close()
 
+cursor = cnxn.cursor()
+cursor.execute("SELECT * from db.v where v1 > ?", '5')
+row = cursor.fetchone()
+while row:
+    print(row)
+    row = cursor.fetchone()
+cursor.close()
+
