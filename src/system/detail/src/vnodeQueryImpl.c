@@ -7168,7 +7168,7 @@ int32_t getDataBlocksForMeters(STableQuerySupportObj *pSupporter, SQuery *pQuery
     }
 
     if (compInfo.numOfBlocks <= 0 || compInfo.uid != pMeterDataInfo[j]->pMeterObj->uid) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j+1);
       continue;
     }
 
