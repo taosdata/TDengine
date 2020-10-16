@@ -2409,14 +2409,16 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
     }
   } else {
     if (mnodeMsg->retry++ < 10) {
-      mDebug("app:%p:%p, table:%s, create table rsp received, need retry, times:%d result:%s thandle:%p",
-             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, tstrerror(rpcMsg->code),
-             mnodeMsg->rpcMsg.handle);
+      mDebug("app:%p:%p, table:%s, create table rsp received, need retry, times:%d vgId:%d sid:%d uid:%" PRIu64
+             " result:%s thandle:%p",
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, pTable->vgId, pTable->sid,
+             pTable->uid, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
       dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
     } else {
-      mError("app:%p:%p, table:%s, failed to create in dnode, result:%s thandle:%p", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
-             pTable->info.tableId, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
+      mError("app:%p:%p, table:%s, failed to create in dnode, vgId:%d sid:%d uid:%" PRIu64 ", result:%s thandle:%p",
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+             tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
       SSdbOper oper = {.type = SDB_OPER_GLOBAL, .table = tsChildTableSdb, .pObj = pTable};
       sdbDeleteRow(&oper);

@@ -270,31 +270,34 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   Traverse all vgroups on mnode, if there no such vgId on a dnode, so send msg to this dnode for re-creating this vgId/vnode 
 */
 void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t openVnodes) {
-  SVnodeLoad *pNextV = NULL;
-
   void *pIter = NULL;
   while (1) {
     SVgObj *pVgroup;
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
-    pNextV = pVloads;
-    int32_t i;
-    for (i = 0; i < openVnodes; ++i) {
-      if ((pVgroup->vnodeGid[i].pDnode == pDnode) && (pVgroup->vgId == pNextV->vgId)) {
-        break;
-      }
-      pNextV++;
-    }
+    for (int v = 0; v < pVgroup->numOfVnodes; ++v) {
+      if (pVgroup->vnodeGid[v].dnodeId == pDnode->dnodeId) {
+        // vgroup should have a vnode on this dnode
+        bool have = false;
+        for (int32_t i = 0; i < openVnodes; ++i) {
+          SVnodeLoad *pVload = pVloads + i;
+          if (pVgroup->vgId == pVload->vgId) {
+            have = true;
+            break;
+          }
+        }
 
-    if (i == openVnodes) {
-      if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_DROPPING) {
-        mDebug("vgId:%d, not exist in dnode:%d and status is %s, do nothing", pVgroup->vgId, pDnode->dnodeId,
-               vgroupStatus[pVgroup->status]);
-      } else {
-        mDebug("vgId:%d, not exist in dnode:%d and status is %s, send create msg", pVgroup->vgId, pDnode->dnodeId,
-               vgroupStatus[pVgroup->status]);
-        mnodeSendCreateVgroupMsg(pVgroup, NULL);
+        if (have) continue;
+
+        if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_DROPPING) {
+          mDebug("vgId:%d, not exist in dnode:%d and status is %s, do nothing", pVgroup->vgId, pDnode->dnodeId,
+                 vgroupStatus[pVgroup->status]);
+        } else {
+          mDebug("vgId:%d, not exist in dnode:%d and status is %s, send create msg", pVgroup->vgId, pDnode->dnodeId,
+                 vgroupStatus[pVgroup->status]);
+          mnodeSendCreateVgroupMsg(pVgroup, NULL);
+        }
       }
     }
 
@@ -302,7 +305,6 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
   }
 
   sdbFreeIter(pIter);
-  return;
 }
 
 void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload) {

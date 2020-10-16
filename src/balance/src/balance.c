@@ -126,6 +126,8 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
 
   balanceAccquireDnodeList();
 
+  mDebug("db:%s, try alloc %d vnodes to vgroup, dnodes total:%d, avail:%d", pVgroup->dbName, pVgroup->numOfVnodes,
+         mnodeGetDnodesNum(), tsBalanceDnodeListSize);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     for (; dnode < tsBalanceDnodeListSize; ++dnode) {
       SDnodeObj *pDnode = tsBalanceDnodeList[dnode];
@@ -135,16 +137,32 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
         pVnodeGid->pDnode = pDnode;
         dnode++;
         vnodes++;
+        mDebug("dnode:%d, is selected, vnodeIndex:%d", pDnode->dnodeId, i);
         break;
+      } else {
+        mDebug("dnode:%d, is not selected, status:%s vnodes:%d disk:%fGB role:%d", pDnode->dnodeId,
+               mnodeGetDnodeStatusStr(pDnode->status), pDnode->openVnodes, pDnode->diskAvailable,
+               pDnode->alternativeRole);
       }
     }
   }
 
   if (vnodes != pVgroup->numOfVnodes) {
-    mDebug("vgId:%d, db:%s need vnodes:%d, but alloc:%d, free them", pVgroup->vgId, pVgroup->dbName,
-           pVgroup->numOfVnodes, vnodes);
     balanceReleaseDnodeList();
     balanceUnLock();
+
+    mDebug("db:%s, need vnodes:%d, but alloc:%d", pVgroup->dbName, pVgroup->numOfVnodes, vnodes);
+
+    void *     pIter = NULL;
+    SDnodeObj *pDnode = NULL;
+    while (1) {
+      pIter = mnodeGetNextDnode(pIter, &pDnode);
+      if (pDnode == NULL) break;
+      mDebug("dnode:%d, status:%s vnodes:%d disk:%fGB role:%d", pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status),
+             pDnode->openVnodes, pDnode->diskAvailable, pDnode->alternativeRole);
+      mnodeDecDnodeRef(pDnode);
+    }
+    sdbFreeIter(pIter);
 
     if (mnodeGetOnlineDnodesNum() == 0) {
       return TSDB_CODE_MND_NOT_READY;
@@ -553,7 +571,8 @@ static void balanceCheckDnodeAccess() {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;
-        mInfo("dnode:%d, set to offline state", pDnode->dnodeId);
+        mInfo("dnode:%d, set to offline state, access seq:%d, last seq:%d", pDnode->dnodeId, tsAccessSquence,
+              pDnode->lastAccess);
         balanceSetVgroupOffline(pDnode);
       }
     }
