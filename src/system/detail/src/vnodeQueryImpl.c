@@ -1166,7 +1166,13 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntimeE
   
   // the commit data points will be ignored
   if (slot == pQuery->commitSlot) {
-    assert(pQuery->commitPoint >= 0 && pQuery->commitPoint <= pNewBlock->numOfPoints);
+    assert(pQuery->commitPoint >= 0);
+
+    //assert(pQuery->commitPoint < pNewBlock->numOfPoints);// this conditon may not be fullfiled due to import/insert error.
+    // commit point is not valid, reset value and ignore it
+    if (pQuery->commitPoint > pNewBlock->numOfPoints) {
+      pQuery->commitPoint = 0;
+    }
 
     offset = pQuery->commitPoint;
     numOfPoints = pNewBlock->numOfPoints - offset;
@@ -5677,12 +5683,17 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
     int32_t    forwardStep = 0;
     SBlockInfo blockInfo = getBlockInfo(pRuntimeEnv);
-    /*int32_t    numOfRes = */ doHandleDataBlockImpl(pRuntimeEnv, &blockInfo, searchFn, blockLoadStatus, &forwardStep);
 
-    dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64
-           ", fileId:%d, slot:%d, pos:%d, bstatus:%d, rows:%d, checked:%d",
-           GET_QINFO_ADDR(pQuery), blockInfo.keyFirst, blockInfo.keyLast, pQuery->fileId, pQuery->slot, pQuery->pos,
-           pRuntimeEnv->blockStatus, blockInfo.size, forwardStep);
+    // ignore empty block
+    if (blockInfo.size > 0) {
+      /*int32_t    numOfRes = */ doHandleDataBlockImpl(pRuntimeEnv, &blockInfo, searchFn, blockLoadStatus,
+                                                       &forwardStep);
+
+      dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64
+             ", fileId:%d, slot:%d, pos:%d, bstatus:%d, rows:%d, checked:%d",
+             GET_QINFO_ADDR(pQuery), blockInfo.keyFirst, blockInfo.keyLast, pQuery->fileId, pQuery->slot, pQuery->pos,
+             pRuntimeEnv->blockStatus, blockInfo.size, forwardStep);
+    }
 
     // save last access position
     int32_t accessPos = pQuery->pos + (forwardStep - 1) * step;
@@ -7157,7 +7168,7 @@ int32_t getDataBlocksForMeters(STableQuerySupportObj *pSupporter, SQuery *pQuery
     }
 
     if (compInfo.numOfBlocks <= 0 || compInfo.uid != pMeterDataInfo[j]->pMeterObj->uid) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       continue;
     }
 
@@ -7346,7 +7357,7 @@ int32_t createDataBlocksInfoEx(SMeterDataInfo **pMeterDataInfo, int32_t numOfMet
 
   dTrace("QInfo %p create data blocks info struct completed", addr);
 
-  assert(cnt == numOfCompBlocks && numOfQualMeters <= numOfMeters);  // the pMeterDataInfo[j]->numOfBlocks may be 0
+  assert(cnt <= numOfCompBlocks && numOfQualMeters <= numOfMeters);  // the pMeterDataInfo[j]->numOfBlocks may be 0
   supporter.numOfMeters = numOfQualMeters;
   SLoserTreeInfo *pTree = NULL;
 
