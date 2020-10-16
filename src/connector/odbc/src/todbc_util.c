@@ -99,6 +99,18 @@ const char* sql_c_type(int type) {
   }
 }
 
+int is_valid_sql_c_type(int type) {
+  const char *ctype = sql_c_type(type);
+  if (strcmp(ctype, "UNKNOWN")==0) return 0;
+  return 1;
+}
+
+int is_valid_sql_sql_type(int type) {
+  const char *sqltype = sql_sql_type(type);
+  if (strcmp(sqltype, "UNKNOWN")==0) return 0;
+  return 1;
+}
+
 int string_conv(const char *fromcode, const char *tocode,
                 const unsigned char *src, size_t sbytes,
                 unsigned char *dst, size_t dbytes,

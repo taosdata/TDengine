@@ -47,6 +47,8 @@ do {                                                                 \
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);
 
+int is_valid_sql_c_type(int type);
+int is_valid_sql_sql_type(int type);
 
 int string_conv(const char *fromcode, const char *tocode,
                 const unsigned char *src, size_t sbytes,

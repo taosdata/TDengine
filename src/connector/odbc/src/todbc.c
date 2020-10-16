@@ -156,7 +156,7 @@ struct param_bind_s {
   SQLULEN           LengthPrecision;
   SQLSMALLINT       ParameterScale;
   SQLPOINTER        ParameterValue;
-  SQLLEN 		       *StrLen_or_Ind;
+  SQLLEN           *StrLen_or_Ind;
 
   unsigned int      valid;
 };
@@ -191,10 +191,17 @@ struct sql_s {
   TAOS_STMT              *stmt;
   param_bind_t           *params;
   int                     n_params;
+  size_t                  rowlen;
+  size_t                  n_rows;
+  size_t                  ptr_offset;
+
   TAOS_RES               *rs;
   TAOS_ROW                row;
 
   taos_error_t            err;
+  unsigned int            is_prepared:1;
+  unsigned int            is_insert:1;
+  unsigned int            is_executed:1;
 };
 
 typedef struct c_target_s           c_target_t;
@@ -209,6 +216,37 @@ struct c_target_s {
 static pthread_once_t          init_once         = PTHREAD_ONCE_INIT;
 static void init_routine(void);
 
+// conversions
+
+const char* tsdb_int64_to_bit(int64_t src, int8_t *dst);
+const char* tsdb_int64_to_tinyint(int64_t src, int8_t *dst);
+const char* tsdb_int64_to_smallint(int64_t src, int16_t *dst);
+const char* tsdb_int64_to_int(int64_t src, int32_t *dst);
+const char* tsdb_int64_to_bigint(int64_t src, int64_t *dst);
+const char* tsdb_int64_to_ts(int64_t src, int64_t *dst);
+const char* tsdb_int64_to_float(int64_t src, float *dst);
+const char* tsdb_int64_to_double(int64_t src, double *dst);
+const char* tsdb_int64_to_char(int64_t src, char *dst, size_t dlen);
+
+const char* tsdb_double_to_bit(double src, int precision, int8_t *dst);
+const char* tsdb_double_to_tinyint(double src, int precision, int8_t *dst);
+const char* tsdb_double_to_smallint(double src, int precision, int16_t *dst);
+const char* tsdb_double_to_int(double src, int precision, int32_t *dst);
+const char* tsdb_double_to_bigint(double src, int precision, int64_t *dst);
+const char* tsdb_double_to_ts(double src, int precision, int64_t *dst);
+const char* tsdb_double_to_float(double src, int precision, float *dst);
+const char* tsdb_double_to_double(double src, int precision, double *dst);
+const char* tsdb_double_to_char(double src, int precision, char *dst, size_t dlen);
+
+const char* tsdb_chars_to_bit(const char *src, int8_t *dst);
+const char* tsdb_chars_to_tinyint(const char *src, int8_t *dst);
+const char* tsdb_chars_to_smallint(const char *src, int16_t *dst);
+const char* tsdb_chars_to_int(const char *src, int32_t *dst);
+const char* tsdb_chars_to_bigint(const char *src, int64_t *dst);
+const char* tsdb_chars_to_ts(const char *src, int64_t *dst);
+const char* tsdb_chars_to_float(const char *src, float *dst);
+const char* tsdb_chars_to_double(const char *src, double *dst);
+const char* tsdb_chars_to_char(const char *src, char *dst, size_t dlen);
 
 
 static int do_field_display_size(TAOS_FIELD *field);
@@ -439,6 +477,40 @@ SQLRETURN SQL_API SQLAllocStmt(SQLHDBC ConnectionHandle,
   return r;
 }
 
+static SQLRETURN doSQLAllocHandle(SQLSMALLINT HandleType, SQLHANDLE InputHandle, SQLHANDLE *OutputHandle)
+{
+  switch (HandleType) {
+    case SQL_HANDLE_ENV: {
+      SQLHENV env = {0};
+      SQLRETURN r = doSQLAllocEnv(&env);
+      if (r==SQL_SUCCESS && OutputHandle) *OutputHandle = env;
+      return r;
+    } break;
+    case SQL_HANDLE_DBC: {
+      SQLHDBC dbc = {0};
+      SQLRETURN r = doSQLAllocConnect(InputHandle, &dbc);
+      if (r==SQL_SUCCESS && OutputHandle) *OutputHandle = dbc;
+      return r;
+    } break;
+    case SQL_HANDLE_STMT: {
+      SQLHSTMT stmt = {0};
+      SQLRETURN r = doSQLAllocStmt(InputHandle, &stmt);
+      if (r==SQL_SUCCESS && OutputHandle) *OutputHandle = stmt;
+      return r;
+    } break;
+    default: {
+      return SQL_ERROR;
+    } break;
+  }
+}
+
+SQLRETURN SQL_API SQLAllocHandle(SQLSMALLINT HandleType, SQLHANDLE InputHandle, SQLHANDLE *OutputHandle)
+{
+  SQLRETURN r;
+  r = doSQLAllocHandle(HandleType, InputHandle, OutputHandle);
+  return r;
+}
+
 static SQLRETURN doSQLFreeStmt(SQLHSTMT StatementHandle,
                               SQLUSMALLINT Option)
 {
@@ -556,6 +628,13 @@ static SQLRETURN doSQLNumResultCols(SQLHSTMT StatementHandle,
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
 
+  if (sql->is_insert) {
+    if (ColumnCount) {
+      *ColumnCount = 0;
+    }
+    return SQL_SUCCESS;
+  }
+
   if (!sql->rs) {
     SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NO_RESULT, "");
     return SQL_ERROR;
@@ -585,6 +664,11 @@ static SQLRETURN doSQLRowCount(SQLHSTMT StatementHandle,
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
+
+  if (sql->is_insert) {
+    if (RowCount) *RowCount = 0;
+    return SQL_SUCCESS;
+  }
 
   if (!sql->rs) {
     SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NO_RESULT, "");
@@ -919,6 +1003,7 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
         case SQL_C_SBIGINT:   return conv_tsdb_ts_to_c_v8(sql, &target, field, &ts);
         case SQL_C_CHAR:      return conv_tsdb_ts_to_c_str(sql, &target, field, &ts);
         case SQL_C_BINARY:    return conv_tsdb_ts_to_c_bin(sql, &target, field, &ts);
+        case SQL_C_TYPE_TIMESTAMP:
         case SQL_C_TIMESTAMP: return conv_tsdb_ts_to_c_ts(sql, &target, field, &ts);
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_NOT_SUPPORT,
@@ -1032,6 +1117,7 @@ static SQLRETURN doSQLPrepare(SQLHSTMT StatementHandle,
     sql->params = NULL;
   }
   sql->n_params = 0;
+  sql->is_insert = 0;
 
   do {
     sql->stmt = taos_stmt_init(sql->conn->taos);
@@ -1040,12 +1126,51 @@ static SQLRETURN doSQLPrepare(SQLHSTMT StatementHandle,
       break;
     }
 
-    int r = taos_stmt_prepare(sql->stmt, (const char *)StatementText, TextLength);
-    if (r) {
-      SET_ERROR(sql, "HY000", r, "failed to prepare a TAOS statement");
+    int ok = 0;
+    do {
+      int r = taos_stmt_prepare(sql->stmt, (const char *)StatementText, TextLength);
+      if (r) {
+        SET_ERROR(sql, "HY000", r, "failed to prepare a TAOS statement");
+        break;
+      }
+      sql->is_prepared = 1;
+
+      int is_insert = 0;
+      r = taos_stmt_is_insert(sql->stmt, &is_insert);
+      if (r) {
+        SET_ERROR(sql, "HY000", r, "failed to determine if a prepared-statement is of insert");
+        break;
+      }
+      sql->is_insert = is_insert ? 1 : 0;
+
+      int params = 0;
+      r = taos_stmt_num_params(sql->stmt, &params);
+      if (r) {
+        SET_ERROR(sql, "HY000", terrno, "fetch num of statement params failed");
+        break;
+      }
+      DASSERT(params>=0);
+
+      if (params>0) {
+        param_bind_t *ar = (param_bind_t*)calloc(1, params * sizeof(*ar));
+        if (!ar) {
+          SET_ERROR(sql, "HY001", TSDB_CODE_ODBC_OOM, "");
+          break;
+        }
+        sql->params = ar;
+      }
+
+      sql->n_params = params;
+
+      ok = 1;
+    } while (0);
+
+    if (!ok) {
       taos_stmt_close(sql->stmt);
       sql->stmt = NULL;
-      break;
+      sql->is_prepared = 0;
+      sql->is_insert   = 0;
+      sql->is_executed = 0;
     }
   } while (0);
 
@@ -1063,23 +1188,76 @@ SQLRETURN SQL_API SQLPrepare(SQLHSTMT StatementHandle,
 static const int yes = 1;
 static const int no  = 0;
 
-static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, TAOS_BIND *bind)
+static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bind_t *param, TAOS_BIND *bind)
 {
   if (!param->valid) {
     SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NOT_SUPPORT, "parameter [@%d] not bound yet", idx+1);
     return SQL_ERROR;
   }
-  if (param->StrLen_or_Ind && *param->StrLen_or_Ind == SQL_NULL_DATA) {
+
+  SQLPOINTER    paramValue = param->ParameterValue;
+  SQLSMALLINT   valueType  = param->ValueType;
+  SQLLEN       *soi        = param->StrLen_or_Ind;
+
+  size_t offset = idx_row * sql->rowlen + sql->ptr_offset;
+
+  if (paramValue) paramValue += offset;
+  if (soi)               soi = (SQLLEN*)((char*)soi + offset);
+
+
+  if (soi && *soi == SQL_NULL_DATA) {
     bind->is_null = (int*)&yes;
     return SQL_SUCCESS;
   }
   bind->is_null = (int*)&no;
   int type = 0;
   int bytes = 0;
-  int r = taos_stmt_get_param(sql->stmt, idx, &type, &bytes);
-  if (r) {
-    SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_OUT_OF_RANGE, "parameter [@%d] not valid", idx+1);
-    return SQL_ERROR;
+  if (sql->is_insert) {
+    int r = taos_stmt_get_param(sql->stmt, idx, &type, &bytes);
+    if (r) {
+      SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_OUT_OF_RANGE, "parameter [@%d] not valid", idx+1);
+      return SQL_ERROR;
+    }
+  } else {
+    switch (valueType) {
+      case SQL_C_LONG: {
+        type = TSDB_DATA_TYPE_INT;
+      } break;
+      case SQL_C_WCHAR: {
+        type = TSDB_DATA_TYPE_NCHAR;
+        bytes = SQL_NTS;
+      } break;
+      case SQL_C_CHAR:
+      case SQL_C_SHORT:
+      case SQL_C_SSHORT:
+      case SQL_C_USHORT:
+      case SQL_C_SLONG:
+      case SQL_C_ULONG:
+      case SQL_C_FLOAT:
+      case SQL_C_DOUBLE:
+      case SQL_C_BIT:
+      case SQL_C_TINYINT:
+      case SQL_C_STINYINT:
+      case SQL_C_UTINYINT:
+      case SQL_C_SBIGINT:
+      case SQL_C_UBIGINT:
+      case SQL_C_BINARY:
+      case SQL_C_DATE:
+      case SQL_C_TIME:
+      case SQL_C_TIMESTAMP:
+      case SQL_C_TYPE_DATE:
+      case SQL_C_TYPE_TIME:
+      case SQL_C_TYPE_TIMESTAMP:
+      case SQL_C_NUMERIC:
+      case SQL_C_GUID:
+      default: {
+        SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
+                  "no convertion from [%s[%d/0x%x]] for parameter [%d]",
+                  sql_c_type(valueType), valueType, valueType,
+                  idx+1);
+        return SQL_ERROR;
+      } break;
+    }
   }
 
   // ref: https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-c-to-sql-data-types?view=sql-server-ver15
@@ -1089,12 +1267,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.b);
       bind->buffer = &bind->u.b;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_LONG: {
-          bind->u.b = *(int32_t*)param->ParameterValue;
+          bind->u.b = *(int32_t*)paramValue;
         } break;
         case SQL_C_BIT: {
-          bind->u.b = *(int8_t*)param->ParameterValue;
+          bind->u.b = *(int8_t*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1122,7 +1300,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1133,18 +1311,18 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.v1);
       bind->buffer = &bind->u.v1;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_TINYINT: {
-          bind->u.v1 = *(int8_t*)param->ParameterValue;
+          bind->u.v1 = *(int8_t*)paramValue;
         } break;
         case SQL_C_SHORT: {
-          bind->u.v1 = *(int16_t*)param->ParameterValue;
+          bind->u.v1 = *(int16_t*)paramValue;
         } break;
         case SQL_C_LONG: {
-          bind->u.v1 = *(int32_t*)param->ParameterValue;
+          bind->u.v1 = *(int32_t*)paramValue;
         } break;
         case SQL_C_SBIGINT: {
-          bind->u.v1 = *(int64_t*)param->ParameterValue;
+          bind->u.v1 = *(int64_t*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1170,7 +1348,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1181,12 +1359,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.v2);
       bind->buffer = &bind->u.v2;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_LONG: {
-          bind->u.v2 = *(int32_t*)param->ParameterValue;
+          bind->u.v2 = *(int32_t*)paramValue;
         } break;
         case SQL_C_SHORT: {
-          bind->u.v2 = *(int16_t*)param->ParameterValue;
+          bind->u.v2 = *(int16_t*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1214,7 +1392,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1225,9 +1403,9 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.v4);
       bind->buffer = &bind->u.v4;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_LONG: {
-          bind->u.v4 = *(int32_t*)param->ParameterValue;
+          bind->u.v4 = *(int32_t*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1256,7 +1434,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1267,12 +1445,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.v8);
       bind->buffer = &bind->u.v8;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_SBIGINT: {
-          bind->u.v8 = *(int64_t*)param->ParameterValue;
+          bind->u.v8 = *(int64_t*)paramValue;
         } break;
         case SQL_C_LONG: {
-          bind->u.v8 = *(int32_t*)param->ParameterValue;
+          bind->u.v8 = *(int32_t*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1300,7 +1478,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1311,12 +1489,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.f4);
       bind->buffer = &bind->u.f4;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_DOUBLE: {
-          bind->u.f4 = *(double*)param->ParameterValue;
+          bind->u.f4 = *(double*)paramValue;
         } break;
         case SQL_C_FLOAT: {
-          bind->u.f4 = *(float*)param->ParameterValue;
+          bind->u.f4 = *(float*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1344,7 +1522,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1355,9 +1533,9 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.f8);
       bind->buffer = &bind->u.f8;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_DOUBLE: {
-          bind->u.f8 = *(double*)param->ParameterValue;
+          bind->u.f8 = *(double*)paramValue;
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1386,7 +1564,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1395,23 +1573,23 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
     case TSDB_DATA_TYPE_BINARY: {
       bind->buffer_type = type;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_WCHAR: {
-          DASSERT(param->StrLen_or_Ind);
-          DASSERT(*param->StrLen_or_Ind != SQL_NTS);
+          DASSERT(soi);
+          DASSERT(*soi != SQL_NTS);
           size_t bytes = 0;
-          SQLCHAR *utf8 = wchars_to_chars(param->ParameterValue, *param->StrLen_or_Ind/2, &bytes);
+          SQLCHAR *utf8 = wchars_to_chars(paramValue, *soi/2, &bytes);
           bind->allocated = 1;
           bind->u.bin = utf8;
           bind->buffer_length = bytes;
           bind->buffer = bind->u.bin;
         } break;
         case SQL_C_BINARY: {
-          bind->u.bin = (unsigned char*)param->ParameterValue;
-          if (*param->StrLen_or_Ind == SQL_NTS) {
-            bind->buffer_length = strlen((const char*)param->ParameterValue);
+          bind->u.bin = (unsigned char*)paramValue;
+          if (*soi == SQL_NTS) {
+            bind->buffer_length = strlen((const char*)paramValue);
           } else {
-            bind->buffer_length = *param->StrLen_or_Ind;
+            bind->buffer_length = *soi;
           }
           bind->buffer = bind->u.bin;
         } break;
@@ -1441,7 +1619,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1452,12 +1630,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
       bind->buffer_length = sizeof(bind->u.v8);
       bind->buffer = &bind->u.v8;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_WCHAR: {
-          DASSERT(param->StrLen_or_Ind);
-          DASSERT(*param->StrLen_or_Ind != SQL_NTS);
+          DASSERT(soi);
+          DASSERT(*soi != SQL_NTS);
           size_t bytes = 0;
-          SQLCHAR *utf8 = wchars_to_chars(param->ParameterValue, *param->StrLen_or_Ind/2, &bytes);
+          SQLCHAR *utf8 = wchars_to_chars(paramValue, *soi/2, &bytes);
           struct tm tm = {0};
           strptime((const char*)utf8, "%Y-%m-%d %H:%M:%S", &tm);
           int64_t t = (int64_t)mktime(&tm);
@@ -1466,7 +1644,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
           free(utf8);
         } break;
         case SQL_C_SBIGINT: {
-          int64_t t = *(int64_t*)param->ParameterValue;
+          int64_t t = *(int64_t*)paramValue;
           bind->u.v8 = t;
         } break;
         case SQL_C_SHORT:
@@ -1494,7 +1672,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1503,23 +1681,23 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
     case TSDB_DATA_TYPE_NCHAR: {
       bind->buffer_type = type;
       bind->length = &bind->buffer_length;
-      switch (param->ValueType) {
+      switch (valueType) {
         case SQL_C_WCHAR: {
-          DASSERT(param->StrLen_or_Ind);
-          DASSERT(*param->StrLen_or_Ind != SQL_NTS);
+          DASSERT(soi);
+          DASSERT(*soi != SQL_NTS);
           size_t bytes = 0;
-          SQLCHAR *utf8 = wchars_to_chars(param->ParameterValue, *param->StrLen_or_Ind/2, &bytes);
+          SQLCHAR *utf8 = wchars_to_chars(paramValue, *soi/2, &bytes);
           bind->allocated = 1;
           bind->u.nchar = (char*)utf8;
           bind->buffer_length = bytes;
           bind->buffer = bind->u.nchar;
         } break;
         case SQL_C_CHAR: {
-          bind->u.nchar = (char*)param->ParameterValue;
-          if (*param->StrLen_or_Ind == SQL_NTS) {
-            bind->buffer_length = strlen((const char*)param->ParameterValue);
+          bind->u.nchar = (char*)paramValue;
+          if (*soi == SQL_NTS) {
+            bind->buffer_length = strlen((const char*)paramValue);
           } else {
-            bind->buffer_length = *param->StrLen_or_Ind;
+            bind->buffer_length = *soi;
           }
           bind->buffer = bind->u.nchar;
         } break;
@@ -1549,7 +1727,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                     "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                    sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                    sql_c_type(valueType), valueType, valueType,
                     taos_data_type(type), type, type, idx+1);
           return SQL_ERROR;
         } break;
@@ -1558,7 +1736,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
     default: {
       SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_OUT_OF_RANGE,
                 "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",
-                sql_c_type(param->ValueType), param->ValueType, param->ValueType,
+                sql_c_type(valueType), valueType, valueType,
                 taos_data_type(type), type, type, idx+1);
       return SQL_ERROR;
     } break;
@@ -1566,27 +1744,61 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx, param_bind_t *param, T
   return SQL_SUCCESS;
 }
 
-static SQLRETURN do_execute(sql_t *sql, TAOS_BIND *binds)
+static SQLRETURN do_bind_batch(sql_t *sql, int idx_row, TAOS_BIND *binds)
 {
-  int tr = TSDB_CODE_SUCCESS;
-  for (int i=0; i<sql->n_params; ++i) {
-    SQLRETURN r = do_bind_param_value(sql, i, sql->params+i, binds+i);
+  for (int j=0; j<sql->n_params; ++j) {
+    SQLRETURN r = do_bind_param_value(sql, idx_row, j, sql->params+j, binds+j);
     if (r==SQL_SUCCESS) continue;
     return r;
   }
-
   if (sql->n_params > 0) {
+    int tr = 0;
     PROFILE(tr = taos_stmt_bind_param(sql->stmt, binds));
     if (tr) {
       SET_ERROR(sql, "HY000", tr, "failed to bind parameters[%d in total]", sql->n_params);
       return SQL_ERROR;
     }
 
-    // PROFILE(r = taos_stmt_add_batch(sql->stmt));
-    // if (r) {
-    //   SET_ERROR(sql, "HY000", r, "failed to add batch");
-    //   return SQL_ERROR;
-    // }
+    if (sql->is_insert) {
+      int r = 0;
+      PROFILE(r = taos_stmt_add_batch(sql->stmt));
+      if (r) {
+        SET_ERROR(sql, "HY000", r, "failed to add batch");
+        return SQL_ERROR;
+      }
+    }
+  }
+  return SQL_SUCCESS;
+}
+
+static SQLRETURN do_execute(sql_t *sql, TAOS_BIND *x_binds)
+{
+  int tr = TSDB_CODE_SUCCESS;
+  if (sql->n_rows==0) sql->n_rows = 1;
+  for (int i=0; i<sql->n_rows; ++i) {
+    TAOS_BIND *binds       = NULL;
+    if (sql->n_params>0) {
+      binds = (TAOS_BIND*)calloc(sql->n_params, sizeof(*binds));
+      if (!binds) {
+        SET_ERROR(sql, "HY001", TSDB_CODE_ODBC_OOM, "");
+        return SQL_ERROR;
+      }
+    }
+
+    SQLRETURN r = do_bind_batch(sql, i, binds);
+
+    if (binds) {
+      for (int i = 0; i<sql->n_params; ++i) {
+        TAOS_BIND *bind = binds + i;
+        if (bind->allocated) {
+          free(bind->u.nchar);
+          bind->u.nchar = NULL;
+        }
+      }
+      free(binds);
+    }
+
+    if (r) return r;
   }
 
   PROFILE(tr = taos_stmt_execute(sql->stmt));
@@ -1594,6 +1806,9 @@ static SQLRETURN do_execute(sql_t *sql, TAOS_BIND *binds)
     SET_ERROR(sql, "HY000", tr, "failed to execute statement");
     return SQL_ERROR;
   }
+
+  sql->is_executed = 1;
+  if (sql->is_insert) return SQL_SUCCESS;
 
   SQLRETURN r = SQL_SUCCESS;
   PROFILE(sql->rs = taos_stmt_use_result(sql->stmt));
@@ -1745,22 +1960,37 @@ static SQLRETURN doSQLBindParameter(
     return SQL_ERROR;
   }
 
+  if (ParameterNumber<=0 || ParameterNumber>sql->n_params) {
+    SET_ERROR(sql, "07009", TSDB_CODE_ODBC_BAD_ARG,
+              "parameter [@%d] invalid", ParameterNumber);
+    return SQL_ERROR;
+  }
+
   if (fParamType != SQL_PARAM_INPUT) {
     SET_ERROR(sql, "HY105", TSDB_CODE_ODBC_NOT_SUPPORT, "non-input parameter [@%d] not supported yet", ParameterNumber);
     return SQL_ERROR;
   }
 
-  param_bind_t *ar = (param_bind_t*)(sql->n_params>=ParameterNumber ? sql->params : realloc(sql->params, ParameterNumber * sizeof(*ar)));
-  if (!ar) {
-    SET_ERROR(sql, "HY001", TSDB_CODE_ODBC_OOM, "");
+  if (ValueType == SQL_C_DEFAULT) {
+    SET_ERROR(sql, "HY003", TSDB_CODE_ODBC_NOT_SUPPORT, "default value for parameter [@%d] not supported yet", ParameterNumber);
     return SQL_ERROR;
   }
-  sql->params = ar;
-  if (sql->n_params<ParameterNumber) {
-    sql->n_params = ParameterNumber;
+
+  if (!is_valid_sql_c_type(ValueType)) {
+    SET_ERROR(sql, "HY003", TSDB_CODE_ODBC_NOT_SUPPORT,
+              "SQL_C_TYPE [%s/%d/0x%x] for parameter [@%d] unknown",
+              sql_c_type(ValueType), ValueType, ValueType, ParameterNumber);
+    return SQL_ERROR;
   }
 
-  param_bind_t *pb = ar + ParameterNumber - 1;
+  if (!is_valid_sql_sql_type(ParameterType)) {
+    SET_ERROR(sql, "HY004", TSDB_CODE_ODBC_NOT_SUPPORT,
+              "SQL_TYPE [%s/%d/0x%x] for parameter [@%d] unknown",
+              sql_c_type(ParameterType), ParameterType, ParameterType, ParameterNumber);
+    return SQL_ERROR;
+  }
+
+  param_bind_t *pb = sql->params + ParameterNumber - 1;
 
   pb->ParameterNumber      = ParameterNumber;
   pb->ValueType            = ValueType;
@@ -2041,10 +2271,10 @@ static SQLRETURN doSQLNumParams(SQLHSTMT hstmt, SQLSMALLINT *pcpar)
     SET_ERROR(sql, "HY000", terrno, "");
     return SQL_ERROR;
   }
-  if (!insert) {
-    SET_ERROR(sql, "HY000", terrno, "taos does not provide count of parameters for statement other than insert");
-    return SQL_ERROR;
-  }
+  // if (!insert) {
+  //   SET_ERROR(sql, "HY000", terrno, "taos does not provide count of parameters for statement other than insert");
+  //   return SQL_ERROR;
+  // }
 
   int params = 0;
   r = taos_stmt_num_params(sql->stmt, &params);
@@ -2065,6 +2295,67 @@ SQLRETURN SQL_API SQLNumParams(SQLHSTMT hstmt, SQLSMALLINT *pcpar)
   return r;
 }
 
+static SQLRETURN doSQLSetStmtAttr(SQLHSTMT StatementHandle,
+                                  SQLINTEGER Attribute, SQLPOINTER Value,
+                                  SQLINTEGER StringLength)
+{
+  sql_t *sql = (sql_t*)StatementHandle;
+  if (!sql) return SQL_ERROR;
+
+  CHK_CONN(sql);
+  CHK_CONN_TAOS(sql);
+
+  if (!sql->stmt) {
+    SET_ERROR(sql, "HY010", TSDB_CODE_ODBC_STATEMENT_NOT_READY, "");
+    return SQL_ERROR;
+  }
+
+  if (sql->is_executed) {
+    SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NOT_SUPPORT, "change attr after executing statement not supported yet");
+    return SQL_ERROR;
+  }
+
+  switch (Attribute) {
+    case SQL_ATTR_PARAM_BIND_TYPE: {
+      SQLULEN val = (SQLULEN)Value;
+      if (val==SQL_BIND_BY_COLUMN) {
+        sql->rowlen = 0;
+        SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NOT_SUPPORT, "SQL_ATTR_PARAM_BIND_TYPE/SQL_BIND_BY_COLUMN");
+        return SQL_ERROR;
+      }
+      sql->rowlen = val;
+      return SQL_SUCCESS;
+    } break;
+    case SQL_ATTR_PARAMSET_SIZE: {
+      SQLULEN val = (SQLULEN)Value;
+      DASSERT(val>0);
+      sql->n_rows = val;
+      return SQL_SUCCESS;
+    } break;
+    case SQL_ATTR_PARAM_BIND_OFFSET_PTR: {
+      if (Value) {
+        SQLULEN val = *(SQLULEN*)Value;
+        sql->ptr_offset = val;
+      } else {
+        sql->ptr_offset = 0;
+      }
+      return SQL_SUCCESS;
+    } break;
+    default: {
+      SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NOT_SUPPORT, "Attribute:%d", Attribute);
+    } break;
+  }
+  return SQL_ERROR;
+}
+
+SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
+                                 SQLINTEGER Attribute, SQLPOINTER Value,
+                                 SQLINTEGER StringLength)
+{
+  SQLRETURN r;
+  r = doSQLSetStmtAttr(StatementHandle, Attribute, Value, StringLength);
+  return r;
+}
 
 
 
@@ -2821,5 +3112,369 @@ static SQLRETURN conv_tsdb_str_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIE
 static SQLRETURN conv_tsdb_str_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const char *str)
 {
   return conv_tsdb_bin_to_c_bin(sql, target, field, (const unsigned char*)str);
+}
+
+
+
+
+const char* tsdb_int64_to_bit(int64_t src, int8_t *dst)
+{
+  *dst = src;
+  if (src==0 || src==1) return NULL;
+  return "22003";
+}
+
+const char* tsdb_int64_to_tinyint(int64_t src, int8_t *dst)
+{
+  *dst = src;
+  if (src>=SCHAR_MIN || src<=SCHAR_MAX) return SQL_SUCCESS;
+  return "22003";
+}
+
+const char* tsdb_int64_to_smallint(int64_t src, int16_t *dst)
+{
+  *dst = src;
+  if (src>=SHRT_MIN || src<=SHRT_MAX) return SQL_SUCCESS;
+  return "22003";
+}
+
+const char* tsdb_int64_to_int(int64_t src, int32_t *dst)
+{
+  *dst = src;
+  if (src>=LONG_MIN || src<=LONG_MAX) return SQL_SUCCESS;
+  return "22003";
+}
+
+const char* tsdb_int64_to_bigint(int64_t src, int64_t *dst)
+{
+  *dst = src;
+  return NULL;
+}
+
+const char* tsdb_int64_to_ts(int64_t src, int64_t *dst)
+{
+  *dst = src;
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%ld", src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+
+  int64_t secs = src / 1000;
+  struct tm tm = {0};
+  if (&tm != localtime_r(&secs, &tm)) return "22007";
+
+  return NULL;
+}
+
+const char* tsdb_int64_to_float(int64_t src, float *dst)
+{
+  *dst = src;
+  return NULL;
+}
+
+const char* tsdb_int64_to_double(int64_t src, double *dst)
+{
+  *dst = src;
+  return NULL;
+}
+
+const char* tsdb_int64_to_char(int64_t src, char *dst, size_t dlen)
+{
+  int n = snprintf(dst, dlen, "%ld", src);
+  if (n<dlen) return NULL;
+  return "22003";
+}
+
+
+const char* tsdb_double_to_bit(double src, int precision, int8_t *dst)
+{
+  int64_t v = src;
+  *dst = v;
+  if (v<0 || v>=2) return "22003";
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%.*g", precision, src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+  if (strcmp(buf, "0")==0 || strcmp(buf, "1")==1) {
+    return NULL;
+  }
+  return "22001";
+}
+
+const char* tsdb_double_to_tinyint(double src, int precision, int8_t *dst)
+{
+  int64_t v = src;
+  *dst = v;
+  if (v<SCHAR_MIN || v>SCHAR_MAX) return "22003";
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%.*g", precision, src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+  if (strchr(buf, '.')) return "01S07";
+
+  return NULL;
+}
+
+const char* tsdb_double_to_smallint(double src, int precision, int16_t *dst)
+{
+  int64_t v = src;
+  *dst = v;
+  if (v<SHRT_MIN || v>SHRT_MAX) return "22003";
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%.*g", precision, src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+
+  if (strchr(buf, '.')) return "01S07";
+
+  return NULL;
+}
+
+const char* tsdb_double_to_int(double src, int precision, int32_t *dst)
+{
+  int64_t v = src;
+  *dst = v;
+  if (v<LONG_MIN || v>LONG_MAX) return "22003";
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%.*g", precision, src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+
+  if (strchr(buf, '.')) return "01S07";
+
+  return NULL;
+}
+
+const char* tsdb_double_to_bigint(double src, int precision, int64_t *dst)
+{
+  int64_t v = src;
+  *dst = v;
+  if (v<LLONG_MIN || v>LLONG_MAX) return "22003";
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%.*g", precision, src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+
+  if (strchr(buf, '.')) return "01S07";
+
+  return NULL;
+}
+
+const char* tsdb_double_to_ts(double src, int precision, int64_t *dst)
+{
+  int64_t v = src;
+  *dst = v;
+
+  char buf[4096];
+  int n = snprintf(buf, sizeof(buf), "%.*g", precision, src);
+  DASSERT(n>=0);
+  DASSERT(n<sizeof(buf));
+  if (strchr(buf, '.')) return "01S07";
+
+  int64_t secs = v / 1000;
+  struct tm tm = {0};
+  if (&tm != localtime_r(&secs, &tm)) return "22007";
+
+  return NULL;
+}
+
+const char* tsdb_double_to_float(double src, int precision, float *dst)
+{
+  *dst = src;
+
+  char buf1[4096], buf2[4096];
+  int n1 = snprintf(buf1, sizeof(buf1), "%.*g", precision, src);
+  int n2 = snprintf(buf2, sizeof(buf2), "%.*g", precision, *dst);
+
+  DASSERT(n1>=0);
+  DASSERT(n2>=0);
+  DASSERT(n1<sizeof(buf1));
+  DASSERT(n2<sizeof(buf2));
+
+  if (strcmp(buf1, buf2)) return "01S07";
+
+  return NULL;
+}
+
+const char* tsdb_double_to_double(double src, int precision, double *dst)
+{
+  *dst = src;
+  return NULL;
+}
+
+const char* tsdb_double_to_char(double src, int precision, char *dst, size_t dlen)
+{
+  int n = snprintf(dst, dlen, "%.*g", precision, src);
+  DASSERT(n>=0);
+  if (n>=dlen) return "22001";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_bit(const char *src, int8_t *dst)
+{
+  int bytes = 0;
+  int64_t v = 0;
+  int n = sscanf(src, "%ld%n", &v, &bytes);
+  if (n!=1) return "22018";
+
+  if (bytes!=strlen(src)) {
+    if (src[bytes-1]=='.') {
+      if (v==0 || v==1) return "22001";
+
+      return "22003";
+    }
+    return "22018";
+  }
+
+  if (v==0 || v==1) return NULL;
+
+  return "22003";
+}
+
+const char* tsdb_chars_to_tinyint(const char *src, int8_t *dst)
+{
+  int bytes = 0;
+  int64_t v = 0;
+  int n = sscanf(src, "%ld%n", &v, &bytes);
+  if (n!=1) return "22018";
+
+
+  if (bytes!=strlen(src)) {
+    if (src[bytes-1]=='.') {
+      if (v<SCHAR_MIN || v>SCHAR_MAX) return "22001";
+
+      return "22003";
+    }
+    return "22018";
+  }
+
+  if (v<SCHAR_MIN || v>SCHAR_MAX) return "22001";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_smallint(const char *src, int16_t *dst)
+{
+  int bytes = 0;
+  int64_t v = 0;
+  int n = sscanf(src, "%ld%n", &v, &bytes);
+  if (n!=1) return "22018";
+
+
+  if (bytes!=strlen(src)) {
+    if (src[bytes-1]=='.') {
+      if (v<SHRT_MIN || v>SHRT_MAX) return "22001";
+
+      return "22003";
+    }
+    return "22018";
+  }
+
+  if (v<SHRT_MIN || v>SHRT_MAX) return "22001";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_int(const char *src, int32_t *dst)
+{
+  int bytes = 0;
+  int64_t v = 0;
+  int n = sscanf(src, "%ld%n", &v, &bytes);
+  if (n!=1) return "22018";
+
+
+  if (bytes!=strlen(src)) {
+    if (src[bytes-1]=='.') {
+      if (v<LONG_MIN || v>LONG_MAX) return "22001";
+
+      return "22003";
+    }
+    return "22018";
+  }
+
+  if (v<LONG_MIN || v>LONG_MAX) return "22001";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_bigint(const char *src, int64_t *dst)
+{
+  int bytes = 0;
+  int64_t v = 0;
+  int n = sscanf(src, "%ld%n", &v, &bytes);
+  if (n!=1) return "22018";
+
+
+  if (bytes!=strlen(src)) {
+    if (src[bytes-1]=='.') {
+      if (v<LLONG_MIN || v>LLONG_MAX) return "22001";
+
+      return "22003";
+    }
+    return "22018";
+  }
+
+  if (v<LLONG_MIN || v>LLONG_MAX) return "22001";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_ts(const char *src, int64_t *dst)
+{
+  int bytes = 0;
+  int64_t v = 0;
+  int n = sscanf(src, "%ld%n", &v, &bytes);
+  if (n!=1) return "22018";
+
+
+  if (bytes!=strlen(src)) {
+    if (src[bytes-1]=='.') {
+      if (v<LLONG_MIN || v>LLONG_MAX) return "22001";
+
+      return "22003";
+    }
+    return "22018";
+  }
+
+  if (v<LLONG_MIN || v>LLONG_MAX) return "22001";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_float(const char *src, float *dst)
+{
+  int bytes = 0;
+  int n = sscanf(src, "%f%n", dst, &bytes);
+  if (n!=1) return "22018";
+
+  if (bytes!=strlen(src)) return "22018";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_double(const char *src, double *dst)
+{
+  int bytes = 0;
+  int n = sscanf(src, "%lf%n", dst, &bytes);
+  if (n!=1) return "22018";
+
+  if (bytes!=strlen(src)) return "22018";
+
+  return NULL;
+}
+
+const char* tsdb_chars_to_char(const char *src, char *dst, size_t dlen)
+{
+  int n = snprintf(dst, dlen, "%s", src);
+  if (n>=dlen) return "22001";
+
+  return NULL;
 }
 
