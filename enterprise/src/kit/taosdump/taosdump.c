@@ -905,7 +905,8 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       taos_free_result(tmpResult);
       return -1;
     }
-  
+
+    //int32_t* length = taos_fetch_lengths(tmpResult);
     switch (fields[0].type) {
       case TSDB_DATA_TYPE_BOOL:
         sprintf(tableDes->cols[i].note, "%d", ((((int32_t)(*((char *)row[0]))) == 1) ? 1 : 0));
@@ -929,12 +930,14 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
         sprintf(tableDes->cols[i].note, "%f", GET_DOUBLE_VAL(row[0]));
         break;
       case TSDB_DATA_TYPE_BINARY:
+        memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
         converStringToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
       case TSDB_DATA_TYPE_NCHAR:
+        memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         convertNCharToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
