@@ -422,7 +422,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           } break;
           case TSDB_DATA_TYPE_BIGINT: {
             int64_t v = *(int64_t*)bind->buffer;
-            u.v4 = v;
+            u.v4 = (int32_t)v;
             if (v >= INT_MIN && v <= INT_MAX) break;
             return TSDB_CODE_TSC_INVALID_VALUE;
           } break;
