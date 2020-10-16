@@ -471,7 +471,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
-      mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+      mTrace("dnode:%d, status received, access times %d openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
+             htons(pStatus->openVnodes), pDnode->openVnodes);
     }
   }
 
