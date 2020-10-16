@@ -33,7 +33,8 @@ while $i < $tbNum
 
   $x = 0
   while $x < $rowNum
-    $ms = $x . m
+    $y = $x * 60000
+    $ms = 1600099200000 + $y
     $c = $x / 100
     $c = $c * 100
     $c = $x - $c
@@ -41,7 +42,7 @@ while $i < $tbNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values (now + $ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $x = $x + 1
   endw
 
@@ -299,7 +300,8 @@ while $i < 1
 
   $x = 0
   while $x < 10000
-    $ms = $x . m
+    $y = $x * 60000
+    $ms = 1601481600000 + $y
     $c = $x / 100
     $c = $c * 100
     $c = $x - $c
@@ -307,7 +309,7 @@ while $i < 1
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values (now + $ms , null , null , null , null , null , null , null , null , null )
+    sql insert into $tb values ($ms , null , null , null , null , null , null , null , null , null )
     $x = $x + 1
   endw
 
