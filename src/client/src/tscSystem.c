@@ -141,7 +141,7 @@ void taos_init_imp(void) {
   int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL, "tableMeta");
-    tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeSqlObjInCache, "sqlObj");
+    tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeRegisteredSqlObj, "sqlObj");
   }
 
   tscDebug("client is initialized successfully");

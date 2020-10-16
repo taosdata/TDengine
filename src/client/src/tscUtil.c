@@ -389,7 +389,7 @@ static void tscFreeSubobj(SSqlObj* pSql) {
  *
  * @param pSql
  */
-void tscFreeSqlObjInCache(void *pSql) {
+void tscFreeRegisteredSqlObj(void *pSql) {
   assert(pSql != NULL);
 
   SSqlObj** p = (SSqlObj**)pSql;

@@ -131,6 +131,8 @@ static int32_t mnodeChildTableActionInsert(SSdbOper *pOper) {
       mnodeAddTableIntoStable(pTable->superTable, pTable);
       grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
       if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
+    } else {
+      mError("table:%s:%p, correspond stable not found suid:%" PRIu64, pTable->info.tableId, pTable, pTable->suid);
     }
   } else {
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
@@ -839,10 +841,11 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
+  int64_t us = taosGetTimestampUs();
   pStable->info.tableId = strdup(pCreate->tableId);
   pStable->info.type    = TSDB_SUPER_TABLE;
   pStable->createdTime  = taosGetTimestampMs();
-  pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
+  pStable->uid          = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
   pStable->sversion     = 0;
   pStable->tversion     = 0;
   pStable->numOfColumns = htons(pCreate->numOfColumns);
@@ -1496,7 +1499,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       continue;
     }
     if (pTable->vgHash == NULL) {
-      mError("app:%p:%p, stable:%s, no vgroup exist while get stable vgroup info", pMsg->rpcMsg.ahandle, pMsg,
+      mDebug("app:%p:%p, stable:%s, no vgroup exist while get stable vgroup info", pMsg->rpcMsg.ahandle, pMsg,
              stableName);
       mnodeDecTableRef(pTable);
 
@@ -1705,9 +1708,9 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   pTable->createdTime  = taosGetTimestampMs();
   pTable->sid          = tid;
   pTable->vgId         = pVgroup->vgId;
-    
+
   if (pTable->info.type == TSDB_CHILD_TABLE) {
-    STagData *pTagData = (STagData *) pCreate->schema;  // it is a tag key
+    STagData *pTagData = (STagData *)pCreate->schema;  // it is a tag key
     if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
     if (pMsg->pSTable == NULL) {
       mError("app:%p:%p, table:%s, corresponding super table:%s does not exist", pMsg->rpcMsg.ahandle, pMsg,
@@ -2252,7 +2255,8 @@ static void mnodeDropAllChildTablesInStable(SSuperTableObj *pStable) {
   int32_t numOfTables = 0;
   SChildTableObj *pTable = NULL;
 
-  mInfo("stable:%s, all child tables:%d will dropped from sdb", pStable->info.tableId, pStable->numOfTables);
+  mInfo("stable:%s uid:%" PRIu64 ", all child tables:%d will be dropped from sdb", pStable->info.tableId, pStable->uid,
+        pStable->numOfTables);
 
   while (1) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);
@@ -2405,14 +2409,16 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
     }
   } else {
     if (mnodeMsg->retry++ < 10) {
-      mDebug("app:%p:%p, table:%s, create table rsp received, need retry, times:%d result:%s thandle:%p",
-             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, tstrerror(rpcMsg->code),
-             mnodeMsg->rpcMsg.handle);
+      mDebug("app:%p:%p, table:%s, create table rsp received, need retry, times:%d vgId:%d sid:%d uid:%" PRIu64
+             " result:%s thandle:%p",
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, pTable->vgId, pTable->sid,
+             pTable->uid, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
       dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
     } else {
-      mError("app:%p:%p, table:%s, failed to create in dnode, result:%s thandle:%p", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
-             pTable->info.tableId, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
+      mError("app:%p:%p, table:%s, failed to create in dnode, vgId:%d sid:%d uid:%" PRIu64 ", result:%s thandle:%p",
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+             tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
       SSdbOper oper = {.type = SDB_OPER_GLOBAL, .table = tsChildTableSdb, .pObj = pTable};
       sdbDeleteRow(&oper);

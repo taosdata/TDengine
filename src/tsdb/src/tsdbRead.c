@@ -2284,7 +2284,7 @@ void filterPrepare(void* expr, void* param) {
   if (pInfo->optr == TSDB_RELATION_IN) {
     pInfo->q = (char*) pCond->arr;
   } else {
-    pInfo->q = calloc(1, pSchema->bytes);
+    pInfo->q = calloc(1, pSchema->bytes + TSDB_NCHAR_SIZE);   // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }
 }

@@ -28,6 +28,7 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
+#include "ttimer.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -257,9 +258,20 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
 void taos_close(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
 
-  if (pObj == NULL || pObj->signature != pObj)  {
+  if (pObj == NULL) {
+    tscDebug("(null) try to free tscObj and close dnodeConn");
     return;
   }
+
+  tscDebug("%p try to free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
+  if (pObj->signature != pObj) {
+    tscDebug("%p already closed or invalid tscObj", pObj);
+    return;
+  }
+
+  // make sure that the close connection can only be executed once.
+  pObj->signature = NULL;
+  taosTmrStopA(&(pObj->pTimer));
 
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
@@ -296,7 +308,7 @@ static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   tsem_post(&pSql->rspSem);
 }
 
-TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
+TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES** res) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -321,12 +333,20 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen) {
   tsem_init(&pSql->rspSem, 0, 0);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
+  if (res != NULL) {
+    *res = pSql;
+  }
+
   tsem_wait(&pSql->rspSem);
   return pSql; 
 }
 
 TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
-  return taos_query_c(taos, sqlstr, (uint32_t)strlen(sqlstr));
+  return taos_query_c(taos, sqlstr, (uint32_t)strlen(sqlstr), NULL);
+}
+
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res) {
+  return taos_query_c(taos, sqlstr, (uint32_t) strlen(sqlstr), res);
 }
 
 int taos_result_precision(TAOS_RES *res) {
@@ -678,6 +698,45 @@ int* taos_fetch_lengths(TAOS_RES *res) {
 
 char *taos_get_client_info() { return version; }
 
+static void tscKillSTableQuery(SSqlObj *pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    return;
+  }
+
+  // set the master sqlObj flag to cancel query
+  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
+  for (int i = 0; i < pSql->subState.numOfSub; ++i) {
+    // NOTE: pSub may have been released already here
+    SSqlObj *pSub = pSql->pSubs[i];
+    if (pSub == NULL) {
+      continue;
+    }
+
+    void** p = taosCacheAcquireByKey(tscObjCache, &pSub, sizeof(TSDB_CACHE_PTR_TYPE));
+    if (p == NULL) {
+      continue;
+    }
+
+    SSqlObj* pSubObj = (SSqlObj*) (*p);
+    assert(pSubObj->self == (SSqlObj**) p);
+
+    pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+    if (pSubObj->pRpcCtx != NULL) {
+      rpcCancelRequest(pSubObj->pRpcCtx);
+      pSubObj->pRpcCtx = NULL;
+    }
+
+    tscQueueAsyncRes(pSubObj);
+    taosCacheRelease(tscObjCache, (void**) &p, false);
+  }
+
+  tscDebug("%p super table query cancelled", pSql);
+}
+
 void taos_stop_query(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) {
@@ -687,23 +746,26 @@ void taos_stop_query(TAOS_RES *res) {
   tscDebug("%p start to cancel query", res);
   SSqlCmd *pCmd = &pSql->cmd;
 
-  // TODO there are multi-thread problem.
-  // It may have been released by the other thread already.
-  // The ref count may fix this problem.
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
   // set the error code for master pSqlObj firstly
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->pRpcCtx == NULL);
     tscKillSTableQuery(pSql);
   } else {
     if (pSql->cmd.command < TSDB_SQL_LOCAL) {
+      /*
+       * There is multi-thread problem here, since pSql->pRpcCtx may have been
+       * reset and freed in the processMsgFromServer function, and causes the invalid
+       * write problem for rpcCancelRequest.
+       */
       if (pSql->pRpcCtx != NULL) {
         rpcCancelRequest(pSql->pRpcCtx);
         pSql->pRpcCtx = NULL;
       }
+
+      tscQueueAsyncRes(pSql);
     }
   }
 
@@ -832,6 +894,8 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pSql->fp = asyncCallback;
   pSql->fetchFp = asyncCallback;
   pSql->param = pSql;
+
+  registerSqlObj(pSql);
   int code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tsem_wait(&pSql->rspSem);

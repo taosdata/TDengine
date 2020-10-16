@@ -47,11 +47,11 @@ void vnodeInitWriteFp(void) {
 int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   int32_t    code = 0;
   SVnodeObj *pVnode = (SVnodeObj *)param1;
-  SWalHead  *pHead = param2;
+  SWalHead * pHead = param2;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
     vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[pHead->msgType]);
-    return TSDB_CODE_VND_MSG_NOT_PROCESSED; 
+    return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
@@ -59,44 +59,44 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     return TSDB_CODE_VND_NO_WRITE_AUTH;
   }
 
-  // tsdb may be in reset state 
+  // tsdb may be in reset state
   if (pVnode->tsdb == NULL) return TSDB_CODE_APP_NOT_READY;
-  if (pVnode->status == TAOS_VN_STATUS_CLOSING) 
-    return TSDB_CODE_APP_NOT_READY;
-  
-  if (pHead->version == 0) { // from client or CQ 
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING) return TSDB_CODE_APP_NOT_READY;
+
+  if (pHead->version == 0) {  // from client or CQ
     if (pVnode->status != TAOS_VN_STATUS_READY) {
-      vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->status);
+      vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType],
+             pVnode->status);
       return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
     }
 
     if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-      vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%d", pVnode->vgId, taosMsg[pHead->msgType], pVnode->syncCfg.replica, pVnode->role);
+      vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%s", pVnode->vgId, taosMsg[pHead->msgType],
+             pVnode->syncCfg.replica, syncRole[pVnode->role]);
       return TSDB_CODE_APP_NOT_READY;
     }
 
     // assign version
-    pVnode->version++;
-    pHead->version = pVnode->version;
-    if (pVnode->delay) usleep(pVnode->delay*1000);
+    pHead->version = pVnode->version + 1;
+    if (pVnode->delay) usleep(pVnode->delay * 1000);
 
-  } else { // from wal or forward 
+  } else {  // from wal or forward
     // for data from WAL or forward, version may be smaller
     if (pHead->version <= pVnode->version) return 0;
   }
 
-  pVnode->version = pHead->version;
+  // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
+  int32_t syncCode = 0;
+  syncCode = syncForwardToPeer(pVnode->sync, pHead, item, qtype);
+  if (syncCode < 0) return syncCode;
 
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
   if (code < 0) return code;
 
-  // forward to peers, even it is WAL/FWD, it shall be called to update version in sync 
-  int32_t syncCode = 0;
-  syncCode = syncForwardToPeer(pVnode->sync, pHead, item, qtype);
-  if (syncCode < 0) return syncCode;
+  pVnode->version = pHead->version;
 
-  // write data locally 
+  // write data locally
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, item);
   if (code < 0) return code;
 
@@ -115,14 +115,14 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   // save insert result into item
   SShellSubmitRspMsg *pRsp = NULL;
-  if (pRet) {  
+  if (pRet) {
     pRet->len = sizeof(SShellSubmitRspMsg);
     pRet->rsp = rpcMallocCont(pRet->len);
     pRsp = pRet->rsp;
   }
 
   if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
-  
+
   return code;
 }
 
@@ -191,7 +191,7 @@ static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspR
 
 int vnodeWriteToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;
-  SWalHead *pHead = data;
+  SWalHead * pHead = data;
 
   int size = sizeof(SWalHead) + pHead->len;
   SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);
@@ -204,4 +204,3 @@ int vnodeWriteToQueue(void *param, void *data, int type) {
 
   return 0;
 }
-

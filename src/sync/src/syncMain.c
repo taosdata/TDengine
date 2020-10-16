@@ -311,9 +311,20 @@ int32_t syncForwardToPeer(void *param, void *data, void *mhandle, int qtype) {
 
   if (pNode == NULL) return 0;
 
+  if (nodeRole == TAOS_SYNC_ROLE_SLAVE && pWalHead->version != nodeVersion + 1) {
+    sError("vgId:%d, received ver:%" PRIu64 ", inconsistent with last ver:%" PRIu64 ", restart connection", pNode->vgId,
+           pWalHead->version, nodeVersion);
+    for (int i = 0; i < pNode->replica; ++i) {
+      pPeer = pNode->peerInfo[i];
+      syncRestartConnection(pPeer);
+    }
+    return TSDB_CODE_SYN_INVALID_VERSION;
+  }
+
   // always update version
   nodeVersion = pWalHead->version;
-  sDebug("replica:%d nodeRole:%d qtype:%d", pNode->replica, nodeRole, qtype);
+  sDebug("vgId:%d, replica:%d nodeRole:%s qtype:%d ver:%" PRIu64, pNode->vgId, pNode->replica, syncRole[nodeRole],
+         qtype, pWalHead->version);
 
   if (pNode->replica == 1 || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
 
@@ -883,7 +894,7 @@ static void syncProcessPeersStatusMsg(char *cont, SSyncPeer *pPeer) {
   SSyncNode *   pNode = pPeer->pSyncNode;
   SPeersStatus *pPeersStatus = (SPeersStatus *)cont;
 
-  sDebug("%s, status msg received, self:%s ver:%" PRIu64 " peer:%s ver:%" PRIu64 ", ack:%d", pPeer->id,
+  sDebug("%s, status msg is received, self:%s ver:%" PRIu64 " peer:%s ver:%" PRIu64 ", ack:%d", pPeer->id,
          syncRole[nodeRole], nodeVersion, syncRole[pPeersStatus->role], pPeersStatus->version, pPeersStatus->ack);
 
   pPeer->version = pPeersStatus->version;
@@ -970,7 +981,8 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack) {
 
   int retLen = write(pPeer->peerFd, msg, statusMsgLen);
   if (retLen == statusMsgLen) {
-    sDebug("%s, status msg is sent", pPeer->id);
+    sDebug("%s, status msg is sent, self:%s ver:%" PRIu64 ", ack:%d", pPeer->id, syncRole[pPeersStatus->role],
+           pPeersStatus->version, pPeersStatus->ack);
   } else {
     sDebug("%s, failed to send status msg, restart", pPeer->id);
     syncRestartConnection(pPeer);
