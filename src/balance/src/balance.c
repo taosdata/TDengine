@@ -126,7 +126,7 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
 
   balanceAccquireDnodeList();
 
-  mDebug("db:%s, alloc %d vnodes to vgroup, dnodes total:%d, avail:%d", pVgroup->dbName, pVgroup->numOfVnodes,
+  mDebug("db:%s, try alloc %d vnodes to vgroup, dnodes total:%d, avail:%d", pVgroup->dbName, pVgroup->numOfVnodes,
          mnodeGetDnodesNum(), tsBalanceDnodeListSize);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     for (; dnode < tsBalanceDnodeListSize; ++dnode) {
@@ -571,7 +571,8 @@ static void balanceCheckDnodeAccess() {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;
-        mInfo("dnode:%d, set to offline state", pDnode->dnodeId);
+        mInfo("dnode:%d, set to offline state, access seq:%d, last seq:%d", pDnode->dnodeId, tsAccessSquence,
+              pDnode->lastAccess);
         balanceSetVgroupOffline(pDnode);
       }
     }
