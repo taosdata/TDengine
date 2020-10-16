@@ -4384,15 +4384,10 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
 
 static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   /* set default timestamp order information for all queries */
-  pQueryInfo->order.order = TSDB_ORDER_ASC;
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  if (isTopBottomQuery(pQueryInfo)) {
-    pQueryInfo->order.order = TSDB_ORDER_ASC;
-    pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
-  } else {
-    pQueryInfo->order.orderColId = -1;
-  }
+  pQueryInfo->order.order = TSDB_ORDER_ASC;
+  pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
   /* for super table query, set default ascending order for group output */
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {

@@ -573,12 +573,20 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
         // the first column is the timestamp, handles queries like "interval(10m) group by tags"
         orderColIndexList[numOfGroupByCols - 1] = PRIMARYKEY_TIMESTAMP_COL_INDEX; //TODO ???
       }
-    } else { // it is the orderby ts asc/desc projection query for super table
-      size_t size = tscSqlExprNumOfExprs(pQueryInfo);
-      for (int32_t i = 0; i < size; ++i) {
-        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-        if (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-          orderColIndexList[0] = i;
+    } else {
+      /*
+       * 1. the orderby ts asc/desc projection query for the super table
+       * 2. interval query without groupby clause
+       */
+      if (pQueryInfo->interval.interval != 0) {
+        orderColIndexList[0] = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+      } else {
+        size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+        for (int32_t i = 0; i < size; ++i) {
+          SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
+          if (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+            orderColIndexList[0] = i;
+          }
         }
       }
 
