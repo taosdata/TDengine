@@ -194,9 +194,9 @@ static FORCE_INLINE bool isNull(const char *val, int32_t type) {
     case TSDB_DATA_TYPE_DOUBLE:
       return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
     case TSDB_DATA_TYPE_NCHAR:
-      return *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
+      return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
     case TSDB_DATA_TYPE_BINARY:
-      return *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+      return varDataLen(val) == sizeof(int8_t) && *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
     default:
       return false;
   };
