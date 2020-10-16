@@ -5,29 +5,7 @@ pipeline {
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
   stages {
-    stage('build TDengine') {
-      agent{label 'master'}
-      steps {
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        git pull
-        git submodule update
-        cd ${WK}
-        git checkout develop
-        git pull
-        export TZ=Asia/Harbin
-        date
-        rm -rf ${WK}/debug
-        mkdir debug
-        cd debug
-        #cmake .. > /dev/null
-        #make > /dev/null
-        '''
-      }
-    }
-
-    stage('Parallel test stage') {
+      stage('Parallel test stage') {
       parallel {
         stage('pytest') {
           agent{label 'master'}
