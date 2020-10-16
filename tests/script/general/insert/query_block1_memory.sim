@@ -30,10 +30,9 @@ print =============== step 1
 $x = $N
 $y = $N / 2
 while $x > $y
-  $y = $x * 60000
-  $ms = 1601481600000 - $y
+  $z = $x * 60000
+  $ms = 1601481600000 - $z
 
-  $ms = $x . m 
   $xt = - . $x 
   sql insert into $tb values ($ms , -$x ) 
   $x = $x - 1
@@ -48,8 +47,8 @@ endi
 $x = $N / 2
 $y = $N
 while $x < $y
-  $y = $x * 60000
-  $ms = 1601481600000 + $y
+  $z = $x * 60000
+  $ms = 1601481600000 + $z
 
   sql insert into $tb values ($ms , $x ) 
   $x = $x + 1
