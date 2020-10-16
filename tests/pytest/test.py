@@ -16,6 +16,7 @@
 import sys
 import getopt
 import subprocess
+import time
 from distutils.log import warn as printf
 
 from util.log import *
@@ -33,7 +34,8 @@ if __name__ == "__main__":
     valgrind = 0
     logSql = True
     stop = 0
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scgh', [
+    restart = False
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghr', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help'])
     for key, value in opts:
         if key in ['-h', '--help']:
@@ -46,7 +48,11 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-s stop All dnodes')
             tdLog.printNoPrefix('-c Test Cluster Flag')
             tdLog.printNoPrefix('-g valgrind Test Flag')
+            tdLog.printNoPrefix('-r taosd restart test')
             sys.exit(0)
+
+        if key in ['-r', '--restart']: 
+            restart = True
 
         if key in ['-f', '--file']:
             fileName = value
@@ -138,5 +144,19 @@ if __name__ == "__main__":
             tdCases.runAllLinux(conn)
         else:
             tdCases.runOneLinux(conn, fileName)
-
+    if restart:
+        if fileName == "all":
+            tdLog.info("not need to query ")
+        else:    
+            sp = fileName.rsplit(".", 1)
+            if len(sp) == 2 and sp[1] == "py":
+                tdDnodes.stopAll()
+                tdDnodes.start(1)
+                time.sleep(1)            
+                conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
+                tdLog.info("Procedures for tdengine deployed in %s" % (host))
+                tdLog.info("query test after taosd restart")
+                tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
+            else:
+                tdLog.info("not need to query")
     conn.close()
