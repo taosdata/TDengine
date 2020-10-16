@@ -432,7 +432,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
             int n,r;
             r = sscanf((const char*)bind->buffer, "%" PRId64 "%n", &v, &n);
             if (r==1 && n==strlen((const char*)bind->buffer)) {
-              u.v4 = v;
+              u.v4 = (int32_t)v;
               if (v >= INT_MIN && v <= INT_MAX) break;
             }
             return TSDB_CODE_TSC_INVALID_VALUE;
