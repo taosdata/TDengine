@@ -58,10 +58,15 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("%p, msg:%s in mpeer queue, will be redireced, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
+    mDebug("%p, msg:%s in mpeer queue will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
            taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
     for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      mDebug("mnode index:%d ep:%s:%d", i, epSet->fqdn[i], htons(epSet->port[i]));
+      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
+        epSet->inUse = (i + 1) % epSet->numOfEps;
+        mDebug("mnode index:%d ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
+      } else {
+        mDebug("mnode index:%d ep:%s:%u", i, epSet->fqdn[i], htons(epSet->port[i]));
+      }
     }
 
     return TSDB_CODE_RPC_REDIRECT;

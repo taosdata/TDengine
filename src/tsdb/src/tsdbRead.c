@@ -2639,8 +2639,7 @@ int32_t tsdbGetTableGroupFromIdList(TSDB_REPO_T* tsdb, SArray* pTableIdList, STa
   pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
   SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
 
-  int32_t i = 0;
-  for(; i < size; ++i) {
+  for(int32_t i = 0; i < size; ++i) {
     STableIdInfo *id = taosArrayGet(pTableIdList, i);
 
     STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), id->uid);
@@ -2665,8 +2664,12 @@ int32_t tsdbGetTableGroupFromIdList(TSDB_REPO_T* tsdb, SArray* pTableIdList, STa
     return terrno;
   }
 
-  pGroupInfo->numOfTables = i;
-  taosArrayPush(pGroupInfo->pGroupList, &group);
+  pGroupInfo->numOfTables = taosArrayGetSize(group);
+  if (pGroupInfo->numOfTables > 0) {
+    taosArrayPush(pGroupInfo->pGroupList, &group);
+  } else {
+    taosArrayDestroy(group);
+  }
 
   return TSDB_CODE_SUCCESS;
 }

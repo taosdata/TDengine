@@ -360,26 +360,26 @@ void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   
   taosTFree(pSql->pSubs);
-  pSql->numOfSubs = 0;
+  pSql->subState.numOfSub = 0;
   pSql->self = 0;
   
   tscResetSqlCmdObj(pCmd, false);
 }
 
-static UNUSED_FUNC void tscFreeSubobj(SSqlObj* pSql) {
-  if (pSql->numOfSubs == 0) {
+static void tscFreeSubobj(SSqlObj* pSql) {
+  if (pSql->subState.numOfSub == 0) {
     return;
   }
 
-  tscDebug("%p start to free sub SqlObj, numOfSub:%d", pSql, pSql->numOfSubs);
+  tscDebug("%p start to free sub SqlObj, numOfSub:%d", pSql, pSql->subState.numOfSub);
 
-  for(int32_t i = 0; i < pSql->numOfSubs; ++i) {
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     tscDebug("%p free sub SqlObj:%p, index:%d", pSql, pSql->pSubs[i], i);
     taos_free_result(pSql->pSubs[i]);
     pSql->pSubs[i] = NULL;
   }
 
-  pSql->numOfSubs = 0;
+  pSql->subState.numOfSub = 0;
 }
 
 /**
@@ -389,7 +389,7 @@ static UNUSED_FUNC void tscFreeSubobj(SSqlObj* pSql) {
  *
  * @param pSql
  */
-void tscFreeSqlObjInCache(void *pSql) {
+void tscFreeRegisteredSqlObj(void *pSql) {
   assert(pSql != NULL);
 
   SSqlObj** p = (SSqlObj**)pSql;
@@ -415,7 +415,9 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   tscDebug("%p start to free sqlObj", pSql);
 
+  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
   tscFreeSubobj(pSql);
+
   tscPartiallyFreeSqlObj(pSql);
 
   pSql->signature = NULL;
@@ -1516,13 +1518,6 @@ void tscSetFreeHeatBeat(STscObj* pObj) {
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 }
 
-bool tscShouldFreeHeartBeat(SSqlObj* pHb) {
-  assert(pHb == pHb->signature);
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pHb->cmd, 0);
-  return pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE;
-}
-
 /*
  * the following four kinds of SqlObj should not be freed
  * 1. SqlObj for stream computing
@@ -2291,7 +2286,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
      *
      * For super table join with projection query, if anyone of the subquery is exhausted, the query completed.
      */
-    pSql->numOfSubs = 0;
+    pSql->subState.numOfSub = 0;
     pCmd->command = TSDB_SQL_SELECT;
 
     tscResetForNextRetrieve(pRes);
@@ -2323,7 +2318,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   pRes->numOfTotal = num;
   
   taosTFree(pSql->pSubs);
-  pSql->numOfSubs = 0;
+  pSql->subState.numOfSub = 0;
   pSql->fp = fp;
 
   tscDebug("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);

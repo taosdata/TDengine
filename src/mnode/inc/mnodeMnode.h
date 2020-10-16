@@ -31,7 +31,7 @@ typedef enum {
 int32_t mnodeInitMnodes();
 void    mnodeCleanupMnodes();
 
-int32_t mnodeAddMnode(int32_t dnodeId);
+void    mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm);
 int32_t mnodeDropMnode(int32_t dnodeId);
 void    mnodeDropMnodeLocal(int32_t dnodeId);
 

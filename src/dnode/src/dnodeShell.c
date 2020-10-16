@@ -156,7 +156,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   
   dDebug("user:%s, send auth msg to mnodes", user);
   SRpcMsg rpcRsp = {0};
-  dnodeSendMsgToDnodeRecv(&rpcMsg, &rpcRsp);
+  dnodeSendMsgToMnodeRecv(&rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     dError("user:%s, auth msg received from mnodes, error:%s", user, tstrerror(rpcRsp.code));
@@ -189,7 +189,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid) {
   rpcMsg.msgType = TSDB_MSG_TYPE_DM_CONFIG_TABLE;
 
   SRpcMsg rpcRsp = {0};
-  dnodeSendMsgToDnodeRecv(&rpcMsg, &rpcRsp);
+  dnodeSendMsgToMnodeRecv(&rpcMsg, &rpcRsp);
   terrno = rpcRsp.code;
   
   if (rpcRsp.code != 0) {

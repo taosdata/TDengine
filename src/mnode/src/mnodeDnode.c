@@ -147,7 +147,7 @@ static int32_t mnodeDnodeActionRestored() {
     mnodeCreateDnode(tsLocalEp, NULL);
     SDnodeObj *pDnode = mnodeGetDnodeByEp(tsLocalEp);
     if (pDnode != NULL) {
-      mnodeAddMnode(pDnode->dnodeId);
+      mnodeCreateMnode(pDnode->dnodeId, pDnode->dnodeEp, false);
       mnodeDecDnodeRef(pDnode);
     }
   }
@@ -471,7 +471,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
-      mTrace("dnode:%d, status received, access times %d", pDnode->dnodeId, pDnode->lastAccess);
+      mTrace("dnode:%d, status received, access times %d openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
+             htons(pStatus->openVnodes), pDnode->openVnodes);
     }
   }
 
@@ -790,6 +791,7 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     mnodeDecDnodeRef(pDnode);
   }
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
@@ -857,6 +859,7 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
 
   char* pWrite;
   char* moduleName[5] = { "MNODE", "HTTP", "MONITOR", "MQTT", "UNKNOWN" };
+  int32_t cols;
 
   while (numOfRows < rows) {
     SDnodeObj *pDnode = NULL;
@@ -864,7 +867,7 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
     if (pDnode == NULL) break;
 
     for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      int32_t cols = 0;
+      cols = 0;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *)pWrite = pDnode->dnodeId;
@@ -891,6 +894,7 @@ int32_t mnodeRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pC
     mnodeDecDnodeRef(pDnode);
   }
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
@@ -990,6 +994,7 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
     }
   }
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
@@ -1082,6 +1087,7 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
     numOfRows = 0;
   }
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }

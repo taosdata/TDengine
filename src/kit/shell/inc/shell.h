@@ -20,6 +20,7 @@
 #include "taos.h"
 #include "taosdef.h"
 #include "stdbool.h"
+#include "tsclient.h"
 
 #define MAX_USERNAME_SIZE      64
 #define MAX_DBNAME_SIZE        64

@@ -253,8 +253,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
-#define TSDB_MAX_SQL_SHOW_LEN     256
-#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024U)          // sql length should be less than 8mb
+#define TSDB_MAX_SQL_SHOW_LEN     512
+#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
+
+#define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
 #define TSDB_MAX_BYTES_PER_ROW    16384
 #define TSDB_MAX_TAGS_LEN         16384
@@ -282,7 +284,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_SHELL_VNODE_BITS     24
 #define TSDB_SHELL_SID_MASK       0xFF
 #define TSDB_HTTP_TOKEN_LEN       20
-#define TSDB_SHOW_SQL_LEN         64
+#define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_MQTT_HOSTNAME_LEN    64

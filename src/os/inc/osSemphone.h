@@ -33,6 +33,8 @@ bool taosCheckPthreadValid(pthread_t thread);
 int64_t taosGetPthreadId();
 void taosResetPthread(pthread_t *thread);
 bool taosComparePthread(pthread_t first, pthread_t second);
+int32_t taosGetPId();
+int32_t taosGetCurrentAPPName(char *name, int32_t* len);
 
 #ifdef __cplusplus
 }

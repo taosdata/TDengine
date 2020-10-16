@@ -66,7 +66,6 @@ typedef struct STidTags {
 #pragma pack(pop)
 
 typedef struct SJoinSupporter {
-  SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
   SInterval       interval;
@@ -207,8 +206,6 @@ void tscTagCondRelease(STagCond* pCond);
 
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
-void tscSetFreeHeatBeat(STscObj* pObj);
-bool tscShouldFreeHeartBeat(SSqlObj* pHb);
 bool tscShouldBeFreed(SSqlObj* pSql);
 
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);

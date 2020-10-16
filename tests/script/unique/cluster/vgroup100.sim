@@ -27,7 +27,16 @@ system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 
-sleep 5000
+sleep 3000
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
 sql show mnodes
 $dnode1Role = $data2_1
 $dnode2Role = $data2_2
@@ -36,6 +45,16 @@ $dnode3Role = $data2_3
 print $dnode1Role
 print $dnode2Role 
 print $dnode3Role 
+
+if $dnode1Role != master then
+	goto show2
+endi
+if $dnode2Role != slave then
+	goto show2
+endi
+if $dnode3Role != slave then
+	goto show2
+endi
 
 print ============================== step3
 $count = 2

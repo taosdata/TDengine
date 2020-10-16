@@ -438,7 +438,7 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
     tError("%s %p TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);
     return -1;
   } else {
-    tDebug("TCP malloc mem: %p", buffer);
+    tTrace("TCP malloc mem: %p", buffer);
   }
 
   msg = buffer + tsRpcOverhead;
@@ -525,7 +525,7 @@ static void *taosProcessTcpData(void *param) {
   while (pThreadObj->pHead) {
     SFdObj *pFdObj = pThreadObj->pHead;
     pThreadObj->pHead = pFdObj->next;
-    taosFreeFdObj(pFdObj);
+    taosReportBrokenLink(pFdObj);
   }
 
   pthread_mutex_destroy(&(pThreadObj->mutex));
