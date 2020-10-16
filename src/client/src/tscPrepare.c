@@ -290,15 +290,15 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
             if (u.v1==0 || u.v1==1) break;
           } break;
           case TSDB_DATA_TYPE_SMALLINT: {
-            u.v1 = *(int16_t*)bind->buffer;
+            u.v1 = (int8_t)*(int16_t*)bind->buffer;
             if (u.v1==0 || u.v1==1) break;
           } break;
           case TSDB_DATA_TYPE_INT: {
-            u.v1 = *(int32_t*)bind->buffer;
+            u.v1 = (int8_t)*(int32_t*)bind->buffer;
             if (u.v1==0 || u.v1==1) break;
           } break;
           case TSDB_DATA_TYPE_BIGINT: {
-            u.v1 = *(int64_t*)bind->buffer;
+            u.v1 = (int8_t)*(int64_t*)bind->buffer;
             if (u.v1==0 || u.v1==1) break;
           } break;
           case TSDB_DATA_TYPE_BINARY:
@@ -334,19 +334,19 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           } break;
           case TSDB_DATA_TYPE_SMALLINT: {
             int16_t v = *(int16_t*)bind->buffer;
-            u.v1 = v;
+            u.v1 = (int8_t)v;
             if (v >= SCHAR_MIN && v <= SCHAR_MAX) break;
             return TSDB_CODE_TSC_INVALID_VALUE;
           } break;
           case TSDB_DATA_TYPE_INT: {
             int32_t v = *(int32_t*)bind->buffer;
-            u.v1 = v;
+            u.v1 = (int8_t)v;
             if (v >= SCHAR_MIN && v <= SCHAR_MAX) break;
             return TSDB_CODE_TSC_INVALID_VALUE;
           } break;
           case TSDB_DATA_TYPE_BIGINT: {
             int64_t v = *(int64_t*)bind->buffer;
-            u.v1 = v;
+            u.v1 = (int8_t)v;
             if (v >= SCHAR_MIN && v <= SCHAR_MAX) break;
             return TSDB_CODE_TSC_INVALID_VALUE;
           } break;
@@ -354,9 +354,9 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           case TSDB_DATA_TYPE_NCHAR: {
             int64_t v;
             int n,r;
-            r = sscanf((const char*)bind->buffer, "%ld%n", &v, &n);
+            r = sscanf((const char*)bind->buffer, "%" PRId64 "%n", &v, &n);
             if (r==1 && n==strlen((const char*)bind->buffer)) {
-              u.v1 = v;
+              u.v1 = (int8_t)v;
               if (v >= SCHAR_MIN && v <= SCHAR_MAX) break;
             }
             return TSDB_CODE_TSC_INVALID_VALUE;
@@ -377,17 +377,17 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           case TSDB_DATA_TYPE_TINYINT:
           case TSDB_DATA_TYPE_SMALLINT: {
             int v = *(int16_t*)bind->buffer;
-            u.v2 = v;
+            u.v2 = (int16_t)v;
           } break;
           case TSDB_DATA_TYPE_INT: {
             int32_t v = *(int32_t*)bind->buffer;
-            u.v2 = v;
+            u.v2 = (int16_t)v;
             if (v >= SHRT_MIN && v <= SHRT_MAX) break;
             return TSDB_CODE_TSC_INVALID_VALUE;
           } break;
           case TSDB_DATA_TYPE_BIGINT: {
             int64_t v = *(int64_t*)bind->buffer;
-            u.v2 = v;
+            u.v2 = (int16_t)v;
             if (v >= SHRT_MIN && v <= SHRT_MAX) break;
             return TSDB_CODE_TSC_INVALID_VALUE;
           } break;
@@ -395,9 +395,9 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           case TSDB_DATA_TYPE_NCHAR: {
             int64_t v;
             int n,r;
-            r = sscanf((const char*)bind->buffer, "%ld%n", &v, &n);
+            r = sscanf((const char*)bind->buffer, "%" PRId64 "%n", &v, &n);
             if (r==1 && n==strlen((const char*)bind->buffer)) {
-              u.v2 = v;
+              u.v2 = (int16_t)v;
               if (v >= SHRT_MIN && v <= SHRT_MAX) break;
             }
             return TSDB_CODE_TSC_INVALID_VALUE;
@@ -430,7 +430,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           case TSDB_DATA_TYPE_NCHAR: {
             int64_t v;
             int n,r;
-            r = sscanf((const char*)bind->buffer, "%ld%n", &v, &n);
+            r = sscanf((const char*)bind->buffer, "%" PRId64 "%n", &v, &n);
             if (r==1 && n==strlen((const char*)bind->buffer)) {
               u.v4 = v;
               if (v >= INT_MIN && v <= INT_MAX) break;
@@ -457,11 +457,11 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
             u.f4 = *(int16_t*)bind->buffer;
           } break;
           case TSDB_DATA_TYPE_INT: {
-            u.f4 = *(int32_t*)bind->buffer;
+            u.f4 = (float)*(int32_t*)bind->buffer;
             // shall we check equality?
           } break;
           case TSDB_DATA_TYPE_BIGINT: {
-            u.f4 = *(int64_t*)bind->buffer;
+            u.f4 = (float)*(int64_t*)bind->buffer;
             // shall we check equality?
           } break;
           case TSDB_DATA_TYPE_FLOAT: {
@@ -509,7 +509,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           case TSDB_DATA_TYPE_NCHAR: {
             int64_t v;
             int n,r;
-            r = sscanf((const char*)bind->buffer, "%ld%n", &v, &n);
+            r = sscanf((const char*)bind->buffer, "%" PRId64 "%n", &v, &n);
             if (r==1 && n==strlen((const char*)bind->buffer)) {
               u.v8 = v;
               break;
@@ -539,7 +539,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
             u.f8 = *(int32_t*)bind->buffer;
           } break;
           case TSDB_DATA_TYPE_BIGINT: {
-            u.f8 = *(int64_t*)bind->buffer;
+            u.f8 = (double)*(int64_t*)bind->buffer;
           } break;
           case TSDB_DATA_TYPE_FLOAT: {
             u.f8 = *(float*)bind->buffer;
@@ -553,7 +553,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
             int n,r;
             r = sscanf((const char*)bind->buffer, "%lf%n", &v, &n);
             if (r==1 && n==strlen((const char*)bind->buffer)) {
-              u.v8 = v;
+              u.f8 = v;
               break;
             }
             return TSDB_CODE_TSC_INVALID_VALUE;
@@ -574,7 +574,8 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR: {
             // is this the correct way to call taosParseTime?
-            if (taosParseTime(bind->buffer, &u.v8, *bind->length, 3, tsDaylight) == TSDB_CODE_SUCCESS) {
+            int32_t len = (int32_t)*bind->length;
+            if (taosParseTime(bind->buffer, &u.v8, len, 3, tsDaylight) == TSDB_CODE_SUCCESS) {
               break;
             }
             return TSDB_CODE_TSC_INVALID_VALUE;

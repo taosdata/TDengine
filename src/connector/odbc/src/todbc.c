@@ -2690,7 +2690,7 @@ static SQLRETURN conv_tsdb_v8_to_c_double(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_v8_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int64_t v8)
 {
   char buf[64];
-  int n = snprintf(buf, sizeof(buf), "%ld", v8);
+  int n = snprintf(buf, sizeof(buf), "%" PRId64 "", v8);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
   strncpy(target->ptr, buf, (n>=target->len ? target->len : n+1));
@@ -2702,7 +2702,7 @@ static SQLRETURN conv_tsdb_v8_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIE
 static SQLRETURN conv_tsdb_v8_to_c_binary(sql_t *sql, c_target_t *target, TAOS_FIELD *field, int64_t v8)
 {
   char buf[64];
-  int n = snprintf(buf, sizeof(buf), "%ld", v8);
+  int n = snprintf(buf, sizeof(buf), "%" PRId64 "", v8);
   DASSERT(n<sizeof(buf));
   *target->soi = n;
   strncpy(target->ptr, buf, (n>target->len ? target->len : n));
@@ -3053,7 +3053,7 @@ static SQLRETURN conv_tsdb_str_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIEL
   }
 
   char buf[64];
-  snprintf(buf, sizeof(buf), "%ld", v);
+  snprintf(buf, sizeof(buf), "%" PRId64 "", v);
 
   if (strcmp(buf, str)==0) return SQL_SUCCESS;
 
@@ -3156,7 +3156,7 @@ const char* tsdb_int64_to_ts(int64_t src, int64_t *dst)
   *dst = src;
 
   char buf[4096];
-  int n = snprintf(buf, sizeof(buf), "%ld", src);
+  int n = snprintf(buf, sizeof(buf), "%" PRId64 "", src);
   DASSERT(n>=0);
   DASSERT(n<sizeof(buf));
 
@@ -3181,7 +3181,7 @@ const char* tsdb_int64_to_double(int64_t src, double *dst)
 
 const char* tsdb_int64_to_char(int64_t src, char *dst, size_t dlen)
 {
-  int n = snprintf(dst, dlen, "%ld", src);
+  int n = snprintf(dst, dlen, "%" PRId64 "", src);
   if (n<dlen) return NULL;
   return "22003";
 }
@@ -3321,7 +3321,7 @@ const char* tsdb_chars_to_bit(const char *src, int8_t *dst)
 {
   int bytes = 0;
   int64_t v = 0;
-  int n = sscanf(src, "%ld%n", &v, &bytes);
+  int n = sscanf(src, "%" PRId64 "%n", &v, &bytes);
   if (n!=1) return "22018";
 
   if (bytes!=strlen(src)) {
@@ -3342,7 +3342,7 @@ const char* tsdb_chars_to_tinyint(const char *src, int8_t *dst)
 {
   int bytes = 0;
   int64_t v = 0;
-  int n = sscanf(src, "%ld%n", &v, &bytes);
+  int n = sscanf(src, "%" PRId64 "%n", &v, &bytes);
   if (n!=1) return "22018";
 
 
@@ -3364,7 +3364,7 @@ const char* tsdb_chars_to_smallint(const char *src, int16_t *dst)
 {
   int bytes = 0;
   int64_t v = 0;
-  int n = sscanf(src, "%ld%n", &v, &bytes);
+  int n = sscanf(src, "%" PRId64 "%n", &v, &bytes);
   if (n!=1) return "22018";
 
 
@@ -3386,7 +3386,7 @@ const char* tsdb_chars_to_int(const char *src, int32_t *dst)
 {
   int bytes = 0;
   int64_t v = 0;
-  int n = sscanf(src, "%ld%n", &v, &bytes);
+  int n = sscanf(src, "%" PRId64 "%n", &v, &bytes);
   if (n!=1) return "22018";
 
 
@@ -3408,7 +3408,7 @@ const char* tsdb_chars_to_bigint(const char *src, int64_t *dst)
 {
   int bytes = 0;
   int64_t v = 0;
-  int n = sscanf(src, "%ld%n", &v, &bytes);
+  int n = sscanf(src, "%" PRId64 "%n", &v, &bytes);
   if (n!=1) return "22018";
 
 
@@ -3430,7 +3430,7 @@ const char* tsdb_chars_to_ts(const char *src, int64_t *dst)
 {
   int bytes = 0;
   int64_t v = 0;
-  int n = sscanf(src, "%ld%n", &v, &bytes);
+  int n = sscanf(src, "%" PRId64 "%n", &v, &bytes);
   if (n!=1) return "22018";
 
 
