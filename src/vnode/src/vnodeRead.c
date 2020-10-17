@@ -295,6 +295,8 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     freeHandle = true;
   } else {  // result is not ready, return immediately
     if (!buildRes) {
+      assert(pReadMsg->rpcMsg.handle != NULL);
+
       qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
       return TSDB_CODE_QRY_NOT_READY;
     }
