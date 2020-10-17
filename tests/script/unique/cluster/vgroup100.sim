@@ -29,6 +29,9 @@ system sh/exec.sh -n dnode3 -s start
 
 sleep 3000
 
+$maxNum = 102
+$maxNum = 12
+
 $x = 0
 show2: 
 	$x = $x + 1
@@ -58,7 +61,7 @@ endi
 
 print ============================== step3
 $count = 2
-while $count < 102
+while $count < $maxNum
   $db = d . $count
   $tb = $db . .t
   $tb2 = $db . .t2
@@ -73,7 +76,7 @@ endw
 print ============================== step4
 
 $count = 2
-while $count < 102
+while $count < $maxNum
   $db = d . $count
   $tb = $db . .t
   sql select * from $tb
@@ -131,7 +134,7 @@ show8:
 	endi
 
 $count = 2
-while $count < 102
+while $count < $maxNum
   $db = d . $count
   $tb = $db . .t
   sql select * from $tb

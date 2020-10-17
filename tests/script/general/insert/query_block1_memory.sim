@@ -30,9 +30,11 @@ print =============== step 1
 $x = $N
 $y = $N / 2
 while $x > $y
-  $ms = $x . m 
+  $z = $x * 60000
+  $ms = 1601481600000 - $z
+
   $xt = - . $x 
-  sql insert into $tb values (now - $ms , -$x ) 
+  sql insert into $tb values ($ms , -$x ) 
   $x = $x - 1
 endw 
 
@@ -45,8 +47,10 @@ endi
 $x = $N / 2
 $y = $N
 while $x < $y
-  $ms = $x . m 
-  sql insert into $tb values (now + $ms , $x ) 
+  $z = $x * 60000
+  $ms = 1601481600000 + $z
+
+  sql insert into $tb values ($ms , $x ) 
   $x = $x + 1
 endw 
 sql select * from $tb
@@ -60,14 +64,14 @@ print =============== step 2
 $N1 = $N + 1
 $result1 = $N / 2
 $result2 = $N
-$step = $N1 . m
+$step = $N1 * 60000
 
-$start1 = now- . $step
-$start2 = now
-$start3 = now+ . $step
-$end1 = now- . $step
-$end2 = now
-$end3 = now+ . $step
+$start1 = 1601481600000 -  $step
+$start2 = 1601481600000
+$start3 = 1601481600000 + $step
+$end1 = 1601481600000 -  $step
+$end2 = 1601481600000
+$end3 = 1601481600000 +  $step
 
 sql select * from $tb where ts < $start1 and ts > $end1
 if $rows != 0 then 

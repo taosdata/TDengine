@@ -31,8 +31,10 @@ while $i < $tbNum
   
   $x = 0
   while $x < $rowNum
-    $ms = $x . m 
-    sql insert into $tb values (now + $ms , $x ) 
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x ) 
     $x = $x + 1
   endw 
  
@@ -56,7 +58,9 @@ if $data05 != 1 then
 endi
 
 print =============== step3
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts < now + 4m interval(1m)
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms interval(1m)
 print ===> $rows
 if $rows > 10 then 
   return -1
@@ -72,7 +76,13 @@ if $data05 != 1 then
 endi
 
 print =============== step4
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts < now+40m and ts > now-1m interval(1m)
+$cc = 40 * 60000
+$ms = 1601481600000 + $cc
+
+$cc = 1 * 60000
+$ms2 = 1601481600000 - $cc
+
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m)
 print ===> $rows
 if $rows < 18 then 
   return -1
@@ -88,7 +98,13 @@ if $data05 != 1 then
 endi
 
 print =============== step5
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts < now+40m and ts > now+1m interval(1m) fill(value,0)
+$cc = 40 * 60000
+$ms = 1601481600000 + $cc
+
+$cc = 1 * 60000
+$ms2 = 1601481600000 - $cc
+
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
 print ===> $rows
 if $rows < 30 then 
   return -1
@@ -120,7 +136,9 @@ if $data11 < 5 then
 endi
 
 print =============== step7
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts < now + 4m interval(1m)
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms interval(1m)
 print ===> $rows
 if $rows < 3 then 
   return -1
@@ -136,7 +154,13 @@ if $data11 < 5 then
 endi
 
 print =============== step8
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts < now+40m and ts > now-1m interval(1m)
+$cc = 40 * 60000
+$ms1 = 1601481600000 + $cc
+
+$cc = 1 * 60000
+$ms2 = 1601481600000 - $cc
+
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m)
 print ===> $rows
 if $rows < 18 then 
   return -1
@@ -152,7 +176,13 @@ if $data11 < 5 then
 endi
 
 print =============== step9
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts < now+40m and ts > now+1m interval(1m) fill(value, 0)
+$cc = 40 * 60000
+$ms1 = 1601481600000 + $cc
+
+$cc = 1 * 60000
+$ms2 = 1601481600000 - $cc
+
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
 if $rows < 30 then 
   return -1
 endi
