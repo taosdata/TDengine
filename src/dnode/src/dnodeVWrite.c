@@ -24,8 +24,10 @@
 #include "twal.h"
 #include "tdataformat.h"
 #include "tglobal.h"
+#include "tsync.h"
 #include "vnode.h"
 #include "dnodeInt.h"
+#include "syncInt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMgmt.h"
 
@@ -239,6 +241,10 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->len = pWrite->contLen;
         dDebug("%p, rpc msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle,
                taosMsg[pWrite->rpcMsg.msgType]);
+      } else if (type == TAOS_QTYPE_CQ) {
+        pHead = (SWalHead *)((char*)item + sizeof(SSyncHead));
+        dTrace("%p, CQ wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType],
+               pHead->version);
       } else {
         pHead = (SWalHead *)item;
         dTrace("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType],
