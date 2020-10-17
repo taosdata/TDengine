@@ -1,4 +1,4 @@
-FROM ubuntu:16
+FROM ubuntu:20.04
 
 WORKDIR /root
 
@@ -7,7 +7,7 @@ RUN echo $version
 COPY tdengine.tar.gz /root/
 RUN tar -zxf tdengine.tar.gz
 WORKDIR /root/TDengine-server-$version/
-RUN sh install.sh -e no
+RUN /bin/bash install.sh -e no
 
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib"
