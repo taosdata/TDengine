@@ -20,6 +20,7 @@
 #include "exception.h"
 
 #include "../../query/inc/qAst.h"  // todo move to common module
+#include "../../query/inc/qExecutor.h"
 #include "tlosertree.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
@@ -203,8 +204,8 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
     goto out_of_memory;
   }
-
-  tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
+  SQInfo *pQInfo = (SQInfo *)(pQueryHandle->qinfo);
+  tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem, pQInfo->ref++ == 0);
 
   size_t sizeOfGroup = taosArrayGetSize(groupList->pGroupList);
   assert(sizeOfGroup >= 1 && pCond != NULL && pCond->numOfCols > 0);
@@ -1939,14 +1940,15 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       pSecQueryHandle->checkFiles  = true;
       pSecQueryHandle->activeIndex = 0;
       pSecQueryHandle->outputCapacity = ((STsdbRepo*)pSecQueryHandle->pTsdb)->config.maxRowsPerFileBlock;
+      pSecQueryHandle->qinfo       = pQueryHandle->qinfo; 
 
       if (tsdbInitReadHelper(&pSecQueryHandle->rhelper, (STsdbRepo*) pSecQueryHandle->pTsdb) != 0) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         free(pSecQueryHandle);
         return false;
       }
-
-      tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem);
+      SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo); 
+      tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem, (pQInfo->ref++ == 0));
 
       // allocate buffer in order to load data blocks from file
       int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
@@ -2707,7 +2709,8 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   taosTFree(pQueryHandle->statis);
 
   // todo check error
-  tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
+  SQInfo *qInfo = (SQInfo *)(pQueryHandle->qinfo);
+  tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem, --qInfo->ref == 0);
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
 

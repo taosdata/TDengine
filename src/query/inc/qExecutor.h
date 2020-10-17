@@ -190,6 +190,7 @@ typedef struct SQInfo {
   int32_t          code;   // error code to returned to client
   int64_t          owner; // if it is in execution
   void*            tsdb;
+  int32_t          ref;   // tsdb mem/immem ref count 
   int32_t          vgId;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure

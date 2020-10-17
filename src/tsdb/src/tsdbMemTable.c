@@ -171,30 +171,36 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   return 0;
 }
 
-int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
+int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem, bool ref) {
   if (tsdbLockRepo(pRepo) < 0) return -1;
+    *pMem = pRepo->mem;
+    *pIMem = pRepo->imem;
 
-  *pMem = pRepo->mem;
-  *pIMem = pRepo->imem;
-  tsdbRefMemTable(pRepo, *pMem);
-  tsdbRefMemTable(pRepo, *pIMem);
+    if (ref) {
+      tsdbRefMemTable(pRepo, *pMem);
+      tsdbRefMemTable(pRepo, *pIMem);
+    }
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
-  if (*pMem != NULL) taosRLockLatch(&((*pMem)->latch));
+  if (*pMem != NULL) {
+    if (ref) taosRLockLatch(&((*pMem)->latch));
+  }
 
   tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), *pMem, *pIMem);
   return 0;
 }
 
-void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) {
+void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem, bool unRef) {
   if (pMem != NULL) {
-    taosRUnLockLatch(&(pMem->latch));
-    tsdbUnRefMemTable(pRepo, pMem);
+    if (unRef) {
+      taosRUnLockLatch(&(pMem->latch));
+      tsdbUnRefMemTable(pRepo, pMem);
+    }
   }
 
   if (pIMem != NULL) {
-    tsdbUnRefMemTable(pRepo, pIMem);
+    if (unRef) tsdbUnRefMemTable(pRepo, pIMem);
   }
 }
 
