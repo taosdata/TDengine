@@ -203,7 +203,7 @@ static void taosGetSystemTimezone() {
   snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
   // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  uInfo("timezone not configured, set to system default:%s", tsTimezone);
+  uWarn("timezone not configured, set to system default:%s", tsTimezone);
 }
 
 /*
@@ -235,7 +235,7 @@ static void taosGetSystemLocale() {  // get and set default locale
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
       tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-      uError("locale not configured, set to system default:%s", tsLocale);
+      uWarn("locale not configured, set to system default:%s", tsLocale);
     }
   }
 

@@ -294,9 +294,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   st = taosGetTimestampUs();
 
-  TAOS_RES* pSql = taos_query(con, command);
-  atomic_store_ptr(&result, pSql);  // set the global TAOS_RES pointer
-
+  TAOS_RES* pSql = taos_query_h(con, command, &result);
   if (taos_errno(pSql)) {
     taos_error(pSql);
     return;

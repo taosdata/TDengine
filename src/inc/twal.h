@@ -51,6 +51,7 @@ int     walWrite(twalh, SWalHead *);
 void    walFsync(twalh);
 int     walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int     walGetWalFile(twalh, char *name, uint32_t *index);
+int64_t walGetVersion(twalh);
 
 extern int wDebugFlag;
 

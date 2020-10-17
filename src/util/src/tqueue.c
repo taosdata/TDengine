@@ -263,6 +263,7 @@ void taosCloseQset(taos_qset param) {
 // thread to exit.
 void taosQsetThreadResume(taos_qset param) {
   STaosQset *qset = (STaosQset *)param;
+  uDebug("qset:%p, it will exit", qset);
   tsem_post(&qset->sem);
 }
 
