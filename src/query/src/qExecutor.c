@@ -6692,12 +6692,12 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
   pQInfo->dataReady = QUERY_RESULT_READY;
   buildRes = (pQInfo->rspContext != NULL);
 
-  pthread_mutex_unlock(&pQInfo->lock);
-
-  // clear qhandle owner
+  // clear qhandle owner, it must be in the secure area. other thread may run ahead before current, after it is
+  // put into task to be executed.
   assert(pQInfo->owner == taosGetPthreadId());
   pQInfo->owner = 0;
 
+  pthread_mutex_unlock(&pQInfo->lock);
   return buildRes;
 }
 
