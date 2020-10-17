@@ -187,6 +187,7 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
 }
 
 void dnodeDispatchNonRspMsg(void *pVnode, SReadMsg *pRead, int32_t code) {
+  rpcFreeCont(pRead->rpcMsg.pCont);
   vnodeRelease(pVnode);
   return;
 }
@@ -198,7 +199,7 @@ static void *dnodeProcessReadQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(readQset, &type, (void **)&pReadMsg, &pVnode) == 0) {
-      dDebug("dnodeProcessReadQueee: got no message from qset, exiting...");
+      dDebug("qset:%p dnode read got no message from qset, exiting", readQset);
       break;
     }
 
