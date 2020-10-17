@@ -224,6 +224,9 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
       // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
       code = TSDB_CODE_QRY_HAS_RSP;
     } else {
+      void* h1 = qGetResultRetrieveMsg(*qhandle);
+      assert(h1 == NULL);
+
       freehandle = qQueryCompleted(*qhandle);
     }
 
