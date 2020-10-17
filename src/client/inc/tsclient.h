@@ -449,8 +449,8 @@ void tscCloseTscObj(STscObj *pObj);
 // todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
-void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res);
+void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
