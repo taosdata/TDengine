@@ -62,6 +62,7 @@ typedef struct {
 } SVnodeObj;
 
 int  vnodeWriteToQueue(void *param, void *pHead, int type);
+int  vnodeWriteCqMsgToQueue(void *param, void *pHead, int type);
 void vnodeInitWriteFp(void);
 void vnodeInitReadFp(void);
 
