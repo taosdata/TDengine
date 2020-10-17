@@ -1963,8 +1963,9 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       STimeWindow win = (STimeWindow) {pQueryHandle->window.skey, INT64_MAX};
       STsdbQueryCond cond = {
           .order = TSDB_ORDER_ASC,
-          .numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle)),
-          .twindow = win};
+          .numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle))
+        };
+      cond.twindow = win;
 
       cond.colList = calloc(cond.numOfCols, sizeof(SColumnInfo));
       if (cond.colList == NULL) {
