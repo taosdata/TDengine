@@ -24,7 +24,6 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "tlockfree.h"
 
 SRpcCorEpSet  tscMgmtEpSet;
@@ -198,15 +197,19 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     return;
   }
 
-  if (tscShouldFreeHeartBeat(pHB)) {
-    tscDebug("%p free HB object and release connection", pHB);
-    pObj->pHb = 0;
-    taos_free_result(pHB);
-  } else {
-    int32_t code = tscProcessSql(pHB);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
-    }
+  void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
+  if (p == NULL) {
+    tscWarn("%p HB object has been released already", pHB);
+    return;
+  }
+
+  assert(*pHB->self == pHB);
+
+  int32_t code = tscProcessSql(pHB);
+  taosCacheRelease(tscObjCache, (void**) &p, false);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
   }
 }
 
@@ -462,35 +465,6 @@ int tscProcessSql(SSqlObj *pSql) {
   }
   
   return doProcessSql(pSql);
-}
-
-void tscKillSTableQuery(SSqlObj *pSql) {
-  SSqlCmd* pCmd = &pSql->cmd;
-  
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    return;
-  }
-
-  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-
-  for (int i = 0; i < pSql->numOfSubs; ++i) {
-    // NOTE: pSub may have been released already here
-    SSqlObj *pSub = pSql->pSubs[i];
-    if (pSub == NULL) {
-      continue;
-    }
-
-    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSub->pRpcCtx != NULL) {
-      rpcCancelRequest(pSub->pRpcCtx);
-      pSub->pRpcCtx = NULL;
-    }
-
-    tscQueueAsyncRes(pSub); // async res? not other functions?
-  }
-
-  tscDebug("%p super table query cancelled", pSql);
 }
 
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -1451,7 +1425,7 @@ int tscProcessLocalRetrieveRsp(SSqlObj *pSql) {
 
 int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlCmd* pCmd = &pSql->cmd;
 
   int32_t code = pRes->code;
   if (pRes->code != TSDB_CODE_SUCCESS) {
@@ -1494,12 +1468,16 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMConnectMsg *pConnect = (SCMConnectMsg*)pCmd->payload;
 
+  // TODO refactor full_name
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
   db = (db == NULL) ? pObj->db : db + 1;
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
   tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
   tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
+
+  pConnect->pid = htonl(taosGetPId());
+  taosGetCurrentAPPName(pConnect->appName, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1653,6 +1631,10 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
   pHeartbeat->numOfQueries = numOfQueries;
   pHeartbeat->numOfStreams = numOfStreams;
+
+  pHeartbeat->pid = htonl(taosGetPId());
+  taosGetCurrentAPPName(pHeartbeat->appName, NULL);
+
   int msgLen = tscBuildQueryStreamDesc(pHeartbeat, pObj);
 
   pthread_mutex_unlock(&pObj->mutex);

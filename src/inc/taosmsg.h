@@ -59,7 +59,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY5, "dummy5" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_MNODE, "create-mnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
 
@@ -305,6 +305,8 @@ typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char msgVersion[TSDB_VERSION_LEN];
   char db[TSDB_TABLE_FNAME_LEN];
+  char appName[TSDB_APPNAME_LEN];
+  int32_t pid;
 } SCMConnectMsg;
 
 typedef struct {
@@ -721,6 +723,12 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
+  char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
+  SDMMnodeInfos mnodes;
+} SMDCreateMnodeMsg;
+
+typedef struct {
+  int32_t dnodeId;
   int32_t vgId;
   int32_t sid;
 } SDMConfigTableMsg;
@@ -740,6 +748,7 @@ typedef struct {
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
+  uint64_t qHandle;
 } SQueryDesc;
 
 typedef struct {
@@ -755,8 +764,10 @@ typedef struct {
 
 typedef struct {
   uint32_t connId;
+  int32_t  pid;
   int32_t  numOfQueries;
   int32_t  numOfStreams;
+  char     appName[TSDB_APPNAME_LEN];
   char     pData[];
 } SCMHeartBeatMsg;
 

@@ -33,7 +33,8 @@ typedef struct {
 } SMReadWorker;
 
 typedef struct {
-  int32_t       num;
+  int32_t curNum;
+  int32_t maxNum;
   SMReadWorker *readWorker;
 } SMReadWorkerPool;
 
@@ -46,40 +47,46 @@ static void *dnodeProcessMnodeReadQueue(void *param);
 int32_t dnodeInitMnodeRead() {
   tsMReadQset = taosOpenQset();
 
-  tsMReadPool.num = tsNumOfCores * tsNumOfThreadsPerCore / 2;
-  tsMReadPool.num = MAX(2, tsMReadPool.num);
-  tsMReadPool.num = MIN(4, tsMReadPool.num);
-  tsMReadPool.readWorker = (SMReadWorker *)calloc(sizeof(SMReadWorker), tsMReadPool.num);
+  tsMReadPool.maxNum = tsNumOfCores * tsNumOfThreadsPerCore / 2;
+  tsMReadPool.maxNum = MAX(2, tsMReadPool.maxNum);
+  tsMReadPool.maxNum = MIN(4, tsMReadPool.maxNum);
+  tsMReadPool.curNum = 0;
+  tsMReadPool.readWorker = (SMReadWorker *)calloc(sizeof(SMReadWorker), tsMReadPool.maxNum);
 
   if (tsMReadPool.readWorker == NULL) return -1;
-  for (int32_t i = 0; i < tsMReadPool.num; ++i) {
+  for (int32_t i = 0; i < tsMReadPool.maxNum; ++i) {
     SMReadWorker *pWorker = tsMReadPool.readWorker + i;
     pWorker->workerId = i;
+    dDebug("dnode mread worker:%d is created", i);
   }
 
-  dInfo("dnode mread is opened");
+  dDebug("dnode mread is opened, workers:%d qset:%p", tsMReadPool.maxNum, tsMReadQset);
   return 0;
 }
 
 void dnodeCleanupMnodeRead() {
-  for (int32_t i = 0; i < tsMReadPool.num; ++i) {
+  for (int32_t i = 0; i < tsMReadPool.maxNum; ++i) {
     SMReadWorker *pWorker = tsMReadPool.readWorker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(tsMReadQset);
     }
+    dDebug("dnode mread worker:%d is closed", i);
   }
 
-  for (int32_t i = 0; i < tsMReadPool.num; ++i) {
+  for (int32_t i = 0; i < tsMReadPool.maxNum; ++i) {
     SMReadWorker *pWorker = tsMReadPool.readWorker + i;
+    dDebug("dnode mread worker:%d start to join", i);
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
     }
+    dDebug("dnode mread worker:%d start to join", i);
   }
 
-  taosCloseQset(tsMReadQset);
-  free(tsMReadPool.readWorker);
+  dDebug("dnode mread is closed, qset:%p", tsMReadQset);
 
-  dInfo("dnode mread is closed");
+  taosCloseQset(tsMReadQset);
+  tsMReadQset = NULL;
+  free(tsMReadPool.readWorker);
 }
 
 int32_t dnodeAllocateMnodeRqueue() {
@@ -88,7 +95,7 @@ int32_t dnodeAllocateMnodeRqueue() {
 
   taosAddIntoQset(tsMReadQset, tsMReadQueue, NULL);
 
-  for (int32_t i = 0; i < tsMReadPool.num; ++i) {
+  for (int32_t i = tsMReadPool.curNum; i < tsMReadPool.maxNum; ++i) {
     SMReadWorker *pWorker = tsMReadPool.readWorker + i;
     pWorker->workerId = i;
 
@@ -101,7 +108,8 @@ int32_t dnodeAllocateMnodeRqueue() {
     }
 
     pthread_attr_destroy(&thAttr);
-    dDebug("dnode mread worker:%d is launched, total:%d", pWorker->workerId, tsMReadPool.num);
+    tsMReadPool.curNum = i + 1;
+    dDebug("dnode mread worker:%d is launched, total:%d", pWorker->workerId, tsMReadPool.maxNum);
   }
 
   dDebug("dnode mread queue:%p is allocated", tsMReadQueue);
@@ -109,6 +117,7 @@ int32_t dnodeAllocateMnodeRqueue() {
 }
 
 void dnodeFreeMnodeRqueue() {
+  dDebug("dnode mread queue:%p is freed", tsMReadQueue);
   taosCloseQueue(tsMReadQueue);
   tsMReadQueue = NULL;
 }
@@ -156,7 +165,7 @@ static void *dnodeProcessMnodeReadQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMReadQset, &type, (void **)&pReadMsg, &unUsed) == 0) {
-      dDebug("dnodeProcessMnodeReadQueue: got no message from qset, exiting...");
+      dDebug("qset:%p, mnode read got no message from qset, exiting", tsMReadQset);
       break;
     }
 

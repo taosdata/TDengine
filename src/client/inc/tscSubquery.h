@@ -28,7 +28,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql);
 void tscSetupOutputColumnIndex(SSqlObj* pSql);
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
-SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
+SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index);
 
 void tscHandleMasterJoinQuery(SSqlObj* pSql);
 

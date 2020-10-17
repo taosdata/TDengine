@@ -32,8 +32,10 @@ while $i < $tbNum
   
   $x = 0
   while $x < $rowNum
-    $ms = $x . m 
-    sql insert into $tb values (now + $ms , $x ) 
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x ) 
     $x = $x + 1
   endw 
  
@@ -53,7 +55,10 @@ if $data00 != 0 then
 endi
 
 print =============== step3
-sql select min(tbcol) from $tb where ts < now + 4m
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select min(tbcol) from $tb where ts < $ms
 print ===> $data00
 if $data00 != 0 then 
   return -1
@@ -80,7 +85,11 @@ if $data01 != 0 then
 endi
 
 print =============== step6
-sql select min(tbcol) as b from $tb where ts < now + 4m interval(1m)
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select min(tbcol) as b from $tb where ts <= $ms interval(1m)
+print select min(tbcol) as b from $tb where ts <= $ms interval(1m)
 print ===> $data11
 if $data11 != 1 then 
   return -1
@@ -97,7 +106,9 @@ if $data00 != 0 then
 endi
 
 print =============== step8
-sql select min(tbcol) as c from $mt where ts < now + 4m
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select min(tbcol) as c from $mt where ts < $ms
 print ===> $data00
 if $data00 != 0 then 
   return -1
@@ -109,7 +120,9 @@ if $data00 != 0 then
   return -1
 endi
 
-sql select min(tbcol) as c from $mt where tgcol < 5 and ts < now + 4m
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select min(tbcol) as c from $mt where tgcol < 5 and ts <= $ms
 print ===> $data00
 if $data00 != 0 then 
   return -1
@@ -140,7 +153,9 @@ if $rows != $tbNum then
 endi
 
 print =============== step11
-sql select min(tbcol) as b from $mt  where ts < now + 4m interval(1m) group by tgcol
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select min(tbcol) as b from $mt  where ts <= $ms interval(1m) group by tgcol
 print ===> $data11
 if $data11 != 1 then 
   return -1

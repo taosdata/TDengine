@@ -40,7 +40,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* param, const char* sqlstr, size_t sqlLen) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   pSql->signature = pSql;
@@ -361,15 +361,6 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   (*pSql->fetchFp)(pSql->param, pSql, pRes->tsrow);
 }
 
-void tscProcessAsyncRes(SSchedMsg *pMsg) {
-  SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  SSqlRes *pRes = &pSql->res;
-  assert(pSql->fp != NULL && pSql->fetchFp != NULL);
-
-  pSql->fp = pSql->fetchFp;
-  (*pSql->fp)(pSql->param, pSql, pRes->code);
-}
-
 // this function will be executed by queue task threads, so the terrno is not valid
 static void tscProcessAsyncError(SSchedMsg *pMsg) {
   void (*fp)() = pMsg->ahandle;
@@ -393,22 +384,15 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
-  } else {
-    tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
   }
 
-  SSchedMsg schedMsg = { 0 };
-  schedMsg.fp = tscProcessAsyncRes;
-  schedMsg.ahandle = pSql;
-  schedMsg.thandle = (void *)1;
-  schedMsg.msg = NULL;
-  taosScheduleTask(tscQhandle, &schedMsg);
-}
+  tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
 
-void tscProcessAsyncFree(SSchedMsg *pMsg) {
-  SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  tscDebug("%p sql is freed", pSql);
-  taos_free_result(pSql);
+  SSqlRes *pRes = &pSql->res;
+  assert(pSql->fp != NULL && pSql->fetchFp != NULL);
+
+  pSql->fp = pSql->fetchFp;
+  (*pSql->fp)(pSql->param, pSql, pRes->code);
 }
 
 int tscSendMsgToServer(SSqlObj *pSql);
