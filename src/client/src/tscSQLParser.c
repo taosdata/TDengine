@@ -626,6 +626,11 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
     return TSDB_CODE_SUCCESS;
   }
 
+  // orderby column not set yet, set it to be the primary timestamp column
+  if (pQueryInfo->order.orderColId == INT32_MIN) {
+    pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+  }
+
   // interval is not null
   SStrToken* t = &pQuerySql->interval;
   if (parseNatualDuration(t->z, t->n, &pQueryInfo->interval.interval, &pQueryInfo->interval.intervalUnit) != TSDB_CODE_SUCCESS) {
@@ -4387,7 +4392,11 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   pQueryInfo->order.order = TSDB_ORDER_ASC;
-  pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+  if (isTopBottomQuery(pQueryInfo)) {
+    pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+  } else { // in case of select tbname from super_table, the defualt order column can not be the primary ts column
+    pQueryInfo->order.orderColId = INT32_MIN;
+  }
 
   /* for super table query, set default ascending order for group output */
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -6290,6 +6299,11 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
+  // set order by info
+  if (parseOrderbyClause(pCmd, pQueryInfo, pQuerySql, tscGetTableSchema(pTableMetaInfo->pTableMeta)) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
   // set interval value
   if (parseIntervalClause(pCmd, pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -6298,11 +6312,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
         (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
-  }
-
-  // set order by info
-  if (parseOrderbyClause(pCmd, pQueryInfo, pQuerySql, tscGetTableSchema(pTableMetaInfo->pTableMeta)) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   // user does not specified the query time window, twa is not allowed in such case.

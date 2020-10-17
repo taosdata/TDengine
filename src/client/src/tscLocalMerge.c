@@ -609,7 +609,6 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
 
   // disable merge procedure for column projection query
   int16_t functionId = pReducer->pCtx[0].functionId;
-  assert(functionId != TSDB_FUNC_ARITHM);
   if (pReducer->orderPrjOnSTable) {
     return true;
   }
@@ -721,12 +720,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     int16_t type = -1;
     int16_t bytes = 0;
 
-    //    if ((pExpr->functionId >= TSDB_FUNC_FIRST_DST && pExpr->functionId <= TSDB_FUNC_LAST_DST) ||
-    //        (pExpr->functionId >= TSDB_FUNC_SUM && pExpr->functionId <= TSDB_FUNC_MAX) ||
-    //        pExpr->functionId == TSDB_FUNC_LAST_ROW) {
     // the final result size and type in the same as query on single table.
     // so here, set the flag to be false;
-
     int32_t functionId = pExpr->functionId;
     if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
       type = pModel->pFields[i].field.type;
