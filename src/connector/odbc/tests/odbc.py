@@ -43,13 +43,10 @@ cursor = cnxn.cursor()
 cursor.execute("insert into db.t values('2020-10-13 06:44:00', 1, 127, 32767, 32768, 32769, 123.456, 789.987, 'hello', 'world')")
 cursor.close()
 
-print("hhhhhhhhhhhhhhhhhhhhhh")
-
 cursor = cnxn.cursor()
-cursor.execute("insert into db.t values(?,?,?,?,?,?,?,?,?,?)", "2020-10-13 07:06:00", 0, 229, 32767, 32768, 32769, 123.456, 789.987, "hel后lo", "wo哈rld");
+cursor.execute("insert into db.t values(?,?,?,?,?,?,?,?,?,?)", "2020-10-13 07:06:00", 0, 127, 32767, 32768, 32769, 123.456, 789.987, "hel后lo", "wo哈rld");
 cursor.close()
 
-print("hhhhhhhhhhhhhhhhhhhhhh")
 cursor = cnxn.cursor()
 cursor.execute("SELECT * from db.t")
 row = cursor.fetchone()
@@ -91,7 +88,7 @@ params = [ ('A', 1), ('B', 2), ('C', 3) ]
 params = [ ('2020-10-16 00:00:00', 1),
            ('2020-10-16 00:00:01', 4),
            ('2020-10-16 00:00:02', 5),
-           ('2020-10-16 00:00:03', 6) ]
+           ('2020-10-16 00:00:03.009', 6) ]
 cursor = cnxn.cursor()
 cursor.fast_executemany = True
 cursor.executemany("insert into db.v values (?, ?)", params)

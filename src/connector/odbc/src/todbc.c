@@ -143,6 +143,19 @@ do {                                                  \
   D("%s: elapsed: [%.6f]s", #statement, delta);       \
 } while (0)
 
+
+#define CHK_CONV(statement)                                                                \
+do {                                                                                       \
+  const char *sqlstate = statement;                                                        \
+  if (sqlstate) {                                                                          \
+    SET_ERROR(sql, sqlstate, TSDB_CODE_ODBC_OUT_OF_RANGE,                                  \
+              "no convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d]",      \
+              sql_c_type(valueType), valueType, valueType,                                 \
+              taos_data_type(type), type, type, idx+1);                                    \
+    return SQL_ERROR;                                                                      \
+  }                                                                                        \
+} while (0)
+
 typedef struct env_s             env_t;
 typedef struct conn_s            conn_t;
 typedef struct sql_s             sql_t;
@@ -541,7 +554,6 @@ static SQLRETURN doSQLFreeStmt(SQLHSTMT StatementHandle,
   }
   sql->n_params = 0;
 
-
   DASSERT(DEC_REF(sql->conn)>0);
   DASSERT(DEC_REF(sql)==0);
 
@@ -796,10 +808,10 @@ static SQLRETURN conv_tsdb_f4_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 static SQLRETURN conv_tsdb_f8_to_c_double(sql_t *sql, c_target_t *target, TAOS_FIELD *field, double f8);
 static SQLRETURN conv_tsdb_f8_to_c_char(sql_t *sql, c_target_t *target, TAOS_FIELD *field, double f8);
 static SQLRETURN conv_tsdb_f8_to_c_binary(sql_t *sql, c_target_t *target, TAOS_FIELD *field, double f8);
-static SQLRETURN conv_tsdb_ts_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts);
-static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts);
-static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts);
-static SQLRETURN conv_tsdb_ts_to_c_ts(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts);
+static SQLRETURN conv_tsdb_ts_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts);
+static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts);
+static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts);
+static SQLRETURN conv_tsdb_ts_to_c_ts(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts);
 static SQLRETURN conv_tsdb_bin_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const unsigned char *bin);
 static SQLRETURN conv_tsdb_bin_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const unsigned char *bin);
 static SQLRETURN conv_tsdb_str_to_c_bit(sql_t *sql, c_target_t *target, TAOS_FIELD *field, const char *str);
@@ -987,7 +999,7 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
       }
 		} break;
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      TIMESTAMP_STRUCT ts = {0};
+      SQL_TIMESTAMP_STRUCT ts = {0};
       int64_t v = *(int64_t*)row;
       time_t t = v/1000;
       struct tm tm = {0};
@@ -998,7 +1010,7 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
       ts.hour     = tm.tm_hour;
       ts.minute   = tm.tm_min;
       ts.second   = tm.tm_sec;
-      ts.fraction = v%1000;
+      ts.fraction = v%1000 * 1000000;
       switch (target.ct) {
         case SQL_C_SBIGINT:   return conv_tsdb_ts_to_c_v8(sql, &target, field, &ts);
         case SQL_C_CHAR:      return conv_tsdb_ts_to_c_str(sql, &target, field, &ts);
@@ -1269,10 +1281,10 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
       bind->length = &bind->buffer_length;
       switch (valueType) {
         case SQL_C_LONG: {
-          bind->u.b = *(int32_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_bit(*(int32_t*)paramValue, &bind->u.b));
         } break;
         case SQL_C_BIT: {
-          bind->u.b = *(int8_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_bit(*(int8_t*)paramValue, &bind->u.b));
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1313,16 +1325,16 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
       bind->length = &bind->buffer_length;
       switch (valueType) {
         case SQL_C_TINYINT: {
-          bind->u.v1 = *(int8_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_tinyint(*(int8_t*)paramValue, &bind->u.v1));
         } break;
         case SQL_C_SHORT: {
-          bind->u.v1 = *(int16_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_tinyint(*(int16_t*)paramValue, &bind->u.v1));
         } break;
         case SQL_C_LONG: {
-          bind->u.v1 = *(int32_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_tinyint(*(int32_t*)paramValue, &bind->u.v1));
         } break;
         case SQL_C_SBIGINT: {
-          bind->u.v1 = *(int64_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_tinyint(*(int64_t*)paramValue, &bind->u.v1));
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1361,10 +1373,10 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
       bind->length = &bind->buffer_length;
       switch (valueType) {
         case SQL_C_LONG: {
-          bind->u.v2 = *(int32_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_smallint(*(int32_t*)paramValue, &bind->u.v2));
         } break;
         case SQL_C_SHORT: {
-          bind->u.v2 = *(int16_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_smallint(*(int16_t*)paramValue, &bind->u.v2));
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1405,7 +1417,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
       bind->length = &bind->buffer_length;
       switch (valueType) {
         case SQL_C_LONG: {
-          bind->u.v4 = *(int32_t*)paramValue;
+          CHK_CONV(tsdb_int64_to_int(*(int32_t*)paramValue, &bind->u.v4));
         } break;
         case SQL_C_CHAR:
         case SQL_C_WCHAR:
@@ -1635,13 +1647,20 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           DASSERT(soi);
           DASSERT(*soi != SQL_NTS);
           size_t bytes = 0;
+          int r = 0;
+          int64_t t = 0;
           SQLCHAR *utf8 = wchars_to_chars(paramValue, *soi/2, &bytes);
-          struct tm tm = {0};
-          strptime((const char*)utf8, "%Y-%m-%d %H:%M:%S", &tm);
-          int64_t t = (int64_t)mktime(&tm);
-          t *= 1000;
+          // why cast utf8 to 'char*' ?
+          r = taosParseTime((char*)utf8, &t, strlen((const char*)utf8), TSDB_TIME_PRECISION_MILLI, 0);
           bind->u.v8 = t;
           free(utf8);
+          if (r) {
+            SET_ERROR(sql, "22007", TSDB_CODE_ODBC_OUT_OF_RANGE,
+                      "convertion from [%s[%d/0x%x]] to [%s[%d/0x%x]] for parameter [%d] failed",
+                      sql_c_type(valueType), valueType, valueType,
+                      taos_data_type(type), type, type, idx+1);
+            return SQL_ERROR;
+          }
         } break;
         case SQL_C_SBIGINT: {
           int64_t t = *(int64_t*)paramValue;
@@ -2152,23 +2171,24 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
   if (ColumnSize) {
     *ColumnSize = field->bytes;
   }
+  if (DecimalDigits) *DecimalDigits = 0;
 
   if (DataType) {
     switch (field->type) {
       case TSDB_DATA_TYPE_BOOL: {
-        *DataType = SQL_C_TINYINT;
+        *DataType = SQL_TINYINT;
       }  break;
 
       case TSDB_DATA_TYPE_TINYINT: {
-        *DataType = SQL_C_TINYINT;
+        *DataType = SQL_TINYINT;
       } break;
 
       case TSDB_DATA_TYPE_SMALLINT: {
-        *DataType = SQL_C_SHORT;
+        *DataType = SQL_SMALLINT;
       } break;
 
       case TSDB_DATA_TYPE_INT: {
-        *DataType = SQL_C_LONG;
+        *DataType = SQL_INTEGER;
       } break;
 
       case TSDB_DATA_TYPE_BIGINT: {
@@ -2176,24 +2196,29 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
       } break;
 
       case TSDB_DATA_TYPE_FLOAT: {
-        *DataType = SQL_C_FLOAT;
+        *DataType = SQL_FLOAT;
       } break;
 
       case TSDB_DATA_TYPE_DOUBLE: {
-        *DataType = SQL_C_DOUBLE;
+        *DataType = SQL_DOUBLE;
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP: {
-        *DataType = SQL_C_TIMESTAMP;
+        // *DataType = SQL_TIMESTAMP;
+        // *ColumnSize = 30;
+        // *DecimalDigits = 3;
+        *DataType = SQL_TIMESTAMP;
+        *ColumnSize = sizeof(SQL_TIMESTAMP_STRUCT);
+        *DecimalDigits = 0;
       } break;
 
       case TSDB_DATA_TYPE_NCHAR: {
-        *DataType = SQL_C_CHAR; // unicode ?
+        *DataType = SQL_CHAR; // unicode ?
         if (ColumnSize) *ColumnSize -= VARSTR_HEADER_SIZE;
       } break;
 
       case TSDB_DATA_TYPE_BINARY: {
-        *DataType = SQL_C_BINARY;
+        *DataType = SQL_BINARY;
         if (ColumnSize) *ColumnSize -= VARSTR_HEADER_SIZE;
       } break;
 
@@ -2202,13 +2227,6 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
                   "unknown [%s[%d/0x%x]]", taos_data_type(field->type), field->type, field->type);
         return SQL_ERROR;
         break;
-    }
-  }
-  if (DecimalDigits) {
-    if (field->type == TSDB_DATA_TYPE_TIMESTAMP) {
-      *DecimalDigits = 3;
-    } else {
-      *DecimalDigits = 0;
     }
   }
   if (Nullable) {
@@ -2336,10 +2354,6 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
   r = doSQLSetStmtAttr(StatementHandle, Attribute, Value, StringLength);
   return r;
 }
-
-
-
-
 
 
 
@@ -2763,7 +2777,7 @@ static SQLRETURN conv_tsdb_f8_to_c_binary(sql_t *sql, c_target_t *target, TAOS_F
 }
 
 
-static SQLRETURN conv_tsdb_ts_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts)
+static SQLRETURN conv_tsdb_ts_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts)
 {
   struct tm tm = {0};
   tm.tm_sec        = ts->second;
@@ -2776,12 +2790,12 @@ static SQLRETURN conv_tsdb_ts_to_c_v8(sql_t *sql, c_target_t *target, TAOS_FIELD
   DASSERT(sizeof(t) == sizeof(int64_t));
   int64_t v = (int64_t)t;
   v *= 1000;
-  v += ts->fraction % 1000;
+  v += ts->fraction / 1000000;
   memcpy(target->ptr, &v, sizeof(v));
   return SQL_SUCCESS;
 }
 
-static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts)
+static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts)
 {
   struct tm tm = {0};
   tm.tm_sec        = ts->second;
@@ -2797,7 +2811,10 @@ static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIEL
 
   *target->soi = n;
 
-  snprintf(target->ptr, target->len, "%s.%03d", buf, ts->fraction);
+  unsigned int fraction = ts->fraction;
+  fraction /= 1000000;
+  snprintf(target->ptr, target->len, "%s.%03d", buf, fraction);
+  if (target->soi) *target->soi = strlen((const char*)target->ptr);
 
   if (n <= target->len) {
     return SQL_SUCCESS;
@@ -2807,7 +2824,7 @@ static SQLRETURN conv_tsdb_ts_to_c_str(sql_t *sql, c_target_t *target, TAOS_FIEL
   return SQL_SUCCESS_WITH_INFO;
 }
 
-static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts)
+static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts)
 {
   struct tm tm = {0};
   tm.tm_sec        = ts->second;
@@ -2821,9 +2838,10 @@ static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIEL
   int n = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
   DASSERT(n < sizeof(buf));
 
-  *target->soi = n;
-
-  memcpy(target->ptr, buf, (n>target->len ? target->len : n));
+  unsigned int fraction = ts->fraction;
+  fraction /= 1000000;
+  snprintf(target->ptr, target->len, "%s.%03d", buf, fraction);
+  if (target->soi) *target->soi = strlen((const char*)target->ptr);
 
   if (n <= target->len) {
     return SQL_SUCCESS;
@@ -2833,9 +2851,11 @@ static SQLRETURN conv_tsdb_ts_to_c_bin(sql_t *sql, c_target_t *target, TAOS_FIEL
   return SQL_SUCCESS_WITH_INFO;
 }
 
-static SQLRETURN conv_tsdb_ts_to_c_ts(sql_t *sql, c_target_t *target, TAOS_FIELD *field, TIMESTAMP_STRUCT *ts)
+static SQLRETURN conv_tsdb_ts_to_c_ts(sql_t *sql, c_target_t *target, TAOS_FIELD *field, SQL_TIMESTAMP_STRUCT *ts)
 {
+  DASSERT(target->len == sizeof(*ts));
   memcpy(target->ptr, ts, sizeof(*ts));
+  *target->soi = target->len;
   return SQL_SUCCESS;
 }
 
@@ -3107,21 +3127,21 @@ const char* tsdb_int64_to_bit(int64_t src, int8_t *dst)
 const char* tsdb_int64_to_tinyint(int64_t src, int8_t *dst)
 {
   *dst = src;
-  if (src>=SCHAR_MIN || src<=SCHAR_MAX) return SQL_SUCCESS;
+  if (src>=SCHAR_MIN && src<=SCHAR_MAX) return NULL;
   return "22003";
 }
 
 const char* tsdb_int64_to_smallint(int64_t src, int16_t *dst)
 {
   *dst = src;
-  if (src>=SHRT_MIN || src<=SHRT_MAX) return SQL_SUCCESS;
+  if (src>=SHRT_MIN && src<=SHRT_MAX) return NULL;
   return "22003";
 }
 
 const char* tsdb_int64_to_int(int64_t src, int32_t *dst)
 {
   *dst = src;
-  if (src>=LONG_MIN || src<=LONG_MAX) return SQL_SUCCESS;
+  if (src>=LONG_MIN && src<=LONG_MAX) return NULL;
   return "22003";
 }
 
