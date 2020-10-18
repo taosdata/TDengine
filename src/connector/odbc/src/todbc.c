@@ -1771,7 +1771,7 @@ static SQLRETURN do_bind_batch(sql_t *sql, int idx_row, TAOS_BIND *binds)
   return SQL_SUCCESS;
 }
 
-static SQLRETURN do_execute(sql_t *sql, TAOS_BIND *x_binds)
+static SQLRETURN do_execute(sql_t *sql)
 {
   int tr = TSDB_CODE_SUCCESS;
   if (sql->n_rows==0) sql->n_rows = 1;
@@ -1836,27 +1836,7 @@ static SQLRETURN doSQLExecute(SQLHSTMT StatementHandle)
     sql->row = NULL;
   }
 
-  TAOS_BIND *binds       = NULL;
-  if (sql->n_params>0) {
-    binds = (TAOS_BIND*)calloc(sql->n_params, sizeof(*binds));
-    if (!binds) {
-      SET_ERROR(sql, "HY001", TSDB_CODE_ODBC_OOM, "");
-      return SQL_ERROR;
-    }
-  }
-
-  SQLRETURN r = do_execute(sql, binds);
-
-  if (binds) {
-    for (int i = 0; i<sql->n_params; ++i) {
-      TAOS_BIND *bind = binds + i;
-      if (bind->allocated) {
-        free(bind->u.nchar);
-        bind->u.nchar = NULL;
-      }
-    }
-    free(binds);
-  }
+  SQLRETURN r = do_execute(sql);
 
   return r;
 }
