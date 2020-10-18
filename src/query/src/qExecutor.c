@@ -6699,6 +6699,8 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
   pQInfo->owner = 0;
 
   pthread_mutex_unlock(&pQInfo->lock);
+
+  tsem_post(&pQInfo->ready);
   return buildRes;
 }
 
@@ -6767,13 +6769,16 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   }
 
   *buildRes = false;
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   if (IS_QUERY_KILLED(pQInfo)) {
     qDebug("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
     return pQInfo->code;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+
+#if 0
+  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+
   pthread_mutex_lock(&pQInfo->lock);
   assert(pQInfo->rspContext == NULL);
 
@@ -6790,6 +6795,12 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
   code = pQInfo->code;
   pthread_mutex_unlock(&pQInfo->lock);
+#else
+  tsem_wait(&pQInfo->ready);
+  *buildRes = true;
+  code = pQInfo->code;
+#endif
+
   return code;
 }
 

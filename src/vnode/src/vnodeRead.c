@@ -14,7 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-//#include <dnode.h>
+#define _NON_BLOCKING_RETRIEVE  0
+
 #include "os.h"
 
 #include "tglobal.h"
@@ -206,6 +207,8 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
     vDebug("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
+
+#if _NON_BLOCKING_RETRIEVE
     bool freehandle = false;
     bool buildRes = qTableQuery(*qhandle);  // do execute query
 
@@ -235,6 +238,9 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (freehandle || (!buildRes)) {
       qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
     }
+#else
+    qTableQuery(*qhandle);  // do execute query
+#endif
   }
 
   return code;
@@ -294,12 +300,15 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
     freeHandle = true;
   } else {  // result is not ready, return immediately
+    assert(buildRes == true);
+#if _NON_BLOCKING_RETRIEVE
     if (!buildRes) {
       assert(pReadMsg->rpcMsg.handle != NULL);
 
       qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
       return TSDB_CODE_QRY_NOT_READY;
     }
+#endif
 
     // ahandle is the sqlObj pointer
     code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle, pReadMsg->rpcMsg.ahandle);
