@@ -184,6 +184,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          0, 0x0403, "Invalid me
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_DISK_TIER,        0, 0x0404, "Invalid disk tier setting")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_TOO_MANY_DISKS,           0, 0x0405, "Too many disks in one tier")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_DISK_ALREADY_EXISTS,      0, 0x0406, "Disk already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_DISK_NOT_DIRECTORY,       0, 0x0407, "Disk is not a directory")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_DISK_SPACE,            0, 0x0408, "Dnode no disk space")
 
 // vnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "Action in progress")
