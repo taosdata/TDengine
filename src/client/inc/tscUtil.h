@@ -231,10 +231,11 @@ int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
-
-void tscAddTimestampColumn(SQueryInfo* pQueryInfo, int16_t functionId, int16_t tableIndex);
 void tscDoQuery(SSqlObj* pSql);
 
+SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
+void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
+void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src);
 /**
  * The create object function must be successful expect for the out of memory issue.
  *

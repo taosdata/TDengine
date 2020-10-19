@@ -1472,7 +1472,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
   // reserve space
-  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupInfo) + sizeof(SVgroupsMsg); 
+  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupMsg) + sizeof(SVgroupsMsg);
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN) * i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
@@ -1521,6 +1521,8 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
         if (pVgroup == NULL) continue;
 
         pVgroupMsg->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
+        pVgroupMsg->vgroups[vgSize].numOfEps = 0;
+
         for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
           SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
           if (pDnode == NULL) break;

@@ -124,9 +124,11 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    taosTFree(pVgroupInfo->epAddr[i].fqdn);
+    pVgroupInfo->epAddr[i].fqdn = strndup(pEpSet->fqdn[i], tListLen(pEpSet->fqdn[i]));
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
+
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
@@ -1852,15 +1854,15 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
       //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
 
-      SCMVgroupMsg *vgroupMsg = &pVgroupMsg->vgroups[j];
-      pVgroups->vgId = htonl(vgroupMsg->vgId);
-      pVgroups->numOfEps = vgroupMsg->numOfEps;
+      SCMVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
+      pVgroups->vgId = htonl(vmsg->vgId);
+      pVgroups->numOfEps = vmsg->numOfEps;
 
       assert(pVgroups->numOfEps >= 1 && pVgroups->vgId >= 1);
 
       for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
-        pVgroups->epAddr[k].port = htons(vgroupMsg->epAddr[k].port);
-        pVgroups->epAddr[k].fqdn = strndup(vgroupMsg->epAddr[k].fqdn, tListLen(vgroupMsg->epAddr[k].fqdn));
+        pVgroups->epAddr[k].port = htons(vmsg->epAddr[k].port);
+        pVgroups->epAddr[k].fqdn = strndup(vmsg->epAddr[k].fqdn, tListLen(vmsg->epAddr[k].fqdn));
       }
     }
 

@@ -115,7 +115,7 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   
   // for select query super table, the super table vgroup list can not be null in any cases.
   if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    assert(pTableMetaInfo->vgroupList != NULL);
+//    assert(pTableMetaInfo->vgroupList != NULL);  // if retrieve vgroupInfo failed, the value may be null
   }
   
   if ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE) {
@@ -405,6 +405,24 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   if (ref == 0) {
     tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
     tscCloseTscObj(pTscObj);
+  }
+}
+
+void tscFreeTableMetaHelper(void *pTableMeta) {
+  STableMeta* p = (STableMeta*) pTableMeta;
+
+  int32_t numOfEps = p->vgroupInfo.numOfEps;
+  assert(numOfEps >= 0 && numOfEps <= TSDB_MAX_REPLICA);
+
+  for(int32_t i = 0; i < numOfEps; ++i) {
+    taosTFree(p->vgroupInfo.epAddr[i].fqdn);
+  }
+
+  int32_t numOfEps1 = p->corVgroupInfo.numOfEps;
+  assert(numOfEps1 >= 0 && numOfEps1 <= TSDB_MAX_REPLICA);
+
+  for(int32_t i = 0; i < numOfEps1; ++i) {
+    taosTFree(p->corVgroupInfo.epAddr[i].fqdn);
   }
 }
 
@@ -1682,8 +1700,14 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd) {
 
 void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
   if (pVgroupTables != NULL) {
-    for (size_t i = 0; i < taosArrayGetSize(pVgroupTables); i++) {
+    size_t num = taosArrayGetSize(pVgroupTables);
+    for (size_t i = 0; i < num; i++) {
       SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
+
+      for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+        taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
+      }
+
       taosArrayDestroy(pInfo->itemList);
     }
     taosArrayDestroy(pVgroupTables);
@@ -1695,6 +1719,7 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool rem
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
+
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscClearTableMetaInfo(pTableMetaInfo, removeFromCache);
     free(pTableMetaInfo);
@@ -1727,13 +1752,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   pTableMetaInfo->pTableMeta = pTableMeta;
   
   if (vgroupList != NULL) {
-    size_t size = sizeof(SVgroupsInfo) + sizeof(SCMVgroupInfo) * vgroupList->numOfVgroups;
-    pTableMetaInfo->vgroupList = malloc(size);
-    if (pTableMetaInfo->vgroupList == NULL) {
-      return NULL;
-    }
-
-    memcpy(pTableMetaInfo->vgroupList, vgroupList, size);
+    pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
   }
 
   pTableMetaInfo->tagColList = taosArrayInit(4, POINTER_BYTES);
@@ -1762,8 +1781,7 @@ void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
     taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
   }
 
-  taosTFree(pTableMetaInfo->vgroupList);
-  
+  pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
   tscColumnListDestroy(pTableMetaInfo->tagColList);
   pTableMetaInfo->tagColList = NULL;
 }
@@ -2402,4 +2420,59 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
 void tscClearSqlOwner(SSqlObj* pSql) {
   assert(taosCheckPthreadValid(pSql->owner));
   atomic_store_64(&pSql->owner, 0);
+}
+
+SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
+  if (vgroupList == NULL) {
+    return NULL;
+  }
+
+  size_t size = sizeof(SVgroupsInfo) + sizeof(SCMVgroupInfo) * vgroupList->numOfVgroups;
+  SVgroupsInfo* pNew = calloc(1, size);
+  if (pNew == NULL) {
+    return NULL;
+  }
+
+  pNew->numOfVgroups = vgroupList->numOfVgroups;
+
+  for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
+    SCMVgroupInfo* pNewVInfo = &pNew->vgroups[i];
+
+    SCMVgroupInfo* pvInfo = &vgroupList->vgroups[i];
+    pNewVInfo->vgId = pvInfo->vgId;
+    pNewVInfo->numOfEps = pvInfo->numOfEps;
+
+    for(int32_t j = 0; j < pvInfo->numOfEps; ++j) {
+      pNewVInfo->epAddr[j].fqdn = strdup(pvInfo->epAddr[j].fqdn);
+      pNewVInfo->epAddr[j].port = pvInfo->epAddr[j].port;
+    }
+  }
+
+  return pNew;
+}
+
+void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
+  if (vgroupList == NULL) {
+    return NULL;
+  }
+
+  for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
+    SCMVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
+
+    for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
+      taosTFree(pVgroupInfo->epAddr[j].fqdn);
+    }
+  }
+
+  taosTFree(vgroupList);
+  return NULL;
+}
+
+void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src) {
+  dst->vgId = src->vgId;
+  dst->numOfEps = src->numOfEps;
+  for(int32_t i = 0; i < dst->numOfEps; ++i) {
+    dst->epAddr[i].port = src->epAddr[i].port;
+    dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
+  }
 }

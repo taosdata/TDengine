@@ -443,6 +443,7 @@ void tscPartiallyFreeSqlObj(SSqlObj *pSql);
  */
 void tscFreeSqlObj(SSqlObj *pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
+void tscFreeTableMetaHelper(void *pTableMeta);
 
 void tscCloseTscObj(STscObj *pObj);
 
