@@ -20,6 +20,7 @@
 #include "exception.h"
 
 #include "../../query/inc/qAst.h"  // todo move to common module
+#include "../../query/inc/qExecutor.h"  // todo move to common module
 #include "tlosertree.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
@@ -143,6 +144,7 @@ static int     tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, 
                                      STsdbQueryHandle* pQueryHandle);
 static int     tsdbCheckInfoCompar(const void* key1, const void* key2);
 
+
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
   pBlockLoadInfo->tid = -1;
@@ -182,6 +184,27 @@ static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS
   return pLocalIdList;
 }
 
+static void tsdbMayTakeMemSnapshot(TsdbQueryHandleT pHandle) { 
+  STsdbQueryHandle* pSecQueryHandle = (STsdbQueryHandle*) pHandle;
+  SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo);
+
+  if (pQInfo->memRef.ref++ == 0) {
+    tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem);
+    pQInfo->memRef.mem = pSecQueryHandle->mem;
+    pQInfo->memRef.imem = pSecQueryHandle->imem;
+  } else {
+    pSecQueryHandle->mem = (SMemTable *)(pQInfo->memRef.mem);
+    pSecQueryHandle->imem = (SMemTable *)(pQInfo->memRef.imem);
+  }
+}
+static void tsdbMayUnTakeMemSnapshot(TsdbQueryHandleT pHandle) {
+  STsdbQueryHandle* pSecQueryHandle = (STsdbQueryHandle*) pHandle; 
+  SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo);
+
+  if (--pQInfo->memRef.ref == 0) {
+    tsdbUnTakeMemSnapShot(pSecQueryHandle->pTsdb, pSecQueryHandle->mem, pSecQueryHandle->imem);
+  }
+}
 static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta) {
   size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
   assert(sizeOfGroup >= 1 && pMeta != NULL);
@@ -270,7 +293,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* 
     goto out_of_memory;
   }
 
-  tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
+  tsdbMayTakeMemSnapshot(pQueryHandle);
   assert(pCond != NULL && pCond->numOfCols > 0);
 
   if (ASCENDING_TRAVERSE(pCond->order)) {
@@ -2701,7 +2724,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   taosTFree(pQueryHandle->statis);
 
   // todo check error
-  tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
+  tsdbMayUnTakeMemSnapshot(pQueryHandle);
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
 
