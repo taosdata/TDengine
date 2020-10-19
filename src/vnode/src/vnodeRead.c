@@ -240,6 +240,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     }
 #else
     qTableQuery(*qhandle);  // do execute query
+    qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
 #endif
   }
 
@@ -272,11 +273,6 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   if (pRetrieve->free == 1) {
     vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
     qKillQuery(*handle);
-#if !(_NON_BLOCKING_RETRIEVE)
-    void** p = handle;
-    qReleaseQInfo(pVnode->qMgmt, (void **)&p, false);
-#endif
-
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
 
     vnodeBuildNoResultQueryRsp(pRet);
@@ -290,12 +286,6 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
            pReadMsg->rpcMsg.handle);
     code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     qKillQuery(*handle);
-
-#if !(_NON_BLOCKING_RETRIEVE)
-    void** p = handle;
-    qReleaseQInfo(pVnode->qMgmt, (void **)&p, false);
-#endif
-
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
     return code;
   }
@@ -324,11 +314,6 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     // ahandle is the sqlObj pointer
     code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle, pReadMsg->rpcMsg.ahandle);
   }
-
-#if !(_NON_BLOCKING_RETRIEVE)
-  void** p = handle;
-  qReleaseQInfo(pVnode->qMgmt, (void **)&p, false);
-#endif
 
   // If qhandle is not added into vread queue, the query should be completed already or paused with error.
   // Here free qhandle immediately
