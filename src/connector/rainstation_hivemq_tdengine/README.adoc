@@ -18,22 +18,20 @@ First. Basic environment software
 
 second. Brief introduction of source code structure  
 
-  java.com
+--java.com
 
-    Common (configuration file analysis)
+----common (configuration file analysis)
     
-    HiveMQ (extension HiveMQ )
+----hivemq (extension HiveMQ )
     
-    TDengine (time-series database  )
-    
-             .hivemq
+----tdengine (time-series database  )
              
-             .tdengine
-             
-                     .jdbc
+------jdbc
                       
-                     .rest
+------rest
+
     Special Note 
+	
     1, runtime.properties
        STYPE = db, direct JDBC write To tdengine, 
 	   STYPE = rest, call tdengine rest interface to write To tdengine
