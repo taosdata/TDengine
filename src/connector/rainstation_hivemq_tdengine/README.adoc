@@ -74,7 +74,7 @@ docker run --name hivemq4
 -v E:\hivemq\data:/opt/hivemq/data 
 -v E:\hivemq\extensions:/opt/hivemq/ extensions -p 8080:8080 -p 1883:1883 -p 8083:8083 hivemq/hivemq4
 
-	3. Install TDengine client 2.0.4.0 client in docker
+	3 Install TDengine client 2.0.4.0 client in docker
 
 Four, extension deployment
 
