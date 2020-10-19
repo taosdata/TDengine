@@ -2224,8 +2224,12 @@ void mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup) {
 void mnodeDropAllChildTables(SDbObj *pDropDb) {
   void *  pIter = NULL;
   int32_t numOfTables = 0;
-  int32_t dbNameLen = strlen(pDropDb->name);
   SChildTableObj *pTable = NULL;
+
+  char prefix[64] = {0};
+  tstrncpy(prefix, pDropDb->name, 64);
+  strcat(prefix, TS_PATH_DELIMITER);
+  int32_t prefixLen = strlen(prefix);
 
   mInfo("db:%s, all child tables will be dropped from sdb", pDropDb->name);
 
@@ -2233,7 +2237,7 @@ void mnodeDropAllChildTables(SDbObj *pDropDb) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);
     if (pTable == NULL) break;
 
-    if (strncmp(pDropDb->name, pTable->info.tableId, dbNameLen) == 0) {
+    if (strncmp(prefix, pTable->info.tableId, prefixLen) == 0) {
       SSdbOper oper = {
         .type = SDB_OPER_LOCAL,
         .table = tsChildTableSdb,
