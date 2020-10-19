@@ -1537,7 +1537,9 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY 
       if (isNull((const char*) &pQuery->fillVal[colIndex], pCtx->inputType)) {
         pCtx->param[1].nType = TSDB_DATA_TYPE_NULL;
       } else { // todo refactor, tVariantCreateFromBinary should handle the NULL value
-        tVariantCreateFromBinary(&pCtx->param[1], (char*) &pQuery->fillVal[colIndex], pCtx->inputBytes, pCtx->inputType);
+        if (pCtx->inputType != TSDB_DATA_TYPE_BINARY && pCtx->inputType != TSDB_DATA_TYPE_NCHAR) {
+          tVariantCreateFromBinary(&pCtx->param[1], (char*) &pQuery->fillVal[colIndex], pCtx->inputBytes, pCtx->inputType);
+        }
       }
     }
   }
@@ -4511,7 +4513,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   int32_t code = TSDB_CODE_SUCCESS;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
-  pQuery->precision = tsdbGetCfg(tsdb)->precision;
   pRuntimeEnv->topBotQuery = isTopBottomQuery(pQuery);
   pRuntimeEnv->hasTagResults = hasTagValOutput(pQuery);
 
@@ -6323,6 +6324,8 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
     bool ret = tsBufNextPos(pTSBuf);
     UNUSED(ret);
   }
+  
+  pQuery->precision = tsdbGetCfg(tsdb)->precision;
 
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey > pQuery->window.skey))) {

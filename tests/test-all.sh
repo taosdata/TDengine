@@ -56,6 +56,15 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "full" ]; then
     echo "### run TSIM full test ###"
     runSimCaseOneByOne jenkins/basic.txt
+  elif [ "$1" == "b1" ]; then
+    echo "### run TSIM b1 test ###"
+    runSimCaseOneByOne jenkins/basic_1.txt
+  elif [ "$1" == "b2" ]; then
+    echo "### run TSIM b2 test ###"
+    runSimCaseOneByOne jenkins/basic_2.txt
+  elif [ "$1" == "b3" ]; then
+    echo "### run TSIM b3 test ###"
+    runSimCaseOneByOne jenkins/basic_3.txt
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
@@ -112,6 +121,11 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
+  elif [ "$1" == "pytest" ]; then
+    echo "### run Python full test ###"
+    runPyCaseOneByOne fulltest.sh
+  elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
+    exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run Python smoke test ###"
     runPyCaseOneByOne smoketest.sh

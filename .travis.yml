@@ -54,6 +54,7 @@ matrix:
 
           py3ver=`python3 --version|awk '{print $2}'|cut -d "." -f 1,2` && apt install python$py3ver-dev
           pip3 install psutil
+          pip3 install guppy3
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
           cd ${TRAVIS_BUILD_DIR}/tests

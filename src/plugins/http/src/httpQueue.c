@@ -67,7 +67,7 @@ static void *httpProcessResultQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsHttpQset, &type, (void **)&pMsg, &unUsed) == 0) {
-      httpDebug("httpResultQueue: got no message from qset, exiting...");
+      httpDebug("qset:%p, http queue got no message from qset, exiting", tsHttpQset);
       break;
     }
 

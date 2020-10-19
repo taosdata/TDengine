@@ -31,14 +31,16 @@ while $i < $tbNum
   
   $x = 0
   while $x < $rowNum
-    $ms = $x . m 
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
 	
-	$v1 = $x 
-	$v2 = $x
-	if $x == 0 then
-	  $v1 = NULL
-	endi
-    sql insert into $tb values (now + $ms , $v1 , $v2 ) 
+    $v1 = $x 
+    $v2 = $x
+    if $x == 0 then
+      $v1 = NULL
+    endi
+    
+    sql insert into $tb values ($ms , $v1 , $v2 ) 
     $x = $x + 1
   endw 
  

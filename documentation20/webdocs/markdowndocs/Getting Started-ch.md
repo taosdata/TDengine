@@ -30,13 +30,13 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 - TDengine-alert-2.0.0-Linux-x64.tar.gz (8.1M)
 
-目前，TDengine只支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装。其他linux系统的支持正在开发中。用`which`命令来检测系统中是否存在`systemd`:
+目前，TDengine只支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装。其他linux系统的支持正在开发中。用`which systemctl`命令来检测系统中是否存在`systemd`包:
 
 ```cmd
-which systemd
+which systemctl
 ```
 
-如果系统中不存在`systemd`命令，请考虑[通过源码安装](#通过源码安装)TDengine。
+如果系统中不存在`systemd`包，请考虑[通过源码安装](#通过源码安装)TDengine。
 
 具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>。
 

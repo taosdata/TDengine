@@ -80,6 +80,8 @@ enum {
   DATA_FROM_DATA_FILE = 2,
 };
 
+typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
+
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
@@ -226,7 +228,7 @@ typedef struct STableDataBlocks {
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
-  // TODO refactor
+
   STimeWindow      window;        // query time window
   SInterval        interval;
 
@@ -334,6 +336,12 @@ typedef struct STscObj {
   T_REF_DECLARE()
 } STscObj;
 
+typedef struct SSubqueryState {
+  int32_t          numOfRemain;         // the number of remain unfinished subquery
+  int32_t          numOfSub;            // the number of total sub-queries
+  uint64_t         numOfRetrievedRows;  // total number of points in this query
+} SSubqueryState;
+
 typedef struct SSqlObj {
   void            *signature;
   pthread_t        owner;        // owner of sql object, by which it is executed
@@ -355,10 +363,11 @@ typedef struct SSqlObj {
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
-  uint16_t         numOfSubs;
-  struct SSqlObj **pSubs;
-  struct SSqlObj * prev, *next;
 
+  SSubqueryState   subState;
+  struct SSqlObj **pSubs;
+
+  struct SSqlObj  *prev, *next;
   struct SSqlObj **self;
 } SSqlObj;
 
@@ -433,19 +442,20 @@ void tscPartiallyFreeSqlObj(SSqlObj *pSql);
  * @param pObj
  */
 void tscFreeSqlObj(SSqlObj *pSql);
-
-void tscFreeSqlObjInCache(void *pSql);
+void tscFreeRegisteredSqlObj(void *pSql);
 
 void tscCloseTscObj(STscObj *pObj);
 
+// todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
-void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res);
 
-void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
+void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
+
+void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
 void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql);
-void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
@@ -509,8 +519,6 @@ extern int       tscNumOfThreads;
 extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
-
-typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 
 int32_t tscCompareTidTags(const void* p1, const void* p2);
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
