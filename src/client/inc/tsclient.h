@@ -90,10 +90,10 @@ typedef struct STableComInfo {
 } STableComInfo;
 
 typedef struct SCMCorVgroupInfo {
-  int32_t version;
-  int8_t  inUse;
-  int8_t  numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  int32_t    version;
+  int8_t     inUse;
+  int8_t     numOfEps;
+  SEpAddr1   epAddr[TSDB_MAX_REPLICA];
 } SCMCorVgroupInfo;
 
 typedef struct STableMeta {

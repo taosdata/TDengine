@@ -1839,22 +1839,28 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   SSqlCmd* pCmd = &parent->cmd;
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
     STableMetaInfo *pInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
-    SVgroupsInfo *  pVgroupInfo = (SVgroupsInfo *)pMsg;
-    pVgroupInfo->numOfVgroups = htonl(pVgroupInfo->numOfVgroups);
 
-    size_t size = sizeof(SCMVgroupInfo) * pVgroupInfo->numOfVgroups + sizeof(SVgroupsInfo);
+    SVgroupsMsg *  pVgroupMsg = (SVgroupsMsg *) pMsg;
+    pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
+
+    size_t size = sizeof(SCMVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
     pInfo->vgroupList = calloc(1, size);
     assert(pInfo->vgroupList != NULL);
 
-    memcpy(pInfo->vgroupList, pVgroupInfo, size);
+    pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
       //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
-      pVgroups->vgId = htonl(pVgroups->vgId);
+
+      SCMVgroupMsg *vgroupMsg = &pVgroupMsg->vgroups[j];
+      pVgroups->vgId = htonl(vgroupMsg->vgId);
+      pVgroups->numOfEps = vgroupMsg->numOfEps;
+
       assert(pVgroups->numOfEps >= 1);
 
       for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
-        pVgroups->epAddr[k].port = htons(pVgroups->epAddr[k].port);
+        pVgroups->epAddr[k].port = htons(vgroupMsg->epAddr[k].port);
+        pVgroups->epAddr[k].fqdn = strndup(vgroupMsg->epAddr[k].fqdn, tListLen(vgroupMsg->epAddr[k].fqdn));
       }
     }
 

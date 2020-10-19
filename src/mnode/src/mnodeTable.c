@@ -1472,12 +1472,12 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
   // reserve space
-  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo); 
+  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupInfo) + sizeof(SVgroupsMsg); 
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN) * i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
     if (pTable != NULL && pTable->vgHash != NULL) {
-      contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupInfo) + sizeof(SVgroupsInfo));
+      contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupInfo) + sizeof(SVgroupsMsg));
     } 
     mnodeDecTableRef(pTable);
   }
@@ -1506,12 +1506,12 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       // even this super table has no corresponding table, still return
       pRsp->numOfTables++;
 
-      SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
-      pVgroupInfo->numOfVgroups = 0;
+      SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
+      pVgroupMsg->numOfVgroups = 0;
       
-      msg += sizeof(SVgroupsInfo);
+      msg += sizeof(SVgroupsMsg);
     } else {
-      SVgroupsInfo *pVgroupInfo = (SVgroupsInfo *)msg;
+      SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
 
       SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
       int32_t               vgSize = 0;
@@ -1520,15 +1520,15 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
         SVgObj * pVgroup = mnodeGetVgroup(*pVgId);
         if (pVgroup == NULL) continue;
 
-        pVgroupInfo->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
+        pVgroupMsg->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
         for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
           SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
           if (pDnode == NULL) break;
 
-          tstrncpy(pVgroupInfo->vgroups[vgSize].epAddr[vn].fqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
-          pVgroupInfo->vgroups[vgSize].epAddr[vn].port = htons(pDnode->dnodePort);
+          tstrncpy(pVgroupMsg->vgroups[vgSize].epAddr[vn].fqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
+          pVgroupMsg->vgroups[vgSize].epAddr[vn].port = htons(pDnode->dnodePort);
 
-          pVgroupInfo->vgroups[vgSize].numOfEps++;
+          pVgroupMsg->vgroups[vgSize].numOfEps++;
         }
 
         vgSize++;
@@ -1538,10 +1538,10 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       taosHashDestroyIter(pIter);
       mnodeDecTableRef(pTable);
 
-      pVgroupInfo->numOfVgroups = htonl(vgSize);
+      pVgroupMsg->numOfVgroups = htonl(vgSize);
 
       // one table is done, try the next table
-      msg += sizeof(SVgroupsInfo) + vgSize * sizeof(SCMVgroupInfo);
+      msg += sizeof(SVgroupsMsg) + vgSize * sizeof(SCMVgroupMsg);
       pRsp->numOfTables++;
     }
   }
