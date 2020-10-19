@@ -22,7 +22,7 @@ second. Brief introduction of source code structure
     
     HiveMQ (extension HiveMQ )
     
-    TDengine (database  )
+    TDengine (time-series database  )
     
              .hivemq
              
@@ -50,7 +50,7 @@ Map configuration files, logs, data files, and extensions to the host host direc
 
 docker run -d --name tdengine2.0.4 -v E:\taos\etc:/etc/taos -v E:\taos\data:/var/lib/taos -v E:\taos\logs:/var/ log/taos --hostname 144td -p 6030:6030 -p 6035:6035 -p 6041:6041 -p 6030-6040:6030-6040/udp tdengine/tdengine
 
-1.3 Create data, super table
+1.3 Create database, super table
 
 
 create database if not exists rainstation KEEP 7665 DAYS 120 BLOCKS 30;
