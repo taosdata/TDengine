@@ -17,7 +17,10 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <wordexp.h>
 
 #include "dnodeInt.h"
@@ -28,6 +31,7 @@
 
 #define DNODE_MAX_TIERS 3
 #define DNODE_MAX_DISKS_PER_TIER 16
+#define DISK_MIN_FREE_SPACE 30 * 1024 * 1024  // disk free space less than 100M will not create new file again
 
 typedef struct {
   uint64_t size;
@@ -52,6 +56,8 @@ typedef struct {
   STier            tiers[DNODE_MAX_TIERS];
   SHashObj *       map;
 } SDnodeTier;
+
+#define DNODE_DISK_AVAIL(pDisk) ((pDisk)->dmeta.free > DISK_MIN_FREE_SPACE)
 
 static FORCE_INLINE int dnodeRLockTiers(SDnodeTier *pDnodeTier) {
   int code = pthread_rwlock_rdlock(&(pDnodeTier->rwlock));
@@ -173,7 +179,7 @@ int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level) {
 }
 
 int dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier) {
-  for (int i == 0; i < pDnodeTier->nTiers; i++) {
+  for (int i = 0; i < pDnodeTier->nTiers; i++) {
     STier *pTier = pDnodeTier->tiers + i;
 
     for (int j = 0; j < pTier->nDisks; j++) {
@@ -185,12 +191,33 @@ int dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier) {
 }
 
 int dnodeCheckTiers(SDnodeTier *pDnodeTier) {
+  ASSERT(pDnodeTier->nTiers > 0);
   // TODO
   return 0;
 }
 
-SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier) {
-  // TODO
+SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) {
+  ASSERT(level < pDnodeTier->nTiers);
+
+  STier *pTier = pDnodeTier->tiers + level;
+  SDisk *pDisk = NULL;
+
+  ASSERT(pTier->nDisks > 0);
+
+  for (int i = 0; i < pTier->nDisks; i++) {
+    SDisk *iDisk = pTier->disks + i;
+    if (dnodeUpdateDiskMeta(iDisk) < 0) return NULL;
+    if (DNODE_DISK_AVAIL(iDisk)) {
+      if (pDisk == NULL || pDisk->dmeta.nfiles > iDisk->dmeta.nfiles) {
+        pDisk = iDisk;
+      }
+    }
+  }
+
+  if (pDisk == NULL) {
+    terrno = TSDB_CODE_DND_NO_DISK_SPACE;
+  }
+
   return NULL;
 }
 
@@ -216,6 +243,21 @@ static int dnodeFormatDir(char *idir, char *odir) {
 }
 
 static int dnodeCheckDisk(char *dirName) {
-  if (access)
-  return 0;
+  if (access(dirName, W_OK | R_OK | F_OK) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  struct stat pstat;
+  if (stat(dirName, &pstat) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (S_ISDIR(pstat.st_mode)) {
+    return 0;
+  } else {
+    terrno = TSDB_CODE_DND_DISK_NOT_DIRECTORY;
+    return -1;
+  }
 }
