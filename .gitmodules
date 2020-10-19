@@ -4,3 +4,6 @@
 [submodule "src/connector/grafanaplugin"]
 	path = src/connector/grafanaplugin
 	url = https://github.com/taosdata/grafanaplugin
+[submodule "src/connector/project-rainstation_hivemq"]
+	path = src/connector/project-rainstation_hivemq
+	url = https://github.com/379547990/tdengine_hivemq.git
