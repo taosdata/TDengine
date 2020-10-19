@@ -27,6 +27,7 @@ query_sql = [
 "select count(*) from test.meters where t7 like 'fi%';",
 "select count(*) from test.meters where t7 like '_econd';",
 "select count(*) from test.meters interval(1n) order by ts desc;",
+"select max(c0) from test.meters group by tbname",
 "select first(*)  from test.meters;",
 "select last(*)  from test.meters;",
 "select last_row(*)  from test.meters;",
@@ -56,6 +57,12 @@ query_sql = [
 "select stddev(c6) from test.t1;",
 "select sum(c6) from test.meters;",
 "select top(c6, 2) from test.meters;",
+#all vnode
+"select count(*) from test.meters where t5 >2500 and t5<7500",       
+"select max(c0),avg(c1) from test.meters where t5 >2500 and t5<7500",
+"select sum(c5),avg(c1) from test.meters where t5 >2500 and t5<7500",
+"select max(c0),min(c6) from test.meters where t5 >2500 and t5<7500",
+"select min(c0),avg(c6) from test.meters where t5 >2500 and t5<7500",
 # second supertable
 "select count(*) from test.meters1 where c1 > 50;",
 "select count(*) from test.meters1 where c2 >= 50 and c2 < 100;",
@@ -65,6 +72,7 @@ query_sql = [
 "select count(*) from test.meters1 where t7 like 'fi%';",
 "select count(*) from test.meters1 where t7 like '_econd';",
 "select count(*) from test.meters1 interval(1n) order by ts desc;",
+"select max(c0) from test.meters1 group by tbname",
 "select first(*)  from test.meters1;",
 "select last(*)  from test.meters1;",
 "select last_row(*)  from test.meters1;",
@@ -93,7 +101,19 @@ query_sql = [
 "select spread(c6) from test.m1  ;",
 "select stddev(c6) from test.m1;",
 "select sum(c6) from test.meters1;",
-"select top(c6, 2) from test.meters1;"
+"select top(c6, 2) from test.meters1;",
+"select count(*) from test.meters1 where t5 >2500 and t5<7500",
+#all vnode
+"select count(*) from test.meters1 where t5 >2500 and t5<7500",       
+"select max(c0),avg(c1) from test.meters1 where t5 >2500 and t5<7500",
+"select sum(c5),avg(c1) from test.meters1 where t5 >2500 and t5<7500",
+"select max(c0),min(c6) from test.meters1 where t5 >2500 and t5<7500",
+"select min(c0),avg(c6) from test.meters1 where t5 >2500 and t5<7500",
+#join 
+"select * from meters,meters1 where meters.ts = meters1.ts and meters.t5 = meters1.t5",
+"select * from meters,meters1 where meters.ts = meters1.ts and meters.t7 = meters1.t7",
+"select * from meters,meters1 where meters.ts = meters1.ts and meters.t8 = meters1.t8",
+"select meters.ts,meters1.c2 from meters,meters1 where meters.ts = meters1.ts and meters.t8 = meters1.t8"
 ]
 
 class ConcurrentInquiry:
@@ -112,6 +132,7 @@ class ConcurrentInquiry:
             password,
             )
         cl = conn.cursor()
+        cl.execute("use test;")
         
         print("Thread %d: starting" % threadID)
         
