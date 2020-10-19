@@ -1,6 +1,8 @@
 Typical application scenarios
 
-   In a provincial meteorological warning system, the hourly rainfall data of the rainfall station is synchronized to the data center through the MQTT protocol, the data is received through the extension of HiveMQ, and the data is stored through the TDengine rest interface and jdbc interface.
+   In a provincial meteorological warning system, the hourly rainfall data of the rainfall station is 
+   synchronized to the data center through the MQTT protocol, the data is received through the extension of HiveMQ, 
+   and the data is stored through the TDengine rest interface and jdbc interface.
    (System run environment Docker, development environment window 10)
 First. Basic environment software
 
@@ -33,9 +35,10 @@ second. Brief introduction of source code structure
                       .rest
     Special Note 
     1, runtime.properties
-       STYPE= db, direct JDBC write library, STYPE=rest, call tdengine rest interface to write library
-To
+       STYPE = db, direct JDBC write To tdengine, 
+	   STYPE = rest, call tdengine rest interface to write To tdengine
     2. HiveMQ passes the user password security authentication test_name_1, password_1
+	
 Three, system deployment
 
 1. TDengine container deployment
@@ -68,8 +71,11 @@ docker pull hivmemq/hivmemq
 
 HiveMQ container deployment, mapping data files, logs, and extensions to the host host directory.
 
-docker run --name hivemq4 -v E:\hivemq\log:/opt/hivemq/log -v E:\hivemq\data:/opt/hivemq/data -v E:\hivemq\extensions:/opt/hivemq/ extensions -p 8080:8080 -p 1883:1883 -p 8083:8083 hivemq/hivemq4
--v E:\hivemq\log:/opt/hivemq/log -v E:\hivemq\data:/opt/hivemq/data -v E:\hivemq\extensions:/opt/hivemq/extensions
+docker run --name hivemq4 
+-v E:\hivemq\log:/opt/hivemq/log 
+-v E:\hivemq\data:/opt/hivemq/data 
+-v E:\hivemq\extensions:/opt/hivemq/ extensions -p 8080:8080 -p 1883:1883 -p 8083:8083 hivemq/hivemq4
+
 
 3. Install TDengine client 2.0.4.0 client in docker
 
