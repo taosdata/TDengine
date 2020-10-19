@@ -383,18 +383,20 @@ int main(int argc, char** argv) {
 //    taos_free_result(p);
 //  }
 
+  executeSQL(conn,"create database test", NULL);
   executeSQL(conn,"use test", NULL);
 //  executeSQL(conn, "select count(*) from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' "
 //                   "interval(1h) fill(NULL) group by t1 order by ts desc;", NULL);
 
-//  executeSQL(conn, "select a.ts from join_mt0 a, join_mt0 b where a.ts = b.ts and a.t1=b.t1;", NULL);
+//  executeSQL(conn, "select count(*) from fl1_stb0 interval(1y)", NULL);
 //  executeSQL( conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and
 //  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-    createEnvironment(conn, 20, 20, 200, 30);
-//    taos_close(conn);
+//    createEnvironment(conn, 20, 20, 200, 30);
+    executeSQL(conn, "select count(*) from test.m2", NULL);
+    taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
