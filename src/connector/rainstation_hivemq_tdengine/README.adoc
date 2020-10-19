@@ -6,15 +6,15 @@ Typical application scenarios
    (System run environment Docker, development environment window 10)
 First. Basic environment software
 
-1 HiveMQ 4.4.1
+	1 HiveMQ 4.4.1
 
-2 TDengine Server Linux 2.0.4.0, TDengine client Linux 2.0.4.0
+	2 TDengine Server Linux 2.0.4.0, TDengine client Linux 2.0.4.0
 
-3 Docker Engine v19.03.12
+	3 Docker Engine v19.03.12
 
-4 MQTTX 1.3.1 debugging tool, MQTTLoader stress test tool
+	4 MQTTX 1.3.1 debugging tool, MQTTLoader stress test tool
 
-5 IDEA 2019.2 development tools, JAVA JDK 11
+	5 IDEA 2019.2 development tools, JAVA JDK 11
 
 second. Brief introduction of source code structure  
 
@@ -30,9 +30,9 @@ second. Brief introduction of source code structure
              
              .tdengine
              
-                      .jdbc
+                     .jdbc
                       
-                      .rest
+                     .rest
     Special Note 
     1, runtime.properties
        STYPE = db, direct JDBC write To tdengine, 
@@ -41,19 +41,19 @@ second. Brief introduction of source code structure
 	
 Three, system deployment
 
-1. TDengine container deployment
+	1. TDengine container deployment
 
-1.1 Download the mirror, the latest version 2.0.4.0
+	1.1 Download the mirror, the latest version 2.0.4.0
 
 docker pull tdengine/tdengine
 
-1.2 Start the container
+	1.2 Start the container
 
 Map configuration files, logs, data files, and extensions to the host host directory.
 
 docker run -d --name tdengine2.0.4 -v E:\taos\etc:/etc/taos -v E:\taos\data:/var/lib/taos -v E:\taos\logs:/var/ log/taos --hostname 144td -p 6030:6030 -p 6035:6035 -p 6041:6041 -p 6030-6040:6030-6040/udp tdengine/tdengine
 
-1.3 Create database, super table
+	1.3 Create database, super table
 
 
 create database if not exists rainstation KEEP 7665 DAYS 120 BLOCKS 30;
@@ -63,11 +63,11 @@ create table if not exists rainstation.monitoring(ts timestamp, rainfall float) 
 
 Second. HiveMQ container deployment
 
-1 Download image
+	1 Download image
 
 docker pull hivmemq/hivmemq
 
-2 Start the container
+	2 Start the container
 
 HiveMQ container deployment, mapping data files, logs, and extensions to the host host directory.
 
@@ -76,14 +76,13 @@ docker run --name hivemq4
 -v E:\hivemq\data:/opt/hivemq/data 
 -v E:\hivemq\extensions:/opt/hivemq/ extensions -p 8080:8080 -p 1883:1883 -p 8083:8083 hivemq/hivemq4
 
-
-3. Install TDengine client 2.0.4.0 client in docker
+	3. Install TDengine client 2.0.4.0 client in docker
 
 Four, extension deployment
 
-1 HiveMQ extension program, support rest interface, jdbc interface storage. MAVEN packaging zip,
+	1 HiveMQ extension program, support rest interface, jdbc interface storage. MAVEN packaging zip,
 
-2 Unzip the compressed package and place it in the extensions directory mapped to the host host
+	2 Unzip the compressed package and place it in the extensions directory mapped to the host host
 
 
 Five, start the container
