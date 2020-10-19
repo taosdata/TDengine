@@ -1856,7 +1856,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
       pVgroups->vgId = htonl(vgroupMsg->vgId);
       pVgroups->numOfEps = vgroupMsg->numOfEps;
 
-      assert(pVgroups->numOfEps >= 1);
+      assert(pVgroups->numOfEps >= 1 && pVgroups->vgId >= 1);
 
       for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
         pVgroups->epAddr[k].port = htons(vgroupMsg->epAddr[k].port);
