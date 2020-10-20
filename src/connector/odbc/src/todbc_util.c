@@ -236,3 +236,19 @@ SQLCHAR* wchars_to_chars(const SQLWCHAR *wchars, size_t chs, size_t *bytes)
   return dst;
 }
 
+size_t wchars_to_chars2(const SQLWCHAR *src, size_t slen, SQLCHAR *dst, size_t dlen)
+{
+  size_t consumed=0, generated=0;
+  int n = string_conv("UCS-2LE", "UTF-8", (const unsigned char*)src, slen, dst, dlen, &consumed, &generated);
+  if (n) return -1;
+  return generated;
+}
+
+size_t chars_to_wchars2(const SQLCHAR *src, size_t slen, SQLWCHAR *dst, size_t dlen)
+{
+  size_t consumed=0, generated=0;
+  int n = string_conv("UTF-8", "UCS-2LE", (const unsigned char*)src, slen, (unsigned char*)dst, dlen, &consumed, &generated);
+  if (n) return -1;
+  return generated;
+}
+

@@ -60,4 +60,8 @@ unsigned char* utf8_to_ucs4le(const char *utf8, size_t *chars);
 char*          ucs4le_to_utf8(const unsigned char *ucs4le, size_t slen, size_t *chars);
 SQLCHAR*       wchars_to_chars(const SQLWCHAR *wchars, size_t chs, size_t *bytes);
 
+size_t         wchars_to_chars2(const SQLWCHAR *src, size_t slen, SQLCHAR *dst, size_t dlen);
+size_t         chars_to_wchars2(const SQLCHAR *src, size_t slen, SQLWCHAR *dst, size_t dlen);
+
 #endif // _TODBC_UTIL_H_
+
