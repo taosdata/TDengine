@@ -24,80 +24,15 @@
 #include <wordexp.h>
 
 #include "dnodeInt.h"
-#include "hash.h"
+#include "dnodeTier.h"
 #include "os.h"
 #include "taosdef.h"
-#include "taoserror.h"
 
-#define DNODE_MAX_TIERS 3
-#define DNODE_MAX_DISKS_PER_TIER 16
 #define DISK_MIN_FREE_SPACE 30 * 1024 * 1024  // disk free space less than 100M will not create new file again
-
-typedef struct {
-  uint64_t size;
-  uint64_t free;
-  uint64_t nfiles;
-} SDiskMeta;
-
-typedef struct {
-  char      dir[TSDB_FILENAME_LEN];
-  SDiskMeta dmeta;
-} SDisk;
-
-typedef struct {
-  int   level;
-  int   nDisks;
-  SDisk disks[DNODE_MAX_DISKS_PER_TIER];
-} STier;
-
-typedef struct {
-  pthread_rwlock_t rwlock;
-  int              nTiers;
-  STier            tiers[DNODE_MAX_TIERS];
-  SHashObj *       map;
-} SDnodeTier;
-
 #define DNODE_DISK_AVAIL(pDisk) ((pDisk)->dmeta.free > DISK_MIN_FREE_SPACE)
 
-static FORCE_INLINE int dnodeRLockTiers(SDnodeTier *pDnodeTier) {
-  int code = pthread_rwlock_rdlock(&(pDnodeTier->rwlock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
-
-static FORCE_INLINE int dnodeWLockTiers(SDnodeTier *pDnodeTier) {
-  int code = pthread_rwlock_wrlock(&(pDnodeTier->rwlock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
-
-static FORCE_INLINE int dnodeUnLockTiers(SDnodeTier *pDnodeTier) {
-  int code = pthread_rwlock_unlock(&(pDnodeTier->rwlock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
-
-static FORCE_INLINE SDisk *dnodeGetDisk(SDnodeTier *pDnodeTier, int level, int did) {
-  if (level < 0 || level >= pDnodeTier->nTiers) return NULL;
-
-  if (did < 0 || did >= pDnodeTier->tiers[level].nDisks) return NULL;
-
-  return &(pDnodeTier->tiers[level].disks[did]);
-}
-
-static FORCE_INLINE SDisk *dnodeGetDiskByName(SDnodeTier *pDnodeTier, char *dirName) {
-  // TODO
-  return NULL;
-}
+static int dnodeFormatDir(char *idir, char *odir);
+static int dnodeCheckDisk(char *dirName);
 
 SDnodeTier *dnodeNewTier() {
   SDnodeTier *pDnodeTier = (SDnodeTier *)calloc(1, sizeof(*pDnodeTier));
@@ -113,8 +48,8 @@ SDnodeTier *dnodeNewTier() {
     return NULL;
   }
 
-  // TODO
-  pDnodeTier->map = taosHashInit();
+  pDnodeTier->map = taosHashInit(DNODE_MAX_TIERS * DNODE_MAX_DISKS_PER_TIER * 2,
+                                 taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pDnodeTier->map == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     dnodeCloseTier(pDnodeTier);
@@ -137,8 +72,9 @@ void *dnodeCloseTier(SDnodeTier *pDnodeTier) {
 }
 
 int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level) {
-  char   dirName[TSDB_FILENAME_LEN] = "\0";
-  STier *pTier = NULL;
+  char    dirName[TSDB_FILENAME_LEN] = "\0";
+  STier * pTier = NULL;
+  SDiskID diskid = {0};
 
   if (level < 0 || level >= DNODE_MAX_TIERS) {
     terrno = TSDB_CODE_DND_INVALID_DISK_TIER;
@@ -152,6 +88,7 @@ int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level) {
   }
 
   pTier = pDnodeTier->tiers + level;
+  diskid.level = level;
 
   if (pTier->nDisks >= DNODE_MAX_DISKS_PER_TIER) {
     terrno = TSDB_CODE_DND_TOO_MANY_DISKS;
@@ -170,10 +107,15 @@ int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level) {
     return -1;
   }
 
-  strncpy(pTier->disks[pTier->nDisks++].dir, dirName, TSDB_FILENAME_LEN);
+  diskid.did = pTier->nDisks++;
+  strncpy(pTier->disks[diskid.did].dir, dirName, TSDB_FILENAME_LEN);
 
-  // TODO
-  // taosHashPut();
+  if (taosHashPut(pDnodeTier->map, (void *)dirName, strnlen(dirName, TSDB_FILENAME_LEN), (void *)(&diskid),
+                  sizeof(diskid)) < 0) {
+    terrno = TSDB_CODE_DND_OUT_OF_MEMORY;
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
 
   return 0;
 }
@@ -219,6 +161,21 @@ SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) {
   }
 
   return NULL;
+}
+
+SDisk *dnodeGetDiskByName(SDnodeTier *pDnodeTier, char *dirName) {
+  char     fdirName[TSDB_FILENAME_LEN] = "\0";
+  SDiskID *pDiskID = NULL;
+
+  if (dnodeFormatDir(dirName, fdirName) < 0) {
+    return NULL;
+  }
+
+  void *ptr = taosHashGet(pDnodeTier->map, (void *)fdirName, strnlen(fdirName, TSDB_FILENAME_LEN));
+  if (ptr == NULL) return NULL;
+  pDiskID = (SDiskID *)ptr;
+
+  return dnodeGetDisk(pDnodeTier, pDiskID->level, pDiskID->did);
 }
 
 static int dnodeFormatDir(char *idir, char *odir) {
