@@ -32,8 +32,9 @@
 #define DNODE_DISK_AVAIL(pDisk) ((pDisk)->dmeta.free > DISK_MIN_FREE_SPACE)
 
 static int dnodeFormatDir(char *idir, char *odir);
-static int dnodeCheckDisk(char *dirName);
+static int dnodeCheckDisk(char *dirName, int level, int primary);
 static int dnodeUpdateDiskMeta(SDisk *pDisk);
+static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary);
 
 SDnodeTier *dnodeNewTier() {
   SDnodeTier *pDnodeTier = (SDnodeTier *)calloc(1, sizeof(*pDnodeTier));
@@ -66,58 +67,33 @@ void *dnodeCloseTier(SDnodeTier *pDnodeTier) {
       taosHashCleanup(pDnodeTier->map);
       pDnodeTier->map = NULL;
     }
+
     pthread_rwlock_destroy(&(pDnodeTier->rwlock));
+
+    for (int i = 0; i < pDnodeTier->nTiers; i++) {
+      STier *pTier = pDnodeTier->tiers + i;
+      for (int j = 0; j < pTier->nDisks; j++) {
+        if (pTier->disks[j]) {
+          free(pTier->disks[j]);
+          pTier->disks[j] = NULL;
+        }
+      }
+    }
     free(pDnodeTier);
   }
   return NULL;
 }
 
-int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level) {
-  char    dirName[TSDB_FILENAME_LEN] = "\0";
-  STier * pTier = NULL;
-  SDiskID diskid = {0};
+int dnodeAddDisks(SDnodeTier *pDnodeTier, SDiskCfg *pDiskCfgs, int ndisks) {
+  ASSERT(ndisks > 0);
 
-  if (level < 0 || level >= DNODE_MAX_TIERS) {
-    terrno = TSDB_CODE_DND_INVALID_DISK_TIER;
-    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
-    return -1;
+  for (int i = 0; i < ndisks; i++) {
+    SDiskCfg *pCfg = pDiskCfgs + i;
+    dnodeAddDisk(pDnodeTier, pCfg->dir, pCfg->level, pCfg->primary);
   }
 
-  if (dnodeFormatDir(dir, dirName) < 0) {
-    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
-    return -1;
-  }
-
-  pTier = pDnodeTier->tiers + level;
-  diskid.level = level;
-
-  if (pTier->nDisks >= DNODE_MAX_DISKS_PER_TIER) {
-    terrno = TSDB_CODE_DND_TOO_MANY_DISKS;
-    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
-    return -1;
-  }
-
-  if (dnodeGetDiskByName(pDnodeTier, dirName) != NULL) {
-    terrno = TSDB_CODE_DND_DISK_ALREADY_EXISTS;
-    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
-    return -1;
-  }
-
-  if (dnodeCheckDisk(dirName) < 0) {
-    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
-    return -1;
-  }
-
-  diskid.did = pTier->nDisks++;
-  strncpy(pTier->disks[diskid.did].dir, dirName, TSDB_FILENAME_LEN);
-
-  if (taosHashPut(pDnodeTier->map, (void *)dirName, strnlen(dirName, TSDB_FILENAME_LEN), (void *)(&diskid),
-                  sizeof(diskid)) < 0) {
-    terrno = TSDB_CODE_DND_OUT_OF_MEMORY;
-    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
-    return -1;
-  }
-
+  if (dnodeCheckTiers(pDnodeTier) < 0) return -1;
+  
   return 0;
 }
 
@@ -126,7 +102,7 @@ int dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier) {
     STier *pTier = pDnodeTier->tiers + i;
 
     for (int j = 0; j < pTier->nDisks; j++) {
-      SDisk *pDisk = pTier->disks + j;
+      SDisk *pDisk = pTier->disks[j];
       if (dnodeUpdateDiskMeta(pDisk) < 0) return -1;
     }
   }
@@ -148,7 +124,7 @@ SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) {
   ASSERT(pTier->nDisks > 0);
 
   for (int i = 0; i < pTier->nDisks; i++) {
-    SDisk *iDisk = pTier->disks + i;
+    SDisk *iDisk = pTier->disks[i];
     if (dnodeUpdateDiskMeta(iDisk) < 0) return NULL;
     if (DNODE_DISK_AVAIL(iDisk)) {
       if (pDisk == NULL || pDisk->dmeta.nfiles > iDisk->dmeta.nfiles) {
@@ -200,7 +176,7 @@ static int dnodeFormatDir(char *idir, char *odir) {
   return 0;
 }
 
-static int dnodeCheckDisk(char *dirName) {
+static int dnodeCheckDisk(char *dirName, int level, int primary) {
   if (access(dirName, W_OK | R_OK | F_OK) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -230,6 +206,97 @@ static int dnodeUpdateDiskMeta(SDisk *pDisk) {
 
   pDisk->dmeta.size = dstat.f_bsize * dstat.f_blocks;
   pDisk->dmeta.free = dstat.f_bsize * dstat.f_bavail;
+
+  return 0;
+}
+
+static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary) {
+  char    dirName[TSDB_FILENAME_LEN] = "\0";
+  STier * pTier = NULL;
+  SDiskID diskid = {0};
+  SDisk * pDisk = NULL;
+
+  if (level < 0 || level >= DNODE_MAX_TIERS) {
+    terrno = TSDB_CODE_DND_INVALID_DISK_TIER;
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  if (dnodeFormatDir(dir, dirName) < 0) {
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  pTier = pDnodeTier->tiers + level;
+  diskid.level = level;
+
+  if (pTier->nDisks >= DNODE_MAX_DISKS_PER_TIER) {
+    terrno = TSDB_CODE_DND_TOO_MANY_DISKS;
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  if (dnodeGetDiskByName(pDnodeTier, dirName) != NULL) {
+    terrno = TSDB_CODE_DND_DISK_ALREADY_EXISTS;
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  if (dnodeCheckDisk(dirName, level, primary) < 0) {
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  if (primary) {
+    if (level != 0) {
+      terrno = TSDB_CODE_DND_INVALID_DISK_TIER;
+      dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+      return -1;
+    }
+
+    if (DNODE_PRIMARY_DISK(pDnodeTier) != NULL) {
+      terrno = TSDB_CODE_DND_DUPLICATE_PRIMARY_DISK;
+      dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+      return -1;
+    }
+
+    diskid.did = 0;
+  } else {
+    if (level == 0) {
+      if (DNODE_PRIMARY_DISK(pDnodeTier) != NULL) {
+        diskid.did = pTier->nDisks;
+      } else {
+        diskid.did = pTier->nDisks + 1;
+        if (diskid.did >= DNODE_MAX_DISKS_PER_TIER) {
+          terrno = TSDB_CODE_DND_TOO_MANY_DISKS;
+          dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+          return -1;
+        }
+      }
+    } else {
+      diskid.did = pTier->nDisks;
+    }
+  }
+
+  pDisk = (SDisk *)calloc(1, sizeof(SDisk));
+  if (pDisk == NULL) {
+    terrno = TSDB_CODE_DND_OUT_OF_MEMORY;
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  strncpy(pDisk->dir, dirName, TSDB_FILENAME_LEN);
+
+  if (taosHashPut(pDnodeTier->map, (void *)dirName, strnlen(dirName, TSDB_FILENAME_LEN), (void *)(&diskid),
+                  sizeof(diskid)) < 0) {
+    free(pDisk);
+    terrno = TSDB_CODE_DND_OUT_OF_MEMORY;
+    dError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
+    return -1;
+  }
+
+  pTier->nDisks++;
+  pTier->disks[diskid.did] = pDisk;
 
   return 0;
 }
