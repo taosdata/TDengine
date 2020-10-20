@@ -4,13 +4,35 @@ pipeline {
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
+
   stages {
+      stage('pre build'){
+        agent{label 'master'}
+        steps{
+          sh '''
+              cd ${WKC}
+              td=`git diff develop remotes/origin/develop`
+              if [ ! $td ];then
+                  echo "no changes,skip build"
+                  exit 0
+              fi
+              echo "check OK!"
+              '''
+        }
+      }
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
           agent{label 'master'}
           steps {
             sh '''
+            cd ${WKC}
+              td=`git diff develop remotes/origin/develop`
+              if [ ! $td ];then
+                  echo "no changes,skip build"
+                  exit 0
+              fi
+            
             date
             cd ${WKC}
             git checkout develop
@@ -36,6 +58,12 @@ pipeline {
           agent{label '184'}
           steps {
             sh '''
+            cd ${WKC}
+              td=`git diff develop remotes/origin/develop`
+              if [ ! $td ];then
+                  echo "no changes,skip build"
+                  exit 0
+              fi
             date
             cd ${WKC}
             git checkout develop
@@ -62,7 +90,12 @@ pipeline {
           agent{label "185"}
           steps {
             sh '''
-            
+            cd ${WKC}
+              td=`git diff develop remotes/origin/develop`
+              if [ ! $td ];then
+                  echo "no changes,skip build"
+                  exit 0
+              fi
             cd ${WKC}
             git checkout develop
             git pull
@@ -91,6 +124,12 @@ pipeline {
           agent{label "186"}
           steps {
             sh '''
+            cd ${WKC}
+              td=`git diff develop remotes/origin/develop`
+              if [ ! $td ];then
+                  echo "no changes,skip build"
+                  exit 0
+              fi
             date
             cd ${WKC}
             git checkout develop
