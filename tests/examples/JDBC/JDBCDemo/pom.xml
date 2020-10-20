@@ -23,7 +23,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.taosdata.example.jdbcTaosdemo.JdbcTaosdemo</mainClass>
+                            <mainClass>com.taosdata.example.JdbcChecker</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
