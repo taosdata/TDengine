@@ -185,11 +185,18 @@ enum {
   QUERY_RESULT_READY     = 2,
 };
 
+typedef struct SMemRef {
+  int32_t ref; 
+  void *mem;
+  void *imem;
+} SMemRef;
+
 typedef struct SQInfo {
   void*            signature;
   int32_t          code;   // error code to returned to client
   int64_t          owner; // if it is in execution
   void*            tsdb;
+  SMemRef          memRef; 
   int32_t          vgId;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure

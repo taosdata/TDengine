@@ -4,10 +4,23 @@ pipeline {
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
+
   stages {
+      stage('pre build'){
+        agent{label 'master'}
+        when{ changeset "develop"}
+        steps{
+          sh '''
+              
+              
+              echo "check OK!"
+              '''
+        }
+      }
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
+          when{ changeset "develop"}
           agent{label 'master'}
           steps {
             sh '''
@@ -33,13 +46,14 @@ pipeline {
           }
         }
         stage('test_b1') {
+          when{ changeset "develop"}
           agent{label '184'}
           steps {
             sh '''
-            date
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -60,12 +74,13 @@ pipeline {
 
         stage('test_crash_gen') {
           agent{label "185"}
+          when{ changeset "develop"}
           steps {
             sh '''
-            
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -89,12 +104,13 @@ pipeline {
 
         stage('test_valgrind') {
           agent{label "186"}
+          when{ changeset "develop"}
           steps {
             sh '''
-            date
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
