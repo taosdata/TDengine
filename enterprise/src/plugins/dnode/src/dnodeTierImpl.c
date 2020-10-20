@@ -24,9 +24,9 @@
 #include <wordexp.h>
 
 #include "dnodeInt.h"
-#include "dnodeTier.h"
 #include "os.h"
 #include "taosdef.h"
+#include "dnode.h"
 
 #define DISK_MIN_FREE_SPACE 30 * 1024 * 1024  // disk free space less than 100M will not create new file again
 #define DNODE_DISK_AVAIL(pDisk) ((pDisk)->dmeta.free > DISK_MIN_FREE_SPACE)
