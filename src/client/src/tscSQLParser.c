@@ -190,7 +190,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlRes* pRes = &pSql->res;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!pInfo->valid) {
+  if (!pInfo->valid || errno == TSDB_CODE_TSC_SQL_SYNTAX_ERROR) {
     return tscSQLSyntaxErrMsg(tscGetErrorMsgPayload(pCmd), NULL, pInfo->pzErrMsg);
   }
 
