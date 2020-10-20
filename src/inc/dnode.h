@@ -76,6 +76,12 @@ void    dnodeSendStatusMsgToMnode();
 #define DNODE_MAX_DISKS_PER_TIER 16
 
 typedef struct {
+  char dir[TSDB_FILENAME_LEN];
+  int  level;
+  int  primary;
+} SDiskCfg;
+
+typedef struct {
   int level;
   int did;
 } SDiskID;
@@ -92,9 +98,9 @@ typedef struct {
 } SDisk;
 
 typedef struct {
-  int   level;
-  int   nDisks;
-  SDisk disks[DNODE_MAX_DISKS_PER_TIER];
+  int    level;
+  int    nDisks;
+  SDisk *disks[DNODE_MAX_DISKS_PER_TIER];
 } STier;
 
 typedef struct SDnodeTier {
@@ -104,7 +110,7 @@ typedef struct SDnodeTier {
   SHashObj *       map;
 } SDnodeTier;
 
-#define DNODE_PRIMARY_DISK(pDnodeTier) (&(pDnodeTier)->tiers[0].disks[0])
+#define DNODE_PRIMARY_DISK(pDnodeTier) (pDnodeTier)->tiers[0].disks[0]
 
 static FORCE_INLINE int dnodeRLockTiers(SDnodeTier *pDnodeTier) {
   int code = pthread_rwlock_rdlock(&(pDnodeTier->rwlock));
@@ -138,12 +144,12 @@ static FORCE_INLINE SDisk *dnodeGetDisk(SDnodeTier *pDnodeTier, int level, int d
 
   if (did < 0 || did >= pDnodeTier->tiers[level].nDisks) return NULL;
 
-  return &(pDnodeTier->tiers[level].disks[did]);
+  return pDnodeTier->tiers[level].disks[did];
 }
 
 SDnodeTier *dnodeNewTier();
 void *      dnodeCloseTier(SDnodeTier *pDnodeTier);
-int         dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level);
+int         dnodeAddDisks(SDnodeTier *pDnodeTier, SDiskCfg *pDiskCfgs, int ndisks);
 int         dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier);
 int         dnodeCheckTiers(SDnodeTier *pDnodeTier);
 SDisk *     dnodeAssignDisk(SDnodeTier *pDnodeTier, int level);

@@ -33,6 +33,8 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 
+SDnodeTier *pDnodeTier = NULL;
+
 static int32_t dnodeInitStorage();
 static void dnodeCleanupStorage();
 static void dnodeSetRunStatus(SDnodeRunStatus status);
