@@ -32,8 +32,9 @@
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
+#include "tpath.h"
 
-SDnodeTier *pDnodeTier = NULL;
+struct SDnodeTier *pDnodeTier = NULL;
 
 static int32_t dnodeInitStorage();
 static void dnodeCleanupStorage();
@@ -181,32 +182,38 @@ static int32_t dnodeInitStorage() {
     return -1;
   }
 
-  if (dnodeCreateDir(tsDataDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
-   return -1;
-  }
-  sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
-  sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
-  sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
-  sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
-
   //TODO(dengyihao): no need to init here 
+  tdGetMnodeRootDir(DNODE_PRIMARY_DISK(pDnodeTier)->dir, tsMnodeDir);
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
-  //TODO(dengyihao): no need to init here
-  if (dnodeCreateDir(tsVnodeDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeDir, strerror(errno));
-   return -1;
-  }
+
+  tdGetDnodeRootDir(DNODE_PRIMARY_DISK(pDnodeTier)->dir, tsDnodeDir);
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;
-  } 
-  if (dnodeCreateDir(tsVnodeBakDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeBakDir, strerror(errno));
-   return -1;
+  }
+
+  for (int i = 0; i < pDnodeTier->nTiers; i++) {
+    char dirName[TSDB_FILENAME_LEN];
+
+    STier *pTier = pDnodeTier->tiers + i;
+    for (int j = 0; j < pTier->nDisks; j++) {
+      SDisk *pDisk = dnodeGetDisk(pDnodeTier, i, j);
+
+      tdGetVnodeRootDir(dirName, pDisk->dir);
+      if (dnodeCreateDir(dirName) < 0) {
+        dError("failed to create dir: %s, reason: %s", dirName, strerror(errno));
+        return -1;
+      }
+
+      tdGetVnodeBackRootDir(dirName, pDisk->dir);
+      if (dnodeCreateDir(dirName) < 0) {
+        dError("failed to create dir: %s, reason: %s", dirName, strerror(errno));
+        return -1;
+      }
+    }
   }
 
   dnodeCheckDataDirOpenned(tsDnodeDir);

@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+struct SDnodeTier;
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -155,6 +157,9 @@ extern char compatible_version[];
 extern char gitinfo[];
 extern char gitinfoOfInternal[];
 extern char buildinfo[];
+
+// dnode
+extern struct SDnodeTier *pDnodeTier;
 
 // log
 extern int32_t tsAsyncLog;

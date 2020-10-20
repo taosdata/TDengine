@@ -31,6 +31,7 @@
 #include "vnodeInt.h"
 #include "query.h"
 #include "dnode.h"
+#include "tpath.h"
 
 #define TSDB_VNODE_VERSION_CONTENT_LEN 31
 
@@ -395,17 +396,28 @@ void vnodeRelease(void *pVnodeRaw) {
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};    
     char newDir[TSDB_FILENAME_LEN] = {0};
-    sprintf(rootDir, "%s/vnode%d", tsVnodeDir, vgId);
-    sprintf(newDir, "%s/vnode%d", tsVnodeBakDir, vgId);
 
-    if (0 == tsEnableVnodeBak) {
-      vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
-    } else {
-      taosRemoveDir(newDir);
-      taosRename(rootDir, newDir);
+    for (int i = 0; i < pDnodeTier->nTiers; i++) {
+      STier *pTier = pDnodeTier->tiers + i;
+      for (int j = 0; j < pTier->nDisks; j++) {
+        SDisk *pDisk = pTier->disks[j];
+
+        tdGetVnodeDir(pDisk->dir, vgId, rootDir);
+        tdGetVnodeBackDir(pDisk->dir, vgId, newDir);
+
+        if (access(rootDir, F_OK) == 0) {
+          if (0 == tsEnableVnodeBak) {
+            vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
+          } else {
+            taosRemoveDir(newDir);
+            taosRename(rootDir, newDir);
+          }
+
+          taosRemoveDir(rootDir);
+        }
+      }
     }
-
-    taosRemoveDir(rootDir);
+    
     dnodeSendStatusMsgToMnode();
   }
 
