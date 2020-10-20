@@ -37,16 +37,16 @@ impl Subscriber {
             println!("subscribed to {} user:{}, db:{}, tb:{}, time:{}, mseconds:{}",
                         host, username, db, table, time, mseconds);
 
-            let mut fields = taos_fetch_subfields(tsub);
+            let mut fields = taos_fetch_fields(tsub);
             if fields.is_null() {
                 taos_unsubscribe(tsub);
-                return Err("fetch subfields error")
+                return Err("fetch fields error")
             }
 
-            let fcount = taos_subfields_count(tsub);
+            let fcount = taos_field_count(tsub);
             if fcount == 0 {
                 taos_unsubscribe(tsub);
-                return Err("subfields count is 0")
+                return Err("fields count is 0")
             }
 
             Ok(Subscriber{tsub, fields, fcount})
