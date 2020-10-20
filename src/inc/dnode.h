@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "hash.h"
+#include "taoserror.h"
 #include "trpc.h"
 
 typedef struct {
@@ -68,6 +70,85 @@ void    dnodeReprocessMnodeWriteMsg(void *pMsg);
 void    dnodeDelayReprocessMnodeWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
+
+// DNODE TIER
+#define DNODE_MAX_TIERS 3
+#define DNODE_MAX_DISKS_PER_TIER 16
+
+typedef struct {
+  int level;
+  int did;
+} SDiskID;
+
+typedef struct {
+  uint64_t size;
+  uint64_t free;
+  uint64_t nfiles;
+} SDiskMeta;
+
+typedef struct {
+  char      dir[TSDB_FILENAME_LEN];
+  SDiskMeta dmeta;
+} SDisk;
+
+typedef struct {
+  int   level;
+  int   nDisks;
+  SDisk disks[DNODE_MAX_DISKS_PER_TIER];
+} STier;
+
+typedef struct SDnodeTier {
+  pthread_rwlock_t rwlock;
+  int              nTiers;
+  STier            tiers[DNODE_MAX_TIERS];
+  SHashObj *       map;
+} SDnodeTier;
+
+#define DNODE_PRIMARY_DISK(pDnodeTier) (&(pDnodeTier)->tiers[0].disks[0])
+
+static FORCE_INLINE int dnodeRLockTiers(SDnodeTier *pDnodeTier) {
+  int code = pthread_rwlock_rdlock(&(pDnodeTier->rwlock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int dnodeWLockTiers(SDnodeTier *pDnodeTier) {
+  int code = pthread_rwlock_wrlock(&(pDnodeTier->rwlock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int dnodeUnLockTiers(SDnodeTier *pDnodeTier) {
+  int code = pthread_rwlock_unlock(&(pDnodeTier->rwlock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE SDisk *dnodeGetDisk(SDnodeTier *pDnodeTier, int level, int did) {
+  if (level < 0 || level >= pDnodeTier->nTiers) return NULL;
+
+  if (did < 0 || did >= pDnodeTier->tiers[level].nDisks) return NULL;
+
+  return &(pDnodeTier->tiers[level].disks[did]);
+}
+
+SDnodeTier *dnodeNewTier();
+void *      dnodeCloseTier(SDnodeTier *pDnodeTier);
+int         dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level);
+int         dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier);
+int         dnodeCheckTiers(SDnodeTier *pDnodeTier);
+SDisk *     dnodeAssignDisk(SDnodeTier *pDnodeTier, int level);
+SDisk *     dnodeGetDiskByName(SDnodeTier *pDnodeTier, char *dirName);
+
 
 #ifdef __cplusplus
 }

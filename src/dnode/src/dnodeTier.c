@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "dnodeTier.h"
+#include "dnode.h"
 
 #ifndef _DNODE_PLUGINS
 
