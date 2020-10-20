@@ -137,7 +137,7 @@ tSQLExpr *tSQLExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
   } else if (optrType == TK_VARIABLE) {
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSQLExpr->val.i64Key);
     if (ret != TSDB_CODE_SUCCESS) {
-      errno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
