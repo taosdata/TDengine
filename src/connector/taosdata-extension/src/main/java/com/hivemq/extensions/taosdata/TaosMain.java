@@ -25,7 +25,7 @@ import com.hivemq.extension.sdk.api.parameter.*;
 import com.hivemq.extension.sdk.api.services.Services;
 import com.hivemq.extension.sdk.api.services.intializer.InitializerRegistry;
 import com.hivemq.extensions.taosdata.configuration.CfgUtils;
-import com.hivemq.extensions.taosdata.configuration.Defs;
+import com.hivemq.extensions.taosdata.configuration.Constants;
 import com.hivemq.extensions.taosdata.configuration.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +45,7 @@ public class TaosMain implements ExtensionMain {
     @Override
     public void extensionStart(final @NotNull ExtensionStartInput extensionStartInput, final @NotNull ExtensionStartOutput extensionStartOutput) {
         try {
-            Properties properties = PropertiesUtils.loadProperties(Defs.DEFAULT_TAOS_CFG_PATH);
+            Properties properties = PropertiesUtils.loadProperties(Constants.DEFAULT_TAOS_CFG_PATH);
             Config cfg = CfgUtils.load();
 
             addClientLifecycleEventListener();

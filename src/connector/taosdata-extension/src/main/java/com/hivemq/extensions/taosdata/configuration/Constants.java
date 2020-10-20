@@ -2,7 +2,7 @@ package com.hivemq.extensions.taosdata.configuration;
 
 import java.nio.charset.Charset;
 
-public final class Defs {
+public final class Constants {
     public static final Charset UTF8 = Charset.forName("UTF-8");
     public static final String WORK_DIR = System.getProperty("user.dir");
     public static final String DEFAULT_CFG_PATH = WORK_DIR + "/extensions/taosdata-extension/";

@@ -35,7 +35,7 @@ public class CfgUtils {
      * @return 配置项
      */
     public static Config load() {
-        return loadFromFile(Defs.DEFAULT_TOPICS_CFG_PATH);
+        return loadFromFile(Constants.DEFAULT_TOPICS_CFG_PATH);
     }
 
     public static Config loadFromFile(String filename) {
@@ -44,7 +44,7 @@ public class CfgUtils {
         BufferedReader reader = null;
 
         try {
-            reader = Files.newReader(f, Defs.UTF8);
+            reader = Files.newReader(f, Constants.UTF8);
             Config topics = yaml.loadAs(reader, Config.class);
             return topics;
         } catch (FileNotFoundException e) {
@@ -66,7 +66,7 @@ public class CfgUtils {
         File f = new File(filename);
         List<String> lines = null;
         try {
-            lines = Files.readLines(f, Defs.UTF8);
+            lines = Files.readLines(f, Constants.UTF8);
         } catch (IOException e) {
             e.printStackTrace();
             log.error("failed to read topics configuration file {}", filename, e);
