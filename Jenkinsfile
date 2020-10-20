@@ -8,14 +8,11 @@ pipeline {
   stages {
       stage('pre build'){
         agent{label 'master'}
+        when{ changeset "develop"}
         steps{
           sh '''
-              cd ${WKC}
-              td=`git diff develop remotes/origin/develop`
-              if [ ! $td ];then
-                  echo "no changes,skip build"
-                  exit 0
-              fi
+              
+              
               echo "check OK!"
               '''
         }
@@ -23,16 +20,10 @@ pipeline {
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
+          when{ changeset "develop"}
           agent{label 'master'}
           steps {
             sh '''
-            cd ${WKC}
-              td=`git diff develop remotes/origin/develop`
-              if [ ! $td ];then
-                  echo "no changes,skip build"
-                  exit 0
-              fi
-            
             date
             cd ${WKC}
             git checkout develop
@@ -55,19 +46,14 @@ pipeline {
           }
         }
         stage('test_b1') {
+          when{ changeset "develop"}
           agent{label '184'}
           steps {
             sh '''
             cd ${WKC}
-              td=`git diff develop remotes/origin/develop`
-              if [ ! $td ];then
-                  echo "no changes,skip build"
-                  exit 0
-              fi
-            date
-            cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -88,17 +74,13 @@ pipeline {
 
         stage('test_crash_gen') {
           agent{label "185"}
+          when{ changeset "develop"}
           steps {
             sh '''
             cd ${WKC}
-              td=`git diff develop remotes/origin/develop`
-              if [ ! $td ];then
-                  echo "no changes,skip build"
-                  exit 0
-              fi
-            cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -122,18 +104,13 @@ pipeline {
 
         stage('test_valgrind') {
           agent{label "186"}
+          when{ changeset "develop"}
           steps {
             sh '''
             cd ${WKC}
-              td=`git diff develop remotes/origin/develop`
-              if [ ! $td ];then
-                  echo "no changes,skip build"
-                  exit 0
-              fi
-            date
-            cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
