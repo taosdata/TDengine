@@ -352,6 +352,8 @@ print ======================udc with normal column group by
 sql_error select from t1
 sql_error select abc from t1
 sql_error select abc as tu from t1
+
+print ========================> td-1756
 sql_error select * from t1 where ts>now-1y
 sql_error select * from t1 where ts>now-1n
 
