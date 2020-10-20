@@ -120,6 +120,7 @@ public class JdbcChecker {
             printSql(sql, execute, (end - start));
         } catch (SQLException e) {
             e.printStackTrace();
+            
         }
     }
 
