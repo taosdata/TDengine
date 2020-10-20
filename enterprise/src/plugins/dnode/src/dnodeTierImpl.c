@@ -111,7 +111,18 @@ int dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier) {
 
 int dnodeCheckTiers(SDnodeTier *pDnodeTier) {
   ASSERT(pDnodeTier->nTiers > 0);
-  // TODO
+  if (DNODE_PRIMARY_DISK(pDnodeTier) == NULL) {
+    terrno = TSDB_CODE_DND_LACK_PRIMARY_DISK;
+    return -1;
+  }
+
+  for (int i = 0; i < pDnodeTier->nTiers; i++) {
+    if (pDnodeTier->tiers[i].nDisks == 0) {
+      terrno = TSDB_CODE_DND_NO_DISK_AT_TIER;
+      return -1;
+    }
+  }
+
   return 0;
 }
 
@@ -297,6 +308,7 @@ static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primar
 
   pTier->nDisks++;
   pTier->disks[diskid.did] = pDisk;
+  pDnodeTier->nTiers = MAX(pDnodeTier->nTiers, level);
 
   return 0;
 }
