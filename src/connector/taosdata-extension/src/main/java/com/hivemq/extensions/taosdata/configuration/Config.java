@@ -22,7 +22,6 @@ public class Config {
 
     public void setTopics(List<Topic> topics) {
         this.topics = topics;
-
         map = new HashMap<>();
         if (topics != null) {
             topics.forEach(t -> {
