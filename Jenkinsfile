@@ -4,6 +4,22 @@ pipeline {
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
+  stages{
+    stage('pre build'){
+      agent{label 'master'}
+      steps{
+        sh '''
+            ${WKC}
+            td=`git diff develop remotes/origin/develop`
+            if [ ! $td ];then
+                echo "no changes,skip build"
+                exit 0
+            fi
+            echo "check OK!"
+            '''
+      }
+    }
+  }
   stages {
       stage('Parallel test stage') {
       parallel {
