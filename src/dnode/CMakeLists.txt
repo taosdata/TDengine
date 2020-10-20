@@ -36,6 +36,10 @@ IF (TD_LINUX)
     TARGET_LINK_LIBRARIES(taosd balance sync)
   ENDIF ()
 
+  IF (TD_DNODE_PLUGINS)
+    TARGET_LINK_LIBRARIES(taosd dnodePlugins)
+  ENDIF()
+
   SET(PREPARE_ENV_CMD "prepare_env_cmd")
   SET(PREPARE_ENV_TARGET "prepare_env_target")
   ADD_CUSTOM_COMMAND(OUTPUT ${PREPARE_ENV_CMD}

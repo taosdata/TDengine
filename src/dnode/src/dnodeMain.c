@@ -170,6 +170,17 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+  pDnodeTier = dnodeNewTier();
+  if (pDnodeTier == NULL) {
+    dError("failed to create new dnode tier since %s", tstrerror(terrno));
+    return -1;
+  }
+
+  if (dnodeAddDisks(pDnodeTier, NULL, 0) < 0) {
+    dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
+    return -1;
+  }
+
   if (dnodeCreateDir(tsDataDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
    return -1;
@@ -204,7 +215,12 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() {}
+static void dnodeCleanupStorage() {
+  if (pDnodeTier) {
+    dnodeCloseTier(pDnodeTier);
+    pDnodeTier = NULL;
+  }
+}
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

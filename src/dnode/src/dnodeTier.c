@@ -20,7 +20,7 @@
 
 SDnodeTier *dnodeNewTier() { return NULL; }
 void *      dnodeCloseTier(SDnodeTier *pDnodeTier) { return NULL; }
-int         dnodeAddDisks(SDnodeTier *pDnodeTier, SDiskCfg *pDiskCfgs, int ndisks);
+int         dnodeAddDisks(SDnodeTier *pDnodeTier, SDiskCfg *pDiskCfgs, int ndisks) { return 0; }
 int         dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier) { return 0; }
 int         dnodeCheckTiers(SDnodeTier *pDnodeTier) { return 0; }
 SDisk *     dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) { return NULL; }
