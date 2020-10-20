@@ -358,7 +358,7 @@ sql_error select * from t1 where ts>now-1y
 sql_error select * from t1 where ts>now-1n
 
 print ========================> td-1752
-sql select * from st2 where t2 < 200 and t2 is not null;
+sql select * from db.st2 where t2 < 200 and t2 is not null;
 if $rows != 1 then
   return -1
 endi
@@ -375,7 +375,7 @@ if $data02 != 1 then
   return -1
 endi
 
-sql select * from st2 where t2 > 200 or t2 is null;
+sql select * from db.st2 where t2 > 200 or t2 is null;
 if $rows != 0 then
   return -1
 endi
