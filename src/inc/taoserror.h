@@ -28,7 +28,7 @@ extern "C" {
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (0x80000000 | ((mod)<<16) | (code));
 #endif
- 
+
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
@@ -37,7 +37,7 @@ const char* tstrerror(int32_t err);
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
- 
+
 #define TSDB_CODE_SUCCESS                   0
 
 #ifdef TAOS_ERROR_C
@@ -190,7 +190,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_DUPLICATE_PRIMARY_DISK,   0, 0x0409, "Duplicate 
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_LACK_PRIMARY_DISK,        0, 0x040A, "Lack primary disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_DISK_AT_TIER,          0, 0x040B, "No disk at tier")
 
-// vnode 
+// vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_MSG_NOT_PROCESSED,        0, 0x0501, "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_NEED_REPROCESSED,  0, 0x0502, "Action need to be reprocessed")
@@ -361,6 +361,23 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_NULL,       0, 0x11A3, "tag value 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   0, 0x11A4, "tag value can not more than 64")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           0, 0x11A5, "value not find")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A6, "value type should be boolean, number or string")
+
+
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2101, "out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_UNDEF,              0, 0x2102, "convertion undefined")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_TRUNC,              0, 0x2103, "convertion truncated")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_SUPPORT,        0, 0x2104, "convertion not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OUT_OF_RANGE,            0, 0x2105, "out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NOT_SUPPORT,             0, 0x2106, "not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_HANDLE,          0, 0x2107, "invalid handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_RESULT,               0, 0x2108, "no result set")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_FIELDS,               0, 0x2109, "no fields returned")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_CURSOR,          0, 0x2110, "invalid cursor")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x2111, "statement not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x2112, "connection still busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x2113, "bad connection string")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_ARG,                 0, 0x2114, "bad argument")
+
 
 #ifdef TAOS_ERROR_C
 };
