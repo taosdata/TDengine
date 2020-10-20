@@ -45,6 +45,7 @@ class ConnectorChecker:
             print("Failure sql: %s,exception: %s" %
                 sql,str(e))
     def close(self):
+        print("connetion closed.")
         self.cl.close()
         self.conn.close()
     def createDatabase(self):
@@ -66,7 +67,6 @@ class ConnectorChecker:
         sql = "select * from test.weather"
         self.executeQuery(sql)
     def srun(self):
-        print(self.host)
         try:
             self.conn = taos.connect(host=self.host,user=self.user,password=self.password)
             #self.conn = taos.connect(self.host,self.user,self.password)
