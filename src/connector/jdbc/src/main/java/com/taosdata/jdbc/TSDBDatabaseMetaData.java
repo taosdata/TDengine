@@ -587,7 +587,6 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
 
-
         /** add by zyyang **********/
         Statement stmt = null;
         if (null != conn && !conn.isClosed()) {

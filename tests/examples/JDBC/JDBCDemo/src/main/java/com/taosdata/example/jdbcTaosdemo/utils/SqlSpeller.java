@@ -113,7 +113,7 @@ public class SqlSpeller {
     }
 
     public static String selectLastOneMonth(String dbName, String stbName) {
-        return "select * from " + dbName + "." + stbName + " where ts >= now - 1M";
+        return "select * from " + dbName + "." + stbName + " where ts >= now - 1n";
     }
 
     public static String selectLastOneYear(String dbName, String stbName) {
