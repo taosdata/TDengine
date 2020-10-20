@@ -33,6 +33,7 @@
 
 static int dnodeFormatDir(char *idir, char *odir);
 static int dnodeCheckDisk(char *dirName);
+static int dnodeUpdateDiskMeta(SDisk *pDisk);
 
 SDnodeTier *dnodeNewTier() {
   SDnodeTier *pDnodeTier = (SDnodeTier *)calloc(1, sizeof(*pDnodeTier));
@@ -217,4 +218,18 @@ static int dnodeCheckDisk(char *dirName) {
     terrno = TSDB_CODE_DND_DISK_NOT_DIRECTORY;
     return -1;
   }
+}
+
+static int dnodeUpdateDiskMeta(SDisk *pDisk) {
+  struct statvfs dstat;
+  if (statvfs(pDisk->dir, &dstat) < 0) {
+    dError("failed to get dir %s information since %s", pDisk->dir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  pDisk->dmeta.size = dstat.f_bsize * dstat.f_blocks;
+  pDisk->dmeta.free = dstat.f_bsize * dstat.f_bavail;
+
+  return 0;
 }
