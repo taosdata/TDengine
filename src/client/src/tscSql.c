@@ -479,8 +479,11 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
   
-  if (pRes->qhandle == 0 ||
-      pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
+  if (pRes->qhandle == 0) {
+    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
+    return NULL;
+  }
+  if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
