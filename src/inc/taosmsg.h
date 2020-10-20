@@ -251,7 +251,7 @@ typedef struct {
   int8_t   tableType;
   int16_t  numOfColumns;
   int16_t  numOfTags;
-  int32_t  sid;
+  int32_t  tid;
   int32_t  sversion;
   int32_t  tversion;
   int32_t  tagDataLen;
@@ -360,7 +360,7 @@ typedef struct {
 typedef struct {
   int32_t  contLen;
   int32_t  vgId;
-  int32_t  sid;
+  int32_t  tid;
   uint64_t uid;
   char     tableId[TSDB_TABLE_FNAME_LEN];
 } SMDDropTableMsg;
@@ -699,7 +699,7 @@ typedef struct STableMetaMsg {
   int16_t       numOfColumns;
   int16_t       sversion;
   int16_t       tversion;
-  int32_t       sid;
+  int32_t       tid;
   uint64_t      uid;
   SCMVgroupMsg  vgroup;
   SSchema       schema[];
@@ -747,7 +747,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   int32_t vgId;
-  int32_t sid;
+  int32_t tid;
 } SDMConfigTableMsg;
 
 typedef struct {

@@ -163,7 +163,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
     .numOfColumns = pTableMetaMsg->numOfColumns,
   };
   
-  pTableMeta->id.tid = pTableMetaMsg->sid;
+  pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
 
   SCMVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;

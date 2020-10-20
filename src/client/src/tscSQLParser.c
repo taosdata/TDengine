@@ -5259,26 +5259,6 @@ int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-//void tscAddTimestampColumn(SQueryInfo* pQueryInfo, int16_t functionId, int16_t tableIndex) {
-//  // the first column not timestamp column, add it
-//  SSqlExpr* pExpr = NULL;
-//  if (tscSqlExprNumOfExprs(pQueryInfo) > 0) {
-//    pExpr = tscSqlExprGet(pQueryInfo, 0);
-//  }
-//
-//  if (pExpr == NULL || pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX || pExpr->functionId != functionId) {
-//    SColumnIndex index = {tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-//
-//    pExpr = tscSqlExprInsert(pQueryInfo, 0, functionId, &index, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE, TSDB_KEYSIZE, false);
-//    pExpr->colInfo.flag = TSDB_COL_NORMAL;
-//
-//    // NOTE: tag column does not add to source column list
-//    SColumnList ids = getColumnList(1, tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX);
-//
-//    insertResultField(pQueryInfo, 0, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, "ts", pExpr);
-//  }
-//}
-
 void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex) {
   SQueryInfo* pParentQueryInfo = tscGetQueryInfoDetail(&pParentObj->cmd, subClauseIndex);
 

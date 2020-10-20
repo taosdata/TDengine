@@ -1650,7 +1650,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscProcessTableMetaRsp(SSqlObj *pSql) {
   STableMetaMsg *pMetaMsg = (STableMetaMsg *)pSql->res.pRsp;
 
-  pMetaMsg->sid = htonl(pMetaMsg->sid);
+  pMetaMsg->tid = htonl(pMetaMsg->tid);
   pMetaMsg->sversion = htons(pMetaMsg->sversion);
   pMetaMsg->tversion = htons(pMetaMsg->tversion);
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
@@ -1660,9 +1660,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
-      (pMetaMsg->sid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
+      (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
-             pMetaMsg->sid, pMetaMsg->tableId);
+             pMetaMsg->tid, pMetaMsg->tableId);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -1845,8 +1845,10 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
     SVgroupsMsg *  pVgroupMsg = (SVgroupsMsg *) pMsg;
     pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
 
-    size_t size = sizeof(SCMVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
-    pInfo->vgroupList = calloc(1, size);
+    size_t size = sizeof(SCMVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg);
+
+    size_t vgroupsz = sizeof(SCMVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+    pInfo->vgroupList = calloc(1, vgroupsz);
     assert(pInfo->vgroupList != NULL);
 
     pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
@@ -1898,7 +1900,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = ntohs(pMetaMsg->numOfColumns);
 
   pSchema = pMetaMsg->schema;
-  pMetaMsg->sid = ntohs(pMetaMsg->sid);
+  pMetaMsg->tid = ntohs(pMetaMsg->tid);
   for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
     pSchema++;

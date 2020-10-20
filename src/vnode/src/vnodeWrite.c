@@ -149,7 +149,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
   int32_t          code = TSDB_CODE_SUCCESS;
 
   vDebug("vgId:%d, table:%s, start to drop", pVnode->vgId, pTable->tableId);
-  STableId tableId = {.uid = htobe64(pTable->uid), .tid = htonl(pTable->sid)};
+  STableId tableId = {.uid = htobe64(pTable->uid), .tid = htonl(pTable->tid)};
 
   if (tsdbDropTable(pVnode->tsdb, tableId) < 0) code = terrno;
 

@@ -303,7 +303,7 @@ static int32_t mnodeChildTableActionRestored() {
 
     SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
     if (pVgroup == NULL) {
-      mError("ctable:%s, failed to get vgId:%d sid:%d, discard it", pTable->info.tableId, pTable->vgId, pTable->sid);
+      mError("ctable:%s, failed to get vgId:%d tid:%d, discard it", pTable->info.tableId, pTable->vgId, pTable->tid);
       pTable->vgId = 0;
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
@@ -314,7 +314,7 @@ static int32_t mnodeChildTableActionRestored() {
 
     if (strcmp(pVgroup->dbName, pDb->name) != 0) {
       mError("ctable:%s, db:%s not match with vgId:%d db:%s sid:%d, discard it",
-             pTable->info.tableId, pDb->name, pTable->vgId, pVgroup->dbName, pTable->sid);
+             pTable->info.tableId, pDb->name, pTable->vgId, pVgroup->dbName, pTable->tid);
       pTable->vgId = 0;
       SSdbOper desc = {.type = SDB_OPER_LOCAL, .pObj = pTable, .table = tsChildTableSdb};
       sdbDeleteRow(&desc);
@@ -771,8 +771,8 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     return mnodeProcessDropSuperTableMsg(pMsg);
   } else {
     SChildTableObj *pCTable = (SChildTableObj *)pMsg->pTable;
-    mInfo("app:%p:%p, table:%s, start to drop ctable, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
-          pDrop->tableId, pCTable->vgId, pCTable->sid, pCTable->uid);
+    mInfo("app:%p:%p, table:%s, start to drop ctable, vgId:%d tid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
+          pDrop->tableId, pCTable->vgId, pCTable->tid, pCTable->uid);
     return mnodeProcessDropChildTableMsg(pMsg);
   }
 }
@@ -1479,6 +1479,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     if (pTable != NULL && pTable->vgHash != NULL) {
       contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupMsg) + sizeof(SVgroupsMsg));
     } 
+    
     mnodeDecTableRef(pTable);
   }
 
@@ -1593,7 +1594,7 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableO
   pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->info.type;
   pCreate->createdTime   = htobe64(pTable->createdTime);
-  pCreate->sid           = htonl(pTable->sid);
+  pCreate->tid           = htonl(pTable->tid);
   pCreate->sqlDataLen    = htonl(pTable->sqlLen);
   pCreate->uid           = htobe64(pTable->uid);
   
@@ -1642,7 +1643,7 @@ static int32_t mnodeDoCreateChildTableFp(SMnodeMsg *pMsg) {
   assert(pTable);
 
   mDebug("app:%p:%p, table:%s, created in mnode, vgId:%d sid:%d, uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
-         pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid);
+         pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid);
 
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
   SMDCreateTableMsg *pMDCreate = mnodeBuildCreateChildTableMsg(pCreate, pTable);
@@ -1684,7 +1685,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   } else {
     mError("app:%p:%p, table:%s, failed to create table sid:%d, uid:%" PRIu64 ", reason:%s", pMsg->rpcMsg.ahandle, pMsg,
-           pTable->info.tableId, pTable->sid, pTable->uid, tstrerror(code));
+           pTable->info.tableId, pTable->tid, pTable->uid, tstrerror(code));
     SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .table = tsChildTableSdb};
     sdbDeleteRow(&desc);
     return code;
@@ -1708,7 +1709,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 
   pTable->info.tableId = strdup(pCreate->tableId);  
   pTable->createdTime  = taosGetTimestampMs();
-  pTable->sid          = tid;
+  pTable->tid          = tid;
   pTable->vgId         = pVgroup->vgId;
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
@@ -1722,7 +1723,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     }
 
     pTable->suid = pMsg->pSTable->uid;
-    pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 24) +
+    pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->tid) & ((1ul << 24) - 1ul)) << 24) +
                   ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     pTable->superTable = pMsg->pSTable;
   } else {
@@ -1730,7 +1731,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
       int64_t us = taosGetTimestampUs();
       pTable->uid = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     } else {
-      pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->sid) & ((1ul << 24) - 1ul)) << 24) +
+      pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->tid) & ((1ul << 24) - 1ul)) << 24) +
                     ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
     }
 
@@ -1787,7 +1788,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
            tstrerror(code));
   } else {
     mDebug("app:%p:%p, table:%s, allocated in vgroup, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
-           pTable->info.tableId, pVgroup->vgId, pTable->sid, pTable->uid);
+           pTable->info.tableId, pVgroup->vgId, pTable->tid, pTable->uid);
   }
 
   return code;
@@ -1805,8 +1806,8 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   if (pMsg->retry == 0) {
     if (pMsg->pTable == NULL) {
       SVgObj *pVgroup = NULL;
-      int32_t sid = 0;
-      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &sid);
+      int32_t tid = 0;
+      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid);
       if (code != TSDB_CODE_SUCCESS) {
         mDebug("app:%p:%p, table:%s, failed to get available vgroup, reason:%s", pMsg->rpcMsg.ahandle, pMsg,
                pCreate->tableId, tstrerror(code));
@@ -1820,7 +1821,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
       pMsg->pVgroup = pVgroup;
       mnodeIncVgroupRef(pVgroup);
 
-      return mnodeDoCreateChildTable(pMsg, sid);
+      return mnodeDoCreateChildTable(pMsg, tid);
     }
   } else {
     if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pCreate->tableId);
@@ -1850,13 +1851,13 @@ static int32_t mnodeSendDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
   tstrncpy(pDrop->tableId, pTable->info.tableId, TSDB_TABLE_FNAME_LEN);
   pDrop->vgId    = htonl(pTable->vgId);
   pDrop->contLen = htonl(sizeof(SMDDropTableMsg));
-  pDrop->sid     = htonl(pTable->sid);
+  pDrop->tid     = htonl(pTable->tid);
   pDrop->uid     = htobe64(pTable->uid);
 
   SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pMsg->pVgroup);
 
   mInfo("app:%p:%p, ctable:%s, send drop ctable msg, vgId:%d sid:%d uid:%" PRIu64, pMsg->rpcMsg.ahandle, pMsg,
-        pDrop->tableId, pTable->vgId, pTable->sid, pTable->uid);
+        pDrop->tableId, pTable->vgId, pTable->tid, pTable->uid);
 
   SRpcMsg rpcMsg = {
     .ahandle = pMsg,
@@ -2095,7 +2096,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   SChildTableObj *pTable = (SChildTableObj *)pMsg->pTable;
 
   pMeta->uid       = htobe64(pTable->uid);
-  pMeta->sid       = htonl(pTable->sid);
+  pMeta->tid       = htonl(pTable->tid);
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
   tstrncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_FNAME_LEN);
@@ -2135,7 +2136,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->vgroup.vgId = htonl(pMsg->pVgroup->vgId);
 
   mDebug("app:%p:%p, table:%s, uid:%" PRIu64 " table meta is retrieved, vgId:%d sid:%d", pMsg->rpcMsg.ahandle, pMsg,
-         pTable->info.tableId, pTable->uid, pTable->vgId, pTable->sid);
+         pTable->info.tableId, pTable->uid, pTable->vgId, pTable->tid);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2283,11 +2284,11 @@ static void mnodeDropAllChildTablesInStable(SSuperTableObj *pStable) {
 }
 
 #if 0
-static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t sid) {
+static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t tid) {
   SVgObj *pVgroup = mnodeGetVgroup(vnode);
   if (pVgroup == NULL) return NULL;
 
-  SChildTableObj *pTable = pVgroup->tableList[sid - 1];
+  SChildTableObj *pTable = pVgroup->tableList[tid - 1];
   mnodeIncTableRef((STableObj *)pTable);
 
   mnodeDecVgroupRef(pVgroup);
@@ -2335,12 +2336,12 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
   assert(pTable);
 
   mInfo("app:%p:%p, table:%s, drop table rsp received, vgId:%d sid:%d uid:%" PRIu64 ", thandle:%p result:%s",
-        mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+        mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid,
         mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     mError("app:%p:%p, table:%s, failed to drop in dnode, vgId:%d sid:%d uid:%" PRIu64 ", reason:%s",
-           mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+           mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid,
            tstrerror(rpcMsg->code));
     dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
     return;
@@ -2378,7 +2379,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
   // If the table is deleted by another thread during creation, stop creating and send drop msg to vnode
   if (sdbCheckRowDeleted(tsChildTableSdb, pTable)) {
     mDebug("app:%p:%p, table:%s, create table rsp received, but a deleting opertion incoming, vgId:%d sid:%d uid:%" PRIu64,
-           mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid);
+           mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid);
 
     // if the vgroup is already dropped from hash, it can't be accquired by pTable->vgId
     // so the refCount of vgroup can not be decreased
@@ -2413,13 +2414,13 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
     if (mnodeMsg->retry++ < 10) {
       mDebug("app:%p:%p, table:%s, create table rsp received, need retry, times:%d vgId:%d sid:%d uid:%" PRIu64
              " result:%s thandle:%p",
-             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, pTable->vgId, pTable->sid,
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, pTable->vgId, pTable->tid,
              pTable->uid, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
       dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
     } else {
       mError("app:%p:%p, table:%s, failed to create in dnode, vgId:%d sid:%d uid:%" PRIu64 ", result:%s thandle:%p",
-             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->sid, pTable->uid,
+             mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid,
              tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
       SSdbOper oper = {.type = SDB_OPER_GLOBAL, .table = tsChildTableSdb, .pObj = pTable};
@@ -2674,7 +2675,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 
     // tid
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t*) pWrite = pTable->sid;
+    *(int32_t*) pWrite = pTable->tid;
     cols++;
 
     //vgid

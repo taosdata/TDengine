@@ -1142,7 +1142,6 @@ static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
 
 static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
 
-// TODO
 int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -1298,14 +1297,6 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
 
   int32_t code = TSDB_CODE_SUCCESS;
-
-  // todo add test
-//  SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
-//  if (pState == NULL) {
-//    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//    goto _error;
-//  }
-
   pSql->subState.numOfSub = pQueryInfo->numOfTables;
 
   bool hasEmptySub = false;
