@@ -407,6 +407,7 @@ typedef struct SExprInfo {
   int16_t     bytes;
   int16_t     type;
   int32_t     interBytes;
+  int64_t     uid;
 } SExprInfo;
 
 typedef struct SColumnFilterInfo {

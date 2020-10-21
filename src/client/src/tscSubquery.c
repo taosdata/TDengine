@@ -2013,7 +2013,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pSupportInfo, columnIndex);
+  SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   *bytes = pInfo->pSqlExpr->resBytes;
@@ -2163,7 +2163,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
 
   size_t size = tscNumOfFields(pQueryInfo);
   for (int i = 0; i < size; ++i) {
-    SFieldSupInfo* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
     }
@@ -2173,7 +2173,7 @@ void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
       continue;
     }
 
-    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pFields, i);
+    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     if (pRes->tsrow[i] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
       transferNcharData(pSql, i, pField);
     }

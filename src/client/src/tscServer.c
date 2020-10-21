@@ -1934,7 +1934,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     tscColumnListInsert(pQueryInfo->colList, &index);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
-    SFieldSupInfo* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
+    SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
     pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
                      pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes, false);

@@ -370,7 +370,7 @@ int taos_num_fields(TAOS_RES *res) {
 
   size_t numOfCols = tscNumOfFields(pQueryInfo);
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SFieldSupInfo* pInfo = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pInfo = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
     if (pInfo->visible) {
       num++;
     }
@@ -406,8 +406,24 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   if (numOfCols == 0) {
     return NULL;
   }
-  
-  return pQueryInfo->fieldsInfo.pFields->pData;
+
+  SFieldInfo *pFieldInfo = &pQueryInfo->fieldsInfo;
+
+  if (pFieldInfo->final == NULL) {
+    TAOS_FIELD* f = calloc(pFieldInfo->numOfOutput, sizeof(TAOS_FIELD));
+
+    int32_t j = 0;
+    for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
+      SInternalField* pField = tscFieldInfoGetInternalField(pFieldInfo, i);
+      if (pField->visible) {
+        f[j++] = pField->field;
+      }
+    }
+
+    pFieldInfo->final = f;
+  }
+
+  return pFieldInfo->final;
 }
 
 int taos_retrieve(TAOS_RES *res) {

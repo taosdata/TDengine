@@ -149,14 +149,13 @@ int tscAllocPayload(SSqlCmd* pCmd, int size);
 
 TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes);
 
-SFieldSupInfo* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField);
-SFieldSupInfo* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field);
+SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField);
+SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field);
 
-SFieldSupInfo* tscFieldInfoGetSupp(SFieldInfo* pFieldInfo, int32_t index);
+SInternalField* tscFieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t index);
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
 
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
-void tscFieldInfoCopy(SFieldInfo* dst, const SFieldInfo* src);
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);

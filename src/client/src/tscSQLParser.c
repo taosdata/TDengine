@@ -122,7 +122,7 @@ static int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSql
 static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
-static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray* pExprInfo, SQueryInfo* pQueryInfo, SArray* pCols);
+static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, int64_t *uid);
 
 /*
  * Used during parsing query sql. Since the query sql usually small in length, error position
@@ -1250,7 +1250,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     tExprNode* pNode = NULL;
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
 
-    int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo->exprList, pQueryInfo, colList);
+    int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo, colList, NULL);
     if (ret != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(colList);
       tExprTreeDestroy(&pNode, NULL);
@@ -1306,17 +1306,17 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, aliasName, NULL);
 
     int32_t slot = tscNumOfFields(pQueryInfo) - 1;
-    SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, slot);
+    SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
 
     if (pInfo->pSqlExpr == NULL) {
       SExprInfo* pArithExprInfo = calloc(1, sizeof(SExprInfo));
 
       // arithmetic expression always return result in the format of double float
-      pArithExprInfo->bytes = sizeof(double);
+      pArithExprInfo->bytes      = sizeof(double);
       pArithExprInfo->interBytes = sizeof(double);
-      pArithExprInfo->type = TSDB_DATA_TYPE_DOUBLE;
+      pArithExprInfo->type       = TSDB_DATA_TYPE_DOUBLE;
 
-      int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo->exprList, pQueryInfo, NULL);
+      int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &pArithExprInfo->uid);
       if (ret != TSDB_CODE_SUCCESS) {
         tExprTreeDestroy(&pArithExprInfo->pExpr, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
@@ -1373,7 +1373,7 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
   int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   tscAddSpecialColumnForSelect(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL);
 
-  SFieldSupInfo* pSupInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, numOfCols);
+  SInternalField* pSupInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, numOfCols);
   pSupInfo->visible = false;
 
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
@@ -1470,7 +1470,7 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
   }
   
   TAOS_FIELD f = tscCreateField(type, fieldName, bytes);
-  SFieldSupInfo* pInfo = tscFieldInfoInsert(&pQueryInfo->fieldsInfo, outputIndex, &f);
+  SInternalField* pInfo = tscFieldInfoInsert(&pQueryInfo->fieldsInfo, outputIndex, &f);
   pInfo->pSqlExpr = pSqlExpr;
   
   return TSDB_CODE_SUCCESS;
@@ -4063,7 +4063,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     tExprNode* p = NULL;
   
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
-    ret = exprTreeFromSqlExpr(pCmd, &p, p1, NULL, pQueryInfo, colList);
+    ret = exprTreeFromSqlExpr(pCmd, &p, p1, pQueryInfo, colList, NULL);
     SBufferWriter bw = tbufInitWriter(NULL, false);
 
     TRY(0) {
@@ -5316,7 +5316,7 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
 
   tscAddSpecialColumnForSelect(pQueryInfo, (int32_t)size, TSDB_FUNC_PRJ, &colIndex, pSchema, TSDB_COL_NORMAL);
 
-  SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, (int32_t)size);
+  SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, (int32_t)size);
   doLimitOutputNormalColOfGroupby(pInfo->pSqlExpr);
   pInfo->visible = false;
 }
@@ -6361,19 +6361,19 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 
-int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SArray* pExprInfo, SQueryInfo* pQueryInfo, SArray* pCols) {
+int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, int64_t *uid) {
   tExprNode* pLeft = NULL;
   tExprNode* pRight= NULL;
   
   if (pSqlExpr->pLeft != NULL) {
-    int32_t ret = exprTreeFromSqlExpr(pCmd, &pLeft, pSqlExpr->pLeft, pExprInfo, pQueryInfo, pCols);
+    int32_t ret = exprTreeFromSqlExpr(pCmd, &pLeft, pSqlExpr->pLeft, pQueryInfo, pCols, uid);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
   }
   
   if (pSqlExpr->pRight != NULL) {
-    int32_t ret = exprTreeFromSqlExpr(pCmd, &pRight, pSqlExpr->pRight, pExprInfo, pQueryInfo, pCols);
+    int32_t ret = exprTreeFromSqlExpr(pCmd, &pRight, pSqlExpr->pRight, pQueryInfo, pCols, uid);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -6400,14 +6400,19 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       strncpy((*pExpr)->pSchema->name, pSqlExpr->operand.z, pSqlExpr->operand.n);
       
       // set the input column data byte and type.
-      size_t size = taosArrayGetSize(pExprInfo);
+      size_t size = taosArrayGetSize(pQueryInfo->exprList);
       
       for (int32_t i = 0; i < size; ++i) {
-        SSqlExpr* p1 = taosArrayGetP(pExprInfo, i);
+        SSqlExpr* p1 = taosArrayGetP(pQueryInfo->exprList, i);
         
         if (strcmp((*pExpr)->pSchema->name, p1->aliasName) == 0) {
-          (*pExpr)->pSchema->type = (uint8_t)p1->resType;
+          (*pExpr)->pSchema->type  = (uint8_t)p1->resType;
           (*pExpr)->pSchema->bytes = p1->resBytes;
+
+          if (uid != NULL) {
+            *uid = p1->uid;
+          }
+
           break;
         }
       }
