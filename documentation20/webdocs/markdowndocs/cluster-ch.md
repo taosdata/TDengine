@@ -217,4 +217,4 @@ SHOW MNODES;
 
 下载最新arbitrator及之前版本的安装包，请点击[安装包下载](https://www.taosdata.com/cn/all-downloads/)，在TDengine Arbitrator Linux一节中，选择适合的版本下载并安装。
 
-TDengine Arbitrator安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。
+TDengine Arbitrator安装包里带有一个执行程序arbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。
