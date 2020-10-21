@@ -7118,6 +7118,7 @@ void qCleanupQueryMgmt(void* pQMgmt) {
 
 void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
   if (pMgmt == NULL) {
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
   }
 
@@ -7126,6 +7127,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool == NULL) {
     qError("QInfo:%p failed to add qhandle into qMgmt, since qMgmt is closed", (void *)qInfo);
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
   }
 
@@ -7133,6 +7135,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
   if (pQueryMgmt->closed) {
 //    pthread_mutex_unlock(&pQueryMgmt->lock);
     qError("QInfo:%p failed to add qhandle into cache, since qMgmt is colsing", (void *)qInfo);
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
   } else {
     TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE) qInfo;

@@ -202,7 +202,7 @@ int vnodeWriteCqMsgToQueue(void *param, void *data, int type) {
   memcpy(pWal, pHead, size);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vDebug("CQ: vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vTrace("CQ: vgId:%d, get vnode wqueue, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
 
   taosWriteQitem(pVnode->wqueue, type, pSync);
 
@@ -219,7 +219,7 @@ int vnodeWriteToQueue(void *param, void *data, int type) {
   memcpy(pWal, pHead, size);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vDebug("vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vTrace("vgId:%d, get vnode wqueue, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
 
   taosWriteQitem(pVnode->wqueue, type, pWal);
 

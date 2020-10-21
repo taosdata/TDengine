@@ -604,7 +604,8 @@ static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
     return true;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+
   if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return true;
   }
@@ -718,6 +719,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
   if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return;
   }
@@ -766,6 +768,7 @@ void taos_stop_query(TAOS_RES *res) {
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->pRpcCtx == NULL);
     tscKillSTableQuery(pSql);

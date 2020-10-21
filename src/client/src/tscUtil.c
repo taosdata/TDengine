@@ -114,9 +114,9 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   }
   
   // for select query super table, the super table vgroup list can not be null in any cases.
-  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-//    assert(pTableMetaInfo->vgroupList != NULL);  // if retrieve vgroupInfo failed, the value may be null
-  }
+  // if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+  //   assert(pTableMetaInfo->vgroupList != NULL);
+  // }
   
   if ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     return false;
