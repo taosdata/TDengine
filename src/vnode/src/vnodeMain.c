@@ -437,19 +437,28 @@ void vnodeRelease(void *pVnodeRaw) {
   vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);
 }
 
+static void vnodeIncRef(void *ptNode) {
+  assert(ptNode != NULL);
+
+  SVnodeObj **ppVnode = (SVnodeObj **)ptNode;
+  assert(ppVnode);
+  assert(*ppVnode);
+
+  SVnodeObj *pVnode = *ppVnode;
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  vTrace("vgId:%d, get vnode, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+}
+
 void *vnodeAcquire(int32_t vgId) {
-  SVnodeObj **ppVnode = (SVnodeObj **)taosHashGet(tsDnodeVnodesHash, (const char *)&vgId, sizeof(int32_t));
+  SVnodeObj **ppVnode = taosHashGetCB(tsDnodeVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
+
   if (ppVnode == NULL || *ppVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     vDebug("vgId:%d, not exist", vgId);
     return NULL;
   }
 
-  SVnodeObj *pVnode = *ppVnode;
-  atomic_add_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, get vnode, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
-
-  return pVnode;
+  return *ppVnode;
 }
 
 void *vnodeAcquireRqueue(int32_t vgId) {
