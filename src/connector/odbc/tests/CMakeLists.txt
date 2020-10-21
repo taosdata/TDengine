@@ -1,0 +1,7 @@
+PROJECT(TDengine)
+
+IF (TD_LINUX)
+  AUX_SOURCE_DIRECTORY(. SRC)
+  ADD_EXECUTABLE(tcodbc main.c)
+  TARGET_LINK_LIBRARIES(tcodbc odbc)
+ENDIF ()

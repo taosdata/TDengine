@@ -1,8 +1,10 @@
 package com.taosdata.example.jdbcTaosdemo.utils;
 
-import java.sql.Date;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 
 public class TimeStampUtil {
     private static final String datetimeFormat = "yyyy-MM-dd HH:mm:ss.SSS";
@@ -21,14 +23,14 @@ public class TimeStampUtil {
         return sdf.format(new Date(time));
     }
 
-    public static void main(String[] args) {
-        final String startTime = "2005-01-01 00:00:00.000";
+    public static void main(String[] args) throws ParseException {
 
-        long start = TimeStampUtil.datetimeToLong(startTime);
-        System.out.println(start);
+//        Instant now = Instant.now();
+//        System.out.println(now);
+//        Instant years20Ago = now.minus(Duration.ofDays(365));
+//        System.out.println(years20Ago);
 
-        String datetime = TimeStampUtil.longToDatetime(1519833600000L);
-        System.out.println(datetime);
+
     }
 
 
