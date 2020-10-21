@@ -212,7 +212,8 @@ static void *dnodeProcessReadQueue(void *param) {
     } else {
       if (code == TSDB_CODE_QRY_HAS_RSP) {
         dnodeSendRpcReadRsp(pVnode, pReadMsg, pReadMsg->rpcMsg.code);
-      } else { // code == TSDB_CODE_NOT_READY, do not return msg to client
+      } else { // code == TSDB_CODE_QRY_NOT_READY, do not return msg to client
+        assert(pReadMsg->rpcMsg.handle == NULL || (pReadMsg->rpcMsg.handle != NULL && pReadMsg->rpcMsg.msgType == 5));
         dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
       }
     }

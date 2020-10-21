@@ -449,7 +449,7 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
       SVgroupTableInfo info = {{0}};
       for (int32_t m = 0; m < pvg->numOfVgroups; ++m) {
         if (tt->vgId == pvg->vgroups[m].vgId) {
-          info.vgInfo = pvg->vgroups[m];
+          tscSCMVgroupInfoCopy(&info.vgInfo, &pvg->vgroups[m]);
           break;
         }
       }
@@ -1142,7 +1142,6 @@ static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
 
 static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
 
-// TODO
 int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
@@ -1298,14 +1297,6 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
 
   int32_t code = TSDB_CODE_SUCCESS;
-
-  // todo add test
-//  SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
-//  if (pState == NULL) {
-//    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//    goto _error;
-//  }
-
   pSql->subState.numOfSub = pQueryInfo->numOfTables;
 
   bool hasEmptySub = false;
@@ -1645,9 +1636,9 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = (uint32_t)(trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num);
-    tscDebug("%p sub:%p all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
-        pTableMetaInfo->vgroupList->vgroups[0].epAddr[0].fqdn, pTableMetaInfo->vgroupList->vgroups[0].vgId,
-        numOfRowsFromSubquery, idx);
+  SVgroupsInfo* vgroupsInfo = pTableMetaInfo->vgroupList;
+  tscDebug("%p sub:%p all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql, pSql,
+           vgroupsInfo->vgroups[0].epAddr[0].fqdn, vgroupsInfo->vgroups[0].vgId, numOfRowsFromSubquery, idx);
   
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
 
@@ -2022,7 +2013,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pSupportInfo, columnIndex);
+  SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   *bytes = pInfo->pSqlExpr->resBytes;
@@ -2172,7 +2163,7 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
 
   size_t size = tscNumOfFields(pQueryInfo);
   for (int i = 0; i < size; ++i) {
-    SFieldSupInfo* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
     }
@@ -2182,7 +2173,7 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
       continue;
     }
 
-    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.pFields, i);
+    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     if (pRes->tsrow[i] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
       transferNcharData(pSql, i, pField);
     }

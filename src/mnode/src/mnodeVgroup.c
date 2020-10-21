@@ -793,12 +793,12 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
 
 void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
-  if (pTable->sid > idPoolSize) {
+  if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
   }
 
-  if (pTable->sid >= 1) {
-    taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid);
+  if (pTable->tid >= 1) {
+    taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables++;
     // The create vgroup message may be received later than the create table message
     // and the writing order in sdb is therefore uncertain
@@ -808,8 +808,8 @@ void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
 }
 
 void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
-  if (pTable->sid >= 1) {
-    taosFreeId(pVgroup->idPool, pTable->sid);
+  if (pTable->tid >= 1) {
+    taosFreeId(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables--;
     // The create vgroup message may be received later than the create table message
     // and the writing order in sdb is therefore uncertain

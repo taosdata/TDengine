@@ -90,10 +90,10 @@ typedef struct STableComInfo {
 } STableComInfo;
 
 typedef struct SCMCorVgroupInfo {
-  int32_t version;
-  int8_t  inUse;
-  int8_t  numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  int32_t    version;
+  int8_t     inUse;
+  int8_t     numOfEps;
+  SEpAddr1   epAddr[TSDB_MAX_REPLICA];
 } SCMCorVgroupInfo;
 
 typedef struct STableMeta {
@@ -142,16 +142,17 @@ typedef struct SColumnIndex {
   int16_t columnIndex;
 } SColumnIndex;
 
-typedef struct SFieldSupInfo {
+typedef struct SInternalField {
+  TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pArithExprInfo;
   SSqlExpr       *pSqlExpr;
-} SFieldSupInfo;
+} SInternalField;
 
 typedef struct SFieldInfo {
-  int16_t numOfOutput;   // number of column in result
-  SArray *pFields;       // SArray<TAOS_FIELD>
-  SArray *pSupportInfo;  // SArray<SFieldSupInfo>
+  int16_t      numOfOutput;   // number of column in result
+  TAOS_FIELD*  final;
+  SArray      *internalField; // SArray<SInternalField>
 } SFieldInfo;
 
 typedef struct SColumn {
@@ -443,6 +444,7 @@ void tscPartiallyFreeSqlObj(SSqlObj *pSql);
  */
 void tscFreeSqlObj(SSqlObj *pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
+void tscFreeTableMetaHelper(void *pTableMeta);
 
 void tscCloseTscObj(STscObj *pObj);
 
@@ -467,7 +469,7 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
 static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);
+  SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pFieldInfo->internalField, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   int32_t type = pInfo->pSqlExpr->resType;

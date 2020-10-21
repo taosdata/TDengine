@@ -213,6 +213,7 @@ typedef struct SQInfo {
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
   pthread_mutex_t  lock;        // used to synchronize the rsp/query threads
+  tsem_t           ready;
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
 } SQInfo;

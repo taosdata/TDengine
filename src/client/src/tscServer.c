@@ -124,9 +124,11 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    taosTFree(pVgroupInfo->epAddr[i].fqdn);
+    pVgroupInfo->epAddr[i].fqdn = strndup(pEpSet->fqdn[i], tListLen(pEpSet->fqdn[i]));
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
+
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
@@ -1648,7 +1650,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscProcessTableMetaRsp(SSqlObj *pSql) {
   STableMetaMsg *pMetaMsg = (STableMetaMsg *)pSql->res.pRsp;
 
-  pMetaMsg->sid = htonl(pMetaMsg->sid);
+  pMetaMsg->tid = htonl(pMetaMsg->tid);
   pMetaMsg->sversion = htons(pMetaMsg->sversion);
   pMetaMsg->tversion = htons(pMetaMsg->tversion);
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
@@ -1658,9 +1660,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
-      (pMetaMsg->sid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
+      (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
-             pMetaMsg->sid, pMetaMsg->tableId);
+             pMetaMsg->tid, pMetaMsg->tableId);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -1839,22 +1841,30 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   SSqlCmd* pCmd = &parent->cmd;
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
     STableMetaInfo *pInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
-    SVgroupsInfo *  pVgroupInfo = (SVgroupsInfo *)pMsg;
-    pVgroupInfo->numOfVgroups = htonl(pVgroupInfo->numOfVgroups);
 
-    size_t size = sizeof(SCMVgroupInfo) * pVgroupInfo->numOfVgroups + sizeof(SVgroupsInfo);
-    pInfo->vgroupList = calloc(1, size);
+    SVgroupsMsg *  pVgroupMsg = (SVgroupsMsg *) pMsg;
+    pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
+
+    size_t size = sizeof(SCMVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg);
+
+    size_t vgroupsz = sizeof(SCMVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+    pInfo->vgroupList = calloc(1, vgroupsz);
     assert(pInfo->vgroupList != NULL);
 
-    memcpy(pInfo->vgroupList, pVgroupInfo, size);
+    pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
       //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
-      pVgroups->vgId = htonl(pVgroups->vgId);
-      assert(pVgroups->numOfEps >= 1);
+
+      SCMVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
+      pVgroups->vgId = htonl(vmsg->vgId);
+      pVgroups->numOfEps = vmsg->numOfEps;
+
+      assert(pVgroups->numOfEps >= 1 && pVgroups->vgId >= 1);
 
       for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
-        pVgroups->epAddr[k].port = htons(pVgroups->epAddr[k].port);
+        pVgroups->epAddr[k].port = htons(vmsg->epAddr[k].port);
+        pVgroups->epAddr[k].fqdn = strndup(vmsg->epAddr[k].fqdn, tListLen(vmsg->epAddr[k].fqdn));
       }
     }
 
@@ -1890,7 +1900,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = ntohs(pMetaMsg->numOfColumns);
 
   pSchema = pMetaMsg->schema;
-  pMetaMsg->sid = ntohs(pMetaMsg->sid);
+  pMetaMsg->tid = ntohs(pMetaMsg->tid);
   for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
     pSchema++;
@@ -1924,7 +1934,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     tscColumnListInsert(pQueryInfo->colList, &index);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
-    SFieldSupInfo* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
+    SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
     pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
                      pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes, false);

@@ -327,7 +327,7 @@ void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   for (int i = 0; i < pCmd->numOfCols; ++i){
-    SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
     if (pSup->pSqlExpr != NULL) {
 //      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pSup->pSqlExpr->resBytes * pRes->row;
     } else {
@@ -348,7 +348,7 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   for (int i = 0; i < pCmd->numOfCols; ++i) {
-    SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
 
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
@@ -405,11 +405,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlRes *pRes = &pSql->res;
   pRes->code = code;
 
+  const char* msg = (pCmd->command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p get tableMeta failed, code:%s", pSql, tstrerror(code));
+    tscError("%p get %s failed, code:%s", pSql, msg, tstrerror(code));
     goto _error;
   } else {
-    const char* msg = (pCmd->command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
     tscDebug("%p get %s successfully", pSql, msg);
   }
 
