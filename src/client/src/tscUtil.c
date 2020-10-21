@@ -2098,18 +2098,6 @@ void tscDoQuery(SSqlObj* pSql) {
   } else {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
-
-    if (pQueryInfo != 0) {
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-      if (pTableMetaInfo != NULL) {
-        // for select query super table, the super table vgroup list can not be null in any cases.
-        if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-          if (pTableMetaInfo->pVgroupTables == 0) {
-            tscError("error !!!%p, vgroupTable is null", pSql);
-          }
-        }
-      }
-    }
   
     if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
       tscHandleMultivnodeInsert(pSql);
