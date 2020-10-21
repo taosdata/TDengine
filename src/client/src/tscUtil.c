@@ -1841,7 +1841,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* p
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pNewQueryInfo, i);
 
-    TAOS_FIELD f = tscCreateField(pExpr->resType, pExpr->aliasName, pExpr->resBytes);
+    TAOS_FIELD f = tscCreateField((int8_t) pExpr->resType, pExpr->aliasName, pExpr->resBytes);
     SInternalField* pInfo1 = tscFieldInfoAppend(&pNewQueryInfo->fieldsInfo, &f);
     pInfo1->pSqlExpr = pExpr;
   }
