@@ -20,6 +20,7 @@
 #include "exception.h"
 
 #include "../../query/inc/qAst.h"  // todo move to common module
+#include "../../query/inc/qExecutor.h"  // todo move to common module
 #include "tlosertree.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
@@ -143,6 +144,7 @@ static int     tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, 
                                      STsdbQueryHandle* pQueryHandle);
 static int     tsdbCheckInfoCompar(const void* key1, const void* key2);
 
+
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
   pBlockLoadInfo->tid = -1;
@@ -182,6 +184,27 @@ static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS
   return pLocalIdList;
 }
 
+static void tsdbMayTakeMemSnapshot(TsdbQueryHandleT pHandle) { 
+  STsdbQueryHandle* pSecQueryHandle = (STsdbQueryHandle*) pHandle;
+  SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo);
+
+  if (pQInfo->memRef.ref++ == 0) {
+    tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem);
+    pQInfo->memRef.mem = pSecQueryHandle->mem;
+    pQInfo->memRef.imem = pSecQueryHandle->imem;
+  } else {
+    pSecQueryHandle->mem = (SMemTable *)(pQInfo->memRef.mem);
+    pSecQueryHandle->imem = (SMemTable *)(pQInfo->memRef.imem);
+  }
+}
+static void tsdbMayUnTakeMemSnapshot(TsdbQueryHandleT pHandle) {
+  STsdbQueryHandle* pSecQueryHandle = (STsdbQueryHandle*) pHandle; 
+  SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo);
+
+  if (--pQInfo->memRef.ref == 0) {
+    tsdbUnTakeMemSnapShot(pSecQueryHandle->pTsdb, pSecQueryHandle->mem, pSecQueryHandle->imem);
+  }
+}
 static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta) {
   size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
   assert(sizeOfGroup >= 1 && pMeta != NULL);
@@ -270,7 +293,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* 
     goto out_of_memory;
   }
 
-  tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &pQueryHandle->mem, &pQueryHandle->imem);
+  tsdbMayTakeMemSnapshot(pQueryHandle);
   assert(pCond != NULL && pCond->numOfCols > 0);
 
   if (ASCENDING_TRAVERSE(pCond->order)) {
@@ -1963,8 +1986,9 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
       STimeWindow win = (STimeWindow) {pQueryHandle->window.skey, INT64_MAX};
       STsdbQueryCond cond = {
           .order = TSDB_ORDER_ASC,
-          .numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle)),
-          .twindow = win};
+          .numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle))
+        };
+      cond.twindow = win;
 
       cond.colList = calloc(cond.numOfCols, sizeof(SColumnInfo));
       if (cond.colList == NULL) {
@@ -2279,7 +2303,7 @@ void filterPrepare(void* expr, void* param) {
   if (pInfo->optr == TSDB_RELATION_IN) {
     pInfo->q = (char*) pCond->arr;
   } else {
-    pInfo->q = calloc(1, pSchema->bytes);
+    pInfo->q = calloc(1, pSchema->bytes + TSDB_NCHAR_SIZE);   // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }
 }
@@ -2700,7 +2724,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   taosTFree(pQueryHandle->statis);
 
   // todo check error
-  tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pQueryHandle->mem, pQueryHandle->imem);
+  tsdbMayUnTakeMemSnapshot(pQueryHandle);
 
   tsdbDestroyHelper(&pQueryHandle->rhelper);
 

@@ -4,30 +4,9 @@ pipeline {
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-  stages {
-    stage('build TDengine') {
-      agent{label 'master'}
-      steps {
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        git pull
-        git submodule update
-        cd ${WK}
-        git checkout develop
-        git pull
-        export TZ=Asia/Harbin
-        date
-        rm -rf ${WK}/debug
-        mkdir debug
-        cd debug
-        #cmake .. > /dev/null
-        #make > /dev/null
-        '''
-      }
-    }
 
-    stage('Parallel test stage') {
+  stages {
+      stage('Parallel test stage') {
       parallel {
         stage('pytest') {
           agent{label 'master'}
@@ -58,10 +37,10 @@ pipeline {
           agent{label '184'}
           steps {
             sh '''
-            date
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -84,10 +63,10 @@ pipeline {
           agent{label "185"}
           steps {
             sh '''
-            
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -111,12 +90,13 @@ pipeline {
 
         stage('test_valgrind') {
           agent{label "186"}
+
           steps {
             sh '''
-            date
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop

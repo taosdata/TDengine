@@ -22,9 +22,11 @@
 #include "tutil.h"
 #include "tsdb.h"
 #include "twal.h"
+#include "tsync.h"
 #include "tdataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "syncInt.h"
 #include "tcq.h"
 
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
@@ -188,6 +190,25 @@ static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspR
   }
   return TSDB_CODE_SUCCESS;
 }
+
+
+int vnodeWriteCqMsgToQueue(void *param, void *data, int type) {
+  SVnodeObj *pVnode = param;
+  SWalHead * pHead = data;
+
+  int size = sizeof(SWalHead) + pHead->len;
+  SSyncHead *pSync = (SSyncHead*) taosAllocateQitem(size + sizeof(SSyncHead));
+  SWalHead *pWal = (SWalHead *)(pSync + 1);
+  memcpy(pWal, pHead, size);
+
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  vDebug("CQ: vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+
+  taosWriteQitem(pVnode->wqueue, type, pSync);
+
+  return 0;
+}
+
 
 int vnodeWriteToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;

@@ -2445,8 +2445,8 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   // in the first round, get the min-max value of all involved data
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = pResInfo->interResultBuf;
-  pInfo->minval = DBL_MAX;
-  pInfo->maxval = -DBL_MAX;
+  SET_DOUBLE_VAL(&pInfo->minval, DBL_MAX);
+  SET_DOUBLE_VAL(&pInfo->maxval, -DBL_MAX);
   pInfo->numOfElems = 0;
 
   return true;
@@ -2461,12 +2461,12 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
-      if (pInfo->minval > pCtx->preAggVals.statis.min) {
-        pInfo->minval = (double)pCtx->preAggVals.statis.min;
+      if (GET_DOUBLE_VAL(&pInfo->minval) > pCtx->preAggVals.statis.min) {
+        SET_DOUBLE_VAL(&pInfo->minval, (double)pCtx->preAggVals.statis.min);
       }
 
-      if (pInfo->maxval < pCtx->preAggVals.statis.max) {
-        pInfo->maxval = (double)pCtx->preAggVals.statis.max;
+      if (GET_DOUBLE_VAL(&pInfo->maxval) < pCtx->preAggVals.statis.max) {
+        SET_DOUBLE_VAL(&pInfo->maxval, (double)pCtx->preAggVals.statis.max);
       }
 
       pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
@@ -2500,12 +2500,12 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
             break;
         }
 
-        if (v < pInfo->minval) {
-          pInfo->minval = v;
+        if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
+          SET_DOUBLE_VAL(&pInfo->minval, v);
         }
 
-        if (v > pInfo->maxval) {
-          pInfo->maxval = v;
+        if (v > GET_DOUBLE_VAL(&pInfo->maxval)) {
+          SET_DOUBLE_VAL(&pInfo->maxval, v);
         }
 
         pInfo->numOfElems += 1;
@@ -2564,12 +2564,12 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
         break;
     }
 
-    if (v < pInfo->minval) {
-      pInfo->minval = v;
+    if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
+      SET_DOUBLE_VAL(&pInfo->minval, v);
     }
 
-    if (v > pInfo->maxval) {
-      pInfo->maxval = v;
+    if (v > GET_DOUBLE_VAL(&pInfo->maxval)) {
+      SET_DOUBLE_VAL(&pInfo->maxval, v);
     }
 
     pInfo->numOfElems += 1;
@@ -2609,7 +2609,7 @@ static void percentile_next_step(SQLFunctionCtx *pCtx) {
     }
 
     pInfo->stage += 1;
-    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
   } else {
     pResInfo->complete = true;
   }
