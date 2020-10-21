@@ -33,7 +33,6 @@ static void      tsdbDestroyFile(SFile *pFile);
 static int       compFGroup(const void *arg1, const void *arg2);
 static int       keyFGroupCompFunc(const void *key, const void *fgroup);
 static TSKEY     tsdbGetCurrMinKey(int8_t precision, int32_t keep);
-static int       tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days);
 static int       tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk);
 static SHashObj *tsdbGetAllFids(STsdbRepo *pRepo, char *dirName);
 static int       tsdbRestoreFileGroup(STsdbRepo *pRepo, SDisk *pDisk, int fid, SFileGroup *pFileGroup);
@@ -280,12 +279,9 @@ SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid, int flags) {
   return (SFileGroup *)ptr;
 }
 
-void tsdbFitRetention(STsdbRepo *pRepo) {
-  STsdbCfg *pCfg = &(pRepo->config);
+void tsdbRemoveFilesBeyondRetention(STsdbRepo *pRepo, int mfid) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = pFileH->pFGroup;
-
-  int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
@@ -347,8 +343,13 @@ void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
 void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   ASSERT(pFGroup != NULL);
   STsdbFileH *pFileH = pRepo->tsdbFileH;
+  SDisk *     pDisk = NULL;
+  char        baseDir[TSDB_FILENAME_LEN] = "\0";
 
   SFileGroup fileGroup = *pFGroup;
+  tsdbGetBaseDirFromFile(fileGroup.files[0].fname, baseDir);
+  pDisk = dnodeGetDiskByName(baseDir);
+  ASSERT(pDisk != NULL);
 
   int nFilesLeft = pFileH->nFGroups - (int)(POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
   if (nFilesLeft > 0) {
@@ -364,6 +365,8 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
     }
     tsdbDestroyFile(&fileGroup.files[type]);
   }
+
+  pDisk->dmeta.nfiles--;
 }
 
 int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
@@ -421,6 +424,31 @@ _err:
   *size = 0;
 }
 
+int tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days) {
+  return (int)(TSDB_KEY_FILEID(tsdbGetCurrMinKey(precision, keep), days, precision));
+}
+
+int tsdbGetBaseDirFromFile(char *fname, char *baseDir) {
+  char *fdup = strdup(fname);
+  if (fdup == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (size_t i = 0; i < 5; i++) {
+    dirname(fdup);
+  }
+
+  strncpy(baseDir, fdup, TSDB_FILENAME_LEN);
+  free(fdup);
+  return 0;
+}
+
+int tsdbApplyRetention(STsdbRepo *pRepo) {
+  // TODO
+  return 0;
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static void tsdbDestroyFile(SFile *pFile) { tsdbCloseFile(pFile); }
 
@@ -449,10 +477,6 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
 
 static TSKEY tsdbGetCurrMinKey(int8_t precision, int32_t keep) {
   return (TSKEY)(taosGetTimestamp(precision) - keep * tsMsPerDay[precision]);
-}
-
-static int tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days) {
-  return (int)(TSDB_KEY_FILEID(tsdbGetCurrMinKey(precision, keep), days, precision));
 }
 
 static int tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk) {

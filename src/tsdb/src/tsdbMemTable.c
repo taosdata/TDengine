@@ -32,6 +32,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
+static void         tsdbSeekCommitIter(SCommitIter *pIters, int nIters, TSKEY minKey);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbInsertRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
@@ -471,11 +472,17 @@ static void *tsdbCommitData(void *arg) {
   STsdbMeta *  pMeta = pRepo->tsdbMeta;
   SCommitIter *iters = NULL;
   SRWHelper    whelper = {0};
+  STsdbFileH * pFileH = pRepo->tsdbFileH;
+  TSKEY        minKey = 0, maxKey = 0;
   ASSERT(pRepo->commit == 1);
   ASSERT(pMem != NULL);
 
   tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
             pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
+
+  int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
+  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, mfid, &minKey, &maxKey);
+  tsdbRemoveFilesBeyondRetention(pRepo, mfid);
 
   // Create the iterator to read from cache
   if (pMem->numOfRows > 0) {
@@ -500,8 +507,12 @@ static void *tsdbCommitData(void *arg) {
     int sfid = (int)(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision));
     int efid = (int)(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision));
 
+    tsdbSeekCommitIter(iters, pMem->maxTables, minKey);
+
     // Loop to commit to each file
     for (int fid = sfid; fid <= efid; fid++) {
+      if (fid < mfid) continue;
+
       if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
         tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
         goto _exit;
@@ -509,13 +520,13 @@ static void *tsdbCommitData(void *arg) {
     }
   }
 
+  tsdbApplyRetention(pRepo);
+
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
     tsdbError("vgId:%d failed to commit data while committing meta data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _exit;
   }
-
-  tsdbFitRetention(pRepo);
 
 _exit:
   tdFreeDataCols(pDataCols);
@@ -610,6 +621,10 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     tsdbDebug("vgId:%d no data to commit to file %d", REPO_ID(pRepo), fid);
     return 0;
   }
+
+  if ((pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ)) == NULL) {
+    // file group not exists
+  } 
 
   // Create and open files for commit
   dataDir = tsdbGetDataDirName(pRepo->rootDir);
@@ -780,4 +795,14 @@ static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   taosTFree(tData);
 
   return 0;
+}
+
+static void tsdbSeekCommitIter(SCommitIter *pIters, int nIters, TSKEY key) {
+  for (int i = 0; i < nIters; i++) {
+    SCommitIter *pIter = pIters + i;
+    if (pIter->pTable == NULL) continue;
+    if (pIter->pIter == NULL) continue;
+
+    tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, key-1, INT32_MAX, NULL, NULL, 0);
+  }
 }

@@ -482,7 +482,7 @@ int         tsdbOpenFile(SFile* pFile, int oflag);
 void        tsdbCloseFile(SFile* pFile);
 int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
-void        tsdbFitRetention(STsdbRepo* pRepo);
+void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, int mfid);
 int         tsdbUpdateFileHeader(SFile* pFile);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
@@ -490,6 +490,9 @@ void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
 void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
 void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
+int         tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days);
+int         tsdbGetBaseDirFromFile(char* fname, char* baseDir);
+int         tsdbApplyRetention(STsdbRepo* pRepo);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
