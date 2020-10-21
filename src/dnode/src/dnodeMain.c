@@ -34,8 +34,6 @@
 #include "dnodeTelemetry.h"
 #include "tpath.h"
 
-struct SDnodeTier *pDnodeTier = NULL;
-
 static int32_t dnodeInitStorage();
 static void dnodeCleanupStorage();
 static void dnodeSetRunStatus(SDnodeRunStatus status);

@@ -105,7 +105,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   }
 
   char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  tdGetVnodeDir(tsDataDir, pVnodeCfg->cfg.vgId, rootDir);
   if (mkdir(rootDir, 0755) != 0 && errno != EEXIST) {
     vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
     if (errno == EACCES) {
@@ -138,7 +138,7 @@ int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.compression         = pVnodeCfg->cfg.compression;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  tdGetTsdbRootDir(tsDataDir, pVnodeCfg->cfg.vgId, tsdbDir);
   if (tsdbCreateRepo(tsdbDir, &tsdbCfg) < 0) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;

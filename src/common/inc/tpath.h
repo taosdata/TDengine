@@ -22,28 +22,36 @@
 extern "C" {
 #endif
 
-static FORCE_INLINE void tdGetMnodeRootDir(char *rootDir, char *dirName) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "%s/mnode", rootDir);
+static FORCE_INLINE void tdGetMnodeRootDir(char *baseDir, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/mnode", baseDir);
 }
 
-static FORCE_INLINE void tdGetDnodeRootDir(char *rootDir, char *dirName) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "%s/dnode", rootDir);
+static FORCE_INLINE void tdGetDnodeRootDir(char *baseDir, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/dnode", baseDir);
 }
 
-static FORCE_INLINE void tdGetVnodeRootDir(char *rootDir, char *dirName) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode", rootDir);
+static FORCE_INLINE void tdGetVnodeRootDir(char *baseDir, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode", baseDir);
 }
 
-static FORCE_INLINE void tdGetVnodeBackRootDir(char *rootDir, char *dirName) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak", rootDir);
+static FORCE_INLINE void tdGetVnodeBackRootDir(char *baseDir, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak", baseDir);
 }
 
-static FORCE_INLINE void tdGetVnodeDir(char *rootDir, int vid, char *dirName) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d", rootDir, vid);
+static FORCE_INLINE void tdGetVnodeDir(char *baseDir, int vid, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d", baseDir, vid);
 }
 
-static FORCE_INLINE void tdGetVnodeBackDir(char *rootDir, int vid, char *dirName) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak/vnode%d", rootDir, vid);
+static FORCE_INLINE void tdGetVnodeBackDir(char *baseDir, int vid, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak/vnode%d", baseDir, vid);
+}
+
+static FORCE_INLINE void tdGetTsdbRootDir(char *baseDir, int vid, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb", baseDir, vid);
+}
+
+static FORCE_INLINE void tdGetTsdbDataDir(char *baseDir, int vid, char *dirName) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/data", baseDir, vid);
 }
 
 #ifdef __cplusplus
