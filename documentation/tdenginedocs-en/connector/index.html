@@ -72,9 +72,9 @@ The API is used to start a subscription session by given a handle. The parameter
 The API used to get the new data from a TDengine server. It should be put in an infinite loop. The parameter <em>tsub</em> is the handle returned by <em>taos_subscribe</em>. If new data are updated, the API will return a row of the result. Otherwise, the API is blocked until new data arrives. If <em>NULL</em> pointer is returned, it means an error occurs.</p></li>
 <li><p><code>void taos_unsubscribe(TAOS_SUB *tsub)</code>
 Stop a subscription session by the handle returned by <em>taos_subscribe</em>.</p></li>
-<li><p><code>int taos_num_subfields(TAOS_SUB *tsub)</code>
+<li><p><code>int taos_num_fields(TAOS_SUB *tsub)</code>
 The API used to get the number of fields in a row.</p></li>
-<li><p><code>TAOS_FIELD *taos_fetch_subfields(TAOS_RES *res)</code>
+<li><p><code>TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)</code>
 The API used to get the description of each column.</p></li>
 </ul>
 <a class='anchor' id='Java-Connector'></a><h2>Java Connector</h2>
