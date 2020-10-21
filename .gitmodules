@@ -6,4 +6,4 @@
 	url = https://github.com/taosdata/grafanaplugin
 [submodule "src/connector/hivemq-tdengine-extension"]
 	path = src/connector/hivemq-tdengine-extension
-	url = https://github.com/sdvdxl/hivemq-tdengine-extension
+	url = https://github.com/sdvdxl/hivemq-tdengine-extension.git
