@@ -182,10 +182,16 @@ extern char *taosMsg[];
 
 #pragma pack(push, 1)
 
+// null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
 typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SEpAddr;
+} SEpAddrMsg;
+
+typedef struct {
+  char*    fqdn;
+  uint16_t port;
+} SEpAddr1;
 
 typedef struct {
   int32_t numOfVnodes;
@@ -245,7 +251,7 @@ typedef struct {
   int8_t   tableType;
   int16_t  numOfColumns;
   int16_t  numOfTags;
-  int32_t  sid;
+  int32_t  tid;
   int32_t  sversion;
   int32_t  tversion;
   int32_t  tagDataLen;
@@ -354,7 +360,7 @@ typedef struct {
 typedef struct {
   int32_t  contLen;
   int32_t  vgId;
-  int32_t  sid;
+  int32_t  tid;
   uint64_t uid;
   char     tableId[TSDB_TABLE_FNAME_LEN];
 } SMDDropTableMsg;
@@ -401,6 +407,7 @@ typedef struct SExprInfo {
   int16_t     bytes;
   int16_t     type;
   int32_t     interBytes;
+  int64_t     uid;
 } SExprInfo;
 
 typedef struct SColumnFilterInfo {
@@ -662,15 +669,26 @@ typedef struct SCMSTableVgroupMsg {
 } SCMSTableVgroupMsg, SCMSTableVgroupRspMsg;
 
 typedef struct {
-  int32_t   vgId;
-  int8_t    numOfEps;
-  SEpAddr   epAddr[TSDB_MAX_REPLICA];
+  int32_t       vgId;
+  int8_t        numOfEps;
+  SEpAddr1      epAddr[TSDB_MAX_REPLICA];
 } SCMVgroupInfo;
+
+typedef struct {
+  int32_t    vgId;
+  int8_t     numOfEps;
+  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+} SCMVgroupMsg;
 
 typedef struct {
   int32_t numOfVgroups;
   SCMVgroupInfo vgroups[];
 } SVgroupsInfo;
+
+typedef struct {
+  int32_t numOfVgroups;
+  SCMVgroupMsg vgroups[];
+} SVgroupsMsg;
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
@@ -682,9 +700,9 @@ typedef struct STableMetaMsg {
   int16_t       numOfColumns;
   int16_t       sversion;
   int16_t       tversion;
-  int32_t       sid;
+  int32_t       tid;
   uint64_t      uid;
-  SCMVgroupInfo vgroup;
+  SCMVgroupMsg  vgroup;
   SSchema       schema[];
 } STableMetaMsg;
 
@@ -730,7 +748,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   int32_t vgId;
-  int32_t sid;
+  int32_t tid;
 } SDMConfigTableMsg;
 
 typedef struct {
