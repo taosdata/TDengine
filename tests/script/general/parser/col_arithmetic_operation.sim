@@ -109,4 +109,39 @@ if $data02 != 225000 then
   return -1
 endi
 
+sql select first(speed) - last(speed), first(speed) as b, last(speed) as b, min(speed) - max(speed), spread(speed) from stb interval(1y)", NULL);
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @20-01-01 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != -20.000000000 then
+  return -1
+endi
+
+if $data02 != 100.000000000 then
+  return -1
+endi
+
+if $data03 != 120.000000000 then
+  return -1
+endi
+
+if $data04 != -20.000000000 then
+  return -1
+endi
+
+if $data05 != 20.000000000 then
+  return -1
+endi
+
+sql_error select first(speed, mileage) - last(speed, mileage) from stb interval(1y)
+sql_error select first(ts) - last(ts) from stb interval(1y)
+sql_error select top(speed, 2) - last(speed) from stb;
+sql_error select stddev(speed) - last(speed) from stb;
+sql_error select diff(speed) - last(speed) from stb;
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

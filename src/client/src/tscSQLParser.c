@@ -3385,9 +3385,25 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQuer
   
     tSQLExprItem item = {.pNode = pExpr, .aliasName = NULL};
   
-    // sql function in selection clause, append sql function info in pSqlCmd structure sequentially
+    // sql function list in selection clause.
+    // Append the sqlExpr into exprList of pQueryInfo structure sequentially
     if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    // It is invalid in case of more than one sqlExpr, such as first(ts, k) - last(ts, k)
+    int32_t inc = (int32_t) tscSqlExprNumOfExprs(pQueryInfo) - outputIndex;
+    if (inc > 1) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    // Not supported data type in arithmetic expression
+    for(int32_t i = 0; i < inc; ++i) {
+      SSqlExpr* p1 = tscSqlExprGet(pQueryInfo, i + outputIndex);
+      int16_t t = p1->resType;
+      if (t == TSDB_DATA_TYPE_BINARY || t == TSDB_DATA_TYPE_NCHAR || t == TSDB_DATA_TYPE_BOOL || t == TSDB_DATA_TYPE_TIMESTAMP) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
     }
   }
 
