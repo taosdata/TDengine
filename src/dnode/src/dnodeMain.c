@@ -181,15 +181,17 @@ static int32_t dnodeInitStorage() {
     dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
     return -1;
   }
+  strncpy(tsDataDir, DNODE_PRIMARY_DISK(pDnodeTier)->dir, TSDB_FILENAME_LEN);
+  tdGetVnodeRootDir(tsDataDir, tsVnodeDir);
 
   //TODO(dengyihao): no need to init here 
-  tdGetMnodeRootDir(DNODE_PRIMARY_DISK(pDnodeTier)->dir, tsMnodeDir);
+  tdGetMnodeRootDir(tsDataDir, tsMnodeDir);
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
 
-  tdGetDnodeRootDir(DNODE_PRIMARY_DISK(pDnodeTier)->dir, tsDnodeDir);
+  tdGetDnodeRootDir(tsDataDir, tsDnodeDir);
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;

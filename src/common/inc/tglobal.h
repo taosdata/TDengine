@@ -131,7 +131,6 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsMsPerDay[3];
-extern char    tsVnodeBakDir[];
 
 // system info
 extern char    tsOsName[];

@@ -160,7 +160,6 @@ char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsDataDir[TSDB_FILENAME_LEN] = {0};
 char    tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char    tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
 
 /*
  * minimum scale for whole system, millisecond by default
