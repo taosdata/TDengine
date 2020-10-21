@@ -3160,123 +3160,124 @@ class MainExec:
         self._svcMgr = None 
         gSvcMgr = None        
 
+    def init(self): # TODO: refactor
+        global gContainer
+        gContainer = Container() # micky-mouse DI
 
+        # Super cool Python argument library:
+        # https://docs.python.org/3/library/argparse.html
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description=textwrap.dedent('''\
+                TDengine Auto Crash Generator (PLEASE NOTICE the Prerequisites Below)
+                ---------------------------------------------------------------------
+                1. You build TDengine in the top level ./build directory, as described in offical docs
+                2. You run the server there before this script: ./build/bin/taosd -c test/cfg
 
-def main():
-    # Super cool Python argument library:
-    # https://docs.python.org/3/library/argparse.html
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent('''\
-            TDengine Auto Crash Generator (PLEASE NOTICE the Prerequisites Below)
-            ---------------------------------------------------------------------
-            1. You build TDengine in the top level ./build directory, as described in offical docs
-            2. You run the server there before this script: ./build/bin/taosd -c test/cfg
+                '''))                      
 
-            '''))                      
+        parser.add_argument(
+            '-a',
+            '--auto-start-service',
+            action='store_true',
+            help='Automatically start/stop the TDengine service (default: false)')
+        parser.add_argument(
+            '-b',
+            '--max-dbs',
+            action='store',
+            default=0,
+            type=int,
+            help='Maximum number of DBs to keep, set to disable dropping DB. (default: 0)')
+        parser.add_argument(
+            '-c',
+            '--connector-type',
+            action='store',
+            default='native',
+            type=str,
+            help='Connector type to use: native, rest, or mixed (default: 10)')
+        parser.add_argument(
+            '-d',
+            '--debug',
+            action='store_true',
+            help='Turn on DEBUG mode for more logging (default: false)')
+        parser.add_argument(
+            '-e',
+            '--run-tdengine',
+            action='store_true',
+            help='Run TDengine service in foreground (default: false)')
+        parser.add_argument(
+            '-i',
+            '--max-replicas',
+            action='store',
+            default=1,
+            type=int,
+            help='Maximum number of replicas to use, when testing against clusters. (default: 1)')
+        parser.add_argument(
+            '-l',
+            '--larger-data',
+            action='store_true',
+            help='Write larger amount of data during write operations (default: false)')
+        parser.add_argument(
+            '-p',
+            '--per-thread-db-connection',
+            action='store_true',
+            help='Use a single shared db connection (default: false)')
+        parser.add_argument(
+            '-r',
+            '--record-ops',
+            action='store_true',
+            help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')
+        parser.add_argument(
+            '-s',
+            '--max-steps',
+            action='store',
+            default=1000,
+            type=int,
+            help='Maximum number of steps to run (default: 100)')
+        parser.add_argument(
+            '-t',
+            '--num-threads',
+            action='store',
+            default=5,
+            type=int,
+            help='Number of threads to run (default: 10)')
+        parser.add_argument(
+            '-v',
+            '--verify-data',
+            action='store_true',
+            help='Verify data written in a number of places by reading back (default: false)')
+        parser.add_argument(
+            '-x',
+            '--continue-on-exception',
+            action='store_true',
+            help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
 
-    parser.add_argument(
-        '-a',
-        '--auto-start-service',
-        action='store_true',
-        help='Automatically start/stop the TDengine service (default: false)')
-    parser.add_argument(
-        '-b',
-        '--max-dbs',
-        action='store',
-        default=0,
-        type=int,
-        help='Maximum number of DBs to keep, set to disable dropping DB. (default: 0)')
-    parser.add_argument(
-        '-c',
-        '--connector-type',
-        action='store',
-        default='native',
-        type=str,
-        help='Connector type to use: native, rest, or mixed (default: 10)')
-    parser.add_argument(
-        '-d',
-        '--debug',
-        action='store_true',
-        help='Turn on DEBUG mode for more logging (default: false)')
-    parser.add_argument(
-        '-e',
-        '--run-tdengine',
-        action='store_true',
-        help='Run TDengine service in foreground (default: false)')
-    parser.add_argument(
-        '-i',
-        '--max-replicas',
-        action='store',
-        default=1,
-        type=int,
-        help='Maximum number of replicas to use, when testing against clusters. (default: 1)')
-    parser.add_argument(
-        '-l',
-        '--larger-data',
-        action='store_true',
-        help='Write larger amount of data during write operations (default: false)')
-    parser.add_argument(
-        '-p',
-        '--per-thread-db-connection',
-        action='store_true',
-        help='Use a single shared db connection (default: false)')
-    parser.add_argument(
-        '-r',
-        '--record-ops',
-        action='store_true',
-        help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')
-    parser.add_argument(
-        '-s',
-        '--max-steps',
-        action='store',
-        default=1000,
-        type=int,
-        help='Maximum number of steps to run (default: 100)')
-    parser.add_argument(
-        '-t',
-        '--num-threads',
-        action='store',
-        default=5,
-        type=int,
-        help='Number of threads to run (default: 10)')
-    parser.add_argument(
-        '-v',
-        '--verify-data',
-        action='store_true',
-        help='Verify data written in a number of places by reading back (default: false)')
-    parser.add_argument(
-        '-x',
-        '--continue-on-exception',
-        action='store_true',
-        help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
+        global gConfig
+        gConfig = parser.parse_args()
 
-    global gConfig
-    gConfig = parser.parse_args()
+        # Logging Stuff
+        global logger
+        _logger = logging.getLogger('CrashGen')  # real logger
+        _logger.addFilter(LoggingFilter())
+        ch = logging.StreamHandler()
+        _logger.addHandler(ch)
 
-    # Logging Stuff
-    global logger
-    _logger = logging.getLogger('CrashGen')  # real logger
-    _logger.addFilter(LoggingFilter())
-    ch = logging.StreamHandler()
-    _logger.addHandler(ch)
+        # Logging adapter, to be used as a logger
+        logger = MyLoggingAdapter(_logger, [])
 
-    # Logging adapter, to be used as a logger
-    logger = MyLoggingAdapter(_logger, [])
+        if (gConfig.debug):
+            logger.setLevel(logging.DEBUG)  # default seems to be INFO
+        else:
+            logger.setLevel(logging.INFO)
 
-    if (gConfig.debug):
-        logger.setLevel(logging.DEBUG)  # default seems to be INFO
-    else:
-        logger.setLevel(logging.INFO)
+        Dice.seed(0)  # initial seeding of dice
 
-    Dice.seed(0)  # initial seeding of dice
+    def run(self):
+        if gConfig.run_tdengine:  # run server
+            self.runService()
+        else:
+            return self.runClient()
 
-    # Run server or client
-    mExec = MainExec()
-    if gConfig.run_tdengine:  # run server
-        mExec.runService()
-    else:
-        return mExec.runClient()
 
 class Container():
     _propertyList = {'defTdeInstance'}
@@ -3300,9 +3301,3 @@ class Container():
         self._verifyValidProperty(name)
         self._cargo[name] = value
 
-if __name__ == "__main__":
-    gContainer = Container() # micky-mouse DI
-
-    exitCode = main()
-    # print("Exiting with code: {}".format(exitCode))
-    sys.exit(exitCode)
