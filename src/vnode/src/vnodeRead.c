@@ -191,10 +191,12 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     if (code == TSDB_CODE_SUCCESS) {
       handle = qRegisterQInfo(pVnode->qMgmt, (uint64_t)pQInfo);
       if (handle == NULL) {  // failed to register qhandle, todo add error test case
+        pRsp->code = terrno;
+        terrno = 0;
         vError("vgId:%d QInfo:%p register qhandle failed, return to app, code:%s", pVnode->vgId, (void *)pQInfo,
                tstrerror(pRsp->code));
-        pRsp->code = TSDB_CODE_QRY_INVALID_QHANDLE;
         qDestroyQueryInfo(pQInfo);  // destroy it directly
+        return pRsp->code;
       } else {
         assert(*handle == pQInfo);
         pRsp->qhandle = htobe64((uint64_t)pQInfo);
