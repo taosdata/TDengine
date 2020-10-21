@@ -1366,7 +1366,7 @@ static int tscSetResultPointer(SQueryInfo *pQueryInfo, SSqlRes *pRes) {
 
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     int16_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
-    pRes->tsrow[i] = ((char*) pRes->data + offset * pRes->numOfRows);
+    pRes->tsrow[i] = (unsigned char*)((char*) pRes->data + offset * pRes->numOfRows);
   }
 
   return 0;

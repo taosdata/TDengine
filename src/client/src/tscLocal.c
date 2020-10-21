@@ -296,7 +296,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   return tscSetValueToResObj(pSql, rowLen);
 }
 static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengths, int idx, char *result) {
-  const char *val = row[idx];
+  const char *val = (const char*)row[idx];
   if (val == NULL) {
     sprintf(result, "%s", TSDB_DATA_NULL_STR);
     return -1;

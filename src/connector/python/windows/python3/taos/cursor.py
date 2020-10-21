@@ -142,6 +142,9 @@ class TDengineCursor(object):
         self._rowcount = 0
         while True:
             block, num_of_fields = CTaosInterface.fetchBlock(self._result, self._fields)
+            errno = CTaosInterface.libtaos.taos_errno(self._result)
+            if errno != 0:
+                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
             if num_of_fields == 0: break
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):

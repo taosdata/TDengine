@@ -108,9 +108,9 @@ void parseArg(int argc, char *argv[]) {
   }
 }
 
-void taos_error(TAOS *con) {
-  printf("TDengine error: %s\n", taos_errstr(con));
-  taos_close(con);
+static void taos_error(TAOS_RES *tres, TAOS *conn) {
+  printf("TDengine error: %s\n", tres?taos_errstr(tres):"null result");
+  taos_close(conn);
   exit(1);
 }
 
@@ -125,13 +125,17 @@ void writeDataImp(void *param) {
   printf("Thread %d, writing sID %d, eID %d\n", pThread->threadId, pThread->sID, pThread->eID);
 
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  if (taos == NULL)
-    taos_error(taos);
+  if (taos == NULL) {
+    // where to find errstr?
+    // taos_error(NULL, taos);
+    printf("TDengine error: %s\n", "failed to connect");
+    exit(1);
+  }
 
   TAOS_RES* result = taos_query(taos, "use db");
   int32_t code = taos_errno(result);
   if (code != 0) {
-    taos_error(taos);
+    taos_error(result, taos);
   }
   taos_free_result(result);
 
@@ -227,12 +231,17 @@ void writeData() {
   taos_init();
 
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  if (taos == NULL) taos_error(taos);
+  if (taos == NULL) {
+    // where to find errstr?
+    // taos_error(NULL, taos);
+    printf("TDengine error: %s\n", "failed to connect");
+    exit(1);
+  }
 
   TAOS_RES *result = taos_query(taos, "create database if not exists db");
   int32_t   code = taos_errno(result);
   if (code != 0) {
-    taos_error(taos);
+    taos_error(result, taos);
   }
   taos_free_result(result);
 
@@ -241,7 +250,7 @@ void writeData() {
                       "tags(devid int, devname binary(16), devgroup int)");
   code = taos_errno(result);
   if (code != 0) {
-    taos_error(taos);
+    taos_error(result, taos);
   }
   taos_free_result(result);
 
@@ -293,8 +302,12 @@ void readDataImp(void *param)
   printf("open file %s success\n", arguments.sql);
 
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  if (taos == NULL)
-    taos_error(taos);
+  if (taos == NULL) {
+    // where to find errstr?
+    // taos_error(NULL, taos);
+    printf("TDengine error: %s\n", "failed to connect");
+    exit(1);
+  }
 
   char *line = NULL;
   size_t len = 0;
@@ -313,7 +326,7 @@ void readDataImp(void *param)
     TAOS_RES *result = taos_query(taos, line);
     int32_t   code = taos_errno(result);
     if (code != 0) {
-      taos_error(taos);
+      taos_error(result, taos);
     }
 
     TAOS_ROW row;
@@ -343,8 +356,12 @@ void readData() {
   printf("---- clients: %d\n", arguments.clients);
 
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  if (taos == NULL)
-    taos_error(taos);
+  if (taos == NULL) {
+    // where to find errstr?
+    // taos_error(NULL, taos);
+    printf("TDengine error: %s\n", "failed to connect");
+    exit(1);
+  }
 
   ThreadObj *threads = calloc((size_t)arguments.clients, sizeof(ThreadObj));
 
