@@ -4750,7 +4750,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     // validate the length of binary
     if ((pTagsSchema->type == TSDB_DATA_TYPE_BINARY || pTagsSchema->type == TSDB_DATA_TYPE_NCHAR) &&
-        (pVarList->a[1].pVar.nLen + VARSTR_HEADER_SIZE) > pTagsSchema->bytes) {
+        varDataTLen(pAlterSQL->tagData.data) > pTagsSchema->bytes) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg14);
     }
 
