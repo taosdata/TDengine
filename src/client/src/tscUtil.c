@@ -972,6 +972,8 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   }
   
   taosArrayDestroy(pFieldInfo->internalField);
+  taosTFree(pFieldInfo->final);
+
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
 
@@ -1834,7 +1836,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* p
     return;
   }
 
-  // set the field info in pNewQueryInfo object
+  // set the field info in pNewQueryInfo object according to sqlExpr information
   size_t numOfExprs = tscSqlExprNumOfExprs(pNewQueryInfo);
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pNewQueryInfo, i);
