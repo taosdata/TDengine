@@ -4,3 +4,6 @@
 [submodule "src/connector/grafanaplugin"]
 	path = src/connector/grafanaplugin
 	url = https://github.com/taosdata/grafanaplugin
+[submodule "src/connector/catfish"]
+	path = src/connector/catfish
+	url = https://www.github.com/micli/catfish
