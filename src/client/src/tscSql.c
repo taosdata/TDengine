@@ -588,7 +588,20 @@ static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
     return true;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+
+  if (pQueryInfo != 0) {
+    STableMetaInfo *pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, 0);
+    if (pTableMetaInfo1 != NULL) {
+      // for select query super table, the super table vgroup list can not be null in any cases.
+      if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo1)) {
+        if (pTableMetaInfo1->pVgroupTables == 0) {
+          tscError("error !!!%p, vgroupTable is null", pSql);
+        }
+      }
+    }
+  }
+
   if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return true;
   }
@@ -702,6 +715,19 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
+  if (pQueryInfo != 0) {
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+    if (pTableMetaInfo != NULL) {
+      // for select query super table, the super table vgroup list can not be null in any cases.
+      if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        if (pTableMetaInfo->pVgroupTables == 0) {
+          tscError("error !!!%p, vgroupTable is null", pSql);
+        }
+      }
+    }
+  }
+
   if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return;
   }
@@ -750,6 +776,19 @@ void taos_stop_query(TAOS_RES *res) {
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
+    if (pQueryInfo != 0) {
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+    if (pTableMetaInfo != NULL) {
+      // for select query super table, the super table vgroup list can not be null in any cases.
+      if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        if (pTableMetaInfo->pVgroupTables == 0) {
+          tscError("error !!!%p, vgroupTable is null", pSql);
+        }
+      }
+    }
+  }
+
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->pRpcCtx == NULL);
     tscKillSTableQuery(pSql);

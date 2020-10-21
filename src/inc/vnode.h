@@ -41,6 +41,8 @@ typedef struct {
   SRpcMsg  rpcMsg;
 } SReadMsg;
 
+extern char *vnodeStatus[];
+
 int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);
 int32_t vnodeOpen(int32_t vgId, char *rootDir);
