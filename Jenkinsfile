@@ -6,21 +6,9 @@ pipeline {
   }
 
   stages {
-      stage('pre build'){
-        agent{label 'master'}
-        when{ changeset "develop"}
-        steps{
-          sh '''
-              
-              
-              echo "check OK!"
-              '''
-        }
-      }
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          when{ changeset "develop"}
           agent{label 'master'}
           steps {
             sh '''
@@ -46,7 +34,6 @@ pipeline {
           }
         }
         stage('test_b1') {
-          when{ changeset "develop"}
           agent{label '184'}
           steps {
             sh '''
@@ -74,7 +61,6 @@ pipeline {
 
         stage('test_crash_gen') {
           agent{label "185"}
-          when{ changeset "develop"}
           steps {
             sh '''
             cd ${WKC}
@@ -104,7 +90,7 @@ pipeline {
 
         stage('test_valgrind') {
           agent{label "186"}
-          when{ changeset "develop"}
+
           steps {
             sh '''
             cd ${WKC}
