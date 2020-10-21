@@ -118,6 +118,22 @@ pipeline {
             date'''
           }
         }
+       stage('connector'){
+         agent{label "release"}
+         steps{
+            sh'''
+            cd ${WORKSPACE}
+            git checkout develop
+            cd tests/gotest
+            bash batchtest.sh
+            cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+            mvn clean package assembly:single >/dev/null 
+            java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+            cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+            python3 PythonChecker.py
+            '''
+         }
+       }
 
       }
     }
