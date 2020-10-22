@@ -646,9 +646,7 @@ static bool filterItem(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *p
   }
 
   // handle the leaf node
-  assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
   param->setupInfoFn(pExpr, param->pExtInfo);
-
   return param->nodeFilterFn(pItem, pExpr->_node.info);
 }
 
@@ -769,6 +767,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
       assert(taosArrayGetSize(result) == 0);
       tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
     }
+
     return;
   }
   

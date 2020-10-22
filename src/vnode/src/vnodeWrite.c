@@ -56,15 +56,6 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
-  if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
-    vDebug("vgId:%d, msgType:%s not processed, no write auth", pVnode->vgId, taosMsg[pHead->msgType]);
-    return TSDB_CODE_VND_NO_WRITE_AUTH;
-  }
-
-  // tsdb may be in reset state
-  if (pVnode->tsdb == NULL) return TSDB_CODE_APP_NOT_READY;
-  if (pVnode->status == TAOS_VN_STATUS_CLOSING) return TSDB_CODE_APP_NOT_READY;
-
   if (pHead->version == 0) {  // from client or CQ
     if (pVnode->status != TAOS_VN_STATUS_READY) {
       vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType],
@@ -103,6 +94,28 @@ int32_t vnodeProcessWrite(void *param1, int qtype, void *param2, void *item) {
   if (code < 0) return code;
 
   return syncCode;
+}
+
+int32_t vnodeCheckWrite(void *param) {
+  SVnodeObj *pVnode = param;
+  if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
+    vDebug("vgId:%d, no write auth, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    return TSDB_CODE_VND_NO_WRITE_AUTH;
+  }
+
+  // tsdb may be in reset state
+  if (pVnode->tsdb == NULL) {
+    vDebug("vgId:%d, tsdb is null, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    return TSDB_CODE_APP_NOT_READY;
+  }
+
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
+    vDebug("vgId:%d, vnode status is %s, recCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
+           pVnode->refCount, pVnode);
+    return TSDB_CODE_APP_NOT_READY;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void vnodeConfirmForward(void *param, uint64_t version, int32_t code) {
@@ -151,7 +164,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
   int32_t          code = TSDB_CODE_SUCCESS;
 
   vDebug("vgId:%d, table:%s, start to drop", pVnode->vgId, pTable->tableId);
-  STableId tableId = {.uid = htobe64(pTable->uid), .tid = htonl(pTable->sid)};
+  STableId tableId = {.uid = htobe64(pTable->uid), .tid = htonl(pTable->tid)};
 
   if (tsdbDropTable(pVnode->tsdb, tableId) < 0) code = terrno;
 
@@ -202,7 +215,7 @@ int vnodeWriteCqMsgToQueue(void *param, void *data, int type) {
   memcpy(pWal, pHead, size);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vDebug("CQ: vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vTrace("CQ: vgId:%d, get vnode wqueue, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
 
   taosWriteQitem(pVnode->wqueue, type, pSync);
 
@@ -219,7 +232,7 @@ int vnodeWriteToQueue(void *param, void *data, int type) {
   memcpy(pWal, pHead, size);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vDebug("vgId:%d, get vnode wqueue, refCount:%d", pVnode->vgId, pVnode->refCount);
+  vTrace("vgId:%d, get vnode wqueue, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
 
   taosWriteQitem(pVnode->wqueue, type, pWal);
 

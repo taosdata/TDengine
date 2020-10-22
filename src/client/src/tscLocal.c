@@ -239,7 +239,7 @@ static int32_t tscBuildTableSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
   TAOS_FIELD f = {.type = TSDB_DATA_TYPE_BINARY, .bytes = (TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE};
   tstrncpy(f.name, "Field", sizeof(f.name));
   
-  SFieldSupInfo* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+  SInternalField* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY,
       (TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE, (TSDB_COL_NAME_LEN - 1), false);
   
@@ -296,7 +296,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   return tscSetValueToResObj(pSql, rowLen);
 }
 static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengths, int idx, char *result) {
-  const char *val = row[idx];
+  const char *val = (const char*)row[idx];
   if (val == NULL) {
     sprintf(result, "%s", TSDB_DATA_NULL_STR);
     return -1;
@@ -485,7 +485,7 @@ static int32_t tscSCreateBuildResultFields(SSqlObj *pSql, BuildType type, const 
     tstrncpy(f.name, "Database", sizeof(f.name));
   } 
 
-  SFieldSupInfo* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+  SInternalField* pInfo = tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index, TSDB_DATA_TYPE_BINARY,
       f.bytes, f.bytes - VARSTR_HEADER_SIZE, false);
 
@@ -922,19 +922,17 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   pQueryInfo->order.order = TSDB_ORDER_ASC;
 
   tscFieldInfoClear(&pQueryInfo->fieldsInfo);
-  pQueryInfo->fieldsInfo.pFields = taosArrayInit(1, sizeof(TAOS_FIELD));
-  pQueryInfo->fieldsInfo.pSupportInfo = taosArrayInit(1, sizeof(SFieldSupInfo));
+  pQueryInfo->fieldsInfo.internalField = taosArrayInit(1, sizeof(SInternalField));
 
   TAOS_FIELD f = tscCreateField((int8_t)type, columnName, (int16_t)valueLength);
   tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
   tscInitResObjForLocalQuery(pSql, 1, (int32_t)valueLength);
 
-  TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
-  SFieldSupInfo* pInfo = tscFieldInfoGetSupp(&pQueryInfo->fieldsInfo, 0);
+  SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, 0);
   pInfo->pSqlExpr = taosArrayGetP(pQueryInfo->exprList, 0);
 
-  memcpy(pRes->data, val, pField->bytes);
+  memcpy(pRes->data, val, pInfo->field.bytes);
 }
 
 int tscProcessLocalCmd(SSqlObj *pSql) {
