@@ -237,7 +237,7 @@ TSDB_CONV_CODE tsdb_timestamp_to_char(SQL_TIMESTAMP_STRUCT src, char *dst, size_
   int n = snprintf(dst, dlen, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
                    src.year, src.month, src.day,
                    src.hour, src.minute, src.second,
-                   src.fraction % 1000000);
+                   src.fraction / 1000000);
   if (n<dlen) return TSDB_CONV_OK;
 
   if (strlen(dst)>=19) return TSDB_CONV_TRUNC_FRACTION;
