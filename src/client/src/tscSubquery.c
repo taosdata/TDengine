@@ -360,6 +360,31 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       pExpr->numOfParams = 1;
     }
 
+    int32_t num = 0;
+    int32_t *list = NULL;
+    tsBufGetVnodeIdList(pSupporter->pTSBuf, &num, &list);
+
+    for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
+      SVgroupTableInfo* p = taosArrayGet(pTableMetaInfo->pVgroupTables, k);
+
+      bool found = false;
+      for(int32_t f = 0; f < num; ++f) {
+        if (p->vgInfo.vgId == list[f]) {
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        tscRemoveVgroupTableGroup(pTableMetaInfo->pVgroupTables, k);
+      } else {
+        k++;
+      }
+    }
+
+    taosTFree(list);
+    assert(taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0);
+
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscDebug("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, taosArrayGetSize(pNewQueryInfo->exprList),
@@ -828,6 +853,8 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   // launch the query the retrieve actual results from vnode along with the filtered timestamp
   SQueryInfo* pPQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
   updateQueryTimeRange(pPQueryInfo, &win);
+
+  //update the vgroup that involved in real data query
   tscLaunchRealSubqueries(pParentSql);
 }
 

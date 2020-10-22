@@ -215,7 +215,7 @@ SQueryInfo *tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex);
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
-    SVgroupsInfo* vgroupList, SArray* pTagCols);
+    SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
@@ -224,6 +224,8 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
+SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables);
+void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
