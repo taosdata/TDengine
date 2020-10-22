@@ -6,22 +6,10 @@ pipeline {
   }
 
   stages {
-      stage('pre build'){
-        agent{label 'master'}
-        when{ changeset "develop"}
-        steps{
-          sh '''
-              
-              
-              echo "check OK!"
-              '''
-        }
-      }
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          when{ changeset "develop"}
-          agent{label 'master'}
+          agent{label '184'}
           steps {
             sh '''
             date
@@ -46,8 +34,7 @@ pipeline {
           }
         }
         stage('test_b1') {
-          when{ changeset "develop"}
-          agent{label '184'}
+          agent{label 'master'}
           steps {
             sh '''
             cd ${WKC}
@@ -74,7 +61,6 @@ pipeline {
 
         stage('test_crash_gen') {
           agent{label "185"}
-          when{ changeset "develop"}
           steps {
             sh '''
             cd ${WKC}
@@ -104,7 +90,7 @@ pipeline {
 
         stage('test_valgrind') {
           agent{label "186"}
-          when{ changeset "develop"}
+
           steps {
             sh '''
             cd ${WKC}
@@ -132,6 +118,22 @@ pipeline {
             date'''
           }
         }
+       stage('connector'){
+         agent{label "release"}
+         steps{
+            sh'''
+            cd ${WORKSPACE}
+            git checkout develop
+            cd tests/gotest
+            bash batchtest.sh
+            cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+            mvn clean package assembly:single >/dev/null 
+            java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+            cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+            python3 PythonChecker.py
+            '''
+         }
+       }
 
       }
     }

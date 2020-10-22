@@ -22,12 +22,12 @@
 extern "C" {
 #endif
 
-typedef void    TAOS;
-typedef void**  TAOS_ROW;
-typedef void    TAOS_RES;
-typedef void    TAOS_SUB;
-typedef void    TAOS_STREAM;
-typedef void    TAOS_STMT;
+typedef void   TAOS;
+typedef void   TAOS_STMT;
+typedef void   TAOS_RES;
+typedef void   TAOS_STREAM;
+typedef void   TAOS_SUB;
+typedef void **TAOS_ROW;
 
 // Data type definition
 #define TSDB_DATA_TYPE_NULL       0     // 1 bytes

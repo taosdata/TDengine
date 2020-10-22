@@ -49,7 +49,7 @@ void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
 void  dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp);
 void  dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);
-void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t sid);
+void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid);
 
 void *dnodeAllocateVnodeWqueue(void *pVnode);
 void  dnodeFreeVnodeWqueue(void *queue);

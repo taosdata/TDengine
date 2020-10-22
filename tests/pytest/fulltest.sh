@@ -18,7 +18,9 @@ python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
+python3 ./test.py -f insert/insertIntoTwoTables.py
 
+python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
@@ -149,6 +151,7 @@ python3 ./test.py -f query/queryNullValueTest.py
 python3 ./test.py -f query/queryInsertValue.py
 python3 ./test.py -f query/queryConnection.py
 python3 ./test.py -f query/natualInterval.py
+python3 ./test.py -f query/bug1471.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py

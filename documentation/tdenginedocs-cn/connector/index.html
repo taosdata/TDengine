@@ -64,9 +64,9 @@
 <p>该API用来获取最新消息，应用程序一般会将其置于一个无限循环语句中。其中参数tsub是taos_subscribe的返回值。如果数据库有新的记录，该API将返回，返回参数是一行记录。如果没有新的记录，该API将阻塞。如果返回值为空，说明系统出错，需要检查系统是否还在正常运行。</p></li>
 <li><p><code>void taos_unsubscribe(TAOS_SUB *tsub)</code></p>
 <p>该API用于取消订阅，参数tsub是taos_subscribe的返回值。应用程序退出时，需要调用该API，否则有资源泄露。</p></li>
-<li><p><code>int taos_num_subfields(TAOS_SUB *tsub)</code></p>
+<li><p><code>int taos_num_fields(TAOS_SUB *tsub)</code></p>
 <p>该API用来获取返回的一排数据中数据的列数</p></li>
-<li><p><code>TAOS_FIELD *taos_fetch_subfields(TAOS_RES *res)</code></p>
+<li><p><code>TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)</code></p>
 <p>该API用来获取每列数据的属性（数据类型、名字、字节数），与taos_num_subfileds配合使用，可用来解析返回的一排数据。</p></li>
 </ul>
 <a class='anchor' id='Java-Connector'></a><h2>Java Connector</h2>

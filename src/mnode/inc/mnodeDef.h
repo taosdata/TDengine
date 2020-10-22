@@ -115,7 +115,7 @@ typedef struct {
   uint64_t   suid;
   int64_t    createdTime;
   int32_t    numOfColumns; //used by normal table
-  int32_t    sid;
+  int32_t    tid;
   int32_t    vgId;
   int32_t    sqlLen;
   int8_t     updateEnd[4];
