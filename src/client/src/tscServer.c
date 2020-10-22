@@ -481,13 +481,21 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
-    
-    SVgroupsInfo* pVgroupInfo = pTableMetaInfo->vgroupList;
-    assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
+    if (pTableMetaInfo->pVgroupTables == NULL) {
+      SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
+      assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
 
-    pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
-    tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, %d, %d", pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex,
-             pVgroupInfo->vgroups[0].vgId, pVgroupInfo->vgroups[1].vgId);
+      pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
+      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d", pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex);
+    } else {
+      int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+      assert(vgIndex >= 0 && vgIndex < numOfVgroups);
+
+      SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
+
+      pRetrieveMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
+      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d", pSql, pTableIdList->vgInfo.vgId, vgIndex);
+    }
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
@@ -564,9 +572,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
         assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
         pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
       }
-      tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d, %d, %d", pSql, index,
-          pTableMetaInfo->vgroupList->numOfVgroups, pTableMetaInfo->vgroupList->vgroups[0].vgId,
-               pTableMetaInfo->vgroupList->vgroups[1].vgId);
+      tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       pVgroupInfo = &pTableMeta->vgroupInfo;
     }
@@ -611,8 +617,8 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     }
   }
   
-  tscDebug("%p vgId:%d, query on table:%s, tid:%d, uid:%" PRIu64", pTableMeta:%p", pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
-      pTableMeta->id.tid, pTableMeta->id.uid, pTableMeta);
+  tscDebug("%p vgId:%d, query on table:%s, tid:%d, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), pTableMetaInfo->name,
+      pTableMeta->id.tid, pTableMeta->id.uid);
   
   return pMsg;
 }
@@ -667,12 +673,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
   pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
   pQueryMsg->numOfCols      = htons((int16_t)taosArrayGetSize(pQueryInfo->colList));
-  pQueryMsg->interval.interval   = htobe64(pQueryInfo->interval.interval);
-  pQueryMsg->interval.sliding   = htobe64(pQueryInfo->interval.sliding);
+  pQueryMsg->interval.interval = htobe64(pQueryInfo->interval.interval);
+  pQueryMsg->interval.sliding  = htobe64(pQueryInfo->interval.sliding);
   pQueryMsg->interval.offset   = htobe64(pQueryInfo->interval.offset);
   pQueryMsg->interval.intervalUnit = pQueryInfo->interval.intervalUnit;
-  pQueryMsg->interval.slidingUnit = pQueryInfo->interval.slidingUnit;
-  pQueryMsg->interval.offsetUnit = pQueryInfo->interval.offsetUnit;
+  pQueryMsg->interval.slidingUnit  = pQueryInfo->interval.slidingUnit;
+  pQueryMsg->interval.offsetUnit   = pQueryInfo->interval.offsetUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
