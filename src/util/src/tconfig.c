@@ -97,32 +97,34 @@ static void taosReadInt16Config(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
-static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
+static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
   int   length = (int)strlen(input_value);
   char *option = (char *)cfg->ptr;
   if (length <= 0 || length > cfg->ptrLength) {
-    uError("config option:%s, input value:%s, length out of range[0, %d], use default value:%s",
-           cfg->option, input_value, cfg->ptrLength, option);
+    uError("config option:%s, input value:%s, length out of range[0, %d], use default value:%s", cfg->option,
+           input_value, cfg->ptrLength, option);
+    return false;
   } else {
     if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
       wordexp_t full_path;
       if (0 != wordexp(input_value, &full_path, 0)) {
         printf("\nconfig dir: %s wordexp fail! reason:%s\n", input_value, strerror(errno));
         wordfree(&full_path);
-        return;
+        return false;
       }
-      
+
       if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
         strcpy(option, full_path.we_wordv[0]);
       }
-      
+
       wordfree(&full_path);
 
       int code = taosMkDir(option, 0755);
       if (code != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        uError("config option:%s, input value:%s, directory not exist, create fail:%s",
-             cfg->option, input_value, strerror(errno)); 
+        uError("config option:%s, input value:%s, directory not exist, create fail:%s", cfg->option, input_value,
+               strerror(errno));
+        return false;
       }
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
@@ -130,6 +132,8 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
             tsCfgStatusStr[cfg->cfgStatus], option);
     }
   }
+
+  return true;
 }
 
 static void taosReadIpStrConfig(SGlobalCfg *cfg, char *input_value) {
@@ -225,8 +229,10 @@ static void taosReadConfigOption(const char *option, char *value, char *value2, 
         taosReadDirectoryConfig(cfg, value);
         break;
       case TAOS_CFG_VTYPE_DATA_DIRCTORY:
-        taosReadDirectoryConfig(cfg, value);
-        taosReadDataDirCfg(value, value2, value3);
+        if (taosReadDirectoryConfig(cfg, value)) {
+          taosReadDataDirCfg(value, value2, value3);
+        }
+        break;
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);
         break;
@@ -349,10 +355,11 @@ bool taosReadGlobalCfg() {
     value[vlen] = 0;
 
     paGetToken(value + vlen + 1, &value2, &vlen2);
-    if (vlen2 != 0) value2[vlen2] = 0;
-
-    paGetToken(value + vlen2 + 1, &value3, &vlen3);
-    if (vlen3 != 0) value3[vlen3] = 0;
+    if (vlen2 != 0) {
+      value2[vlen2] = 0;
+      paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+      if (vlen3 != 0) value3[vlen3] = 0;
+    }
 
     taosReadConfigOption(option, value, value2, value3);
   }

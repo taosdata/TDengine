@@ -321,22 +321,27 @@ void taosAddDataDir(int index, char *v1, int level, int primary) {
 
 #ifndef _STORAGE
 void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
-  taosAddDataDir(0, tsDataDir, 0, 1);
-  tstrncpy(tsDiskCfg[0].dir, tsDataDir, TSDB_FILENAME_LEN);
+  if (tsDiskCfgNum == 1) {
+    SDiskCfg *cfg = &tsDiskCfg[0];
+    uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
+  }
+  taosAddDataDir(0, v1, 0, 1);
+  tsDiskCfgNum = 1;
 }
-#endif
 
 void taosPrintDataDirCfg() {
   for (int i = 0; i < tsDiskCfgNum; ++i) {
     SDiskCfg *cfg = &tsDiskCfg[i];
-    uInfo(" dataDir:%s level:%d primary:%d", cfg->dir, cfg->level, cfg->primary);
+    uInfo(" dataDir: %s", cfg->dir);
   }
 }
+#endif
 
 static void taosCheckDataDirCfg() {
   if (tsDiskCfgNum <= 0) {
     taosAddDataDir(0, tsDataDir, 0, 1);
     tsDiskCfgNum = 1;
+    uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
   }
 }
 

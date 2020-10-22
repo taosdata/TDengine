@@ -104,7 +104,7 @@ int32_t dnodeInitSystem() {
   signal(SIGPIPE, SIG_IGN);
 
   if (dnodeCreateDir(tsLogDir) < 0) {
-   printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+   printf("failed to create log dir: %s, reason: %s\n", tsLogDir, strerror(errno));
    return -1;
   }
 
@@ -186,13 +186,13 @@ static int32_t dnodeInitStorage() {
   //TODO(dengyihao): no need to init here 
   tdGetMnodeRootDir(tsDataDir, tsMnodeDir);
   if (dnodeCreateDir(tsMnodeDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
+   dError("failed to create mnode dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
 
   tdGetDnodeRootDir(tsDataDir, tsDnodeDir);
   if (dnodeCreateDir(tsDnodeDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
+   dError("failed to create dnode dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;
   }
 
@@ -205,13 +205,13 @@ static int32_t dnodeInitStorage() {
 
       tdGetVnodeRootDir(dirName, pDisk->dir);
       if (dnodeCreateDir(dirName) < 0) {
-        dError("failed to create dir: %s, reason: %s", dirName, strerror(errno));
+        dError("failed to create vnode dir: %s, reason: %s", dirName, strerror(errno));
         return -1;
       }
 
       tdGetVnodeBackRootDir(dirName, pDisk->dir);
       if (dnodeCreateDir(dirName) < 0) {
-        dError("failed to create dir: %s, reason: %s", dirName, strerror(errno));
+        dError("failed to create vnode back dir: %s, reason: %s", dirName, strerror(errno));
         return -1;
       }
     }
