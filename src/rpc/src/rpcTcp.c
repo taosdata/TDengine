@@ -176,7 +176,7 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
 
   // save thread and pollFd into local variable since pThreadObj will be freed when thread exits
   pthread_t thread = pThreadObj->thread; 
-  int       pollFd = pThreadObj->pollFd;
+  SOCKET    pollFd = pThreadObj->pollFd;
 
   if (taosComparePthread(pThreadObj->thread, pthread_self())) {
     pthread_detach(pthread_self());
