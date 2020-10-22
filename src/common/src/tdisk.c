@@ -20,14 +20,14 @@
 #define DISK_MIN_FREE_SPACE 30 * 1024 * 1024  // disk free space less than 100M will not create new file again
 #define DNODE_DISK_AVAIL(pDisk) ((pDisk)->dmeta.free > DISK_MIN_FREE_SPACE)
 
-static int dnodeFormatDir(char *idir, char *odir);
-static int dnodeCheckDisk(char *dirName, int level, int primary);
-static int dnodeUpdateDiskMeta(SDisk *pDisk);
-static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary);
+static int tdFormatDir(char *idir, char *odir);
+static int tdCheckDisk(char *dirName, int level, int primary);
+static int tdUpdateDiskMeta(SDisk *pDisk);
+static int tdAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary);
 
 struct SDnodeTier *tsDnodeTier = NULL;
 
-SDnodeTier *dnodeNewTier() {
+SDnodeTier *tdNewTier() {
   SDnodeTier *pDnodeTier = (SDnodeTier *)calloc(1, sizeof(*pDnodeTier));
   if (pDnodeTier == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -37,7 +37,7 @@ SDnodeTier *dnodeNewTier() {
   int ret = pthread_mutex_init(&(pDnodeTier->lock), NULL);
   if (ret != 0) {
     terrno = TAOS_SYSTEM_ERROR(ret);
-    dnodeCloseTier(pDnodeTier);
+    tdCloseTier(pDnodeTier);
     return NULL;
   }
 
@@ -45,14 +45,14 @@ SDnodeTier *dnodeNewTier() {
                                  taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pDnodeTier->map == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    dnodeCloseTier(pDnodeTier);
+    tdCloseTier(pDnodeTier);
     return NULL;
   }
 
   return pDnodeTier;
 }
 
-void *dnodeCloseTier(SDnodeTier *pDnodeTier) {
+void *tdCloseTier(SDnodeTier *pDnodeTier) {
   if (pDnodeTier) {
     if (pDnodeTier->map) {
       taosHashCleanup(pDnodeTier->map);
@@ -75,32 +75,42 @@ void *dnodeCloseTier(SDnodeTier *pDnodeTier) {
   return NULL;
 }
 
-int dnodeAddDisks(SDnodeTier *pDnodeTier, SDiskCfg *pDiskCfgs, int ndisks) {
+int tdAddDisks(SDnodeTier *pDnodeTier, SDiskCfg *pDiskCfgs, int ndisks) {
   ASSERT(ndisks > 0);
 
   for (int i = 0; i < ndisks; i++) {
     SDiskCfg *pCfg = pDiskCfgs + i;
-    dnodeAddDisk(pDnodeTier, pCfg->dir, pCfg->level, pCfg->primary);
+    tdAddDisk(pDnodeTier, pCfg->dir, pCfg->level, pCfg->primary);
   }
 
-  if (dnodeCheckTiers(pDnodeTier) < 0) return -1;
+  if (tdCheckTiers(pDnodeTier) < 0) return -1;
   
   return 0;
 }
 
-int dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier) {
+int tdUpdateTiersInfo(SDnodeTier *pDnodeTier) {
+  tdLockTiers(pDnodeTier);
+
+  pDnodeTier->meta.tsize = 0;
+  pDnodeTier->meta.avail = 0;
+
   for (int i = 0; i < pDnodeTier->nTiers; i++) {
     STier *pTier = pDnodeTier->tiers + i;
 
     for (int j = 0; j < pTier->nDisks; j++) {
       SDisk *pDisk = pTier->disks[j];
-      if (dnodeUpdateDiskMeta(pDisk) < 0) return -1;
+      if (tdUpdateDiskMeta(pDisk) < 0) return -1;
+
+      pDnodeTier->meta.tsize += pDisk->dmeta.size;
+      pDnodeTier->meta.avail += pDisk->dmeta.free;
     }
   }
+
+  tdUnLockTiers(pDnodeTier);
   return 0;
 }
 
-int dnodeCheckTiers(SDnodeTier *pDnodeTier) {
+int tdCheckTiers(SDnodeTier *pDnodeTier) {
   ASSERT(pDnodeTier->nTiers > 0);
   if (DNODE_PRIMARY_DISK(pDnodeTier) == NULL) {
     terrno = TSDB_CODE_DND_LACK_PRIMARY_DISK;
@@ -117,7 +127,7 @@ int dnodeCheckTiers(SDnodeTier *pDnodeTier) {
   return 0;
 }
 
-SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) {
+SDisk *tdAssignDisk(SDnodeTier *pDnodeTier, int level) {
   ASSERT(level < pDnodeTier->nTiers);
 
   STier *pTier = pDnodeTier->tiers + level;
@@ -125,11 +135,11 @@ SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) {
 
   ASSERT(pTier->nDisks > 0);
 
-  dnodeLockTiers(pDnodeTier);
+  tdLockTiers(pDnodeTier);
 
   for (int i = 0; i < pTier->nDisks; i++) {
     SDisk *iDisk = pTier->disks[i];
-    if (dnodeUpdateDiskMeta(iDisk) < 0) return NULL;
+    if (tdUpdateDiskMeta(iDisk) < 0) return NULL;
     if (DNODE_DISK_AVAIL(iDisk)) {
       if (pDisk == NULL || pDisk->dmeta.nfiles > iDisk->dmeta.nfiles) {
         pDisk = iDisk;
@@ -139,22 +149,22 @@ SDisk *dnodeAssignDisk(SDnodeTier *pDnodeTier, int level) {
 
   if (pDisk == NULL) {
     terrno = TSDB_CODE_DND_NO_DISK_SPACE;
-    dnodeUnLockTiers(pDnodeTier);
+    tdUnLockTiers(pDnodeTier);
     return NULL;
   }
 
-  dnodeIncDiskFiles(pDnodeTier, pDisk, false);
+  tdIncDiskFiles(pDnodeTier, pDisk, false);
 
-  dnodeUnLockTiers(pDnodeTier);
+  tdUnLockTiers(pDnodeTier);
 
   return NULL;
 }
 
-SDisk *dnodeGetDiskByName(SDnodeTier *pDnodeTier, char *dirName) {
+SDisk *tdGetDiskByName(SDnodeTier *pDnodeTier, char *dirName) {
   char     fdirName[TSDB_FILENAME_LEN] = "\0";
   SDiskID *pDiskID = NULL;
 
-  if (dnodeFormatDir(dirName, fdirName) < 0) {
+  if (tdFormatDir(dirName, fdirName) < 0) {
     return NULL;
   }
 
@@ -162,34 +172,34 @@ SDisk *dnodeGetDiskByName(SDnodeTier *pDnodeTier, char *dirName) {
   if (ptr == NULL) return NULL;
   pDiskID = (SDiskID *)ptr;
 
-  return dnodeGetDisk(pDnodeTier, pDiskID->level, pDiskID->did);
+  return tdGetDisk(pDnodeTier, pDiskID->level, pDiskID->did);
 }
 
-void dnodeIncDiskFiles(SDnodeTier *pDnodeTier, SDisk *pDisk, bool lock) {
+void tdIncDiskFiles(SDnodeTier *pDnodeTier, SDisk *pDisk, bool lock) {
   if (lock) {
-    dnodeLockTiers(pDnodeTier);
+    tdLockTiers(pDnodeTier);
   }
 
   pDisk->dmeta.nfiles++;
 
   if (lock) {
-    dnodeUnLockTiers(pDnodeTier);
+    tdUnLockTiers(pDnodeTier);
   }
 }
 
-void dnodeDecDiskFiles(SDnodeTier *pDnodeTier, SDisk *pDisk, bool lock) {
+void tdDecDiskFiles(SDnodeTier *pDnodeTier, SDisk *pDisk, bool lock) {
   if (lock) {
-    dnodeLockTiers(pDnodeTier);
+    tdLockTiers(pDnodeTier);
   }
 
   pDisk->dmeta.nfiles--;
 
   if (lock) {
-    dnodeUnLockTiers(pDnodeTier);
+    tdUnLockTiers(pDnodeTier);
   }
 }
 
-static int dnodeFormatDir(char *idir, char *odir) {
+static int tdFormatDir(char *idir, char *odir) {
   wordexp_t wep;
 
   int code = wordexp(idir, &wep, 0);
@@ -210,7 +220,7 @@ static int dnodeFormatDir(char *idir, char *odir) {
   return 0;
 }
 
-static int dnodeCheckDisk(char *dirName, int level, int primary) {
+static int tdCheckDisk(char *dirName, int level, int primary) {
   if (access(dirName, W_OK | R_OK | F_OK) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -230,7 +240,7 @@ static int dnodeCheckDisk(char *dirName, int level, int primary) {
   }
 }
 
-static int dnodeUpdateDiskMeta(SDisk *pDisk) {
+static int tdUpdateDiskMeta(SDisk *pDisk) {
   struct statvfs dstat;
   if (statvfs(pDisk->dir, &dstat) < 0) {
     uError("failed to get dir %s information since %s", pDisk->dir, strerror(errno));
@@ -244,7 +254,7 @@ static int dnodeUpdateDiskMeta(SDisk *pDisk) {
   return 0;
 }
 
-static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary) {
+static int tdAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary) {
   char    dirName[TSDB_FILENAME_LEN] = "\0";
   STier * pTier = NULL;
   SDiskID diskid = {0};
@@ -256,7 +266,7 @@ static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primar
     return -1;
   }
 
-  if (dnodeFormatDir(dir, dirName) < 0) {
+  if (tdFormatDir(dir, dirName) < 0) {
     uError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
     return -1;
   }
@@ -270,13 +280,13 @@ static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primar
     return -1;
   }
 
-  if (dnodeGetDiskByName(pDnodeTier, dirName) != NULL) {
+  if (tdGetDiskByName(pDnodeTier, dirName) != NULL) {
     terrno = TSDB_CODE_DND_DISK_ALREADY_EXISTS;
     uError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
     return -1;
   }
 
-  if (dnodeCheckDisk(dirName, level, primary) < 0) {
+  if (tdCheckDisk(dirName, level, primary) < 0) {
     uError("failed to add disk %s to tier %d level since %s", dir, level, tstrerror(terrno));
     return -1;
   }
@@ -320,6 +330,8 @@ static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primar
   }
 
   strncpy(pDisk->dir, dirName, TSDB_FILENAME_LEN);
+  pDisk->level = diskid.level;
+  pDisk->did = diskid.did;
 
   if (taosHashPut(pDnodeTier->map, (void *)dirName, strnlen(dirName, TSDB_FILENAME_LEN), (void *)(&diskid),
                   sizeof(diskid)) < 0) {
@@ -331,7 +343,7 @@ static int dnodeAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primar
 
   pTier->nDisks++;
   pTier->disks[diskid.did] = pDisk;
-  pDnodeTier->nTiers = MAX(pDnodeTier->nTiers, level);
+  pDnodeTier->nTiers = MAX(pDnodeTier->nTiers, level + 1);
 
   return 0;
 }

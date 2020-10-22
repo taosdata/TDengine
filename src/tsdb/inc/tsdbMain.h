@@ -153,6 +153,14 @@ typedef struct {
 
 // ------------------ tsdbFile.c
 extern const char* tsdbFileSuffix[];
+
+// minFid <= midFid <= maxFid
+typedef struct {
+  int minFid;  // >= minFid && < midFid, at level 2
+  int midFid;  // >= midFid && < maxFid, at level 1
+  int maxFid;  // >= maxFid, at level 0
+} SFidGroup;
+
 typedef enum {
   TSDB_FILE_TYPE_HEAD = 0,
   TSDB_FILE_TYPE_DATA,
@@ -189,7 +197,9 @@ typedef struct {
 
 typedef struct {
   int   fileId;
-  int   state; // 0 for health, 1 for problem
+  int   state;  // 0 for health, 1 for problem
+  int   level;
+  int   did;
   SFile files[TSDB_FILE_TYPE_MAX];
 } SFileGroup;
 
@@ -483,17 +493,17 @@ int         tsdbOpenFile(SFile* pFile, int oflag);
 void        tsdbCloseFile(SFile* pFile);
 int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type, SDisk* pDisk);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
-void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, int mfid);
+void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, SFidGroup* pFidGroup);
 int         tsdbUpdateFileHeader(SFile* pFile);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
 void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
 void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
 int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
 void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
+void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
 void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
-int         tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days);
 int         tsdbGetBaseDirFromFile(char* fname, char* baseDir);
-int         tsdbApplyRetention(STsdbRepo* pRepo);
+int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
 
 // ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state

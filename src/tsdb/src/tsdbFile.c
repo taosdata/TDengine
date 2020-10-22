@@ -31,10 +31,11 @@ const char *       tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h",
 static void      tsdbDestroyFile(SFile *pFile);
 static int       compFGroup(const void *arg1, const void *arg2);
 static int       keyFGroupCompFunc(const void *key, const void *fgroup);
-static TSKEY     tsdbGetCurrMinKey(int8_t precision, int32_t keep);
 static int       tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk);
 static SHashObj *tsdbGetAllFids(STsdbRepo *pRepo, char *dirName);
 static int       tsdbRestoreFileGroup(STsdbRepo *pRepo, SDisk *pDisk, int fid, SFileGroup *pFileGroup);
+static int       tsdbGetFidLevel(int fid, SFidGroup *pFidGroup);
+static int       tsdbCreateVnodeDataDir(char *baseDir, int vid);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -115,13 +116,15 @@ SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid) {
   ASSERT(tsdbSearchFGroup(pFileH, fid, TD_EQ) == NULL);
 
   // TODO: think about if (level == 0) is correct
-  SDisk *pDisk = dnodeAssignDisk(tsDnodeTier, 0);
+  SDisk *pDisk = tdAssignDisk(tsDnodeTier, 0);
   if (pDisk == NULL) {
     tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     return NULL;
   }
 
   fGroup.fileId = fid;
+  fGroup.level = pDisk->level;
+  fGroup.did = pDisk->did;
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
     if (tsdbCreateFile(&(fGroup.files[type]), pRepo, fid, type, pDisk) < 0) goto _err;
   }
@@ -136,7 +139,7 @@ _err:
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
     tsdbDestroyFile(&(fGroup.files[type]));
   }
-  dnodeDecDiskFiles(tsDnodeTier, pDisk, true);
+  tdDecDiskFiles(tsDnodeTier, pDisk, true);
   return NULL;
 }
 
@@ -270,13 +273,13 @@ SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid, int flags) {
   return (SFileGroup *)ptr;
 }
 
-void tsdbRemoveFilesBeyondRetention(STsdbRepo *pRepo, int mfid) {
+void tsdbRemoveFilesBeyondRetention(STsdbRepo *pRepo, SFidGroup *pFidGroup) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = pFileH->pFGroup;
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
-  while (pFileH->nFGroups > 0 && pGroup[0].fileId < mfid) {
+  while (pFileH->nFGroups > 0 && pGroup[0].fileId < pFidGroup->minFid) {
     tsdbRemoveFileGroup(pRepo, pGroup);
   }
 
@@ -339,7 +342,7 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
 
   SFileGroup fileGroup = *pFGroup;
   tsdbGetBaseDirFromFile(fileGroup.files[0].fname, baseDir);
-  pDisk = dnodeGetDiskByName(tsDnodeTier, baseDir);
+  pDisk = tdGetDiskByName(tsDnodeTier, baseDir);
   ASSERT(pDisk != NULL);
 
   int nFilesLeft = pFileH->nFGroups - (int)(POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
@@ -357,7 +360,7 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
     tsdbDestroyFile(&fileGroup.files[type]);
   }
 
-  pDisk->dmeta.nfiles--;
+  tdDecDiskFiles(tsDnodeTier, pDisk, true);
 }
 
 int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
@@ -415,8 +418,15 @@ _err:
   *size = 0;
 }
 
-int tsdbGetCurrMinFid(int8_t precision, int32_t keep, int32_t days) {
-  return (int)(TSDB_KEY_FILEID(tsdbGetCurrMinKey(precision, keep), days, precision));
+void tsdbGetFidGroup(STsdbCfg *pCfg, SFidGroup *pFidGroup) {
+  TSKEY now = taosGetTimestamp(pCfg->precision);
+
+  pFidGroup->minFid =
+      TSDB_KEY_FILEID(now - pCfg->keep * tsMsPerDay[pCfg->precision], pCfg->daysPerFile, pCfg->precision);
+  pFidGroup->midFid =
+      TSDB_KEY_FILEID(now - pCfg->keep2 * tsMsPerDay[pCfg->precision], pCfg->daysPerFile, pCfg->precision);
+  pFidGroup->maxFid =
+      TSDB_KEY_FILEID(now - pCfg->keep1 * tsMsPerDay[pCfg->precision], pCfg->daysPerFile, pCfg->precision);
 }
 
 int tsdbGetBaseDirFromFile(char *fname, char *baseDir) {
@@ -435,8 +445,54 @@ int tsdbGetBaseDirFromFile(char *fname, char *baseDir) {
   return 0;
 }
 
-int tsdbApplyRetention(STsdbRepo *pRepo) {
-  // TODO
+int tsdbApplyRetention(STsdbRepo *pRepo, SFidGroup *pFidGroup) {
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  SFileGroup *pGroup = NULL;
+  SFileGroup  nFileGroup = {0};
+  SFileGroup  oFileGroup = {0};
+  int         level = 0;
+
+  if (tsDnodeTier->nTiers == 1 || (pFidGroup->minFid == pFidGroup->midFid && pFidGroup->midFid == pFidGroup->maxFid)) {
+    return 0;
+  }
+
+  for (int gidx = pFileH->nFGroups - 1; gidx >= 0; gidx--) {
+    pGroup = pFileH->pFGroup + gidx;
+
+    level = tsdbGetFidLevel(pGroup->fileId, pFidGroup);
+
+    if (level == pGroup->level) continue;
+    if (level > pGroup->level && level < tsDnodeTier->nTiers) {
+      SDisk *pODisk = tdGetDisk(tsDnodeTier, pGroup->level, pGroup->did);
+      SDisk *pDisk = tdAssignDisk(tsDnodeTier, level);
+      tsdbCreateVnodeDataDir(pDisk->dir, REPO_ID(pRepo));
+      oFileGroup = *pGroup;
+      nFileGroup = *pGroup;
+      nFileGroup.level = level;
+      nFileGroup.did = pDisk->did;
+
+      for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+        // TODO fileGroup.files[type].fname
+      }
+
+      for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+      }
+
+      pthread_rwlock_wrlock(&(pFileH->fhlock)); 
+      *pGroup = nFileGroup;
+      pthread_rwlock_unlock(&(pFileH->fhlock));
+
+      for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+        (void)remove(oFileGroup.files[type].fname);
+      }
+
+      tdLockTiers(tsDnodeTier);
+      tdDecDiskFiles(tsDnodeTier, pODisk, false);
+      tdIncDiskFiles(tsDnodeTier, pDisk, false);
+      tdUnLockTiers(tsDnodeTier);
+    }
+  }
+
   return 0;
 }
 
@@ -466,10 +522,6 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
   }
 }
 
-static TSKEY tsdbGetCurrMinKey(int8_t precision, int32_t keep) {
-  return (TSKEY)(taosGetTimestamp(precision) - keep * tsMsPerDay[precision]);
-}
-
 static int tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk) {
   char                  tsdbDataDir[TSDB_FILENAME_LEN] = "\0";
   char                  tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
@@ -479,6 +531,7 @@ static int tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk) {
   STsdbFileH *          pFileH = pRepo->tsdbFileH;
   SFileGroup            fgroup = {0};
   STsdbCfg *            pCfg = &(pRepo->config);
+  SFidGroup             fidGroup = {0};
   int                   mfid = 0;
 
   tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
@@ -494,7 +547,8 @@ static int tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk) {
     goto _err;
   }
 
-  mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
+  tsdbGetFidGroup(pCfg, &fidGroup);
+  mfid = fidGroup.minFid;
 
   while (taosHashIterNext(pIter)) {
     int32_t fid = *(int32_t *)taosHashIterGet(pIter);
@@ -677,4 +731,45 @@ _err:
   if (dir != NULL) closedir(dir);
   regfree(&regex);
   return NULL;
+}
+
+static int tsdbGetFidLevel(int fid, SFidGroup *pFidGroup) {
+  if (fid >= pFidGroup->maxFid) {
+    return 0;
+  } else if (fid >= pFidGroup->midFid && fid < pFidGroup->maxFid) {
+    return 1;
+  } else {
+    return 2;
+  }
+}
+
+static int tsdbCreateVnodeDataDir(char *baseDir, int vid) {
+  char dirName[TSDB_FILENAME_LEN] = "\0";
+  char tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
+
+  tdGetVnodeRootDir(baseDir, dirName);
+  if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  tdGetVnodeDir(baseDir, vid, dirName);
+  if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  tdGetTsdbRootDir(baseDir, vid, tsdbRootDir);
+  if (taosMkDir(tsdbRootDir, 0755) < 0 && errno != EEXIST) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  tdGetTsdbDataDir(baseDir, vid, dirName);
+  if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
 }

@@ -471,6 +471,7 @@ static void *tsdbCommitData(void *arg) {
   SDataCols *  pDataCols = NULL;
   STsdbMeta *  pMeta = pRepo->tsdbMeta;
   SCommitIter *iters = NULL;
+  SFidGroup    fidGroup = {0};
   SRWHelper    whelper = {0};
   TSKEY        minKey = 0, maxKey = 0;
   ASSERT(pRepo->commit == 1);
@@ -479,9 +480,9 @@ static void *tsdbCommitData(void *arg) {
   tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
             pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
 
-  int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
-  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, mfid, &minKey, &maxKey);
-  tsdbRemoveFilesBeyondRetention(pRepo, mfid);
+  tsdbGetFidGroup(pCfg, &fidGroup);
+  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fidGroup.minFid, &minKey, &maxKey);
+  tsdbRemoveFilesBeyondRetention(pRepo, &fidGroup);
 
   // Create the iterator to read from cache
   if (pMem->numOfRows > 0) {
@@ -510,7 +511,7 @@ static void *tsdbCommitData(void *arg) {
 
     // Loop to commit to each file
     for (int fid = sfid; fid <= efid; fid++) {
-      if (fid < mfid) continue;
+      if (fid < fidGroup.minFid) continue;
 
       if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
         tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
@@ -519,7 +520,7 @@ static void *tsdbCommitData(void *arg) {
     }
   }
 
-  tsdbApplyRetention(pRepo);
+  tsdbApplyRetention(pRepo, &fidGroup);
 
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {

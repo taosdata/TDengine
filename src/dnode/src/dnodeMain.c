@@ -170,13 +170,13 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  tsDnodeTier = dnodeNewTier();
+  tsDnodeTier = tdNewTier();
   if (tsDnodeTier == NULL) {
     dError("failed to create new dnode tier since %s", tstrerror(terrno));
     return -1;
   }
 
-  if (dnodeAddDisks(tsDnodeTier, tsDiskCfg, tsDiskCfgNum) < 0) {
+  if (tdAddDisks(tsDnodeTier, tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
     return -1;
   }
@@ -201,7 +201,7 @@ static int32_t dnodeInitStorage() {
 
     STier *pTier = tsDnodeTier->tiers + i;
     for (int j = 0; j < pTier->nDisks; j++) {
-      SDisk *pDisk = dnodeGetDisk(tsDnodeTier, i, j);
+      SDisk *pDisk = tdGetDisk(tsDnodeTier, i, j);
 
       tdGetVnodeRootDir(dirName, pDisk->dir);
       if (dnodeCreateDir(dirName) < 0) {
@@ -225,7 +225,7 @@ static int32_t dnodeInitStorage() {
 
 static void dnodeCleanupStorage() {
   if (tsDnodeTier) {
-    dnodeCloseTier(tsDnodeTier);
+    tdCloseTier(tsDnodeTier);
     tsDnodeTier = NULL;
   }
 }
