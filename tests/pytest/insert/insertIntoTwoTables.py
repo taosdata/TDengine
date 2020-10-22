@@ -39,7 +39,7 @@ class TDTestCase:
 
         tdSql.query("select * from t0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
 
         tdSql.query("select * from t1")
         tdSql.checkRows(5)
