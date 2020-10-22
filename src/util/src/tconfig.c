@@ -199,7 +199,7 @@ SGlobalCfg *taosGetConfigOption(const char *option) {
   return NULL;
 }
 
-static void taosReadConfigOption(const char *option, char *value) {
+static void taosReadConfigOption(const char *option, char *value, char *value2, char *value3) {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
@@ -224,6 +224,9 @@ static void taosReadConfigOption(const char *option, char *value) {
       case TAOS_CFG_VTYPE_DIRECTORY:
         taosReadDirectoryConfig(cfg, value);
         break;
+      case TAOS_CFG_VTYPE_DATA_DIRCTORY:
+        taosReadDirectoryConfig(cfg, value);
+        taosReadDataDirCfg(value, value2, value3);
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);
         break;
@@ -307,8 +310,8 @@ void taosReadGlobalLogCfg() {
 }
 
 bool taosReadGlobalCfg() {
-  char * line, *option, *value, *value1;
-  int    olen, vlen, vlen1;
+  char * line, *option, *value, *value2, *value3;
+  int    olen, vlen, vlen2, vlen3;
   char   fileName[PATH_MAX] = {0};
 
   sprintf(fileName, "%s/taos.cfg", configDir);
@@ -331,8 +334,8 @@ bool taosReadGlobalCfg() {
   while (!feof(fp)) {
     memset(line, 0, len);
 
-    option = value = NULL;
-    olen = vlen = 0;
+    option = value = value2 = value3 = NULL;
+    olen = vlen = vlen2 = vlen3 = 0;
 
     taosGetline(&line, &len, fp);
     line[len - 1] = 0;
@@ -345,11 +348,13 @@ bool taosReadGlobalCfg() {
     if (vlen == 0) continue;
     value[vlen] = 0;
 
-    // For dataDir, the format is:
-    // dataDir    /mnt/disk1    0
-    paGetToken(value + vlen + 1, &value1, &vlen1);
-    
-    taosReadConfigOption(option, value);
+    paGetToken(value + vlen + 1, &value2, &vlen2);
+    if (vlen2 != 0) value2[vlen2] = 0;
+
+    paGetToken(value + vlen2 + 1, &value3, &vlen3);
+    if (vlen3 != 0) value3[vlen3] = 0;
+
+    taosReadConfigOption(option, value, value2, value3);
   }
 
   fclose(fp);
@@ -397,4 +402,6 @@ void taosPrintGlobalCfg() {
   }
 
   taosPrintOsInfo();
+  taosPrintDataDirCfg();
+  uInfo("==================================");
 }

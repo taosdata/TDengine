@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-struct SDnodeTier;
-
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -157,9 +155,6 @@ extern char gitinfo[];
 extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
-// dnode
-extern struct SDnodeTier *pDnodeTier;
-
 // log
 extern int32_t tsAsyncLog;
 extern int32_t tsNumOfLogLines;
@@ -182,6 +177,14 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
+typedef struct {
+  char dir[TSDB_FILENAME_LEN];
+  int  level;
+  int  primary;
+} SDiskCfg;
+extern int32_t  tsDiskCfgNum;
+extern SDiskCfg tsDiskCfg[];
+
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 void taosInitGlobalCfg();
@@ -190,7 +193,10 @@ void taosSetAllDebugFlag();
 bool taosCfgDynamicOptions(char *msg);
 int  taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
 bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
- 
+void taosAddDataDir(int index, char *v1, int level, int primary);
+void taosReadDataDirCfg(char *v1, char *v2, char *v3);
+void taosPrintDataDirCfg();
+
 #ifdef __cplusplus
 }
 #endif

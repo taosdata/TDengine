@@ -160,6 +160,13 @@ char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char    tsDataDir[TSDB_FILENAME_LEN] = {0};
 char    tsScriptDir[TSDB_FILENAME_LEN] = {0};
+int32_t tsDiskCfgNum = 0;
+
+#ifndef _STORAGE
+SDiskCfg tsDiskCfg[1];
+#else
+SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
+#endif
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -305,6 +312,34 @@ bool taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
+void taosAddDataDir(int index, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[index].level = level;
+  tsDiskCfg[index].primary = primary;
+  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
+}
+
+#ifndef _STORAGE
+void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
+  taosAddDataDir(0, tsDataDir, 0, 1);
+  tstrncpy(tsDiskCfg[0].dir, tsDataDir, TSDB_FILENAME_LEN);
+}
+#endif
+
+void taosPrintDataDirCfg() {
+  for (int i = 0; i < tsDiskCfgNum; ++i) {
+    SDiskCfg *cfg = &tsDiskCfg[i];
+    uInfo(" dataDir:%s level:%d primary:%d", cfg->dir, cfg->level, cfg->primary);
+  }
+}
+
+static void taosCheckDataDirCfg() {
+  if (tsDiskCfgNum <= 0) {
+    taosAddDataDir(0, tsDataDir, 0, 1);
+    tsDiskCfgNum = 1;
+  }
+}
+
 static void doInitGlobalConfig(void) {
   osInit();
   srand(taosSafeRand());
@@ -386,7 +421,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "dataDir";
   cfg.ptr = tsDataDir;
-  cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
+  cfg.valType = TAOS_CFG_VTYPE_DATA_DIRCTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
   cfg.maxValue = 0;
@@ -1328,6 +1363,7 @@ bool taosCheckGlobalCfg() {
     snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
   }
 
+  taosCheckDataDirCfg();
   taosGetSystemInfo();
 
   tsSetLocale();

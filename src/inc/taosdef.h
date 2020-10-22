@@ -432,6 +432,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TAOS_QTYPE_CQ       3
 #define TAOS_QTYPE_QUERY    4
 
+#define TSDB_MAX_TIERS           3
+#define TSDB_MAX_DISKS_PER_TIER 16
+#define TSDB_MAX_DISKS           (TSDB_MAX_TIERS * TSDB_MAX_DISKS_PER_TIER)
+
 typedef enum {
   TSDB_SUPER_TABLE        = 0,  // super table
   TSDB_CHILD_TABLE        = 1,  // table created from super table

@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "taosdef.h"
+#include "tglobal.h"
 #include "hash.h"
 #include "taoserror.h"
 #include "trpc.h"
@@ -71,16 +73,6 @@ void    dnodeDelayReprocessMnodeWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
 
-// DNODE TIER
-#define DNODE_MAX_TIERS 3
-#define DNODE_MAX_DISKS_PER_TIER 16
-
-typedef struct {
-  char dir[TSDB_FILENAME_LEN];
-  int  level;
-  int  primary;
-} SDiskCfg;
-
 typedef struct {
   int level;
   int did;
@@ -100,16 +92,17 @@ typedef struct {
 typedef struct {
   int    level;
   int    nDisks;
-  SDisk *disks[DNODE_MAX_DISKS_PER_TIER];
+  SDisk *disks[TSDB_MAX_DISKS_PER_TIER];
 } STier;
 
 typedef struct SDnodeTier {
   pthread_rwlock_t rwlock;
   int              nTiers;
-  STier            tiers[DNODE_MAX_TIERS];
+  STier            tiers[TSDB_MAX_TIERS];
   SHashObj *       map;
 } SDnodeTier;
 
+extern struct SDnodeTier *tsDnodeTier;
 #define DNODE_PRIMARY_DISK(pDnodeTier) (pDnodeTier)->tiers[0].disks[0]
 
 static FORCE_INLINE int dnodeRLockTiers(SDnodeTier *pDnodeTier) {
@@ -154,7 +147,6 @@ int         dnodeUpdateTiersInfo(SDnodeTier *pDnodeTier);
 int         dnodeCheckTiers(SDnodeTier *pDnodeTier);
 SDisk *     dnodeAssignDisk(SDnodeTier *pDnodeTier, int level);
 SDisk *     dnodeGetDiskByName(SDnodeTier *pDnodeTier, char *dirName);
-
 
 #ifdef __cplusplus
 }

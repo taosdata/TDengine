@@ -533,7 +533,6 @@ void taosPrintOsInfo() {
   uInfo(" os release:             %s", buf.release);
   uInfo(" os version:             %s", buf.version);
   uInfo(" os machine:             %s", buf.machine);
-  uInfo("==================================");
 }
 
 void taosKillSystem() {

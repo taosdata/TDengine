@@ -26,7 +26,7 @@
 #include "dnode.h"
 #include "tpath.h"
 
-struct SDnodeTier *pDnodeTier = NULL;
+struct SDnodeTier *tsDnodeTier = NULL;
 const char *       tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
 static void      tsdbDestroyFile(SFile *pFile);
@@ -79,8 +79,8 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
   char dataDir[TSDB_FILENAME_LEN] = "\0";
 
-  for (int level = 0; level < pDnodeTier->nTiers; level++) {
-    STier *pTier = pDnodeTier->tiers + level;
+  for (int level = 0; level < tsDnodeTier->nTiers; level++) {
+    STier *pTier = tsDnodeTier->tiers + level;
     for (int did = 0; did < pTier->nDisks; did++) {
       SDisk *pDisk = pTier->disks[did];
 

@@ -418,8 +418,8 @@ void vnodeRelease(void *pVnodeRaw) {
     char rootDir[TSDB_FILENAME_LEN] = {0};    
     char newDir[TSDB_FILENAME_LEN] = {0};
 
-    for (int i = 0; i < pDnodeTier->nTiers; i++) {
-      STier *pTier = pDnodeTier->tiers + i;
+    for (int i = 0; i < tsDnodeTier->nTiers; i++) {
+      STier *pTier = tsDnodeTier->tiers + i;
       for (int j = 0; j < pTier->nDisks; j++) {
         SDisk *pDisk = pTier->disks[j];
 

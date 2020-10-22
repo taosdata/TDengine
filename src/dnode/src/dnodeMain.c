@@ -169,17 +169,17 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  pDnodeTier = dnodeNewTier();
-  if (pDnodeTier == NULL) {
+  tsDnodeTier = dnodeNewTier();
+  if (tsDnodeTier == NULL) {
     dError("failed to create new dnode tier since %s", tstrerror(terrno));
     return -1;
   }
 
-  if (dnodeAddDisks(pDnodeTier, NULL, 0) < 0) {
+  if (dnodeAddDisks(tsDnodeTier, tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
     return -1;
   }
-  strncpy(tsDataDir, DNODE_PRIMARY_DISK(pDnodeTier)->dir, TSDB_FILENAME_LEN);
+  strncpy(tsDataDir, DNODE_PRIMARY_DISK(tsDnodeTier)->dir, TSDB_FILENAME_LEN);
   tdGetVnodeRootDir(tsDataDir, tsVnodeDir);
 
   //TODO(dengyihao): no need to init here 
@@ -195,12 +195,12 @@ static int32_t dnodeInitStorage() {
    return -1;
   }
 
-  for (int i = 0; i < pDnodeTier->nTiers; i++) {
+  for (int i = 0; i < tsDnodeTier->nTiers; i++) {
     char dirName[TSDB_FILENAME_LEN];
 
-    STier *pTier = pDnodeTier->tiers + i;
+    STier *pTier = tsDnodeTier->tiers + i;
     for (int j = 0; j < pTier->nDisks; j++) {
-      SDisk *pDisk = dnodeGetDisk(pDnodeTier, i, j);
+      SDisk *pDisk = dnodeGetDisk(tsDnodeTier, i, j);
 
       tdGetVnodeRootDir(dirName, pDisk->dir);
       if (dnodeCreateDir(dirName) < 0) {
@@ -223,9 +223,9 @@ static int32_t dnodeInitStorage() {
 }
 
 static void dnodeCleanupStorage() {
-  if (pDnodeTier) {
-    dnodeCloseTier(pDnodeTier);
-    pDnodeTier = NULL;
+  if (tsDnodeTier) {
+    dnodeCloseTier(tsDnodeTier);
+    tsDnodeTier = NULL;
   }
 }
 
