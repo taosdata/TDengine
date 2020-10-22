@@ -2078,7 +2078,9 @@ static SQLRETURN doSQLDriverConnect(
   char *serverName = NULL;
   char *userName   = NULL;
   char *auth       = NULL;
-  int bytes = 0;
+  char *host       = NULL;
+  char *ip         = NULL;
+  int   port       = 0;
 
   do {
     if (szConnStrIn && !connStr) {
@@ -2086,15 +2088,23 @@ static SQLRETURN doSQLDriverConnect(
       break;
     }
 
-    int n = sscanf((const char*)connStr, "DSN=%m[^;]; UID=%m[^;]; PWD=%m[^;] %n", &serverName, &userName, &auth, &bytes);
-    if (n<1) {
+    int n = todbc_parse_conn_string((const char *)connStr, &serverName, &userName, &auth, &host);
+    if (n) {
       SET_ERROR(conn, "HY000", TSDB_CODE_ODBC_BAD_CONNSTR, "unrecognized connection string: [%s]", (const char*)szConnStrIn);
       break;
+    }
+    if (host) {
+      char *p = strchr(host, ':');
+      if (p) {
+        ip = strndup(host, p-host);
+        port = atoi(p+1);
+      }
     }
 
     // TODO: data-race
     // TODO: shall receive ip/port from odbc.ini
-    conn->taos = taos_connect("localhost", userName, auth, NULL, 0);
+    conn->taos = taos_connect(ip ? ip : "localhost", userName, auth, NULL, port);
+    free(ip); ip = NULL;
     if (!conn->taos) {
       SET_ERROR(conn, "HY000", terrno, "failed to connect to data source");
       break;
