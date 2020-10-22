@@ -974,7 +974,7 @@ int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf) {
     return 0;
   }
 
-  return pTSBuf->pData->len;
+  return pTSBuf->numOfVnodes;
 }
 
 void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
