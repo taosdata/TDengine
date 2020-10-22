@@ -1,5 +1,3 @@
-./test.sh -f unique/import/replica2.sim
-./test.sh -f unique/import/replica3.sim
 
 ./test.sh -f unique/stable/balance_replica1.sim
 ./test.sh -f unique/stable/dnode2_stop.sim
@@ -21,12 +19,7 @@
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim
 
-./test.sh -f unique/vnode/many.sim
-./test.sh -f unique/vnode/replica2_basic2.sim
-./test.sh -f unique/vnode/replica2_repeat.sim
-./test.sh -f unique/vnode/replica3_basic.sim
-./test.sh -f unique/vnode/replica3_repeat.sim
-./test.sh -f unique/vnode/replica3_vgroup.sim
+
 
 ./test.sh -f general/parser/stream_on_sys.sim
 ./test.sh -f general/stream/metrics_del.sim

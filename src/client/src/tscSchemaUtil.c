@@ -145,10 +145,11 @@ static void tscInitCorVgroupInfo(SCMCorVgroupInfo *corVgroupInfo, SCMVgroupInfo 
   corVgroupInfo->inUse = 0;
   corVgroupInfo->numOfEps = vgroupInfo->numOfEps;
   for (int32_t i = 0; i < corVgroupInfo->numOfEps; i++) {
-    strncpy(corVgroupInfo->epAddr[i].fqdn, vgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    corVgroupInfo->epAddr[i].fqdn = strdup(vgroupInfo->epAddr[i].fqdn);
     corVgroupInfo->epAddr[i].port = vgroupInfo->epAddr[i].port;
   }
 }
+
 STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size) {
   assert(pTableMetaMsg != NULL);
   
@@ -162,9 +163,19 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
     .numOfColumns = pTableMetaMsg->numOfColumns,
   };
   
-  pTableMeta->id.tid = pTableMetaMsg->sid;
+  pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
-  pTableMeta->vgroupInfo = pTableMetaMsg->vgroup;
+
+  SCMVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;
+  pVgroupInfo->numOfEps = pTableMetaMsg->vgroup.numOfEps;
+  pVgroupInfo->vgId = pTableMetaMsg->vgroup.vgId;
+
+  for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
+    SEpAddrMsg* pEpMsg = &pTableMetaMsg->vgroup.epAddr[i];
+
+    pVgroupInfo->epAddr[i].fqdn = strndup(pEpMsg->fqdn, tListLen(pEpMsg->fqdn));
+    pVgroupInfo->epAddr[i].port = pEpMsg->port;
+  }
 
   tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMeta->vgroupInfo);
 

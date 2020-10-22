@@ -4,6 +4,7 @@ pipeline {
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
+
   stages {
       stage('Parallel test stage') {
       parallel {
@@ -36,10 +37,10 @@ pipeline {
           agent{label '184'}
           steps {
             sh '''
-            date
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -62,10 +63,10 @@ pipeline {
           agent{label "185"}
           steps {
             sh '''
-            
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -89,12 +90,13 @@ pipeline {
 
         stage('test_valgrind') {
           agent{label "186"}
+
           steps {
             sh '''
-            date
             cd ${WKC}
             git checkout develop
             git pull
+              
             git submodule update
             cd ${WK}
             git checkout develop
@@ -116,6 +118,22 @@ pipeline {
             date'''
           }
         }
+       stage('connector'){
+         agent{label "release"}
+         steps{
+            sh'''
+            cd ${WORKSPACE}
+            git checkout develop
+            cd tests/gotest
+            bash batchtest.sh
+            cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+            mvn clean package assembly:single >/dev/null 
+            java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+            cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+            python3 PythonChecker.py
+            '''
+         }
+       }
 
       }
     }

@@ -365,7 +365,7 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
   taosTFree(pBucket);
 }
 
-void tMemBucketUpdateBoundingBox(MinMaxEntry *r, char *data, int32_t dataType) {
+void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataType) {
   switch (dataType) {
     case TSDB_DATA_TYPE_INT: {
       int32_t val = *(int32_t *)data;

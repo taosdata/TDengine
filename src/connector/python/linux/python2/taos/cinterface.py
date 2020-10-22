@@ -225,6 +225,7 @@ class CTaosInterface(object):
 
         if connection.value == None:
             print('connect to TDengine failed')
+            raise ConnectionError("connect to TDengine failed")
             # sys.exit(1)
         else:
             print('connect to TDengine success')
