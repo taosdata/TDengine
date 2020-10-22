@@ -863,7 +863,14 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     assert(pQueryInfo->numOfTables == 1);
 
     // for projection query, need to try next vnode if current vnode is exhausted
-    if ((++pTableMetaInfo->vgroupIndex) < pTableMetaInfo->vgroupList->numOfVgroups) {
+    int32_t numOfVgroups = 0;  // TODO refactor
+    if (pTableMetaInfo->pVgroupTables != NULL) {
+      numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    } else {
+      numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
+    }
+
+    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
       pState->numOfRemain = 1;
       pState->numOfSub = 1;
 
