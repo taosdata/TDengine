@@ -1620,11 +1620,12 @@ class Task():
         if errno in [
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 0x0B,  # Unable to establish connection, more details in TD-1648
-                # 0x200, # invalid SQL， TODO: re-examine with TD-934
+                0x200, # invalid SQL， TODO: re-examine with TD-934
                 0x217, # "db not selected", client side defined error code
-                0x218, # "Table does not exist" client side defined error code
-                0x360, 0x362, 
-                0x369, # tag already exists
+                # 0x218, # "Table does not exist" client side defined error code
+                0x360, # Table already exists
+                0x362, 
+                # 0x369, # tag already exists
                 0x36A, 0x36B, 0x36D,
                 0x381, 
                 0x380, # "db not selected"
@@ -1637,8 +1638,13 @@ class Task():
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
-        elif (errno in [ 0x0B ]) and gConfig.auto_start_service:
-            return True # We may get "network unavilable" when restarting service
+        # This case handled below already.
+        # elif (errno in [ 0x0B ]) and gConfig.auto_start_service:
+        #     return True # We may get "network unavilable" when restarting service
+        elif gConfig.ignore_errors: # something is specified on command line
+            moreErrnos = [int(v, 0) for v in gConfig.ignore_errors.split(',')]
+            if errno in moreErrnos:
+                return True
         elif errno == 0x200 : # invalid SQL, we need to div in a bit more
             if msg.find("invalid column name") != -1:
                 return True 
@@ -2530,6 +2536,13 @@ class MainExec:
             action='store_true',
             help='Run TDengine service in foreground (default: false)')
         parser.add_argument(
+            '-g',
+            '--ignore-errors',
+            action='store',
+            default=None,
+            type=str,
+            help='Ignore error codes, comma separated, 0x supported (default: None)')
+        parser.add_argument(
             '-i',
             '--max-replicas',
             action='store',
@@ -2545,8 +2558,7 @@ class MainExec:
             '-n',
             '--dynamic-db-table-names',
             action='store_true',
-            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')
-        
+            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')        
         parser.add_argument(
             '-p',
             '--per-thread-db-connection',
