@@ -111,7 +111,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
 void* tsBufDestroy(STSBuf* pTSBuf);
 
 void    tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len);
-int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
+int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf);
 
 STSBuf* tsBufClone(STSBuf* pTSBuf);
 

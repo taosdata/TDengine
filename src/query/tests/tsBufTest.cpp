@@ -416,8 +416,8 @@ void mergeDiffVnodeBufferTest() {
     int64_t* list = createTsList(num, start, step);
     t.i64Key = i;
 
-    tsBufAppend(pTSBuf1, 0, &t, (const char*)list, num * sizeof(int64_t));
-    tsBufAppend(pTSBuf2, 0, &t, (const char*)list, num * sizeof(int64_t));
+    tsBufAppend(pTSBuf1, 1, &t, (const char*)list, num * sizeof(int64_t));
+    tsBufAppend(pTSBuf2, 9, &t, (const char*)list, num * sizeof(int64_t));
 
     free(list);
 
@@ -426,7 +426,7 @@ void mergeDiffVnodeBufferTest() {
 
   tsBufFlush(pTSBuf2);
 
-  tsBufMerge(pTSBuf1, pTSBuf2, 9);
+  tsBufMerge(pTSBuf1, pTSBuf2);
   EXPECT_EQ(pTSBuf1->numOfVnodes, 2);
   EXPECT_EQ(pTSBuf1->numOfTotal, numOfTags * 2 * num);
 
@@ -459,8 +459,6 @@ void mergeIdenticalVnodeBufferTest() {
     start += step * num;
   }
 
-
-
   for (int32_t i = numOfTags; i < numOfTags * 2; ++i) {
     int64_t* list = createTsList(num, start, step);
 
@@ -473,7 +471,7 @@ void mergeIdenticalVnodeBufferTest() {
 
   tsBufFlush(pTSBuf2);
 
-  tsBufMerge(pTSBuf1, pTSBuf2, 12);
+  tsBufMerge(pTSBuf1, pTSBuf2);
   EXPECT_EQ(pTSBuf1->numOfVnodes, 1);
   EXPECT_EQ(pTSBuf1->numOfTotal, numOfTags * 2 * num);
 

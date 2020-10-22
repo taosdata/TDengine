@@ -715,7 +715,7 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
  * @param vnodeId
  * @return
  */
-int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
+int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   if (pDestBuf == NULL || pSrcBuf == NULL || pSrcBuf->numOfVnodes <= 0) {
     return 0;
   }
@@ -725,14 +725,13 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   }
   
   // src can only have one vnode index
-  if (pSrcBuf->numOfVnodes > 1) {
-    return -1;
-  }
-  
+  assert(pSrcBuf->numOfVnodes == 1);
+
   // there are data in buffer, flush to disk first
   tsBufFlush(pDestBuf);
   
   // compared with the last vnode id
+  int32_t vnodeId = tsBufGetLastVnodeInfo((STSBuf*) pSrcBuf)->info.vnode;
   if (vnodeId != tsBufGetLastVnodeInfo(pDestBuf)->info.vnode) {
     int32_t oldSize = pDestBuf->numOfVnodes;
     int32_t newSize = oldSize + pSrcBuf->numOfVnodes;
