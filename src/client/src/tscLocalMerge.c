@@ -510,7 +510,8 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     taosTFree(pLocalReducer->pResultBuf);
 
     if (pLocalReducer->pResInfo != NULL) {
-      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+      size_t num = tscSqlExprNumOfExprs(pQueryInfo);
+      for (int32_t i = 0; i < num; ++i) {
         taosTFree(pLocalReducer->pResInfo[i].interResultBuf);
       }
 

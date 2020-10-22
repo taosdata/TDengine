@@ -216,8 +216,8 @@ static bool balanceCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;
     if (pVnode == pRmVnode) continue;
 
-    mTrace("vgId:%d, change vgroup status, dnode:%d status:%d", pVgroup->vgId, pVnode->pDnode->dnodeId,
-           pVnode->pDnode->status);
+    mTrace("vgId:%d, check vgroup status, dnode:%d status:%d, vnode role:%s", pVgroup->vgId, pVnode->pDnode->dnodeId,
+           pVnode->pDnode->status, syncRole[pVnode->role]);
     if (pVnode->pDnode->status == TAOS_DN_STATUS_DROPPING) continue;
     if (pVnode->pDnode->status == TAOS_DN_STATUS_OFFLINE) continue;
 

@@ -168,8 +168,8 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
 
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
     taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), true);
-    taosTFree(pTableMetaInfo->vgroupList);
-  
+    pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
+
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
     return;
   }
@@ -275,7 +275,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     tscFreeSqlResult(pSql);
     taosTFree(pSql->pSubs);
     pSql->subState.numOfSub = 0;
-    taosTFree(pTableMetaInfo->vgroupList);
+    pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
   }
 }

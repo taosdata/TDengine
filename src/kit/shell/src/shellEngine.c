@@ -493,7 +493,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
       if (i > 0) {
         fputc(',', fp);
       }
-      dumpFieldToFile(fp, row[i], fields +i, length[i], precision);
+      dumpFieldToFile(fp, (const char*)row[i], fields +i, length[i], precision);
     }
     fputc('\n', fp);
 
@@ -619,7 +619,7 @@ static int verticalPrintResult(TAOS_RES* tres) {
       int padding = (int)(maxColNameLen - strlen(field->name));
       printf("%*.s%s: ", padding, " ", field->name);
 
-      printField(row[i], field, 0, length[i], precision);
+      printField((const char*)row[i], field, 0, length[i], precision);
       putchar('\n');
     }
 
@@ -720,7 +720,7 @@ static int horizontalPrintResult(TAOS_RES* tres) {
     int32_t* length = taos_fetch_lengths(tres);
     for (int i = 0; i < num_fields; i++) {
       putchar(' ');
-      printField(row[i], fields + i, width[i], length[i], precision);
+      printField((const char*)row[i], fields + i, width[i], length[i], precision);
       putchar(' ');
       putchar('|');
     }

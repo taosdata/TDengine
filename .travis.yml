@@ -32,6 +32,8 @@ matrix:
           - python3-setuptools
           - valgrind
           - psmisc
+          - unixodbc
+          - unixodbc-dev
 
     before_script:
       - export TZ=Asia/Harbin

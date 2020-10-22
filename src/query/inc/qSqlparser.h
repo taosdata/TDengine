@@ -276,8 +276,6 @@ tSQLExpr *tSQLExprNodeClone(tSQLExpr *pExpr);
 
 SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type);
 
-tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExprList);
-
 void destroyAllSelectClause(SSubclauseInfo *pSql);
 void doDestroyQuerySql(SQuerySQL *pSql);
 
