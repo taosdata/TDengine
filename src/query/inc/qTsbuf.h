@@ -136,6 +136,10 @@ void tsBufSetCursor(STSBuf* pTSBuf, STSCursor* pCur);
  */
 void tsBufDisplay(STSBuf* pTSBuf);
 
+int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf);
+
+void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId);
+
 #ifdef __cplusplus
 }
 #endif

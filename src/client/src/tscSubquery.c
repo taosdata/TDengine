@@ -158,9 +158,9 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   tsBufDestroy(pSupporter1->pTSBuf);
   tsBufDestroy(pSupporter2->pTSBuf);
 
-  tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks "
-           "intersecting, skey:%" PRId64 ", ekey:%" PRId64, pSql, numOfInput1, numOfInput2, output1->numOfTotal,
-           win->skey, win->ekey);
+  tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
+           "intersecting, skey:%" PRId64 ", ekey:%" PRId64 ", numOfVnode:%d", pSql, numOfInput1, numOfInput2, output1->numOfTotal,
+           output1->numOfVnodes, win->skey, win->ekey, tsBufGetNumOfVnodes(output1));
 
   return output1->numOfTotal;
 }

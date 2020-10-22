@@ -561,6 +561,19 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   pCur->tsIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : pBlock->numOfElem - 1;
 }
 
+static int32_t doUpdateVnodeInfo(STSBuf* pTSBuf, int64_t offset, STSVnodeBlockInfo* pVInfo) {
+  if (offset < 0 || offset >= getDataStartOffset()) {
+    return -1;
+  }
+
+  if (fseek(pTSBuf->f, (int32_t)offset, SEEK_SET) != 0) {
+    return -1;
+  }
+
+  fwrite(pVInfo, sizeof(STSVnodeBlockInfo), 1, pTSBuf->f);
+  return 0;
+}
+
 STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId) {
   int32_t j = tsBufFindVnodeIndexFromId(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
   if (j == -1) {
@@ -915,19 +928,6 @@ static int32_t getDataStartOffset() {
   return sizeof(STSBufFileHeader) + TS_COMP_FILE_VNODE_MAX * sizeof(STSVnodeBlockInfo);
 }
 
-static int32_t doUpdateVnodeInfo(STSBuf* pTSBuf, int64_t offset, STSVnodeBlockInfo* pVInfo) {
-  if (offset < 0 || offset >= getDataStartOffset()) {
-    return -1;
-  }
-  
-  if (fseek(pTSBuf->f, (int32_t)offset, SEEK_SET) != 0) {
-    return -1;
-  }
-  
-  fwrite(pVInfo, sizeof(STSVnodeBlockInfo), 1, pTSBuf->f);
-  return 0;
-}
-
 // update prev vnode length info in file
 static void TSBufUpdateVnodeInfo(STSBuf* pTSBuf, int32_t index, STSVnodeBlockInfo* pBlockInfo) {
   int32_t offset = sizeof(STSBufFileHeader) + index * sizeof(STSVnodeBlockInfo);
@@ -968,4 +968,30 @@ static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
   
   pTSBuf->fileSize += getDataStartOffset();
   return pTSBuf;
+}
+
+int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf) {
+  if (pTSBuf == NULL) {
+    return 0;
+  }
+
+  return pTSBuf->pData->len;
+}
+
+void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
+  int32_t size = tsBugGetNumOfVnodes(pTSBuf);
+  if (num != NULL) {
+    *num = size;
+  }
+
+  *vnodeId = NULL;
+  if (size == 0) {
+    return;
+  }
+
+  (*vnodeId) = malloc(tsBugGetNumOfVnodes(pTSBuf) * sizeof(int32_t));
+
+  for(int32_t i = 0; i < size; ++i) {
+    (*vnodeId)[i] = pTSBuf->pData[i].info.vnode;
+  }
 }

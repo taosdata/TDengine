@@ -4025,11 +4025,11 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   
   // primary ts must be existed, so no need to check its existance
   if (pCtx->order == TSDB_ORDER_ASC) {
-    tsBufAppend(pTSbuf, 0, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
+    tsBufAppend(pTSbuf, pCtx->param[0].i64Key, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
   } else {
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *d = GET_INPUT_CHAR_INDEX(pCtx, i);
-      tsBufAppend(pTSbuf, 0, &pCtx->tag, d, TSDB_KEYSIZE);
+      tsBufAppend(pTSbuf, pCtx->param[0].i64Key, &pCtx->tag, d, TSDB_KEYSIZE);
     }
   }
   
