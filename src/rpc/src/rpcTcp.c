@@ -174,16 +174,15 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
   pThreadObj->stop = true;
   eventfd_t fd = -1;
 
-  // save thread and pollFd into local variable since pThreadObj will be freed when thread exits
+  // save thread into local variable since pThreadObj is freed when thread exits
   pthread_t thread = pThreadObj->thread; 
-  SOCKET    pollFd = pThreadObj->pollFd;
 
   if (taosComparePthread(pThreadObj->thread, pthread_self())) {
     pthread_detach(pthread_self());
     return;
   }
 
-  if (taosCheckPthreadValid(pThreadObj->thread) && pThreadObj->pollFd >= 0) {
+  if (taosCheckPthreadValid(pThreadObj->thread)) {
     // signal the thread to stop, try graceful method first,
     // and use pthread_cancel when failed
     struct epoll_event event = { .events = EPOLLIN };
@@ -200,8 +199,8 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     }
   }
 
-  // at this step, pThreadObj may have been released
-  if (taosCheckPthreadValid(thread) && pollFd >= 0) {
+  // at this step, pThreadObj has already been released
+  if (taosCheckPthreadValid(thread)) {
      pthread_join(thread, NULL);
   }
 
