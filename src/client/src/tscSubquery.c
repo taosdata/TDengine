@@ -362,28 +362,50 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
     int32_t num = 0;
     int32_t *list = NULL;
-    tsBufGetVnodeIdList(pSupporter->pTSBuf, &num, &list);
+    tsBufGetVnodeIdList(pNewQueryInfo->tsBuf, &num, &list);
 
-    for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
-      SVgroupTableInfo* p = taosArrayGet(pTableMetaInfo->pVgroupTables, k);
+    if (pTableMetaInfo->pVgroupTables != NULL) {
+      for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
+        SVgroupTableInfo* p = taosArrayGet(pTableMetaInfo->pVgroupTables, k);
 
-      bool found = false;
-      for(int32_t f = 0; f < num; ++f) {
-        if (p->vgInfo.vgId == list[f]) {
-          found = true;
-          break;
+        bool found = false;
+        for(int32_t f = 0; f < num; ++f) {
+          if (p->vgInfo.vgId == list[f]) {
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          tscRemoveVgroupTableGroup(pTableMetaInfo->pVgroupTables, k);
+        } else {
+          k++;
         }
       }
 
-      if (!found) {
-        tscRemoveVgroupTableGroup(pTableMetaInfo->pVgroupTables, k);
-      } else {
-        k++;
-      }
+      assert(taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0);
+    } else { // TODO remove unnecessarily accessed vnode
+//      pTableMetaInfo->vgroupList->
+//      for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
+//        SVgroupTableInfo* p = taosArrayGet(pTableMetaInfo->pVgroupTables, k);
+//
+//        bool found = false;
+//        for(int32_t f = 0; f < num; ++f) {
+//          if (p->vgInfo.vgId == list[f]) {
+//            found = true;
+//            break;
+//          }
+//        }
+//
+//        if (!found) {
+//          tscRemoveVgroupTableGroup(pTableMetaInfo->pVgroupTables, k);
+//        } else {
+//          k++;
+//        }
+//      }
     }
 
     taosTFree(list);
-    assert(taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0);
 
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscDebug("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
