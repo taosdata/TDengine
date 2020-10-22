@@ -474,10 +474,11 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   SSqlCmd* pCmd = &pSql->cmd;
   tscClearSubqueryInfo(pCmd);
   tscFreeSqlResult(pSql);
-  
+
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  assert(pQueryInfo->numOfTables == 1);
+
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
   tscInitQueryInfo(pQueryInfo);
 
   TSDB_QUERY_CLEAR_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);

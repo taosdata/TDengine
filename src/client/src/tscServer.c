@@ -486,9 +486,11 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
 
     pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
+    tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d", pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex);
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
+    tscDebug("%p build fetch msg from only one vgroup, vgId:%d", pSql, pTableMeta->vgroupInfo.vgId);
   }
 
   pSql->cmd.payloadLen = sizeof(SRetrieveTableMsg);
