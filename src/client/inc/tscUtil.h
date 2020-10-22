@@ -82,6 +82,7 @@ typedef struct SJoinSupporter {
   char*           pIdTagList;      // result of first stage tags
   int32_t         totalLen;
   int32_t         num;
+  SArray*         pVgroupTables;
 } SJoinSupporter;
 
 typedef struct SVgroupTableInfo {

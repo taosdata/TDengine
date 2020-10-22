@@ -4048,7 +4048,7 @@ static void ts_comp_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   STSBuf *pTSbuf = pInfo->pTSBuf;
   
-  tsBufAppend(pTSbuf, 0, &pCtx->tag, pData, TSDB_KEYSIZE);
+  tsBufAppend(pTSbuf, pCtx->param[0].i64Key, &pCtx->tag, pData, TSDB_KEYSIZE);
   SET_VAL(pCtx, pCtx->size, 1);
   
   pResInfo->hasResult = DATA_SET_FLAG;

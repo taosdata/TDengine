@@ -324,7 +324,8 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     tscFieldInfoUpdateOffset(pNewQueryInfo);
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
-  
+    pTableMetaInfo->pVgroupTables = pSupporter->pVgroupTables;
+
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
      * during the timestamp intersection.
@@ -384,6 +385,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       }
 
       assert(taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0);
+      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
     } else { // TODO remove unnecessarily accessed vnode
 //      pTableMetaInfo->vgroupList->
 //      for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
@@ -749,6 +751,12 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     SQueryInfo*     pQueryInfo2 = tscGetQueryInfoDetail(pSubCmd2, 0);
     STableMetaInfo* pTableMetaInfo2 = tscGetMetaInfo(pQueryInfo2, 0);
     tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
+
+    SSqlObj* psub1 = pParentSql->pSubs[0];
+    ((SJoinSupporter*)psub1->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo1->pVgroupTables);
+
+    SSqlObj* psub2 = pParentSql->pSubs[1];
+    ((SJoinSupporter*)psub2->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo2->pVgroupTables);
 
     pParentSql->subState.numOfSub = 2;
     pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;

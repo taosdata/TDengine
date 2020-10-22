@@ -1710,8 +1710,6 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   }
 
   taosArrayDestroy(pInfo->itemList);
-
-
   taosArrayRemove(pVgroupTable, index);
 }
 
@@ -1726,14 +1724,15 @@ SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
 
-    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-      taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
-    }
-
     SVgroupTableInfo info = {0};
     info.vgInfo = pInfo->vgInfo;
-    info.itemList = taosArrayClone(pInfo->itemList);
 
+    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+      info.vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
+    }
+
+
+    info.itemList = taosArrayClone(pInfo->itemList);
     taosArrayPush(pa, &info);
   }
 
