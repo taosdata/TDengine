@@ -174,6 +174,10 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
   pThreadObj->stop = true;
   eventfd_t fd = -1;
 
+  // save thread and pollFd into local variable since pThreadObj will be freed when thread exits
+  pthread_t thread = pThreadObj->thread; 
+  int       pollFd = pThreadObj->pollFd;
+
   if (taosComparePthread(pThreadObj->thread, pthread_self())) {
     pthread_detach(pthread_self());
     return;
@@ -196,8 +200,9 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     }
   }
 
-  if (taosCheckPthreadValid(pThreadObj->thread) && pThreadObj->pollFd >= 0) {
-     pthread_join(pThreadObj->thread, NULL);
+  // at this step, pThreadObj may have been released
+  if (taosCheckPthreadValid(thread) && pollFd >= 0) {
+     pthread_join(thread, NULL);
   }
 
   if (fd != -1) taosCloseSocket(fd);
