@@ -484,8 +484,10 @@ class ThreadCoordinator:
         if gConfig.max_dbs == 0:
             self._dbs.append(Database(0, dbc))
         else:
+            baseDbNumber = 0 if gConfig.dynamic_db_table_names else int(datetime.datetime.now(
+            ).timestamp()) % 888  # Don't use Dice/random, as they are deterministic
             for i in range(gConfig.max_dbs):
-                self._dbs.append(Database(i, dbc))
+                self._dbs.append(Database(baseDbNumber + i, dbc))
 
     def pickDatabase(self):
         idxDb = 0
@@ -1793,7 +1795,7 @@ class ExecutionStats:
                 "FAILED (reason: {})".format(
                     self._failureReason) if self._failed else "SUCCEEDED"))
         Logging.info("| Task Execution Times (success/total):")
-        execTimesAny = 0.001 # avoid div by zero
+        execTimesAny = 0.0
         for k, n in self._execTimes.items():
             execTimesAny += n[0]
             errStr = None
@@ -1834,11 +1836,14 @@ class StateTransitionTask(Task):
     LARGE_NUMBER_OF_RECORDS = 50
     SMALL_NUMBER_OF_RECORDS = 3
 
+    _baseTableNumber = None
+
+    _endState = None
+
     @classmethod
     def getInfo(cls):  # each sub class should supply their own information
         raise RuntimeError("Overriding method expected")
-
-    _endState = None
+    
     @classmethod
     def getEndState(cls):  # TODO: optimize by calling it fewer times
         raise RuntimeError("Overriding method expected")
@@ -1858,7 +1863,9 @@ class StateTransitionTask(Task):
 
     @classmethod
     def getRegTableName(cls, i):
-        return "reg_table_{}".format(i)
+        if ( StateTransitionTask._baseTableNumber is None):
+            StateTransitionTask._baseTableNumber = 0 if gConfig.dynamic_db_table_names else Dice.throw(999)
+        return "reg_table_{}".format(StateTransitionTask._baseTableNumber + i)
 
     def execute(self, wt: WorkerThread):
         super().execute(wt)
@@ -2477,6 +2484,9 @@ class MainExec:
         global gContainer
         gContainer = Container() # micky-mouse DI
 
+        global gSvcMgr # TODO: refactor away
+        gSvcMgr = None
+
         # Super cool Python argument library:
         # https://docs.python.org/3/library/argparse.html
         parser = argparse.ArgumentParser(
@@ -2530,6 +2540,12 @@ class MainExec:
             '--larger-data',
             action='store_true',
             help='Write larger amount of data during write operations (default: false)')
+        parser.add_argument(
+            '-n',
+            '--dynamic-db-table-names',
+            action='store_true',
+            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')
+        
         parser.add_argument(
             '-p',
             '--per-thread-db-connection',
