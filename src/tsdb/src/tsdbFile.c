@@ -471,11 +471,14 @@ int tsdbApplyRetention(STsdbRepo *pRepo, SFidGroup *pFidGroup) {
       nFileGroup.level = level;
       nFileGroup.did = pDisk->did;
 
+      char tsdbRootDir[TSDB_FILENAME_LEN];
+      tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
       for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-        // TODO fileGroup.files[type].fname
+        tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, type, nFileGroup.files[type].fname);
       }
 
       for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+        if (taosTCopy(oFileGroup.files[type].fname, nFileGroup.files[type].fname) < 0) return -1;
       }
 
       pthread_rwlock_wrlock(&(pFileH->fhlock)); 

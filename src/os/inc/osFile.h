@@ -34,6 +34,7 @@ int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t
 #define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
 #define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
 #define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
+ssize_t taosTCopy(char *from, char *to);
 
 #ifdef TAOS_RANDOM_FILE_FAIL
   void taosSetRandomFileFailFactor(int factor);

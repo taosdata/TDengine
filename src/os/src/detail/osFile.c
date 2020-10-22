@@ -108,6 +108,39 @@ ssize_t taosTWriteImp(int fd, void *buf, size_t n) {
   return (ssize_t)n;
 }
 
+ssize_t taosTCopy(char *from, char *to) {
+  char    buffer[4096];
+  int     fidto = -1, fidfrom = -1;
+  ssize_t size = 0;
+  ssize_t bytes;
+
+  fidfrom = open(from, O_RDONLY);
+  if (fidfrom < 0) goto _err;
+
+  fidto = open(to, O_WRONLY | O_CREAT, 0755);
+  if (fidto < 0) goto _err;
+
+  while (true) {
+    bytes = taosTRead(fidfrom, buffer, sizeof(buffer));
+    if (bytes < 0) goto _err;
+    if (bytes == 0) break;
+
+    size += bytes;
+
+    if (taosTWrite(fidto, (void *)buffer, bytes) < bytes) goto _err;
+    if (bytes < sizeof(buffer)) break;
+  }
+
+  close(fidfrom);
+  close(fidto);
+  return size;
+
+_err:
+  if (fidfrom >= 0) close(fidfrom);
+  if (fidto >= 0) close(fidto);
+  return -1;
+}
+
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
 ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
   size_t  leftbytes = size;

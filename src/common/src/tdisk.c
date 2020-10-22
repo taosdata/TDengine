@@ -99,7 +99,10 @@ int tdUpdateTiersInfo(SDnodeTier *pDnodeTier) {
 
     for (int j = 0; j < pTier->nDisks; j++) {
       SDisk *pDisk = pTier->disks[j];
-      if (tdUpdateDiskMeta(pDisk) < 0) return -1;
+      if (tdUpdateDiskMeta(pDisk) < 0) {
+        tdUnLockTiers(pDnodeTier);
+        return -1;
+      }
 
       pDnodeTier->meta.tsize += pDisk->dmeta.size;
       pDnodeTier->meta.avail += pDisk->dmeta.free;
