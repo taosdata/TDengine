@@ -94,13 +94,15 @@ do {                                                 \
 <KEY>.|\n           { return -1; }
 
 <EQ>[[:space:]]+               { }
-<EQ>[^][{}(),;?*=!@/\\\n]+     { set_val(); CHG_STATE(VAL); }
+<EQ>[^][{}(),;?*=!@/\\\n[:space:]]+     { set_val(); CHG_STATE(VAL); }
 <EQ>[{]                        { CHG_STATE(BRACE1); }
 <EQ>.|\n                       { return -1; }
 
-<BRACE1>[^{}\n]+  { set_val(); CHG_STATE(BRACE2); }
+<BRACE1>[[:space:]]+       { }
+<BRACE1>[^{}\n[:space:]]+  { set_val(); CHG_STATE(BRACE2); }
 <BRACE1>.|\n      { return -1; }
 
+<BRACE2>[[:space:]]+       { }
 <BRACE2>[}]       { CHG_STATE(VAL); }
 <BRACE2>.|\n      { return -1; }
 
@@ -112,7 +114,7 @@ int todbc_parse_conn_string(const char *conn, char **dsn, char **uid, char **pwd
   yyscan_t arg = {0};
   params_t params = {0};
   yylex_init(&arg);
-  yyset_debug(1, arg);
+  yyset_debug(0, arg);
   yyset_extra(&params, arg);
   yy_scan_string(conn, arg);
   int ret =yylex(arg);

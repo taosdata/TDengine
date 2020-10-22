@@ -1,5 +1,6 @@
 import pyodbc
-cnxn = pyodbc.connect('DSN=TAOS_DSN;UID=root;PWD=taosdata;HOST=localhost:6030', autocommit=True)
+# cnxn = pyodbc.connect('DSN={TAOS_DSN};UID={ root };PWD={ taosdata };HOST={ localhost:6030 }', autocommit=True)
+cnxn = pyodbc.connect('DSN={TAOS_DSN}; UID=root;PWD=taosdata; HOST=localhost:6030', autocommit=True)
 cnxn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
 #cnxn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
 #cnxn.setencoding(encoding='utf-8')
