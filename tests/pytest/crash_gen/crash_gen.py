@@ -483,9 +483,9 @@ class ThreadCoordinator:
         dbc = self.getDbManager().getDbConn()
         if gConfig.max_dbs == 0:
             self._dbs.append(Database(0, dbc))
-        else:
-            baseDbNumber = 0 if gConfig.dynamic_db_table_names else int(datetime.datetime.now(
-            ).timestamp()) % 888  # Don't use Dice/random, as they are deterministic
+        else:            
+            baseDbNumber = int(datetime.datetime.now().timestamp( # Don't use Dice/random, as they are deterministic
+                )) % 888 if gConfig.dynamic_db_table_names else 0
             for i in range(gConfig.max_dbs):
                 self._dbs.append(Database(baseDbNumber + i, dbc))
 
@@ -1864,7 +1864,8 @@ class StateTransitionTask(Task):
     @classmethod
     def getRegTableName(cls, i):
         if ( StateTransitionTask._baseTableNumber is None):
-            StateTransitionTask._baseTableNumber = 0 if gConfig.dynamic_db_table_names else Dice.throw(999)
+            StateTransitionTask._baseTableNumber = Dice.throw(
+                999) if gConfig.dynamic_db_table_names else 0
         return "reg_table_{}".format(StateTransitionTask._baseTableNumber + i)
 
     def execute(self, wt: WorkerThread):
