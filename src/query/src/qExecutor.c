@@ -184,7 +184,7 @@ static void resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx, SResultInf
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId);
 
 static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY *tsCol, SDataBlockInfo* pBlockInfo,
-                          SDataStatis *pStatis, void *param, int32_t colIndex);
+                          SDataStatis *pStatis, void *param, int32_t colIndex, int32_t vgId);
 
 static void initCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv);
 static void destroyTableQueryInfoImpl(STableQueryInfo *pTableQueryInfo);
@@ -1005,7 +1005,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SQInfo* pQInfo = GET_QINFO_ADDR(pQuery);
+  SQInfo* pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
     setExecParams(pQuery, &pCtx[k], dataBlock, tsCols, pDataBlockInfo, pStatis, &sasArray[k], k, pQInfo->vgId);
@@ -1287,9 +1287,10 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
     groupbyColumnData = getGroupbyColumnData(pQuery, &type, &bytes, pDataBlock);
   }
 
+  SQInfo* pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
-    setExecParams(pQuery, &pCtx[k], dataBlock, tsCols, pDataBlockInfo, pStatis, &sasArray[k], k);
+    setExecParams(pQuery, &pCtx[k], dataBlock, tsCols, pDataBlockInfo, pStatis, &sasArray[k], k, pQInfo->vgId);
   }
 
   // set the input column data
