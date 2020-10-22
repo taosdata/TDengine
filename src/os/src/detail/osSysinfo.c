@@ -301,6 +301,7 @@ bool taosGetDisk() {
   struct statvfs info;
   const double   unit = 1024 * 1024 * 1024;
   
+#if 0
   if (tscEmbedded) {
     if (statvfs(tsDataDir, &info)) {
       //tsTotalDataDirGB = 0;
@@ -312,6 +313,7 @@ bool taosGetDisk() {
       tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
     }
   }
+#endif
 
   if (statvfs(tsLogDir, &info)) {
     //tsTotalLogDirGB = 0;

@@ -20,6 +20,7 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tdisk.h"
 #include "tsystem.h"
 #include "tscUtil.h"
 #include "tsclient.h"
@@ -125,6 +126,10 @@ static void *monitorThreadFunc(void *param) {
       break;
     } else {
       taosGetDisk();
+      tdUpdateTiersInfo(tsDnodeTier);
+      const double unit = 1024 * 1024 * 1024;
+      tsTotalDataDirGB = tsDnodeTier->meta.tsize / unit;
+      tsAvailDataDirGB = tsDnodeTier->meta.avail / unit;
     }
 
     if (tsMonitor.start == 0) {
