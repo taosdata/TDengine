@@ -119,10 +119,10 @@ while row:
 cursor.close()
 
 cursor = cnxn.cursor()
-cursor.execute("create table db.f (ts timestamp, v1 bool)")
+cursor.execute("create table db.f (ts timestamp, v1 float)")
 cursor.close()
 
-params = [ ('2020-10-20 00:00:00', 'acb') ]
+params = [ ('2020-10-20 00:00:10', '123.3') ]
 cursor = cnxn.cursor()
 cursor.fast_executemany = True
 cursor.executemany("insert into db.f values (?, ?)", params)

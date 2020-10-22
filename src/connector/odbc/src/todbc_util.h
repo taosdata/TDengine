@@ -42,8 +42,6 @@ do {                                                                 \
   abort();                                                           \
 } while (0)
 
-
-
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);
 
