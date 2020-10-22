@@ -485,7 +485,7 @@ class ThreadCoordinator:
             self._dbs.append(Database(0, dbc))
         else:            
             baseDbNumber = int(datetime.datetime.now().timestamp( # Don't use Dice/random, as they are deterministic
-                )) % 888 if gConfig.dynamic_db_table_names else 0
+                )*333) % 888 if gConfig.dynamic_db_table_names else 0
             for i in range(gConfig.max_dbs):
                 self._dbs.append(Database(baseDbNumber + i, dbc))
 
