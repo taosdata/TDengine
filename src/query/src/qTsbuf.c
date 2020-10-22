@@ -979,7 +979,7 @@ int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf) {
 }
 
 void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
-  int32_t size = tsBugGetNumOfVnodes(pTSBuf);
+  int32_t size = tsBufGetNumOfVnodes(pTSBuf);
   if (num != NULL) {
     *num = size;
   }
@@ -989,7 +989,7 @@ void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
     return;
   }
 
-  (*vnodeId) = malloc(tsBugGetNumOfVnodes(pTSBuf) * sizeof(int32_t));
+  (*vnodeId) = malloc(tsBufGetNumOfVnodes(pTSBuf) * sizeof(int32_t));
 
   for(int32_t i = 0; i < size; ++i) {
     (*vnodeId)[i] = pTSBuf->pData[i].info.vnode;
