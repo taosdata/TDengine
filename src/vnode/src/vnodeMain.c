@@ -30,8 +30,8 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "query.h"
-#include "dnode.h"
 #include "tpath.h"
+#include "tdisk.h"
 
 #define TSDB_VNODE_VERSION_CONTENT_LEN 31
 

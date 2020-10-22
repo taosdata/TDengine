@@ -472,7 +472,6 @@ static void *tsdbCommitData(void *arg) {
   STsdbMeta *  pMeta = pRepo->tsdbMeta;
   SCommitIter *iters = NULL;
   SRWHelper    whelper = {0};
-  STsdbFileH * pFileH = pRepo->tsdbFileH;
   TSKEY        minKey = 0, maxKey = 0;
   ASSERT(pRepo->commit == 1);
   ASSERT(pMem != NULL);
@@ -605,7 +604,6 @@ void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *mi
 }
 
 static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols) {
-  char *      dataDir = NULL;
   STsdbCfg *  pCfg = &pRepo->config;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
@@ -623,19 +621,11 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   }
 
   if ((pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ)) == NULL) {
-    // file group not exists
-  } 
-
-  // Create and open files for commit
-  dataDir = tsdbGetDataDirName(pRepo->rootDir);
-  if (dataDir == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if ((pGroup = tsdbCreateFGroupIfNeed(pRepo, dataDir, fid)) == NULL) {
-    tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
-    goto _err;
+    pGroup = tsdbCreateFGroup(pRepo, fid);
+    if (pGroup == NULL) {
+      tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+      return -1;
+    }
   }
 
   // Open files for write/read
@@ -695,7 +685,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
-  taosTFree(dataDir);
   tsdbCloseHelperFile(pHelper, 0, pGroup);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
@@ -717,7 +706,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   return 0;
 
 _err:
-  taosTFree(dataDir);
   tsdbCloseHelperFile(pHelper, 1, NULL);
   return -1;
 }

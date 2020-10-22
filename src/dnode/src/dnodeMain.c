@@ -33,6 +33,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "tpath.h"
+#include "tdisk.h"
 
 static int32_t dnodeInitStorage();
 static void dnodeCleanupStorage();

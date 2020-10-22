@@ -23,10 +23,9 @@
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
-#include "dnode.h"
 #include "tpath.h"
+#include "tdisk.h"
 
-struct SDnodeTier *tsDnodeTier = NULL;
 const char *       tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
 static void      tsdbDestroyFile(SFile *pFile);
@@ -109,43 +108,35 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
   }
 }
 
-SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
+SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
-  STsdbCfg *  pCfg = &(pRepo->config);
+  SFileGroup  fGroup = {0};
 
-  if (pFileH->nFGroups >= pFileH->maxFGroups) {
-    int mfid = tsdbGetCurrMinFid(pCfg->precision, pCfg->keep, pCfg->daysPerFile);
-    if (pFileH->pFGroup[0].fileId < mfid) {
-      pthread_rwlock_wrlock(&pFileH->fhlock);
-      tsdbRemoveFileGroup(pRepo, &(pFileH->pFGroup[0]));
-      pthread_rwlock_unlock(&pFileH->fhlock);
-    }
+  ASSERT(tsdbSearchFGroup(pFileH, fid, TD_EQ) == NULL);
+
+  // TODO: think about if (level == 0) is correct
+  SDisk *pDisk = dnodeAssignDisk(tsDnodeTier, 0);
+  if (pDisk == NULL) {
+    tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+    return NULL;
   }
 
-  ASSERT(pFileH->nFGroups < pFileH->maxFGroups);
-
-  SFileGroup  fGroup;
-  SFileGroup *pFGroup = &fGroup;
-
-  SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
-  if (pGroup == NULL) {  // if not exists, create one
-    pFGroup->fileId = fid;
-    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-      if (tsdbCreateFile(&pFGroup->files[type], pRepo, fid, type) < 0)
-        goto _err;
-    }
-
-    pthread_rwlock_wrlock(&pFileH->fhlock);
-    pFileH->pFGroup[pFileH->nFGroups++] = fGroup;
-    qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
-    pthread_rwlock_unlock(&pFileH->fhlock);
-    return tsdbSearchFGroup(pFileH, fid, TD_EQ);
+  fGroup.fileId = fid;
+  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+    if (tsdbCreateFile(&(fGroup.files[type]), pRepo, fid, type, pDisk) < 0) goto _err;
   }
 
-  return pGroup;
+  pthread_rwlock_wrlock(&pFileH->fhlock);
+  pFileH->pFGroup[pFileH->nFGroups++] = fGroup;
+  qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
+  pthread_rwlock_unlock(&pFileH->fhlock);
+  return tsdbSearchFGroup(pFileH, fid, TD_EQ);
 
 _err:
-  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&pGroup->files[type]);
+  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+    tsdbDestroyFile(&(fGroup.files[type]));
+  }
+  dnodeDecDiskFiles(tsDnodeTier, pDisk, true);
   return NULL;
 }
 
@@ -240,7 +231,7 @@ void tsdbCloseFile(SFile *pFile) {
   }
 }
 
-int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
+int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type, SDisk *pDisk) {
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 
@@ -348,7 +339,7 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
 
   SFileGroup fileGroup = *pFGroup;
   tsdbGetBaseDirFromFile(fileGroup.files[0].fname, baseDir);
-  pDisk = dnodeGetDiskByName(baseDir);
+  pDisk = dnodeGetDiskByName(tsDnodeTier, baseDir);
   ASSERT(pDisk != NULL);
 
   int nFilesLeft = pFileH->nFGroups - (int)(POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);

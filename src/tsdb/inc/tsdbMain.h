@@ -26,6 +26,7 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
+#include "tdisk.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -474,13 +475,13 @@ STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
 void        tsdbFreeFileH(STsdbFileH* pFileH);
 int         tsdbOpenFileH(STsdbRepo* pRepo);
 void        tsdbCloseFileH(STsdbRepo* pRepo);
-SFileGroup* tsdbCreateFGroupIfNeed(STsdbRepo* pRepo, char* dataDir, int fid);
+SFileGroup* tsdbCreateFGroup(STsdbRepo* pRepo, int fid);
 void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
 void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
 SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
 int         tsdbOpenFile(SFile* pFile, int oflag);
 void        tsdbCloseFile(SFile* pFile);
-int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
+int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type, SDisk* pDisk);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
 void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, int mfid);
 int         tsdbUpdateFileHeader(SFile* pFile);

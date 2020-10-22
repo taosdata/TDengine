@@ -11,5 +11,5 @@ AUX_SOURCE_DIRECTORY(src SRC)
 
 IF (TD_LINUX)
   ADD_LIBRARY(vnode ${SRC})
-  TARGET_LINK_LIBRARIES(vnode tsdb tcq)
+  TARGET_LINK_LIBRARIES(vnode tsdb tcq common)
 ENDIF ()
