@@ -151,8 +151,11 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
     if (pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
       len = len * TSDB_NCHAR_SIZE;
     }
-    
-    pDst->pz = calloc(1, len);
+
+    char* p = realloc(pDst->pz, len);
+    assert(p);
+
+    memset(pDst->pz, 0, len);
     memcpy(pDst->pz, pSrc->pz, len);
     return;
   }
