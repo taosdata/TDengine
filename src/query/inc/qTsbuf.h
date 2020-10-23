@@ -106,7 +106,7 @@ typedef struct STSBufFileHeader {
 
 STSBuf* tsBufCreate(bool autoDelete, int32_t order);
 STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete);
-STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder);
+STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder, int32_t vnodeId);
 
 void* tsBufDestroy(STSBuf* pTSBuf);
 

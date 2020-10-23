@@ -803,14 +803,14 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   return 0;
 }
 
-STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t order) {
+STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t order, int32_t vnodeId) {
   STSBuf* pTSBuf = tsBufCreate(true, order);
   
   STSVnodeBlockInfo* pBlockInfo = &(addOneVnodeInfo(pTSBuf, 0)->info);
   pBlockInfo->numOfBlocks = numOfBlocks;
   pBlockInfo->compLen = len;
   pBlockInfo->offset = getDataStartOffset();
-  pBlockInfo->vnode = 0;
+  pBlockInfo->vnode = vnodeId;
   
   // update prev vnode length info in file
   TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pBlockInfo);
