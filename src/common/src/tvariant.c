@@ -144,8 +144,8 @@ void tVariantDestroy(tVariant *pVar) {
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
   
-  *pDst = *pSrc;
-  
+  pDst->nType = pSrc->nType;
+
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
     int32_t allocLen = pSrc->nLen + 1;
     int32_t len = pSrc->nLen;
