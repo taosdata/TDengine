@@ -4785,12 +4785,13 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
         if (elem1.vnode < 0) {
           return false;
         }
-      }
-
-      tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
+      } else {
+        tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
         STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
         qDebug("QInfo:%p continue scan ts_comp file, tag:%s blockIndex:%d, tsIndex:%d", pQInfo, pRuntimeEnv->pCtx[0].tag.pz,
                cur.blockIndex, cur.tsIndex);
+      }
+
     }
   }
 
