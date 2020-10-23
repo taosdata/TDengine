@@ -34,6 +34,8 @@ typedef enum {
   TSDB_CONV_BAD_CHAR,
 } TSDB_CONV_CODE;
 
+const char* tsdb_conv_code_str(TSDB_CONV_CODE code);
+
 TSDB_CONV_CODE tsdb_iconv_conv(iconv_t cnv, const unsigned char *src, size_t *slen, unsigned char *dst, size_t *dlen);
 
 

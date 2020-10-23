@@ -52,6 +52,20 @@ static void buf_clean(buf_t *buf) {
   }
 }
 
+const char* tsdb_conv_code_str(TSDB_CONV_CODE code) {
+  switch (code) {
+    case TSDB_CONV_OK:                 return "TSDB_CONV_OK";
+    case TSDB_CONV_OOM:                return "TSDB_CONV_OOM";
+    case TSDB_CONV_OOR:                return "TSDB_CONV_OOR";
+    case TSDB_CONV_TRUNC_FRACTION:     return "TSDB_CONV_TRUNC_FRACTION";
+    case TSDB_CONV_TRUNC:              return "TSDB_CONV_TRUNC";
+    case TSDB_CONV_CHAR_NOT_NUM:       return "TSDB_CONV_CHAR_NOT_NUM";
+    case TSDB_CONV_GENERAL:            return "TSDB_CONV_GENERAL";
+    case TSDB_CONV_BAD_CHAR:           return "TSDB_CONV_BAD_CHAR";
+    default: return "UNKNOWN";
+  };
+}
+
 TSDB_CONV_CODE tsdb_iconv_conv(iconv_t cnv, const unsigned char *src, size_t *slen, unsigned char *dst, size_t *dlen) {
   if(cnv == (iconv_t)-1) return TSDB_CONV_GENERAL;
 

@@ -42,12 +42,18 @@ do {                                                                            
   obj->err.err_no = eno;                                                                                  \
   const char* estr = tstrerror(eno);                                                                      \
   if (!estr) estr = "Unknown error";                                                                      \
-  int n = snprintf(NULL, 0, "%s: @[%d][TSDB:%x]" err_fmt "", estr, __LINE__, eno, ##__VA_ARGS__);         \
+  int n = snprintf(NULL, 0, "[TSDB:%x]%s: @%s[%d]" err_fmt "",                                            \
+                   eno, estr,                                                                             \
+                   basename((char*)__FILE__), __LINE__,                                                   \
+                   ##__VA_ARGS__);                                                                        \
   if (n<0) break;                                                                                         \
   char *err_str = (char*)realloc(obj->err.err_str, n+1);                                                  \
   if (!err_str) break;                                                                                    \
   obj->err.err_str = err_str;                                                                             \
-  snprintf(obj->err.err_str, n+1, "%s: @[%d][TSDB:%x]" err_fmt "", estr, __LINE__, eno, ##__VA_ARGS__);   \
+  snprintf(obj->err.err_str, n+1, "[TSDB:%x]%s: @%s[%d]" err_fmt "",                                      \
+           eno, estr,                                                                                     \
+           basename((char*)__FILE__), __LINE__,                                                           \
+           ##__VA_ARGS__);                                                                                \
   snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);                        \
 } while (0)
 
@@ -407,6 +413,19 @@ static SQLRETURN doSQLConnect(SQLHDBC ConnectionHandle,
 
   if (conn->taos) {
     SET_ERROR(conn, "08002", TSDB_CODE_ODBC_CONNECTION_BUSY, "connection still in use");
+    return SQL_ERROR;
+  }
+
+  NameLength1 = (NameLength1==SQL_NTS) ? strlen((const char*)ServerName) : NameLength1;
+  NameLength2 = (NameLength2==SQL_NTS) ? strlen((const char*)UserName) : NameLength2;
+  NameLength3 = (NameLength3==SQL_NTS) ? strlen((const char*)Authentication) : NameLength3;
+
+  if (NameLength1 < 0 || NameLength2 < 0 || NameLength3 < 0) {
+    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  if (NameLength1>SQL_MAX_DSN_LENGTH) {
+    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
     return SQL_ERROR;
   }
 

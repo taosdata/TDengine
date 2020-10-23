@@ -16,31 +16,10 @@
 #ifndef _TODBC_UTIL_H_
 #define _TODBC_UTIL_H_
 
-#include <libgen.h>
+#include "todbc_log.h"
+
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sql.h>
-
-#define D(fmt, ...)                                              \
-  fprintf(stderr,                                                \
-          "%s[%d]:%s() " fmt "\n",                               \
-          basename((char*)__FILE__), __LINE__, __func__,         \
-          ##__VA_ARGS__)
-
-#define DASSERT(statement)                                       \
-do {                                                             \
-  if (statement) break;                                          \
-  D("Assertion failure: %s", #statement);                        \
-  abort();                                                       \
-} while (0)
-
-#define DASSERTX(statement, fmt, ...)                                \
-do {                                                                 \
-  if (statement) break;                                              \
-  D("Assertion failure: %s, " fmt "", #statement, ##__VA_ARGS__);    \
-  abort();                                                           \
-} while (0)
 
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);
