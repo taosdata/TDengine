@@ -147,15 +147,20 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   *pDst = *pSrc;
   
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
-    int32_t len = pSrc->nLen + 1;
+    int32_t allocLen = pSrc->nLen + 1;
+    int32_t len = pSrc->nLen;
+
     if (pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
+      allocLen = allocLen * TSDB_NCHAR_SIZE;
       len = len * TSDB_NCHAR_SIZE;
     }
 
-    char* p = realloc(pDst->pz, len);
+    char* p = realloc(pDst->pz, allocLen);
     assert(p);
 
-    memset(pDst->pz, 0, len);
+    memset(p, 0, allocLen);
+    pDst->pz = p;
+
     memcpy(pDst->pz, pSrc->pz, len);
     return;
   }
