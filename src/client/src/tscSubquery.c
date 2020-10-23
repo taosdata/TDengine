@@ -23,7 +23,6 @@
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tscSubquery.h"
 
 typedef struct SInsertSupporter {
   SSqlObj*  pSql;
@@ -305,7 +304,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
-
     memcpy(&pQueryInfo->interval, &pSupporter->interval, sizeof(pQueryInfo->interval));
 
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
@@ -931,14 +929,16 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
 
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
+
+      atomic_add_fetch_32(&pState->numOfRemain, 1);
       tscProcessSql(pSql);
 
       return;
     }
   }
 
-  if (atomic_sub_fetch_32(&pParentSql->subState.numOfRemain, 1) > 0) {
-    tscDebug("%p sub:%p completed, remain:%d, total:%d", pParentSql, tres, pParentSql->subState.numOfRemain, pState->numOfSub);
+  if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
+    tscDebug("%p sub:%p completed, remain:%d, total:%d", pParentSql, tres, pState->numOfRemain, pState->numOfSub);
     return;
   }
 
