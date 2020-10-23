@@ -16,7 +16,9 @@ except:
     sys.exit(-1)
 
 from queue import Queue, Empty
+
 from .misc import Logging, Status, CrashGenError, Dice
+from .db import DbConn, DbTarget
 
 class TdeInstance():
     """
@@ -45,9 +47,17 @@ class TdeInstance():
                 .format(selfPath, projPath))
         return buildPath
 
-    def __init__(self, subdir='test'):
-        self._buildDir = self._getBuildPath()
-        self._subdir = '/' + subdir # TODO: tolerate "/"
+    def __init__(self, subdir='test', port=6030, fepPort=6030):
+        self._buildDir  = self._getBuildPath()
+        self._subdir    = '/' + subdir # TODO: tolerate "/"
+        self._port      = port # TODO: support different IP address too
+        self._fepPort   = fepPort
+
+    def getDbTarget(self):
+        return DbTarget(self.getCfgDir(), self.getHostAddr(), self._port)
+
+    def getPort(self):
+        return self._port
 
     def __repr__(self):
         return "[TdeInstance: {}, subdir={}]".format(self._buildDir, self._subdir)
@@ -74,9 +84,10 @@ class TdeInstance():
             os.makedirs(cfgDir, exist_ok=True) # like "mkdir -p"
         # Now we have a good cfg dir
         cfgValues = {
-            'runDir': self.getRunDir(),
-            'ip': '127.0.0.1', # TODO: change to a network addressable ip
-            'port': 6030,
+            'runDir':   self.getRunDir(),
+            'ip':       '127.0.0.1', # TODO: change to a network addressable ip
+            'port':     self._port,
+            'fepPort':  self._fepPort,
         }
         cfgTemplate = """
 dataDir {runDir}/data
@@ -84,7 +95,7 @@ logDir  {runDir}/log
 
 charset UTF-8
 
-firstEp {ip}:{port}
+firstEp {ip}:{fepPort}
 fqdn {ip}
 serverPort {port}
 
@@ -236,9 +247,10 @@ class TdeSubProcess:
 class ServiceManager:
     PAUSE_BETWEEN_IPC_CHECK = 1.2  # seconds between checks on STDOUT of sub process
 
-    def __init__(self, numDnodes = 1):
+    def __init__(self, numDnodes = 1): # Otherwise we run a cluster
         Logging.info("TDengine Service Manager (TSM) created")
         self._numDnodes = numDnodes # >1 means we have a cluster
+        self._lock = threading.Lock()
         # signal.signal(signal.SIGTERM, self.sigIntHandler) # Moved to MainExec
         # signal.signal(signal.SIGINT, self.sigIntHandler)
         # signal.signal(signal.SIGUSR1, self.sigUsrHandler)  # different handler!
@@ -246,12 +258,20 @@ class ServiceManager:
         self.inSigHandler = False
         # self._status = MainExec.STATUS_RUNNING # set inside
         # _startTaosService()
+        self._runCluster = (numDnodes >= 1)
         self.svcMgrThreads = [] # type: List[ServiceManagerThread]
         for i in range(0, numDnodes):
             self.svcMgrThreads.append(ServiceManagerThread(i))
 
-        self._lock = threading.Lock()
-        # self._isRestarting = False
+    def _createThread(self, dnIndex):
+        if not self._runCluster: # single instance 
+            return ServiceManagerThread(0)
+        # Create all threads in a cluster
+        subdir = 'cluster_dnode_{}'.format(dnIndex)
+        fepPort= 6030 # firstEP Port
+        port   = fepPort + dnIndex * 100
+        ti = TdeInstance(subdir, port, fepPort)
+        return ServiceManagerThread(dnIndex, ti)
 
     def _doMenu(self):
         choice = ""
@@ -488,10 +508,32 @@ class ServiceManagerThread:
             if self._status == Status.STATUS_RUNNING:
                 Logging.info("[] TDengine service READY to process requests")
                 Logging.info("[] TAOS service started: {}".format(self))
+                self._verifyDnode(self._tInst) # query and ensure dnode is ready
                 return  # now we've started
         # TODO: handle failure-to-start  better?
         self.procIpcBatch(100, True) # display output before cronking out, trim to last 20 msgs, force output
         raise RuntimeError("TDengine service did not start successfully: {}".format(self))
+
+    def _verifyDnode(self, tInst: TdeInstance):
+        dbc = DbConn.createNative(tInst.getDbTarget())
+        dbc.open()
+        dbc.query("show dnodes")
+        # dbc.query("DESCRIBE {}.{}".format(dbName, self._stName))
+        cols = dbc.getQueryResult() #  id,end_point,vnodes,cores,status,role,create_time,offline reason
+        # ret = {row[0]:row[1] for row in stCols if row[3]=='TAG'} # name:type
+        isValid = False
+        for col in cols:
+            print("col = {}".format(col))
+            ep = col[1].split(':') # 10.1.30.2:6030
+            print("ep={}".format(ep))
+            if tInst.getPort() == int(ep[1]): # That's us
+                print("Valid Dnode matched!")
+                isValid = True # now we are valid
+                break
+        if not isValid:
+            raise RuntimeError("Failed to start Dnode, port = {}, expected: {}".
+                format(ep[1], tInst.getPort()))
+        dbc.close()
 
     def stop(self):
         # can be called from both main thread or signal handler
