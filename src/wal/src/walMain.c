@@ -60,6 +60,7 @@ static int  walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp);
 static int  walRemoveWalFiles(const char *path);
 static void walProcessFsyncTimer(void *param, void *tmrId);
 static void walRelease(SWal *pWal);
+static int walGetMaxOldFileId(char *odir);
 
 static void walModuleInitFunc() {
   walTmrCtrl = taosTmrInit(1000, 100, 300000, "WAL");
@@ -312,7 +313,7 @@ int walRestore(void *handle, void *pVnode, int (*writeFp)(void *, void *, int)) 
     for (index = minId; index <= maxId; ++index) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", opath, walPrefix, index);
       terrno = walRestoreWalFile(pWal, pVnode, writeFp);
-      if (terrno < 0) break;
+      if (terrno < 0) continue;
     }
   }
 
@@ -476,31 +477,26 @@ int walHandleExistingFiles(const char *path) {
   int    plen = strlen(walPrefix);
   terrno = 0;
 
-  if (access(opath, F_OK) == 0) {
-    // old directory is there, it means restore process is not finished
-    walRemoveWalFiles(path);
-
-  } else {
-    // move all files to old directory
-    int count = 0;
-    while ((ent = readdir(dir)) != NULL) {
-      if (strncmp(ent->d_name, walPrefix, plen) == 0) {
-        snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
-        snprintf(nname, sizeof(nname), "%s/old/%s", path, ent->d_name);
-        if (taosMkDir(opath, 0755) != 0) {
-          wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          break;
-        }
-
-        if (rename(oname, nname) < 0) {
-          wError("wal:%s, failed to move to new:%s", oname, nname);
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          break;
-        }
-
-        count++;
+  int midx = walGetMaxOldFileId(opath);
+  int count = 0;
+  while ((ent = readdir(dir)) != NULL) {
+    if (strncmp(ent->d_name, walPrefix, plen) == 0) {
+      midx++;
+      snprintf(oname, sizeof(oname), "%s/%s", path, ent->d_name);
+      snprintf(nname, sizeof(nname), "%s/old/wal%d", path, midx);
+      if (taosMkDir(opath, 0755) != 0) {
+        wError("wal:%s, failed to create directory:%s(%s)", oname, opath, strerror(errno));
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        break;
       }
+
+      if (rename(oname, nname) < 0) {
+        wError("wal:%s, failed to move to new:%s", oname, nname);
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        break;
+      }
+
+      count++;
     }
 
     wDebug("wal:%s, %d files are moved for restoration", path, count);
@@ -563,4 +559,30 @@ int64_t walGetVersion(twalh param) {
   if (pWal == 0) return 0;
 
   return pWal->version;
+}
+
+static int walGetMaxOldFileId(char *odir) {
+  int            midx = 0;
+  DIR *          dir = NULL;
+  struct dirent *dp = NULL;
+  int            plen = strlen(walPrefix);
+
+  if (access(odir, F_OK) != 0) return midx;
+
+  dir = opendir(odir);
+  if (dir == NULL) {
+    wError("failed to open directory %s since %s", odir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  while ((dp = readdir(dir)) != NULL) {
+    if (strncmp(dp->d_name, walPrefix, plen) == 0) {
+      int idx = atol(dp->d_name + plen);
+      if (midx < idx) midx = idx;
+    }
+  }
+
+  closedir(dir);
+  return midx;
 }
