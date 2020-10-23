@@ -923,13 +923,15 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
     }
 
-    tscDebug("%p no result in current vnode anymore, try next vnode", pSql);
     if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
+      tscDebug("%p no result in current vnode anymore, try next vnode, vgIndex:%d", pSql, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
 
       tscProcessSql(pSql);
       return;
+    } else {
+      tscDebug("%p no result in current subquery anymore", pSql);
     }
   }
 
@@ -1175,7 +1177,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
    * data instead of returning to its invoker
    */
   if (pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-    pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;  // reset the record value
+//    pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;  // reset the record value
 
     pSql->fp = joinRetrieveFinalResCallback;  // continue retrieve data
     pSql->cmd.command = TSDB_SQL_FETCH;
