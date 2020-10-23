@@ -4769,10 +4769,14 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vgroupIndex == -1) {
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pRuntimeEnv->pCtx[0].tag);
-
       // failed to find data with the specified tag value and vnodeId
       if (elem.vnode < 0) {
+        qDebug("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pRuntimeEnv->pCtx[0].tag.pz);
         return false;
+      } else {
+        STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
+        qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pRuntimeEnv->pCtx[0].tag.pz,
+            cur.blockIndex, cur.tsIndex);
       }
     } else {
       STSElem elem = tsBufGetElem(pRuntimeEnv->pTSBuf);
@@ -4784,6 +4788,9 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
       }
 
       tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
+        STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
+        qDebug("QInfo:%p continue scan ts_comp file, tag:%s blockIndex:%d, tsIndex:%d", pQInfo, pRuntimeEnv->pCtx[0].tag.pz,
+               cur.blockIndex, cur.tsIndex);
     }
   }
 
