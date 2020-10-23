@@ -923,6 +923,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
     }
 
+    tscDebug("%p no result in current vnode anymore, try next vnode", pSql);
     if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
