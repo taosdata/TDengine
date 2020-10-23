@@ -4775,6 +4775,14 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
         return false;
       }
     } else {
+      STSElem elem = tsBufGetElem(pRuntimeEnv->pTSBuf);
+      if (tVariantCompare(&elem.tag, &pRuntimeEnv->pCtx[0].tag) != 0) {
+        STSElem elem1 = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pRuntimeEnv->pCtx[0].tag);
+        if (elem1.vnode < 0) {
+          return false;
+        }
+      }
+
       tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
     }
   }
