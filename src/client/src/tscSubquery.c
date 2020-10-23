@@ -924,9 +924,6 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     }
 
     if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
-      pState->numOfRemain = 1;
-      pState->numOfSub = 1;
-
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
 
