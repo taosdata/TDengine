@@ -78,5 +78,49 @@ public class SqlSpeller {
         return "select avg(" + field + "),min(" + field + "),max(" + field + ") from " + dbName + "." + stbName + "";
     }
 
+    public static String selectLastFromTableSQL(String dbName, String tbPrefix, int tbIndex) {
+        return "select last(*) from " + dbName + "." + tbPrefix + "" + tbIndex;
+    }
 
+    //select avg ,max from stb where tag
+    public static String selectAvgMinMaxFromSuperTableWhere(String field, String dbName, String stbName) {
+        return "select avg(" + field + "),min(" + field + "),max(" + field + ") from " + dbName + "." + stbName + " where location = '" + locations[random.nextInt(locations.length)] + "'";
+    }
+
+    //select last from stb where
+    public static String selectLastFromSuperTableWhere(String field, String dbName, String stbName) {
+        return "select last(" + field + ") from " + dbName + "." + stbName + " where location = '" + locations[random.nextInt(locations.length)] + "'";
+    }
+
+    public static String selectGroupBy(String field, String dbName, String stbName) {
+        return "select avg(" + field + ") from " + dbName + "." + stbName + " group by location";
+    }
+
+    public static String selectLike(String dbName, String stbName) {
+        return "select * from " + dbName + "." + stbName + " where location like 'S%'";
+    }
+
+    public static String selectLastOneHour(String dbName, String stbName) {
+        return "select * from " + dbName + "." + stbName + " where ts >= now - 1h";
+    }
+
+    public static String selectLastOneDay(String dbName, String stbName) {
+        return "select * from " + dbName + "." + stbName + " where ts >= now - 1d";
+    }
+
+    public static String selectLastOneWeek(String dbName, String stbName) {
+        return "select * from " + dbName + "." + stbName + " where ts >= now - 1w";
+    }
+
+    public static String selectLastOneMonth(String dbName, String stbName) {
+        return "select * from " + dbName + "." + stbName + " where ts >= now - 1n";
+    }
+
+    public static String selectLastOneYear(String dbName, String stbName) {
+        return "select * from " + dbName + "." + stbName + " where ts >= now - 1y";
+    }
+
+    // select group by
+    // select like
+    // select ts >= ts<=
 }

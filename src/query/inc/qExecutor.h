@@ -185,11 +185,18 @@ enum {
   QUERY_RESULT_READY     = 2,
 };
 
+typedef struct SMemRef {
+  int32_t ref; 
+  void *mem;
+  void *imem;
+} SMemRef;
+
 typedef struct SQInfo {
   void*            signature;
   int32_t          code;   // error code to returned to client
   int64_t          owner; // if it is in execution
   void*            tsdb;
+  SMemRef          memRef; 
   int32_t          vgId;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
@@ -206,6 +213,7 @@ typedef struct SQInfo {
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
   pthread_mutex_t  lock;        // used to synchronize the rsp/query threads
+  tsem_t           ready;
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
 } SQInfo;

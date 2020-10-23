@@ -80,6 +80,8 @@ enum {
   DATA_FROM_DATA_FILE = 2,
 };
 
+typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
+
 typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
@@ -88,10 +90,10 @@ typedef struct STableComInfo {
 } STableComInfo;
 
 typedef struct SCMCorVgroupInfo {
-  int32_t version;
-  int8_t  inUse;
-  int8_t  numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  int32_t    version;
+  int8_t     inUse;
+  int8_t     numOfEps;
+  SEpAddr1   epAddr[TSDB_MAX_REPLICA];
 } SCMCorVgroupInfo;
 
 typedef struct STableMeta {
@@ -140,16 +142,17 @@ typedef struct SColumnIndex {
   int16_t columnIndex;
 } SColumnIndex;
 
-typedef struct SFieldSupInfo {
+typedef struct SInternalField {
+  TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pArithExprInfo;
   SSqlExpr       *pSqlExpr;
-} SFieldSupInfo;
+} SInternalField;
 
 typedef struct SFieldInfo {
-  int16_t numOfOutput;   // number of column in result
-  SArray *pFields;       // SArray<TAOS_FIELD>
-  SArray *pSupportInfo;  // SArray<SFieldSupInfo>
+  int16_t      numOfOutput;   // number of column in result
+  TAOS_FIELD*  final;
+  SArray      *internalField; // SArray<SInternalField>
 } SFieldInfo;
 
 typedef struct SColumn {
@@ -226,7 +229,7 @@ typedef struct STableDataBlocks {
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
-  // TODO refactor
+
   STimeWindow      window;        // query time window
   SInterval        interval;
 
@@ -306,7 +309,7 @@ typedef struct {
   int32_t               numOfGroups;
   SResRec *             pGroupRec;
   char *                data;
-  void **               tsrow;
+  TAOS_ROW              tsrow;
   int32_t*              length;  // length for each field for current row
   char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex *        pColumnIndex;
@@ -334,6 +337,12 @@ typedef struct STscObj {
   T_REF_DECLARE()
 } STscObj;
 
+typedef struct SSubqueryState {
+  int32_t          numOfRemain;         // the number of remain unfinished subquery
+  int32_t          numOfSub;            // the number of total sub-queries
+  uint64_t         numOfRetrievedRows;  // total number of points in this query
+} SSubqueryState;
+
 typedef struct SSqlObj {
   void            *signature;
   pthread_t        owner;        // owner of sql object, by which it is executed
@@ -355,10 +364,11 @@ typedef struct SSqlObj {
   tsem_t           rspSem;
   SSqlCmd          cmd;
   SSqlRes          res;
-  uint16_t         numOfSubs;
-  struct SSqlObj **pSubs;
-  struct SSqlObj * prev, *next;
 
+  SSubqueryState   subState;
+  struct SSqlObj **pSubs;
+
+  struct SSqlObj  *prev, *next;
   struct SSqlObj **self;
 } SSqlObj;
 
@@ -433,19 +443,20 @@ void tscPartiallyFreeSqlObj(SSqlObj *pSql);
  * @param pObj
  */
 void tscFreeSqlObj(SSqlObj *pSql);
-
-void tscFreeSqlObjInCache(void *pSql);
+void tscFreeRegisteredSqlObj(void *pSql);
+void tscFreeTableMetaHelper(void *pTableMeta);
 
 void tscCloseTscObj(STscObj *pObj);
 
+// todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
-                     void *param, void **taos);
-void waitForQueryRsp(void *param, TAOS_RES *tres, int code) ;
+                     void *param, TAOS **taos);
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res);
+void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
-void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, void (*fp)(), void *param, const char *sqlstr, size_t sqlLen);
+void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
 void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql);
-void tscKillSTableQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
@@ -458,7 +469,7 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
 static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex) {
-  SFieldSupInfo* pInfo = (SFieldSupInfo*) TARRAY_GET_ELEM(pFieldInfo->pSupportInfo, columnIndex);
+  SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pFieldInfo->internalField, columnIndex);
   assert(pInfo->pSqlExpr != NULL);
 
   int32_t type = pInfo->pSqlExpr->resType;
@@ -471,11 +482,11 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
       pData = pInfo->pSqlExpr->param[1].pz;
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
-      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : pData;
+      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
     } else {
       assert(bytes == tDataTypeDesc[type].nSize);
 
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : &pInfo->pSqlExpr->param[1].i64Key;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64Key;
       pRes->length[columnIndex] = bytes;
     }
   } else {
@@ -483,7 +494,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
       int32_t realLen = varDataLen(pData);
       assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
-      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : ((tstr *)pData)->data;
+      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : (unsigned char*)((tstr *)pData)->data;
       if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
         *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
       }
@@ -492,7 +503,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
     } else {
       assert(bytes == tDataTypeDesc[type].nSize);
 
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : pData;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)pData;
       pRes->length[columnIndex] = bytes;
     }
   }
@@ -509,8 +520,6 @@ extern int       tscNumOfThreads;
 extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
-
-typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 
 int32_t tscCompareTidTags(const void* p1, const void* p2);
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);

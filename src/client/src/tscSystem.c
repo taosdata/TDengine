@@ -77,6 +77,7 @@ int32_t tscInitRpc(const char *user, const char *secretEncrypt, void **pDnodeCon
   return 0;
 }
 
+
 void taos_init_imp(void) {
   char temp[128];
   
@@ -124,8 +125,9 @@ void taos_init_imp(void) {
 
   double factor = (tscEmbedded == 0)? 2.0:4.0;
   tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
-
-  if (tscNumOfThreads < 2) tscNumOfThreads = 2;
+  if (tscNumOfThreads < 2) {
+    tscNumOfThreads = 2;
+  }
 
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
@@ -140,8 +142,8 @@ void taos_init_imp(void) {
 
   int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
-    tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL, "tableMeta");
-    tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeSqlObjInCache, "sqlObj");
+    tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
+    tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeRegisteredSqlObj, "sqlObj");
   }
 
   tscDebug("client is initialized successfully");

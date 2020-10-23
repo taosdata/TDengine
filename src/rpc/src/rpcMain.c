@@ -412,7 +412,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   rpcLockConn(pConn);
 
   if ( pConn->inType == 0 || pConn->user[0] == 0 ) {
-    tDebug("%s, connection is already released, rsp wont be sent", pConn->info);
+    tError("%s, connection is already released, rsp wont be sent", pConn->info);
     rpcUnlockConn(pConn);
     rpcFreeCont(pMsg->pCont);
     rpcDecRef(pRpc);
@@ -542,10 +542,7 @@ void rpcCancelRequest(void *handle) {
 
   if (pContext->pConn) {
     tDebug("%s, app tries to cancel request", pContext->pConn->info);
-    pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
-    pContext->pConn = NULL;
-    rpcFreeCont(pContext->pCont);
   }
 }
 
@@ -613,8 +610,10 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);  // do not use rpcFreeMsg
   } else {
     // if there is an outgoing message, free it
-    if (pConn->outType && pConn->pReqMsg) 
+    if (pConn->outType && pConn->pReqMsg) {
+      if (pConn->pContext) pConn->pContext->pConn = NULL; 
       rpcFreeMsg(pConn->pReqMsg);
+    }
   }
 
   // memset could not be used, since lockeBy can not be reset
@@ -1052,6 +1051,9 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     if (code != 0) { // parsing error
       if (rpcIsReq(pHead->msgType)) {
         rpcSendErrorMsgToPeer(pRecv, code);
+        if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE) {
+          rpcCloseConn(pConn);
+        }
         tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
@@ -1121,9 +1123,13 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
       SRpcEpSet *pEpSet = (SRpcEpSet*)pHead->content;
       if (pEpSet->numOfEps > 0) {
         memcpy(&pContext->epSet, pHead->content, sizeof(pContext->epSet));
-        tDebug("%s, redirect is received, numOfEps:%d", pConn->info, pContext->epSet.numOfEps);
-        for (int i=0; i<pContext->epSet.numOfEps; ++i) 
+        tDebug("%s, redirect is received, numOfEps:%d inUse:%d", pConn->info, pContext->epSet.numOfEps,
+               pContext->epSet.inUse);
+        for (int i = 0; i < pContext->epSet.numOfEps; ++i) {
           pContext->epSet.port[i] = htons(pContext->epSet.port[i]);
+          tDebug("%s, redirect is received, index:%d ep:%s:%u", pConn->info, i, pContext->epSet.fqdn[i],
+                 pContext->epSet.port[i]);
+        }
       }
       rpcSendReqToServer(pRpc, pContext);
       rpcFreeCont(rpcMsg.pCont);

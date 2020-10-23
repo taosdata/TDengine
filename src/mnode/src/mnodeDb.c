@@ -648,8 +648,12 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextDb(pShow->pIter, &pDb);
+
     if (pDb == NULL) break;
-    if (pDb->pAcct != pUser->pAcct) continue;
+    if (pDb->pAcct != pUser->pAcct) {
+      mnodeDecDbRef(pDb);
+      continue;
+    }
 
     cols = 0;
 
@@ -760,7 +764,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
   }
 
   pShow->numOfReads += numOfRows;
-  mnodeVacuumResult(data, cols, numOfRows, rows, pShow);
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
 
   mnodeDecUserRef(pUser);
   return numOfRows;

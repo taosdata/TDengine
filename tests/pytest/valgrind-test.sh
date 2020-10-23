@@ -1,5 +1,26 @@
 #!/bin/bash
+IN_TDINTERNAL="community"
+TDIR=`pwd`
+if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+  cd ../..
+else
+  cd ../../..
+fi
 
+TOP_DIR=`pwd`
+TAOSLIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1`
+if [[ "$TAOSLIB_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4,5`
+else
+  LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4`
+fi
+if [ ! $LD_LIBRARY_PATH ]; then
+        export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR
+else
+        export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR:$LD_LIBRARY_PATH
+fi
+
+cd $TDIR
 # client
 PYTHONMALLOC=malloc python3 ./test.py -g -f client/client.py
 PYTHONMALLOC=malloc python3 ./test.py -g -s && sleep 1

@@ -18,6 +18,7 @@ python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
+python3 ./test.py -f insert/insertIntoTwoTables.py
 
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
@@ -149,6 +150,7 @@ python3 ./test.py -f query/queryNullValueTest.py
 python3 ./test.py -f query/queryInsertValue.py
 python3 ./test.py -f query/queryConnection.py
 python3 ./test.py -f query/natualInterval.py
+python3 ./test.py -f query/bug1471.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -172,23 +174,23 @@ python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
 
 # functions
-python3 ./test.py -f functions/function_avg.py
-python3 ./test.py -f functions/function_bottom.py
-python3 ./test.py -f functions/function_count.py
-python3 ./test.py -f functions/function_diff.py
-python3 ./test.py -f functions/function_first.py
-python3 ./test.py -f functions/function_last.py
-python3 ./test.py -f functions/function_last_row.py
-python3 ./test.py -f functions/function_leastsquares.py
-python3 ./test.py -f functions/function_max.py
-python3 ./test.py -f functions/function_min.py
-python3 ./test.py -f functions/function_operations.py
+python3 ./test.py -f functions/function_avg.py -r 1
+python3 ./test.py -f functions/function_bottom.py -r 1
+python3 ./test.py -f functions/function_count.py -r 1
+python3 ./test.py -f functions/function_diff.py -r 1
+python3 ./test.py -f functions/function_first.py -r 1
+python3 ./test.py -f functions/function_last.py -r 1
+python3 ./test.py -f functions/function_last_row.py -r 1
+python3 ./test.py -f functions/function_leastsquares.py -r 1
+python3 ./test.py -f functions/function_max.py -r 1
+python3 ./test.py -f functions/function_min.py -r 1
+python3 ./test.py -f functions/function_operations.py -r 1 
 python3 ./test.py -f functions/function_percentile.py
-python3 ./test.py -f functions/function_spread.py
-python3 ./test.py -f functions/function_stddev.py
-python3 ./test.py -f functions/function_sum.py
-python3 ./test.py -f functions/function_top.py
-#python3 ./test.py -f functions/function_twa.py
+python3 ./test.py -f functions/function_spread.py -r 1
+python3 ./test.py -f functions/function_stddev.py -r 1
+python3 ./test.py -f functions/function_sum.py -r 1
+python3 ./test.py -f functions/function_top.py -r 1
+#python3 ./test.py -f functions/function_twa.py -r 1
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py

@@ -16,20 +16,53 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	_ "github.com/taosdata/driver-go/taosSql"
 	"log"
+	"strconv"
 	"time"
 )
 
+type config struct {
+	hostName                string
+	serverPort              int
+	user                    string
+	password                string
+}
+
+var configPara config
+var url string
+
+func init() {
+	flag.StringVar(&configPara.hostName, "h", "127.0.0.1","The host to connect to TDengine server.")
+	flag.IntVar(&configPara.serverPort, "p", 6030, "The TCP/IP port number to use for the connection to TDengine server.")
+	flag.StringVar(&configPara.user, "u", "root", "The TDengine user name to use when connecting to the server.")
+	flag.StringVar(&configPara.password, "P", "taosdata", "The password to use when connecting to the server.")
+
+	flag.Parse()
+}
+
+func printAllArgs() {
+	fmt.Printf("\n============= args parse result: =============\n")
+	fmt.Printf("hostName:             %v\n", configPara.hostName)
+	fmt.Printf("serverPort:           %v\n", configPara.serverPort)
+	fmt.Printf("usr:                  %v\n", configPara.user)
+	fmt.Printf("password:             %v\n", configPara.password)
+	fmt.Printf("================================================\n")
+}
+
 func main() {
+	printAllArgs()
 	taosDriverName := "taosSql"
 	demodb := "demodb"
 	demot := "demot"
 
 	fmt.Printf("\n======== start demo test ========\n")
+
+	url = "root:taosdata@/tcp(" + configPara.hostName + ":" + strconv.Itoa(configPara.serverPort) + ")/"
 	// open connect to taos server
-	db, err := sql.Open(taosDriverName, "root:taosdata@/tcp(192.168.1.217:7100)/")
+	db, err := sql.Open(taosDriverName, url)
 	if err != nil {
 		log.Fatalf("Open database error: %s\n", err)
 	}

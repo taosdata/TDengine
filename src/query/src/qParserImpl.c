@@ -130,13 +130,15 @@ tSQLExpr *tSQLExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
     tVariantCreate(&pSQLExpr->val, pToken);
     pSQLExpr->nSQLOptr = optrType;
   } else if (optrType == TK_NOW) {
-    // default use microsecond
+    // use microsecond by default
     pSQLExpr->val.i64Key = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
     pSQLExpr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSQLExpr->val.i64Key);
-    UNUSED(ret);
+    if (ret != TSDB_CODE_SUCCESS) {
+      terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    }
 
     pSQLExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
     pSQLExpr->nSQLOptr = TK_TIMESTAMP;
@@ -148,6 +150,7 @@ tSQLExpr *tSQLExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
 
     pSQLExpr->nSQLOptr = optrType;
   }
+
   return pSQLExpr;
 }
 
@@ -530,26 +533,6 @@ SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
 
   pQuery->fillType = pFill;
   return pQuery;
-}
-
-tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExprList) {
-  if (pList == NULL) pList = calloc(1, sizeof(tSQLExprListList));
-
-  if (pList->nAlloc <= pList->nList) {  //
-    pList->nAlloc = (pList->nAlloc << 1) + 4;
-    pList->a = realloc(pList->a, pList->nAlloc * sizeof(pList->a[0]));
-    if (pList->a == 0) {
-      pList->nList = pList->nAlloc = 0;
-      return pList;
-    }
-  }
-  assert(pList->a != 0);
-
-  if (pExprList) {
-    pList->a[pList->nList++] = pExprList;
-  }
-
-  return pList;
 }
 
 void doDestroyQuerySql(SQuerySQL *pQuerySql) {

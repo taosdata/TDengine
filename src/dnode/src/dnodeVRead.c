@@ -189,7 +189,6 @@ void dnodeSendRpcReadRsp(void *pVnode, SReadMsg *pRead, int32_t code) {
 void dnodeDispatchNonRspMsg(void *pVnode, SReadMsg *pRead, int32_t code) {
   rpcFreeCont(pRead->rpcMsg.pCont);
   vnodeRelease(pVnode);
-  return;
 }
 
 static void *dnodeProcessReadQueue(void *param) {
@@ -199,7 +198,7 @@ static void *dnodeProcessReadQueue(void *param) {
 
   while (1) {
     if (taosReadQitemFromQset(readQset, &type, (void **)&pReadMsg, &pVnode) == 0) {
-      dDebug("dnodeProcessReadQueee: got no message from qset, exiting...");
+      dDebug("qset:%p dnode read got no message from qset, exiting", readQset);
       break;
     }
 
@@ -213,7 +212,8 @@ static void *dnodeProcessReadQueue(void *param) {
     } else {
       if (code == TSDB_CODE_QRY_HAS_RSP) {
         dnodeSendRpcReadRsp(pVnode, pReadMsg, pReadMsg->rpcMsg.code);
-      } else { // code == TSDB_CODE_NOT_READY, do not return msg to client
+      } else { // code == TSDB_CODE_QRY_NOT_READY, do not return msg to client
+        assert(pReadMsg->rpcMsg.handle == NULL || (pReadMsg->rpcMsg.handle != NULL && pReadMsg->rpcMsg.msgType == 5));
         dnodeDispatchNonRspMsg(pVnode, pReadMsg, code);
       }
     }

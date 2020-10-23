@@ -343,8 +343,10 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
   if (f1 == f2) {
     return 0;
   }
-  
-  if (colIdx == 0 && tsOrder == TSDB_ORDER_DESC) {  // primary column desc order
+
+  assert(colIdx == 0);
+
+  if (tsOrder == TSDB_ORDER_DESC) {  // primary column desc order
     return (f1 < f2) ? 1 : -1;
   } else {  // asc
     return (f1 < f2) ? -1 : 1;
@@ -435,7 +437,7 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
 
   int32_t cmpCnt = pDescriptor->orderInfo.numOfCols;
   for (int32_t i = 0; i < cmpCnt; ++i) {
-    int32_t colIdx = pDescriptor->orderInfo.pData[i];
+    int32_t colIdx = pDescriptor->orderInfo.colIndex[i];
 
     char *f1 = COLMODEL_GET_VAL(data1, pDescriptor->pColumnModel, numOfRows1, s1, colIdx);
     char *f2 = COLMODEL_GET_VAL(data2, pDescriptor->pColumnModel, numOfRows2, s2, colIdx);
@@ -467,7 +469,7 @@ int32_t compare_d(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
 
   int32_t cmpCnt = pDescriptor->orderInfo.numOfCols;
   for (int32_t i = 0; i < cmpCnt; ++i) {
-    int32_t colIdx = pDescriptor->orderInfo.pData[i];
+    int32_t colIdx = pDescriptor->orderInfo.colIndex[i];
 
     char *f1 = COLMODEL_GET_VAL(data1, pDescriptor->pColumnModel, numOfRows1, s1, colIdx);
     char *f2 = COLMODEL_GET_VAL(data2, pDescriptor->pColumnModel, numOfRows2, s2, colIdx);
@@ -557,13 +559,13 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   int32_t midIdx = ((end - start) >> 1) + start;
 
 #if defined(_DEBUG_VIEW)
-  int32_t f = pDescriptor->orderInfo.pData[0];
+  int32_t f = pDescriptor->orderInfo.colIndex[0];
 
   char *midx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, midIdx, f);
   char *startx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, start, f);
   char *endx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, end, f);
 
-  int32_t colIdx = pDescriptor->orderInfo.pData[0];
+  int32_t colIdx = pDescriptor->orderInfo.colIndex[0];
   tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].field.type, "before", startx, midx, endx);
 #endif
 
@@ -591,7 +593,7 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
 }
 
 static UNUSED_FUNC void tRowModelDisplay(tOrderDescriptor *pDescriptor, int32_t numOfRows, char *d, int32_t len) {
-  int32_t colIdx = pDescriptor->orderInfo.pData[0];
+  int32_t colIdx = pDescriptor->orderInfo.colIndex[0];
 
   for (int32_t i = 0; i < len; ++i) {
     char *startx = COLMODEL_GET_VAL(d, pDescriptor->pColumnModel, numOfRows, i, colIdx);
@@ -1075,7 +1077,7 @@ tOrderDescriptor *tOrderDesCreate(const int32_t *orderColIdx, int32_t numOfOrder
 
   desc->orderInfo.numOfCols = numOfOrderCols;
   for (int32_t i = 0; i < numOfOrderCols; ++i) {
-    desc->orderInfo.pData[i] = orderColIdx[i];
+    desc->orderInfo.colIndex[i] = orderColIdx[i];
   }
 
   return desc;

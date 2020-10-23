@@ -34,7 +34,8 @@ typedef struct {
 } SMWriteWorker;
 
 typedef struct {
-  int32_t        num;
+  int32_t curNum;
+  int32_t maxNum;
   SMWriteWorker *writeWorker;
 } SMWriteWorkerPool;
 
@@ -47,38 +48,45 @@ static void *dnodeProcessMnodeWriteQueue(void *param);
 
 int32_t dnodeInitMnodeWrite() {
   tsMWriteQset = taosOpenQset();
-  
-  tsMWritePool.num = 1;
-  tsMWritePool.writeWorker = (SMWriteWorker *)calloc(sizeof(SMWriteWorker), tsMWritePool.num);
+
+  tsMWritePool.maxNum = 1;
+  tsMWritePool.curNum = 0;
+  tsMWritePool.writeWorker = (SMWriteWorker *)calloc(sizeof(SMWriteWorker), tsMWritePool.maxNum);
 
   if (tsMWritePool.writeWorker == NULL) return -1;
-  for (int32_t i = 0; i < tsMWritePool.num; ++i) {
+  for (int32_t i = 0; i < tsMWritePool.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWritePool.writeWorker + i;
     pWorker->workerId = i;
+    dDebug("dnode mwrite worker:%d is created", i);
   }
 
-  dInfo("dnode mwrite is opened");
+  dDebug("dnode mwrite is opened, workers:%d qset:%p", tsMWritePool.maxNum, tsMWriteQset);
   return 0;
 }
 
 void dnodeCleanupMnodeWrite() {
-  for (int32_t i = 0; i < tsMWritePool.num; ++i) {
+  for (int32_t i = 0; i < tsMWritePool.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWritePool.writeWorker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(tsMWriteQset);
     }
+    dDebug("dnode mwrite worker:%d is closed", i);
   }
 
-  for (int32_t i = 0; i < tsMWritePool.num; ++i) {
+  for (int32_t i = 0; i < tsMWritePool.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWritePool.writeWorker + i;
+    dDebug("dnode mwrite worker:%d start to join", i);
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
     }
+    dDebug("dnode mwrite worker:%d join success", i);
   }
 
+  dDebug("dnode mwrite is closed, qset:%p", tsMWriteQset);
+
   taosCloseQset(tsMWriteQset);
+  tsMWriteQset = NULL;
   taosTFree(tsMWritePool.writeWorker);
-  dInfo("dnode mwrite is closed");
 }
 
 int32_t dnodeAllocateMnodeWqueue() {
@@ -87,7 +95,7 @@ int32_t dnodeAllocateMnodeWqueue() {
 
   taosAddIntoQset(tsMWriteQset, tsMWriteQueue, NULL);
 
-  for (int32_t i = 0; i < tsMWritePool.num; ++i) {
+  for (int32_t i = tsMWritePool.curNum; i < tsMWritePool.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWritePool.writeWorker + i;
     pWorker->workerId = i;
 
@@ -100,7 +108,8 @@ int32_t dnodeAllocateMnodeWqueue() {
     }
 
     pthread_attr_destroy(&thAttr);
-    dDebug("dnode mwrite worker:%d is launched, total:%d", pWorker->workerId, tsMWritePool.num);
+    tsMWritePool.curNum = i + 1;
+    dDebug("dnode mwrite worker:%d is launched, total:%d", pWorker->workerId, tsMWritePool.maxNum);
   }
 
   dDebug("dnode mwrite queue:%p is allocated", tsMWriteQueue);
@@ -108,6 +117,7 @@ int32_t dnodeAllocateMnodeWqueue() {
 }
 
 void dnodeFreeMnodeWqueue() {
+  dDebug("dnode mwrite queue:%p is freed", tsMWriteQueue);
   taosCloseQueue(tsMWriteQueue);
   tsMWriteQueue = NULL;
 }
@@ -122,11 +132,15 @@ void dnodeDispatchToMnodeWriteQueue(SRpcMsg *pMsg) {
   SMnodeMsg *pWrite = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
   mnodeCreateMsg(pWrite, pMsg);
 
-  dDebug("app:%p:%p, msg:%s is put into mwrite queue", pWrite->rpcMsg.ahandle, pWrite, taosMsg[pWrite->rpcMsg.msgType]);
+  dDebug("app:%p:%p, msg:%s is put into mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,
+         taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
   taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
 }
 
 static void dnodeFreeMnodeWriteMsg(SMnodeMsg *pWrite) {
+  dDebug("app:%p:%p, msg:%s is freed from mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,
+         taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
+
   mnodeCleanupMsg(pWrite);
   taosFreeQitem(pWrite);
 }
@@ -158,7 +172,7 @@ static void *dnodeProcessMnodeWriteQueue(void *param) {
   
   while (1) {
     if (taosReadQitemFromQset(tsMWriteQset, &type, (void **)&pWrite, &unUsed) == 0) {
-      dDebug("dnodeProcessMnodeWriteQueue: got no message from qset, exiting...");
+      dDebug("qset:%p, mnode write got no message from qset, exiting", tsMWriteQset);
       break;
     }
 
@@ -182,8 +196,8 @@ void dnodeReprocessMnodeWriteMsg(void *pMsg) {
     dnodeSendRedirectMsg(pMsg, true);
     dnodeFreeMnodeWriteMsg(pWrite);
   } else {
-    dDebug("app:%p:%p, msg:%s is reput into mwrite queue, retry times:%d", pWrite->rpcMsg.ahandle, pWrite,
-           taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
+    dDebug("app:%p:%p, msg:%s is reput into mwrite queue:%p, retry times:%d", pWrite->rpcMsg.ahandle, pWrite,
+           taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue, pWrite->retry);
 
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }

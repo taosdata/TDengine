@@ -24,7 +24,6 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "tlockfree.h"
 
 SRpcCorEpSet  tscMgmtEpSet;
@@ -125,9 +124,11 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    tstrncpy(pVgroupInfo->epAddr[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    taosTFree(pVgroupInfo->epAddr[i].fqdn);
+    pVgroupInfo->epAddr[i].fqdn = strndup(pEpSet->fqdn[i], tListLen(pEpSet->fqdn[i]));
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
+
   tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
   taosCorEndWrite(&pVgroupInfo->version);
 }
@@ -198,15 +199,19 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     return;
   }
 
-  if (tscShouldFreeHeartBeat(pHB)) {
-    tscDebug("%p free HB object and release connection", pHB);
-    pObj->pHb = 0;
-    taos_free_result(pHB);
-  } else {
-    int32_t code = tscProcessSql(pHB);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
-    }
+  void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
+  if (p == NULL) {
+    tscWarn("%p HB object has been released already", pHB);
+    return;
+  }
+
+  assert(*pHB->self == pHB);
+
+  int32_t code = tscProcessSql(pHB);
+  taosCacheRelease(tscObjCache, (void**) &p, false);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
   }
 }
 
@@ -462,35 +467,6 @@ int tscProcessSql(SSqlObj *pSql) {
   }
   
   return doProcessSql(pSql);
-}
-
-void tscKillSTableQuery(SSqlObj *pSql) {
-  SSqlCmd* pCmd = &pSql->cmd;
-  
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    return;
-  }
-
-  pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-
-  for (int i = 0; i < pSql->numOfSubs; ++i) {
-    // NOTE: pSub may have been released already here
-    SSqlObj *pSub = pSql->pSubs[i];
-    if (pSub == NULL) {
-      continue;
-    }
-
-    pSub->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSub->pRpcCtx != NULL) {
-      rpcCancelRequest(pSub->pRpcCtx);
-      pSub->pRpcCtx = NULL;
-    }
-
-    tscQueueAsyncRes(pSub); // async res? not other functions?
-  }
-
-  tscDebug("%p super table query cancelled", pSql);
 }
 
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -1392,7 +1368,7 @@ static int tscSetResultPointer(SQueryInfo *pQueryInfo, SSqlRes *pRes) {
 
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     int16_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
-    pRes->tsrow[i] = ((char*) pRes->data + offset * pRes->numOfRows);
+    pRes->tsrow[i] = (unsigned char*)((char*) pRes->data + offset * pRes->numOfRows);
   }
 
   return 0;
@@ -1451,7 +1427,7 @@ int tscProcessLocalRetrieveRsp(SSqlObj *pSql) {
 
 int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlCmd* pCmd = &pSql->cmd;
 
   int32_t code = pRes->code;
   if (pRes->code != TSDB_CODE_SUCCESS) {
@@ -1494,12 +1470,16 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMConnectMsg *pConnect = (SCMConnectMsg*)pCmd->payload;
 
+  // TODO refactor full_name
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
   db = (db == NULL) ? pObj->db : db + 1;
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
   tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
   tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
+
+  pConnect->pid = htonl(taosGetPId());
+  taosGetCurrentAPPName(pConnect->appName, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1653,6 +1633,10 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
   pHeartbeat->numOfQueries = numOfQueries;
   pHeartbeat->numOfStreams = numOfStreams;
+
+  pHeartbeat->pid = htonl(taosGetPId());
+  taosGetCurrentAPPName(pHeartbeat->appName, NULL);
+
   int msgLen = tscBuildQueryStreamDesc(pHeartbeat, pObj);
 
   pthread_mutex_unlock(&pObj->mutex);
@@ -1666,7 +1650,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscProcessTableMetaRsp(SSqlObj *pSql) {
   STableMetaMsg *pMetaMsg = (STableMetaMsg *)pSql->res.pRsp;
 
-  pMetaMsg->sid = htonl(pMetaMsg->sid);
+  pMetaMsg->tid = htonl(pMetaMsg->tid);
   pMetaMsg->sversion = htons(pMetaMsg->sversion);
   pMetaMsg->tversion = htons(pMetaMsg->tversion);
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
@@ -1676,9 +1660,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
-      (pMetaMsg->sid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
+      (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
-             pMetaMsg->sid, pMetaMsg->tableId);
+             pMetaMsg->tid, pMetaMsg->tableId);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -1857,22 +1841,30 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   SSqlCmd* pCmd = &parent->cmd;
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
     STableMetaInfo *pInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
-    SVgroupsInfo *  pVgroupInfo = (SVgroupsInfo *)pMsg;
-    pVgroupInfo->numOfVgroups = htonl(pVgroupInfo->numOfVgroups);
 
-    size_t size = sizeof(SCMVgroupInfo) * pVgroupInfo->numOfVgroups + sizeof(SVgroupsInfo);
-    pInfo->vgroupList = calloc(1, size);
+    SVgroupsMsg *  pVgroupMsg = (SVgroupsMsg *) pMsg;
+    pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
+
+    size_t size = sizeof(SCMVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg);
+
+    size_t vgroupsz = sizeof(SCMVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+    pInfo->vgroupList = calloc(1, vgroupsz);
     assert(pInfo->vgroupList != NULL);
 
-    memcpy(pInfo->vgroupList, pVgroupInfo, size);
+    pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
       //just init, no need to lock
       SCMVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
-      pVgroups->vgId = htonl(pVgroups->vgId);
-      assert(pVgroups->numOfEps >= 1);
+
+      SCMVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
+      pVgroups->vgId = htonl(vmsg->vgId);
+      pVgroups->numOfEps = vmsg->numOfEps;
+
+      assert(pVgroups->numOfEps >= 1 && pVgroups->vgId >= 1);
 
       for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
-        pVgroups->epAddr[k].port = htons(pVgroups->epAddr[k].port);
+        pVgroups->epAddr[k].port = htons(vmsg->epAddr[k].port);
+        pVgroups->epAddr[k].fqdn = strndup(vmsg->epAddr[k].fqdn, tListLen(vmsg->epAddr[k].fqdn));
       }
     }
 
@@ -1908,7 +1900,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pMetaMsg->numOfColumns = ntohs(pMetaMsg->numOfColumns);
 
   pSchema = pMetaMsg->schema;
-  pMetaMsg->sid = ntohs(pMetaMsg->sid);
+  pMetaMsg->tid = ntohs(pMetaMsg->tid);
   for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
     pSchema++;
@@ -1942,7 +1934,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     tscColumnListInsert(pQueryInfo->colList, &index);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
-    SFieldSupInfo* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
+    SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
     pInfo->pSqlExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
                      pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes, false);
