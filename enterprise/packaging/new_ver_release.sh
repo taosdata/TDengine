@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-version=2.0.5.1
+version=2.0.6.0
 versionComp=2.0.0.0
 
 ## master
-branchName=release/s103
+branchName=release/s104
 verType=stable
 dockerPass="tbase125!"
 tagVal=ver-${version}
