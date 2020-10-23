@@ -930,9 +930,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
 
-      atomic_add_fetch_32(&pState->numOfRemain, 1);
       tscProcessSql(pSql);
-
       return;
     }
   }
