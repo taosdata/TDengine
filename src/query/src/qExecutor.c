@@ -4769,9 +4769,9 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
 
   if (pRuntimeEnv->pTSBuf != NULL) {
     if (pRuntimeEnv->cur.vgroupIndex == -1) {
-      STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, 0, &pRuntimeEnv->pCtx[0].tag);
+      STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pRuntimeEnv->pCtx[0].tag);
 
-      // failed to find data with the specified tag value
+      // failed to find data with the specified tag value and vnodeId
       if (elem.vnode < 0) {
         return false;
       }
