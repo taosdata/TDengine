@@ -4771,7 +4771,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pRuntimeEnv->pCtx[0].tag);
       // failed to find data with the specified tag value and vnodeId
       if (elem.vnode < 0) {
-        qDebug("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pRuntimeEnv->pCtx[0].tag.pz);
+        qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pRuntimeEnv->pCtx[0].tag.pz);
         return false;
       } else {
         STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
@@ -4781,9 +4781,16 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
     } else {
       STSElem elem = tsBufGetElem(pRuntimeEnv->pTSBuf);
       if (tVariantCompare(&elem.tag, &pRuntimeEnv->pCtx[0].tag) != 0) {
+
         STSElem elem1 = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pRuntimeEnv->pCtx[0].tag);
+        // failed to find data with the specified tag value and vnodeId
         if (elem1.vnode < 0) {
+          qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pRuntimeEnv->pCtx[0].tag.pz);
           return false;
+        } else {
+          STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
+          qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pRuntimeEnv->pCtx[0].tag.pz,
+                 cur.blockIndex, cur.tsIndex);
         }
       } else {
         tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
@@ -5045,6 +5052,10 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
         // if the buffer is full or group by each table, we need to jump out of the loop
         if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
           break;
+        }
+
+        if (pRuntimeEnv->pTSBuf != NULL) {
+          pRuntimeEnv->cur = pRuntimeEnv->pTSBuf->cur;
         }
 
       } else {
