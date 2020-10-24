@@ -3887,9 +3887,21 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
       }
 
       // keep the cursor info of current meter
-      pTableQueryInfo->cur = pRuntimeEnv->pTSBuf->cur;
+      pTableQueryInfo->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
+      if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
+        qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, pTableQueryInfo->cur->blockIndex, pTableQueryInfo->cur->tsIndex);
+      } else {
+        qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, pTableQueryInfo->cur->blockIndex, pTableQueryInfo->cur->tsIndex);
+      }
+
     } else {
       tsBufSetCursor(pRuntimeEnv->pTSBuf, &pTableQueryInfo->cur);
+
+      if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
+        qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, pTableQueryInfo->cur->blockIndex, pTableQueryInfo->cur->tsIndex);
+      } else {
+        qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, pTableQueryInfo->cur->blockIndex, pTableQueryInfo->cur->tsIndex);
+      }
     }
   }
 
