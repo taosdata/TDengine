@@ -1,6 +1,7 @@
 import threading
 import random
 import logging
+import os
 
 
 class CrashGenError(Exception):
@@ -26,7 +27,7 @@ class LoggingFilter(logging.Filter):
 
 class MyLoggingAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        return "[{}]{}".format(threading.get_ident() % 10000, msg), kwargs
+        return "[{}] {}".format(threading.get_ident() % 10000, msg), kwargs
         # return '[%s] %s' % (self.extra['connid'], msg), kwargs
 
 
@@ -71,11 +72,43 @@ class Logging:
     def warning(cls, msg):
         cls.logger.warning(msg)
 
+    @classmethod
+    def error(cls, msg):
+        cls.logger.error(msg)
+
 class Status:
     STATUS_STARTING = 1
     STATUS_RUNNING  = 2
     STATUS_STOPPING = 3
     STATUS_STOPPED  = 4
+
+    def __init__(self, status):
+        self.set(status)
+
+    def __repr__(self):
+        return "[Status: v={}]".format(self._status)
+
+    def set(self, status):
+        self._status = status
+
+    def get(self):
+        return self._status
+
+    def isStarting(self):
+        return self._status == Status.STATUS_STARTING
+
+    def isRunning(self):
+        # return self._thread and self._thread.is_alive()
+        return self._status == Status.STATUS_RUNNING
+
+    def isStopping(self):
+        return self._status == Status.STATUS_STOPPING
+
+    def isStopped(self):
+        return self._status == Status.STATUS_STOPPED
+
+    def isStable(self):
+        return self.isRunning() or self.isStopped()
 
 # Deterministic random number generator
 class Dice():
@@ -118,14 +151,23 @@ class Helper:
     def convertErrno(cls, errno):
         return errno if (errno > 0) else 0x80000000 + errno
 
+    @classmethod
+    def getFriendlyPath(cls, path): # returns .../xxx/yyy
+        ht1 = os.path.split(path)
+        ht2 = os.path.split(ht1[0])
+        return ".../" + ht2[1] + '/' + ht1[1]
+
+
 class Progress:
     STEP_BOUNDARY = 0
     BEGIN_THREAD_STEP = 1
     END_THREAD_STEP   = 2
+    SERVICE_HEART_BEAT= 3
     tokens = {
         STEP_BOUNDARY:      '.',
         BEGIN_THREAD_STEP:  '[',
-        END_THREAD_STEP:    '] '
+        END_THREAD_STEP:    '] ',
+        SERVICE_HEART_BEAT: '.Y.'
     }
 
     @classmethod

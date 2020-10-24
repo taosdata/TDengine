@@ -12,7 +12,9 @@ from util.cases import *
 from util.dnodes import *
 from util.log import *
 
-from .misc import Logging, CrashGenError, Helper
+from .misc import Logging, CrashGenError, Helper, Dice
+import os
+import datetime
 # from .service_manager import TdeInstance
 
 class DbConn:
@@ -44,6 +46,9 @@ class DbConn:
         self._lastSql = None
         self._dbTarget = dbTarget
 
+    def __repr__(self):
+        return "[DbConn: type={}, target={}]".format(self._type, self._dbTarget)
+
     def getLastSql(self):
         return self._lastSql
 
@@ -54,7 +59,7 @@ class DbConn:
         # below implemented by child classes
         self.openByType()
 
-        Logging.debug("[DB] data connection opened, type = {}".format(self._type))
+        Logging.debug("[DB] data connection opened: {}".format(self))
         self.isOpen = True
 
     def close(self):
@@ -277,15 +282,18 @@ class DbTarget:
         self.cfgPath  = cfgPath
         self.hostAddr = hostAddr
         self.port     = port
-
+    
     def __repr__(self):
         return "[DbTarget: cfgPath={}, host={}:{}]".format(
-            self.cfgPath, self.hostAddr, self.port)
+            Helper.getFriendlyPath(self.cfgPath), self.hostAddr, self.port)
+
+    def getEp(self):
+        return "{}:{}".format(self.hostAddr, self.port)
 
 class DbConnNative(DbConn):
     # Class variables
     _lock = threading.Lock()
-    _connInfoDisplayed = False
+    # _connInfoDisplayed = False # TODO: find another way to display this
     totalConnections = 0 # Not private
 
     def __init__(self, dbTarget):
@@ -304,9 +312,9 @@ class DbConnNative(DbConn):
         cls = self.__class__ # Get the class, to access class variables
         with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
             dbTarget = self._dbTarget
-            if not cls._connInfoDisplayed:
-                cls._connInfoDisplayed = True # updating CLASS variable
-                Logging.info("Initiating TAOS native connection to {}".format(dbTarget))                    
+            # if not cls._connInfoDisplayed:
+            #     cls._connInfoDisplayed = True # updating CLASS variable
+            Logging.debug("Initiating TAOS native connection to {}".format(dbTarget))                    
             # Make the connection         
             # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
             # self._cursor = self._conn.cursor()
@@ -424,3 +432,4 @@ class DbManager():
 
     def cleanUp(self):
         self._dbConn.close()
+

@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import Set
 from typing import Dict
 from typing import List
+from typing import Optional # Type hinting, ref: https://stackoverflow.com/questions/19202633/python-3-type-hinting-for-none
 
 import textwrap
 import time
@@ -62,9 +63,10 @@ gContainer: Container
 
 
 class WorkerThread:
-    def __init__(self, pool: ThreadPool, tid, tc: ThreadCoordinator,
-                 # te: TaskExecutor,
-                 ):  # note: main thread context!
+    def __init__(self, pool: ThreadPool, tid, tc: ThreadCoordinator):
+        """
+            Note: this runs in the main thread context
+        """                 
         # self._curStep = -1
         self._pool = pool
         self._tid = tid
@@ -1007,6 +1009,8 @@ class Database:
         possibly in a cluster environment.
 
         For now we use it to manage state transitions in that database
+
+        TODO: consider moving, but keep in mind it contains "StateMachine"
     '''
     _clsLock = threading.Lock() # class wide lock
     _lastInt = 101  # next one is initial integer
@@ -1182,7 +1186,7 @@ class Task():
 
     def __init__(self, execStats: ExecutionStats, db: Database):
         self._workerThread = None
-        self._err = None # type: Exception
+        self._err: Optional[Exception] = None
         self._aborted = False
         self._curStep = None
         self._numRows = None  # Number of rows affected
@@ -1318,10 +1322,11 @@ class Task():
             self._aborted = True
             traceback.print_exc()
         except BaseException: # TODO: what is this again??!!
-            self.logDebug(
-                "[=] Unexpected exception, SQL: {}".format(
-                    wt.getDbConn().getLastSql()))
-            raise
+            raise RuntimeError("Punt")
+            # self.logDebug(
+            #     "[=] Unexpected exception, SQL: {}".format(
+            #         wt.getDbConn().getLastSql()))
+            # raise
         self._execStats.endTaskType(self.__class__.__name__, self.isSuccess())
 
         self.logDebug("[X] task execution completed, {}, status: {}".format(
@@ -1498,7 +1503,8 @@ class TaskCreateDb(StateTransitionTask):
         # was: self.execWtSql(wt, "create database db")
         repStr = ""
         if gConfig.max_replicas != 1:
-            numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
+            # numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
+            numReplica = gConfig.max_replicas # fixed, always
             repStr = "replica {}".format(numReplica)
         self.execWtSql(wt, "create database {} {}"
             .format(self._db.getName(), repStr) )
@@ -2050,7 +2056,7 @@ class ClientManager:
 class MainExec:
     def __init__(self):        
         self._clientMgr = None
-        self._svcMgr = None
+        self._svcMgr = None # type: ServiceManager
 
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT,  self.sigIntHandler)
@@ -2063,17 +2069,16 @@ class MainExec:
             self._svcMgr.sigUsrHandler(signalNumber, frame)
         
     def sigIntHandler(self, signalNumber, frame):
-        if self._svcMgr:
+        if  self._svcMgr:
             self._svcMgr.sigIntHandler(signalNumber, frame)
-        if self._clientMgr:
+        if  self._clientMgr:
             self._clientMgr.sigIntHandler(signalNumber, frame)
 
     def runClient(self):
         global gSvcMgr
         if gConfig.auto_start_service:
-            self._svcMgr = ServiceManager()
-            gSvcMgr = self._svcMgr # hack alert
-            self._svcMgr.startTaosService() # we start, don't run
+            gSvcMgr = self._svcMgr = ServiceManager() # hack alert
+            gSvcMgr.startTaosService() # we start, don't run
         
         self._clientMgr = ClientManager()
         ret = None
@@ -2086,12 +2091,10 @@ class MainExec:
 
     def runService(self):
         global gSvcMgr
-        self._svcMgr = ServiceManager()
-        gSvcMgr = self._svcMgr # save it in a global variable TODO: hack alert
+        gSvcMgr = self._svcMgr = ServiceManager(gConfig.num_dnodes) # save it in a global variable TODO: hack alert
 
-        self._svcMgr.run() # run to some end state
-        self._svcMgr = None 
-        gSvcMgr = None        
+        gSvcMgr.run() # run to some end state
+        gSvcMgr = self._svcMgr = None 
 
     def init(self): # TODO: refactor
         global gContainer
@@ -2166,6 +2169,13 @@ class MainExec:
             action='store_true',
             help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')        
         parser.add_argument(
+            '-o',
+            '--num-dnodes',
+            action='store',
+            default=1,
+            type=int,
+            help='Number of Dnodes to initialize, used with -e option. (default: 1)')
+        parser.add_argument(
             '-p',
             '--per-thread-db-connection',
             action='store_true',
@@ -2209,7 +2219,12 @@ class MainExec:
 
     def run(self):
         if gConfig.run_tdengine:  # run server
-            self.runService()
+            try:
+                self.runService()
+                return 0 # success
+            except ConnectionError as err:
+                Logging.error("Failed to make DB connection, please check DB instance manually")
+            return -1 # failure
         else:
             return self.runClient()
 
