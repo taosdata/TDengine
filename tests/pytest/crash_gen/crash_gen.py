@@ -2023,7 +2023,7 @@ class ClientManager:
         # print("exec stats: {}".format(self.tc.getExecStats()))
         # print("TC failed = {}".format(self.tc.isFailed()))
         if svcMgr: # gConfig.auto_start_service:
-            svcMgr.stopTaosService()
+            svcMgr.stopTaosServices()
             svcMgr = None
         # Print exec status, etc., AFTER showing messages from the server
         self.conclude()
@@ -2077,8 +2077,8 @@ class MainExec:
     def runClient(self):
         global gSvcMgr
         if gConfig.auto_start_service:
-            gSvcMgr = self._svcMgr = ServiceManager() # hack alert
-            gSvcMgr.startTaosService() # we start, don't run
+            gSvcMgr = self._svcMgr = ServiceManager(1) # hack alert
+            gSvcMgr.startTaosServices() # we start, don't run
         
         self._clientMgr = ClientManager()
         ret = None

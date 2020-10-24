@@ -295,7 +295,7 @@ class TdeSubProcess:
 class ServiceManager:
     PAUSE_BETWEEN_IPC_CHECK = 1.2  # seconds between checks on STDOUT of sub process
 
-    def __init__(self, numDnodes = 1): # Otherwise we run a cluster
+    def __init__(self, numDnodes): # >1 when we run a cluster
         Logging.info("TDengine Service Manager (TSM) created")
         self._numDnodes = numDnodes # >1 means we have a cluster
         self._lock = threading.Lock()
@@ -306,7 +306,7 @@ class ServiceManager:
         self.inSigHandler = False
         # self._status = MainExec.STATUS_RUNNING # set inside
         # _startTaosService()
-        self._runCluster = (numDnodes >= 1)
+        self._runCluster = (numDnodes > 1)
         self._tInsts : List[TdeInstance] = []
         for i in range(0, numDnodes):
             ti = self._createTdeInstance(i) # construct tInst
@@ -318,10 +318,10 @@ class ServiceManager:
         #     self.svcMgrThreads.append(thread)
 
     def _createTdeInstance(self, dnIndex):
-        # if not self._runCluster: # single instance 
-        #     return ServiceManagerThread(0)
-        # Create all threads in a cluster
-        subdir = 'cluster_dnode_{}'.format(dnIndex)
+        if not self._runCluster: # single instance 
+            subdir = 'test'
+        else:        # Create all threads in a cluster
+            subdir = 'cluster_dnode_{}'.format(dnIndex)
         fepPort= 6030 # firstEP Port
         port   = fepPort + dnIndex * 100
         return TdeInstance(subdir, dnIndex, port, fepPort)
@@ -411,7 +411,7 @@ class ServiceManager:
         threads are in "stable" status.
         """
         for ti in self._tInsts:
-            if not ti.isStable():
+            if not ti.getStatus().isStable():
                 return False
         return True
 
@@ -473,7 +473,7 @@ class ServiceManager:
             self.stopTaosServices()  # should have started already
 
     def restart(self):
-        if not self.getStatus().isStable():
+        if not self.isStable():
             Logging.warning("Cannot restart service/cluster, when not stable")
             return
 
@@ -483,7 +483,7 @@ class ServiceManager:
         else:
             Logging.warning("Service not active when restart requested")
 
-        self.startTaosService()
+        self.startTaosServices()
         # self._isRestarting = False
 
     # def isRunning(self):
