@@ -1410,7 +1410,9 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
     item->lastKey = (QUERY_IS_ASC_QUERY(pQuery)? pDataBlockInfo->window.ekey:pDataBlockInfo->window.skey) + step;
   }
 
-  item->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
+  if (pRuntimeEnv->pTSBuf != NULL) {
+    item->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
+  }
 
   // todo refactor: extract method
   for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
