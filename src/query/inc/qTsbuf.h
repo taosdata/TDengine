@@ -35,16 +35,9 @@ typedef struct STSList {
   int32_t len;
 } STSList;
 
-typedef struct STSRawBlock {
-  int32_t vnode;
-  int64_t tag;
-  TSKEY*  ts;
-  int32_t len;
-} STSRawBlock;
-
 typedef struct STSElem {
   TSKEY     ts;
-  tVariant  tag;
+  tVariant* tag;
   int32_t   vnode;
 } STSElem;
 
@@ -84,6 +77,7 @@ typedef struct STSBuf {
   char     path[PATH_MAX];
   uint32_t fileSize;
 
+  // todo use array
   STSVnodeBlockInfoEx* pData;
   uint32_t             numOfAlloc;
   uint32_t             numOfVnodes;
@@ -121,6 +115,7 @@ void tsBufFlush(STSBuf* pTSBuf);
 
 void    tsBufResetPos(STSBuf* pTSBuf);
 STSElem tsBufGetElem(STSBuf* pTSBuf);
+
 bool    tsBufNextPos(STSBuf* pTSBuf);
 
 STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag);

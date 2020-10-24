@@ -1201,7 +1201,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
 
   // compare tag first
-  if (tVariantCompare(&pCtx[0].tag, &elem.tag) != 0) {
+  if (tVariantCompare(&pCtx[0].tag, elem.tag) != 0) {
     return TS_JOIN_TAG_NOT_EQUALS;
   }
 
@@ -3888,7 +3888,6 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
           qError("QInfo:%p failed to find tag:%" PRId64 " in ts_comp", pQInfo, pTag->i64Key);
         }
 
-        tVariantDestroy(&elem.tag);
         return false;
       }
 
@@ -4815,7 +4814,6 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
         }
 
-        tVariantDestroy(&elem.tag);
         return false;
       } else {
         STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
@@ -4830,7 +4828,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
       }
     } else {
       STSElem elem = tsBufGetElem(pRuntimeEnv->pTSBuf);
-      if (tVariantCompare(&elem.tag, &pRuntimeEnv->pCtx[0].tag) != 0) {
+      if (tVariantCompare(elem.tag, &pRuntimeEnv->pCtx[0].tag) != 0) {
 
         STSElem elem1 = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, pTag);
         // failed to find data with the specified tag value and vnodeId
@@ -4840,9 +4838,6 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           } else {
             qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
           }
-
-          tVariantDestroy(&elem.tag);
-          tVariantDestroy(&elem1.tag);
 
           return false;
         } else {
@@ -4854,7 +4849,6 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           }
         }
 
-        tVariantDestroy(&elem1.tag);
       } else {
         tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
         STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
@@ -4864,8 +4858,6 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           qDebug("QInfo:%p continue scan ts_comp file, tag:%"PRId64" blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
         }
       }
-
-      tVariantDestroy(&elem.tag);
     }
   }
 

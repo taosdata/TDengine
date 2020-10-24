@@ -96,7 +96,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
     tscInfo("%" PRId64 ", tags:%"PRId64" \t %" PRId64 ", tags:%"PRId64, elem1.ts, elem1.tag.i64Key, elem2.ts, elem2.tag.i64Key);
 #endif
 
-    int32_t res = tVariantCompare(&elem1.tag, &elem2.tag);
+    int32_t res = tVariantCompare(elem1.tag, elem2.tag);
     if (res == -1 || (res == 0 && tsCompare(order, elem1.ts, elem2.ts))) {
       if (!tsBufNextPos(pSupporter1->pTSBuf)) {
         break;
@@ -123,11 +123,9 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
           win->ekey = elem1.ts;
         }
         
-        tsBufAppend(output1, elem1.vnode, &elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
-        tsBufAppend(output2, elem2.vnode, &elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
+        tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
+        tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
 
-        tVariantDestroy(&elem1.tag);
-        tVariantDestroy(&elem2.tag);
       } else {
         pLimit->offset -= 1;
       }

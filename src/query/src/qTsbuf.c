@@ -702,7 +702,7 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
   
   elem1.vnode = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
   elem1.ts = *(TSKEY*)(pTSBuf->tsData.rawBuf + pCur->tsIndex * TSDB_KEYSIZE);
-  tVariantAssign(&elem1.tag, &pBlock->tag);
+  elem1.tag = &pBlock->tag;
 
   return elem1;
 }
@@ -913,8 +913,8 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    if (elem.tag.nType == TSDB_DATA_TYPE_BIGINT) {
-      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag.i64Key, elem.ts);
+    if (elem.tag->nType == TSDB_DATA_TYPE_BIGINT) {
+      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag->i64Key, elem.ts);
     }
   }
   
