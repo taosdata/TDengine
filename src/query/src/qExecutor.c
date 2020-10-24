@@ -2631,11 +2631,11 @@ void setTagVal(SQueryRuntimeEnv *pRuntimeEnv, void *pTable, void *tsdb) {
       doSetTagValueInParam(tsdb, pTable, tagColId, &pRuntimeEnv->pCtx[0].tag, pColInfo->type, pColInfo->bytes);
 
     if (pRuntimeEnv->pCtx[0].tag.nType == TSDB_DATA_TYPE_BINARY || pRuntimeEnv->pCtx[0].tag.nType == TSDB_DATA_TYPE_NCHAR) {}
-      qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%"PRId64, pQInfo, pExprInfo->base.arg->argValue.i64,
-          pRuntimeEnv->pCtx[0].tag.i64Key);
-    } else {
       qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%s", pQInfo, pExprInfo->base.arg->argValue.i64,
              pRuntimeEnv->pCtx[0].tag.pz);
+    } else {
+      qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%"PRId64, pQInfo, pExprInfo->base.arg->argValue.i64,
+          pRuntimeEnv->pCtx[0].tag.i64Key);
     }
   }
 }
@@ -3871,58 +3871,25 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
   if (pRuntimeEnv->pTSBuf != NULL) {
     tVariant* pTag = &pRuntimeEnv->pCtx[0].tag;
 
-    if (pRuntimeEnv->cur.vgroupIndex == -1) {
-      STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, pTag);
+    if (pTableQueryInfo->cur.vgroupIndex == -1) {
+      tVariantAssign(&pTableQueryInfo->tag, pTag);
+      STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pTableQueryInfo->tag);
+
       // failed to find data with the specified tag value and vnodeId
       if (elem.vnode < 0) {
         if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
           qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
         } else {
-          qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
+          qError("QInfo:%p failed to find tag:%" PRId64 " in ts_comp", pQInfo, pTag->i64Key);
         }
 
         return false;
-      } else {
-        STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
-
-        if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-          qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz,
-                 cur.blockIndex, cur.tsIndex);
-        } else {
-          qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key,
-                 cur.blockIndex, cur.tsIndex);
-        }
       }
+
+      // keep the cursor info of current meter
+      pTableQueryInfo->cur = pRuntimeEnv->pTSBuf->cur;
     } else {
-      STSElem elem = tsBufGetElem(pRuntimeEnv->pTSBuf);
-      if (tVariantCompare(&elem.tag, &pRuntimeEnv->pCtx[0].tag) != 0) {
-
-        STSElem elem1 = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, pTag);
-        // failed to find data with the specified tag value and vnodeId
-        if (elem1.vnode < 0) {
-          if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-            qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
-          } else {
-            qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
-          }
-          return false;
-        } else {
-          STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
-          if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-            qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, cur.blockIndex, cur.tsIndex);
-          } else {
-            qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
-          }
-        }
-      } else {
-        tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
-        STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
-        if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-          qDebug("QInfo:%p continue scan ts_comp file, tag:%s blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, cur.blockIndex, cur.tsIndex);
-        } else {
-          qDebug("QInfo:%p continue scan ts_comp file, tag:%"PRId64" blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
-        }
-      }
+      tsBufSetCursor(pRuntimeEnv->pTSBuf, &pTableQueryInfo->cur);
     }
   }
 
@@ -4830,6 +4797,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
         }
 
+        tVariantDestroy(&elem.tag);
         return false;
       } else {
         STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
@@ -4854,6 +4822,10 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           } else {
             qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
           }
+
+          tVariantDestroy(&elem.tag);
+          tVariantDestroy(&elem1.tag);
+
           return false;
         } else {
           STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
@@ -4863,6 +4835,8 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
             qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
           }
         }
+
+        tVariantDestroy(&elem1.tag);
       } else {
         tsBufSetCursor(pRuntimeEnv->pTSBuf, &pRuntimeEnv->cur);
         STSCursor cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
@@ -4872,6 +4846,8 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           qDebug("QInfo:%p continue scan ts_comp file, tag:%"PRId64" blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
         }
       }
+
+      tVariantDestroy(&elem.tag);
     }
   }
 
