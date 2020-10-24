@@ -10,6 +10,7 @@ data_dir="/var/lib/taos"
 log_dir="/var/log/taos"
 data_link_dir="/usr/local/taos/data"
 log_link_dir="/usr/local/taos/log"
+install_main_dir="/usr/local/taos"
 
 # static directory
 cfg_dir="/usr/local/taos/cfg"
