@@ -194,6 +194,8 @@ static void buildTagQueryResult(SQInfo *pQInfo);
 
 static int32_t setAdditionalInfo(SQInfo *pQInfo, void *pTable, STableQueryInfo *pTableQueryInfo);
 static int32_t flushFromResultBuf(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo);
+static int32_t checkForQueryBuf(int32_t numOfTables);
+static void releaseQueryBuf(int32_t numOfTables);
 
 bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
@@ -6492,6 +6494,8 @@ static void freeQInfo(SQInfo *pQInfo) {
 
   qDebug("QInfo:%p start to free QInfo", pQInfo);
 
+  releaseQueryBuf(pQInfo->tableqinfoGroupInfo.numOfTables);
+
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -6724,6 +6728,11 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     qDebug("qmsg:%p tag filter completed, numOfTables:%" PRIzu ", elapsed time:%"PRId64"us", pQueryMsg, tableGroupInfo.numOfTables, el);
   } else {
     assert(0);
+  }
+
+  code = checkForQueryBuf(tableGroupInfo.numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {  // not enough query buffer, abort
+    goto _over;
   }
 
   (*pQInfo) = createQInfoImpl(pQueryMsg, pGroupbyExpr, pExprs, &tableGroupInfo, pTagColumnInfo, isSTableQuery);
@@ -7125,6 +7134,48 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
 
   pQuery->rec.rows = count;
   setQueryStatus(pQuery, QUERY_COMPLETED);
+}
+
+static int64_t getQuerySupportBufSize(int32_t numOfTables) {
+  size_t s1 = sizeof(STableQueryInfo);
+  size_t s2 = sizeof(SHashNode);
+
+//  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
+  return (s1 + s2) * 1.5 * numOfTables;
+}
+
+int32_t checkForQueryBuf(int32_t numOfTables) {
+  int64_t t = getQuerySupportBufSize(numOfTables);
+  if (tsQueryBufferSize < 0) {
+    return true;
+  } else if (tsQueryBufferSize > 0) {
+
+    while(1) {
+      int64_t s = tsQueryBufferSize;
+      int64_t remain = s - t;
+      if (remain >= 0) {
+        if (atomic_val_compare_exchange_64(&tsQueryBufferSize, s, remain) == s) {
+          return TSDB_CODE_SUCCESS;
+        }
+      } else {
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      }
+    }
+  }
+
+  // disable query processing if the value of tsQueryBufferSize is zero.
+  return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+}
+
+void releaseQueryBuf(int32_t numOfTables) {
+  if (tsQueryBufferSize <= 0) {
+    return;
+  }
+
+  int64_t t = getQuerySupportBufSize(numOfTables);
+
+  // restore value is not enough buffer available
+  atomic_add_fetch_64(&tsQueryBufferSize, t);
 }
 
 void* qGetResultRetrieveMsg(qinfo_t qinfo) {
