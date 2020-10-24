@@ -400,11 +400,11 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pDa
   if ((tVariantCompare(&pTSBuf->block.tag, tag) != 0) && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
     writeDataToDisk(pTSBuf);
+    tVariantAssign(&pTSBuf->block.tag, tag);
   } else {
     expandBuffer(ptsData, len);
   }
   
-  tVariantAssign(&pTSBuf->block.tag, tag);
   memcpy(ptsData->rawBuf + ptsData->len, pData, (size_t)len);
   
   // todo check return value
@@ -662,7 +662,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
           return false;
         }
         
-        int32_t blockIndex = pCur->order == TSDB_ORDER_ASC ? 0 : pBlockInfo->numOfBlocks - 1;
+        int32_t blockIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : (pBlockInfo->numOfBlocks - 1);
         tsBufGetBlock(pTSBuf, pCur->vgroupIndex + step, blockIndex);
         break;
         
@@ -688,8 +688,7 @@ void tsBufResetPos(STSBuf* pTSBuf) {
 }
 
 STSElem tsBufGetElem(STSBuf* pTSBuf) {
-  STSElem    elem1 = {.vnode = -1};
-  
+  STSElem elem1 = {.vnode = -1};
   if (pTSBuf == NULL) {
     return elem1;
   }
