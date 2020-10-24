@@ -698,7 +698,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     pg *= 2;
   }
 
-  size_t numOfSubs = pTableMetaInfo->vgroupList->numOfVgroups;
+  size_t numOfSubs = pSql->subState.numOfSub;
+  assert(numOfSubs <= pTableMetaInfo->vgroupList->numOfVgroups);
   for (int32_t i = 0; i < numOfSubs; ++i) {
     (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pg, pModel);
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;

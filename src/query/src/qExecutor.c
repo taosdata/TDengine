@@ -3877,6 +3877,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
 
     if (pTableQueryInfo->cur.vgroupIndex == -1) {
       tVariantAssign(&pTableQueryInfo->tag, pTag);
+
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pTableQueryInfo->tag);
 
       // failed to find data with the specified tag value and vnodeId
@@ -3887,6 +3888,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
           qError("QInfo:%p failed to find tag:%" PRId64 " in ts_comp", pQInfo, pTag->i64Key);
         }
 
+        tVariantDestroy(&elem.tag);
         return false;
       }
 
