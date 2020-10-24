@@ -203,7 +203,7 @@ static int32_t dnodeInitStorage() {
     for (int j = 0; j < pTier->nDisks; j++) {
       SDisk *pDisk = tdGetDisk(tsDnodeTier, i, j);
 
-      tdGetVnodeRootDir(dirName, pDisk->dir);
+      tdGetVnodeRootDir(pDisk->dir, dirName);
       if (dnodeCreateDir(dirName) < 0) {
         dError("failed to create vnode dir: %s, reason: %s", dirName, strerror(errno));
         return -1;
