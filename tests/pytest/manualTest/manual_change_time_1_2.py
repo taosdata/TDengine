@@ -19,8 +19,7 @@ from util.dnodes import tdDnodes
 from datetime import datetime
 import subprocess
 
-##TODO: auto test version is currently unsupported, need to come up with 
-#       an auto test version in the future
+##TODO: this is now automatic, but not sure if this will run through jenkins
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -41,7 +40,24 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
+    def getTDenginePath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+        print(projPath)
+        for root, dirs, files in os.walk(projPath):
+            if ("sim" in dirs):
+                print(root)
+                rootRealPath = os.path.realpath(root)
+                # if ("packaging" not in rootRealPath):
+                #     buildPath = root[:len(root)-len("/build/bin")]
+                    # break
+        return rootRealPath
+
     def run(self):
         tdSql.prepare()
         buildPath = self.getBuildPath()
@@ -50,6 +66,12 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"  
+        TDenginePath = self.getTDenginePath()
+        print('TD '+ TDenginePath)
+        if (TDenginePath == ""):
+            tdLog.exit("TDengine not found!")
+        else:
+            tdLog.info("TDengine found in %s" % TDenginePath) 
 
         ## change system time to 2020/10/20
         os.system ('timedatectl set-ntp off')
@@ -59,28 +81,37 @@ class TDTestCase:
         #11 data files should be generated
         #vnode at TDinternal/community/sim/dnode1/data/vnode
         os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
-        input("please the data file. After checking, press enter")
+        commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
+        result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        print(result.count('data'))
+        if result.count('data') != 11:
+            tdLog.exit('wrong number of files')
+        else:
+            tdLog.info("data file number correct")
 
-        tdSql.query('select first(ts) from stb_0')
+        tdSql.query('select first(ts) from stb_0') #check the last data in the database
         tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
-        tdSql.query('select last(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,20,23,59,59,0))
 
         os.system ('timedatectl set-time 2020-10-25')
 
-        #run taosdemo to insert data. one row per second from 2020/10/16 to 2020/10/20
+        #moves 5 days ahead to 2020/10/25 and restart taosd
         #4 oldest data file should be removed from tsdb/data
-        #vnode at TDinternal/community/sim/dnode1/data/vnode
         #7 data file should be found 
-        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json" % binPath) 
-        input("please the data file. After checking, press enter")
-
+        #vnode at TDinternal/community/sim/dnode1/data/vnode
+        os.system ('timedatectl set-time 2020-10-25')
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
         tdSql.query('select first(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0))
-        
-        ##test results
-        #2021/06/05 first check: 11 data files    second check: 7 data files
-        #           confirm with the assumption       Baosheng Chang
+        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
+        commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
+        result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        print(result.count('data'))
+        if result.count('data') != 7:
+            tdLog.exit('wrong number of files')
+        else:
+            tdLog.info("data file number correct")
+
+
 
     def stop(self):
         tdSql.close()
