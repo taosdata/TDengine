@@ -400,11 +400,11 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pDa
   if ((tVariantCompare(&pTSBuf->block.tag, tag) != 0) && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
     writeDataToDisk(pTSBuf);
-    tVariantAssign(&pTSBuf->block.tag, tag);
   } else {
     expandBuffer(ptsData, len);
   }
-  
+
+  tVariantAssign(&pTSBuf->block.tag, tag);
   memcpy(ptsData->rawBuf + ptsData->len, pData, (size_t)len);
   
   // todo check return value
