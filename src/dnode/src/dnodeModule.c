@@ -97,7 +97,7 @@ void dnodeCleanupModules() {
     }
   }
 
-  if (tsModule[TSDB_MOD_MNODE].enable && tsModule[TSDB_MOD_MNODE].cleanUpFp) {
+  if (tsModule[TSDB_MOD_MNODE].cleanUpFp) {
     (*tsModule[TSDB_MOD_MNODE].cleanUpFp)();
   }
 }
