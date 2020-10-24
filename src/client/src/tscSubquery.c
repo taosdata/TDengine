@@ -979,27 +979,12 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   tscBuildResFromSubqueries(pParentSql);
 }
 
-static SJoinSupporter* tscUpdateSubqueryStatus(SSqlObj* pSql, int32_t numOfFetch) {
-  int32_t notInvolved = 0;
-  SSubqueryState* pState = &pSql->subState;
-  
-  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    if (pSql->pSubs[i] == NULL) {
-      notInvolved++;
-//    } else {
-//      (SJoinSupporter*)pSql->pSubs[i]->param;
-    }
-  }
-  
-  pState->numOfRemain = numOfFetch;
-  return NULL;
-}
-
 void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   assert(pSql->subState.numOfSub >= 1);
   
   int32_t numOfFetch = 0;
-  bool hasData = true;
+  bool    hasData = true;
+  bool    reachLimit = false;
 
   // if the subquery is NULL, it does not involved in the final result generation
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
@@ -1025,7 +1010,8 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
       }
     } else {  // has reach the limitation, no data anymore
       if (pRes->row >= pRes->numOfRows) {
-        hasData = false;
+        reachLimit = true;
+        hasData    = false;
         break;
       }
     }
@@ -1039,7 +1025,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
 
   // If at least one subquery is completed in current vnode, try the next vnode in case of multi-vnode
   // super table projection query.
-  if (numOfFetch <= 0) {
+  if (numOfFetch <= 0 && !reachLimit) {
     bool tryNextVnode = false;
 
     SSqlObj* pp = pSql->pSubs[0];
@@ -1109,8 +1095,8 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   // retrieve data from current vnode.
   tscDebug("%p retrieve data from %d subqueries", pSql, numOfFetch);
   SJoinSupporter* pSupporter = NULL;
-  tscUpdateSubqueryStatus(pSql, numOfFetch);
-  
+  pSql->subState.numOfRemain = numOfFetch;
+
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SSqlObj* pSql1 = pSql->pSubs[i];
     if (pSql1 == NULL) {
@@ -1522,7 +1508,13 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;
 
-  pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
+  pState->numOfSub = 0;
+  if (pTableMetaInfo->pVgroupTables == NULL) {
+    pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
+  } else {
+    pState->numOfSub = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+  }
+
   assert(pState->numOfSub > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);

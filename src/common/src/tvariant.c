@@ -145,8 +145,9 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
   
   pDst->nType = pSrc->nType;
-
-  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (pSrc->nType >= TSDB_DATA_TYPE_BOOL && pSrc->nType <= TSDB_DATA_TYPE_DOUBLE) {
+    pDst->i64Key = pSrc->i64Key;
+  } else if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char* p = realloc(pDst->pz, len);
     assert(p);
@@ -156,11 +157,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
 
     memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
     pDst->nLen = pSrc->nLen;
-    return;
-  }
-
-  // this is only for string array
-  if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {
+  } else if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
     pDst->arr = taosArrayInit(num, sizeof(char*));
     for(size_t i = 0; i < num; i++) {
@@ -168,8 +165,6 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
-
-    return;
   }
 
   pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
