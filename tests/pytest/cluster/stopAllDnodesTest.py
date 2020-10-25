@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from clustertest import *
+from clusterSetup import *
 from util.sql import tdSql
 from util.log import tdLog
 import random

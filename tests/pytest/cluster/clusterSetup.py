@@ -200,25 +200,3 @@ class ClusterTest:
 
         for i in range(self.numberOfThreads):
             threads[i].join()
-    
-
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
