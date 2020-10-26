@@ -74,7 +74,7 @@ TSDB_CONV_CODE tsdb_iconv_conv(iconv_t cnv, const unsigned char *src, size_t *sl
   size_t sl = *slen;
   size_t dl = *dlen;
 
-  int n = iconv(cnv, &s, &sl, &d, &dl);
+  size_t n = iconv(cnv, &s, &sl, &d, &dl);
   int e = errno;
   if (dl) *d = '\0';  // what if all consumed?
 

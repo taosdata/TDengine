@@ -72,9 +72,9 @@ static int open_connect(const char *dsn, const char *uid, const char *pwd, SQLHE
     CHK_RESULT(r, SQL_HANDLE_ENV, env, "");
     if (r!=SQL_SUCCESS) break;
     do {
-      r = SQLConnect(conn, (SQLCHAR*)dsn, strlen(dsn),
-                           (SQLCHAR*)uid, strlen(uid),
-                           (SQLCHAR*)pwd, strlen(pwd));
+      r = SQLConnect(conn, (SQLCHAR*)dsn, (SQLSMALLINT)strlen(dsn),
+                           (SQLCHAR*)uid, (SQLSMALLINT)strlen(uid),
+                           (SQLCHAR*)pwd, (SQLSMALLINT)strlen(pwd));
       CHK_RESULT(r, SQL_HANDLE_DBC, conn, "");
       if (r==SQL_SUCCESS) {
         *pEnv  = env;
@@ -105,7 +105,7 @@ static int open_driver_connect(const char *connstr, SQLHENV *pEnv, SQLHDBC *pCon
       SQLHDBC         ConnectionHandle      = conn;
       SQLHWND         WindowHandle          = NULL;
       SQLCHAR *       InConnectionString    = (SQLCHAR*)connstr;
-      SQLSMALLINT     StringLength1         = strlen(connstr);
+      SQLSMALLINT     StringLength1         = (SQLSMALLINT)strlen(connstr);
       SQLCHAR *       OutConnectionString   = buf;
       SQLSMALLINT     BufferLength          = sizeof(buf);
       SQLSMALLINT *   StringLength2Ptr      = &blen;
@@ -144,7 +144,7 @@ static int do_statement(SQLHSTMT stmt, const char *statement) {
       CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "");
       for (size_t i=0; i<cols; ++i) {
         SQLLEN soi = 0;
-        r = SQLGetData(stmt, i+1, SQL_C_CHAR, buf, sizeof(buf), &soi);
+        r = SQLGetData(stmt, (SQLUSMALLINT)(i+1), SQL_C_CHAR, buf, sizeof(buf), &soi);
         CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "");
         if (r) {
           if (r!=SQL_SUCCESS_WITH_INFO) {
@@ -185,10 +185,10 @@ static int do_insert(SQLHSTMT stmt, data_t data) {
   SQLLEN    lblob;
 
   const char *statement = "insert into t values (?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
-  int ignored = 0;
+  #define ignored 0
 
   do {
-    r = SQLPrepare(stmt, (SQLCHAR*)statement, strlen(statement));
+    r = SQLPrepare(stmt, (SQLCHAR*)statement, (SQLINTEGER)strlen(statement));
     CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "statement: %s", statement);
     if (r) break;
 
@@ -243,28 +243,30 @@ static int do_insert(SQLHSTMT stmt, data_t data) {
     // r = SQLExecute(stmt);
     // if (r) break;
   } while (0);
+
+  #undef ignored
   return r;
 }
 
 static int test1(const char *dsn, const char *uid, const char *pwd) {
-  SQLRETURN r = SQL_SUCCESS;
   SQLHENV env = {0};
   SQLHDBC conn = {0};
   int n = open_connect(dsn, uid, pwd, &env, &conn);
   if (n) return 1;
 
+  int ok = 0;
   do {
+    SQLRETURN r = SQL_SUCCESS;
     SQLHSTMT stmt = {0};
     r = SQLAllocHandle(SQL_HANDLE_STMT, conn, &stmt);
     if (r!=SQL_SUCCESS) break;
     do {
       if (do_statement(stmt, "drop database if exists db")) {
-        r = SQL_ERROR;
         break;
       }
       for (size_t i=0; i<sizeof(pre_stmts)/sizeof(pre_stmts[0]); ++i) {
-        r = do_statement(stmt, pre_stmts[i]);
-        if (r!=SQL_SUCCESS) break;
+        n = do_statement(stmt, pre_stmts[i]);
+        if (n) break;
       }
       do {
         data_t       data = {0};
@@ -274,7 +276,7 @@ static int test1(const char *dsn, const char *uid, const char *pwd) {
         data.v2      = 32767;
         data.v4      = 2147483647;
         data.v8      = 9223372036854775807;
-        data.f4      = 123.456;
+        data.f4      = 123.456f;
         data.f8      = 9999999.999999;
         memset(data.bin, 0, sizeof(data.bin));
         memset(data.blob, 0, sizeof(data.blob));
@@ -285,8 +287,8 @@ static int test1(const char *dsn, const char *uid, const char *pwd) {
         r = SQLAllocHandle(SQL_HANDLE_STMT, conn, &stmt);
         if (r!=SQL_SUCCESS) break;
         do {
-          r = do_insert(stmt, data);
-          if (r!=SQL_SUCCESS) break;
+          n = do_insert(stmt, data);
+          if (n) break;
         } while (0);
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
 
@@ -297,12 +299,15 @@ static int test1(const char *dsn, const char *uid, const char *pwd) {
         //   if (r!=SQL_SUCCESS) break;
         // } while (0);
         // SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+        ok = 1;
       } while (0);
-      if (r!=SQL_SUCCESS) break;
+      if (!ok) break;
+      ok = 0;
       for (size_t i=0; i<sizeof(pro_stmts)/sizeof(pro_stmts[0]); ++i) {
-        r = do_statement(stmt, pro_stmts[i]);
-        if (r!=SQL_SUCCESS) break;
+        n = do_statement(stmt, pro_stmts[i]);
+        if (n) break;
       }
+      ok = 1;
     } while (0);
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
   } while (0);
@@ -310,7 +315,7 @@ static int test1(const char *dsn, const char *uid, const char *pwd) {
   SQLFreeConnect(conn);
   SQLFreeEnv(env);
 
-  return r ? 1 : 0;
+  return ok ? 0 : 1;
 }
 
 int test_statements(const char *dsn, const char *uid, const char *pwd, const char **statements) {
@@ -493,7 +498,7 @@ int main(int argc, char *argv[]) {
   const char *connstr = (argc>4) ? argv[4] : NULL;
   const char *sqls = (argc>5) ? argv[5] : NULL;
 
-  if (0) {
+  if (1) {
     CHK_TEST(test_env());
 
     CHK_TEST(test1(dsn, uid, pwd));

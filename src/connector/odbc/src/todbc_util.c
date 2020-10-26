@@ -125,7 +125,7 @@ int string_conv(const char *fromcode, const char *tocode,
   iconv_t conv = iconv_open(tocode, fromcode);
   if (!conv) return -1;
 
-  int r = 0;
+  size_t r = 0;
   do {
     char *s = (char*)src;
     char *d = (char*)dst;
@@ -141,7 +141,7 @@ int string_conv(const char *fromcode, const char *tocode,
   } while (0);
 
   iconv_close(conv);
-  return r;
+  return (int)r;
 }
 
 int utf8_chars(const char *src)
@@ -161,7 +161,7 @@ int utf8_chars(const char *src)
 
   size_t chars = (sizeof(buf) - dlen) / 2;
   iconv_close(conv);
-  return chars;
+  return (int)chars;
 }
 
 unsigned char* utf8_to_ucs4le(const char *utf8, size_t *chars)
@@ -240,7 +240,7 @@ size_t wchars_to_chars2(const SQLWCHAR *src, size_t slen, SQLCHAR *dst, size_t d
 {
   size_t consumed=0, generated=0;
   int n = string_conv("UCS-2LE", "UTF-8", (const unsigned char*)src, slen, dst, dlen, &consumed, &generated);
-  if (n) return -1;
+  if (n) return (size_t)-1;
   return generated;
 }
 
@@ -248,7 +248,7 @@ size_t chars_to_wchars2(const SQLCHAR *src, size_t slen, SQLWCHAR *dst, size_t d
 {
   size_t consumed=0, generated=0;
   int n = string_conv("UTF-8", "UCS-2LE", (const unsigned char*)src, slen, (unsigned char*)dst, dlen, &consumed, &generated);
-  if (n) return -1;
+  if (n) return (size_t)-1;
   return generated;
 }
 
