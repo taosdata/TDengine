@@ -308,12 +308,12 @@ typedef struct {
 } SUpdateTableTagValMsg;
 
 typedef struct {
-  char clientVersion[TSDB_VERSION_LEN];
-  char msgVersion[TSDB_VERSION_LEN];
-  char db[TSDB_TABLE_FNAME_LEN];
-  char appName[TSDB_APPNAME_LEN];
+  char    clientVersion[TSDB_VERSION_LEN];
+  char    msgVersion[TSDB_VERSION_LEN];
+  char    db[TSDB_TABLE_FNAME_LEN];
+  char    appName[TSDB_APPNAME_LEN];
   int32_t pid;
-} SCMConnectMsg;
+} SConnectMsg;
 
 typedef struct {
   char      acctId[TSDB_ACCT_LEN];
@@ -324,7 +324,7 @@ typedef struct {
   int8_t    reserved2;
   int32_t   connId;
   SRpcEpSet epSet;
-} SCMConnectRsp;
+} SConnectRsp;
 
 typedef struct {
   int32_t maxUsers;
@@ -344,7 +344,7 @@ typedef struct {
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_KEY_LEN];
   SAcctCfg cfg;
-} SCMCreateAcctMsg, SCMAlterAcctMsg;
+} SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -568,18 +568,29 @@ typedef struct {
   uint32_t numOfVnodes;
   char     clusterId[TSDB_CLUSTER_ID_LEN];
   char     reserved[16];
-} SDMDnodeCfg;
+} SDnodeCfg;
 
 typedef struct {
-  int32_t   nodeId;
-  char      nodeEp[TSDB_EP_LEN];
-} SDMMnodeInfo;
+  int32_t  dnodeId;
+  uint16_t dnodePort;
+  char     dnodeFqdn[TSDB_FQDN_LEN];
+} SDnodeEp;
 
 typedef struct {
-  int8_t       inUse;
-  int8_t       nodeNum;
-  SDMMnodeInfo nodeInfos[TSDB_MAX_REPLICA];
-} SDMMnodeInfos;
+  int32_t  dnodeNum;
+  SDnodeEp dnodeEps[];
+} SDnodeEps;
+
+typedef struct {
+  int32_t mnodeId;
+  char    mnodeEp[TSDB_EP_LEN];
+} SMnodeInfo;
+
+typedef struct {
+  int8_t     inUse;
+  int8_t     mnodeNum;
+  SMnodeInfo mnodeInfos[TSDB_MAX_REPLICA];
+} SMnodeInfos;
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
@@ -614,9 +625,9 @@ typedef struct {
 } SDMStatusMsg;
 
 typedef struct {
-  SDMMnodeInfos    mnodes;
-  SDMDnodeCfg      dnodeCfg;
-  SDMVgroupAccess  vgAccess[];
+  SMnodeInfos     mnodes;
+  SDnodeCfg       dnodeCfg;
+  SDMVgroupAccess vgAccess[];
 } SDMStatusRsp;
 
 typedef struct {
@@ -742,7 +753,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
-  SDMMnodeInfos mnodes;
+  SMnodeInfos mnodes;
 } SMDCreateMnodeMsg;
 
 typedef struct {

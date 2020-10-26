@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "trpc.h"
+#include "taosmsg.h"
 
 typedef struct {
   int32_t queryReqNum;
@@ -38,12 +39,13 @@ SDnodeRunStatus dnodeGetRunStatus();
 SDnodeStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
-char *  dnodeGetMnodeMasterEp();
-void    dnodeGetMnodeEpSetForPeer(void *epSet);
-void    dnodeGetMnodeEpSetForShell(void *epSet);
-void *  dnodeGetMnodeInfos();
+bool    dnodeIsMasterEp(char *ep);
+void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
+void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 int32_t dnodeGetDnodeId();
-bool    dnodeStartMnode(void *pModes);
+void    dnodeUpdateEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+bool    dnodeCheckEpChanged(int32_t dnodeId, char *epstr);
+bool    dnodeStartMnode(SMnodeInfos *minfos);
 
 void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
