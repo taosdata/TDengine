@@ -3490,7 +3490,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
    * If the query result is exhausted, or current query is to free resource at server side,
    * the connection will be recycled.
    */
-  if ((pRes->numOfRows == 0 && !(tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pRes->offset > 0)) ||
+  if (pRes->numOfRows == 0 ||
       ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE)) {
     tscTrace("%p no result or free resource, recycle connection", pSql);
     taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
