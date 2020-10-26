@@ -1,14 +1,9 @@
 %{
-#include <winsock2.h>
-#include <windows.h>
-#include <sql.h>
-
 #include "todbc_util.h"
 
 #include <stdio.h>
 
 #ifdef _MSC_VER
-#include "msvcLibgen.h"
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
 #endif
