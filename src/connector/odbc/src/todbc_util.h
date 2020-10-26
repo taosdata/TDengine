@@ -16,10 +16,9 @@
 #ifndef _TODBC_UTIL_H_
 #define _TODBC_UTIL_H_
 
+#include "todbc_flex_workaround.h"
 #include "todbc_log.h"
 
-#include <stddef.h>
-#include <sql.h>
 
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);

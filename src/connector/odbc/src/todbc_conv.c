@@ -14,8 +14,9 @@
  */
 
 #include "todbc_conv.h"
-
 #include "todbc_util.h"
+
+#include "os.h"
 
 #include <errno.h>
 #include <limits.h>

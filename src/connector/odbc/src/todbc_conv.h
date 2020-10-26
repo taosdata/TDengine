@@ -16,8 +16,7 @@
 #ifndef _todbc_conv_h_
 #define _todbc_conv_h_
 
-#include <inttypes.h>
-#include <sqltypes.h>
+#include "todbc_flex_workaround.h"
 #include <stddef.h>
 
 #include "iconv.h"

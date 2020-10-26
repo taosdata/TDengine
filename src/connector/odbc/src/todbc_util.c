@@ -17,9 +17,6 @@
 
 #include "iconv.h"
 
-#include <sql.h>
-#include <sqltypes.h>
-#include <sqlext.h>
 #include <stdlib.h>
 #include <string.h>
 

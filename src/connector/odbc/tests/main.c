@@ -1,4 +1,4 @@
-#include <libgen.h>
+#include "os.h"
 #include <sql.h>
 #include <sqlext.h>
 
@@ -423,7 +423,12 @@ int test_sqls_in_stmt(SQLHENV env, SQLHDBC conn, SQLHSTMT stmt, const char *sqls
     char *line = NULL;
     size_t len = 0;
 
-    ssize_t n = getline(&line, &len, f);
+    ssize_t n = 0;
+#ifdef _MSC_VER
+    n = taosGetlineImp(&line, &len, f);
+#else
+    n = getline(&line, &len, f);
+#endif
     if (n==-1) break;
 
     const char *p = NULL;

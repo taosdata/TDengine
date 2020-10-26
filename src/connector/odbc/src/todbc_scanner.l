@@ -1,7 +1,17 @@
 %{
+#include <winsock2.h>
+#include <windows.h>
+#include <sql.h>
+
 #include "todbc_util.h"
 
 #include <stdio.h>
+
+#ifdef _MSC_VER
+#include "msvcLibgen.h"
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#endif
 
 typedef struct params_s              params_t;
 struct params_s {
@@ -68,6 +78,8 @@ do {                                                 \
 
 %option prefix="todbc_yy"
 %option extra-type="struct params_s *"
+%option nounistd
+%option never-interactive
 %option reentrant
 %option noyywrap
 %option noinput nounput
