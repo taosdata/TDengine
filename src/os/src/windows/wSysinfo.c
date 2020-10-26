@@ -80,7 +80,7 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-bool taosGetDisk() {
+void taosGetDisk() {
   const double    unit = 1024 * 1024 * 1024;
   BOOL            fResult;
   unsigned _int64 i64FreeBytesToCaller;
