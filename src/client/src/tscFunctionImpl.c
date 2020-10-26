@@ -2461,7 +2461,7 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
-      double tmin, tmax;
+      double tmin = 0.0, tmax = 0.0;
       if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
         tmin = GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
         tmax = GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
