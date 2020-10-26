@@ -194,8 +194,8 @@ static void buildTagQueryResult(SQInfo *pQInfo);
 
 static int32_t setAdditionalInfo(SQInfo *pQInfo, void *pTable, STableQueryInfo *pTableQueryInfo);
 static int32_t flushFromResultBuf(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo);
-static int32_t checkForQueryBuf(int32_t numOfTables);
-static void releaseQueryBuf(int32_t numOfTables);
+static int32_t checkForQueryBuf(size_t numOfTables);
+static void releaseQueryBuf(size_t numOfTables);
 
 bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
@@ -6494,7 +6494,7 @@ static void freeQInfo(SQInfo *pQInfo) {
 
   qDebug("QInfo:%p start to free QInfo", pQInfo);
 
-  releaseQueryBuf((int32_t) pQInfo->tableqinfoGroupInfo.numOfTables);
+  releaseQueryBuf(pQInfo->tableqinfoGroupInfo.numOfTables);
 
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
@@ -7136,15 +7136,15 @@ static void buildTagQueryResult(SQInfo* pQInfo) {
   setQueryStatus(pQuery, QUERY_COMPLETED);
 }
 
-static int64_t getQuerySupportBufSize(int32_t numOfTables) {
+static int64_t getQuerySupportBufSize(size_t numOfTables) {
   size_t s1 = sizeof(STableQueryInfo);
   size_t s2 = sizeof(SHashNode);
 
 //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
-  return (s1 + s2) * 1.5 * numOfTables;
+  return (int64_t)((s1 + s2) * 1.5 * numOfTables);
 }
 
-int32_t checkForQueryBuf(int32_t numOfTables) {
+int32_t checkForQueryBuf(size_t numOfTables) {
   int64_t t = getQuerySupportBufSize(numOfTables);
   if (tsQueryBufferSize < 0) {
     return TSDB_CODE_SUCCESS;
@@ -7167,7 +7167,7 @@ int32_t checkForQueryBuf(int32_t numOfTables) {
   return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
 }
 
-void releaseQueryBuf(int32_t numOfTables) {
+void releaseQueryBuf(size_t numOfTables) {
   if (tsQueryBufferSize <= 0) {
     return;
   }
