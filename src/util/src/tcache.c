@@ -348,7 +348,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
   // The operation of removal from hash table and addition to trashcan is not an atomic operation,
   // therefore the check for the empty of both the hash table and the trashcan has a race condition.
   // It happens when there is only one object in the cache, and two threads which has referenced this object
-  // start to free the it simultaneously. [TD-1569]
+  // start to free the it simultaneously [TD-1569].
   size_t offset = offsetof(SCacheDataNode, data);
   
   SCacheDataNode *pNode = (SCacheDataNode *)((char *)(*data) - offset);
