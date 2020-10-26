@@ -13,32 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MGMT_H
-#define TDENGINE_DNODE_MGMT_H
+#ifndef TDENGINE_VNODE_CFG_H
+#define TDENGINE_VNODE_CFG_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "trpc.h"
-
-int32_t dnodeInitMgmt();
-void    dnodeCleanupMgmt();
-int32_t dnodeInitMgmtTimer();
-void    dnodeCleanupMgmtTimer();
-void    dnodeDispatchToMgmtQueue(SRpcMsg *rpcMsg);
-
-void*   dnodeGetVnode(int32_t vgId);
-int32_t dnodeGetVnodeStatus(void *pVnode);
-void*   dnodeGetVnodeRworker(void *pVnode);
-void*   dnodeGetVnodeWworker(void *pVnode);
-void*   dnodeGetVnodeWal(void *pVnode);
-void*   dnodeGetVnodeTsdb(void *pVnode);
-void    dnodeReleaseVnode(void *pVnode);
-
-void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
-void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
-void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
+int32_t vnodeReadCfg(SVnodeObj *pVnode);
+int32_t vnodeWriteCfg(SMDCreateVnodeMsg *pVnodeCfg);
 
 #ifdef __cplusplus
 }

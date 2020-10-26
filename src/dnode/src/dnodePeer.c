@@ -28,8 +28,8 @@
 #include "dnodeMgmt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMPeer.h"
+#include "dnodeMInfos.h"
 
-extern void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
@@ -151,7 +151,7 @@ void dnodeCleanupClient() {
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
-    dnodeUpdateMnodeEpSetForPeer(pEpSet);
+    dnodeUpdateEpSetForPeer(pEpSet);
   }
 
   if (dnodeProcessRspMsgFp[pMsg->msgType]) {    
@@ -173,7 +173,7 @@ void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
 
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcEpSet epSet = {0};
-  dnodeGetMnodeEpSetForPeer(&epSet);
+  dnodeGetEpSetForPeer(&epSet);
   rpcSendRecv(tsDnodeClientRpc, &epSet, rpcMsg, rpcRsp);
 }
 

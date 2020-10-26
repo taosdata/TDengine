@@ -922,13 +922,13 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCMCreateAcctMsg);
+  pCmd->payloadLen = sizeof(SCreateAcctMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCMCreateAcctMsg *pAlterMsg = (SCMCreateAcctMsg *)pCmd->payload;
+  SCreateAcctMsg *pAlterMsg = (SCreateAcctMsg *)pCmd->payload;
 
   SStrToken *pName = &pInfo->pDCLInfo->user.user;
   SStrToken *pPwd = &pInfo->pDCLInfo->user.passwd;
@@ -1461,14 +1461,14 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->msgType = TSDB_MSG_TYPE_CM_CONNECT;
-  pCmd->payloadLen = sizeof(SCMConnectMsg);
+  pCmd->payloadLen = sizeof(SConnectMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCMConnectMsg *pConnect = (SCMConnectMsg*)pCmd->payload;
+  SConnectMsg *pConnect = (SConnectMsg*)pCmd->payload;
 
   // TODO refactor full_name
   char *db;  // ugly code to move the space
@@ -1987,7 +1987,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
 
-  SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
+  SConnectRsp *pConnect = (SConnectRsp *)pRes->pRsp;
   tstrncpy(pObj->acctId, pConnect->acctId, sizeof(pObj->acctId));  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 

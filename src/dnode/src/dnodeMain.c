@@ -24,6 +24,9 @@
 #include "dnodeMgmt.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
+#include "dnodeEps.h"
+#include "dnodeMInfos.h"
+#include "dnodeCfg.h"
 #include "dnodeCheck.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
@@ -33,23 +36,27 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 
-static int32_t dnodeInitStorage();
-static void dnodeCleanupStorage();
-static void dnodeSetRunStatus(SDnodeRunStatus status);
-static void dnodeCheckDataDirOpenned(char *dir);
 static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
+
+static int32_t dnodeInitStorage();
+static void    dnodeCleanupStorage();
+static void    dnodeSetRunStatus(SDnodeRunStatus status);
+static void    dnodeCheckDataDirOpenned(char *dir);
 static int32_t dnodeInitComponents();
-static void dnodeCleanupComponents(int32_t stepId);
-static int dnodeCreateDir(const char *dir);
+static void    dnodeCleanupComponents(int32_t stepId);
+static int     dnodeCreateDir(const char *dir);
 
 typedef struct {
   const char *const name;
-  int               (*init)();
-  void              (*cleanup)();
+  int32_t (*init)();
+  void (*cleanup)();
 } SDnodeComponent;
 
 static const SDnodeComponent tsDnodeComponents[] = {
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"eps",       dnodeInitEps,        dnodeCleanupEps},
+  {"minfos",    dnodeInitMInfos,     dnodeCleanupMInfos},
+  {"cfg",       dnodeInitCfg,        dnodeCleanupCfg},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},
