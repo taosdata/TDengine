@@ -304,7 +304,7 @@ void TSTraverse() {
   int32_t totalOutput = 10;
   while (1) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag.i64Key, elem.ts);
+    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag->i64Key, elem.ts);
 
     if (!tsBufNextPos(pTSBuf)) {
       break;
@@ -352,7 +352,7 @@ void TSTraverse() {
   totalOutput = 10;
   while (1) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag.i64Key, elem.ts);
+    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag->i64Key, elem.ts);
 
     if (!tsBufNextPos(pTSBuf)) {
       break;
@@ -480,7 +480,7 @@ void mergeIdenticalVnodeBufferTest() {
     STSElem elem = tsBufGetElem(pTSBuf1);
     EXPECT_EQ(elem.vnode, 12);
 
-    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag.i64Key, elem.ts);
+    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag->i64Key, elem.ts);
   }
 
   tsBufDestroy(pTSBuf1);
