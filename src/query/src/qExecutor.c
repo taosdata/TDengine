@@ -6494,7 +6494,7 @@ static void freeQInfo(SQInfo *pQInfo) {
 
   qDebug("QInfo:%p start to free QInfo", pQInfo);
 
-  releaseQueryBuf(pQInfo->tableqinfoGroupInfo.numOfTables);
+  releaseQueryBuf((int32_t) pQInfo->tableqinfoGroupInfo.numOfTables);
 
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
