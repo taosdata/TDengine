@@ -924,7 +924,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     // for projection query, need to try next vnode if current vnode is exhausted
     int32_t numOfVgroups = 0;  // TODO refactor
     if (pTableMetaInfo->pVgroupTables != NULL) {
-      numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+      numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     } else {
       numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
     }
@@ -1054,7 +1054,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
         // for projection query, need to try next vnode if current vnode is exhausted
         int32_t numOfVgroups = 0;  // TODO refactor
         if (pTableMetaInfo->pVgroupTables != NULL) {
-          numOfVgroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+          numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
         } else {
           numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
         }
@@ -1510,7 +1510,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   if (pTableMetaInfo->pVgroupTables == NULL) {
     pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
   } else {
-    pState->numOfSub = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    pState->numOfSub = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
   }
 
   assert(pState->numOfSub > 0);
@@ -2160,7 +2160,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
       continue;
     }
 
-    int32_t remain = pSub->res.numOfRows - pSub->res.row;
+    int32_t remain = (int32_t)(pSub->res.numOfRows - pSub->res.row);
     numOfRes = (int32_t)(MIN(numOfRes, remain));
   }
 
@@ -2222,7 +2222,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
 
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    pRes->numOfCols = numOfExprs;
+    pRes->numOfCols =  (int32_t)numOfExprs;
 
     pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
     pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
