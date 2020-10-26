@@ -527,7 +527,7 @@ static void grantSendMsgToMgmt() {
   };
 
   SRpcEpSet epSet = {0};
-  dnodeGetMnodeEpSetForPeer(&epSet);
+  dnodeGetEpSetForPeer(&epSet);
   dnodeSendMsgToDnode(&epSet, &rpcMsg);
 }
 
