@@ -1722,13 +1722,13 @@ SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
 
-    SVgroupTableInfo info = {{.vgId = 0, .epAddr = {0}, .numOfEps = 0}, .itemList = NULL};
-    info.vgInfo = pInfo->vgInfo;
+    SVgroupTableInfo info;
+    memset(&info, 0, sizeof(SVgroupTableInfo));
 
+    info.vgInfo = pInfo->vgInfo;
     for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
       info.vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
     }
-
 
     info.itemList = taosArrayClone(pInfo->itemList);
     taosArrayPush(pa, &info);
