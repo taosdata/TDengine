@@ -344,8 +344,6 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
     return 0;
   }
 
-  assert(colIdx == 0);
-
   if (tsOrder == TSDB_ORDER_DESC) {  // primary column desc order
     return (f1 < f2) ? 1 : -1;
   } else {  // asc
