@@ -1231,6 +1231,7 @@ class Task():
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 0x0B,  # Unable to establish connection, more details in TD-1648
                 0x200, # invalid SQL， TODO: re-examine with TD-934
+                0x20F, # query terminated, possibly due to vnoding being dropped, see TD-1776
                 0x217, # "db not selected", client side defined error code
                 # 0x218, # "Table does not exist" client side defined error code
                 0x360, # Table already exists
