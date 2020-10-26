@@ -32,9 +32,9 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/PowerDB-enterprise-client"
+    install_dir="${release_dir}/PowerDB-enterprise-client-${version}"
 else
-    install_dir="${release_dir}/PowerDB-client"
+    install_dir="${release_dir}/PowerDB-client-${version}"
 fi
 
 # Directories and files.
@@ -123,7 +123,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/R      ${install_dir}/examples
   sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/examples/R/command.txt
   cp -r ${examples_dir}/go     ${install_dir}/examples  
-  sed -i '/root/ {s/taosdata/powerdb/g}'  ${install_dir}/examples/go/src/taosapp/taosapp.go
+  sed -i '/root/ {s/taosdata/powerdb/g}'  ${install_dir}/examples/go/taosdemo.go
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver 
@@ -164,9 +164,9 @@ fi
 cd ${release_dir} 
 
 if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${osType}-${cpuType}
 elif [ "$verMode" == "edge" ]; then
-  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${osType}-${cpuType}
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1

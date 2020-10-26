@@ -144,21 +144,24 @@ void tVariantDestroy(tVariant *pVar) {
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
   
-  *pDst = *pSrc;
-  
+  pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
-    int32_t len = pSrc->nLen + 1;
-    if (pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
-      len = len * TSDB_NCHAR_SIZE;
-    }
-    
-    pDst->pz = calloc(1, len);
-    memcpy(pDst->pz, pSrc->pz, len);
+    int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
+    char* p = realloc(pDst->pz, len);
+    assert(p);
+
+    memset(p, 0, len);
+    pDst->pz = p;
+
+    memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
+    pDst->nLen = pSrc->nLen;
     return;
+
   }
 
-  // this is only for string array
-  if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {
+  if (pSrc->nType >= TSDB_DATA_TYPE_BOOL && pSrc->nType <= TSDB_DATA_TYPE_DOUBLE) {
+    pDst->i64Key = pSrc->i64Key;
+  } else if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
     pDst->arr = taosArrayInit(num, sizeof(char*));
     for(size_t i = 0; i < num; i++) {
@@ -166,8 +169,6 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
-
-    return;
   }
 
   pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
@@ -709,46 +710,21 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
             return -1;
           }
 
-#ifdef _TD_ARM_32_
-          //memcpy(&payload, &value, sizeof(float));
-          float fv = (float)value;
-          SET_FLOAT_VAL_ALIGN(payload, &fv);
-#else
-          *((float *)payload) = (float)value;
-#endif
+          SET_FLOAT_VAL(payload, value);
         }
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-#ifdef _TD_ARM_32_
-        //memcpy(&payload, &pVariant->i64Key, sizeof(float));
-        float fv = (float)pVariant->i64Key;
-        SET_FLOAT_VAL_ALIGN(payload, &fv);
-#else
-        *((float *)payload) = (float)pVariant->i64Key;
-#endif
+        SET_FLOAT_VAL(payload, pVariant->i64Key);
       } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
-#ifdef _TD_ARM_32_
-        //memcpy(&payload, &pVariant->dKey, sizeof(float));
-        float fv = (float)pVariant->dKey;
-        SET_FLOAT_VAL_ALIGN(payload, &fv);
-#else
-        *((float *)payload) = (float)pVariant->dKey;
-#endif
+        SET_FLOAT_VAL(payload, pVariant->dKey);
       } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
         return 0;
       }
 
-#ifdef _TD_ARM_32_
       float fv = GET_FLOAT_VAL(payload);
       if (isinf(fv) || isnan(fv) || fv > FLT_MAX || fv < -FLT_MAX) {
         return -1;
       }
-#else
-      if (isinf(*((float *)payload)) || isnan(*((float *)payload)) || *((float *)payload) > FLT_MAX ||
-          *((float *)payload) < -FLT_MAX) {
-        return -1;
-      }
-#endif
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
@@ -765,42 +741,21 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
             return -1;
           }
 
-#ifdef _TD_ARM_32_
-          SET_DOUBLE_VAL_ALIGN(payload, &value);
-#else
-          *((double *)payload) = value;
-#endif
+          SET_DOUBLE_VAL(payload, value);
         }
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-#ifdef _TD_ARM_32_
-        double dv = (double)(pVariant->i64Key);
-        SET_DOUBLE_VAL_ALIGN(payload, &dv);
-#else
-        *((double *)payload) = (double)pVariant->i64Key;
-#endif
+        SET_DOUBLE_VAL(payload, pVariant->i64Key);
       } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
-#ifdef _TD_ARM_32_
-        double dv = (double)(pVariant->dKey);
-        SET_DOUBLE_VAL_ALIGN(payload, &dv);
-#else
-        *((double *)payload) = pVariant->dKey;
-#endif
+        SET_DOUBLE_VAL(payload, pVariant->dKey);
       } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
         return 0;
       }
 
-#ifdef _TD_ARM_32_
       double dv = GET_DOUBLE_VAL(payload);
       if (isinf(dv) || isnan(dv) || dv > DBL_MAX || dv < -DBL_MAX) {
         return -1;
       }
-#else
-      if (isinf(*((double *)payload)) || isnan(*((double *)payload)) || *((double *)payload) > DBL_MAX ||
-          *((double *)payload) < -DBL_MAX) {
-        return -1;
-      }
-#endif
       break;
     }
     

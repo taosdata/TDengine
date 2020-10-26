@@ -35,7 +35,8 @@ class TDTestCase:
         tdSql.execute(
             "insert into tb2 using stb1 tags(2,'tb2', '表2') values ('2020-04-18 15:00:02.000', 3, 2.1), ('2020-04-18 15:00:03.000', 4, 2.2)")
 
-        # inner join --- bug
+        tdSql.error("select * from tb 1")
+        
         tdSql.query("select * from tb1 a, tb2 b where a.ts = b.ts")
         tdSql.checkRows(0)
 

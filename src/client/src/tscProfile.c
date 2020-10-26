@@ -20,8 +20,10 @@
 #include "tutil.h"
 #include "taosmsg.h"
 
+#include "taos.h"
+
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
-void *tscSlowQueryConn = NULL;
+TAOS *tscSlowQueryConn = NULL;
 bool  tscSlowQueryConnInitialized = false;
 
 void tscInitConnCb(void *param, TAOS_RES *result, int code) {
@@ -151,10 +153,12 @@ void tscKillQuery(STscObj *pObj, uint32_t killId) {
 
   pthread_mutex_unlock(&pObj->mutex);
 
-  if (pSql == NULL) return;
-
-  tscDebug("%p query is killed, queryId:%d", pSql, killId);
-  taos_stop_query(pSql);
+  if (pSql == NULL) {
+    tscError("failed to kill query, id:%d, it may have completed/terminated", killId);
+  } else {
+    tscDebug("%p query is killed, queryId:%d", pSql, killId);
+    taos_stop_query(pSql);
+  }
 }
 
 void tscAddIntoStreamList(SSqlStream *pStream) {
@@ -242,6 +246,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pQdesc->stime = htobe64(pSql->stime);
     pQdesc->queryId = htonl(pSql->queryId);
     pQdesc->useconds = htobe64(pSql->res.useconds);
+    pQdesc->qHandle = htobe64(pSql->res.qhandle);
 
     pHeartbeat->numOfQueries++;
     pQdesc++;

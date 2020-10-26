@@ -30,13 +30,13 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 - TDengine-alert-2.0.0-Linux-x64.tar.gz (8.1M)
 
-目前，TDengine只支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装。其他linux系统的支持正在开发中。用`which`命令来检测系统中是否存在`systemd`:
+目前，TDengine只支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装。其他linux系统的支持正在开发中。用`which systemctl`命令来检测系统中是否存在`systemd`包:
 
 ```cmd
-which systemd
+which systemctl
 ```
 
-如果系统中不存在`systemd`命令，请考虑[通过源码安装](#通过源码安装)TDengine。
+如果系统中不存在`systemd`包，请考虑[通过源码安装](#通过源码安装)TDengine。
 
 具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>。
 
@@ -68,7 +68,7 @@ systemctl status taosd
 taos
 ```
 
-如果TDengine终端链接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考[FAQ](https://www.taosdata.com/cn/faq/)来解决终端链接服务端失败的问题）。TDengine终端的提示符号如下：
+如果TDengine终端连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考[FAQ](https://www.taosdata.com/cn/faq/)来解决终端连接服务端失败的问题）。TDengine终端的提示符号如下：
 
 ```cmd
 taos>
@@ -99,8 +99,8 @@ Query OK, 2 row(s) in set (0.001700s)
 - -c, --config-dir: 指定配置文件目录，默认为_/etc/taos_
 - -h, --host: 指定服务的IP地址，默认为本地服务
 - -s, --commands: 在不进入终端的情况下运行TDengine命令
-- -u, -- user:  链接TDengine服务器的用户名，缺省为root
-- -p, --password: 链接TDengine服务器的密码，缺省为taosdata
+- -u, -- user:  连接TDengine服务器的用户名，缺省为root
+- -p, --password: 连接TDengine服务器的密码，缺省为taosdata
 - -?, --help: 打印出所有命令行参数
 
 示例：

@@ -67,14 +67,23 @@ public class DatabaseMetaDataResultSet implements ResultSet {
 
     @Override
     public boolean next() throws SQLException {
+//        boolean ret = false;
+//        if (rowDataList.size() > 0) {
+//            ret = rowDataList.iterator().hasNext();
+//            if (ret) {
+//                rowCursor = rowDataList.iterator().next();
+//                cursorRowNumber++;
+//            }
+//        }
+//        return ret;
+
+        /**** add by zyyang 2020-09-29 ****************/
         boolean ret = false;
-        if (rowDataList.size() > 0) {
-            ret = rowDataList.iterator().hasNext();
-            if (ret) {
-                rowCursor = rowDataList.iterator().next();
-                cursorRowNumber++;
-            }
+        if (!rowDataList.isEmpty() && cursorRowNumber < rowDataList.size()) {
+            rowCursor = rowDataList.get(cursorRowNumber++);
+            ret = true;
         }
+
         return ret;
     }
 
@@ -91,7 +100,8 @@ public class DatabaseMetaDataResultSet implements ResultSet {
     @Override
     public String getString(int columnIndex) throws SQLException {
         columnIndex--;
-        return rowCursor.getString(columnIndex, columnMetaDataList.get(columnIndex).getColType());
+        int colType = columnMetaDataList.get(columnIndex).getColType();
+        return rowCursor.getString(columnIndex, colType);
     }
 
     @Override

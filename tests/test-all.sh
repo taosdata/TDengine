@@ -9,8 +9,9 @@ NC='\033[0m'
 
 function runSimCaseOneByOne {
   while read -r line; do
-    if [[ $line =~ ^run.* ]]; then
-      case=`echo $line | awk '{print $NF}'`
+    if [[ $line =~ ^./test.sh* ]]; then
+			case=`echo $line | grep sim$ |awk '{print $NF}'`
+
       start_time=`date +%s`
       ./test.sh -f $case > /dev/null 2>&1 && \
         echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
@@ -54,7 +55,16 @@ if [ "$2" != "python" ]; then
     runSimCaseOneByOne regressionSuite.sim
   elif [ "$1" == "full" ]; then
     echo "### run TSIM full test ###"
-    runSimCaseOneByOne fullGeneralSuite.sim
+    runSimCaseOneByOne jenkins/basic.txt
+  elif [ "$1" == "b1" ]; then
+    echo "### run TSIM b1 test ###"
+    runSimCaseOneByOne jenkins/basic_1.txt
+  elif [ "$1" == "b2" ]; then
+    echo "### run TSIM b2 test ###"
+    runSimCaseOneByOne jenkins/basic_2.txt
+  elif [ "$1" == "b3" ]; then
+    echo "### run TSIM b3 test ###"
+    runSimCaseOneByOne jenkins/basic_3.txt
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
@@ -111,6 +121,11 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
+  elif [ "$1" == "pytest" ]; then
+    echo "### run Python full test ###"
+    runPyCaseOneByOne fulltest.sh
+  elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
+    exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run Python smoke test ###"
     runPyCaseOneByOne smoketest.sh

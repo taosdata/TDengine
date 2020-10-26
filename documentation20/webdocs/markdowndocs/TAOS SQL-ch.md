@@ -98,12 +98,12 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     KEEP参数是指修改数据文件保存的天数，缺省值为3650，取值范围[days, 365000]，必须大于或等于days参数值。
 
     ```mysql
-    ALTER DATABASE db_name QUORUM 365;
+    ALTER DATABASE db_name QUORUM 2;
     ```
     QUORUM参数是指数据写入成功所需要的确认数。取值范围[1, 3]。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
 
     ```mysql
-    ALTER DATABASE db_name BLOCKS 365;
+    ALTER DATABASE db_name BLOCKS 100;
     ```
     BLOCKS参数是每个VNODE (TSDB) 中有多少cache大小的内存块，因此一个VNODE的用的内存大小粗略为（cache * blocks）。取值范围[3, 1000]。
 
@@ -124,7 +124,8 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     说明：
     1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
     2) 表名最大长度为193；
-    3) 表的每行长度不能超过16k个字符;     
+    3) 表的每行长度不能超过16k个字符;
+    4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
     5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
 
 - **删除数据表**
@@ -1019,5 +1020,5 @@ SELECT AVG(current),MAX(current),LEASTSQUARES(current, start_val, step_val), PER
 - 表名最大长度为193，每行数据最大长度16k个字符
 - 列名最大长度为65，最多允许1024列，最少需要2列，第一列必须是时间戳
 - 标签最多允许128个，可以0个，标签总长度不超过16k个字符
-- SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改，最长可配置为8M
+- SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改，最长可配置为1M
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制

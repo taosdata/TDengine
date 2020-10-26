@@ -195,7 +195,7 @@ static void  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
 static void  rpcSendReqHead(SRpcConn *pConn);
 
 static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv);
-static void  rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead);
+static void  rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext);
 static void  rpcProcessConnError(void *param, void *id);
 static void  rpcProcessRetryTimer(void *, void *);
 static void  rpcProcessIdleTimer(void *param, void *tmrId);
@@ -240,7 +240,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   size_t size = sizeof(SRpcConn) * pRpc->sessions;
   pRpc->connList = (SRpcConn *)calloc(1, size);
   if (pRpc->connList == NULL) {
-    tError("%s failed to allocate memory for taos connections, size:%ld", pRpc->label, size);
+    tError("%s failed to allocate memory for taos connections, size:%" PRId64, pRpc->label, (int64_t)size);
     rpcClose(pRpc);
     return NULL;
   }
@@ -323,17 +323,17 @@ void *rpcMallocCont(int contLen) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
   } else {
-    tDebug("malloc mem: %p", start);
+    tTrace("malloc mem: %p", start);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
 void rpcFreeCont(void *cont) {
-  if ( cont ) {
+  if (cont) {
     char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
     free(temp);
-    tDebug("free mem: %p", temp);
+    tTrace("free mem: %p", temp);
   }
 }
 
@@ -412,7 +412,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   rpcLockConn(pConn);
 
   if ( pConn->inType == 0 || pConn->user[0] == 0 ) {
-    tDebug("%s, connection is already released, rsp wont be sent", pConn->info);
+    tError("%s, connection is already released, rsp wont be sent", pConn->info);
     rpcUnlockConn(pConn);
     rpcFreeCont(pMsg->pCont);
     rpcDecRef(pRpc);
@@ -542,10 +542,7 @@ void rpcCancelRequest(void *handle) {
 
   if (pContext->pConn) {
     tDebug("%s, app tries to cancel request", pContext->pConn->info);
-    pContext->pConn->pReqMsg = NULL;  
     rpcCloseConn(pContext->pConn);
-    pContext->pConn = NULL;
-    rpcFreeCont(pContext->pCont);
   }
 }
 
@@ -553,7 +550,7 @@ static void rpcFreeMsg(void *msg) {
   if ( msg ) {
     char *temp = (char *)msg - sizeof(SRpcReqContext);
     free(temp);
-    tDebug("free mem: %p", temp);
+    tTrace("free mem: %p", temp);
   }
 }
 
@@ -580,6 +577,8 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
       void *shandle = (connType & RPC_CONN_TCP)? pRpc->tcphandle:pRpc->udphandle;
       pConn->chandle = (*taosOpenConn[connType])(shandle, pConn, pConn->peerIp, pConn->peerPort);
       if (pConn->chandle == NULL) {
+        tError("failed to connect to:0x%x:%d", pConn->peerIp, pConn->peerPort);
+
         terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         rpcCloseConn(pConn);
         pConn = NULL;
@@ -611,8 +610,10 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     if (pConn->pReqMsg) rpcFreeCont(pConn->pReqMsg);  // do not use rpcFreeMsg
   } else {
     // if there is an outgoing message, free it
-    if (pConn->outType && pConn->pReqMsg) 
+    if (pConn->outType && pConn->pReqMsg) {
+      if (pConn->pContext) pConn->pContext->pConn = NULL; 
       rpcFreeMsg(pConn->pReqMsg);
+    }
   }
 
   // memset could not be used, since lockeBy can not be reset
@@ -817,9 +818,18 @@ static int rpcProcessReqHead(SRpcConn *pConn, SRpcHead *pHead) {
       return TSDB_CODE_RPC_LAST_SESSION_NOT_FINISHED;
     }
 
+    if (rpcContLenFromMsg(pHead->msgLen) <= 0) {
+      tDebug("%s, message body is empty, ignore", pConn->info);
+      return TSDB_CODE_RPC_APP_ERROR;
+    }
+
     pConn->inTranId = pHead->tranId;
     pConn->inType = pHead->msgType;
 
+    // start the progress timer to monitor the response from server app
+    if (pConn->connType != RPC_CONN_TCPS) 
+      pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pConn->pRpc->tmrCtrl);
+ 
     return 0;
 }
 
@@ -879,17 +889,32 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   pConn->outType = 0;
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
+  SRpcReqContext *pContext = pConn->pContext;
+
+  if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
+    if (rpcContLenFromMsg(pHead->msgLen) < sizeof(SRpcEpSet)) {
+      // if EpSet is not included in the msg, treat it as NOT_READY
+      pHead->code = TSDB_CODE_RPC_NOT_READY; 
+    } else {
+      pContext->redirect++;
+      if (pContext->redirect > TSDB_MAX_REPLICA) {
+        pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+        tWarn("%s, too many redirects, quit", pConn->info);
+      }
+    }
+  } 
 
   return TSDB_CODE_SUCCESS;
 }
 
-static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
+static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqContext **ppContext) {
   int32_t    sid;
   SRpcConn  *pConn = NULL;
 
   SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
   sid = htonl(pHead->destId);
+  *ppContext = NULL;
 
   if (pHead->msgType >= TSDB_MSG_TYPE_MAX || pHead->msgType <= 0) {
     tDebug("%s sid:%d, invalid message type:%d", pRpc->label, sid, pHead->msgType);
@@ -943,6 +968,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
         pConn->pIdleTimer = taosTmrStart(rpcProcessIdleTimer, tsRpcTimer*2, pConn, pRpc->tmrCtrl);
     } else {
       terrno = rpcProcessRspHead(pConn, pHead);
+      *ppContext = pConn->pContext;
     }
   }
 
@@ -1007,7 +1033,8 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   }
 
   terrno = 0;
-  pConn = rpcProcessMsgHead(pRpc, pRecv);
+  SRpcReqContext *pContext;
+  pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
 
   if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
     tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
@@ -1024,10 +1051,13 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     if (code != 0) { // parsing error
       if (rpcIsReq(pHead->msgType)) {
         rpcSendErrorMsgToPeer(pRecv, code);
+        if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE) {
+          rpcCloseConn(pConn);
+        }
         tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
-      rpcProcessIncomingMsg(pConn, pHead);
+      rpcProcessIncomingMsg(pConn, pHead, pContext);
     }
   }
 
@@ -1058,7 +1088,7 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   rpcFreeCont(pContext->pCont); 
 }
 
-static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
+static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext) {
 
   SRpcInfo *pRpc = pConn->pRpc;
   SRpcMsg   rpcMsg;
@@ -1068,29 +1098,18 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.code = pHead->code; 
-  rpcMsg.ahandle = pConn->ahandle;
    
   if ( rpcIsReq(pHead->msgType) ) {
-    if (rpcMsg.contLen > 0) {
-      rpcMsg.handle = pConn;
-      rpcAddRef(pRpc);  // add the refCount for requests
+    rpcMsg.ahandle = pConn->ahandle;
+    rpcMsg.handle = pConn;
+    rpcAddRef(pRpc);  // add the refCount for requests
 
-      // start the progress timer to monitor the response from server app
-      if (pConn->connType != RPC_CONN_TCPS) 
-        pConn->pTimer = taosTmrStart(rpcProcessProgressTimer, tsProgressTimer, pConn, pRpc->tmrCtrl);
- 
-      // notify the server app
-      (*(pRpc->cfp))(&rpcMsg, NULL);
-    } else {
-      tDebug("%s, message body is empty, ignore", pConn->info);
-      rpcFreeCont(rpcMsg.pCont);
-    }
+    // notify the server app
+    (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
-    SRpcReqContext *pContext = pConn->pContext;
     rpcMsg.handle = pContext;
-    pConn->pContext = NULL;
-    pConn->pReqMsg = NULL;
+    rpcMsg.ahandle = pContext->ahandle;
 
     // for UDP, port may be changed by server, the port in epSet shall be used for cache
     if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
@@ -1099,27 +1118,18 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       rpcCloseConn(pConn);
     }
 
-    if (pHead->code == TSDB_CODE_RPC_REDIRECT) { 
-      if (rpcMsg.contLen < sizeof(SRpcEpSet)) {
-        // if EpSet is not included in the msg, treat it as NOT_READY
-        pHead->code = TSDB_CODE_RPC_NOT_READY; 
-      } else {
-        pContext->redirect++;
-        if (pContext->redirect > TSDB_MAX_REPLICA) {
-          pHead->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
-          tWarn("%s, too many redirects, quit", pConn->info);
-        }
-      }
-    }
-
     if (pHead->code == TSDB_CODE_RPC_REDIRECT) {
       pContext->numOfTry = 0;
       SRpcEpSet *pEpSet = (SRpcEpSet*)pHead->content;
       if (pEpSet->numOfEps > 0) {
         memcpy(&pContext->epSet, pHead->content, sizeof(pContext->epSet));
-        tDebug("%s, redirect is received, numOfEps:%d", pConn->info, pContext->epSet.numOfEps);
-        for (int i=0; i<pContext->epSet.numOfEps; ++i) 
+        tDebug("%s, redirect is received, numOfEps:%d inUse:%d", pConn->info, pContext->epSet.numOfEps,
+               pContext->epSet.inUse);
+        for (int i = 0; i < pContext->epSet.numOfEps; ++i) {
           pContext->epSet.port[i] = htons(pContext->epSet.port[i]);
+          tDebug("%s, redirect is received, index:%d ep:%s:%u", pConn->info, i, pContext->epSet.fqdn[i],
+                 pContext->epSet.port[i]);
+        }
       }
       rpcSendReqToServer(pRpc, pContext);
       rpcFreeCont(rpcMsg.pCont);
@@ -1443,7 +1453,7 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
       pNewHead->msgLen = rpcMsgLenFromCont(origLen);
       rpcFreeMsg(pHead); // free the compressed message buffer
       pHead = pNewHead; 
-      //tTrace("decompress rpc msg, compLen:%d, after:%d", compLen, contLen);
+      tTrace("decomp malloc mem: %p", temp);
     } else {
       tError("failed to allocate memory to decompress msg, contLen:%d", contLen);
     }

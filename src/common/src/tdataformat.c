@@ -313,13 +313,13 @@ void dataColSetOffset(SDataCol *pCol, int nEle) {
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
   SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols));
   if (pCols == NULL) {
-    uDebug("malloc failure, size:%"PRId64" failed, reason:%s", sizeof(SDataCols), strerror(errno));
+    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCols), strerror(errno));
     return NULL;
   }
 
   pCols->cols = (SDataCol *)calloc(maxCols, sizeof(SDataCol));
   if (pCols->cols == NULL) {
-    uDebug("malloc failure, size:%"PRId64" failed, reason:%s", sizeof(SDataCol) * maxCols, strerror(errno));
+    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCol) * maxCols, strerror(errno));
     tdFreeDataCols(pCols);
     return NULL;
   }
@@ -331,7 +331,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
 
   pCols->buf = malloc(pCols->bufSize);
   if (pCols->buf == NULL) {
-    uDebug("malloc failure, size:%"PRId64" failed, reason:%s", sizeof(SDataCol) * maxCols, strerror(errno));
+    uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCol) * maxCols, strerror(errno));
     tdFreeDataCols(pCols);
     return NULL;
   }
@@ -566,7 +566,7 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   SKVRow   nrow = NULL;
   void *   ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
 
-  if (ptr == NULL || ((SColIdx *)ptr)->colId < colId) { // need to add a column value to the row
+  if (ptr == NULL || ((SColIdx *)ptr)->colId > colId) { // need to add a column value to the row
     int diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
     nrow = malloc(kvRowLen(row) + sizeof(SColIdx) + diff);
     if (nrow == NULL) return -1;

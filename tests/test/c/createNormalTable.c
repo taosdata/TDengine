@@ -50,7 +50,9 @@ void  createDbAndSTable();
 int main(int argc, char *argv[]) {
   shellParseArgument(argc, argv);
   taos_init();
-  createDbAndSTable();
+  if (replica != 0) {
+    createDbAndSTable();
+  }
 
   pPrint("%d threads are spawned to create table", numOfThreads);
   
@@ -134,14 +136,31 @@ void *threadFunc(void *param) {
 
   int64_t startMs = taosGetTimestampMs();
 
-  for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
-    sprintf(qstr, "create table %s%d (ts timestamp, i int)", stableName, t);
-    TAOS_RES *pSql = taos_query(con, qstr);
-    code = taos_errno(pSql);
-    if (code != 0) {
-      pError("failed to create table %s%d, reason:%s", stableName, t, tstrerror(code));
+  if (replica != 0) {
+    for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
+      sprintf(qstr, "create table %s%d (ts timestamp, i int)", stableName, t);
+      TAOS_RES *pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        pError("failed to create table %s%d, reason:%s", stableName, t, tstrerror(code));
+      }
+      taos_free_result(pSql);
     }
-    taos_free_result(pSql);
+  } else {
+    for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
+      sprintf(qstr, "insert into %s%d values(now, 1)", stableName, t);
+      TAOS_RES *pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        if (code != TSDB_CODE_MND_INVALID_TABLE_NAME) {
+          pError("failed to create table %s%d, reason:%s", stableName, t, tstrerror(code));
+        }
+        if (code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+          exit(0);
+        }
+      }
+      taos_free_result(pSql);
+    }
   }
 
   float createTableSpeed = 0;

@@ -294,9 +294,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   st = taosGetTimestampUs();
 
-  TAOS_RES* pSql = taos_query(con, command);
-  atomic_store_ptr(&result, pSql);  // set the global TAOS_RES pointer
-
+  TAOS_RES* pSql = taos_query_h(con, command, &result);
   if (taos_errno(pSql)) {
     taos_error(pSql);
     return;
@@ -419,16 +417,16 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      fprintf(fp, "%d", ((((int)(*((char *)val))) == 1) ? 1 : 0));
+      fprintf(fp, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      fprintf(fp, "%d", (int)(*((char *)val)));
+      fprintf(fp, "%d", *((int8_t *)val));
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      fprintf(fp, "%d", (int)(*((short *)val)));
+      fprintf(fp, "%d", *((int16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
-      fprintf(fp, "%d", *((int *)val));
+      fprintf(fp, "%d", *((int32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
       fprintf(fp, "%" PRId64, *((int64_t *)val));
@@ -495,7 +493,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
       if (i > 0) {
         fputc(',', fp);
       }
-      dumpFieldToFile(fp, row[i], fields +i, length[i], precision);
+      dumpFieldToFile(fp, (const char*)row[i], fields +i, length[i], precision);
     }
     fputc('\n', fp);
 
@@ -559,16 +557,16 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      printf("%*s", width, ((((int)(*((char *)val))) == 1) ? "true" : "false"));
+      printf("%*s", width, ((((int32_t)(*((char *)val))) == 1) ? "true" : "false"));
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      printf("%*d", width, (int)(*((char *)val)));
+      printf("%*d", width, *((int8_t *)val));
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      printf("%*d", width, (int)(*((short *)val)));
+      printf("%*d", width, *((int16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
-      printf("%*d", width, *((int *)val));
+      printf("%*d", width, *((int32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
       printf("%*" PRId64, width, *((int64_t *)val));
@@ -621,7 +619,7 @@ static int verticalPrintResult(TAOS_RES* tres) {
       int padding = (int)(maxColNameLen - strlen(field->name));
       printf("%*.s%s: ", padding, " ", field->name);
 
-      printField(row[i], field, 0, length[i], precision);
+      printField((const char*)row[i], field, 0, length[i], precision);
       putchar('\n');
     }
 
@@ -722,7 +720,7 @@ static int horizontalPrintResult(TAOS_RES* tres) {
     int32_t* length = taos_fetch_lengths(tres);
     for (int i = 0; i < num_fields; i++) {
       putchar(' ');
-      printField(row[i], fields + i, width[i], length[i], precision);
+      printField((const char*)row[i], fields + i, width[i], length[i], precision);
       putchar(' ');
       putchar('|');
     }

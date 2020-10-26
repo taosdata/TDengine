@@ -16,13 +16,13 @@ Three different packages are provided, please pick up the one you like.
 <li><a id='tdengine-deb' style='color:var(--b2)'>TDengine DEB package (1.7M)</a></li>
 <li><a id='tdengine-tar' style='color:var(--b2)'>TDengine Tarball (3.0M)</a></li>
 </ul>
-For the time being, TDengine only supports installation on Linux systems using [`systemd`](https://en.wikipedia.org/wiki/Systemd) as the service manager. To check if your system has *systemd*, use the _which_ command.
+For the time being, TDengine only supports installation on Linux systems using [`systemd`](https://en.wikipedia.org/wiki/Systemd) as the service manager. To check if your system has *systemd* package, use the _which systemctl_ command.
 
 ```cmd
-which systemd
+which systemctl
 ```
 
-If the `systemd` command is not found, please [install from source code](#Install-from-Source). 
+If the `systemd` package is not found, please [install from source code](#Install-from-Source). 
 
 ### Running TDengine
 

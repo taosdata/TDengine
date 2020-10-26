@@ -27,8 +27,6 @@
 #include "httpSession.h"
 #include "httpQueue.h"
 
-void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
-                     void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 
 void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);
@@ -257,20 +255,20 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int unUsedCo
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s:inprogress, sqlObj:%p", pContext, pContext->fd,
-              pContext->user, pContext->session->taos, tstrerror(code), (SSqlObj *)result);
+    httpError("context:%p, fd:%d, user:%s, query error, code:%s:inprogress, sqlObj:%p", pContext, pContext->fd,
+              pContext->user, tstrerror(code), (SSqlObj *)result);
     return;
   }
 
   if (code < 0) {
     SSqlObj *pObj = (SSqlObj *)result;
     if (code == TSDB_CODE_TSC_INVALID_SQL) {
-      httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s, sqlObj:%p, error:%s", pContext,
-                pContext->fd, pContext->user, pContext->session->taos, tstrerror(code), pObj, pObj->cmd.payload);
+      httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p, error:%s", pContext,
+                pContext->fd, pContext->user, tstrerror(code), pObj, pObj->cmd.payload);
       httpSendTaosdInvalidSqlErrorResp(pContext, pObj->cmd.payload);
     } else {
-      httpError("context:%p, fd:%d, user:%s, query error, taos:%p, code:%s, sqlObj:%p", pContext, pContext->fd,
-                pContext->user, pContext->session->taos, tstrerror(code), pObj);
+      httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p", pContext, pContext->fd,
+                pContext->user, tstrerror(code), pObj);
       httpSendErrorResp(pContext, code);
     }
     taos_free_result(result);

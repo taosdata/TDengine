@@ -31,8 +31,10 @@ while $i < $tbNum
   
   $x = 0
   while $x < $rowNum
-    $ms = $x . m 
-    sql insert into $tb values (now + $ms , $x ) 
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x ) 
     $x = $x + 1
   endw 
  
@@ -52,7 +54,9 @@ if $data01 != 0 then
 endi
 
 print =============== step3
-sql select bottom(tbcol, 1) from $tb where ts > now + 4m
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select bottom(tbcol, 1) from $tb where ts > $ms
 print ===> $data01
 if $data01 != 5 then 
   return -1
@@ -76,7 +80,9 @@ if $data11 != 1 then
 endi
 
 print =============== step6
-sql select bottom(tbcol, 2) as b from $tb where ts > now + 4m
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+sql select bottom(tbcol, 2) as b from $tb where ts > $ms
 print ===> $data01  $data11
 if $data01 != 5 then 
   return -1

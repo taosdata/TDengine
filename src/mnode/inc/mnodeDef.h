@@ -69,7 +69,8 @@ typedef struct SDnodeObj {
   int16_t    cpuAvgUsage;      // calc from sys.cpu
   int16_t    memoryAvgUsage;   // calc from sys.mem
   int16_t    bandwidthUsage;   // calc from sys.band
-  int8_t     reserved2[2];
+  int8_t     offlineReason;
+  int8_t     reserved2[1];
 } SDnodeObj;
 
 typedef struct SMnodeObj {
@@ -114,7 +115,7 @@ typedef struct {
   uint64_t   suid;
   int64_t    createdTime;
   int32_t    numOfColumns; //used by normal table
-  int32_t    sid;
+  int32_t    tid;
   int32_t    vgId;
   int32_t    sqlLen;
   int8_t     updateEnd[4];

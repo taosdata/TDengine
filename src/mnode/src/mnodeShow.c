@@ -65,7 +65,7 @@ int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mnodeProcessConnectMsg);
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_USE_DB, mnodeProcessUseMsg);
   
-  tsMnodeShowCache = taosCacheInit(TSDB_DATA_TYPE_BIGINT, 5, false, mnodeFreeShowObj, "show");
+  tsMnodeShowCache = taosCacheInit(TSDB_CACHE_PTR_KEY, 5, true, mnodeFreeShowObj, "show");
   return 0;
 }
 
@@ -186,7 +186,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
     rowsToRead = pShow->numOfRows - pShow->numOfReads;
   }
 
-  /* return no more than 100 meters in one round trip */
+  /* return no more than 100 tables in one round trip */
   if (rowsToRead > 100) rowsToRead = 100;
 
   /*
@@ -244,7 +244,8 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   int32_t connId = htonl(pHBMsg->connId);
   SConnObj *pConn = mnodeAccquireConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort);
   if (pConn == NULL) {
-    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+    pHBMsg->pid = htonl(pHBMsg->pid);
+    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pHBMsg->pid, pHBMsg->appName);
   }
 
   if (pConn == NULL) {
@@ -325,7 +326,8 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     goto connect_over;
   }
 
-  SConnObj *pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  pConnectMsg->pid = htonl(pConnectMsg->pid);
+  SConnObj *pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pConnectMsg->pid, pConnectMsg->appName);
   if (pConn == NULL) {
     code = terrno;
   } else {
@@ -378,8 +380,8 @@ static bool mnodeCheckShowFinished(SShowObj *pShow) {
 }
 
 static bool mnodeAccquireShowObj(SShowObj *pShow) {
-  uint64_t handleVal = (uint64_t)pShow;
-  SShowObj **ppShow = taosCacheAcquireByKey(tsMnodeShowCache, &handleVal, sizeof(int64_t));
+  TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pShow;
+  SShowObj **ppShow = taosCacheAcquireByKey(tsMnodeShowCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE));
   if (ppShow) {
     mDebug("%p, show is accquired from cache, data:%p, index:%d", pShow, ppShow, pShow->index);
     return true;
@@ -389,10 +391,12 @@ static bool mnodeAccquireShowObj(SShowObj *pShow) {
 }
 
 static void* mnodePutShowObj(SShowObj *pShow) {
+  const int32_t DEFAULT_SHOWHANDLE_LIFE_SPAN = tsShellActivityTimer * 6 * 1000;
+
   if (tsMnodeShowCache != NULL) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
-    uint64_t handleVal = (uint64_t)pShow;
-    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &handleVal, sizeof(int64_t), &pShow, sizeof(int64_t), 6000);
+    TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pShow;
+    SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pShow, sizeof(TSDB_CACHE_PTR_TYPE), DEFAULT_SHOWHANDLE_LIFE_SPAN);
     pShow->ppShow = (void**)ppShow;
     mDebug("%p, show is put into cache, data:%p index:%d", pShow, ppShow, pShow->index);
     return pShow;

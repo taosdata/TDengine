@@ -213,4 +213,53 @@ if $data01 != 5195.000000000 then
   return -1
 endi
 
+print =======================>td-1596
+sql create table t2(ts timestamp, k int)
+sql insert into t2 values('2020-1-2 1:1:1', 1);
+sql insert into t2 values('2020-2-2 1:1:1', 1);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 1000
+
+sql use db
+sql select count(*), first(ts), last(ts) from t2 interval(1d);
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-02 00:00:00.000@ then
+  print expect 20-01-02 00:00:00.000, actual: $data00
+  return -1
+endi
+
+if $data10 != @20-02-02 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data02 != @20-01-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data12 != @20-02-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data03 != @20-01-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data13 != @20-02-02 01:01:01.000@ then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

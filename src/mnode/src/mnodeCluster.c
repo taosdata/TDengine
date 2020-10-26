@@ -225,6 +225,7 @@ static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, 
     numOfRows++;
   }
 
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }

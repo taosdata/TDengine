@@ -28,7 +28,7 @@ extern "C" {
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (0x80000000 | ((mod)<<16) | (code));
 #endif
- 
+
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
@@ -37,7 +37,7 @@ const char* tstrerror(int32_t err);
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
- 
+
 #define TSDB_CODE_SUCCESS                   0
 
 #ifdef TAOS_ERROR_C
@@ -98,7 +98,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_ACTION_IN_PROGRESS,       0, 0x0212, "Action in 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DISCONNECTED,             0, 0x0213, "Disconnected from service")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_WRITE_AUTH,            0, 0x0214, "No write permission")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_CONN_KILLED,              0, 0x0215, "Connection killed")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,         0, 0x0216, "Syntax errr in SQL")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,         0, 0x0216, "Syntax error in SQL")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DB_NOT_SELECTED,          0, 0x0217, "Database not specified or available")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TABLE_NAME,       0, 0x0218, "Table does not exist")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        0, 0x0300, "Message not processed")
@@ -137,6 +139,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_ALREADY_IN_DNODE,  0, 0x0339, "Vgroup alr
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_FREE,           0, 0x033A, "Dnode not avaliable")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_ID,       0, 0x033B, "Cluster id not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_READY,                0, 0x033C, "Cluster not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED,  0, 0x033D, "Dnode Id not configured")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED,  0, 0x033E, "Dnode Ep not configured")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       0, 0x0340, "Account already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT,             0, 0x0341, "Invalid account")
@@ -178,7 +182,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            0, 0x0401, "Dnode out 
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_WRITE_ACCESS,          0, 0x0402, "No permission for disk files in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          0, 0x0403, "Invalid message length")
 
-// vnode 
+// vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_MSG_NOT_PROCESSED,        0, 0x0501, "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_NEED_REPROCESSED,  0, 0x0502, "Action need to be reprocessed")
@@ -189,6 +193,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_DISK_PERMISSIONS,      0, 0x0506, "No write p
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR,      0, 0x0507, "Missing data file")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_OUT_OF_MEMORY,            0, 0x0508, "Out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "Unexpected generic error in vnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VRESION_FILE,     0, 0x050A, "Invalid version file")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               0, 0x0511, "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Write operation denied")
 
@@ -225,6 +230,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_READY,                0, 0x0707, "Query not 
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_HAS_RSP,                  0, 0x0708, "Query should response")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_IN_EXEC,                  0, 0x0709, "Multiple retrieval of this query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      0, 0x070A, "Too many time window in query")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,      0, 0x070B, "Query buffer limit has reached")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "License expired")
@@ -243,9 +249,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            0, 0x080B, "CPU cores 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "Invalid Sync Configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "Sync module not enabled")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_VERSION,          0, 0x0902, "Invalid Sync version")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "Unexpected generic error in wal")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           0, 0x1001, "WAL file is corrupted")
 
 // http
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_SERVER_OFFLINE,          0, 0x1100, "http server is not onlin")
@@ -346,6 +354,23 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_NULL,       0, 0x11A3, "tag value 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   0, 0x11A4, "tag value can not more than 64")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           0, 0x11A5, "value not find")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A6, "value type should be boolean, number or string")
+
+
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2101, "out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_UNDEF,              0, 0x2102, "convertion undefined")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_TRUNC,              0, 0x2103, "convertion truncated")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_SUPPORT,        0, 0x2104, "convertion not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OUT_OF_RANGE,            0, 0x2105, "out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NOT_SUPPORT,             0, 0x2106, "not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_HANDLE,          0, 0x2107, "invalid handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_RESULT,               0, 0x2108, "no result set")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_FIELDS,               0, 0x2109, "no fields returned")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_CURSOR,          0, 0x2110, "invalid cursor")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x2111, "statement not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x2112, "connection still busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x2113, "bad connection string")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_ARG,                 0, 0x2114, "bad argument")
+
 
 #ifdef TAOS_ERROR_C
 };

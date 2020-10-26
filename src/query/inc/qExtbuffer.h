@@ -89,7 +89,7 @@ typedef struct SColumnModel {
 
 typedef struct SColumnOrderInfo {
   int32_t numOfCols;
-  int16_t pData[];
+  int16_t colIndex[];
 } SColumnOrderInfo;
 
 typedef struct tOrderDescriptor {
