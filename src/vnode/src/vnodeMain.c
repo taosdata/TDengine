@@ -465,9 +465,10 @@ void *vnodeAcquireRqueue(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) return NULL;
 
-  if (pVnode->status == TAOS_VN_STATUS_RESET) {           
-    terrno = TSDB_CODE_APP_NOT_READY;
-    vInfo("vgId:%d, status is in reset", vgId);
+  int32_t code = vnodeCheckRead(pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    vInfo("vgId:%d, can not provide read service, status is %s", vgId, vnodeStatus[pVnode->status]);
     vnodeRelease(pVnode);
     return NULL;
   }
@@ -479,13 +480,14 @@ void *vnodeAcquireWqueue(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) return NULL;
 
-  if (pVnode->status == TAOS_VN_STATUS_RESET) {           
-    terrno = TSDB_CODE_APP_NOT_READY;
-    vInfo("vgId:%d, status is in reset", vgId);
+  int32_t code = vnodeCheckWrite(pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    vInfo("vgId:%d, can not provide write service, status is %s", vgId, vnodeStatus[pVnode->status]);
     vnodeRelease(pVnode);
     return NULL;
   }
-  
+
   return pVnode->wqueue;
 }
 

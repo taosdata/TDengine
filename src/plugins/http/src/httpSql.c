@@ -27,8 +27,6 @@
 #include "httpSession.h"
 #include "httpQueue.h"
 
-void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
-                     void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 
 void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);

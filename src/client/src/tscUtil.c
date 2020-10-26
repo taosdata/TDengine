@@ -704,16 +704,14 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
-  STableDataBlocks* pOneTableBlock = taosArrayGetP(pTableDataBlockList, 0);
-  int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
-
   void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
   size_t total = taosArrayGetSize(pTableDataBlockList);
   for (int32_t i = 0; i < total; ++i) {
-    pOneTableBlock = taosArrayGetP(pTableDataBlockList, i);
+    // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
+    STableDataBlocks* pOneTableBlock = taosArrayGetP(pTableDataBlockList, i);
+    int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
     STableDataBlocks* dataBuf = NULL;
     
     int32_t ret =

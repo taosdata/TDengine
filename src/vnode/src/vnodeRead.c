@@ -39,7 +39,13 @@ void vnodeInitReadFp(void) {
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
 }
 
-static int32_t vnodeProcessReadImp(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
+//
+// After the fetch request enters the vnode queue, if the vnode cannot provide services, the process function are
+// still required, or there will be a deadlock, so we don’t do any check here, but put the check codes before the
+// request enters the queue
+//
+int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
+  SVnodeObj *pVnode = (SVnodeObj *)param;
   int msgType = pReadMsg->rpcMsg.msgType;
 
   if (vnodeProcessReadMsgFp[msgType] == NULL) {
@@ -47,53 +53,35 @@ static int32_t vnodeProcessReadImp(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
+  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
+}
+
+int32_t vnodeCheckRead(void *param) {
+  SVnodeObj *pVnode = param;
   if (pVnode->status != TAOS_VN_STATUS_READY) {
-    vDebug("vgId:%d, msgType:%s not processed, vnode status is %s", pVnode->vgId, taosMsg[msgType],
-           vnodeStatus[pVnode->status]);
+    vDebug("vgId:%d, vnode status is %s, recCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
+           pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
   // tsdb may be in reset state
   if (pVnode->tsdb == NULL) {
-    vDebug("vgId:%d, msgType:%s not processed, tsdb is null", pVnode->vgId, taosMsg[msgType]);
-    return TSDB_CODE_APP_NOT_READY;
-  }
-
-  if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
-    vDebug("vgId:%d, msgType:%s not processed, vstatus is %s", pVnode->vgId, taosMsg[msgType],
-           vnodeStatus[pVnode->status]);
+    vDebug("vgId:%d, tsdb is null, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
   if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-    vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%s", pVnode->vgId, taosMsg[msgType],
-           pVnode->syncCfg.replica, syncRole[pVnode->role]);
+    vDebug("vgId:%d, replica:%d role:%s, recCount:%d pVnode:%p", pVnode->vgId, pVnode->syncCfg.replica,
+           syncRole[pVnode->role], pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
-  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
+  return TSDB_CODE_SUCCESS;
 }
+static int32_t vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void **qhandle, void *ahandle) {
+  int32_t code = vnodeCheckRead(pVnode);
+  if (code != TSDB_CODE_SUCCESS) return code;
 
-int32_t vnodeProcessRead(void *param, SReadMsg *pRead) {
-  SVnodeObj *pVnode = (SVnodeObj *)param;
-  int32_t    code = vnodeProcessReadImp(pVnode, pRead);
-
-  if (code == TSDB_CODE_APP_NOT_READY && pRead->rpcMsg.msgType == TSDB_MSG_TYPE_QUERY) {
-    // After the fetch request enters the vnode queue
-    // If the vnode cannot provide services, the following operations are still required
-    // Or, there will be a deadlock
-    void **qhandle = (void **)pRead->pCont;
-    vError("QInfo:%p msg:%p will be killed for vstatus is %s", *qhandle, pRead, vnodeStatus[pVnode->status]);
-
-    // qKillQuery(*qhandle);
-    // qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, true);
-    return TSDB_CODE_APP_NOT_READY;
-  } else {
-    return code;
-  }
-}
-
-static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void **qhandle, void *ahandle) {
   SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
   pRead->pCont = qhandle;
@@ -104,6 +92,8 @@ static void vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void **qhandle, void *a
 
   vDebug("QInfo:%p add to vread queue for exec query, msg:%p", *qhandle, pRead);
   taosWriteQitem(pVnode->rqueue, TAOS_QTYPE_QUERY, pRead);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -122,8 +112,13 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void *pVnode, void **handle, 
   if ((code = qDumpRetrieveResult(*handle, (SRetrieveTableRsp **)&pRet->rsp, &pRet->len, &continueExec)) == TSDB_CODE_SUCCESS) {
     if (continueExec) {
       *freeHandle = false;
-      vnodePutItemIntoReadQueue(pVnode, handle, ahandle);
-      pRet->qhandle = *handle;
+      code = vnodePutItemIntoReadQueue(pVnode, handle, ahandle);
+      if (code != TSDB_CODE_SUCCESS) {
+        *freeHandle = true;
+        return code;
+      } else {
+        pRet->qhandle = *handle;
+      }
     } else {
       *freeHandle = true;
       vDebug("QInfo:%p exec completed, free handle:%d", *handle, *freeHandle);
@@ -226,7 +221,12 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
     if (handle != NULL) {
       vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, create qhandle and returns to app", vgId, *handle);
-      vnodePutItemIntoReadQueue(pVnode, handle, pReadMsg->rpcMsg.ahandle);
+      code = vnodePutItemIntoReadQueue(pVnode, handle, pReadMsg->rpcMsg.ahandle);
+      if (code != TSDB_CODE_SUCCESS) {
+        pRsp->code = code;
+        qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+        return pRsp->code;
+      }
     }
   } else {
     assert(pCont != NULL);
@@ -287,16 +287,22 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
   memset(pRet, 0, sizeof(SRspRet));
 
+  terrno = TSDB_CODE_SUCCESS;
   int32_t code = TSDB_CODE_SUCCESS;
   void ** handle = qAcquireQInfo(pVnode->qMgmt, pRetrieve->qhandle);
-  if (handle == NULL || (*handle) != (void *)pRetrieve->qhandle) {
+  if (handle == NULL) {
+    code = terrno;
+    terrno = TSDB_CODE_SUCCESS;
+  } else if ((*handle) != (void *)pRetrieve->qhandle) {
     code = TSDB_CODE_QRY_INVALID_QHANDLE;
-    vDebug("vgId:%d, invalid qhandle in retrieving result, QInfo:%p", pVnode->vgId, (void *)pRetrieve->qhandle);
+  }
 
+  if (code != TSDB_CODE_SUCCESS) {
+    vDebug("vgId:%d, invalid handle in retrieving result, code:0x%08x, QInfo:%p", pVnode->vgId, code, (void *)pRetrieve->qhandle);
     vnodeBuildNoResultQueryRsp(pRet);
     return code;
   }
-
+  
   if (pRetrieve->free == 1) {
     vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
     qKillQuery(*handle);

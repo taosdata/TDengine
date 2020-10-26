@@ -190,6 +190,7 @@ void dnodeFreeVnodeWqueue(void *wqueue) {
 
 void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
   SWriteMsg *pWrite = (SWriteMsg *)param;
+  if (pWrite == NULL) return;
 
   if (code < 0) pWrite->code = code;
   int32_t count = atomic_add_fetch_32(&pWrite->processedCount, 1);

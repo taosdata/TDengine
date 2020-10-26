@@ -51,8 +51,8 @@ static bool validPassword(const char* passwd) {
   return validImpl(passwd, TSDB_PASSWORD_LEN - 1);
 }
 
-SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
-                         uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
+static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
+                         uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, TAOS **taos) {
   taos_init();
 
   if (!validUserName(user)) {
@@ -243,16 +243,19 @@ static void asyncConnCallback(void *param, TAOS_RES *tres, int code) {
 }
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
-                     void *param, void **taos) {
-  SSqlObj* pSql = taosConnectImpl(ip, user, pass, NULL, db, port, asyncConnCallback, param, taos);
+                     void *param, TAOS **taos) {
+  STscObj *pObj = NULL;
+  SSqlObj *pSql = taosConnectImpl(ip, user, pass, NULL, db, port, asyncConnCallback, param, (void **)&pObj);
   if (pSql == NULL) {
     return NULL;
   }
-  
+
+  if (taos) *taos = pObj;
+
   pSql->fetchFp = fp;
   pSql->res.code = tscProcessSql(pSql);
   tscDebug("%p DB async connection is opening", taos);
-  return taos;
+  return pObj;
 }
 
 void taos_close(TAOS *taos) {
@@ -897,7 +900,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   if (pSql->sqlstr == NULL) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
     taosTFree(pSql);
     return pRes->code;
   }
@@ -922,7 +925,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(taos), pObj);
+    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(pSql), pObj);
   }
 
   taos_free_result(pSql);
@@ -1066,7 +1069,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   tscDoQuery(pSql);
 
-  tscDebug("%p load multi table meta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+  tscDebug("%p load multi table meta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
   if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
   }

@@ -9,7 +9,7 @@ pipeline {
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          agent{label 'master'}
+          agent{label '184'}
           steps {
             sh '''
             date
@@ -34,7 +34,7 @@ pipeline {
           }
         }
         stage('test_b1') {
-          agent{label '184'}
+          agent{label 'master'}
           steps {
             sh '''
             cd ${WKC}
