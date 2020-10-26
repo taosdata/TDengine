@@ -2463,8 +2463,8 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
     if (pCtx->preAggVals.isSet) {
       double tmin = 0.0, tmax = 0.0;
       if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
-        tmin = GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
-        tmax = GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
+        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
       } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
         tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
         tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
