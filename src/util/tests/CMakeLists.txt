@@ -13,3 +13,12 @@ IF (HEADER_GTEST_INCLUDE_DIR AND LIB_GTEST_STATIC_DIR)
     ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
     TARGET_LINK_LIBRARIES(utilTest tutil common osdetail gtest pthread gcov)
 ENDIF()
+
+IF (TD_LINUX)
+    ADD_EXECUTABLE(trefTest ./trefTest.c)
+    TARGET_LINK_LIBRARIES(trefTest tutil common)
+ENDIF ()
+
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
+
+
