@@ -7147,7 +7147,7 @@ static int64_t getQuerySupportBufSize(int32_t numOfTables) {
 int32_t checkForQueryBuf(int32_t numOfTables) {
   int64_t t = getQuerySupportBufSize(numOfTables);
   if (tsQueryBufferSize < 0) {
-    return true;
+    return TSDB_CODE_SUCCESS;
   } else if (tsQueryBufferSize > 0) {
 
     while(1) {
