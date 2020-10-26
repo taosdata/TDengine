@@ -1121,6 +1121,8 @@ int32_t tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepco
         }
 
         *p1 = *pExpr;
+        memset(p1->param, 0, sizeof(tVariant) * tListLen(p1->param));
+
         for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
           tVariantAssign(&p1->param[j], &pExpr->param[j]);
         }
