@@ -2461,12 +2461,22 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
-      if (GET_DOUBLE_VAL(&pInfo->minval) > pCtx->preAggVals.statis.min) {
-        SET_DOUBLE_VAL(&pInfo->minval, (double)pCtx->preAggVals.statis.min);
+      double tmin, tmax;
+      if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
+        tmin = GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
+      } else {
+        assert(true);
+      }
+      if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
+        SET_DOUBLE_VAL(&pInfo->minval, tmin);
       }
 
-      if (GET_DOUBLE_VAL(&pInfo->maxval) < pCtx->preAggVals.statis.max) {
-        SET_DOUBLE_VAL(&pInfo->maxval, (double)pCtx->preAggVals.statis.max);
+      if (GET_DOUBLE_VAL(&pInfo->maxval) < tmax) {
+        SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
       pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
