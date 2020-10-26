@@ -1171,9 +1171,9 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
     return SQL_ERROR;
   }
 
-  SQLPOINTER    paramValue = param->ParameterValue;
-  SQLSMALLINT   valueType  = param->ValueType;
-  SQLLEN       *soi        = param->StrLen_or_Ind;
+  unsigned char *paramValue = param->ParameterValue;
+  SQLSMALLINT    valueType  = param->ValueType;
+  SQLLEN        *soi        = param->StrLen_or_Ind;
 
   size_t offset = ((size_t)idx_row) * sql->rowlen + sql->ptr_offset;
 
@@ -1636,7 +1636,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           DASSERT(soi);
           DASSERT(*soi != SQL_NTS);
           size_t bytes = 0;
-          SQLCHAR *utf8 = wchars_to_chars(paramValue, (size_t)*soi/2, &bytes);
+          SQLCHAR *utf8 = wchars_to_chars((const SQLWCHAR*)paramValue, (size_t)*soi/2, &bytes);
           bind->allocated = 1;
           bind->u.bin = utf8;
           bind->buffer_length = bytes;
@@ -1695,7 +1695,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           size_t bytes = 0;
           int r = 0;
           int64_t t = 0;
-          SQLCHAR *utf8 = wchars_to_chars(paramValue, (size_t)*soi/2, &bytes);
+          SQLCHAR *utf8 = wchars_to_chars((const SQLWCHAR*)paramValue, (size_t)*soi/2, &bytes);
           // why cast utf8 to 'char*' ?
           r = taosParseTime((char*)utf8, &t, (int)strlen((const char*)utf8), TSDB_TIME_PRECISION_MILLI, 0);
           bind->u.v8 = t;
@@ -1751,7 +1751,7 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           DASSERT(soi);
           DASSERT(*soi != SQL_NTS);
           size_t bytes = 0;
-          SQLCHAR *utf8 = wchars_to_chars(paramValue, (size_t)(*soi/2), &bytes);
+          SQLCHAR *utf8 = wchars_to_chars((const SQLWCHAR*)paramValue, (size_t)(*soi/2), &bytes);
           bind->allocated = 1;
           bind->u.nchar = (char*)utf8;
           bind->buffer_length = bytes;
