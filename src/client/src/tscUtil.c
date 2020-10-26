@@ -1719,10 +1719,9 @@ SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
   size_t num = taosArrayGetSize(pVgroupTables);
   SArray* pa = taosArrayInit(num, sizeof(SVgroupTableInfo));
 
+  SVgroupTableInfo info;
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
-
-    SVgroupTableInfo info;
     memset(&info, 0, sizeof(SVgroupTableInfo));
 
     info.vgInfo = pInfo->vgInfo;
