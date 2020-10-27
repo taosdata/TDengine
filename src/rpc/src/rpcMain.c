@@ -1610,7 +1610,7 @@ static void rpcDecRef(SRpcInfo *pRpc)
     int count = atomic_sub_fetch_32(&tsRpcNum, 1);
     if (count == 0) {
       taosCloseRef(tsRpcRefId);
-      tsRpcInit = PTHREAD_ONCE_INIT;      
+      // tsRpcInit = PTHREAD_ONCE_INIT;    // windows compliling error  
     }
   }
 }
