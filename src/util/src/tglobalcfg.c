@@ -130,6 +130,8 @@ int tsBalancePolicy = 0;           // 1-use sys.montor
 int tsOfflineThreshold = 864000;   // seconds 10days
 int tsMgmtEqualVnodeNum = 4;
 
+int tsTCPTransferThreshold = 65480;  // RPC_MAX_UDP_SIZE
+
 int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
@@ -709,6 +711,10 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "charset", tsCharset, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, tListLen(tsCharset), TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "tcptransferThreshold", &tsTCPTransferThreshold, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     500, 65480, 0, TSDB_CFG_UTYPE_BYTE);
 
   // connect configs
   tsInitConfigOption(cfg++, "maxShellConns", &tsMaxShellConns, TSDB_CFG_VTYPE_INT,

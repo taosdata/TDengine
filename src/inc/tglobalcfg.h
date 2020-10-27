@@ -122,6 +122,8 @@ extern int tsBalancePolicy;
 extern int tsOfflineThreshold;
 extern int tsMgmtEqualVnodeNum;
 
+extern int tsTCPTransferThreshold;
+
 extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;

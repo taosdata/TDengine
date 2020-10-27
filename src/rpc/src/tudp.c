@@ -756,7 +756,8 @@ int taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *c
 
   if (pConn == NULL || pConn->signature != pConn) return -1;
 
-  if (dataLen >= RPC_MAX_UDP_SIZE) return taosSendPacketViaTcp(ip, port, data, dataLen, chandle);
+  assert(tsTCPTransferThreshold <= RPC_MAX_UDP_SIZE && tsTCPTransferThreshold > 0);
+  if (dataLen >= tsTCPTransferThreshold) return taosSendPacketViaTcp(ip, port, data, dataLen, chandle);
 
   if (pConn->hash == NULL) {
     struct sockaddr_in destAdd;
