@@ -42,8 +42,8 @@ function executeQuery(sql){
 	var start = new Date().getTime();
 	var promise = cursor.query(sql, true);
 	var end = new Date().getTime();
-	printSql(sql, promise != null,(end - start));
 	promise.then(function(result){
+		printSql(sql, result != null,(end - start));
 		result.pretty();
 	});
 }

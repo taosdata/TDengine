@@ -79,7 +79,14 @@ pipeline {
             cmake .. > /dev/null
             make > /dev/null
             cd ${WKC}/tests/pytest
-            ./crash_gen.sh -a -p -t 4 -s 2000
+            '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                ./crash_gen.sh -a -p -t 4 -s 2000
+                '''
+            }
+            sh '''
             date
             cd ${WKC}/tests
             ./test-all.sh b2
