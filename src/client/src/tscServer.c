@@ -207,6 +207,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   assert(*pHB->self == pHB);
 
+  pHB->retry = 0;
   int32_t code = tscProcessSql(pHB);
   taosCacheRelease(tscObjCache, (void**) &p, false);
 
