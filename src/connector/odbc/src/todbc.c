@@ -679,7 +679,9 @@ SQLRETURN SQL_API SQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER 
 {
   size_t bytes = 0;
   SQLCHAR *utf8 = wchars_to_chars(szSqlStr, cbSqlStr, &bytes);
-  return SQLExecDirect(hstmt, utf8, bytes);
+  SQLRETURN r = SQLExecDirect(hstmt, utf8, bytes);
+  if (utf8) free(utf8);
+  return r;
 }
 
 static SQLRETURN doSQLNumResultCols(SQLHSTMT StatementHandle,
@@ -2224,9 +2226,7 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
   if (NameLength) {
     *NameLength = strnlen(field->name, sizeof(field->name));
   }
-  if (ColumnSize) {
-    *ColumnSize = field->bytes;
-  }
+  if (ColumnSize) *ColumnSize = field->bytes;
   if (DecimalDigits) *DecimalDigits = 0;
 
   if (DataType) {
@@ -2260,12 +2260,9 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP: {
-        // *DataType = SQL_TIMESTAMP;
-        // *ColumnSize = 30;
-        // *DecimalDigits = 3;
         *DataType = SQL_TIMESTAMP;
-        *ColumnSize = sizeof(SQL_TIMESTAMP_STRUCT);
-        *DecimalDigits = 0;
+        if (ColumnSize) *ColumnSize = sizeof(SQL_TIMESTAMP_STRUCT);
+        if (DecimalDigits) *DecimalDigits = 0;
       } break;
 
       case TSDB_DATA_TYPE_NCHAR: {
