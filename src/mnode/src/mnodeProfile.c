@@ -182,7 +182,7 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   // app name
   pShow->bytes[cols] = TSDB_APPNAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "app_name");
+  strcpy(pSchema[cols].name, "program");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 

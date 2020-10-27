@@ -186,7 +186,7 @@ python3 ./test.py -f functions/function_leastsquares.py -r 1
 python3 ./test.py -f functions/function_max.py -r 1
 python3 ./test.py -f functions/function_min.py -r 1
 python3 ./test.py -f functions/function_operations.py -r 1 
-python3 ./test.py -f functions/function_percentile.py
+python3 ./test.py -f functions/function_percentile.py -r 1
 python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1

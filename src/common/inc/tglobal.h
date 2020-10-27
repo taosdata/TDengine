@@ -44,13 +44,16 @@ extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
 extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
-extern float    tsRatioOfQueryThreads;
+extern float    tsRatioOfQueryThreads;  // todo remove it
 extern int8_t   tsDaylight;
 extern char     tsTimezone[];
 extern char     tsLocale[];
-extern char     tsCharset[];  // default encode string
+extern char     tsCharset[];            // default encode string
 extern int32_t  tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+
+//query buffer management
+extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
 
 // client
 extern int32_t tsTableMetaKeepTimer;
