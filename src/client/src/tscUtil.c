@@ -1713,7 +1713,7 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   taosArrayRemove(pVgroupTable, index);
 }
 
-SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
+SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
   if (pVgroupTables == NULL) {
     return NULL;
   }
@@ -1739,7 +1739,7 @@ SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
 }
 
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
-  tscDebug("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
+  tscDebug("%p unref %d tables in the tableMeta cache", address, pQueryInfo->numOfTables);
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
@@ -1779,6 +1779,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
   }
 
+  // TODO handle malloc failure
   pTableMetaInfo->tagColList = taosArrayInit(4, POINTER_BYTES);
   if (pTableMetaInfo->tagColList == NULL) {
     return NULL;
@@ -1788,7 +1789,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, -1);
   }
 
-  pTableMetaInfo->pVgroupTables = tscCloneVgroupTableInfo(pVgroupTables);
+  pTableMetaInfo->pVgroupTables = tscVgroupTableInfoClone(pVgroupTables);
   
   pQueryInfo->numOfTables += 1;
   return pTableMetaInfo;
@@ -2469,6 +2470,7 @@ void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src) {
   dst->vgId = src->vgId;
   dst->numOfEps = src->numOfEps;
   for(int32_t i = 0; i < dst->numOfEps; ++i) {
+    taosTFree(dst->epAddr[i].fqdn);
     dst->epAddr[i].port = src->epAddr[i].port;
     dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
   }

@@ -225,7 +225,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
-SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables);
+SArray* tscVgroupTableInfoClone(SArray* pVgroupTables);
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
