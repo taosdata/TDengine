@@ -16,9 +16,7 @@
 #ifndef _todbc_log_h_
 #define _todbc_log_h_
 
-#include <libgen.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
 
 #define D(fmt, ...)                                              \
   fprintf(stderr,                                                \

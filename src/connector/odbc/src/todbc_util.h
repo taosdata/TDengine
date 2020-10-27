@@ -16,18 +16,16 @@
 #ifndef _TODBC_UTIL_H_
 #define _TODBC_UTIL_H_
 
-#include "todbc_log.h"
+#include "os.h"
 
-#include <stddef.h>
 #include <sql.h>
+#include <sqltypes.h>
 
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);
 
 int is_valid_sql_c_type(int type);
 int is_valid_sql_sql_type(int type);
-
-int todbc_parse_conn_string(const char *conn, char **dsn, char **uid, char **pwd, char **host);
 
 int string_conv(const char *fromcode, const char *tocode,
                 const unsigned char *src, size_t sbytes,

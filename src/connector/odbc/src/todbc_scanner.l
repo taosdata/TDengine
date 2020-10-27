@@ -1,7 +1,11 @@
 %{
-#include "todbc_util.h"
-
+#include "todbc_flex.h"
 #include <stdio.h>
+
+#ifdef _MSC_VER
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#endif
 
 typedef struct params_s              params_t;
 struct params_s {
@@ -68,6 +72,8 @@ do {                                                 \
 
 %option prefix="todbc_yy"
 %option extra-type="struct params_s *"
+%option nounistd
+%option never-interactive
 %option reentrant
 %option noyywrap
 %option noinput nounput
@@ -98,8 +104,7 @@ do {                                                 \
 <EQ>[{]                        { CHG_STATE(BRACE1); }
 <EQ>.|\n                       { return -1; }
 
-<BRACE1>[[:space:]]+       { }
-<BRACE1>[^{}\n[:space:]]+  { set_val(); CHG_STATE(BRACE2); }
+<BRACE1>[^{}\n]+  { set_val(); CHG_STATE(BRACE2); }
 <BRACE1>.|\n      { return -1; }
 
 <BRACE2>[[:space:]]+       { }

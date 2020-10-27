@@ -31,7 +31,10 @@
 #pragma comment(lib, "Mswsock.lib ")
 #endif
 
+#pragma warning(push)
+#pragma warning(disable:4091)
 #include <DbgHelp.h>
+#pragma warning(pop)
 
 static void taosGetSystemTimezone() {
   // get and set default timezone

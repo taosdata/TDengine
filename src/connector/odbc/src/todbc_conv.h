@@ -16,11 +16,9 @@
 #ifndef _todbc_conv_h_
 #define _todbc_conv_h_
 
-#include <inttypes.h>
-#include <sqltypes.h>
-#include <stddef.h>
-
-#include "iconv.h"
+#include "os.h"
+#include <iconv.h>
+#include <sql.h>
 
 
 typedef enum {
