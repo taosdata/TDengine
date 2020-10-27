@@ -262,6 +262,7 @@ PARSE_VCFG_ERROR:
     vnodeLoadCfg(pVnode, &vnodeMsg);
   }
 
+  terrno = 0;
   return ret;
 }
 
@@ -316,6 +317,7 @@ int32_t vnodeWriteCfg(SMDCreateVnodeMsg *pMsg) {
   fflush(fp);
   fclose(fp);
   free(content);
+  terrno = 0;
 
   vInfo("vgId:%d, successed to write %s", pMsg->cfg.vgId, file);
   return TSDB_CODE_SUCCESS;

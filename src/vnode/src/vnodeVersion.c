@@ -70,6 +70,7 @@ PARSE_VER_ERROR:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
+  terrno = 0;
 
   return ret;
 }
@@ -96,6 +97,7 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   fflush(fp);
   fclose(fp);
   free(content);
+  terrno = 0;
 
   vInfo("vgId:%d, successed to write %s, version:%" PRId64, pVnode->vgId, file, pVnode->fversion);
   return TSDB_CODE_SUCCESS;

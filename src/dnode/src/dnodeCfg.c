@@ -127,6 +127,7 @@ PARSE_CFG_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
+  terrno = 0;
 
   dnodeResetCfg(&cfg);
   return 0;
@@ -155,6 +156,7 @@ static int32_t dnodeWriteCfg() {
   fflush(fp);
   fclose(fp);
   free(content);
+  terrno = 0;
 
   dInfo("successed to write %s", file);
   return 0;

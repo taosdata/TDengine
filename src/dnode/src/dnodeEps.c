@@ -235,6 +235,7 @@ PRASE_EPS_OVER:
   dnodeResetEps(eps);
   if (eps) free(eps);
 
+  terrno = 0;
   return 0;
 }
 
@@ -272,6 +273,7 @@ static int32_t dnodeWriteEps() {
   fflush(fp);
   fclose(fp);
   free(content);
+  terrno = 0;
 
   dInfo("successed to write %s", file);
   return 0;
