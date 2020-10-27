@@ -258,7 +258,7 @@ extern int            tsGlobalConfigNum;
 extern char *         tsCfgStatusStr[];
 SGlobalConfig *tsGetConfigOption(const char *option);
 
-#define TSDB_CFG_MAX_NUM    111
+#define TSDB_CFG_MAX_NUM    130
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
