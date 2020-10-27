@@ -150,7 +150,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   if (pObj == NULL) return;
 
   if (pObj != pObj->signature) {
-    tscError("heart beat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
+    tscError("heartbeat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
     return;
   }
 
@@ -175,12 +175,12 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscDebug("heartbeat failed, code:%s", tstrerror(code));
+    tscDebug("%p heartbeat failed, code:%s", pObj->pHb, tstrerror(code));
   }
 
   if (pObj->pHb != NULL) {
     int32_t waitingDuring = tsShellActivityTimer * 500;
-    tscDebug("%p start heartbeat in %dms", pSql, waitingDuring);
+    tscDebug("%p send heartbeat in %dms", pSql, waitingDuring);
 
     taosTmrReset(tscProcessActivityTimer, waitingDuring, pObj, tscTmr, &pObj->pTimer);
   } else {
@@ -1639,11 +1639,14 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int size = numOfQueries * sizeof(SQueryDesc) + numOfStreams * sizeof(SStreamDesc) + sizeof(SCMHeartBeatMsg) + 100;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
-    tscError("%p failed to malloc for heartbeat msg", pSql);
+    tscError("%p failed to create heartbeat msg", pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  // TODO the expired hb and client can not be identified by server till now.
   SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
+  tstrncpy(pHeartbeat->clientVer, version, tListLen(pHeartbeat->clientVer));
+
   pHeartbeat->numOfQueries = numOfQueries;
   pHeartbeat->numOfStreams = numOfStreams;
 
@@ -1996,9 +1999,10 @@ static void createHBObj(STscObj* pObj) {
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
-  char temp[TSDB_TABLE_FNAME_LEN * 2];
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
+
+  char temp[TSDB_TABLE_FNAME_LEN * 2] = {0};
 
   SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
   tstrncpy(pObj->acctId, pConnect->acctId, sizeof(pObj->acctId));  // copy acctId from response
@@ -2018,6 +2022,8 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->connId = htonl(pConnect->connId);
 
   createHBObj(pObj);
+
+  //launch a timer to send heartbeat to maintain the connection and send status to mnode
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
