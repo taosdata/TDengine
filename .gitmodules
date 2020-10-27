@@ -4,3 +4,6 @@
 [submodule "src/connector/grafanaplugin"]
 	path = src/connector/grafanaplugin
 	url = https://github.com/taosdata/grafanaplugin
+[submodule "tests/examples/rust"]
+	path = tests/examples/rust
+	url = https://github.com/songtianyi/tdengine-rust-bindings.git
