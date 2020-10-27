@@ -219,6 +219,11 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
     pSupporter->f = NULL;
   }
 
+  if (pSupporter->pVgroupTables != NULL) {
+    taosArrayDestroy(pSupporter->pVgroupTables);
+    pSupporter->pVgroupTables = NULL;
+  }
+
   taosTFree(pSupporter->pIdTagList);
   tscTagCondRelease(&pSupporter->tagCond);
   free(pSupporter);
@@ -327,6 +332,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
     pTableMetaInfo->pVgroupTables = pSupporter->pVgroupTables;
+    pSupporter->pVgroupTables = NULL;
 
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
@@ -359,7 +365,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-      pExpr->param[0].i64Key = colId;
+      pExpr->param[0] = (tVariant) {.i64Key = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
       pExpr->numOfParams = 1;
     }
 
@@ -388,25 +394,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
       assert(taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0);
       TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
-    } else { // TODO remove unnecessarily accessed vnode
-//      pTableMetaInfo->vgroupList->
-//      for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
-//        SVgroupTableInfo* p = taosArrayGet(pTableMetaInfo->pVgroupTables, k);
-//
-//        bool found = false;
-//        for(int32_t f = 0; f < num; ++f) {
-//          if (p->vgInfo.vgId == list[f]) {
-//            found = true;
-//            break;
-//          }
-//        }
-//
-//        if (!found) {
-//          tscRemoveVgroupTableGroup(pTableMetaInfo->pVgroupTables, k);
-//        } else {
-//          k++;
-//        }
-//      }
     }
 
     taosTFree(list);
@@ -1023,15 +1010,28 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
 
   // If at least one subquery is completed in current vnode, try the next vnode in case of multi-vnode
   // super table projection query.
-  if (numOfFetch <= 0 && !reachLimit) {
+  if (reachLimit) {
+    pSql->res.completed = true;
+    freeJoinSubqueryObj(pSql);
+
+    if (pSql->res.code == TSDB_CODE_SUCCESS) {
+      (*pSql->fp)(pSql->param, pSql, 0);
+    } else {
+      tscQueueAsyncRes(pSql);
+    }
+
+    return;
+  }
+
+  if (numOfFetch <= 0) {
     bool tryNextVnode = false;
 
-    SSqlObj* pp = pSql->pSubs[0];
+    SSqlObj*    pp = pSql->pSubs[0];
     SQueryInfo* pi = tscGetQueryInfoDetail(&pp->cmd, 0);
 
     // get the number of subquery that need to retrieve the next vnode.
     if (tscNonOrderedProjectionQueryOnSTable(pi, 0)) {
-      for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+      for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
         SSqlObj* pSub = pSql->pSubs[i];
         if (pSub != NULL && pSub->res.row >= pSub->res.numOfRows && pSub->res.completed) {
           pSql->subState.numOfRemain++;
@@ -1047,7 +1047,8 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
 
       SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSub->cmd, 0);
 
-      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows && pSub->res.completed) {
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
+          pSub->res.completed) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
 
@@ -1085,7 +1086,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     } else {
       tscQueueAsyncRes(pSql);
     }
-    
+
     return;
   }
 
