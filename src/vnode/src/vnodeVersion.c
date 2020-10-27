@@ -23,13 +23,13 @@
 #include "vnodeVersion.h"
 
 int32_t vnodeReadVersion(SVnodeObj *pVnode) {
-  int32_t ret = TSDB_CODE_SUCCESS;
   int32_t len = 0;
   int32_t maxLen = 100;
   char *  content = calloc(1, maxLen + 1);
   cJSON * root = NULL;
   FILE *  fp = NULL;
 
+  terrno = TSDB_CODE_VND_INVALID_VRESION_FILE;
   char file[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(file, "%s/vnode%d/version.json", tsVnodeDir, pVnode->vgId);
 
@@ -37,14 +37,14 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   if (!fp) {
     if (errno != ENOENT) {
       vError("vgId:%d, failed to read %s, error:%s", pVnode->vgId, file, strerror(errno));
-      ret = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      ret = TSDB_CODE_SUCCESS;
+      terrno = TSDB_CODE_SUCCESS;
     }
     goto PARSE_VER_ERROR;
   }
 
-  fread(content, 1, maxLen, fp);
+  len = fread(content, 1, maxLen, fp);
   if (len <= 0) {
     vError("vgId:%d, failed to read %s, content is null", pVnode->vgId, file);
     goto PARSE_VER_ERROR;
@@ -63,16 +63,15 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
   }
   pVnode->version = ver->valueint;
 
-  ret = TSDB_CODE_SUCCESS;
+  terrno = TSDB_CODE_SUCCESS;
   vInfo("vgId:%d, read %s successfully, version:%" PRId64, pVnode->vgId, file, pVnode->version);
 
 PARSE_VER_ERROR:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
-  terrno = 0;
 
-  return ret;
+  return terrno;
 }
 
 int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
