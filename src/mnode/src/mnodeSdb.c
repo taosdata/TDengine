@@ -273,8 +273,6 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
              tstrerror(code));
   }
 
-  if (((SSdbTable *)pOper->table)->tableId == SDB_TABLE_CTABLE)
-  pOper->retCode = TSDB_CODE_MND_APP_ERROR;
   // failed to forward, need revert insert
   if (pOper->retCode != TSDB_CODE_SUCCESS) {
     SWalHead *pHead = (void *)pOper + sizeof(SSdbOper) + SDB_SYNC_HACK;
