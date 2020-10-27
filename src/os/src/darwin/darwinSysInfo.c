@@ -67,7 +67,7 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-bool taosGetDisk() { return true; }
+void taosGetDisk() {}
 
 bool taosGetProcIO(float *readKB, float *writeKB) {
   *readKB = 0;

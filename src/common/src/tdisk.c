@@ -244,15 +244,15 @@ static int tdCheckDisk(char *dirName, int level, int primary) {
 }
 
 static int tdUpdateDiskMeta(SDisk *pDisk) {
-  struct statvfs dstat;
-  if (statvfs(pDisk->dir, &dstat) < 0) {
+  SysDiskSize dstat;
+  if (taosGetDiskSize(pDisk->dir, &dstat) < 0) {
     uError("failed to get dir %s information since %s", pDisk->dir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  pDisk->dmeta.size = dstat.f_bsize * dstat.f_blocks;
-  pDisk->dmeta.free = dstat.f_bsize * dstat.f_bavail;
+  pDisk->dmeta.size = dstat.tsize;
+  pDisk->dmeta.free = dstat.avail;
 
   return 0;
 }
@@ -349,4 +349,25 @@ static int tdAddDisk(SDnodeTier *pDnodeTier, char *dir, int level, int primary) 
   pDnodeTier->nTiers = MAX(pDnodeTier->nTiers, level + 1);
 
   return 0;
+}
+
+void taosGetDisk() {
+  const double unit = 1024 * 1024 * 1024;
+  SysDiskSize  diskSize;
+
+  if (tscEmbedded) {
+    tdUpdateTiersInfo(tsDnodeTier);
+    tsTotalDataDirGB = (float)tsDnodeTier->meta.tsize / unit;
+    tsAvailDataDirGB = (float)tsDnodeTier->meta.avail / unit;
+  }
+
+  if (taosGetDiskSize(tsLogDir, &diskSize)) {
+    tsTotalLogDirGB = (float)diskSize.tsize / unit;
+    tsAvailLogDirGB = (float)diskSize.avail / unit;
+  }
+
+  if (taosGetDiskSize("/tmp", &diskSize)) {
+    tsTotalTmpDirGB = (float)diskSize.tsize / unit;
+    tsAvailTmpDirectorySpace = (float)diskSize.avail / unit;
+  }
 }

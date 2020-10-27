@@ -22,7 +22,6 @@
 #include "tkey.h"
 #include "tulog.h"
 #include "tsocket.h"
-#include "tsystem.h"
 #include "tutil.h"
 
 SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {{0}};
