@@ -97,7 +97,7 @@ int32_t dnodeInitShell() {
     return -1;
   }
 
-  dInfo("shell rpc server is opened");
+  dInfo("dnode shell rpc server is initialized");
   return 0;
 }
 

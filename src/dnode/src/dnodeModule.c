@@ -114,6 +114,7 @@ int32_t dnodeInitModules() {
     }
   }
 
+  dInfo("dnode modules is initialized");
   return 0;
 }
 

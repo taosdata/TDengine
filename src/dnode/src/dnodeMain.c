@@ -205,7 +205,7 @@ static int32_t dnodeInitStorage() {
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
 
-  dInfo("storage directory is initialized");
+  dInfo("dnode storage is initialized at %s", tsDnodeDir);
   return 0;
 }
 

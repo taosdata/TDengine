@@ -440,9 +440,11 @@ static int32_t mnodeGetDnodeEpsSize() {
   return size;
 }
 
-static void mnodeGetDnodeEpsData(SDnodeEps *pEps) {
+static void mnodeGetDnodeEpsData(SDnodeEps *pEps, int32_t epsSize) {
   pthread_mutex_lock(&tsDnodeEpsMutex);
-  memcpy(pEps, tsDnodeEps, tsDnodeEpsSize);
+  if (epsSize == tsDnodeEpsSize) {
+    memcpy(pEps, tsDnodeEps, tsDnodeEpsSize);
+  }
   pthread_mutex_unlock(&tsDnodeEpsMutex);
 }
 
@@ -451,6 +453,7 @@ static void mnodeUpdateDnodeEps() {
 
   int32_t totalDnodes = mnodeGetDnodesNum();
   tsDnodeEpsSize = sizeof(SDnodeEps) + totalDnodes * sizeof(SDnodeEp);
+  free(tsDnodeEps);
   tsDnodeEps = calloc(1, tsDnodeEpsSize);
   tsDnodeEps->dnodeNum = htonl(totalDnodes);
 
@@ -534,7 +537,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t openVnodes = htons(pStatus->openVnodes);
-  int32_t contLen = sizeof(SDMStatusRsp) + openVnodes * sizeof(SDMVgroupAccess) + mnodeGetDnodeEpsSize();
+  int32_t epsSize = mnodeGetDnodeEpsSize();
+  int32_t vgAccessSize = openVnodes * sizeof(SDMVgroupAccess);
+  int32_t contLen = sizeof(SDMStatusRsp) + vgAccessSize + epsSize;
+
   SDMStatusRsp *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     mnodeDecDnodeRef(pDnode);
@@ -596,8 +602,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   
   mnodeDecDnodeRef(pDnode);
 
-  SDnodeEps *pEps = (SDnodeEps *)((char *)pAccess + openVnodes * sizeof(SDMVgroupAccess));
-  mnodeGetDnodeEpsData(pEps);
+  SDnodeEps *pEps = (SDnodeEps *)((char *)pRsp + sizeof(SDMStatusRsp) + vgAccessSize);
+  mnodeGetDnodeEpsData(pEps, epsSize);
 
   pMsg->rpcRsp.len = contLen;
   pMsg->rpcRsp.rsp =  pRsp;

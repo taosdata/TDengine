@@ -32,7 +32,11 @@ static void    dnodePrintCfg(SDnodeCfg *cfg);
 int32_t dnodeInitCfg() {
   pthread_mutex_init(&tsCfgMutex, NULL);
   dnodeResetCfg(NULL);
-  return dnodeReadCfg();
+  int32_t ret = dnodeReadCfg();
+  if (ret == 0) {
+    dInfo("dnode cfg is initialized");
+  }
+  return ret;
 }
 
 void dnodeCleanupCfg() { pthread_mutex_destroy(&tsCfgMutex); }

@@ -34,7 +34,12 @@ static int32_t dnodeWriteMInfos();
 int32_t dnodeInitMInfos() {
   pthread_mutex_init(&tsMInfosMutex, NULL);
   dnodeResetMInfos(NULL);
-  return dnodeReadMInfos();
+  int32_t ret = dnodeReadMInfos();
+  if (ret == 0) {
+    dInfo("dnode minfos is initialized");
+  }
+
+  return ret;
 }
 
 void dnodeCleanupMInfos() { pthread_mutex_destroy(&tsMInfosMutex); }

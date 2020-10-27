@@ -79,7 +79,6 @@ int32_t dnodeInitMgmt() {
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP,  dnodeProcessStatusRsp);
   tsRebootTime = taosGetTimestampSec();
 
-
   int32_t code = vnodeInitResources();
   if (code != TSDB_CODE_SUCCESS) {
     dnodeCleanupMgmt();

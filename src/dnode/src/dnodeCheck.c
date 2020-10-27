@@ -262,8 +262,6 @@ int32_t dnodeInitCheck() {
     }
   }
 
+  dInfo("dnode check is initialized");
   return 0;
 }
-
-
-

@@ -69,7 +69,7 @@ int32_t dnodeInitVnodeWrite() {
     wWorkerPool.writeWorker[i].workerId = i;
   }
 
-  dInfo("dnode write is opened, max worker %d", wWorkerPool.max);
+  dInfo("dnode write is initialized, max worker %d", wWorkerPool.max);
   return 0;
 }
 

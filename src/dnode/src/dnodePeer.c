@@ -72,7 +72,7 @@ int32_t dnodeInitServer() {
     return -1;
   }
 
-  dInfo("inter-dnodes RPC server is opened");
+  dInfo("dnode inter-dnodes RPC server is initialized");
   return 0;
 }
 
@@ -137,7 +137,7 @@ int32_t dnodeInitClient() {
     return -1;
   }
 
-  dInfo("inter-dnodes rpc client is opened");
+  dInfo("initialized inter-dnodes rpc client is initialized");
   return 0;
 }
 
