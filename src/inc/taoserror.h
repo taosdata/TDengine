@@ -78,7 +78,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                0, 0x0105, "Ref out of
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     0, 0x0106, "too many Ref Objs")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               0, 0x0107, "Ref ID is removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               0, 0x0108, "Invalid Ref ID")
-TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            0, 0x0119, "Ref is already there")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            0, 0x0109, "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                0, 0x0110, "Ref is not there")
 
 //client
