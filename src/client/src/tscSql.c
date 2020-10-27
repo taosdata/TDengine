@@ -161,6 +161,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
+  taosAddRef(tscRefId, pObj);
   return pSql;
 }
 
@@ -296,7 +297,8 @@ void taos_close(TAOS *taos) {
   }
 
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
-  tscCloseTscObj(pObj);
+
+  taosRemoveRef(tscRefId, pObj);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {

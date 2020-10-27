@@ -107,7 +107,7 @@ func main() {
 	fmt.Scanln()
 
 	url = "root:taosdata@/tcp(" + configPara.hostName + ":" + strconv.Itoa(configPara.serverPort) + ")/"
-    //url = fmt.Sprintf("%s:%s@/tcp(%s:%d)/%s?interpolateParams=true", configPara.user, configPara.password, configPara.hostName, configPara.serverPort, configPara.dbName)
+        //url = fmt.Sprintf("%s:%s@/tcp(%s:%d)/%s?interpolateParams=true", configPara.user, configPara.password, configPara.hostName, configPara.serverPort, configPara.dbName)
 	// open connect to taos server
 	//db, err := sql.Open(taosDriverName, url)
 	//if err != nil {
@@ -115,6 +115,7 @@ func main() {
 	//  os.Exit(1)
 	//}
 	//defer db.Close()
+        rand.Seed(time.Now().Unix())
 
 	createDatabase(configPara.dbName, configPara.supTblName)
 	fmt.Printf("======== create database success! ========\n\n")
