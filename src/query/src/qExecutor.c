@@ -6771,7 +6771,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
   *buildRes = false;
   if (IS_QUERY_KILLED(pQInfo)) {
-    qDebug("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
+    qDebug("QInfo:%p query is killed, code:0x%08x", pQInfo, pQInfo->code);
     return pQInfo->code;
   }
 
@@ -7149,13 +7149,20 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
 void** qAcquireQInfo(void* pMgmt, uint64_t _key) {
   SQueryMgmt *pQueryMgmt = pMgmt;
 
-  if (pQueryMgmt->qinfoPool == NULL || pQueryMgmt->closed) {
+  if (pQueryMgmt->closed) {
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+    return NULL;
+  }
+
+  if (pQueryMgmt->qinfoPool == NULL) {
+    terrno = TSDB_CODE_QRY_INVALID_QHANDLE;
     return NULL;
   }
 
   TSDB_CACHE_PTR_TYPE key = (TSDB_CACHE_PTR_TYPE)_key;
   void** handle = taosCacheAcquireByKey(pQueryMgmt->qinfoPool, &key, sizeof(TSDB_CACHE_PTR_TYPE));
   if (handle == NULL || *handle == NULL) {
+    terrno = TSDB_CODE_QRY_INVALID_QHANDLE;
     return NULL;
   } else {
     return handle;

@@ -287,16 +287,22 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
 
   memset(pRet, 0, sizeof(SRspRet));
 
+  terrno = TSDB_CODE_SUCCESS;
   int32_t code = TSDB_CODE_SUCCESS;
   void ** handle = qAcquireQInfo(pVnode->qMgmt, pRetrieve->qhandle);
-  if (handle == NULL || (*handle) != (void *)pRetrieve->qhandle) {
+  if (handle == NULL) {
+    code = terrno;
+    terrno = TSDB_CODE_SUCCESS;
+  } else if ((*handle) != (void *)pRetrieve->qhandle) {
     code = TSDB_CODE_QRY_INVALID_QHANDLE;
-    vDebug("vgId:%d, invalid qhandle in retrieving result, QInfo:%p", pVnode->vgId, (void *)pRetrieve->qhandle);
+  }
 
+  if (code != TSDB_CODE_SUCCESS) {
+    vDebug("vgId:%d, invalid handle in retrieving result, code:0x%08x, QInfo:%p", pVnode->vgId, code, (void *)pRetrieve->qhandle);
     vnodeBuildNoResultQueryRsp(pRet);
     return code;
   }
-
+  
   if (pRetrieve->free == 1) {
     vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
     qKillQuery(*handle);

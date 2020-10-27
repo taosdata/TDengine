@@ -103,7 +103,7 @@ class TDTestCase:
         tdSql.execute('alter table stb add tag tnc nchar(10)')
         for tid in range(1, self.ntables + 1):
             tdSql.execute('alter table tb%d set tag tnc=\"%s\"' %
-                          (tid, str(tid * 1.2)))
+                          (tid, str(tid + 1000000000)))
         tdLog.info("insert %d data in to each %d tables" % (2, self.ntables))
         for rid in range(self.rowsPerTable + 1, self.rowsPerTable + 3):
             sqlcmd = ['insert into']
