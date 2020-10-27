@@ -209,7 +209,7 @@ static int32_t dnodeInitStorage() {
         return -1;
       }
 
-      tdGetVnodeBackRootDir(dirName, pDisk->dir);
+      tdGetVnodeBackRootDir(pDisk->dir, dirName);
       if (dnodeCreateDir(dirName) < 0) {
         dError("failed to create vnode back dir: %s, reason: %s", dirName, strerror(errno));
         return -1;

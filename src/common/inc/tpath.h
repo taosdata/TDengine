@@ -22,35 +22,35 @@
 extern "C" {
 #endif
 
-static FORCE_INLINE void tdGetMnodeRootDir(char *baseDir, char *dirName) {
+static FORCE_INLINE void tdGetMnodeRootDir(const char *baseDir, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/mnode", baseDir);
 }
 
-static FORCE_INLINE void tdGetDnodeRootDir(char *baseDir, char *dirName) {
+static FORCE_INLINE void tdGetDnodeRootDir(const char *baseDir, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/dnode", baseDir);
 }
 
-static FORCE_INLINE void tdGetVnodeRootDir(char *baseDir, char *dirName) {
+static FORCE_INLINE void tdGetVnodeRootDir(const char *baseDir, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode", baseDir);
 }
 
-static FORCE_INLINE void tdGetVnodeBackRootDir(char *baseDir, char *dirName) {
+static FORCE_INLINE void tdGetVnodeBackRootDir(const char *baseDir, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak", baseDir);
 }
 
-static FORCE_INLINE void tdGetVnodeDir(char *baseDir, int vid, char *dirName) {
+static FORCE_INLINE void tdGetVnodeDir(const char *baseDir, int vid, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d", baseDir, vid);
 }
 
-static FORCE_INLINE void tdGetVnodeBackDir(char *baseDir, int vid, char *dirName) {
+static FORCE_INLINE void tdGetVnodeBackDir(const char *baseDir, int vid, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak/vnode%d", baseDir, vid);
 }
 
-static FORCE_INLINE void tdGetTsdbRootDir(char *baseDir, int vid, char *dirName) {
+static FORCE_INLINE void tdGetTsdbRootDir(const char *baseDir, int vid, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb", baseDir, vid);
 }
 
-static FORCE_INLINE void tdGetTsdbDataDir(char *baseDir, int vid, char *dirName) {
+static FORCE_INLINE void tdGetTsdbDataDir(const char *baseDir, int vid, char *dirName) {
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/data", baseDir, vid);
 }
 

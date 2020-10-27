@@ -160,7 +160,7 @@ SDisk *tdAssignDisk(SDnodeTier *pDnodeTier, int level) {
 
   tdUnLockTiers(pDnodeTier);
 
-  return NULL;
+  return pDisk;
 }
 
 SDisk *tdGetDiskByName(SDnodeTier *pDnodeTier, char *dirName) {
