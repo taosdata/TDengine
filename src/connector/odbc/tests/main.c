@@ -1,16 +1,15 @@
+#include "../src/todbc_log.h"
+
+#ifdef _MSC_VER
+#include <winsock2.h>
+#include <windows.h>
 #include "os.h"
+#endif
 #include <sql.h>
 #include <sqlext.h>
 
 #include <stdio.h>
 #include <string.h>
-
-#include "os.h"
-#include "../src/todbc_log.h"
-
-// static const char *dsn = "TAOS_DSN";
-// static const char *uid = "root";
-// static const char *pwd = "taosdata";
 
 #define CHK_TEST(statement)                       \
 do {                                              \
@@ -425,7 +424,7 @@ int test_sqls_in_stmt(SQLHENV env, SQLHDBC conn, SQLHSTMT stmt, const char *sqls
 
     ssize_t n = 0;
 #ifdef _MSC_VER
-    n = taosGetlineImp(&line, &len, f);
+    n = taosGetline(&line, &len, f);
 #else
     n = getline(&line, &len, f);
 #endif
@@ -503,7 +502,12 @@ int main(int argc, char *argv[]) {
   const char *connstr = (argc>4) ? argv[4] : NULL;
   const char *sqls = (argc>5) ? argv[5] : NULL;
 
-  if (1) {
+  dsn = NULL;
+  uid = NULL;
+  pwd = NULL;
+  connstr = argv[1];
+  sqls = argv[2];
+  if (0) {
     CHK_TEST(test_env());
 
     CHK_TEST(test1(dsn, uid, pwd));

@@ -16,13 +16,7 @@
 #ifndef _todbc_log_h_
 #define _todbc_log_h_
 
-#ifdef _MSC_VER
-#include "msvcLibgen.h"
-#else
-#include <libgen.h>
-#endif
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
 
 #define D(fmt, ...)                                              \
   fprintf(stderr,                                                \

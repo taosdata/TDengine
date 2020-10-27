@@ -13,18 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _todbc_flex_workaround_h_
-#define _todbc_flex_workaround_h_
+#ifndef _TODBC_FLEX_H_
+#define _TODBC_FLEX_H_
 
-#ifdef _MSC_VER
-#include <winsock2.h>
-#include <windows.h>
-#endif
-#ifndef INT8_MIN
-#include <stdint.h>
-#endif
-#include <sql.h>
-#include <sqlext.h>
+int todbc_parse_conn_string(const char *conn, char **dsn, char **uid, char **pwd, char **host);
 
-#endif // _todbc_flex_workaround_h_
+#endif // _TODBC_FLEX_H_
 

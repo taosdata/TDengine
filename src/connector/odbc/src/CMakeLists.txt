@@ -16,8 +16,7 @@ IF (TD_LINUX_64)
   SET_TARGET_PROPERTIES(todbc PROPERTIES CLEAN_DIRECT_OUTPUT 1)
   SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
   TARGET_LINK_LIBRARIES(todbc taos)
-  target_include_directories(todbc PUBLIC
-                             .)
+  target_include_directories(todbc PUBLIC .)
 
   install(CODE "execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install.sh ${CMAKE_BINARY_DIR})")
 ENDIF ()
@@ -32,11 +31,20 @@ IF (TD_WINDOWS_64)
   )
   AUX_SOURCE_DIRECTORY(. SRC)
 
-  # generate dynamic library (*.so)
-  ADD_LIBRARY(todbc SHARED ${SRC} ${todbc_flex_scanner_src})
-  SET_TARGET_PROPERTIES(todbc PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-  SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
+  # generate dynamic library (*.dll)
+  ADD_LIBRARY(todbc SHARED
+              ${SRC}
+              ${todbc_flex_scanner_src}
+              ${CMAKE_CURRENT_BINARY_DIR}/todbc.rc
+              todbc.def)
   TARGET_LINK_LIBRARIES(todbc taos_static)
-  target_include_directories(todbc PUBLIC
-                             .)
+  target_include_directories(todbc PUBLIC .)
+  target_compile_definitions(todbc PRIVATE "todbc_EXPORT")
+
+  CONFIGURE_FILE("todbc.rc.in"
+                 "${CMAKE_CURRENT_BINARY_DIR}/todbc.rc")
+  SET_TARGET_PROPERTIES(todbc PROPERTIES LINK_FLAGS
+                        /DEF:todbc.def)
+  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /GL")
+  SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /GL")
 ENDIF ()

@@ -17,18 +17,16 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
+#include "todbc_log.h"
+#include "todbc_flex.h"
+
 #include "taos.h"
 
-#include "os.h"
 #include "taoserror.h"
 #include "todbc_util.h"
 #include "todbc_conv.h"
 
-#include <sql.h>
 #include <sqlext.h>
-
-#include <time.h>
-
 
 #define GET_REF(obj) atomic_load_64(&obj->refcount)
 #define INC_REF(obj) atomic_add_fetch_64(&obj->refcount, 1)
@@ -1919,7 +1917,7 @@ static SQLRETURN doSQLGetDiagField(SQLSMALLINT HandleType, SQLHANDLE Handle,
                                    SQLSMALLINT *StringLength)
 {
   // if this function is not exported, isql will never call SQLGetDiagRec
-  return SQL_ERROR;
+  return SQL_SUCCESS;
 }
 
 SQLRETURN SQL_API SQLGetDiagField(SQLSMALLINT HandleType, SQLHANDLE Handle,

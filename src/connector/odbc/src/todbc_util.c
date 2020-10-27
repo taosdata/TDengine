@@ -14,11 +14,10 @@
  */
 
 #include "todbc_util.h"
+#include "todbc_log.h"
+#include <iconv.h>
+#include <sqlext.h>
 
-#include "iconv.h"
-
-#include <stdlib.h>
-#include <string.h>
 
 const char* sql_sql_type(int type) {
   switch (type) {

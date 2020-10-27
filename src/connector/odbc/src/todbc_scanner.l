@@ -1,6 +1,5 @@
 %{
-#include "todbc_util.h"
-
+#include "todbc_flex.h"
 #include <stdio.h>
 
 #ifdef _MSC_VER
@@ -105,8 +104,7 @@ do {                                                 \
 <EQ>[{]                        { CHG_STATE(BRACE1); }
 <EQ>.|\n                       { return -1; }
 
-<BRACE1>[[:space:]]+       { }
-<BRACE1>[^{}\n[:space:]]+  { set_val(); CHG_STATE(BRACE2); }
+<BRACE1>[^{}\n]+  { set_val(); CHG_STATE(BRACE2); }
 <BRACE1>.|\n      { return -1; }
 
 <BRACE2>[[:space:]]+       { }

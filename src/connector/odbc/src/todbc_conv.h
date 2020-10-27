@@ -16,10 +16,9 @@
 #ifndef _todbc_conv_h_
 #define _todbc_conv_h_
 
-#include "todbc_flex_workaround.h"
-#include <stddef.h>
-
-#include "iconv.h"
+#include "os.h"
+#include <iconv.h>
+#include <sql.h>
 
 
 typedef enum {
