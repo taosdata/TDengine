@@ -744,10 +744,10 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
 
     SSqlObj* psub1 = pParentSql->pSubs[0];
-    ((SJoinSupporter*)psub1->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo1->pVgroupTables);
+    ((SJoinSupporter*)psub1->param)->pVgroupTables =  tscVgroupTableInfoClone(pTableMetaInfo1->pVgroupTables);
 
     SSqlObj* psub2 = pParentSql->pSubs[1];
-    ((SJoinSupporter*)psub2->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo2->pVgroupTables);
+    ((SJoinSupporter*)psub2->param)->pVgroupTables =  tscVgroupTableInfoClone(pTableMetaInfo2->pVgroupTables);
 
     pParentSql->subState.numOfSub = 2;
     pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;
