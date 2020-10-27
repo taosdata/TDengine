@@ -341,8 +341,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -384,7 +384,7 @@ int main(int argc, char** argv) {
 //  }
 
 //  executeSQL(conn,"create database join_db0", NULL);
-  executeSQL(conn,"use test", NULL);
+  executeSQL(conn,"use join_db0", NULL);
 //  executeSQL(conn, "select count(*) from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' "
 //                   "interval(1h) fill(NULL) group by t1 order by ts desc;", NULL);
 
@@ -395,7 +395,7 @@ int main(int argc, char** argv) {
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
 //    createEnvironment(conn, 20, 20, 200, 30);
-    executeSQL(conn, "select * from t9911 where ts >= now - 5y", NULL);
+    executeSQL(conn, "select join_tb1.*, join_tb0.* from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts limit 10;;", NULL);
     taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
