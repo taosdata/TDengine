@@ -2461,12 +2461,22 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
-      if (GET_DOUBLE_VAL(&pInfo->minval) > pCtx->preAggVals.statis.min) {
-        SET_DOUBLE_VAL(&pInfo->minval, (double)pCtx->preAggVals.statis.min);
+      double tmin = 0.0, tmax = 0.0;
+      if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
+        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
+      } else {
+        assert(true);
+      }
+      if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
+        SET_DOUBLE_VAL(&pInfo->minval, tmin);
       }
 
-      if (GET_DOUBLE_VAL(&pInfo->maxval) < pCtx->preAggVals.statis.max) {
-        SET_DOUBLE_VAL(&pInfo->maxval, (double)pCtx->preAggVals.statis.max);
+      if (GET_DOUBLE_VAL(&pInfo->maxval) < tmax) {
+        SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
       pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
@@ -4025,11 +4035,11 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   
   // primary ts must be existed, so no need to check its existance
   if (pCtx->order == TSDB_ORDER_ASC) {
-    tsBufAppend(pTSbuf, 0, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
+    tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i64Key, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
   } else {
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *d = GET_INPUT_CHAR_INDEX(pCtx, i);
-      tsBufAppend(pTSbuf, 0, &pCtx->tag, d, TSDB_KEYSIZE);
+      tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i64Key, &pCtx->tag, d, (int32_t)TSDB_KEYSIZE);
     }
   }
   
@@ -4048,7 +4058,7 @@ static void ts_comp_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   STSBuf *pTSbuf = pInfo->pTSBuf;
   
-  tsBufAppend(pTSbuf, 0, &pCtx->tag, pData, TSDB_KEYSIZE);
+  tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i64Key, &pCtx->tag, pData, TSDB_KEYSIZE);
   SET_VAL(pCtx, pCtx->size, 1);
   
   pResInfo->hasResult = DATA_SET_FLAG;
