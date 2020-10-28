@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 int32_t vnodeReadCfg(SVnodeObj *pVnode);
-int32_t vnodeWriteCfg(SMDCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeWriteCfg(SCreateVnodeMsg *pVnodeCfg);
 
 #ifdef __cplusplus
 }

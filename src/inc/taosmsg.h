@@ -291,7 +291,7 @@ typedef struct {
   SSchema schema[];
   // tagVal is padded after schema
   // char    tagVal[];
-} SCMAlterTableMsg;
+} SAlterTableMsg;
 
 typedef struct {
   SMsgHead  head;
@@ -348,14 +348,14 @@ typedef struct {
 
 typedef struct {
   char user[TSDB_USER_LEN];
-} SCMDropUserMsg, SCMDropAcctMsg;
+} SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_KEY_LEN];
   int8_t privilege;
   int8_t flag;
-} SCMCreateUserMsg, SCMAlterUserMsg;
+} SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
   int32_t  contLen;
@@ -370,11 +370,11 @@ typedef struct {
   int32_t  vgId;
   uint64_t uid;
   char    tableId[TSDB_TABLE_FNAME_LEN];
-} SMDDropSTableMsg;
+} SDropSTableMsg;
 
 typedef struct {
   int32_t vgId;
-} SMDDropVnodeMsg;
+} SDropVnodeMsg;
 
 typedef struct SColIndex {
   int16_t  colId;      // column id
@@ -540,12 +540,12 @@ typedef struct {
   int8_t   replications;
   int8_t   quorum;
   int8_t   ignoreExist;
-} SCMCreateDbMsg, SCMAlterDbMsg;
+} SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   uint8_t ignoreNotExists;
-} SCMDropDbMsg, SCMUseDbMsg;
+} SDropDbMsg, SUseDbMsg;
 
 // IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
 // TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
@@ -560,7 +560,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   int8_t   accessState;
-} SDMVgroupAccess;
+} SVgroupAccess;
 
 typedef struct {
   int32_t  dnodeId;
@@ -622,13 +622,13 @@ typedef struct {
   uint8_t     reserve2[15];
   SClusterCfg clusterCfg;
   SVnodeLoad  load[];
-} SDMStatusMsg;
+} SStatusMsg;
 
 typedef struct {
-  SMnodeInfos     mnodes;
-  SDnodeCfg       dnodeCfg;
-  SDMVgroupAccess vgAccess[];
-} SDMStatusRsp;
+  SMnodeInfos   mnodes;
+  SDnodeCfg     dnodeCfg;
+  SVgroupAccess vgAccess[];
+} SStatusRsp;
 
 typedef struct {
   uint32_t vgId;
@@ -651,54 +651,54 @@ typedef struct {
   int8_t   wals;
   int8_t   quorum;
   int8_t   reserved[16];
-} SMDVnodeCfg;
+} SVnodeCfg;
 
 typedef struct {
   int32_t  nodeId;
   char     nodeEp[TSDB_EP_LEN];
-} SMDVnodeDesc;
+} SVnodeDesc;
 
 typedef struct {
-  char db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
-  SMDVnodeCfg  cfg;
-  SMDVnodeDesc nodes[TSDB_MAX_REPLICA];
-} SMDCreateVnodeMsg, SMDAlterVnodeMsg;
+  char       db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  SVnodeCfg  cfg;
+  SVnodeDesc nodes[TSDB_MAX_REPLICA];
+} SCreateVnodeMsg, SAlterVnodeMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_FNAME_LEN];
   int16_t createFlag;
   char    tags[];
-} SCMTableInfoMsg;
+} STableInfoMsg;
 
 typedef struct {
   int32_t numOfTables;
   char    tableIds[];
-} SCMMultiTableInfoMsg;
+} SMultiTableInfoMsg;
 
-typedef struct SCMSTableVgroupMsg {
+typedef struct SSTableVgroupMsg {
   int32_t numOfTables;
-} SCMSTableVgroupMsg, SCMSTableVgroupRspMsg;
+} SSTableVgroupMsg, SSTableVgroupRspMsg;
 
 typedef struct {
   int32_t       vgId;
   int8_t        numOfEps;
   SEpAddr1      epAddr[TSDB_MAX_REPLICA];
-} SCMVgroupInfo;
+} SVgroupInfo;
 
 typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SCMVgroupMsg;
+} SVgroupMsg;
 
 typedef struct {
   int32_t numOfVgroups;
-  SCMVgroupInfo vgroups[];
+  SVgroupInfo vgroups[];
 } SVgroupsInfo;
 
 typedef struct {
   int32_t numOfVgroups;
-  SCMVgroupMsg vgroups[];
+  SVgroupMsg vgroups[];
 } SVgroupsMsg;
 
 typedef struct STableMetaMsg {
@@ -713,7 +713,7 @@ typedef struct STableMetaMsg {
   int16_t       tversion;
   int32_t       tid;
   uint64_t      uid;
-  SCMVgroupMsg  vgroup;
+  SVgroupMsg    vgroup;
   SSchema       schema[];
 } STableMetaMsg;
 
@@ -739,38 +739,38 @@ typedef struct {
   char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
-} SCMShowMsg;
+} SShowMsg;
 
-typedef struct SCMShowRsp {
+typedef struct SShowRsp {
   uint64_t      qhandle;
   STableMetaMsg tableMeta;
-} SCMShowRsp;
+} SShowRsp;
 
 typedef struct {
-  char     ep[TSDB_EP_LEN];  // end point, hostname:port
-} SCMCreateDnodeMsg, SCMDropDnodeMsg;
+  char ep[TSDB_EP_LEN];  // end point, hostname:port
+} SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
   char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
   SMnodeInfos mnodes;
-} SMDCreateMnodeMsg;
+} SCreateMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
   int32_t vgId;
   int32_t tid;
-} SDMConfigTableMsg;
+} SConfigTableMsg;
 
 typedef struct {
   uint32_t dnodeId;
   int32_t  vgId;
-} SDMConfigVnodeMsg;
+} SConfigVnodeMsg;
 
 typedef struct {
   char ep[TSDB_EP_LEN];  // end point, hostname:port
   char config[64];
-} SMDCfgDnodeMsg, SCMCfgDnodeMsg;
+} SCfgDnodeMsg;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -798,7 +798,7 @@ typedef struct {
   int32_t  numOfStreams;
   char     appName[TSDB_APPNAME_LEN];
   char     pData[];
-} SCMHeartBeatMsg;
+} SHeartBeatMsg;
 
 typedef struct {
   uint32_t  queryId;
@@ -808,11 +808,11 @@ typedef struct {
   uint32_t  connId;
   int8_t    killConnection;
   SRpcEpSet epSet;
-} SCMHeartBeatRsp;
+} SHeartBeatRsp;
 
 typedef struct {
   char queryId[TSDB_KILL_MSG_LEN + 1];
-} SCMKillQueryMsg, SCMKillStreamMsg, SCMKillConnMsg;
+} SKillQueryMsg, SKillStreamMsg, SKillConnMsg;
 
 typedef struct {
   int32_t  vnode;
@@ -821,7 +821,7 @@ typedef struct {
   uint64_t stime;  // stream starting time
   int32_t  status;
   char     tableId[TSDB_TABLE_FNAME_LEN];
-} SMDAlterStreamMsg;
+} SAlterStreamMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -829,7 +829,7 @@ typedef struct {
   char encrypt;
   char secret[TSDB_KEY_LEN];
   char ckey[TSDB_KEY_LEN];
-} SDMAuthMsg, SDMAuthRsp;
+} SAuthMsg, SAuthRsp;
 
 #pragma pack(pop)
 

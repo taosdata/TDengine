@@ -86,7 +86,7 @@ void vnodeCleanupResources() {
   syncCleanUp();
 }
 
-int32_t vnodeCreate(SMDCreateVnodeMsg *pVnodeCfg) {
+int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
 
   SVnodeObj *pVnode = vnodeAcquire(pVnodeCfg->cfg.vgId);
@@ -171,7 +171,7 @@ int32_t vnodeDrop(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeAlter(void *param, SMDCreateVnodeMsg *pVnodeCfg) {
+int32_t vnodeAlter(void *param, SCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = param;
 
   // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
@@ -490,7 +490,7 @@ void *vnodeGetWal(void *pVnode) {
   return ((SVnodeObj *)pVnode)->wal;
 }
 
-static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SDMStatusMsg *pStatus) {
+static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   int64_t totalStorage = 0;
   int64_t compStorage = 0;
   int64_t pointsWritten = 0;
@@ -534,7 +534,7 @@ int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 }
 
 void vnodeBuildStatusMsg(void *param) {
-  SDMStatusMsg *pStatus = param;
+  SStatusMsg *pStatus = param;
   SHashMutableIterator *pIter = taosHashCreateIter(tsDnodeVnodesHash);
 
   while (taosHashIterNext(pIter)) {
@@ -548,7 +548,7 @@ void vnodeBuildStatusMsg(void *param) {
   taosHashDestroyIter(pIter);
 }
 
-void vnodeSetAccess(SDMVgroupAccess *pAccess, int32_t numOfVnodes) {
+void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pAccess[i].vgId = htonl(pAccess[i].vgId);
     SVnodeObj *pVnode = vnodeAcquire(pAccess[i].vgId);

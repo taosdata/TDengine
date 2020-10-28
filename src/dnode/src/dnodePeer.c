@@ -137,7 +137,7 @@ int32_t dnodeInitClient() {
     return -1;
   }
 
-  dInfo("initialized inter-dnodes rpc client is initialized");
+  dInfo("dnode inter-dnodes rpc client is initialized");
   return 0;
 }
 
@@ -145,7 +145,7 @@ void dnodeCleanupClient() {
   if (tsDnodeClientRpc) {
     rpcClose(tsDnodeClientRpc);
     tsDnodeClientRpc = NULL;
-    dInfo("inter-dnodes rpc client is closed");
+    dInfo("dnode inter-dnodes rpc client is closed");
   }
 }
 

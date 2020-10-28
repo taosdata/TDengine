@@ -103,7 +103,7 @@ typedef struct STableMeta {
   int16_t        sversion;
   int16_t        tversion;
   char           sTableId[TSDB_TABLE_FNAME_LEN];
-  SCMVgroupInfo  vgroupInfo;
+  SVgroupInfo    vgroupInfo;
   SCMCorVgroupInfo  corVgroupInfo;
   STableId       id;
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info

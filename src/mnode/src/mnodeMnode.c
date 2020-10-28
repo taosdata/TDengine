@@ -273,7 +273,7 @@ void mnodeGetMnodeInfos(void *mnodeInfos) {
 static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
   mDebug("dnode:%d, send create mnode msg to dnode %s", dnodeId, dnodeEp);
 
-  SMDCreateMnodeMsg *pCreate = rpcMallocCont(sizeof(SMDCreateMnodeMsg));
+  SCreateMnodeMsg *pCreate = rpcMallocCont(sizeof(SCreateMnodeMsg));
   if (pCreate == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
@@ -295,7 +295,7 @@ static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pCreate;
-  rpcMsg.contLen = sizeof(SMDCreateMnodeMsg);
+  rpcMsg.contLen = sizeof(SCreateMnodeMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_MD_CREATE_MNODE;
 
   SRpcMsg   rpcRsp = {0};

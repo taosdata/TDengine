@@ -110,7 +110,7 @@ static char *mnodeGetShowType(int32_t showType) {
 }
 
 static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
-  SCMShowMsg *pShowMsg = pMsg->rpcMsg.pCont;
+  SShowMsg *pShowMsg = pMsg->rpcMsg.pCont;
   if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
     return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
@@ -132,8 +132,8 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
-  SCMShowRsp *pShowRsp = rpcMallocCont(size);
+  int32_t size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
+  SShowRsp *pShowRsp = rpcMallocCont(size);
   if (pShowRsp == NULL) {
     mnodeReleaseShowObj(pShow, true);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -146,7 +146,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
 
   if (code == TSDB_CODE_SUCCESS) {
     pMsg->rpcRsp.rsp = pShowRsp;
-    pMsg->rpcRsp.len = sizeof(SCMShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
+    pMsg->rpcRsp.len = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
     mnodeReleaseShowObj(pShow, false);
     return TSDB_CODE_SUCCESS;
   } else {
@@ -232,12 +232,12 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
-  SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
+  SHeartBeatRsp *pHBRsp = (SHeartBeatRsp *) rpcMallocCont(sizeof(SHeartBeatRsp));
   if (pHBRsp == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
+  SHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
     
@@ -276,7 +276,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   mnodeGetMnodeEpSetForShell(&pHBRsp->epSet);
 
   pMsg->rpcRsp.rsp = pHBRsp;
-  pMsg->rpcRsp.len = sizeof(SCMHeartBeatRsp);
+  pMsg->rpcRsp.len = sizeof(SHeartBeatRsp);
   
   mnodeReleaseConn(pConn);
   return TSDB_CODE_SUCCESS;
@@ -356,7 +356,7 @@ connect_over:
 }
 
 static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
-  SCMUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
+  SUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pUseDbMsg->db);

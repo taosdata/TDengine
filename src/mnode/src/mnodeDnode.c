@@ -314,7 +314,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
   
-  SCMCfgDnodeMsg *pCmCfgDnode = pMsg->rpcMsg.pCont;
+  SCfgDnodeMsg *pCmCfgDnode = pMsg->rpcMsg.pCont;
   if (pCmCfgDnode->ep[0] == 0) {
     tstrncpy(pCmCfgDnode->ep, tsLocalEp, TSDB_EP_LEN);
   }
@@ -349,7 +349,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
     mnodeDecDnodeRef(pDnode);
     return code;
   } else {
-    SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
+    SCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SCfgDnodeMsg));
     strcpy(pMdCfgDnode->ep, pCmCfgDnode->ep);
     strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
 
@@ -358,7 +358,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
       .code = 0,
       .msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE,
       .pCont = pMdCfgDnode,
-      .contLen = sizeof(SMDCfgDnodeMsg)
+      .contLen = sizeof(SCfgDnodeMsg)
     };
 
     mInfo("dnode:%s, is configured by %s", pCmCfgDnode->ep, pMsg->pUser->user);
@@ -480,7 +480,7 @@ static void mnodeUpdateDnodeEps() {
 
 static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   SDnodeObj *pDnode     = NULL;
-  SDMStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+  SStatusMsg *pStatus   = pMsg->rpcMsg.pCont;
   pStatus->dnodeId      = htonl(pStatus->dnodeId);
   pStatus->moduleStatus = htonl(pStatus->moduleStatus);
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
@@ -538,10 +538,10 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
 
   int32_t openVnodes = htons(pStatus->openVnodes);
   int32_t epsSize = mnodeGetDnodeEpsSize();
-  int32_t vgAccessSize = openVnodes * sizeof(SDMVgroupAccess);
-  int32_t contLen = sizeof(SDMStatusRsp) + vgAccessSize + epsSize;
+  int32_t vgAccessSize = openVnodes * sizeof(SVgroupAccess);
+  int32_t contLen = sizeof(SStatusRsp) + vgAccessSize + epsSize;
 
-  SDMStatusRsp *pRsp = rpcMallocCont(contLen);
+  SStatusRsp *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -551,7 +551,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pRsp->dnodeCfg.moduleStatus = htonl((int32_t)pDnode->isMgmt);
   pRsp->dnodeCfg.numOfVnodes = htonl(openVnodes);
   tstrncpy(pRsp->dnodeCfg.clusterId, mnodeGetClusterId(), TSDB_CLUSTER_ID_LEN);
-  SDMVgroupAccess *pAccess = (SDMVgroupAccess *)((char *)pRsp + sizeof(SDMStatusRsp));
+  SVgroupAccess *pAccess = (SVgroupAccess *)((char *)pRsp + sizeof(SStatusRsp));
   
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
@@ -602,7 +602,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   
   mnodeDecDnodeRef(pDnode);
 
-  SDnodeEps *pEps = (SDnodeEps *)((char *)pRsp + sizeof(SDMStatusRsp) + vgAccessSize);
+  SDnodeEps *pEps = (SDnodeEps *)((char *)pRsp + sizeof(SStatusRsp) + vgAccessSize);
   mnodeGetDnodeEpsData(pEps, epsSize);
 
   pMsg->rpcRsp.len = contLen;
@@ -711,7 +711,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
-  SCMCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
+  SCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;
@@ -721,7 +721,7 @@ static int32_t mnodeProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessDropDnodeMsg(SMnodeMsg *pMsg) {
-  SCMDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
 
   if (strcmp(pMsg->pUser->user, TSDB_DEFAULT_USER) != 0) {
     return TSDB_CODE_MND_NO_RIGHTS;

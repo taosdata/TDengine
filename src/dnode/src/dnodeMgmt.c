@@ -352,7 +352,7 @@ static void dnodeCloseVnodes() {
 }
 
 static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
+  SCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
   pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
   pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
@@ -375,7 +375,7 @@ static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
+  SCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
 
   void *pVnode = vnodeAcquire(pCreate->cfg.vgId);
   if (pVnode != NULL) {
@@ -389,7 +389,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
+  SAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
 
   void *pVnode = vnodeAcquire(pAlter->cfg.vgId);
   if (pVnode != NULL) {
@@ -404,14 +404,14 @@ static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDDropVnodeMsg *pDrop = rpcMsg->pCont;
+  SDropVnodeMsg *pDrop = rpcMsg->pCont;
   pDrop->vgId = htonl(pDrop->vgId);
 
   return vnodeDrop(pDrop->vgId);
 }
 
 static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
-//  SMDAlterStreamMsg *pStream = pCont;
+//  SAlterStreamMsg *pStream = pCont;
 //  pStream->uid    = htobe64(pStream->uid);
 //  pStream->stime  = htobe64(pStream->stime);
 //  pStream->vnode  = htonl(pStream->vnode);
@@ -424,12 +424,12 @@ static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
-  SMDCfgDnodeMsg *pCfg = pMsg->pCont;
+  SCfgDnodeMsg *pCfg = pMsg->pCont;
   return taosCfgDynamicOptions(pCfg->config);
 }
 
 static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
-  SMDCreateMnodeMsg *pCfg = pMsg->pCont;
+  SCreateMnodeMsg *pCfg = pMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   if (pCfg->dnodeId != dnodeGetDnodeId()) {
     dError("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
@@ -459,7 +459,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     return;
   }
 
-  SDMStatusRsp *pStatusRsp = pMsg->pCont;
+  SStatusRsp *pStatusRsp = pMsg->pCont;
   SMnodeInfos *minfos = &pStatusRsp->mnodes;
   dnodeUpdateMInfos(minfos);
 
@@ -471,7 +471,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
 
   vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
 
-  SDnodeEps *pEps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SDMVgroupAccess));
+  SDnodeEps *pEps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SVgroupAccess));
   dnodeUpdateEps(pEps);
 
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
@@ -489,8 +489,8 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-  int32_t contLen = sizeof(SDMStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
-  SDMStatusMsg *pStatus = rpcMallocCont(contLen);
+  int32_t contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
+  SStatusMsg *pStatus = rpcMallocCont(contLen);
   if (pStatus == NULL) {
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     dError("failed to malloc status message");
@@ -523,7 +523,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);  
   
   vnodeBuildStatusMsg(pStatus);
-  contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
+  contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
   
   SRpcMsg rpcMsg = {

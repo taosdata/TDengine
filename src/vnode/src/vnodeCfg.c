@@ -25,7 +25,7 @@
 #include "vnodeVersion.h"
 #include "vnodeCfg.h"
 
-static void vnodeLoadCfg(SVnodeObj *pVnode, SMDCreateVnodeMsg* vnodeMsg) {
+static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   strcpy(pVnode->db, vnodeMsg->db);
   pVnode->cfgVersion = vnodeMsg->cfg.cfgVersion;
   pVnode->tsdbCfg.cacheBlockSize = vnodeMsg->cfg.cacheBlockSize;
@@ -46,7 +46,7 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SMDCreateVnodeMsg* vnodeMsg) {
   pVnode->syncCfg.quorum = vnodeMsg->cfg.quorum;
 
   for (int i = 0; i < pVnode->syncCfg.replica; ++i) {
-    SMDVnodeDesc *node = &vnodeMsg->nodes[i];
+    SVnodeDesc *node = &vnodeMsg->nodes[i];
     pVnode->syncCfg.nodeInfo[i].nodeId = node->nodeId;
     taosGetFqdnPortFromEp(node->nodeEp, pVnode->syncCfg.nodeInfo[i].nodeFqdn, &pVnode->syncCfg.nodeInfo[i].nodePort);
     pVnode->syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
@@ -67,7 +67,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   cJSON * root = NULL;
   FILE *  fp = NULL;
   bool    nodeChanged = false;
-  SMDCreateVnodeMsg vnodeMsg;
+  SCreateVnodeMsg vnodeMsg;
 
   char file[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(file, "%s/vnode%d/config.json", tsVnodeDir, pVnode->vgId);
@@ -226,7 +226,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   for (int i = 0; i < size; ++i) {
     cJSON *nodeInfo = cJSON_GetArrayItem(nodeInfos, i);
     if (nodeInfo == NULL) continue;
-    SMDVnodeDesc *node = &vnodeMsg.nodes[i];
+    SVnodeDesc *node = &vnodeMsg.nodes[i];
 
     cJSON *nodeId = cJSON_GetObjectItem(nodeInfo, "nodeId");
     if (!nodeId || nodeId->type != cJSON_Number) {
@@ -266,7 +266,7 @@ PARSE_VCFG_ERROR:
   return ret;
 }
 
-int32_t vnodeWriteCfg(SMDCreateVnodeMsg *pMsg) {
+int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   char file[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(file, "%s/vnode%d/config.json", tsVnodeDir, pMsg->cfg.vgId);
 
@@ -301,7 +301,7 @@ int32_t vnodeWriteCfg(SMDCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pMsg->cfg.quorum);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pMsg->cfg.replications; i++) {
-    SMDVnodeDesc *node = &pMsg->nodes[i];
+    SVnodeDesc *node = &pMsg->nodes[i];
     dnodeUpdateEp(node->nodeId, node->nodeEp, NULL, NULL);
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", node->nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", node->nodeEp);
