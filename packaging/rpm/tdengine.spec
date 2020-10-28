@@ -65,7 +65,7 @@ cp -r %{_compiledir}/../src/connector/grafanaplugin %{buildroot}%{homepath}/conn
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
-cp %{_compiledir}/build/lib/taos-jdbcdriver*dist.*  %{buildroot}%{homepath}/connector
+cp %{_compiledir}/build/lib/taos-jdbcdriver*dist.*  %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
 
 #Scripts executed before installation

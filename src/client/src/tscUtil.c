@@ -404,7 +404,7 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
   if (ref == 0) {
     tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
-    tscCloseTscObj(pTscObj);
+    taosRemoveRef(tscRefId, pTscObj);
   }
 }
 
@@ -786,8 +786,8 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 }
 
 // TODO: all subqueries should be freed correctly before close this connection.
-void tscCloseTscObj(STscObj* pObj) {
-  assert(pObj != NULL);
+void tscCloseTscObj(void *param) {
+  STscObj *pObj = param;
 
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
@@ -1121,6 +1121,8 @@ int32_t tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepco
         }
 
         *p1 = *pExpr;
+        memset(p1->param, 0, sizeof(tVariant) * tListLen(p1->param));
+
         for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
           tVariantAssign(&p1->param[j], &pExpr->param[j]);
         }
@@ -1678,19 +1680,62 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd) {
 }
 
 void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
-  if (pVgroupTables != NULL) {
-    size_t num = taosArrayGetSize(pVgroupTables);
-    for (size_t i = 0; i < num; i++) {
-      SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
-
-      for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-        taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
-      }
-
-      taosArrayDestroy(pInfo->itemList);
-    }
-    taosArrayDestroy(pVgroupTables);
+  if (pVgroupTables == NULL) {
+    return;
   }
+
+  size_t num = taosArrayGetSize(pVgroupTables);
+  for (size_t i = 0; i < num; i++) {
+    SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
+
+    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+      taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
+    }
+
+    taosArrayDestroy(pInfo->itemList);
+  }
+
+  taosArrayDestroy(pVgroupTables);
+}
+
+void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
+  assert(pVgroupTable != NULL && index >= 0);
+
+  size_t size = taosArrayGetSize(pVgroupTable);
+  assert(size > index);
+
+  SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTable, index);
+  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+    taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
+  }
+
+  taosArrayDestroy(pInfo->itemList);
+  taosArrayRemove(pVgroupTable, index);
+}
+
+SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
+  if (pVgroupTables == NULL) {
+    return NULL;
+  }
+
+  size_t num = taosArrayGetSize(pVgroupTables);
+  SArray* pa = taosArrayInit(num, sizeof(SVgroupTableInfo));
+
+  SVgroupTableInfo info;
+  for (size_t i = 0; i < num; i++) {
+    SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
+    memset(&info, 0, sizeof(SVgroupTableInfo));
+
+    info.vgInfo = pInfo->vgInfo;
+    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+      info.vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
+    }
+
+    info.itemList = taosArrayClone(pInfo->itemList);
+    taosArrayPush(pa, &info);
+  }
+
+  return pa;
 }
 
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
@@ -1708,7 +1753,7 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool rem
 }
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
-                                    SVgroupsInfo* vgroupList, SArray* pTagCols) {
+                                    SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables) {
   void* pAlloc = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1742,13 +1787,15 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   if (pTagCols != NULL) {
     tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, -1);
   }
+
+  pTableMetaInfo->pVgroupTables = tscCloneVgroupTableInfo(pVgroupTables);
   
   pQueryInfo->numOfTables += 1;
   return pTableMetaInfo;
 }
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo* pQueryInfo) {
-  return tscAddTableMetaInfo(pQueryInfo, NULL, NULL, NULL, NULL);
+  return tscAddTableMetaInfo(pQueryInfo, NULL, NULL, NULL, NULL, NULL);
 }
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache) {
@@ -1822,7 +1869,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   assert(pSql->cmd.clauseIndex == 0);
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
-  tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL);
+  tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
 
   registerSqlObj(pNew);
   return pNew;
@@ -1987,14 +2034,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     STableMeta* pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
     assert(pTableMeta != NULL);
 
-    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList, pTableMetaInfo->tagColList);
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList,
+        pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
     STableMeta*  pPrevTableMeta = taosCacheTransfer(tscMetaCache, (void**)&pPrevInfo->pTableMeta);
     
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
-    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList);
+    pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList,
+        pTableMetaInfo->pVgroupTables);
   }
 
   if (pFinalInfo->pTableMeta == NULL) {
