@@ -20,7 +20,7 @@
 #include "tutil.h"
 
 static int                initForwardBackwardPtr(SSkipList *pSkipList);
-static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order);
+static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
 static void               tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode);
 static void               tSkipListCorrectLevel(SSkipList *pSkipList);
 static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
@@ -140,7 +140,7 @@ uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key) {
 
   tSkipListWLock(pSkipList);
 
-  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC);
+  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
   while (1) {
     SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
     if (p == pSkipList->pTail) {
@@ -167,7 +167,7 @@ SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey key) {
 
   tSkipListRLock(pSkipList);
 
-  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC);
+  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
   while (1) {
     SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
     if (p == pSkipList->pTail) {
@@ -209,7 +209,7 @@ SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *
 
   tSkipListRLock(pSkipList);
 
-  iter->cur = getPriorNode(pSkipList, val, order);
+  iter->cur = getPriorNode(pSkipList, val, order, &(iter->next));
 
   tSkipListUnlock(pSkipList);
 
@@ -226,10 +226,24 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
   if (iter->order == TSDB_ORDER_ASC) {
     if (iter->cur == pSkipList->pTail) return false;
     iter->cur = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
+
+    // a new node is inserted into between iter->cur and iter->next, ignore it
+    if (iter->cur != iter->next && (iter->next != NULL)) {
+      iter->cur = iter->next;
+    }
+
+    iter->next = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
     iter->step++;
   } else {
     if (iter->cur == pSkipList->pHead) return false;
     iter->cur = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
+
+    // a new node is inserted into between iter->cur and iter->next, ignore it
+    if (iter->cur != iter->next && (iter->next != NULL)) {
+      iter->cur = iter->next;
+    }
+
+    iter->next = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
     iter->step++;
   }
 
@@ -327,8 +341,10 @@ static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t
   iter->order = order;
   if (order == TSDB_ORDER_ASC) {
     iter->cur = pSkipList->pHead;
+    iter->next = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
   } else {
     iter->cur = pSkipList->pTail;
+    iter->next = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
   }
 
   return iter;
@@ -485,9 +501,12 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList) {
 
 // when order is TSDB_ORDER_ASC, return the last node with key less than val
 // when order is TSDB_ORDER_DESC, return the first node with key large than val
-static SSkipListNode *getPriorNode(SSkipList *pSkipList, const char *val, int32_t order) {
+static SSkipListNode *getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur) {
   __compar_fn_t  comparFn = pSkipList->comparFn;
   SSkipListNode *pNode = NULL;
+  if (pCur != NULL) {
+    *pCur = NULL;
+  }
 
   if (order == TSDB_ORDER_ASC) {
     pNode = pSkipList->pHead;
@@ -499,6 +518,9 @@ static SSkipListNode *getPriorNode(SSkipList *pSkipList, const char *val, int32_
           pNode = p;
           p = SL_NODE_GET_FORWARD_POINTER(p, i);
         } else {
+          if (pCur != NULL) {
+            *pCur = p;
+          }
           break;
         }
       }
@@ -513,6 +535,9 @@ static SSkipListNode *getPriorNode(SSkipList *pSkipList, const char *val, int32_
           pNode = p;
           p = SL_NODE_GET_BACKWARD_POINTER(p, i);
         } else {
+          if (pCur != NULL) {
+            *pCur = p;
+          }
           break;
         }
       }
