@@ -63,13 +63,18 @@ Query OK, 1 row(s) in set (0.036000s)
 npm init
 ```
 
-（2）安装td2.0-connector驱动
+（2）安装windows-build-tools
+```
+npm install --global --production windows-build-tools
+```
+
+（3）安装td2.0-connector驱动
 
 ``` tdshell
 npm install td2.0-connector
 ```
 
-（3）nodejs访问tdengine的示例程序
+（4）nodejs访问tdengine的示例程序
 
 ```javascript
 const taos = require('td2.0-connector');
@@ -133,7 +138,7 @@ function printSql(sql, succeed, cost) {
 }
 ```
 
-（4）测试nodejs程序
+（5）测试nodejs程序
 
 ```shell
 >node nodejsChecker.js
