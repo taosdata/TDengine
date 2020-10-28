@@ -184,6 +184,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     return;
   }
 
+  pObj->pHb->retry = 0;
   tscProcessSql(pObj->pHb);
 }
 
