@@ -697,7 +697,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
-  SCMDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
