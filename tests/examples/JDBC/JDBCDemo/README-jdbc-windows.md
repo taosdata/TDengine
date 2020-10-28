@@ -1,4 +1,4 @@
-# 如何在 windows环境下使用jdbc进行TDengine开发应用
+# 如何在 windows环境下使用jdbc进行TDengine应用开发
 
 本文以windows环境为例，介绍java如何进行TDengine开发应用
 
@@ -18,7 +18,6 @@ java version "1.8.0_131"
 Java(TM) SE Runtime Environment (build 1.8.0_131-b11)
 Java HotSpot(TM) 64-Bit Server VM (build 25.131-b11, mixed mode)
 ```
-
 
 
 （2）安装配置maven
@@ -149,7 +148,7 @@ Query OK, 2 row(s) in set (0.068000s)
 
 
 
-##应用开发
+## 应用开发
 
 （1）新建maven工程，在pom.xml中引入taos-jdbcdriver依赖。
 
