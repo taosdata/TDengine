@@ -7,6 +7,7 @@
 #endif
 #include <odbcinst.h>
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -36,14 +37,17 @@ int main(int argc, char *argv[]) {
 }
 
 static void usage(const char *arg0) {
-  fprintf(stderr, "%s -h | -i -n [TaosDriverName] -p [TaosDriverPath] | -u [-f] [TaosDriverName]\n", arg0);
+  fprintf(stderr, "%s -h | -i -n [TaosDriverName] -p [TaosDriverPath] | -u [-f] -n [TaosDriverName]\n", arg0);
   return;
 }
 
 static int do_install(int i, int argc, char *argv[]) {
-  int forceful = 0;
   const char* driverName = NULL;
+#ifdef _MSC_VER
   const char* driverFile = "todbc.dll";
+#else
+  const char* driverFile = "libtodbc.so";
+#endif
   const char* driverPath = NULL;
   for (; i < argc; ++i) {
     const char *arg = argv[i];
@@ -82,7 +86,7 @@ static int do_install(int i, int argc, char *argv[]) {
   char buf[8192];
   snprintf(buf, sizeof(buf), "%s%cDriver=%s%cFileUage=0%cConnectFunctions=YYN%c",
     driverName, 0, driverFile, 0, 0, 0);
-  BOOL ok = TRUE;
+  BOOL ok = 1;
   DWORD usageCount = 1;
   char installed[PATH_MAX + 1];
   WORD len = 0;
@@ -91,7 +95,13 @@ static int do_install(int i, int argc, char *argv[]) {
     fprintf(stderr, "failed to query TaosDriverName: [%s]\n", driverName);
     return -1;
   }
-  if (stricmp(driverPath, installed)) {
+  int r = 0;
+#ifdef _MSC_VER
+  r = stricmp(driverPath, installed);
+#else
+  r = strcasecmp(driverPath, installed);
+#endif
+  if (r) {
     fprintf(stderr, "previously installed TaosDriver [%s] has different target path [%s]\n"
       "it shall be uninstalled before you can install it to different path [%s]\n",
       driverName, installed, driverPath);
@@ -134,10 +144,10 @@ static int do_uninstall(int i, int argc, char *argv[]) {
     fprintf(stderr, "TaosDriverName not specified\n");
     return -1;
   }
-  BOOL ok = TRUE;
+  BOOL ok = 1;
   DWORD usageCount = 1;
   do {
-    ok = SQLRemoveDriver(driverName, FALSE, &usageCount);
+    ok = SQLRemoveDriver(driverName, 0, &usageCount);
     if (!ok) {
       fprintf(stderr, "failed to remove driver [%s]\n", driverName);
       return -1;

@@ -497,13 +497,6 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (argc==2 && strcmp(argv[1], "uninstall")==0) {
-    DWORD usage = 0;
-    BOOL ok = SQLRemoveDriver("TAOS ODBC", TRUE, &usage);
-    D("ok/usage: %d/%d", ok, usage);
-    return ok ? 0 : 1;
-  }
-
   const char *dsn = (argc>1) ? argv[1] : NULL;
   const char *uid = (argc>2) ? argv[2] : NULL;
   const char *pwd = (argc>3) ? argv[3] : NULL;
