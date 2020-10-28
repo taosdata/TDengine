@@ -151,6 +151,7 @@ python3 ./test.py -f query/select_last_crash.py
 python3 ./test.py -f query/queryNullValueTest.py
 python3 ./test.py -f query/queryInsertValue.py
 python3 ./test.py -f query/queryConnection.py
+python3 ./test.py -f query/queryCountCSVData.py
 python3 ./test.py -f query/natualInterval.py
 python3 ./test.py -f query/bug1471.py
 
