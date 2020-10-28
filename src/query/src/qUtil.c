@@ -266,7 +266,7 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
     return;
   }
 
-  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pos.pageId);
+  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pageId);
 
   for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
     SResultInfo *pResultInfo = &pWindowRes->resultInfo[i];
@@ -279,7 +279,8 @@ void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pWindow
   }
   
   pWindowRes->numOfRows = 0;
-  pWindowRes->pos = (SPosInfo){-1, -1};
+  pWindowRes->pageId = -1;
+  pWindowRes->rowId = -1;
   pWindowRes->closed = false;
   pWindowRes->win = TSWINDOW_INITIALIZER;
 }
@@ -308,10 +309,10 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, con
     memcpy(pDst->interResultBuf, pSrc->interResultBuf, pDst->bufLen);
     
     // copy the output buffer data from src to dst, the position info keep unchanged
-    tFilePage *dstpage = getResBufPage(pRuntimeEnv->pResultBuf, dst->pos.pageId);
+    tFilePage *dstpage = getResBufPage(pRuntimeEnv->pResultBuf, dst->pageId);
     char * dstBuf = getPosInResultPage(pRuntimeEnv, i, dst, dstpage);
 
-    tFilePage *srcpage = getResBufPage(pRuntimeEnv->pResultBuf, src->pos.pageId);
+    tFilePage *srcpage = getResBufPage(pRuntimeEnv->pResultBuf, src->pageId);
     char * srcBuf = getPosInResultPage(pRuntimeEnv, i, (SWindowResult *)src, srcpage);
     size_t s = pRuntimeEnv->pQuery->pSelectExpr[i].bytes;
     
