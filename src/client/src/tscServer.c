@@ -553,8 +553,12 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   int32_t exprSize = (int32_t)(sizeof(SSqlFuncMsg) * numOfExprs);
-  
-  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
+
+  int32_t tsBufSize = (pQueryInfo->tsBuf != NULL)? pQueryInfo->tsBuf->fileSize:0;
+
+  // todo calculate the size of required space for multi-table
+//  int32_t numOfTables = pQueryInfo->pTableMetaInfo[0]->pVgroupTables->pData;
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize + 4096;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {

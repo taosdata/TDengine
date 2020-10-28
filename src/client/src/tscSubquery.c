@@ -460,18 +460,36 @@ static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
 
 }
 
-int32_t tscCompareTidTags(const void* p1, const void* p2) {
-  const STidTags* t1 = (const STidTags*) varDataVal(p1);
-  const STidTags* t2 = (const STidTags*) varDataVal(p2);
+int32_t tidTagsCompar(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*) (p1);
+  const STidTags* t2 = (const STidTags*) (p2);
   
   if (t1->vgId != t2->vgId) {
     return (t1->vgId > t2->vgId) ? 1 : -1;
   }
 
-  if (t1->tid != t2->tid) {
-    return (t1->tid > t2->tid) ? 1 : -1;
+  tstr* tag1 = (tstr*) t1->tag;
+  tstr* tag2 = (tstr*) t2->tag;
+
+  if (tag1->len != tag2->len) {
+    return (tag1->len > tag2->len)? 1: -1;
   }
-  return 0;
+
+  return strncmp(tag1->data, tag2->data, tag1->len);
+}
+
+int32_t tagValCompar(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*) varDataVal(p1);
+  const STidTags* t2 = (const STidTags*) varDataVal(p2);
+
+  tstr* tag1 = (tstr*) t1->tag;
+  tstr* tag2 = (tstr*) t2->tag;
+
+  if (tag1->len != tag2->len) {
+    return (tag1->len > tag2->len)? 1: -1;
+  }
+
+  return strncmp(tag1->data, tag2->data, tag1->len);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {
@@ -587,8 +605,9 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   SJoinSupporter* p1 = pParentSql->pSubs[0]->param;
   SJoinSupporter* p2 = pParentSql->pSubs[1]->param;
 
-  qsort(p1->pIdTagList, p1->num, p1->tagSize, tscCompareTidTags);
-  qsort(p2->pIdTagList, p2->num, p2->tagSize, tscCompareTidTags);
+  // sort according to the tag value
+  qsort(p1->pIdTagList, p1->num, p1->tagSize, tagValCompar);
+  qsort(p2->pIdTagList, p2->num, p2->tagSize, tagValCompar);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
@@ -596,8 +615,9 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   SSchema* pColSchema = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
   // int16_t for padding
-  *s1 = taosArrayInit(p1->num, p1->tagSize - sizeof(int16_t));
-  *s2 = taosArrayInit(p2->num, p2->tagSize - sizeof(int16_t));
+  int32_t size = p1->tagSize - sizeof(int16_t);
+  *s1 = taosArrayInit(p1->num, size);
+  *s2 = taosArrayInit(p2->num, size);
 
   if (!(checkForDuplicateTagVal(pColSchema, p1, pParentSql) && checkForDuplicateTagVal(pColSchema, p2, pParentSql))) {
     return TSDB_CODE_QRY_DUP_JOIN_KEY;
@@ -624,6 +644,14 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
       i++;
     }
   }
+
+  // reorganize the tid-tag value according to both the vgroup id and tag values
+  // sort according to the tag value
+  size_t t1 = taosArrayGetSize(*s1);
+  size_t t2 = taosArrayGetSize(*s2);
+
+  qsort((*s1)->pData, t1, size, tidTagsCompar);
+  qsort((*s2)->pData, t2, size, tidTagsCompar);
 
   return TSDB_CODE_SUCCESS;
 }
