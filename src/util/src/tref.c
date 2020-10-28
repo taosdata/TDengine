@@ -159,8 +159,8 @@ int taosAddRef(int refId, void *p)
   taosLockList(pSet->lockedBy+hash);
   
   pNode = pSet->nodeList[hash];
-  while ( pNode ) {
-    if ( pNode->p == p )
+  while (pNode) {
+    if (pNode->p == p)
       break;
 
     pNode = pNode->next;  
@@ -176,8 +176,9 @@ int taosAddRef(int refId, void *p)
       pNode->count = 1;
       pNode->prev = 0;
       pNode->next = pSet->nodeList[hash];
+      if (pSet->nodeList[hash]) pSet->nodeList[hash]->prev = pNode;
       pSet->nodeList[hash] = pNode;
-      uTrace("refId:%d p:%p is added, count::%d", refId, p, pSet->count);
+      uTrace("refId:%d p:%p is added, count:%d  malloc mem: %p", refId, p, pSet->count, pNode);
     } else {
       code = TSDB_CODE_REF_NO_MEMORY;
       uTrace("refId:%d p:%p is not added, since no memory", refId, p);
@@ -197,7 +198,7 @@ int taosAcquireRef(int refId, void *p)
   SRefNode *pNode;
   SRefSet  *pSet;
 
-  if ( refId < 0 || refId >= TSDB_REF_OBJECTS ) {
+  if (refId < 0 || refId >= TSDB_REF_OBJECTS) {
     uTrace("refId:%d p:%p failed to acquire, refId not valid", refId, p);
     return TSDB_CODE_REF_INVALID_ID;
   }
@@ -267,7 +268,7 @@ void taosReleaseRef(int refId, void *p)
   
   pNode = pSet->nodeList[hash];
   while (pNode) {
-    if ( pNode->p == p )
+    if (pNode->p == p)
       break;
 
     pNode = pNode->next;  
@@ -291,7 +292,7 @@ void taosReleaseRef(int refId, void *p)
 
       free(pNode);
       released = 1;
-      uTrace("refId:%d p:%p is removed, count::%d", refId, p, pSet->count);
+      uTrace("refId:%d p:%p is removed, count:%d, free mem: %p", refId, p, pSet->count, pNode);
     } else {
       uTrace("refId:%d p:%p is released", refId, p);
     }
