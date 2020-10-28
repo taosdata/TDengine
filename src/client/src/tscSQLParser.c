@@ -5286,15 +5286,18 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, (int32_t)size - 1);
 
     if (pExpr->functionId != TSDB_FUNC_TAG) {
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
-      int16_t         columnInfo = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-      SColumnIndex    index = {.tableIndex = 0, .columnIndex = columnInfo};
-      SSchema*        pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pParentQueryInfo, tableIndex);
 
-      int16_t type = pSchema[index.columnIndex].type;
-      int16_t bytes = pSchema[index.columnIndex].bytes;
-      char*   name = pSchema[index.columnIndex].name;
-  
+      int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
+
+      SSchema* pTagSchema = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, colId);
+      int16_t colIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, colId);
+      SColumnIndex    index = {.tableIndex = 0, .columnIndex = colIndex};
+
+      char*   name = pTagSchema->name;
+      int16_t type = pTagSchema->type;
+      int16_t bytes = pTagSchema->bytes;
+
       pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, type, bytes, bytes, true);
       pExpr->colInfo.flag = TSDB_COL_TAG;
 

@@ -1665,6 +1665,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
     taosArrayDestroy(pQueryInfo->groupbyExpr.columnInfo);
     pQueryInfo->groupbyExpr.columnInfo = NULL;
+    pQueryInfo->groupbyExpr.numOfGroupCols = 0;
   }
   
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
@@ -2154,6 +2155,19 @@ int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
     assert(0);
     return -1;
   }
+}
+
+int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId) {
+  int32_t numOfTags = tscGetNumOfColumns(pTableMeta);
+
+  SSchema* pSchema = tscGetTableTagSchema(pTableMeta);
+  for(int32_t i = 0; i < numOfTags; ++i) {
+    if (pSchema[i].colId == colId) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 bool tscIsUpdateQuery(SSqlObj* pSql) {

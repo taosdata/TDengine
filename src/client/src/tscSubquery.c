@@ -320,11 +320,8 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pQueryInfo->colList = pSupporter->colList;
     pQueryInfo->exprList = pSupporter->exprList;
     pQueryInfo->fieldsInfo = pSupporter->fieldsInfo;
+    pQueryInfo->groupbyExpr = pSupporter->groupInfo;
 
-    pSupporter->exprList = NULL;
-    pSupporter->colList = NULL;
-    memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
-  
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->subState.numOfSub == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
   
@@ -332,7 +329,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
     pTableMetaInfo->pVgroupTables = pSupporter->pVgroupTables;
+
+    pSupporter->exprList = NULL;
+    pSupporter->colList = NULL;
     pSupporter->pVgroupTables = NULL;
+    memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
+    memset(&pSupporter->groupInfo, 0, sizeof(SSqlGroupbyExpr));
 
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
@@ -612,7 +614,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
-  SSchema* pColSchema = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
+  SSchema* pColSchema = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
   // int16_t for padding
   int32_t size = p1->tagSize - sizeof(int16_t);
@@ -1341,6 +1343,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
+    pSupporter->groupInfo = pNewQueryInfo->groupbyExpr;
+    memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
+
     pNew->cmd.numOfCols = 0;
     pNewQueryInfo->interval.interval = 0;
     pSupporter->limit = pNewQueryInfo->limit;
@@ -1361,17 +1366,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       assert(pTagCond->joinInfo.hasJoin);
 
       int32_t tagColId = tscGetJoinTagColIdByUid(pTagCond, pTableMetaInfo->pTableMeta->id.uid);
-      SSchema* s = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
+      SSchema* s = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
-      // get the tag colId column index
-      int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
-      SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-      for(int32_t i = 0; i < numOfTags; ++i) {
-        if (pSchema[i].colId == tagColId) {
-          colIndex.columnIndex = i;
-          break;
-        }
-      }
+      colIndex.columnIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, tagColId);
 
       int16_t bytes = 0;
       int16_t type  = 0;
@@ -2193,7 +2190,8 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     numOfRes = (int32_t)(MIN(numOfRes, remain));
   }
 
-  if (numOfRes == 0) {
+  if (numOfRes == 0) {  // no result any more, free all subquery objects
+    freeJoinSubqueryObj(pSql);
     return;
   }
 

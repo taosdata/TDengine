@@ -118,7 +118,7 @@ SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t colIndex)
 }
 
 // TODO for large number of columns, employ the binary search method
-SSchema* tscGetTableColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
+SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
 
   for(int32_t i = 0; i < tinfo.numOfColumns + tinfo.numOfTags; ++i) {
