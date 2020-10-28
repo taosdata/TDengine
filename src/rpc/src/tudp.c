@@ -299,7 +299,7 @@ void *taosTransferDataViaTcp(void *argv) {
     return NULL;
   }
 
-  if (!taosCheckHandleViaTcpValid(&handleViaTcp)) {
+  if (handleViaTcp.handle && !taosCheckHandleViaTcpValid(&handleViaTcp)) {
     tError("%s UDP server read handle via tcp invalid, handle:%" PRIu64 ", hash:%" PRIu64, pSet->label, handleViaTcp.handle,
            handleViaTcp.hash);
     taosCloseSocket(connFd);
