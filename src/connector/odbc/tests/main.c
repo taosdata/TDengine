@@ -7,6 +7,7 @@
 #endif
 #include <sql.h>
 #include <sqlext.h>
+#include <odbcinst.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -494,6 +495,13 @@ int main(int argc, char *argv[]) {
   if (argc==1) {
     CHK_TEST(test_env());
     return 0;
+  }
+
+  if (argc==2 && strcmp(argv[1], "uninstall")==0) {
+    DWORD usage = 0;
+    BOOL ok = SQLRemoveDriver("TAOS ODBC", TRUE, &usage);
+    D("ok/usage: %d/%d", ok, usage);
+    return ok ? 0 : 1;
   }
 
   const char *dsn = (argc>1) ? argv[1] : NULL;
