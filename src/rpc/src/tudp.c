@@ -365,7 +365,7 @@ void *taosTransferDataViaTcp(void *argv) {
     pHeader = (STaosHeader *)handle;
     msgLen = (int32_t)htonl((uint32_t)pHeader->msgLen);
 
-    if (pHeader->tcp != 0 || msgLen < 1024) {
+    if (pHeader->tcp != 0 || msgLen < 100) {
       tError("%s invalid handle:%p, connection shall be closed", pSet->label, pHeader);
     } else {
       SMonitor *pMonitor = (SMonitor *)calloc(1, sizeof(SMonitor));
