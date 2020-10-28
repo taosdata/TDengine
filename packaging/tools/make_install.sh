@@ -278,11 +278,11 @@ function install_service_on_sysvinit() {
 
     # Install taosd service
     if ((${os_type}==1)); then
-    ${csudo} cp -f ${script_dir}/../deb/init.d/taosd ${install_main_dir}/init.d
-    ${csudo} cp    ${script_dir}/../deb/init.d/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+    ${csudo} cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
+    ${csudo} cp    ${script_dir}/../deb/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     elif ((${os_type}==2)); then
-    ${csudo} cp -f ${script_dir}/../rpm/init.d/taosd ${install_main_dir}/init.d
-    ${csudo} cp    ${script_dir}/../rpm/init.d/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+    ${csudo} cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
+    ${csudo} cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     fi
     
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
