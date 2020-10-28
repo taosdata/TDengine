@@ -1656,7 +1656,8 @@ class TaskReadData(StateTransitionTask):
 
         # 1 in 5 chance, simulate a broken connection, only if service stable (not restarting)
         if random.randrange(20)==0: # and self._canRestartService():  # TODO: break connection in all situations
-            Logging.info("Attempting to reconnect to server") # TODO: change to DEBUG
+            # Logging.info("Attempting to reconnect to server") # TODO: change to DEBUG
+            Progress.emit(Progress.SERVICE_RECONNECT_START) 
             try:
                 wt.getDbConn().close()
                 wt.getDbConn().open()
@@ -1667,9 +1668,12 @@ class TaskReadData(StateTransitionTask):
                 if gSvcMgr.isRunning(): # may have race conditon, but low prob, due to 
                     Logging.error("Failed to reconnect when managed server is running")
                     raise # Not OK if we are running normally
-                Logging.info("Ignoring DB reconnect error")
 
-            print("_r", end="", flush=True)
+                Progress.emit(Progress.SERVICE_RECONNECT_FAILURE) 
+                # Logging.info("Ignoring DB reconnect error")
+
+            # print("_r", end="", flush=True)
+            Progress.emit(Progress.SERVICE_RECONNECT_SUCCESS) 
             # The above might have taken a lot of time, service might be running
             # by now, causing error below to be incorrectly handled due to timing issue
             return # TODO: fix server restart status race condtion
