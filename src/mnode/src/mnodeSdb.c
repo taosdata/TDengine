@@ -185,7 +185,11 @@ static int32_t sdbInitWal() {
   }
 
   sdbInfo("open sdb wal for restore");
-  walRestore(tsSdbObj.wal, NULL, sdbWrite);
+  int code = walRestore(tsSdbObj.wal, NULL, sdbWrite);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbError("failed to open wal for restore, reason:%s", tstrerror(code));
+    return -1;
+  }
   return 0;
 }
 
@@ -277,7 +281,14 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
              ((SSdbTable *)pOper->table)->tableName, pOper->pObj, sdbGetKeyStr(pOper->table, pHead->cont),
              pHead->version, action, tstrerror(pOper->retCode));
     if (action == SDB_ACTION_INSERT) {
-      sdbDeleteHash(pOper->table, pOper);
+      // It's better to create a table in two stages, create it first and then set it success
+      //sdbDeleteHash(pOper->table, pOper);
+      SSdbOper oper = {
+        .type  = SDB_OPER_GLOBAL,
+        .table = pOper->table,
+        .pObj  = pOper->pObj
+      };
+      sdbDeleteRow(&oper);
     }
   }
 
@@ -294,31 +305,25 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   taosFreeQitem(pOper);
 }
 
-static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(); }
+static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(NULL); }
 
-void sdbUpdateSync() {
+void sdbUpdateAsync() {
+  taosTmrReset(sdbUpdateSyncTmrFp, 200, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
+}
+
+void sdbUpdateSync(void *pMnodes) {
+  SDMMnodeInfos *mnodes = pMnodes;
   if (!mnodeIsRunning()) {
-    mDebug("mnode not start yet, update sync info later");
-    if (dnodeCheckMnodeStarting()) {
-      taosTmrReset(sdbUpdateSyncTmrFp, 1000, NULL, tsMnodeTmr, &tsUpdateSyncTmr);
-    }
+    mDebug("mnode not start yet, update sync config later");
     return;
   }
-  mDebug("update sync info in sdb");
+
+  mDebug("update sync config in sync module, mnodes:%p", pMnodes);
 
   SSyncCfg syncCfg = {0};
   int32_t  index = 0;
 
-  SDMMnodeInfos *mnodes = dnodeGetMnodeInfos();
-  for (int32_t i = 0; i < mnodes->nodeNum; ++i) {
-    SDMMnodeInfo *node = &mnodes->nodeInfos[i];
-    syncCfg.nodeInfo[i].nodeId = node->nodeId;
-    taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[i].nodeFqdn, &syncCfg.nodeInfo[i].nodePort);
-    syncCfg.nodeInfo[i].nodePort += TSDB_PORT_SYNC;
-    index++;
-  }
-
-  if (index == 0) {
+  if (mnodes == NULL) {
     void *pIter = NULL;
     while (1) {
       SMnodeObj *pMnode = NULL;
@@ -338,9 +343,19 @@ void sdbUpdateSync() {
       mnodeDecMnodeRef(pMnode);
     }
     sdbFreeIter(pIter);
+    syncCfg.replica = index;
+    mDebug("mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
+  } else {
+    for (index = 0; index < mnodes->nodeNum; ++index) {
+      SDMMnodeInfo *node = &mnodes->nodeInfos[index];
+      syncCfg.nodeInfo[index].nodeId = node->nodeId;
+      taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
+      syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
+    }
+    syncCfg.replica = index;
+    mDebug("mnodes info input, numOfMnodes:%d", syncCfg.replica);
   }
 
-  syncCfg.replica = index;
   syncCfg.quorum = (syncCfg.replica == 1) ? 1 : 2;
 
   bool hasThisDnode = false;
@@ -351,8 +366,15 @@ void sdbUpdateSync() {
     }
   }
 
-  if (!hasThisDnode) return;
-  if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) return;
+  if (!hasThisDnode) {
+    sdbDebug("update sync config, this dnode not exist");
+    return;
+  }
+
+  if (memcmp(&syncCfg, &tsSdbObj.cfg, sizeof(SSyncCfg)) == 0) {
+    sdbDebug("update sync config, info not changed");
+    return;
+  }
 
   sdbInfo("work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
@@ -579,7 +601,7 @@ static int sdbWrite(void *param, void *data, int type) {
       pthread_mutex_unlock(&tsSdbObj.mutex);
       sdbError("table:%s, failed to restore %s record:%s from source(%d), ver:%" PRId64 " too large, sdb ver:%" PRId64,
                pTable->tableName, sdbGetActionStr(action), sdbGetKeyStr(pTable, pHead->cont), type, pHead->version, tsSdbObj.version);
-      return TSDB_CODE_MND_APP_ERROR;
+      return TSDB_CODE_SYN_INVALID_VERSION;
     } else {
       tsSdbObj.version = pHead->version;
     }
@@ -1039,7 +1061,7 @@ static void *sdbWorkerFp(void *param) {
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(tsSdbWriteQset, tsSdbWriteQall, &unUsed);
     if (numOfMsgs == 0) {
-      sdbDebug("sdbWorkerFp: got no message from qset, exiting...");
+      sdbDebug("qset:%p, sdb got no message from qset, exiting", tsSdbWriteQset);
       break;
     }
 

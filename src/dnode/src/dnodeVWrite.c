@@ -24,8 +24,10 @@
 #include "twal.h"
 #include "tdataformat.h"
 #include "tglobal.h"
+#include "tsync.h"
 #include "vnode.h"
 #include "dnodeInt.h"
+#include "syncInt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMgmt.h"
 
@@ -188,6 +190,7 @@ void dnodeFreeVnodeWqueue(void *wqueue) {
 
 void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
   SWriteMsg *pWrite = (SWriteMsg *)param;
+  if (pWrite == NULL) return;
 
   if (code < 0) pWrite->code = code;
   int32_t count = atomic_add_fetch_32(&pWrite->processedCount, 1);
@@ -210,19 +213,19 @@ void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
 
 static void *dnodeProcessWriteQueue(void *param) {
   SWriteWorker *pWorker = (SWriteWorker *)param;
-  SWriteMsg    *pWrite;
-  SWalHead     *pHead;
+  SWriteMsg *   pWrite;
+  SWalHead *    pHead;
   int32_t       numOfMsgs;
   int           type;
-  void         *pVnode, *item;
-  SRspRet      *pRspRet;
+  void *        pVnode, *item;
+  SRspRet *     pRspRet;
 
   dDebug("write worker:%d is running", pWorker->workerId);
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
     if (numOfMsgs == 0) {
-      dDebug("dnodeProcessWriteQueee: got no message from qset, exiting...");
+      dDebug("qset:%p, dnode write got no message from qset, exiting", pWorker->qset);
       break;
     }
 
@@ -237,16 +240,25 @@ static void *dnodeProcessWriteQueue(void *param) {
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
-        dDebug("%p, rpc msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle, taosMsg[pWrite->rpcMsg.msgType]);
+        dDebug("%p, rpc msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle,
+               taosMsg[pWrite->rpcMsg.msgType]);
+      } else if (type == TAOS_QTYPE_CQ) {
+        pHead = (SWalHead *)((char*)item + sizeof(SSyncHead));
+        dTrace("%p, CQ wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType],
+               pHead->version);
       } else {
         pHead = (SWalHead *)item;
-        dTrace("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType], pHead->version);
+        dTrace("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType],
+               pHead->version);
       }
 
       int32_t code = vnodeProcessWrite(pVnode, type, pHead, pRspRet);
-      if (pWrite) { 
+      dTrace("%p, msg:%s is processed in vwrite queue, version:%" PRIu64 ", result:%s", pHead, taosMsg[pHead->msgType],
+             pHead->version, tstrerror(code));
+
+      if (pWrite) {
         pWrite->rpcMsg.code = code;
-        if (code <= 0) pWrite->processedCount = 1; 
+        if (code <= 0) pWrite->processedCount = 1;
       }
     }
 
@@ -258,7 +270,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       taosGetQitem(pWorker->qall, &type, &item);
       if (type == TAOS_QTYPE_RPC) {
         pWrite = (SWriteMsg *)item;
-        dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code); 
+        dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code);
       } else if (type == TAOS_QTYPE_FWD) {
         pHead = (SWalHead *)item;
         vnodeConfirmForward(pVnode, pHead->version, 0);
@@ -279,13 +291,13 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   int32_t num = taosGetQueueNumber(pWorker->qset);
 
   if (num > 0) {
-     usleep(30000);
-     sched_yield();
+    usleep(30000);
+    sched_yield();
   } else {
-     taosFreeQall(pWorker->qall);
-     taosCloseQset(pWorker->qset);
-     pWorker->qset = NULL;
-     dDebug("write worker:%d is released", pWorker->workerId);
-     pthread_exit(NULL);
+    taosFreeQall(pWorker->qall);
+    taosCloseQset(pWorker->qset);
+    pWorker->qset = NULL;
+    dDebug("write worker:%d is released", pWorker->workerId);
+    pthread_exit(NULL);
   }
 }

@@ -29,23 +29,9 @@ Query OK, 2 row(s) in set (0.001100s)
 具体的查询语法请看<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>。
 
 ## 多表聚合查询
+物联网场景中，往往同一个类型的数据采集点有多个。TDengine采用超级表(STable)的概念来描述某一个类型的数据采集点，一张普通的表来描述一个具体的数据采集点。同时TDengine使用标签来描述数据采集点的静态属性，一个具体的数据采集点有具体的标签值。通过指定标签的过滤条件，TDengine提供了一高效的方法将超级表(某一类型的数据采集点)所属的子表进行聚合查询。对普通表的聚合函数以及绝大部分操作都适用于超级表，语法完全一样。  
 
-TDengine对每个数据采集点单独建表，但在实际应用中经常需要对不同的采集点数据进行聚合。为高效的进行聚合操作，TDengine引入超级表（STable）的概念。超级表用来代表一特定类型的数据采集点，它是包含多张表的表集合，集合里每张表的模式（schema）完全一致，但每张表都带有自己的静态标签，标签可以多个，可以随时增加、删除和修改。
-
-应用可通过指定标签的过滤条件，对一个STable下的全部或部分表进行聚合或统计操作，这样大大简化应用的开发。其具体流程如下图所示：
-
-<center> <img src="../assets/stable.png"> </center>
-
-<center> 多表聚合查询原理图  </center>
-
-1：应用将一个查询条件发往系统；2: taosc将超级表的名字发往 Meta Node（管理节点)；3：管理节点将超级表所拥有的 vnode 列表发回 taosc；4：taosc将计算的请求连同标签过滤条件发往这些vnode对应的多个数据节点；5：每个vnode先在内存里查找出自己节点里符合标签过滤条件的表的集合，然后扫描存储的时序数据，完成相应的聚合计算，将结果返回给taosc；6：taosc将多个数据节点返回的结果做最后的聚合，将其返回给应用。
-
-由于TDengine在vnode内将标签数据与时序数据分离存储，通过先在内存里过滤标签数据，将需要扫描的数据集大幅减少，大幅提升聚合计算速度。同时，由于数据分布在多个vnode/dnode，聚合计算操作在多个vnode里并发进行，又进一步提升了聚合的速度。
-
-对普通表的聚合函数以及绝大部分操作都适用于超级表，语法完全一样，细节请看 TAOS SQL。
-
-比如：在TAOS Shell，查找所有智能电表采集的电压平均值，并按照location分组
-
+**示例1**：在TAOS Shell，查找北京所有智能电表采集的电压平均值，并按照location分组
 ```mysql
 taos> SELECT AVG(voltage) FROM meters GROUP BY location;
        avg(voltage)        |            location            |
@@ -54,6 +40,18 @@ taos> SELECT AVG(voltage) FROM meters GROUP BY location;
              219.200000000 | Beijing.Chaoyang               |
 Query OK, 2 row(s) in set (0.002136s)
 ```
+
+**示例2**：在TAOS shell, 查找groupId为2的所有智能电表过去24小时的记录条数，电流的最大值
+
+```mysql
+taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
+     cunt(*)  |    max(current)  |
+==================================
+            5 |             13.4 |
+Query OK, 1 row(s) in set (0.002136s)
+```
+
+TDengine仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>一章，查询类操作都会注明是否支持超级表。
 
 ## 降采样查询、插值
 
@@ -66,9 +64,9 @@ taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
  2018-10-03 14:38:10.000 |              24.900000572 |
 Query OK, 2 row(s) in set (0.000883s)
 ```
-降采样操作也适用于超级表，比如：将所有智能电表采集的电流值每秒钟求和
+降采样操作也适用于超级表，比如：将北京所有智能电表采集的电流值每秒钟求和
 ```mysql
-taos> SELECT SUM(current) FROM meters INTERVAL(1s);
+taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |

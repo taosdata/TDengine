@@ -115,8 +115,9 @@ typedef struct SSkipList {
 typedef struct SSkipListIterator {
   SSkipList *    pSkipList;
   SSkipListNode *cur;
-  int32_t        step;   // the number of nodes that have been checked already
-  int32_t        order;  // order of the iterator
+  int32_t        step;          // the number of nodes that have been checked already
+  int32_t        order;         // order of the iterator
+  SSkipListNode *next;          // next points to the true qualified node in skip list
 } SSkipListIterator;
 
 #define SL_IS_THREAD_SAFE(s) (((s)->flags) & SL_THREAD_SAFE)

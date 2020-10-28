@@ -97,7 +97,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
   assert(size > 0);
 
-  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, num:%d size:%" PRId64 "bytes",
+  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, totalNum:%d size:%" PRId64 "bytes",
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
@@ -107,11 +107,13 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
   free(pNode);
 }
 
-static FORCE_INLINE void doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem *pElem) {
+static FORCE_INLINE STrashElem* doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != (uint64_t) pElem->pData) {
     uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", pElem->pData->signature, pElem->pData);
-    return;
+    return NULL;
   }
+
+  STrashElem* next = pElem->next;
 
   pCacheObj->numOfElemsInTrash--;
   if (pElem->prev) {
@@ -120,9 +122,15 @@ static FORCE_INLINE void doRemoveElemInTrashcan(SCacheObj* pCacheObj, STrashElem
     pCacheObj->pTrash = pElem->next;
   }
 
-  if (pElem->next) {
-    pElem->next->prev = pElem->prev;
+  if (next) {
+    next->prev = pElem->prev;
   }
+
+  if (pCacheObj->numOfElemsInTrash == 0) {
+    assert(pCacheObj->pTrash == NULL);
+  }
+
+  return next;
 }
 
 static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem *pElem) {
@@ -327,7 +335,7 @@ void *taosCacheTransfer(SCacheObj *pCacheObj, void **data) {
 }
 
 void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
-  if (pCacheObj == NULL || taosHashGetSize(pCacheObj->pHashTable) + pCacheObj->numOfElemsInTrash == 0) {
+  if (pCacheObj == NULL) {
     return;
   }
 
@@ -335,7 +343,12 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
     uError("cache:%s, NULL data to release", pCacheObj->name);
     return;
   }
-  
+
+
+  // The operation of removal from hash table and addition to trashcan is not an atomic operation,
+  // therefore the check for the empty of both the hash table and the trashcan has a race condition.
+  // It happens when there is only one object in the cache, and two threads which has referenced this object
+  // start to free the it simultaneously [TD-1569].
   size_t offset = offsetof(SCacheDataNode, data);
   
   SCacheDataNode *pNode = (SCacheDataNode *)((char *)(*data) - offset);
@@ -550,8 +563,8 @@ void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pCacheObj->numOfElemsInTrash++;
   __cache_unlock(pCacheObj);
 
-  uDebug("cache:%s key:%p, %p move to trashcan, numOfElem in trashcan:%d", pCacheObj->name, pNode->key, pNode->data,
-      pCacheObj->numOfElemsInTrash);
+  uDebug("cache:%s key:%p, %p move to trashcan, pTrashElem:%p, numOfElem in trashcan:%d", pCacheObj->name,
+      pNode->key, pNode->data, pElem, pCacheObj->numOfElemsInTrash);
 }
 
 void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
@@ -559,31 +572,30 @@ void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {
 
   if (pCacheObj->numOfElemsInTrash == 0) {
     if (pCacheObj->pTrash != NULL) {
+      pCacheObj->pTrash = NULL;
       uError("cache:%s, key:inconsistency data in cache, numOfElem in trashcan:%d", pCacheObj->name, pCacheObj->numOfElemsInTrash);
     }
 
-    pCacheObj->pTrash = NULL;
     __cache_unlock(pCacheObj);
     return;
   }
 
-  STrashElem *pElem = pCacheObj->pTrash;
+  const char* stat[] = {"false", "true"};
+  uDebug("cache:%s start to cleanup trashcan, numOfElem in trashcan:%d, free:%s", pCacheObj->name,
+      pCacheObj->numOfElemsInTrash, (force? stat[1]:stat[0]));
 
+  STrashElem *pElem = pCacheObj->pTrash;
   while (pElem) {
     T_REF_VAL_CHECK(pElem->pData);
-    if (pElem->next == pElem) {
-      pElem->next = NULL;
-    }
+    assert(pElem->next != pElem && pElem->prev != pElem);
 
     if (force || (T_REF_VAL_GET(pElem->pData) == 0)) {
       uDebug("cache:%s, key:%p, %p removed from trashcan. numOfElem in trashcan:%d", pCacheObj->name, pElem->pData->key, pElem->pData->data,
              pCacheObj->numOfElemsInTrash - 1);
 
-      STrashElem *p = pElem;
-      pElem = pElem->next;
-
-      doRemoveElemInTrashcan(pCacheObj, p);
-      doDestroyTrashcanElem(pCacheObj, p);
+      doRemoveElemInTrashcan(pCacheObj, pElem);
+      doDestroyTrashcanElem(pCacheObj, pElem);
+      pElem = pCacheObj->pTrash;
     } else {
       pElem = pElem->next;
     }

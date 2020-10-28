@@ -40,7 +40,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, size_t sqlLen) {
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* param, const char* sqlstr, size_t sqlLen) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   pSql->signature = pSql;
@@ -51,10 +51,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
 
-  uint64_t handle = (uint64_t) pSql;
-  pSql->self = taosCachePut(tscObjCache, &handle, sizeof(uint64_t), &pSql, sizeof(uint64_t), 2*3600*1000);
-
-  T_REF_INC(pSql->pTscObj);
+  registerSqlObj(pSql);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
@@ -330,7 +327,7 @@ void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   for (int i = 0; i < pCmd->numOfCols; ++i){
-    SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
     if (pSup->pSqlExpr != NULL) {
 //      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pSup->pSqlExpr->resBytes * pRes->row;
     } else {
@@ -351,7 +348,7 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   for (int i = 0; i < pCmd->numOfCols; ++i) {
-    SFieldSupInfo* pSup = taosArrayGet(pQueryInfo->fieldsInfo.pSupportInfo, i);
+    SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
 
     if (pSup->pSqlExpr != NULL) {
       tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
@@ -362,15 +359,6 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   
   pRes->row++;
   (*pSql->fetchFp)(pSql->param, pSql, pRes->tsrow);
-}
-
-void tscProcessAsyncRes(SSchedMsg *pMsg) {
-  SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  SSqlRes *pRes = &pSql->res;
-  assert(pSql->fp != NULL && pSql->fetchFp != NULL);
-
-  pSql->fp = pSql->fetchFp;
-  (*pSql->fp)(pSql->param, pSql, pRes->code);
 }
 
 // this function will be executed by queue task threads, so the terrno is not valid
@@ -396,22 +384,15 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
-  } else {
-    tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
   }
 
-  SSchedMsg schedMsg = { 0 };
-  schedMsg.fp = tscProcessAsyncRes;
-  schedMsg.ahandle = pSql;
-  schedMsg.thandle = (void *)1;
-  schedMsg.msg = NULL;
-  taosScheduleTask(tscQhandle, &schedMsg);
-}
+  tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
 
-void tscProcessAsyncFree(SSchedMsg *pMsg) {
-  SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  tscDebug("%p sql is freed", pSql);
-  taos_free_result(pSql);
+  SSqlRes *pRes = &pSql->res;
+  assert(pSql->fp != NULL && pSql->fetchFp != NULL);
+
+  pSql->fp = pSql->fetchFp;
+  (*pSql->fp)(pSql->param, pSql, pRes->code);
 }
 
 int tscSendMsgToServer(SSqlObj *pSql);
@@ -424,11 +405,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlRes *pRes = &pSql->res;
   pRes->code = code;
 
+  const char* msg = (pCmd->command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p get tableMeta failed, code:%s", pSql, tstrerror(code));
+    tscError("%p get %s failed, code:%s", pSql, msg, tstrerror(code));
     goto _error;
   } else {
-    const char* msg = (pCmd->command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
     tscDebug("%p get %s successfully", pSql, msg);
   }
 
@@ -512,7 +493,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           goto _error;
         }
 
-        if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT)) {
+        if (pCmd->insertType == TSDB_QUERY_TYPE_STMT_INSERT) {
           STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {

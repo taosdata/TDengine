@@ -52,12 +52,12 @@ int32_t httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int32_t 
     }
 
     if (len < 0) {
-      httpDebug("context:%p, fd:%d, socket write errno:%d, times:%d", pContext, pContext->fd, errno, countWait);
+      httpDebug("context:%p, fd:%d, socket write errno:%d:%s, times:%d", pContext, pContext->fd, errno, strerror(errno), countWait);
       if (++countWait > HTTP_WRITE_RETRY_TIMES) break;
       taosMsleep(HTTP_WRITE_WAIT_TIME_MS);
       continue;
     } else if (len == 0) {
-      httpDebug("context:%p, fd:%d, socket write errno:%d, connect already closed", pContext, pContext->fd, errno);
+      httpDebug("context:%p, fd:%d, socket write errno:%d:%s, connect already closed", pContext, pContext->fd, errno, strerror(errno));
       break;
     } else {
       countWait = 0;
@@ -113,7 +113,7 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
       httpTrace("context:%p, fd:%d, no data need dump", buf->pContext, buf->pContext->fd);
       return 0;  // there is no data to dump.
     } else {
-      int32_t len = sprintf(sLen, "%lx\r\n", srcLen);
+      int32_t len = sprintf(sLen, "%" PRIx64 "\r\n", srcLen);
       httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", response:\n%s", buf->pContext, buf->pContext->fd,
                 srcLen, buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
@@ -131,14 +131,14 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
         httpWriteBufNoTrace(buf->pContext, sLen, len);
         remain = httpWriteBufNoTrace(buf->pContext, (const char*)compressBuf, compressBufLen);
       } else {
-        httpTrace("context:%p, fd:%d, last:%d, compress already dumped, response:\n%s", buf->pContext,
+        httpDebug("context:%p, fd:%d, last:%d, compress already dumped, response:\n%s", buf->pContext,
                   buf->pContext->fd, isTheLast, buf->buf);
-        return 0;  // there is no data to dump.
+        remain = 0;  // there is no data to dump.
       }
     } else {
       httpError("context:%p, fd:%d, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
                 buf->pContext, buf->pContext->fd, srcLen, isTheLast, ret, buf->buf);
-      return 0;
+      remain = 0;
     }
   }
 
@@ -267,9 +267,9 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
   ptm = localtime(&tt);
   int32_t length = (int32_t) strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
   if (us) {
-    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
   } else {
-    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
   }
 
   httpJsonString(buf, ts, length);
@@ -287,9 +287,9 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us) {
   ptm = localtime(&tt);
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
   if (us) {
-    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
   } else {
-    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
   }
   length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
 

@@ -5,12 +5,11 @@ import com.taosdata.jdbc.TSDBDriver;
 import java.sql.*;
 import java.util.Properties;
 
-public class JDBCConnectorChecker {
+public class JdbcChecker {
     private static String host;
     private static String dbName = "test";
     private static String tbName = "weather";
     private Connection connection;
-
 
     /**
      * get connection
@@ -121,6 +120,7 @@ public class JDBCConnectorChecker {
             printSql(sql, execute, (end - start));
         } catch (SQLException e) {
             e.printStackTrace();
+            
         }
     }
 
@@ -158,7 +158,7 @@ public class JDBCConnectorChecker {
             return;
         }
 
-        JDBCConnectorChecker checker = new JDBCConnectorChecker();
+        JdbcChecker checker = new JdbcChecker();
         checker.init();
         checker.createDatabase();
         checker.useDatabase();
@@ -169,6 +169,5 @@ public class JDBCConnectorChecker {
         checker.checkDropTable();
         checker.close();
     }
-
 
 }

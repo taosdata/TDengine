@@ -27,7 +27,7 @@ $j = 1
 
 $mt1 = $mtPrefix . $j
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db
 sql use $db
@@ -251,7 +251,7 @@ if $rows != 15 then
 endi
 
 # first subclause are empty
-sql select count(*) as c from union_tb0 where ts>now+10y union all select sum(c1) as c from union_tb1;
+sql select count(*) as c from union_tb0 where ts > now + 3650d union all select sum(c1) as c from union_tb1;
 if $rows != 1 then
   return -1
 endi
@@ -346,7 +346,7 @@ if $data91 != 99 then
   return -1
 endi
 
-#1111111111111111111111111111111111111111111111111
+#=================================================================================================
 # two aggregated functions for normal tables
 sql select sum(c1) as a from union_tb0 limit 1 union all select sum(c3) as a from union_tb1 limit 2;
 if $rows != 2 then

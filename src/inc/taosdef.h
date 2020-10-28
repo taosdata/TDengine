@@ -64,7 +64,7 @@ extern const int32_t TYPE_BYTES[11];
 // TODO: replace and remove code below
 #define CHAR_BYTES   sizeof(char)
 #define SHORT_BYTES  sizeof(int16_t)
-#define INT_BYTES    sizeof(int)
+#define INT_BYTES    sizeof(int32_t)
 #define LONG_BYTES   sizeof(int64_t)
 #define FLOAT_BYTES  sizeof(float)
 #define DOUBLE_BYTES sizeof(double)
@@ -73,7 +73,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_BOOL_NULL             0x02
 #define TSDB_DATA_TINYINT_NULL          0x80
 #define TSDB_DATA_SMALLINT_NULL         0x8000
-#define TSDB_DATA_INT_NULL              0x80000000
+#define TSDB_DATA_INT_NULL              0x80000000L
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
 #define TSDB_DATA_TIMESTAMP_NULL        TSDB_DATA_BIGINT_NULL
 
@@ -132,22 +132,31 @@ do { \
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
-#ifdef _TD_ARM_32_
-  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
-
-  float  taos_align_get_float(const char* pBuf);
-  double taos_align_get_double(const char* pBuf);
+#ifdef _TD_ARM_32
 
   //#define __float_align_declear()  float __underlyFloat = 0.0;
   //#define __float_align_declear()
   //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
   // notes: src must be float or double type variable !!!
-  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
-  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+  //#define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  //#define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
+
+  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
+  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
+  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
+  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
 #else
-  #define GET_FLOAT_VAL(x)  (*(float *)(x))
-  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+  #define GET_FLOAT_VAL(x)       (*(float *)(x))
+  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
+  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
+  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
+  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
+  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
 typedef struct tDataTypeDescriptor {
@@ -186,9 +195,9 @@ static FORCE_INLINE bool isNull(const char *val, int32_t type) {
     case TSDB_DATA_TYPE_DOUBLE:
       return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
     case TSDB_DATA_TYPE_NCHAR:
-      return *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
+      return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
     case TSDB_DATA_TYPE_BINARY:
-      return *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+      return varDataLen(val) == sizeof(int8_t) && *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
     default:
       return false;
   };
@@ -245,8 +254,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
-#define TSDB_MAX_SQL_SHOW_LEN     256
-#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024U)          // sql length should be less than 8mb
+#define TSDB_MAX_SQL_SHOW_LEN     512
+#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
+
+#define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
 #define TSDB_MAX_BYTES_PER_ROW    16384
 #define TSDB_MAX_TAGS_LEN         16384
@@ -274,7 +285,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_SHELL_VNODE_BITS     24
 #define TSDB_SHELL_SID_MASK       0xFF
 #define TSDB_HTTP_TOKEN_LEN       20
-#define TSDB_SHOW_SQL_LEN         64
+#define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
@@ -295,6 +306,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           64
 #define TSDB_MAX_VNODES           2048
+#define TSDB_MIN_VNODES_PER_DB    2
+#define TSDB_MAX_VNODES_PER_DB    64
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1

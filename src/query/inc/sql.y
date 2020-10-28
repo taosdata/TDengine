@@ -80,6 +80,7 @@ cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0); 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
 cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
+
 %type dbPrefix {SStrToken}
 dbPrefix(A) ::=.                   {A.n = 0; A.type = 0;}
 dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
@@ -87,6 +88,15 @@ dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 %type cpxName {SStrToken}
 cpxName(A) ::= .             {A.n = 0;  }
 cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
+
+cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
+   setDCLSQLElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
+}    
+
+cmd ::= SHOW CREATE DATABASE ids(X). {
+  setDCLSQLElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);
+} 
 
 cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);

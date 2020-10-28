@@ -472,7 +472,7 @@ typedef uLong FAR uLongf;
 #endif
 #ifndef Z_SOLO
 #  if defined(Z_HAVE_UNISTD_H) || defined(_LARGEFILE64_SOURCE)
-#if (_WIN64)
+#if defined(_WIN64) || defined(_WIN32)
 #include <io.h>
 #include <process.h>
 #else

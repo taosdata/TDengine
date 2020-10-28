@@ -36,3 +36,21 @@ int64_t taosGetPthreadId() {
 bool taosComparePthread(pthread_t first, pthread_t second) {
   return first.p == second.p;
 }
+
+int32_t taosGetPId() {
+  return GetCurrentProcessId();
+}
+
+int32_t taosGetCurrentAPPName(char *name, int32_t* len) {
+  char filepath[1024] = {0};
+
+  GetModuleFileName(NULL, filepath, MAX_PATH);
+  *strrchr(filepath,'.') = '\0';
+  strcpy(name, filepath);
+
+  if (len != NULL) {
+    *len = (int32_t) strlen(filepath);
+  }
+
+  return 0;
+}

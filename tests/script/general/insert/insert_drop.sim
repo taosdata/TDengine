@@ -52,10 +52,10 @@ sleep 1000
 
 sql use $db
 sql drop table tb5
-
+$i = 0
 while $i < 4
-  $tbId = $i + $halfNum
-  $tb = $tbPrefix . $i
+  
+  $tb = tb . $i
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta

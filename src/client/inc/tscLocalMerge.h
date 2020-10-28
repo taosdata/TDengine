@@ -72,17 +72,10 @@ typedef struct SLocalReducer {
   bool                   orderPrjOnSTable;   // projection query on stable
 } SLocalReducer;
 
-typedef struct SSubqueryState {
-  int32_t  numOfRemain;         // the number of remain unfinished subquery
-  int32_t  numOfTotal;          // the number of total sub-queries
-  uint64_t numOfRetrievedRows;  // total number of points in this query
-} SSubqueryState;
-
 typedef struct SRetrieveSupport {
   tExtMemBuffer **  pExtMemBuffer;     // for build loser tree
   tOrderDescriptor *pOrderDescriptor;
   SColumnModel *    pFinalColModel;    // colModel for final result
-  SSubqueryState *  pState;
   int32_t           subqueryIndex;     // index of current vnode in vnode list
   SSqlObj *         pParentSql;
   tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to

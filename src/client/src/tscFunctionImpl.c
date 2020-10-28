@@ -525,7 +525,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
       *retVal += pCtx->preAggVals.statis.sum;
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
       double *retVal = (double*) pCtx->aOutputBuf;
-      *retVal += GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.sum));
+      *retVal += GET_DOUBLE_VAL((const char*)&(pCtx->preAggVals.statis.sum));
     }
   } else {  // computing based on the true data block
     void *pData = GET_INPUT_CHAR(pCtx);
@@ -768,7 +768,7 @@ static void avg_function(SQLFunctionCtx *pCtx) {
     if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
       *pVal += pCtx->preAggVals.statis.sum;
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      *pVal += GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.sum));
+      *pVal += GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.sum));
     }
   } else {
     void *pData = GET_INPUT_CHAR(pCtx);
@@ -2445,8 +2445,8 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   // in the first round, get the min-max value of all involved data
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = pResInfo->interResultBuf;
-  pInfo->minval = DBL_MAX;
-  pInfo->maxval = -DBL_MAX;
+  SET_DOUBLE_VAL(&pInfo->minval, DBL_MAX);
+  SET_DOUBLE_VAL(&pInfo->maxval, -DBL_MAX);
   pInfo->numOfElems = 0;
 
   return true;
@@ -2461,12 +2461,22 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
-      if (pInfo->minval > pCtx->preAggVals.statis.min) {
-        pInfo->minval = (double)pCtx->preAggVals.statis.min;
+      double tmin = 0.0, tmax = 0.0;
+      if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
+        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
+        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
+      } else {
+        assert(true);
+      }
+      if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
+        SET_DOUBLE_VAL(&pInfo->minval, tmin);
       }
 
-      if (pInfo->maxval < pCtx->preAggVals.statis.max) {
-        pInfo->maxval = (double)pCtx->preAggVals.statis.max;
+      if (GET_DOUBLE_VAL(&pInfo->maxval) < tmax) {
+        SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
       pInfo->numOfElems += (pCtx->size - pCtx->preAggVals.statis.numOfNull);
@@ -2500,12 +2510,12 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
             break;
         }
 
-        if (v < pInfo->minval) {
-          pInfo->minval = v;
+        if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
+          SET_DOUBLE_VAL(&pInfo->minval, v);
         }
 
-        if (v > pInfo->maxval) {
-          pInfo->maxval = v;
+        if (v > GET_DOUBLE_VAL(&pInfo->maxval)) {
+          SET_DOUBLE_VAL(&pInfo->maxval, v);
         }
 
         pInfo->numOfElems += 1;
@@ -2564,12 +2574,12 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
         break;
     }
 
-    if (v < pInfo->minval) {
-      pInfo->minval = v;
+    if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
+      SET_DOUBLE_VAL(&pInfo->minval, v);
     }
 
-    if (v > pInfo->maxval) {
-      pInfo->maxval = v;
+    if (v > GET_DOUBLE_VAL(&pInfo->maxval)) {
+      SET_DOUBLE_VAL(&pInfo->maxval, v);
     }
 
     pInfo->numOfElems += 1;
@@ -2609,7 +2619,7 @@ static void percentile_next_step(SQLFunctionCtx *pCtx) {
     }
 
     pInfo->stage += 1;
-    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
   } else {
     pResInfo->complete = true;
   }
@@ -3516,12 +3526,12 @@ static void spread_function(SQLFunctionCtx *pCtx) {
         pInfo->max = (double)pCtx->preAggVals.statis.max;
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      if (pInfo->min > GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.min))) {
-        pInfo->min = GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.min));
+      if (pInfo->min > GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.min))) {
+        pInfo->min = GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.min));
       }
       
-      if (pInfo->max < GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.max))) {
-        pInfo->max = GET_DOUBLE_VAL(&(pCtx->preAggVals.statis.max));
+      if (pInfo->max < GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.max))) {
+        pInfo->max = GET_DOUBLE_VAL((const char *)&(pCtx->preAggVals.statis.max));
       }
     }
     
@@ -4025,11 +4035,11 @@ static void ts_comp_function(SQLFunctionCtx *pCtx) {
   
   // primary ts must be existed, so no need to check its existance
   if (pCtx->order == TSDB_ORDER_ASC) {
-    tsBufAppend(pTSbuf, 0, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
+    tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i64Key, &pCtx->tag, input, pCtx->size * TSDB_KEYSIZE);
   } else {
     for (int32_t i = pCtx->size - 1; i >= 0; --i) {
       char *d = GET_INPUT_CHAR_INDEX(pCtx, i);
-      tsBufAppend(pTSbuf, 0, &pCtx->tag, d, TSDB_KEYSIZE);
+      tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i64Key, &pCtx->tag, d, (int32_t)TSDB_KEYSIZE);
     }
   }
   
@@ -4048,7 +4058,7 @@ static void ts_comp_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   STSBuf *pTSbuf = pInfo->pTSBuf;
   
-  tsBufAppend(pTSbuf, 0, &pCtx->tag, pData, TSDB_KEYSIZE);
+  tsBufAppend(pTSbuf, (int32_t)pCtx->param[0].i64Key, &pCtx->tag, pData, TSDB_KEYSIZE);
   SET_VAL(pCtx, pCtx->size, 1);
   
   pResInfo->hasResult = DATA_SET_FLAG;

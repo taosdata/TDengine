@@ -14,85 +14,76 @@
 # For type hinting before definition, ref:
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
 from __future__ import annotations
-import taos
-import crash_gen
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.log import *
-from queue import Queue, Empty
-from typing import IO
+
 from typing import Set
 from typing import Dict
 from typing import List
-from requests.auth import HTTPBasicAuth
+from typing import Optional # Type hinting, ref: https://stackoverflow.com/questions/19202633/python-3-type-hinting-for-none
+
 import textwrap
-import datetime
-import logging
 import time
+import datetime
 import random
+import logging
 import threading
-import requests
 import copy
 import argparse
 import getopt
 
 import sys
 import os
-import io
 import signal
 import traceback
+import resource
+from guppy import hpy
+import gc
 
-try:
-    import psutil
-except:
-    print("Psutil module needed, please install: sudo pip3 install psutil")
-    sys.exit(-1)
+from .service_manager import ServiceManager, TdeInstance
+from .misc import Logging, Status, CrashGenError, Dice, Helper, Progress
+from .db import DbConn, MyTDSql, DbConnNative, DbManager
+
+import taos
+import requests
 
 # Require Python 3
 if sys.version_info[0] < 3:
     raise Exception("Must be using Python 3")
 
-
 # Global variables, tried to keep a small number.
 
 # Command-line/Environment Configurations, will set a bit later
 # ConfigNameSpace = argparse.Namespace
-gConfig = argparse.Namespace()  # Dummy value, will be replaced later
-gSvcMgr = None # TODO: refactor this hack, use dep injection
-logger = None
+gConfig:    argparse.Namespace 
+gSvcMgr:    ServiceManager # TODO: refactor this hack, use dep injection
+# logger:     logging.Logger
+gContainer: Container
 
-def runThread(wt: WorkerThread):
-    wt.run()
-
-class CrashGenError(Exception):
-    def __init__(self, msg=None, errno=None):
-        self.msg = msg
-        self.errno = errno
-
-    def __str__(self):
-        return self.msg
+# def runThread(wt: WorkerThread):
+#     wt.run()
 
 
 class WorkerThread:
-    def __init__(self, pool: ThreadPool, tid, tc: ThreadCoordinator,
-                 # te: TaskExecutor,
-                 ):  # note: main thread context!
+    def __init__(self, pool: ThreadPool, tid, tc: ThreadCoordinator):
+        """
+            Note: this runs in the main thread context
+        """                 
         # self._curStep = -1
         self._pool = pool
         self._tid = tid
         self._tc = tc  # type: ThreadCoordinator
         # self.threadIdent = threading.get_ident()
-        self._thread = threading.Thread(target=runThread, args=(self,))
+        # self._thread = threading.Thread(target=runThread, args=(self,))
+        self._thread = threading.Thread(target=self.run)
         self._stepGate = threading.Event()
 
         # Let us have a DB connection of our own
         if (gConfig.per_thread_db_connection):  # type: ignore
             # print("connector_type = {}".format(gConfig.connector_type))
-            if gConfig.connector_type == 'native':
-                self._dbConn = DbConn.createNative() 
+            tInst = gContainer.defTdeInstance
+            if gConfig.connector_type == 'native':                
+                self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
             elif gConfig.connector_type == 'rest':
-                self._dbConn = DbConn.createRest() 
+                self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
             elif gConfig.connector_type == 'mixed':
                 if Dice.throw(2) == 0: # 1/2 chance
                     self._dbConn = DbConn.createNative() 
@@ -101,21 +92,21 @@ class WorkerThread:
             else:
                 raise RuntimeError("Unexpected connector type: {}".format(gConfig.connector_type))
 
-        self._dbInUse = False  # if "use db" was executed already
+        # self._dbInUse = False  # if "use db" was executed already
 
     def logDebug(self, msg):
-        logger.debug("    TRD[{}] {}".format(self._tid, msg))
+        Logging.debug("    TRD[{}] {}".format(self._tid, msg))
 
     def logInfo(self, msg):
-        logger.info("    TRD[{}] {}".format(self._tid, msg))
+        Logging.info("    TRD[{}] {}".format(self._tid, msg))
 
-    def dbInUse(self):
-        return self._dbInUse
+    # def dbInUse(self):
+    #     return self._dbInUse
 
-    def useDb(self):
-        if (not self._dbInUse):
-            self.execSql("use db")
-        self._dbInUse = True
+    # def useDb(self):
+    #     if (not self._dbInUse):
+    #         self.execSql("use db")
+    #     self._dbInUse = True
 
     def getTaskExecutor(self):
         return self._tc.getTaskExecutor()
@@ -126,10 +117,10 @@ class WorkerThread:
     def run(self):
         # initialization after thread starts, in the thread context
         # self.isSleeping = False
-        logger.info("Starting to run thread: {}".format(self._tid))
+        Logging.info("Starting to run thread: {}".format(self._tid))
 
         if (gConfig.per_thread_db_connection):  # type: ignore
-            logger.debug("Worker thread openning database connection")
+            Logging.debug("Worker thread openning database connection")
             self._dbConn.open()
 
         self._doTaskLoop()
@@ -139,7 +130,7 @@ class WorkerThread:
             if self._dbConn.isOpen: #sometimes it is not open
                 self._dbConn.close()
             else:
-                logger.warning("Cleaning up worker thread, dbConn already closed")
+                Logging.warning("Cleaning up worker thread, dbConn already closed")
 
     def _doTaskLoop(self):
         # while self._curStep < self._pool.maxSteps:
@@ -150,23 +141,23 @@ class WorkerThread:
                 tc.crossStepBarrier()  # shared barrier first, INCLUDING the last one
             except threading.BrokenBarrierError as err: # main thread timed out
                 print("_bto", end="")
-                logger.debug("[TRD] Worker thread exiting due to main thread barrier time-out")
+                Logging.debug("[TRD] Worker thread exiting due to main thread barrier time-out")
                 break
 
-            logger.debug("[TRD] Worker thread [{}] exited barrier...".format(self._tid))
+            Logging.debug("[TRD] Worker thread [{}] exited barrier...".format(self._tid))
             self.crossStepGate()   # then per-thread gate, after being tapped
-            logger.debug("[TRD] Worker thread [{}] exited step gate...".format(self._tid))
+            Logging.debug("[TRD] Worker thread [{}] exited step gate...".format(self._tid))
             if not self._tc.isRunning():
                 print("_wts", end="")
-                logger.debug("[TRD] Thread Coordinator not running any more, worker thread now stopping...")
+                Logging.debug("[TRD] Thread Coordinator not running any more, worker thread now stopping...")
                 break
 
-            # Before we fetch the task and run it, let's ensure we properly "use" the database
+            # Before we fetch the task and run it, let's ensure we properly "use" the database (not needed any more)
             try:
                 if (gConfig.per_thread_db_connection):  # most likely TRUE
                     if not self._dbConn.isOpen:  # might have been closed during server auto-restart
                         self._dbConn.open()
-                self.useDb() # might encounter exceptions. TODO: catch
+                # self.useDb() # might encounter exceptions. TODO: catch
             except taos.error.ProgrammingError as err:
                 errno = Helper.convertErrno(err.errno)
                 if errno in [0x383, 0x386, 0x00B, 0x014]  : # invalid database, dropping, Unable to establish connection, Database not ready
@@ -177,18 +168,17 @@ class WorkerThread:
                     raise
 
             # Fetch a task from the Thread Coordinator
-            logger.debug( "[TRD] Worker thread [{}] about to fetch task".format(self._tid))
+            Logging.debug( "[TRD] Worker thread [{}] about to fetch task".format(self._tid))
             task = tc.fetchTask()
 
             # Execute such a task
-            logger.debug(
-                "[TRD] Worker thread [{}] about to execute task: {}".format(
+            Logging.debug("[TRD] Worker thread [{}] about to execute task: {}".format(
                     self._tid, task.__class__.__name__))
             task.execute(self)
             tc.saveExecutedTask(task)
-            logger.debug("[TRD] Worker thread [{}] finished executing task".format(self._tid))
+            Logging.debug("[TRD] Worker thread [{}] finished executing task".format(self._tid))
 
-            self._dbInUse = False  # there may be changes between steps
+            # self._dbInUse = False  # there may be changes between steps
         # print("_wtd", end=None) # worker thread died
 
     def verifyThreadSelf(self):  # ensure we are called by this own thread
@@ -209,7 +199,7 @@ class WorkerThread:
         self.verifyThreadSelf()  # only allowed by ourselves
 
         # Wait again at the "gate", waiting to be "tapped"
-        logger.debug(
+        Logging.debug(
             "[TRD] Worker thread {} about to cross the step gate".format(
                 self._tid))
         self._stepGate.wait()
@@ -222,7 +212,7 @@ class WorkerThread:
         self.verifyThreadMain()  # only allowed for main thread
 
         if self._thread.is_alive():
-            logger.debug("[TRD] Tapping worker thread {}".format(self._tid))
+            Logging.debug("[TRD] Tapping worker thread {}".format(self._tid))
             self._stepGate.set()  # wake up!
             time.sleep(0)  # let the released thread run a bit
         else:
@@ -237,7 +227,7 @@ class WorkerThread:
     def getQueryResult(self):
         return self.getDbConn().getQueryResult()
 
-    def getDbConn(self):
+    def getDbConn(self) -> DbConn :
         if (gConfig.per_thread_db_connection):
             return self._dbConn
         else:
@@ -253,9 +243,9 @@ class WorkerThread:
 
 
 class ThreadCoordinator:
-    WORKER_THREAD_TIMEOUT = 60 # one minute
+    WORKER_THREAD_TIMEOUT = 180 # one minute
 
-    def __init__(self, pool: ThreadPool, dbManager):
+    def __init__(self, pool: ThreadPool, dbManager: DbManager):
         self._curStep = -1  # first step is 0
         self._pool = pool
         # self._wd = wd
@@ -267,7 +257,8 @@ class ThreadCoordinator:
         self._stepBarrier = threading.Barrier(
             self._pool.numThreads + 1)  # one barrier for all threads
         self._execStats = ExecutionStats()
-        self._runStatus = MainExec.STATUS_RUNNING
+        self._runStatus = Status.STATUS_RUNNING
+        self._initDbs()
 
     def getTaskExecutor(self):
         return self._te
@@ -279,14 +270,14 @@ class ThreadCoordinator:
         self._stepBarrier.wait(timeout) 
 
     def requestToStop(self):
-        self._runStatus = MainExec.STATUS_STOPPING
+        self._runStatus = Status.STATUS_STOPPING
         self._execStats.registerFailure("User Interruption")
 
     def _runShouldEnd(self, transitionFailed, hasAbortedTask, workerTimeout):
         maxSteps = gConfig.max_steps  # type: ignore
         if self._curStep >= (maxSteps - 1): # maxStep==10, last curStep should be 9
             return True
-        if self._runStatus != MainExec.STATUS_RUNNING:
+        if self._runStatus != Status.STATUS_RUNNING:
             return True
         if transitionFailed:
             return True
@@ -307,7 +298,7 @@ class ThreadCoordinator:
     def _releaseAllWorkerThreads(self, transitionFailed):
         self._curStep += 1  # we are about to get into next step. TODO: race condition here!
         # Now not all threads had time to go to sleep
-        logger.debug(
+        Logging.debug(
             "--\r\n\n--> Step {} starts with main thread waking up".format(self._curStep))
 
         # A new TE for the new step
@@ -315,41 +306,46 @@ class ThreadCoordinator:
         if not transitionFailed:  # only if not failed
             self._te = TaskExecutor(self._curStep)
 
-        logger.debug("[TRD] Main thread waking up at step {}, tapping worker threads".format(
+        Logging.debug("[TRD] Main thread waking up at step {}, tapping worker threads".format(
                 self._curStep))  # Now not all threads had time to go to sleep
         # Worker threads will wake up at this point, and each execute it's own task
-        self.tapAllThreads() # release all worker thread from their "gate"
+        self.tapAllThreads() # release all worker thread from their "gates"
 
     def _syncAtBarrier(self):
          # Now main thread (that's us) is ready to enter a step
         # let other threads go past the pool barrier, but wait at the
         # thread gate
-        logger.debug("[TRD] Main thread about to cross the barrier")
+        Logging.debug("[TRD] Main thread about to cross the barrier")
         self.crossStepBarrier(timeout=self.WORKER_THREAD_TIMEOUT)
         self._stepBarrier.reset()  # Other worker threads should now be at the "gate"
-        logger.debug("[TRD] Main thread finished crossing the barrier")
+        Logging.debug("[TRD] Main thread finished crossing the barrier")
 
     def _doTransition(self):
         transitionFailed = False
         try:
-            sm = self._dbManager.getStateMachine()
-            logger.debug("[STT] starting transitions")
-            # at end of step, transiton the DB state
-            sm.transition(self._executedTasks)
-            logger.debug("[STT] transition ended")
-            # Due to limitation (or maybe not) of the Python library,
+            for x in self._dbs:
+                db = x # type: Database
+                sm = db.getStateMachine()
+                Logging.debug("[STT] starting transitions for DB: {}".format(db.getName()))
+                # at end of step, transiton the DB state
+                tasksForDb = db.filterTasks(self._executedTasks)
+                sm.transition(tasksForDb, self.getDbManager().getDbConn())
+                Logging.debug("[STT] transition ended for DB: {}".format(db.getName()))
+
+            # Due to limitation (or maybe not) of the TD Python library,
             # we cannot share connections across threads
             # Here we are in main thread, we cannot operate the connections created in workers
             # Moving below to task loop
             # if sm.hasDatabase():
             #     for t in self._pool.threadList:
-            #         logger.debug("[DB] use db for all worker threads")
+            #         Logging.debug("[DB] use db for all worker threads")
             #         t.useDb()
                     # t.execSql("use db") # main thread executing "use
                     # db" on behalf of every worker thread
+
         except taos.error.ProgrammingError as err:
             if (err.msg == 'network unavailable'):  # broken DB connection
-                logger.info("DB connection broken, execution failed")
+                Logging.info("DB connection broken, execution failed")
                 traceback.print_stack()
                 transitionFailed = True
                 self._te = None  # Not running any more
@@ -358,11 +354,11 @@ class ThreadCoordinator:
                 # end, and maybe signal them to stop
             else:
                 raise
-        return transitionFailed
+        # return transitionFailed # Why did we have this??!!
 
         self.resetExecutedTasks()  # clear the tasks after we are done
         # Get ready for next step
-        logger.debug("<-- Step {} finished, trasition failed = {}".format(self._curStep, transitionFailed))
+        Logging.debug("<-- Step {} finished, trasition failed = {}".format(self._curStep, transitionFailed))
         return transitionFailed
 
     def run(self):
@@ -376,13 +372,23 @@ class ThreadCoordinator:
         hasAbortedTask = False
         workerTimeout = False
         while not self._runShouldEnd(transitionFailed, hasAbortedTask, workerTimeout):
-            if not gConfig.debug: # print this only if we are not in debug mode                
-                print(".", end="", flush=True)
+            if not gConfig.debug: # print this only if we are not in debug mode    
+                Progress.emit(Progress.STEP_BOUNDARY)            
+                # print(".", end="", flush=True)
+            # if (self._curStep % 2) == 0: # print memory usage once every 10 steps
+            #     memUsage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            #     print("[m:{}]".format(memUsage), end="", flush=True) # print memory usage
+            # if (self._curStep % 10) == 3: 
+            #     h = hpy()
+            #     print("\n")        
+            #     print(h.heap())
+            
                         
             try:
                 self._syncAtBarrier() # For now just cross the barrier
+                Progress.emit(Progress.END_THREAD_STEP)
             except threading.BrokenBarrierError as err:
-                logger.info("Main loop aborted, caused by worker thread time-out")
+                Logging.info("Main loop aborted, caused by worker thread time-out")
                 self._execStats.registerFailure("Aborted due to worker thread timeout")
                 print("\n\nWorker Thread time-out detected, important thread info:")
                 ts = ThreadStacks()
@@ -395,7 +401,7 @@ class ThreadCoordinator:
             # threads are QUIET.
             hasAbortedTask = self._hasAbortedTask() # from previous step
             if hasAbortedTask: 
-                logger.info("Aborted task encountered, exiting test program")
+                Logging.info("Aborted task encountered, exiting test program")
                 self._execStats.registerFailure("Aborted Task Encountered")
                 break # do transition only if tasks are error free
 
@@ -406,29 +412,44 @@ class ThreadCoordinator:
                 transitionFailed = True
                 errno2 = Helper.convertErrno(err.errno)  # correct error scheme
                 errMsg = "Transition failed: errno=0x{:X}, msg: {}".format(errno2, err)
-                logger.info(errMsg)
+                Logging.info(errMsg)
+                traceback.print_exc()
                 self._execStats.registerFailure(errMsg)
 
             # Then we move on to the next step
+            Progress.emit(Progress.BEGIN_THREAD_STEP)
             self._releaseAllWorkerThreads(transitionFailed)                    
 
         if hasAbortedTask or transitionFailed : # abnormal ending, workers waiting at "gate"
-            logger.debug("Abnormal ending of main thraed")
+            Logging.debug("Abnormal ending of main thraed")
         elif workerTimeout:
-            logger.debug("Abnormal ending of main thread, due to worker timeout")
+            Logging.debug("Abnormal ending of main thread, due to worker timeout")
         else: # regular ending, workers waiting at "barrier"
-            logger.debug("Regular ending, main thread waiting for all worker threads to stop...")
+            Logging.debug("Regular ending, main thread waiting for all worker threads to stop...")
             self._syncAtBarrier()
 
         self._te = None  # No more executor, time to end
-        logger.debug("Main thread tapping all threads one last time...")
+        Logging.debug("Main thread tapping all threads one last time...")
         self.tapAllThreads()  # Let the threads run one last time
 
-        logger.debug("\r\n\n--> Main thread ready to finish up...")
-        logger.debug("Main thread joining all threads")
+        Logging.debug("\r\n\n--> Main thread ready to finish up...")
+        Logging.debug("Main thread joining all threads")
         self._pool.joinAll()  # Get all threads to finish
-        logger.info("\nAll worker threads finished")
+        Logging.info("\nAll worker threads finished")
         self._execStats.endExec()
+
+    def cleanup(self): # free resources
+        self._pool.cleanup()
+
+        self._pool = None
+        self._te = None  
+        self._dbManager = None
+        self._executedTasks = None
+        self._lock = None
+        self._stepBarrier = None
+        self._execStats = None
+        self._runStatus = None
+
 
     def printStats(self):
         self._execStats.printStats()
@@ -446,7 +467,7 @@ class ThreadCoordinator:
                 wakeSeq.append(i)
             else:
                 wakeSeq.insert(0, i)
-        logger.debug(
+        Logging.debug(
             "[TRD] Main thread waking up worker threads: {}".format(
                 str(wakeSeq)))
         # TODO: set dice seed to a deterministic value
@@ -458,23 +479,36 @@ class ThreadCoordinator:
     def isRunning(self):
         return self._te is not None
 
+    def _initDbs(self):
+        ''' Initialize multiple databases, invoked at __ini__() time '''
+        self._dbs = [] # type: List[Database]
+        dbc = self.getDbManager().getDbConn()
+        if gConfig.max_dbs == 0:
+            self._dbs.append(Database(0, dbc))
+        else:            
+            baseDbNumber = int(datetime.datetime.now().timestamp( # Don't use Dice/random, as they are deterministic
+                )*333) % 888 if gConfig.dynamic_db_table_names else 0
+            for i in range(gConfig.max_dbs):
+                self._dbs.append(Database(baseDbNumber + i, dbc))
+
+    def pickDatabase(self):
+        idxDb = 0
+        if gConfig.max_dbs != 0 :
+            idxDb = Dice.throw(gConfig.max_dbs) # 0 to N-1
+        db = self._dbs[idxDb] # type: Database
+        return db
+
     def fetchTask(self) -> Task:
+        ''' The thread coordinator (that's us) is responsible for fetching a task
+            to be executed next.
+        '''
         if (not self.isRunning()):  # no task
             raise RuntimeError("Cannot fetch task when not running")
-        # return self._wd.pickTask()
-        # Alternatively, let's ask the DbState for the appropriate task
-        # dbState = self.getDbState()
-        # tasks = dbState.getTasksAtState() # TODO: create every time?
-        # nTasks = len(tasks)
-        # i = Dice.throw(nTasks)
-        # logger.debug(" (dice:{}/{}) ".format(i, nTasks))
-        # # return copy.copy(tasks[i]) # Needs a fresh copy, to save execution results, etc.
-        # return tasks[i].clone() # TODO: still necessary?
+
         # pick a task type for current state
-        taskType = self.getDbManager().getStateMachine().pickTaskType()
-        return taskType(
-            self.getDbManager(),
-            self._execStats)  # create a task from it
+        db = self.pickDatabase()
+        taskType = db.getStateMachine().pickTaskType() # dynamic name of class
+        return taskType(self._execStats, db)  # create a task from it
 
     def resetExecutedTasks(self):
         self._executedTasks = []  # should be under single thread
@@ -482,13 +516,6 @@ class ThreadCoordinator:
     def saveExecutedTask(self, task):
         with self._lock:
             self._executedTasks.append(task)
-
-# We define a class to run a number of threads in locking steps.
-
-class Helper:
-    @classmethod
-    def convertErrno(cls, errno):
-        return errno if (errno > 0) else 0x80000000 + errno
 
 class ThreadPool:
     def __init__(self, numThreads, maxSteps):
@@ -507,8 +534,11 @@ class ThreadPool:
 
     def joinAll(self):
         for workerThread in self.threadList:
-            logger.debug("Joining thread...")
+            Logging.debug("Joining thread...")
             workerThread._thread.join()
+
+    def cleanup(self):
+        self.threadList = None # maybe clean up each?
 
 # A queue of continguous POSITIVE integers, used by DbManager to generate continuous numbers
 # for new table names
@@ -561,7 +591,7 @@ class LinearQueue():
 
     def allocate(self, i):
         with self._lock:
-            # logger.debug("LQ allocating item {}".format(i))
+            # Logging.debug("LQ allocating item {}".format(i))
             if (i in self.inUse):
                 raise RuntimeError(
                     "Cannot re-use same index in queue: {}".format(i))
@@ -569,7 +599,7 @@ class LinearQueue():
 
     def release(self, i):
         with self._lock:
-            # logger.debug("LQ releasing item {}".format(i))
+            # Logging.debug("LQ releasing item {}".format(i))
             self.inUse.remove(i)  # KeyError possible, TODO: why?
 
     def size(self):
@@ -591,327 +621,6 @@ class LinearQueue():
                     return ret
 
 
-class DbConn:
-    TYPE_NATIVE = "native-c"
-    TYPE_REST =   "rest-api"
-    TYPE_INVALID = "invalid"
-
-    @classmethod
-    def create(cls, connType):
-        if connType == cls.TYPE_NATIVE:
-            return DbConnNative()
-        elif connType == cls.TYPE_REST:
-            return DbConnRest()
-        else:
-            raise RuntimeError(
-                "Unexpected connection type: {}".format(connType))
-
-    @classmethod
-    def createNative(cls):
-        return cls.create(cls.TYPE_NATIVE)
-
-    @classmethod
-    def createRest(cls):
-        return cls.create(cls.TYPE_REST)
-
-    def __init__(self):
-        self.isOpen = False
-        self._type = self.TYPE_INVALID
-        self._lastSql = None
-
-    def getLastSql(self):
-        return self._lastSql
-
-    def open(self):
-        if (self.isOpen):
-            raise RuntimeError("Cannot re-open an existing DB connection")
-
-        # below implemented by child classes
-        self.openByType()
-
-        logger.debug("[DB] data connection opened, type = {}".format(self._type))
-        self.isOpen = True
-
-    def resetDb(self):  # reset the whole database, etc.
-        if (not self.isOpen):
-            raise RuntimeError("Cannot reset database until connection is open")
-        # self._tdSql.prepare() # Recreate database, etc.
-
-        self.execute('drop database if exists db')
-        logger.debug("Resetting DB, dropped database")
-        # self._cursor.execute('create database db')
-        # self._cursor.execute('use db')
-        # tdSql.execute('show databases')
-
-    def queryScalar(self, sql) -> int:
-        return self._queryAny(sql)
-
-    def queryString(self, sql) -> str:
-        return self._queryAny(sql)
-
-    def _queryAny(self, sql):  # actual query result as an int
-        if (not self.isOpen):
-            raise RuntimeError("Cannot query database until connection is open")
-        nRows = self.query(sql)
-        if nRows != 1:
-            raise RuntimeError("Unexpected result for query: {}, rows = {}".format(sql, nRows))
-        if self.getResultRows() != 1 or self.getResultCols() != 1:
-            raise RuntimeError("Unexpected result set for query: {}".format(sql))
-        return self.getQueryResult()[0][0]
-
-    def use(self, dbName):
-        self.execute("use {}".format(dbName))
-
-    def hasDatabases(self):
-        return self.query("show databases") > 1 # We now have a "log" database by default
-
-    def hasTables(self):
-        return self.query("show tables") > 0
-
-    def execute(self, sql):
-        raise RuntimeError("Unexpected execution, should be overriden")
-
-    def query(self, sql) -> int: # return num rows returned
-        raise RuntimeError("Unexpected execution, should be overriden")
-
-    def openByType(self):
-        raise RuntimeError("Unexpected execution, should be overriden")
-
-    def getQueryResult(self):
-        raise RuntimeError("Unexpected execution, should be overriden")
-
-    def getResultRows(self):
-        raise RuntimeError("Unexpected execution, should be overriden")
-
-    def getResultCols(self):
-        raise RuntimeError("Unexpected execution, should be overriden")
-
-# Sample: curl -u root:taosdata -d "show databases" localhost:6020/rest/sql
-
-
-class DbConnRest(DbConn):
-    def __init__(self):
-        super().__init__()
-        self._type = self.TYPE_REST
-        self._url = "http://localhost:6041/rest/sql"  # fixed for now
-        self._result = None
-
-    def openByType(self):  # Open connection
-        pass  # do nothing, always open
-
-    def close(self):
-        if (not self.isOpen):
-            raise RuntimeError("Cannot clean up database until connection is open")
-        # Do nothing for REST
-        logger.debug("[DB] REST Database connection closed")
-        self.isOpen = False
-
-    def _doSql(self, sql):
-        self._lastSql = sql # remember this, last SQL attempted
-        try:
-            r = requests.post(self._url, 
-                data = sql,
-                auth = HTTPBasicAuth('root', 'taosdata'))         
-        except:
-            print("REST API Failure (TODO: more info here)")
-            raise
-        rj = r.json()
-        # Sanity check for the "Json Result"
-        if ('status' not in rj):
-            raise RuntimeError("No status in REST response")
-
-        if rj['status'] == 'error':  # clearly reported error
-            if ('code' not in rj):  # error without code
-                raise RuntimeError("REST error return without code")
-            errno = rj['code']  # May need to massage this in the future
-            # print("Raising programming error with REST return: {}".format(rj))
-            raise taos.error.ProgrammingError(
-                rj['desc'], errno)  # todo: check existance of 'desc'
-
-        if rj['status'] != 'succ':  # better be this
-            raise RuntimeError(
-                "Unexpected REST return status: {}".format(
-                    rj['status']))
-
-        nRows = rj['rows'] if ('rows' in rj) else 0
-        self._result = rj
-        return nRows
-
-    def execute(self, sql):
-        if (not self.isOpen):
-            raise RuntimeError(
-                "Cannot execute database commands until connection is open")
-        logger.debug("[SQL-REST] Executing SQL: {}".format(sql))
-        nRows = self._doSql(sql)
-        logger.debug(
-            "[SQL-REST] Execution Result, nRows = {}, SQL = {}".format(nRows, sql))
-        return nRows
-
-    def query(self, sql):  # return rows affected
-        return self.execute(sql)
-
-    def getQueryResult(self):
-        return self._result['data']
-
-    def getResultRows(self):
-        print(self._result)
-        raise RuntimeError("TBD")
-        # return self._tdSql.queryRows
-
-    def getResultCols(self):
-        print(self._result)
-        raise RuntimeError("TBD")
-
-    # Duplicate code from TDMySQL, TODO: merge all this into DbConnNative
-
-
-class MyTDSql:
-    def __init__(self, hostAddr, cfgPath):
-        # Make the DB connection
-        self._conn = taos.connect(host=hostAddr, config=cfgPath) 
-        self._cursor = self._conn.cursor()
-
-        self.queryRows = 0
-        self.queryCols = 0
-        self.affectedRows = 0
-
-    # def init(self, cursor, log=True):
-    #     self.cursor = cursor
-        # if (log):
-        #     caller = inspect.getframeinfo(inspect.stack()[1][0])
-        #     self.cursor.log(caller.filename + ".sql")
-
-    def close(self):
-        self._conn.close() # TODO: very important, cursor close does NOT close DB connection!
-        self._cursor.close()
-
-    def query(self, sql):
-        self.sql = sql
-        try:
-            self._cursor.execute(sql)
-            self.queryResult = self._cursor.fetchall()
-            self.queryRows = len(self.queryResult)
-            self.queryCols = len(self._cursor.description)
-        except Exception as e:
-            # caller = inspect.getframeinfo(inspect.stack()[1][0])
-            # args = (caller.filename, caller.lineno, sql, repr(e))
-            # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
-            raise
-        return self.queryRows
-
-    def execute(self, sql):
-        self.sql = sql
-        try:
-            self.affectedRows = self._cursor.execute(sql)
-        except Exception as e:
-            # caller = inspect.getframeinfo(inspect.stack()[1][0])
-            # args = (caller.filename, caller.lineno, sql, repr(e))
-            # tdLog.exit("%s(%d) failed: sql:%s, %s" % args)
-            raise
-        return self.affectedRows
-
-
-class DbConnNative(DbConn):
-    # Class variables
-    _lock = threading.Lock()
-    _connInfoDisplayed = False
-    totalConnections = 0 # Not private
-
-    def __init__(self):
-        super().__init__()
-        self._type = self.TYPE_NATIVE
-        self._conn = None
-        # self._cursor = None        
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("communit")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        buildPath = None
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        if buildPath == None:
-            raise RuntimeError("Failed to determine buildPath, selfPath={}, projPath={}"
-                .format(selfPath, projPath))
-        return buildPath
-
-    
-    def openByType(self):  # Open connection
-        cfgPath = self.getBuildPath() + "/test/cfg"
-        hostAddr = "127.0.0.1"
-
-        cls = self.__class__ # Get the class, to access class variables
-        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!
-            if not cls._connInfoDisplayed:
-                cls._connInfoDisplayed = True # updating CLASS variable
-                logger.info("Initiating TAOS native connection to {}, using config at {}".format(hostAddr, cfgPath))                    
-            # Make the connection         
-            # self._conn = taos.connect(host=hostAddr, config=cfgPath)  # TODO: make configurable
-            # self._cursor = self._conn.cursor()
-            # Record the count in the class
-            self._tdSql = MyTDSql(hostAddr, cfgPath) # making DB connection
-            cls.totalConnections += 1 
-        
-        self._tdSql.execute('reset query cache')
-        # self._cursor.execute('use db') # do this at the beginning of every
-
-        # Open connection
-        # self._tdSql = MyTDSql()
-        # self._tdSql.init(self._cursor)
-        
-    def close(self):
-        if (not self.isOpen):
-            raise RuntimeError("Cannot clean up database until connection is open")
-        self._tdSql.close()
-        # Decrement the class wide counter
-        cls = self.__class__ # Get the class, to access class variables
-        with cls._lock:
-            cls.totalConnections -= 1
-
-        logger.debug("[DB] Database connection closed")
-        self.isOpen = False
-
-    def execute(self, sql):
-        if (not self.isOpen):
-            raise RuntimeError("Cannot execute database commands until connection is open")
-        logger.debug("[SQL] Executing SQL: {}".format(sql))
-        self._lastSql = sql
-        nRows = self._tdSql.execute(sql)
-        logger.debug(
-            "[SQL] Execution Result, nRows = {}, SQL = {}".format(
-                nRows, sql))
-        return nRows
-
-    def query(self, sql):  # return rows affected
-        if (not self.isOpen):
-            raise RuntimeError(
-                "Cannot query database until connection is open")
-        logger.debug("[SQL] Executing SQL: {}".format(sql))
-        self._lastSql = sql
-        nRows = self._tdSql.query(sql)
-        logger.debug(
-            "[SQL] Query Result, nRows = {}, SQL = {}".format(
-                nRows, sql))
-        return nRows
-        # results are in: return self._tdSql.queryResult
-
-    def getQueryResult(self):
-        return self._tdSql.queryResult
-
-    def getResultRows(self):
-        return self._tdSql.queryRows
-
-    def getResultCols(self):
-        return self._tdSql.queryCols
-
-
 class AnyState:
     STATE_INVALID = -1
     STATE_EMPTY = 0  # nothing there, no even a DB
@@ -922,7 +631,9 @@ class AnyState:
 
     STATE_VAL_IDX = 0
     CAN_CREATE_DB = 1
-    CAN_DROP_DB = 2
+    # For below, if we can "drop the DB", but strictly speaking 
+    # only "under normal circumstances", as we may override it with the -b option
+    CAN_DROP_DB = 2  
     CAN_CREATE_FIXED_SUPER_TABLE = 3
     CAN_DROP_FIXED_SUPER_TABLE = 4
     CAN_ADD_DATA = 5
@@ -935,6 +646,8 @@ class AnyState:
         # -1 hack to accomodate the STATE_INVALID case
         return self._stateNames[self._info[self.STATE_VAL_IDX] + 1]
 
+    # Each sub state tells us the "info", about itself, so we can determine
+    # on things like canDropDB()
     def getInfo(self):
         raise RuntimeError("Must be overriden by child classes")
 
@@ -961,6 +674,10 @@ class AnyState:
         return self._info[self.CAN_CREATE_DB]
 
     def canDropDb(self):
+        # If user requests to run up to a number of DBs,
+        # we'd then not do drop_db operations any more
+        if gConfig.max_dbs > 0 : 
+            return False
         return self._info[self.CAN_DROP_DB]
 
     def canCreateFixedSuperTable(self):
@@ -997,8 +714,8 @@ class AnyState:
             if task.isSuccess():
                 sCnt += 1
         if (exists and sCnt <= 0):
-            raise RuntimeError(
-                "Unexpected zero success for task: {}".format(cls))
+            raise RuntimeError("Unexpected zero success for task type: {}, from tasks: {}"
+                .format(cls, tasks))
 
     def assertNoTask(self, tasks, cls):
         for task in tasks:
@@ -1145,13 +862,16 @@ class StateHasData(AnyState):
 
 
 class StateMechine:
-    def __init__(self, dbConn):
-        self._dbConn = dbConn
-        self._curState = self._findCurrentState()  # starting state
-        # transitition target probabilities, indexed with value of STATE_EMPTY,
-        # STATE_DB_ONLY, etc.
+    def __init__(self, db: Database): 
+        self._db = db
+        # transitition target probabilities, indexed with value of STATE_EMPTY, STATE_DB_ONLY, etc.
         self._stateWeights = [1, 2, 10, 40]
 
+    def init(self, dbc: DbConn): # late initailization, don't save the dbConn
+        self._curState = self._findCurrentState(dbc)  # starting state
+        Logging.debug("Found Starting State: {}".format(self._curState))
+
+    # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
         return self._curState
 
@@ -1187,40 +907,41 @@ class StateMechine:
             raise RuntimeError(
                 "No suitable task types found for state: {}".format(
                     self._curState))
-        logger.debug(
+        Logging.debug(
             "[OPS] Tasks found for state {}: {}".format(
                 self._curState,
                 typesToStrings(taskTypes)))
         return taskTypes
 
-    def _findCurrentState(self):
-        dbc = self._dbConn
+    def _findCurrentState(self, dbc: DbConn):
         ts = time.time()  # we use this to debug how fast/slow it is to do the various queries to find the current DB state
-        if not dbc.hasDatabases():  # no database?!
-            logger.debug( "[STT] empty database found, between {} and {}".format(ts, time.time()))
+        dbName =self._db.getName()
+        if not dbc.existsDatabase(dbName): # dbc.hasDatabases():  # no database?!
+            Logging.debug( "[STT] empty database found, between {} and {}".format(ts, time.time()))
             return StateEmpty()
         # did not do this when openning connection, and this is NOT the worker
         # thread, which does this on their own
-        dbc.use("db")
+        dbc.use(dbName)
         if not dbc.hasTables():  # no tables
-            logger.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
+            Logging.debug("[STT] DB_ONLY found, between {} and {}".format(ts, time.time()))
             return StateDbOnly()
 
-        sTable = DbManager.getFixedSuperTable()
-        if sTable.hasRegTables(dbc):  # no regular tables
-            logger.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
+        sTable = self._db.getFixedSuperTable()
+        if sTable.hasRegTables(dbc, dbName):  # no regular tables
+            Logging.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
             return StateSuperTableOnly()
         else:  # has actual tables
-            logger.debug("[STT] HAS_DATA found, between {} and {}".format(ts, time.time()))
+            Logging.debug("[STT] HAS_DATA found, between {} and {}".format(ts, time.time()))
             return StateHasData()
 
-    def transition(self, tasks):
+    # We transition the system to a new state by examining the current state itself
+    def transition(self, tasks, dbc: DbConn):
         if (len(tasks) == 0):  # before 1st step, or otherwise empty
-            logger.debug("[STT] Starting State: {}".format(self._curState))
+            Logging.debug("[STT] Starting State: {}".format(self._curState))
             return  # do nothing
 
         # this should show up in the server log, separating steps
-        self._dbConn.execute("show dnodes")
+        dbc.execute("show dnodes")
 
         # Generic Checks, first based on the start state
         if self._curState.canCreateDb():
@@ -1251,8 +972,8 @@ class StateMechine:
         # if self._state.canReadData():
             # Nothing for sure
 
-        newState = self._findCurrentState()
-        logger.debug("[STT] New DB state determined: {}".format(newState))
+        newState = self._findCurrentState(dbc)
+        Logging.debug("[STT] New DB state determined: {}".format(newState))
         # can old state move to new state through the tasks?
         self._curState.verifyTasksToState(tasks, newState)
         self._curState = newState
@@ -1270,7 +991,7 @@ class StateMechine:
                 # read data task, default to 10: TODO: change to a constant
                 weights.append(10)
         i = self._weighted_choice_sub(weights)
-        # logger.debug(" (weighted random:{}/{}) ".format(i, len(taskTypes)))
+        # Logging.debug(" (weighted random:{}/{}) ".format(i, len(taskTypes)))
         return taskTypes[i]
 
     # ref:
@@ -1283,49 +1004,55 @@ class StateMechine:
             if rnd < 0:
                 return i
 
-# Manager of the Database Data/Connection
+class Database:
+    ''' We use this to represent an actual TDengine database inside a service instance,
+        possibly in a cluster environment.
 
+        For now we use it to manage state transitions in that database
 
-class DbManager():
-    def __init__(self, resetDb=True):
-        self.tableNumQueue = LinearQueue()
-        # datetime.datetime(2019, 1, 1) # initial date time tick
-        self._lastTick = self.setupLastTick()
-        self._lastInt = 0  # next one is initial integer
+        TODO: consider moving, but keep in mind it contains "StateMachine"
+    '''
+    _clsLock = threading.Lock() # class wide lock
+    _lastInt = 101  # next one is initial integer
+    _lastTick = 0
+    _lastLaggingTick = 0 # lagging tick, for unsequenced insersions
+
+    def __init__(self, dbNum: int, dbc: DbConn): # TODO: remove dbc
+        self._dbNum = dbNum # we assign a number to databases, for our testing purpose
+        self._stateMachine = StateMechine(self)
+        self._stateMachine.init(dbc)
+          
         self._lock = threading.RLock()
-
-        # self.openDbServerConnection()
-        self._dbConn = DbConn.createNative() if (
-            gConfig.connector_type == 'native') else DbConn.createRest()
-        try:
-            self._dbConn.open()  # may throw taos.error.ProgrammingError: disconnected
-        except taos.error.ProgrammingError as err:
-            # print("Error type: {}, msg: {}, value: {}".format(type(err), err.msg, err))
-            if (err.msg == 'client disconnected'):  # cannot open DB connection
-                print(
-                    "Cannot establish DB connection, please re-run script without parameter, and follow the instructions.")
-                sys.exit(2)
-            else:
-                print("Failed to connect to DB, errno = {}, msg: {}".format(Helper.convertErrno(err.errno), err.msg))
-                raise
-        except BaseException:
-            print("[=] Unexpected exception")
-            raise
-
-        if resetDb:
-            self._dbConn.resetDb()  # drop and recreate DB
-
-        # Do this after dbConn is in proper shape
-        self._stateMachine = StateMechine(self._dbConn)
-
-    def getDbConn(self):
-        return self._dbConn
 
     def getStateMachine(self) -> StateMechine:
         return self._stateMachine
 
-    # def getState(self):
-    #     return self._stateMachine.getCurrentState()
+    def getDbNum(self):
+        return self._dbNum
+
+    def getName(self):
+        return "db_{}".format(self._dbNum)
+
+    def filterTasks(self, inTasks: List[Task]): # Pick out those belonging to us
+        outTasks = []
+        for task in inTasks:
+            if task.getDb().isSame(self):
+                outTasks.append(task)
+        return outTasks
+
+    def isSame(self, other):
+        return self._dbNum == other._dbNum
+
+    def exists(self, dbc: DbConn):
+        return dbc.existsDatabase(self.getName())
+
+    @classmethod
+    def getFixedSuperTableName(cls):
+        return "fs_table"
+
+    @classmethod
+    def getFixedSuperTable(cls) -> TdSuperTable:
+        return TdSuperTable(cls.getFixedSuperTableName())
 
     # We aim to create a starting time tick, such that, whenever we run our test here once
     # We should be able to safely create 100,000 records, which will not have any repeated time stamp
@@ -1333,7 +1060,8 @@ class DbManager():
     # by a factor of 500.
     # TODO: what if it goes beyond 10 years into the future
     # TODO: fix the error as result of above: "tsdb timestamp is out of range"
-    def setupLastTick(self):
+    @classmethod
+    def setupLastTick(cls):
         t1 = datetime.datetime(2020, 6, 1)
         t2 = datetime.datetime.now()
         # maybe a very large number, takes 69 years to exceed Python int range
@@ -1344,36 +1072,25 @@ class DbManager():
         t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
-        logger.info("Setting up TICKS to start from: {}".format(t4))
+        Logging.info("Setting up TICKS to start from: {}".format(t4))
         return t4
 
-    def pickAndAllocateTable(self):  # pick any table, and "use" it
-        return self.tableNumQueue.pickAndAllocate()
-
-    def addTable(self):
-        with self._lock:
-            tIndex = self.tableNumQueue.push()
-        return tIndex
-
     @classmethod
-    def getFixedSuperTableName(cls):
-        return "fs_table"
+    def getNextTick(cls):        
+        with cls._clsLock:  # prevent duplicate tick
+            if cls._lastLaggingTick==0:
+                # 10k at 1/20 chance, should be enough to avoid overlaps
+                cls._lastLaggingTick = cls.setupLastTick() + datetime.timedelta(0, -10000)                 
+            if cls._lastTick==0: # should be quite a bit into the future
+                cls._lastTick = cls.setupLastTick()  
 
-    @classmethod
-    def getFixedSuperTable(cls):
-        return TdSuperTable(cls.getFixedSuperTableName())
-
-    def releaseTable(self, i):  # return the table back, so others can use it
-        self.tableNumQueue.release(i)
-
-    def getNextTick(self):
-        with self._lock:  # prevent duplicate tick
-            if Dice.throw(20) == 0:  # 1 in 20 chance
-                return self._lastTick + datetime.timedelta(0, -100) # Go back in time 100 seconds
+            if Dice.throw(20) == 0:  # 1 in 20 chance, return lagging tick
+                cls._lastLaggingTick += datetime.timedelta(0, 1) # Go back in time 100 seconds
+                return cls._lastLaggingTick 
             else:  # regular
                 # add one second to it
-                self._lastTick += datetime.timedelta(0, 1)
-                return self._lastTick
+                cls._lastTick += datetime.timedelta(0, 1)
+                return cls._lastTick
 
     def getNextInt(self):
         with self._lock:
@@ -1388,16 +1105,6 @@ class DbManager():
         ret = 0.9 + self.getNextInt()
         # print("Float obtained: {}".format(ret))
         return ret
-
-    def getTableNameToDelete(self):
-        tblNum = self.tableNumQueue.pop()  # TODO: race condition!
-        if (not tblNum):  # maybe false
-            return False
-
-        return "table_{}".format(tblNum)
-
-    def cleanUp(self):
-        self._dbConn.close()
 
 
 class TaskExecutor():
@@ -1458,34 +1165,38 @@ class TaskExecutor():
         self._boundedList.add(n)
 
     # def logInfo(self, msg):
-    #     logger.info("    T[{}.x]: ".format(self._curStep) + msg)
+    #     Logging.info("    T[{}.x]: ".format(self._curStep) + msg)
 
     # def logDebug(self, msg):
-    #     logger.debug("    T[{}.x]: ".format(self._curStep) + msg)
+    #     Logging.debug("    T[{}.x]: ".format(self._curStep) + msg)
 
 
 class Task():
+    ''' A generic "Task" to be executed. For now we decide that there is no
+        need to embed a DB connection here, we use whatever the Worker Thread has
+        instead. But a task is always associated with a DB
+    '''
     taskSn = 100
 
     @classmethod
     def allocTaskNum(cls):
         Task.taskSn += 1  # IMPORTANT: cannot use cls.taskSn, since each sub class will have a copy
-        # logger.debug("Allocating taskSN: {}".format(Task.taskSn))
+        # Logging.debug("Allocating taskSN: {}".format(Task.taskSn))
         return Task.taskSn
 
-    def __init__(self, dbManager: DbManager, execStats: ExecutionStats):
-        self._dbManager = dbManager
+    def __init__(self, execStats: ExecutionStats, db: Database):
         self._workerThread = None
-        self._err = None
+        self._err: Optional[Exception] = None
         self._aborted = False
         self._curStep = None
         self._numRows = None  # Number of rows affected
 
         # Assign an incremental task serial number
         self._taskNum = self.allocTaskNum()
-        # logger.debug("Creating new task {}...".format(self._taskNum))
+        # Logging.debug("Creating new task {}...".format(self._taskNum))
 
         self._execStats = execStats
+        self._db = db # A task is always associated/for a specific DB
 
     def isSuccess(self):
         return self._err is None
@@ -1494,8 +1205,11 @@ class Task():
         return self._aborted
 
     def clone(self):  # TODO: why do we need this again?
-        newTask = self.__class__(self._dbManager, self._execStats)
+        newTask = self.__class__(self._execStats, self._db)
         return newTask
+
+    def getDb(self):
+        return self._db
 
     def logDebug(self, msg):
         self._workerThread.logDebug(
@@ -1512,12 +1226,22 @@ class Task():
             "To be implemeted by child classes, class name: {}".format(
                 self.__class__.__name__))
 
+    def _isServiceStable(self):
+        if not gSvcMgr:
+            return True  # we don't run service, so let's assume it's stable
+        return gSvcMgr.isStable() # otherwise let's examine the service
+
     def _isErrAcceptable(self, errno, msg):
         if errno in [
                 0x05,  # TSDB_CODE_RPC_NOT_READY
-                # 0x200, # invalid SQL， TODO: re-examine with TD-934
-                0x360, 0x362, 
-                0x369, # tag already exists
+                0x0B,  # Unable to establish connection, more details in TD-1648
+                0x200, # invalid SQL， TODO: re-examine with TD-934
+                0x20F, # query terminated, possibly due to vnoding being dropped, see TD-1776
+                0x217, # "db not selected", client side defined error code
+                # 0x218, # "Table does not exist" client side defined error code
+                0x360, # Table already exists
+                0x362, 
+                # 0x369, # tag already exists
                 0x36A, 0x36B, 0x36D,
                 0x381, 
                 0x380, # "db not selected"
@@ -1526,12 +1250,17 @@ class Task():
                 0x503,
                 0x510,  # vnode not in ready state
                 0x14,   # db not ready, errno changed
-                0x600,
+                0x600,  # Invalid table ID, why?
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
-        elif (errno in [ 0x0B ]) and gConfig.auto_start_service:
-            return True # We may get "network unavilable" when restarting service
+        # This case handled below already.
+        # elif (errno in [ 0x0B ]) and gConfig.auto_start_service:
+        #     return True # We may get "network unavilable" when restarting service
+        elif gConfig.ignore_errors: # something is specified on command line
+            moreErrnos = [int(v, 0) for v in gConfig.ignore_errors.split(',')]
+            if errno in moreErrnos:
+                return True
         elif errno == 0x200 : # invalid SQL, we need to div in a bit more
             if msg.find("invalid column name") != -1:
                 return True 
@@ -1539,8 +1268,8 @@ class Task():
                 return True
             elif msg.find("duplicated column names") != -1: # also alter table tag issues
                 return True
-        elif (gSvcMgr!=None) and gSvcMgr.isRestarting():
-            logger.info("Ignoring error when service is restarting: errno = {}, msg = {}".format(errno, msg))
+        elif not self._isServiceStable(): # We are managing service, and ...
+            Logging.info("Ignoring error when service starting/stopping: errno = {}, msg = {}".format(errno, msg))
             return True
         
         return False # Not an acceptable error
@@ -1555,9 +1284,12 @@ class Task():
         self.logDebug(
             "[-] executing task {}...".format(self.__class__.__name__))
 
-        self._err = None
+        self._err = None # TODO: type hint mess up?
         self._execStats.beginTaskType(self.__class__.__name__)  # mark beginning
         errno2 = None
+
+        # Now pick a database, and stick with it for the duration of the task execution
+        dbName = self._db.getName()
         try:
             self._executeInternal(te, wt)  # TODO: no return value?
         except taos.error.ProgrammingError as err:
@@ -1595,11 +1327,12 @@ class Task():
             self._err = e
             self._aborted = True
             traceback.print_exc()
-        except BaseException:
-            self.logDebug(
-                "[=] Unexpected exception, SQL: {}".format(
-                    wt.getDbConn().getLastSql()))
-            raise
+        except BaseException: # TODO: what is this again??!!
+            raise RuntimeError("Punt")
+            # self.logDebug(
+            #     "[=] Unexpected exception, SQL: {}".format(
+            #         wt.getDbConn().getLastSql()))
+            # raise
         self._execStats.endTaskType(self.__class__.__name__, self.isSuccess())
 
         self.logDebug("[X] task execution completed, {}, status: {}".format(
@@ -1607,10 +1340,9 @@ class Task():
         # TODO: merge with above.
         self._execStats.incExecCount(self.__class__.__name__, self.isSuccess(), errno2)
 
-    def execSql(self, sql):
-        return self._dbManager.execute(sql)
-
+    # TODO: refactor away, just provide the dbConn
     def execWtSql(self, wt: WorkerThread, sql):  # execute an SQL on the worker thread
+        """ Haha """
         return wt.execSql(sql)
 
     def queryWtSql(self, wt: WorkerThread, sql):  # execute an SQL on the worker thread
@@ -1679,14 +1411,14 @@ class ExecutionStats:
         self._failureReason = reason
 
     def printStats(self):
-        logger.info(
+        Logging.info(
             "----------------------------------------------------------------------")
-        logger.info(
+        Logging.info(
             "| Crash_Gen test {}, with the following stats:". format(
                 "FAILED (reason: {})".format(
                     self._failureReason) if self._failed else "SUCCEEDED"))
-        logger.info("| Task Execution Times (success/total):")
-        execTimesAny = 0
+        Logging.info("| Task Execution Times (success/total):")
+        execTimesAny = 0.0
         for k, n in self._execTimes.items():
             execTimesAny += n[0]
             errStr = None
@@ -1696,24 +1428,28 @@ class ExecutionStats:
                 errStrs = ["0x{:X}:{}".format(eno, n) for (eno, n) in errors.items()]
                 # print("error strings = {}".format(errStrs))
                 errStr = ", ".join(errStrs) 
-            logger.info("|    {0:<24}: {1}/{2} (Errors: {3})".format(k, n[1], n[0], errStr))
+            Logging.info("|    {0:<24}: {1}/{2} (Errors: {3})".format(k, n[1], n[0], errStr))
 
-        logger.info(
+        Logging.info(
             "| Total Tasks Executed (success or not): {} ".format(execTimesAny))
-        logger.info(
+        Logging.info(
             "| Total Tasks In Progress at End: {}".format(
                 self._tasksInProgress))
-        logger.info(
+        Logging.info(
             "| Total Task Busy Time (elapsed time when any task is in progress): {:.3f} seconds".format(
                 self._accRunTime))
-        logger.info(
+        Logging.info(
             "| Average Per-Task Execution Time: {:.3f} seconds".format(self._accRunTime / execTimesAny))
-        logger.info(
+        Logging.info(
             "| Total Elapsed Time (from wall clock): {:.3f} seconds".format(
                 self._elapsedTime))
-        logger.info("| Top numbers written: {}".format(TaskExecutor.getBoundedList()))
-        logger.info("| Total Number of Active DB Native Connections: {}".format(DbConnNative.totalConnections))
-        logger.info(
+        Logging.info("| Top numbers written: {}".format(TaskExecutor.getBoundedList()))
+        Logging.info("| Active DB Native Connections (now): {}".format(DbConnNative.totalConnections))
+        Logging.info("| Longest native query time: {:.3f} seconds, started: {}".
+            format(MyTDSql.longestQueryTime, 
+                time.strftime("%x %X", time.localtime(MyTDSql.lqStartTime))) )
+        Logging.info("| Longest native query: {}".format(MyTDSql.longestQuery))
+        Logging.info(
             "----------------------------------------------------------------------")
 
 
@@ -1723,11 +1459,14 @@ class StateTransitionTask(Task):
     LARGE_NUMBER_OF_RECORDS = 50
     SMALL_NUMBER_OF_RECORDS = 3
 
+    _baseTableNumber = None
+
+    _endState = None
+
     @classmethod
     def getInfo(cls):  # each sub class should supply their own information
         raise RuntimeError("Overriding method expected")
-
-    _endState = None
+    
     @classmethod
     def getEndState(cls):  # TODO: optimize by calling it fewer times
         raise RuntimeError("Overriding method expected")
@@ -1747,7 +1486,10 @@ class StateTransitionTask(Task):
 
     @classmethod
     def getRegTableName(cls, i):
-        return "reg_table_{}".format(i)
+        if ( StateTransitionTask._baseTableNumber is None):
+            StateTransitionTask._baseTableNumber = Dice.throw(
+                999) if gConfig.dynamic_db_table_names else 0
+        return "reg_table_{}".format(StateTransitionTask._baseTableNumber + i)
 
     def execute(self, wt: WorkerThread):
         super().execute(wt)
@@ -1762,9 +1504,16 @@ class TaskCreateDb(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canCreateDb()
 
+    # Actually creating the database(es)
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        # self.execWtSql(wt, "create database db replica {}".format(Dice.throw(3)+1))
-        self.execWtSql(wt, "create database db")
+        # was: self.execWtSql(wt, "create database db")
+        repStr = ""
+        if gConfig.max_replicas != 1:
+            # numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
+            numReplica = gConfig.max_replicas # fixed, always
+            repStr = "replica {}".format(numReplica)
+        self.execWtSql(wt, "create database {} {}"
+            .format(self._db.getName(), repStr) )
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
@@ -1776,9 +1525,8 @@ class TaskDropDb(StateTransitionTask):
         return state.canDropDb()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        self.execWtSql(wt, "drop database db")
-        logger.debug("[OPS] database dropped at {}".format(time.time()))
-
+        self.execWtSql(wt, "drop database {}".format(self._db.getName()))
+        Logging.debug("[OPS] database dropped at {}".format(time.time()))
 
 class TaskCreateSuperTable(StateTransitionTask):
     @classmethod
@@ -1790,13 +1538,14 @@ class TaskCreateSuperTable(StateTransitionTask):
         return state.canCreateFixedSuperTable()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        if not wt.dbInUse():  # no DB yet, to the best of our knowledge
-            logger.debug("Skipping task, no DB yet")
+        if not self._db.exists(wt.getDbConn()):
+            Logging.debug("Skipping task, no DB yet")
             return
 
-        sTable = self._dbManager.getFixedSuperTable()
+        sTable = self._db.getFixedSuperTable() # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
-        sTable.create(wt.getDbConn(), {'ts':'timestamp', 'speed':'int'}, {'b':'binary(200)', 'f':'float'})
+        sTable.create(wt.getDbConn(), self._db.getName(), 
+            {'ts':'timestamp', 'speed':'int'}, {'b':'binary(200)', 'f':'float'})
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that
         # automatically
@@ -1809,39 +1558,42 @@ class TdSuperTable:
     def getName(self):
         return self._stName
 
-    def create(self, dbc, cols: dict, tags: dict):
-        sql = "CREATE TABLE db.{} ({}) TAGS ({})".format(
+    # TODO: odd semantic, create() method is usually static?
+    def create(self, dbc, dbName, cols: dict, tags: dict):
+        '''Creating a super table'''
+        sql = "CREATE TABLE {}.{} ({}) TAGS ({})".format(
+            dbName,
             self._stName,
             ",".join(['%s %s'%(k,v) for (k,v) in cols.items()]),
             ",".join(['%s %s'%(k,v) for (k,v) in tags.items()])
             )
         dbc.execute(sql)        
 
-    def getRegTables(self, dbc: DbConn):
+    def getRegTables(self, dbc: DbConn, dbName: str):
         try:
-            dbc.query("select TBNAME from db.{}".format(self._stName))  # TODO: analyze result set later            
+            dbc.query("select TBNAME from {}.{}".format(dbName, self._stName))  # TODO: analyze result set later            
         except taos.error.ProgrammingError as err:                    
             errno2 = Helper.convertErrno(err.errno) 
-            logger.debug("[=] Failed to get tables from super table: errno=0x{:X}, msg: {}".format(errno2, err))
+            Logging.debug("[=] Failed to get tables from super table: errno=0x{:X}, msg: {}".format(errno2, err))
             raise
 
         qr = dbc.getQueryResult()
         return [v[0] for v in qr] # list transformation, ref: https://stackoverflow.com/questions/643823/python-list-transformation
 
-    def hasRegTables(self, dbc: DbConn):
-        return dbc.query("SELECT * FROM db.{}".format(self._stName)) > 0
+    def hasRegTables(self, dbc: DbConn, dbName: str):
+        return dbc.query("SELECT * FROM {}.{}".format(dbName, self._stName)) > 0
 
-    def ensureTable(self, dbc: DbConn, regTableName: str):
-        sql = "select tbname from db.{} where tbname in ('{}')".format(self._stName, regTableName)
+    def ensureTable(self, dbc: DbConn, dbName: str, regTableName: str):
+        sql = "select tbname from {}.{} where tbname in ('{}')".format(dbName, self._stName, regTableName)
         if dbc.query(sql) >= 1 : # reg table exists already
             return
-        sql = "CREATE TABLE {} USING {} tags ({})".format(
-            regTableName, self._stName, self._getTagStrForSql(dbc)
+        sql = "CREATE TABLE {}.{} USING {}.{} tags ({})".format(
+            dbName, regTableName, dbName, self._stName, self._getTagStrForSql(dbc, dbName)
         )
         dbc.execute(sql)
 
-    def _getTagStrForSql(self, dbc) :
-        tags = self._getTags(dbc)
+    def _getTagStrForSql(self, dbc, dbName: str) :
+        tags = self._getTags(dbc, dbName)
         tagStrs = []
         for tagName in tags: 
             tagType = tags[tagName]
@@ -1855,34 +1607,34 @@ class TdSuperTable:
                 raise RuntimeError("Unexpected tag type: {}".format(tagType))
         return ", ".join(tagStrs)
 
-    def _getTags(self, dbc) -> dict:
-        dbc.query("DESCRIBE {}".format(self._stName))
+    def _getTags(self, dbc, dbName) -> dict:
+        dbc.query("DESCRIBE {}.{}".format(dbName, self._stName))
         stCols = dbc.getQueryResult()
         # print(stCols)
         ret = {row[0]:row[1] for row in stCols if row[3]=='TAG'} # name:type
         # print("Tags retrieved: {}".format(ret))
         return ret
 
-    def addTag(self, dbc, tagName, tagType):
-        if tagName in self._getTags(dbc): # already 
+    def addTag(self, dbc, dbName, tagName, tagType):
+        if tagName in self._getTags(dbc, dbName): # already 
             return
         # sTable.addTag("extraTag", "int")
-        sql = "alter table db.{} add tag {} {}".format(self._stName, tagName, tagType)
+        sql = "alter table {}.{} add tag {} {}".format(dbName, self._stName, tagName, tagType)
         dbc.execute(sql)
 
-    def dropTag(self, dbc, tagName):
-        if not tagName in self._getTags(dbc): # don't have this tag
+    def dropTag(self, dbc, dbName, tagName):
+        if not tagName in self._getTags(dbc, dbName): # don't have this tag
             return
-        sql = "alter table db.{} drop tag {}".format(self._stName, tagName)
+        sql = "alter table {}.{} drop tag {}".format(dbName, self._stName, tagName)
         dbc.execute(sql)
 
-    def changeTag(self, dbc, oldTag, newTag):
-        tags = self._getTags(dbc)
+    def changeTag(self, dbc, dbName, oldTag, newTag):
+        tags = self._getTags(dbc, dbName)
         if not oldTag in tags: # don't have this tag
             return
         if newTag in tags: # already have this tag
             return
-        sql = "alter table db.{} change tag {} {}".format(self._stName, oldTag, newTag)
+        sql = "alter table {}.{} change tag {} {}".format(dbName, self._stName, oldTag, newTag)
         dbc.execute(sql)
 
 class TaskReadData(StateTransitionTask):
@@ -1894,20 +1646,46 @@ class TaskReadData(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canReadData()
 
-    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        sTable = self._dbManager.getFixedSuperTable()
+    # def _canRestartService(self):
+    #     if not gSvcMgr:
+    #         return True # always
+    #     return gSvcMgr.isActive() # only if it's running TODO: race condition here
 
-        if random.randrange(
-                5) == 0:  # 1 in 5 chance, simulate a broken connection. TODO: break connection in all situations
-            wt.getDbConn().close()
-            wt.getDbConn().open()
-        
+    def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        sTable = self._db.getFixedSuperTable()
+
+        # 1 in 5 chance, simulate a broken connection, only if service stable (not restarting)
+        if random.randrange(20)==0: # and self._canRestartService():  # TODO: break connection in all situations
+            # Logging.info("Attempting to reconnect to server") # TODO: change to DEBUG
+            Progress.emit(Progress.SERVICE_RECONNECT_START) 
+            try:
+                wt.getDbConn().close()
+                wt.getDbConn().open()
+            except ConnectionError as err: # may fail
+                if not gSvcMgr:
+                    Logging.error("Failed to reconnect in client-only mode")
+                    raise # Not OK if we are running in client-only mode
+                if gSvcMgr.isRunning(): # may have race conditon, but low prob, due to 
+                    Logging.error("Failed to reconnect when managed server is running")
+                    raise # Not OK if we are running normally
+
+                Progress.emit(Progress.SERVICE_RECONNECT_FAILURE) 
+                # Logging.info("Ignoring DB reconnect error")
+
+            # print("_r", end="", flush=True)
+            Progress.emit(Progress.SERVICE_RECONNECT_SUCCESS) 
+            # The above might have taken a lot of time, service might be running
+            # by now, causing error below to be incorrectly handled due to timing issue
+            return # TODO: fix server restart status race condtion
+
+
         dbc = wt.getDbConn()
-        for rTbName in sTable.getRegTables(dbc):  # regular tables
+        dbName = self._db.getName()
+        for rTbName in sTable.getRegTables(dbc, dbName):  # regular tables
             aggExpr = Dice.choice([
-                '*', 
-                'count(*)', 
-                'avg(speed)', 
+                '*',
+                'count(*)',
+                'avg(speed)',
                 # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
                 'sum(speed)', 
                 'stddev(speed)', 
@@ -1929,13 +1707,13 @@ class TaskReadData(StateTransitionTask):
             ])
             try:
                 # Run the query against the regular table first
-                dbc.execute("select {} from db.{}".format(aggExpr, rTbName))
+                dbc.execute("select {} from {}.{}".format(aggExpr, dbName, rTbName))
                 # Then run it against the super table
                 if aggExpr not in ['stddev(speed)']: #TODO: STDDEV not valid for super tables?!
-                    dbc.execute("select {} from db.{}".format(aggExpr, sTable.getName()))
+                    dbc.execute("select {} from {}.{}".format(aggExpr, dbName, sTable.getName()))
             except taos.error.ProgrammingError as err:                    
                 errno2 = Helper.convertErrno(err.errno)
-                logger.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, dbc.getLastSql()))
+                Logging.debug("[=] Read Failure: errno=0x{:X}, msg: {}, SQL: {}".format(errno2, err, dbc.getLastSql()))
                 raise
 
 class TaskDropSuperTable(StateTransitionTask):
@@ -1948,27 +1726,25 @@ class TaskDropSuperTable(StateTransitionTask):
         return state.canDropFixedSuperTable()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        # 1/2 chance, we'll drop the regular tables one by one, in a randomized
-        # sequence
+        # 1/2 chance, we'll drop the regular tables one by one, in a randomized sequence
         if Dice.throw(2) == 0:
+            # print("_7_", end="", flush=True)
             tblSeq = list(range(
                 2 + (self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES)))
             random.shuffle(tblSeq)
             tickOutput = False  # if we have spitted out a "d" character for "drop regular table"
             isSuccess = True
             for i in tblSeq:
-                regTableName = self.getRegTableName(
-                    i)  # "db.reg_table_{}".format(i)
+                regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
                 try:
-                    self.execWtSql(wt, "drop table {}".format(
-                        regTableName))  # nRows always 0, like MySQL
+                    self.execWtSql(wt, "drop table {}.{}".
+                        format(self._db.getName(), regTableName))  # nRows always 0, like MySQL
                 except taos.error.ProgrammingError as err:
                     # correcting for strange error number scheme                    
                     errno2 = Helper.convertErrno(err.errno)
                     if (errno2 in [0x362]):  # mnode invalid table name
                         isSuccess = False
-                        logger.debug(
-                            "[DB] Acceptable error when dropping a table")
+                        Logging.debug("[DB] Acceptable error when dropping a table")
                     continue  # try to delete next regular table
 
                 if (not tickOutput):
@@ -1979,8 +1755,8 @@ class TaskDropSuperTable(StateTransitionTask):
                         print("f", end="", flush=True)
 
         # Drop the super table itself
-        tblName = self._dbManager.getFixedSuperTableName()
-        self.execWtSql(wt, "drop table db.{}".format(tblName))
+        tblName = self._db.getFixedSuperTableName()
+        self.execWtSql(wt, "drop table {}.{}".format(self._db.getName(), tblName))
 
 
 class TaskAlterTags(StateTransitionTask):
@@ -1995,19 +1771,20 @@ class TaskAlterTags(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # tblName = self._dbManager.getFixedSuperTableName()
         dbc = wt.getDbConn()
-        sTable = self._dbManager.getFixedSuperTable()
+        sTable = self._db.getFixedSuperTable()
+        dbName = self._db.getName()
         dice = Dice.throw(4)
         if dice == 0:
-            sTable.addTag(dbc, "extraTag", "int")
+            sTable.addTag(dbc, dbName, "extraTag", "int")
             # sql = "alter table db.{} add tag extraTag int".format(tblName)
         elif dice == 1:
-            sTable.dropTag(dbc, "extraTag")
+            sTable.dropTag(dbc, dbName, "extraTag")
             # sql = "alter table db.{} drop tag extraTag".format(tblName)
         elif dice == 2:
-            sTable.dropTag(dbc, "newTag")
+            sTable.dropTag(dbc, dbName, "newTag")
             # sql = "alter table db.{} drop tag newTag".format(tblName)
         else:  # dice == 3
-            sTable.changeTag(dbc, "extraTag", "newTag")
+            sTable.changeTag(dbc, dbName, "extraTag", "newTag")
             # sql = "alter table db.{} change tag extraTag newTag".format(tblName)
 
 class TaskRestartService(StateTransitionTask):
@@ -2047,20 +1824,19 @@ class TaskAddData(StateTransitionTask):
     # Track which table is being actively worked on
     activeTable: Set[int] = set()
 
-    # We use these two files to record operations to DB, useful for power-off
-    # tests
-    fAddLogReady = None
-    fAddLogDone = None
+    # We use these two files to record operations to DB, useful for power-off tests
+    fAddLogReady = None # type: TextIOWrapper
+    fAddLogDone  = None # type: TextIOWrapper
 
     @classmethod
     def prepToRecordOps(cls):
         if gConfig.record_ops:
             if (cls.fAddLogReady is None):
-                logger.info(
+                Logging.info(
                     "Recording in a file operations to be performed...")
                 cls.fAddLogReady = open("add_log_ready.txt", "w")
             if (cls.fAddLogDone is None):
-                logger.info("Recording in a file operations completed...")
+                Logging.info("Recording in a file operations completed...")
                 cls.fAddLogDone = open("add_log_done.txt", "w")
 
     @classmethod
@@ -2072,7 +1848,9 @@ class TaskAddData(StateTransitionTask):
         return state.canAddData()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
+        # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
+        db = self._db
+        dbc = wt.getDbConn()
         tblSeq = list(range(
                 self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES))
         random.shuffle(tblSeq)
@@ -2082,23 +1860,25 @@ class TaskAddData(StateTransitionTask):
             else:
                 self.activeTable.add(i)  # marking it active
             
-            sTable = ds.getFixedSuperTable()
+            sTable = db.getFixedSuperTable()
             regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
-            sTable.ensureTable(wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureTable(wt.getDbConn(), db.getName(), regTableName)  # Ensure the table exists           
            
             for j in range(self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS):  # number of records per table
-                nextInt = ds.getNextInt()
+                nextInt = db.getNextInt()
+                nextTick = db.getNextTick()
                 if gConfig.record_ops:
                     self.prepToRecordOps()
                     self.fAddLogReady.write("Ready to write {} to {}\n".format(nextInt, regTableName))
                     self.fAddLogReady.flush()
                     os.fsync(self.fAddLogReady)
-                sql = "insert into {} values ('{}', {});".format( # removed: tags ('{}', {})
+                sql = "insert into {}.{} values ('{}', {});".format( # removed: tags ('{}', {})
+                    db.getName(),
                     regTableName,
                     # ds.getFixedSuperTableName(),
                     # ds.getNextBinary(), ds.getNextFloat(),
-                    ds.getNextTick(), nextInt)
-                self.execWtSql(wt, sql)
+                    nextTick, nextInt)
+                dbc.execute(sql)
                 # Successfully wrote the data into the DB, let's record it
                 # somehow
                 te.recordDataMark(nextInt)
@@ -2108,494 +1888,32 @@ class TaskAddData(StateTransitionTask):
                             nextInt, regTableName))
                     self.fAddLogDone.flush()
                     os.fsync(self.fAddLogDone)
+
+                # Now read it back and verify, we might encounter an error if table is dropped
+                if gConfig.verify_data: # only if command line asks for it
+                    try:
+                        readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts= '{}'".
+                            format(db.getName(), regTableName, nextTick))
+                        if readBack != nextInt :
+                            raise taos.error.ProgrammingError(
+                                "Failed to read back same data, wrote: {}, read: {}"
+                                .format(nextInt, readBack), 0x999)
+                    except taos.error.ProgrammingError as err:
+                        errno = Helper.convertErrno(err.errno)
+                        if errno in [0x991, 0x992]  : # not a single result
+                            raise taos.error.ProgrammingError(
+                                "Failed to read back same data for tick: {}, wrote: {}, read: {}"
+                                .format(nextTick, nextInt, "Empty Result" if errno==0x991 else "Multiple Result"),
+                                errno)
+                        # Re-throw no matter what
+                        raise
+                
+
             self.activeTable.discard(i)  # not raising an error, unlike remove
 
 
-# Deterministic random number generator
-class Dice():
-    seeded = False  # static, uninitialized
 
-    @classmethod
-    def seed(cls, s):  # static
-        if (cls.seeded):
-            raise RuntimeError(
-                "Cannot seed the random generator more than once")
-        cls.verifyRNG()
-        random.seed(s)
-        cls.seeded = True  # TODO: protect against multi-threading
 
-    @classmethod
-    def verifyRNG(cls):  # Verify that the RNG is determinstic
-        random.seed(0)
-        x1 = random.randrange(0, 1000)
-        x2 = random.randrange(0, 1000)
-        x3 = random.randrange(0, 1000)
-        if (x1 != 864 or x2 != 394 or x3 != 776):
-            raise RuntimeError("System RNG is not deterministic")
-
-    @classmethod
-    def throw(cls, stop):  # get 0 to stop-1
-        return cls.throwRange(0, stop)
-
-    @classmethod
-    def throwRange(cls, start, stop):  # up to stop-1
-        if (not cls.seeded):
-            raise RuntimeError("Cannot throw dice before seeding it")
-        return random.randrange(start, stop)
-
-    @classmethod
-    def choice(cls, cList):
-        return random.choice(cList)
-
-
-class LoggingFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord):
-        if (record.levelno >= logging.INFO):
-            return True  # info or above always log
-
-        # Commenting out below to adjust...
-
-        # if msg.startswith("[TRD]"):
-        #     return False
-        return True
-
-
-class MyLoggingAdapter(logging.LoggerAdapter):
-    def process(self, msg, kwargs):
-        return "[{}]{}".format(threading.get_ident() % 10000, msg), kwargs
-        # return '[%s] %s' % (self.extra['connid'], msg), kwargs
-
-
-class SvcManager:
-    def __init__(self):
-        print("Starting TDengine Service Manager")
-        # signal.signal(signal.SIGTERM, self.sigIntHandler) # Moved to MainExec
-        # signal.signal(signal.SIGINT, self.sigIntHandler)
-        # signal.signal(signal.SIGUSR1, self.sigUsrHandler)  # different handler!
-
-        self.inSigHandler = False
-        # self._status = MainExec.STATUS_RUNNING # set inside
-        # _startTaosService()
-        self.svcMgrThread = None
-        self._lock = threading.Lock()
-        self._isRestarting = False
-
-    def _doMenu(self):
-        choice = ""
-        while True:
-            print("\nInterrupting Service Program, Choose an Action: ")
-            print("1: Resume")
-            print("2: Terminate")
-            print("3: Restart")
-            # Remember to update the if range below
-            # print("Enter Choice: ", end="", flush=True)
-            while choice == "":
-                choice = input("Enter Choice: ")
-                if choice != "":
-                    break  # done with reading repeated input
-            if choice in ["1", "2", "3"]:
-                break  # we are done with whole method
-            print("Invalid choice, please try again.")
-            choice = ""  # reset
-        return choice
-
-    def sigUsrHandler(self, signalNumber, frame):
-        print("Interrupting main thread execution upon SIGUSR1")
-        if self.inSigHandler:  # already
-            print("Ignoring repeated SIG...")
-            return  # do nothing if it's already not running
-        self.inSigHandler = True
-
-        choice = self._doMenu()
-        if choice == "1":
-            # TODO: can the sub-process be blocked due to us not reading from
-            # queue?
-            self.sigHandlerResume()
-        elif choice == "2":
-            self.stopTaosService()
-        elif choice == "3": # Restart
-            self.restart()
-        else:
-            raise RuntimeError("Invalid menu choice: {}".format(choice))
-
-        self.inSigHandler = False
-
-    def sigIntHandler(self, signalNumber, frame):
-        print("SvcManager: INT Signal Handler starting...")
-        if self.inSigHandler:
-            print("Ignoring repeated SIG_INT...")
-            return
-        self.inSigHandler = True
-
-        self.stopTaosService()
-        print("SvcManager: INT Signal Handler returning...")
-        self.inSigHandler = False
-
-    def sigHandlerResume(self):
-        print("Resuming TDengine service manager thread (main thread)...\n\n")
-
-    def _checkServiceManagerThread(self):
-        if self.svcMgrThread:  # valid svc mgr thread
-            if self.svcMgrThread.isStopped():  # done?
-                self.svcMgrThread.procIpcBatch()  # one last time. TODO: appropriate?
-                self.svcMgrThread = None  # no more
-
-    def _procIpcAll(self):
-        while self.isRunning() or self.isRestarting() :  # for as long as the svc mgr thread is still here
-            if self.isRunning():
-                self.svcMgrThread.procIpcBatch()  # regular processing,
-                self._checkServiceManagerThread()
-            elif self.isRetarting():
-                print("Service restarting...")
-            time.sleep(0.5)  # pause, before next round
-        print(
-            "Service Manager Thread (with subprocess) has ended, main thread now exiting...")
-
-    def startTaosService(self):
-        with self._lock:
-            if self.svcMgrThread:
-                raise RuntimeError("Cannot start TAOS service when one may already be running")
-
-            # Find if there's already a taosd service, and then kill it
-            for proc in psutil.process_iter():
-                if proc.name() == 'taosd':
-                    print("Killing an existing TAOSD process in 2 seconds... press CTRL-C to interrupe")
-                    time.sleep(2.0)
-                    proc.kill()
-                # print("Process: {}".format(proc.name()))
-            
-            self.svcMgrThread = ServiceManagerThread()  # create the object
-            print("Attempting to start TAOS service started, printing out output...")
-            self.svcMgrThread.start()            
-            self.svcMgrThread.procIpcBatch(
-                trimToTarget=10,
-                forceOutput=True)  # for printing 10 lines
-            print("TAOS service started")
-
-    def stopTaosService(self, outputLines=20):
-        with self._lock:
-            if not self.isRunning():
-                logger.warning("Cannot stop TAOS service, not running")
-                return
-
-            print("Terminating Service Manager Thread (SMT) execution...")
-            self.svcMgrThread.stop()
-            if self.svcMgrThread.isStopped():
-                self.svcMgrThread.procIpcBatch(outputLines)  # one last time
-                self.svcMgrThread = None
-                print("End of TDengine Service Output")
-                print("----- TDengine Service (managed by SMT) is now terminated -----\n")
-            else:
-                print("WARNING: SMT did not terminate as expected")
-
-    def run(self):
-        self.startTaosService()
-        self._procIpcAll()  # pump/process all the messages, may encounter SIG + restart
-        if self.isRunning():  # if sig handler hasn't destroyed it by now
-            self.stopTaosService()  # should have started already
-
-    def restart(self):
-        if self._isRestarting:
-            logger.warning("Cannot restart service when it's already restarting")
-            return
-
-        self._isRestarting = True
-        if self.isRunning():
-            self.stopTaosService()
-        else:
-            logger.warning("Service not running when restart requested")
-
-        self.startTaosService()
-        self._isRestarting = False
-
-    def isRunning(self):
-        return self.svcMgrThread != None
-
-    def isRestarting(self):
-        return self._isRestarting
-
-class ServiceManagerThread:
-    MAX_QUEUE_SIZE = 10000
-
-    def __init__(self):
-        self._tdeSubProcess = None
-        self._thread = None
-        self._status = None
-
-    def getStatus(self):
-        return self._status
-
-    def isRunning(self):
-        # return self._thread and self._thread.is_alive()
-        return self._status == MainExec.STATUS_RUNNING
-
-    def isStopping(self):
-        return self._status == MainExec.STATUS_STOPPING
-
-    def isStopped(self):
-        return self._status == MainExec.STATUS_STOPPED
-
-    # Start the thread (with sub process), and wait for the sub service
-    # to become fully operational
-    def start(self):
-        if self._thread:
-            raise RuntimeError("Unexpected _thread")
-        if self._tdeSubProcess:
-            raise RuntimeError("TDengine sub process already created/running")
-
-        self._status = MainExec.STATUS_STARTING
-
-        self._tdeSubProcess = TdeSubProcess()
-        self._tdeSubProcess.start()
-
-        self._ipcQueue = Queue()
-        self._thread = threading.Thread(
-            target=self.svcOutputReader,
-            args=(self._tdeSubProcess.getStdOut(), self._ipcQueue))
-        self._thread.daemon = True  # thread dies with the program
-        self._thread.start()
-
-        self._thread2 = threading.Thread(
-            target=self.svcErrorReader,
-            args=(self._tdeSubProcess.getStdErr(), self._ipcQueue))
-        self._thread2.daemon = True  # thread dies with the program
-        self._thread2.start()
-
-        # wait for service to start
-        for i in range(0, 100):
-            time.sleep(1.0)
-            # self.procIpcBatch() # don't pump message during start up
-            print("_zz_", end="", flush=True)
-            if self._status == MainExec.STATUS_RUNNING:
-                logger.info("[] TDengine service READY to process requests")
-                return  # now we've started
-        # TODO: handle this better?
-        self.procIpcBatch(100, True) # display output before cronking out, trim to last 20 msgs, force output
-        raise RuntimeError("TDengine service did not start successfully")
-
-    def stop(self):
-        # can be called from both main thread or signal handler
-        print("Terminating TDengine service running as the sub process...")
-        if self.isStopped():
-            print("Service already stopped")
-            return
-        if self.isStopping():
-            print("Service is already being stopped")
-            return
-        # Linux will send Control-C generated SIGINT to the TDengine process
-        # already, ref:
-        # https://unix.stackexchange.com/questions/176235/fork-and-how-signals-are-delivered-to-processes
-        if not self._tdeSubProcess:
-            raise RuntimeError("sub process object missing")
-
-        self._status = MainExec.STATUS_STOPPING
-        retCode = self._tdeSubProcess.stop()
-        print("Attempted to stop sub process, got return code: {}".format(retCode))
-        if (retCode==-11): # SGV
-            logger.error("[[--ERROR--]]: TDengine service SEGV fault (check core file!)")
-
-        if self._tdeSubProcess.isRunning():  # still running
-            print("FAILED to stop sub process, it is still running... pid = {}".format(
-                    self._tdeSubProcess.getPid()))
-        else:
-            self._tdeSubProcess = None  # not running any more
-            self.join()  # stop the thread, change the status, etc.
-
-    def join(self):
-        # TODO: sanity check
-        if not self.isStopping():
-            raise RuntimeError(
-                "Unexpected status when ending svc mgr thread: {}".format(
-                    self._status))
-
-        if self._thread:
-            self._thread.join()
-            self._thread = None
-            self._status = MainExec.STATUS_STOPPED
-            # STD ERR thread
-            self._thread2.join()
-            self._thread2 = None
-        else:
-            print("Joining empty thread, doing nothing")
-
-    def _trimQueue(self, targetSize):
-        if targetSize <= 0:
-            return  # do nothing
-        q = self._ipcQueue
-        if (q.qsize() <= targetSize):  # no need to trim
-            return
-
-        logger.debug("Triming IPC queue to target size: {}".format(targetSize))
-        itemsToTrim = q.qsize() - targetSize
-        for i in range(0, itemsToTrim):
-            try:
-                q.get_nowait()
-            except Empty:
-                break  # break out of for loop, no more trimming
-
-    TD_READY_MSG = "TDengine is initialized successfully"
-
-    def procIpcBatch(self, trimToTarget=0, forceOutput=False):
-        self._trimQueue(trimToTarget)  # trim if necessary
-        # Process all the output generated by the underlying sub process,
-        # managed by IO thread
-        print("<", end="", flush=True)
-        while True:
-            try:
-                line = self._ipcQueue.get_nowait()  # getting output at fast speed
-                self._printProgress("_o")
-            except Empty:
-                # time.sleep(2.3) # wait only if there's no output
-                # no more output
-                print(".>", end="", flush=True)
-                return  # we are done with THIS BATCH
-            else:  # got line, printing out
-                if forceOutput:
-                    logger.info(line)
-                else:
-                    logger.debug(line)
-        print(">", end="", flush=True)
-
-    _ProgressBars = ["--", "//", "||", "\\\\"]
-
-    def _printProgress(self, msg):  # TODO: assuming 2 chars
-        print(msg, end="", flush=True)
-        pBar = self._ProgressBars[Dice.throw(4)]
-        print(pBar, end="", flush=True)
-        print('\b\b\b\b', end="", flush=True)
-
-    def svcOutputReader(self, out: IO, queue):
-        # Important Reference: https://stackoverflow.com/questions/375427/non-blocking-read-on-a-subprocess-pipe-in-python
-        # print("This is the svcOutput Reader...")
-        # for line in out :
-        for line in iter(out.readline, b''):
-            # print("Finished reading a line: {}".format(line))
-            # print("Adding item to queue...")
-            try:
-                line = line.decode("utf-8").rstrip()
-            except UnicodeError:
-                print("\nNon-UTF8 server output: {}\n".format(line))
-
-            # This might block, and then causing "out" buffer to block
-            queue.put(line)
-            self._printProgress("_i")
-
-            if self._status == MainExec.STATUS_STARTING:  # we are starting, let's see if we have started
-                if line.find(self.TD_READY_MSG) != -1:  # found
-                    logger.info("Waiting for the service to become FULLY READY")
-                    time.sleep(1.0) # wait for the server to truly start. TODO: remove this
-                    logger.info("Service is now FULLY READY")   
-                    self._status = MainExec.STATUS_RUNNING                 
-
-            # Trim the queue if necessary: TODO: try this 1 out of 10 times
-            self._trimQueue(self.MAX_QUEUE_SIZE * 9 // 10)  # trim to 90% size
-
-            if self.isStopping():  # TODO: use thread status instead
-                # WAITING for stopping sub process to finish its outptu
-                print("_w", end="", flush=True)
-
-            # queue.put(line)
-        # meaning sub process must have died
-        print("\nNo more output from IO thread managing TDengine service")
-        out.close()
-
-    def svcErrorReader(self, err: IO, queue):
-        for line in iter(err.readline, b''):
-            print("\nTDengine Service (taosd) ERROR (from stderr): {}".format(line))
-
-
-class TdeSubProcess:
-    def __init__(self):
-        self.subProcess = None
-
-    def getStdOut(self):
-        return self.subProcess.stdout
-
-    def getStdErr(self):
-        return self.subProcess.stderr
-
-    def isRunning(self):
-        return self.subProcess is not None
-
-    def getPid(self):
-        return self.subProcess.pid
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("communit")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
-
-    def start(self):
-        ON_POSIX = 'posix' in sys.builtin_module_names
-
-        taosdPath = self.getBuildPath() + "/build/bin/taosd"
-        cfgPath = self.getBuildPath() + "/test/cfg"
-
-        # Delete the log files
-        logPath = self.getBuildPath() + "/test/log"
-        # ref: https://stackoverflow.com/questions/1995373/deleting-all-files-in-a-directory-with-python/1995397
-        # filelist = [ f for f in os.listdir(logPath) ] # if f.endswith(".bak") ]
-        # for f in filelist:
-        #     filePath = os.path.join(logPath, f)
-        #     print("Removing log file: {}".format(filePath))
-        #     os.remove(filePath)        
-        if os.path.exists(logPath):
-            logPathSaved = logPath + "_" + time.strftime('%Y-%m-%d-%H-%M-%S')
-            logger.info("Saving old log files to: {}".format(logPathSaved))
-            os.rename(logPath, logPathSaved)
-        # os.mkdir(logPath) # recreate, no need actually, TDengine will auto-create with proper perms
-            
-        svcCmd = [taosdPath, '-c', cfgPath]
-        # svcCmdSingle = "{} -c {}".format(taosdPath, cfgPath)
-        # svcCmd = ['vmstat', '1']
-        if self.subProcess:  # already there
-            raise RuntimeError("Corrupt process state")
-
-        # print("Starting service: {}".format(svcCmd))
-        self.subProcess = subprocess.Popen(
-            svcCmd, shell=False,
-            # svcCmdSingle, shell=True, # capture core dump?
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            # bufsize=1, # not supported in binary mode
-            close_fds=ON_POSIX
-            )  # had text=True, which interferred with reading EOF
-
-    def stop(self):
-        if not self.subProcess:
-            print("Sub process already stopped")
-            return -1
-
-        retCode = self.subProcess.poll() # contains real sub process return code
-        if retCode:  # valid return code, process ended
-            self.subProcess = None
-        else:  # process still alive, let's interrupt it
-            print(
-                "Sub process is running, sending SIG_INT and waiting for it to terminate...")
-            # sub process should end, then IPC queue should end, causing IO
-            # thread to end
-            self.subProcess.send_signal(signal.SIGINT)
-            try:
-                self.subProcess.wait(10)
-                retCode = self.subProcess.returncode
-            except subprocess.TimeoutExpired as err:
-                print("Time out waiting for TDengine service process to exit")
-                retCode = -3
-            else:
-                print("TDengine service process terminated successfully from SIG_INT")
-                retCode = -4
-                self.subProcess = None
-        return retCode
 
 class ThreadStacks: # stack info for all threads
     def __init__(self):
@@ -2632,17 +1950,17 @@ class ClientManager:
         # signal.signal(signal.SIGTERM, self.sigIntHandler)
         # signal.signal(signal.SIGINT, self.sigIntHandler)
 
-        self._status = MainExec.STATUS_RUNNING
+        self._status = Status.STATUS_RUNNING
         self.tc = None
 
         self.inSigHandler = False
 
     def sigIntHandler(self, signalNumber, frame):
-        if self._status != MainExec.STATUS_RUNNING:
+        if self._status != Status.STATUS_RUNNING:
             print("Repeated SIGINT received, forced exit...")
             # return  # do nothing if it's already not running
             sys.exit(-1)
-        self._status = MainExec.STATUS_STOPPING  # immediately set our status
+        self._status = Status.STATUS_STOPPING  # immediately set our status
 
         print("ClientManager: Terminating program...")
         self.tc.requestToStop()
@@ -2688,69 +2006,87 @@ class ClientManager:
 
         self.inSigHandler = False
 
-    def _printLastNumbers(self):  # to verify data durability
-        dbManager = DbManager(resetDb=False)
-        dbc = dbManager.getDbConn()
-        if dbc.query("show databases") <= 1:  # no database (we have a default called "log")
-            return
-        dbc.execute("use db")
-        if dbc.query("show tables") == 0:  # no tables
-            return
+    # TODO: need to revise how we verify data durability
+    # def _printLastNumbers(self):  # to verify data durability
+    #     dbManager = DbManager()
+    #     dbc = dbManager.getDbConn()
+    #     if dbc.query("show databases") <= 1:  # no database (we have a default called "log")
+    #         return
+    #     dbc.execute("use db")
+    #     if dbc.query("show tables") == 0:  # no tables
+    #         return
 
-        sTbName = dbManager.getFixedSuperTableName()
+    #     sTbName = dbManager.getFixedSuperTableName()
 
-        # get all regular tables
-        # TODO: analyze result set later
-        dbc.query("select TBNAME from db.{}".format(sTbName))
-        rTables = dbc.getQueryResult()
+    #     # get all regular tables
+    #     # TODO: analyze result set later
+    #     dbc.query("select TBNAME from db.{}".format(sTbName))
+    #     rTables = dbc.getQueryResult()
 
-        bList = TaskExecutor.BoundedList()
-        for rTbName in rTables:  # regular tables
-            dbc.query("select speed from db.{}".format(rTbName[0]))
-            numbers = dbc.getQueryResult()
-            for row in numbers:
-                # print("<{}>".format(n), end="", flush=True)
-                bList.add(row[0])
+    #     bList = TaskExecutor.BoundedList()
+    #     for rTbName in rTables:  # regular tables
+    #         dbc.query("select speed from db.{}".format(rTbName[0]))
+    #         numbers = dbc.getQueryResult()
+    #         for row in numbers:
+    #             # print("<{}>".format(n), end="", flush=True)
+    #             bList.add(row[0])
 
-        print("Top numbers in DB right now: {}".format(bList))
-        print("TDengine client execution is about to start in 2 seconds...")
-        time.sleep(2.0)
-        dbManager = None  # release?
-
-    def prepare(self):
-        self._printLastNumbers()
+    #     print("Top numbers in DB right now: {}".format(bList))
+    #     print("TDengine client execution is about to start in 2 seconds...")
+    #     time.sleep(2.0)
+    #     dbManager = None  # release?
 
     def run(self, svcMgr):    
-        self._printLastNumbers()
+        # self._printLastNumbers()
+        global gConfig
 
-        dbManager = DbManager()  # Regular function
+        # Prepare Tde Instance
+        global gContainer
+        tInst = gContainer.defTdeInstance = TdeInstance() # "subdir to hold the instance"
+
+        dbManager = DbManager(gConfig.connector_type, tInst.getDbTarget())  # Regular function
         thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
         self.tc = ThreadCoordinator(thPool, dbManager)
         
+        print("Starting client instance to: {}".format(tInst))
         self.tc.run()
         # print("exec stats: {}".format(self.tc.getExecStats()))
         # print("TC failed = {}".format(self.tc.isFailed()))
         if svcMgr: # gConfig.auto_start_service:
-            svcMgr.stopTaosService()
+            svcMgr.stopTaosServices()
+            svcMgr = None
         # Print exec status, etc., AFTER showing messages from the server
         self.conclude()
         # print("TC failed (2) = {}".format(self.tc.isFailed()))
         # Linux return code: ref https://shapeshed.com/unix-exit-codes/
-        return 1 if self.tc.isFailed() else 0
+        ret = 1 if self.tc.isFailed() else 0
+        self.tc.cleanup()
+
+        # Release global variables
+        gConfig = None
+        gSvcMgr = None
+        logger = None
+
+        # Release variables here
+        self.tc = None
+        thPool = None
+        dbManager = None
+
+        gc.collect() # force garbage collection
+        # h = hpy()
+        # print("\n----- Final Python Heap -----\n")        
+        # print(h.heap())
+
+        return ret
 
     def conclude(self):
+        # self.tc.getDbManager().cleanUp() # clean up first, so we can show ZERO db connections
         self.tc.printStats()
-        self.tc.getDbManager().cleanUp()
 
 class MainExec:
-    STATUS_STARTING = 1
-    STATUS_RUNNING = 2
-    STATUS_STOPPING = 3
-    STATUS_STOPPED = 4
-
     def __init__(self):        
         self._clientMgr = None
-        self._svcMgr = None
+        self._svcMgr = None # type: ServiceManager
 
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT,  self.sigIntHandler)
@@ -2763,200 +2099,185 @@ class MainExec:
             self._svcMgr.sigUsrHandler(signalNumber, frame)
         
     def sigIntHandler(self, signalNumber, frame):
-        if self._svcMgr:
+        if  self._svcMgr:
             self._svcMgr.sigIntHandler(signalNumber, frame)
-        if self._clientMgr:
+        if  self._clientMgr:
             self._clientMgr.sigIntHandler(signalNumber, frame)
 
     def runClient(self):
         global gSvcMgr
         if gConfig.auto_start_service:
-            self._svcMgr = SvcManager()
-            gSvcMgr = self._svcMgr # hack alert
-            self._svcMgr.startTaosService() # we start, don't run
+            gSvcMgr = self._svcMgr = ServiceManager(1) # hack alert
+            gSvcMgr.startTaosServices() # we start, don't run
         
         self._clientMgr = ClientManager()
         ret = None
         try: 
             ret = self._clientMgr.run(self._svcMgr) # stop TAOS service inside
         except requests.exceptions.ConnectionError as err:
-            logger.warning("Failed to open REST connection to DB: {}".format(err.getMessage()))
+            Logging.warning("Failed to open REST connection to DB: {}".format(err.getMessage()))
             # don't raise
         return ret
 
     def runService(self):
         global gSvcMgr
-        self._svcMgr = SvcManager()
-        gSvcMgr = self._svcMgr # save it in a global variable TODO: hack alert
+        gSvcMgr = self._svcMgr = ServiceManager(gConfig.num_dnodes) # save it in a global variable TODO: hack alert
 
-        self._svcMgr.run() # run to some end state
-        self._svcMgr = None 
-        gSvcMgr = None        
+        gSvcMgr.run() # run to some end state
+        gSvcMgr = self._svcMgr = None 
 
-    def runTemp(self):  # for debugging purposes
-        # # Hack to exercise reading from disk, imcreasing coverage. TODO: fix
-        # dbc = dbState.getDbConn()
-        # sTbName = dbState.getFixedSuperTableName()
-        # dbc.execute("create database if not exists db")
-        # if not dbState.getState().equals(StateEmpty()):
-        #     dbc.execute("use db")
+    def init(self): # TODO: refactor
+        global gContainer
+        gContainer = Container() # micky-mouse DI
 
-        # rTables = None
-        # try: # the super table may not exist
-        #     sql = "select TBNAME from db.{}".format(sTbName)
-        #     logger.info("Finding out tables in super table: {}".format(sql))
-        #     dbc.query(sql) # TODO: analyze result set later
-        #     logger.info("Fetching result")
-        #     rTables = dbc.getQueryResult()
-        #     logger.info("Result: {}".format(rTables))
-        # except taos.error.ProgrammingError as err:
-        #     logger.info("Initial Super table OPS error: {}".format(err))
+        global gSvcMgr # TODO: refactor away
+        gSvcMgr = None
 
-        # # sys.exit()
-        # if ( not rTables == None):
-        #     # print("rTables[0] = {}, type = {}".format(rTables[0], type(rTables[0])))
-        #     try:
-        #         for rTbName in rTables : # regular tables
-        #             ds = dbState
-        #             logger.info("Inserting into table: {}".format(rTbName[0]))
-        #             sql = "insert into db.{} values ('{}', {});".format(
-        #                 rTbName[0],
-        #                 ds.getNextTick(), ds.getNextInt())
-        #             dbc.execute(sql)
-        #         for rTbName in rTables : # regular tables
-        #             dbc.query("select * from db.{}".format(rTbName[0])) # TODO: check success failure
-        #         logger.info("Initial READING operation is successful")
-        #     except taos.error.ProgrammingError as err:
-        #         logger.info("Initial WRITE/READ error: {}".format(err))
+        # Super cool Python argument library:
+        # https://docs.python.org/3/library/argparse.html
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description=textwrap.dedent('''\
+                TDengine Auto Crash Generator (PLEASE NOTICE the Prerequisites Below)
+                ---------------------------------------------------------------------
+                1. You build TDengine in the top level ./build directory, as described in offical docs
+                2. You run the server there before this script: ./build/bin/taosd -c test/cfg
 
-        # Sandbox testing code
-        # dbc = dbState.getDbConn()
-        # while True:
-        #     rows = dbc.query("show databases")
-        #     print("Rows: {}, time={}".format(rows, time.time()))
-        return
+                '''))                      
 
+        parser.add_argument(
+            '-a',
+            '--auto-start-service',
+            action='store_true',
+            help='Automatically start/stop the TDengine service (default: false)')
+        parser.add_argument(
+            '-b',
+            '--max-dbs',
+            action='store',
+            default=0,
+            type=int,
+            help='Maximum number of DBs to keep, set to disable dropping DB. (default: 0)')
+        parser.add_argument(
+            '-c',
+            '--connector-type',
+            action='store',
+            default='native',
+            type=str,
+            help='Connector type to use: native, rest, or mixed (default: 10)')
+        parser.add_argument(
+            '-d',
+            '--debug',
+            action='store_true',
+            help='Turn on DEBUG mode for more logging (default: false)')
+        parser.add_argument(
+            '-e',
+            '--run-tdengine',
+            action='store_true',
+            help='Run TDengine service in foreground (default: false)')
+        parser.add_argument(
+            '-g',
+            '--ignore-errors',
+            action='store',
+            default=None,
+            type=str,
+            help='Ignore error codes, comma separated, 0x supported (default: None)')
+        parser.add_argument(
+            '-i',
+            '--max-replicas',
+            action='store',
+            default=1,
+            type=int,
+            help='Maximum number of replicas to use, when testing against clusters. (default: 1)')
+        parser.add_argument(
+            '-l',
+            '--larger-data',
+            action='store_true',
+            help='Write larger amount of data during write operations (default: false)')
+        parser.add_argument(
+            '-n',
+            '--dynamic-db-table-names',
+            action='store_true',
+            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')        
+        parser.add_argument(
+            '-o',
+            '--num-dnodes',
+            action='store',
+            default=1,
+            type=int,
+            help='Number of Dnodes to initialize, used with -e option. (default: 1)')
+        parser.add_argument(
+            '-p',
+            '--per-thread-db-connection',
+            action='store_true',
+            help='Use a single shared db connection (default: false)')
+        parser.add_argument(
+            '-r',
+            '--record-ops',
+            action='store_true',
+            help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')
+        parser.add_argument(
+            '-s',
+            '--max-steps',
+            action='store',
+            default=1000,
+            type=int,
+            help='Maximum number of steps to run (default: 100)')
+        parser.add_argument(
+            '-t',
+            '--num-threads',
+            action='store',
+            default=5,
+            type=int,
+            help='Number of threads to run (default: 10)')
+        parser.add_argument(
+            '-v',
+            '--verify-data',
+            action='store_true',
+            help='Verify data written in a number of places by reading back (default: false)')
+        parser.add_argument(
+            '-x',
+            '--continue-on-exception',
+            action='store_true',
+            help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
 
-def main():
-    # Super cool Python argument library:
-    # https://docs.python.org/3/library/argparse.html
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent('''\
-            TDengine Auto Crash Generator (PLEASE NOTICE the Prerequisites Below)
-            ---------------------------------------------------------------------
-            1. You build TDengine in the top level ./build directory, as described in offical docs
-            2. You run the server there before this script: ./build/bin/taosd -c test/cfg
+        global gConfig
+        gConfig = parser.parse_args()
 
-            '''))
+        Logging.clsInit(gConfig)
 
-    # parser.add_argument('-a', '--auto-start-service', action='store_true',                        
-    #                     help='Automatically start/stop the TDengine service (default: false)')
-    # parser.add_argument('-c', '--connector-type', action='store', default='native', type=str,
-    #                     help='Connector type to use: native, rest, or mixed (default: 10)')
-    # parser.add_argument('-d', '--debug', action='store_true',                        
-    #                     help='Turn on DEBUG mode for more logging (default: false)')
-    # parser.add_argument('-e', '--run-tdengine', action='store_true',                        
-    #                     help='Run TDengine service in foreground (default: false)')
-    # parser.add_argument('-l', '--larger-data', action='store_true',                        
-    #                     help='Write larger amount of data during write operations (default: false)')
-    # parser.add_argument('-p', '--per-thread-db-connection', action='store_true',                        
-    #                     help='Use a single shared db connection (default: false)')
-    # parser.add_argument('-r', '--record-ops', action='store_true',                        
-    #                     help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')                    
-    # parser.add_argument('-s', '--max-steps', action='store', default=1000, type=int,
-    #                     help='Maximum number of steps to run (default: 100)')
-    # parser.add_argument('-t', '--num-threads', action='store', default=5, type=int,
-    #                     help='Number of threads to run (default: 10)')
-    # parser.add_argument('-x', '--continue-on-exception', action='store_true',                        
-    #                     help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')                        
+        Dice.seed(0)  # initial seeding of dice
 
-    parser.add_argument(
-        '-a',
-        '--auto-start-service',
-        action='store_true',
-        help='Automatically start/stop the TDengine service (default: false)')
-    parser.add_argument(
-        '-c',
-        '--connector-type',
-        action='store',
-        default='native',
-        type=str,
-        help='Connector type to use: native, rest, or mixed (default: 10)')
-    parser.add_argument(
-        '-d',
-        '--debug',
-        action='store_true',
-        help='Turn on DEBUG mode for more logging (default: false)')
-    parser.add_argument(
-        '-e',
-        '--run-tdengine',
-        action='store_true',
-        help='Run TDengine service in foreground (default: false)')
-    parser.add_argument(
-        '-l',
-        '--larger-data',
-        action='store_true',
-        help='Write larger amount of data during write operations (default: false)')
-    parser.add_argument(
-        '-p',
-        '--per-thread-db-connection',
-        action='store_true',
-        help='Use a single shared db connection (default: false)')
-    parser.add_argument(
-        '-r',
-        '--record-ops',
-        action='store_true',
-        help='Use a pair of always-fsynced fils to record operations performing + performed, for power-off tests (default: false)')
-    parser.add_argument(
-        '-s',
-        '--max-steps',
-        action='store',
-        default=1000,
-        type=int,
-        help='Maximum number of steps to run (default: 100)')
-    parser.add_argument(
-        '-t',
-        '--num-threads',
-        action='store',
-        default=5,
-        type=int,
-        help='Number of threads to run (default: 10)')
-    parser.add_argument(
-        '-x',
-        '--continue-on-exception',
-        action='store_true',
-        help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
-
-    global gConfig
-    gConfig = parser.parse_args()
-
-    # Logging Stuff
-    global logger
-    _logger = logging.getLogger('CrashGen')  # real logger
-    _logger.addFilter(LoggingFilter())
-    ch = logging.StreamHandler()
-    _logger.addHandler(ch)
-
-    # Logging adapter, to be used as a logger
-    logger = MyLoggingAdapter(_logger, [])
-
-    if (gConfig.debug):
-        logger.setLevel(logging.DEBUG)  # default seems to be INFO
-    else:
-        logger.setLevel(logging.INFO)
-
-    Dice.seed(0)  # initial seeding of dice
-
-    # Run server or client
-    mExec = MainExec()
-    if gConfig.run_tdengine:  # run server
-        mExec.runService()
-    else:
-        return mExec.runClient()
+    def run(self):
+        if gConfig.run_tdengine:  # run server
+            try:
+                self.runService()
+                return 0 # success
+            except ConnectionError as err:
+                Logging.error("Failed to make DB connection, please check DB instance manually")
+            return -1 # failure
+        else:
+            return self.runClient()
 
 
-if __name__ == "__main__":
-    exitCode = main()
-    # print("Exiting with code: {}".format(exitCode))
-    sys.exit(exitCode)
+class Container():
+    _propertyList = {'defTdeInstance'}
+
+    def __init__(self):
+        self._cargo = {} # No cargo at the beginning
+
+    def _verifyValidProperty(self, name):
+        if not name in self._propertyList:
+            raise CrashGenError("Invalid container property: {}".format(name))
+
+    # Called for an attribute, when other mechanisms fail (compare to  __getattribute__)
+    def __getattr__(self, name):
+        self._verifyValidProperty(name)
+        return self._cargo[name] # just a simple lookup
+
+    def __setattr__(self, name, value):
+        if name == '_cargo' : # reserved vars
+            super().__setattr__(name, value)
+            return
+        self._verifyValidProperty(name)
+        self._cargo[name] = value
+

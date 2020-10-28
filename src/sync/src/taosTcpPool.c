@@ -45,8 +45,8 @@ typedef struct {
 
 static void *taosAcceptPeerTcpConnection(void *argv);
 static void *taosProcessTcpData(void *param);
+static void  taosStopPoolThread(SThreadObj *pThread);
 static SThreadObj *taosGetTcpThread(SPoolObj *pPool);
-static void taosStopPoolThread(SThreadObj* pThread);
 
 void *taosOpenTcpThreadPool(SPoolInfo *pInfo) {
   pthread_attr_t thattr;
@@ -58,8 +58,8 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo) {
   }
 
   pPool->info = *pInfo;
-  
-  pPool->pThread = (SThreadObj **) calloc(sizeof(SThreadObj *), pInfo->numOfThreads);
+
+  pPool->pThread = (SThreadObj **)calloc(sizeof(SThreadObj *), pInfo->numOfThreads);
   if (pPool->pThread == NULL) {
     uError("TCP server, no enough memory");
     free(pPool);
@@ -68,17 +68,19 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo) {
 
   pPool->acceptFd = taosOpenTcpServerSocket(pInfo->serverIp, pInfo->port);
   if (pPool->acceptFd < 0) {
-    free(pPool->pThread); free(pPool);
+    free(pPool->pThread);
+    free(pPool);
     uError("failed to create TCP server socket, port:%d (%s)", pInfo->port, strerror(errno));
     return NULL;
   }
 
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  if (pthread_create(&(pPool->thread), &thattr, (void *) taosAcceptPeerTcpConnection, pPool) != 0) {
+  if (pthread_create(&(pPool->thread), &thattr, (void *)taosAcceptPeerTcpConnection, pPool) != 0) {
     uError("TCP server, failed to create accept thread, reason:%s", strerror(errno));
     close(pPool->acceptFd);
-    free(pPool->pThread); free(pPool);
+    free(pPool->pThread);
+    free(pPool);
     return NULL;
   }
 
@@ -89,29 +91,30 @@ void *taosOpenTcpThreadPool(SPoolInfo *pInfo) {
 }
 
 void taosCloseTcpThreadPool(void *param) {
-  SPoolObj    *pPool = (SPoolObj *)param;
-  SThreadObj  *pThread;
+  SPoolObj *  pPool = (SPoolObj *)param;
+  SThreadObj *pThread;
 
-  shutdown(pPool->acceptFd, SHUT_RD);  
+  shutdown(pPool->acceptFd, SHUT_RD);
   pthread_join(pPool->thread, NULL);
 
   for (int i = 0; i < pPool->info.numOfThreads; ++i) {
     pThread = pPool->pThread[i];
-    if (pThread) taosStopPoolThread(pThread); 
+    if (pThread) taosStopPoolThread(pThread);
   }
+
+  uDebug("%p TCP pool is closed", pPool);
 
   taosTFree(pPool->pThread);
   free(pPool);
-  uDebug("%p TCP pool is closed", pPool);
 }
 
 void *taosAllocateTcpConn(void *param, void *pPeer, int connFd) {
   struct epoll_event event;
   SPoolObj *pPool = (SPoolObj *)param;
 
-  SConnObj *pConn = (SConnObj *) calloc(sizeof(SConnObj), 1);
+  SConnObj *pConn = (SConnObj *)calloc(sizeof(SConnObj), 1);
   if (pConn == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno); 
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
 
@@ -131,7 +134,7 @@ void *taosAllocateTcpConn(void *param, void *pPeer, int connFd) {
 
   if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
     uError("failed to add fd:%d(%s)", connFd, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno); 
+    terrno = TAOS_SYSTEM_ERROR(errno);
     free(pConn);
     pConn = NULL;
   } else {
@@ -143,8 +146,8 @@ void *taosAllocateTcpConn(void *param, void *pPeer, int connFd) {
 }
 
 void taosFreeTcpConn(void *param) {
-  SConnObj *    pConn = (SConnObj *)param;
-  SThreadObj   *pThread = pConn->pThread;
+  SConnObj *  pConn = (SConnObj *)param;
+  SThreadObj *pThread = pConn->pThread;
 
   uDebug("%p TCP connection will be closed, fd:%d", pThread, pConn->fd);
   pConn->closedByApp = 1;
@@ -153,9 +156,9 @@ void taosFreeTcpConn(void *param) {
 
 static void taosProcessBrokenLink(SConnObj *pConn) {
   SThreadObj *pThread = pConn->pThread;
-  SPoolObj   *pPool = pThread->pPool;
-  SPoolInfo  *pInfo = &pPool->info;
-  
+  SPoolObj *  pPool = pThread->pPool;
+  SPoolInfo * pInfo = &pPool->info;
+
   if (pConn->closedByApp == 0) shutdown(pConn->fd, SHUT_WR);
   (*pInfo->processBrokenLink)(pConn->ahandle);
 
@@ -169,24 +172,24 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
 #define maxEvents 10
 
 static void *taosProcessTcpData(void *param) {
-  SThreadObj     *pThread = (SThreadObj *) param;
-  SPoolObj       *pPool = pThread->pPool;
-  SPoolInfo      *pInfo = &pPool->info;
-  SConnObj       *pConn = NULL;
+  SThreadObj *pThread = (SThreadObj *)param;
+  SPoolObj *  pPool = pThread->pPool;
+  SPoolInfo * pInfo = &pPool->info;
+  SConnObj *  pConn = NULL;
   struct epoll_event events[maxEvents];
 
   void *buffer = malloc(pInfo->bufferSize);
   taosBlockSIGPIPE();
 
   while (1) {
-    if (pThread->stop) break; 
+    if (pThread->stop) break;
     int fdNum = epoll_wait(pThread->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThread->stop) {
       uDebug("%p TCP epoll thread is exiting...", pThread);
       break;
     }
 
-    if (fdNum < 0) { 
+    if (fdNum < 0) {
       uError("epoll_wait failed (%s)", strerror(errno));
       continue;
     }
@@ -215,27 +218,31 @@ static void *taosProcessTcpData(void *param) {
           taosFreeTcpConn(pConn);
           continue;
         }
-      } 
+      }
+
     }
+
+    if (pThread->stop) break;
   }
+
+  uDebug("%p TCP epoll thread exits", pThread);
 
   close(pThread->pollFd);
   free(pThread);
   free(buffer);
-  uDebug("%p TCP epoll thread exits", pThread);
-  return NULL;  
+  return NULL;
 }
 
 static void *taosAcceptPeerTcpConnection(void *argv) {
-  SPoolObj   *pPool = (SPoolObj *)argv;
-  SPoolInfo  *pInfo = &pPool->info;
+  SPoolObj * pPool = (SPoolObj *)argv;
+  SPoolInfo *pInfo = &pPool->info;
 
   taosBlockSIGPIPE();
 
   while (1) {
     struct sockaddr_in clientAddr;
     socklen_t addrlen = sizeof(clientAddr);
-    int connFd = accept(pPool->acceptFd, (struct sockaddr *) &clientAddr, &addrlen);
+    int connFd = accept(pPool->acceptFd, (struct sockaddr *)&clientAddr, &addrlen);
     if (connFd < 0) {
       if (errno == EINVAL) {
         uDebug("%p TCP server accept is exiting...", pPool);
@@ -246,7 +253,7 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
       }
     }
 
-    //uDebug("TCP connection from: 0x%x:%d", clientAddr.sin_addr.s_addr, clientAddr.sin_port); 
+    // uDebug("TCP connection from: 0x%x:%d", clientAddr.sin_addr.s_addr, clientAddr.sin_port);
     taosKeepTcpAlive(connFd);
     (*pInfo->processIncomingConn)(connFd, clientAddr.sin_addr.s_addr);
   }
@@ -260,7 +267,7 @@ static SThreadObj *taosGetTcpThread(SPoolObj *pPool) {
 
   if (pThread) return pThread;
 
-  pThread = (SThreadObj *) calloc(1, sizeof(SThreadObj));
+  pThread = (SThreadObj *)calloc(1, sizeof(SThreadObj));
   if (pThread == NULL) return NULL;
 
   pThread->pPool = pPool;
@@ -273,7 +280,7 @@ static SThreadObj *taosGetTcpThread(SPoolObj *pPool) {
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  int ret = pthread_create(&(pThread->thread), &thattr, (void *) taosProcessTcpData, pThread);
+  int ret = pthread_create(&(pThread->thread), &thattr, (void *)taosProcessTcpData, pThread);
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
@@ -290,20 +297,20 @@ static SThreadObj *taosGetTcpThread(SPoolObj *pPool) {
   return pThread;
 }
 
-static void taosStopPoolThread(SThreadObj* pThread) {
+static void taosStopPoolThread(SThreadObj *pThread) {
   pThread->stop = true;
-  
+
   if (pThread->thread == pthread_self()) {
     pthread_detach(pthread_self());
     return;
   }
 
-  // save thread ID into a local variable, since pThread is freed when the thread exits 
+  // save thread ID into a local variable, since pThread is freed when the thread exits
   pthread_t thread = pThread->thread;
 
   // signal the thread to stop, try graceful method first,
   // and use pthread_cancel when failed
-  struct epoll_event event = { .events = EPOLLIN };
+  struct epoll_event event = {.events = EPOLLIN};
   eventfd_t fd = eventfd(1, 0);
   if (fd == -1) {
     // failed to create eventfd, call pthread_cancel instead, which may result in data corruption
@@ -317,6 +324,5 @@ static void taosStopPoolThread(SThreadObj* pThread) {
   }
 
   pthread_join(thread, NULL);
-  taosClose(fd);
+  if (fd >= 0) taosClose(fd);
 }
-
