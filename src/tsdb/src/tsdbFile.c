@@ -96,6 +96,9 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   dir = opendir(tDataDir);
   if (dir == NULL) {
     if (errno == ENOENT) {
+      tsdbError("vgId:%d directory %s not exist", REPO_ID(pRepo), tDataDir);
+      terrno = TAOS_SYSTEM_ERROR(errno);
+
       if (taosMkDir(tDataDir, 0755) < 0) {
         tsdbError("vgId:%d failed to create directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
