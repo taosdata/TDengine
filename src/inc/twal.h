@@ -22,22 +22,22 @@ extern "C" {
 #define TAOS_WAL_NOLOG   0
 #define TAOS_WAL_WRITE   1
 #define TAOS_WAL_FSYNC   2
- 
+
 typedef struct {
-  int8_t    msgType;
-  int8_t    reserved[3];
-  int32_t   len;
-  uint64_t  version;
-  uint32_t  signature;
-  uint32_t  cksum;
-  char      cont[];
+  int8_t   msgType;
+  int8_t   reserved[3];
+  int32_t  len;
+  uint64_t version;
+  uint32_t signature;
+  uint32_t cksum;
+  char     cont[];
 } SWalHead;
 
 typedef struct {
-  int8_t    walLevel;  // wal level
-  int32_t   fsyncPeriod; // millisecond
-  int8_t    wals;      // number of WAL files;
-  int8_t    keep;      // keep the wal file when closed
+  int8_t  walLevel;     // wal level
+  int32_t fsyncPeriod;  // millisecond
+  int8_t  wals;         // number of WAL files;
+  int8_t  keep;         // keep the wal file when closed
 } SWalCfg;
 
 typedef void* twalh;  // WAL HANDLE
@@ -52,9 +52,6 @@ void    walFsync(twalh);
 int     walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int     walGetWalFile(twalh, char *name, uint32_t *index);
 int64_t walGetVersion(twalh);
-
-extern int wDebugFlag;
-
 
 #ifdef __cplusplus
 }
