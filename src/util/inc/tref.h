@@ -47,14 +47,15 @@ int  taosListRef();
 
 void demoIterateRefs(int refId) {
 
-  void *p = taosGetRefNext(refId, NULL);
+  void *p = taosIterateRef(refId, NULL);
   while (p) {
 
     // process P
 
-    p = taosGetRefNext(refId, p);
+    p = taosIterateRef(refId, p);
   }
 }
+
 */
 
 #ifdef __cplusplus
