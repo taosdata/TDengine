@@ -232,12 +232,16 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
-  SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
-  if (pHBRsp == NULL) {
+  SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
+  if (pRsp == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
   SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
+  if (taosCheckVersion(pHBMsg->clientVer, version, 3) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_TSC_INVALID_VERSION;  // todo change the error code
+  }
+
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
     
@@ -251,33 +255,33 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   if (pConn == NULL) {
     // do not close existing links, otherwise
     // mError("failed to create connId, close connect");
-    // pHBRsp->killConnection = 1;
+    // pRsp->killConnection = 1;
   } else {
-    pHBRsp->connId = htonl(pConn->connId);
+    pRsp->connId = htonl(pConn->connId);
     mnodeSaveQueryStreamList(pConn, pHBMsg);
     
     if (pConn->killed != 0) {
-      pHBRsp->killConnection = 1;
+      pRsp->killConnection = 1;
     }
 
     if (pConn->streamId != 0) {
-      pHBRsp->streamId = htonl(pConn->streamId);
+      pRsp->streamId = htonl(pConn->streamId);
       pConn->streamId = 0;
     }
 
     if (pConn->queryId != 0) {
-      pHBRsp->queryId = htonl(pConn->queryId);
+      pRsp->queryId = htonl(pConn->queryId);
       pConn->queryId = 0;
     }
   }
 
-  pHBRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
-  pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
-  mnodeGetMnodeEpSetForShell(&pHBRsp->epSet);
+  pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
+  pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
+  mnodeGetMnodeEpSetForShell(&pRsp->epSet);
 
-  pMsg->rpcRsp.rsp = pHBRsp;
+  pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = sizeof(SCMHeartBeatRsp);
-  
+
   mnodeReleaseConn(pConn);
   return TSDB_CODE_SUCCESS;
 }

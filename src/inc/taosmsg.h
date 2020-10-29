@@ -785,6 +785,7 @@ typedef struct {
 } SStreamDesc;
 
 typedef struct {
+  char     clientVer[TSDB_VERSION_LEN];
   uint32_t connId;
   int32_t  pid;
   int32_t  numOfQueries;
