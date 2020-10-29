@@ -28,9 +28,9 @@ extern "C" {
 #define SKIP_LIST_RECORD_PERFORMANCE 0
 
 // For key property setting
-#define SL_ALLOW_DUP_KEY (uint8_t)0x0    // Allow duplicate key exists
-#define SL_DISCARD_DUP_KEY (uint8_t)0x1  // Discard duplicate key
-#define SL_UPDATE_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert
+#define SL_ALLOW_DUP_KEY (uint8_t)0x0    // Allow duplicate key exists (for tag index usage)
+#define SL_DISCARD_DUP_KEY (uint8_t)0x1  // Discard duplicate key (for data update=0 case)
+#define SL_UPDATE_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert (for data update=1 case)
 // For thread safety setting
 #define SL_THREAD_SAFE (uint8_t)0x4
 

@@ -1507,6 +1507,8 @@ static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter,
       if (pDataCols->numOfRows + pCompBlock->numOfRows < pCfg->minRowsPerFileBlock &&
           pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && !TSDB_NLAST_FILE_OPENED(pHelper)) {
         if (tsdbWriteBlockToFile(pHelper, helperLastF(pHelper), pDataCols, &compBlock, true, false) < 0) return -1;
+        pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, pCompBlock->keyFirst);
+        pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, pCompBlock->keyLast);
         if (tsdbAddSubBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1, pMergeInfo) < 0) return -1;
       } else {
         if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
@@ -1553,6 +1555,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
   SDataCols * pDataCols0 = pHelper->pDataCols[0];
   SMergeInfo  mergeInfo = {0};
   SMergeInfo *pMergeInfo = &mergeInfo;
+  SCompBlock  oBlock = {0};
 
   SSkipListIterator slIter = {0};
 
@@ -1562,14 +1565,14 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
                                        pIdx->numOfBlocks - *blkIdx, sizeof(SCompBlock), compareKeyBlock, TD_GE);
   ASSERT(pCompBlock != NULL);
   int tblkIdx = (int32_t)(TSDB_GET_COMPBLOCK_IDX(pHelper, pCompBlock));
+  oBlock = *pCompBlock;
 
-  ASSERT((!TSDB_IS_LAST_BLOCK(pCompBlock)) || (tblkIdx == pIdx->numOfBlocks - 1));
+  ASSERT((!TSDB_IS_LAST_BLOCK(&oBlock)) || (tblkIdx == pIdx->numOfBlocks - 1));
 
-  if ((!TSDB_IS_LAST_BLOCK(pCompBlock)) && keyFirst < pCompBlock->keyFirst) {
-    // Loop to write data until pCompBlock->keyFirst-1
+  if ((!TSDB_IS_LAST_BLOCK(&oBlock)) && keyFirst < pCompBlock->keyFirst) {
     while (true) {
       tdResetDataCols(pDataCols);
-      tsdbLoadDataFromCache(pTable, pCommitIter->pIter, pCompBlock->keyLast - 1, defaultRowsInBlock, pDataCols, NULL, 0,
+      tsdbLoadDataFromCache(pTable, pCommitIter->pIter, oBlock.keyFirst, defaultRowsInBlock, pDataCols, NULL, 0,
                             pCfg->update, pMergeInfo);
       ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);
       if (pDataCols->numOfRows == 0) break;
@@ -1582,7 +1585,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
                             tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
   } else {
     int16_t colId = 0;
-    if (tsdbLoadBlockDataCols(pHelper, pCompBlock, NULL, &colId, 1) < 0) return -1;
+    if (tsdbLoadBlockDataCols(pHelper, &oBlock, NULL, &colId, 1) < 0) return -1;
 
     TSKEY keyLimit = (tblkIdx == pIdx->numOfBlocks - 1) ? maxKey : (blockAtIdx(pHelper, tblkIdx + 1)->keyFirst - 1);
 
@@ -1595,19 +1598,19 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
       ASSERT(pMergeInfo->rowsDeleteFailed >= 0);
       *(pCommitIter->pIter) = slIter;
       tblkIdx++;
-    } else if (pCompBlock->numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed == 0) {
+    } else if (oBlock.numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed == 0) {
       // Delete the block and do some stuff
       ASSERT(pMergeInfo->keyFirst == INT64_MAX && pMergeInfo->keyFirst == INT64_MIN);
       if (tsdbDeleteSuperBlock(pHelper, tblkIdx) < 0) return -1;
       *pCommitIter->pIter = slIter;
-      if (pCompBlock->last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
-    } else if (tsdbCheckAddSubBlockCond(pHelper, pCompBlock, pMergeInfo, pDataCols->maxPoints)) {
+      if (oBlock.last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
+    } else if (tsdbCheckAddSubBlockCond(pHelper, &oBlock, pMergeInfo, pDataCols->maxPoints)) {
       // Append as a sub-block of the searched block
       tsdbLoadDataFromCache(pTable, pCommitIter->pIter, keyLimit, INT_MAX, pDataCols, pDataCols0->cols[0].pData,
                             pDataCols0->numOfRows, pCfg->update, pMergeInfo);
       ASSERT(memcmp(pCommitIter->pIter, &slIter, sizeof(slIter)) == 0);
-      if (tsdbWriteBlockToFile(pHelper, pCompBlock->last ? helperLastF(pHelper) : helperDataF(pHelper), pDataCols,
-                               &compBlock, pCompBlock->last, false) < 0) {
+      if (tsdbWriteBlockToFile(pHelper, oBlock.last ? helperLastF(pHelper) : helperDataF(pHelper), pDataCols,
+                               &compBlock, oBlock.last, false) < 0) {
         return -1;
       }
       if (tsdbAddSubBlock(pHelper, &compBlock, tblkIdx, pMergeInfo) < 0) {
@@ -1616,7 +1619,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
       tblkIdx++;
     } else {
       // load the block data, merge with the memory data
-      if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
+      if (tsdbLoadBlockData(pHelper, &oBlock, NULL) < 0) return -1;
       int round = 0;
       int dIter = 0;
       while (true) {
@@ -1631,7 +1634,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
         }
 
         if (round == 0) {
-          if (pCompBlock->last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
+          if (oBlock.last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
           if (tsdbUpdateSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
         } else {
           if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;

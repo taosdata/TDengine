@@ -105,8 +105,14 @@ int tsdbUpdateRowInMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   if (tSkipListPut(pTableData->pData, pRow) == NULL) {
     tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
   } else {
-    // TODO: may need to refact here
     int64_t deltaSize = SL_SIZE(pTableData->pData) - oldSize;
+    if (isRowDelete) {
+      if (TABLE_LASTKEY(pTable) == key) {
+        // TODO: need to update table last key here (may from file)
+      }
+    } else {
+      if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
+    }
     if ((!isRowDelete) && (TABLE_LASTKEY(pTable) < key)) TABLE_LASTKEY(pTable) = key;
 
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
@@ -301,7 +307,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
  * 3. rowsIncreased = rowsInserted - rowsDeleteSucceed >= maxRowsToRead
  * 4. operations in pCols not exceeds its max capacity if pCols is given
  * 
- * The function try to move as mush as possible.
+ * The function tries to procceed AS MUSH AS POSSIBLE.
  */
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
@@ -321,12 +327,13 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   row = tsdbNextIterRow(pIter);
   if (row == NULL || dataRowKey(row) > maxKey) {
     rowKey = INT64_MAX;
+    isRowDel = false;
   } else {
     rowKey = dataRowKey(row);
     isRowDel = dataRowDeleted(row);
   }
 
-  if (nFilterKeys == 0 || filterIter >= nFilterKeys) {
+  if (filterIter >= nFilterKeys) {
     fKey = INT64_MAX;
   } else {
     fKey = tdGetKey(filterKeys[filterIter]);
@@ -362,6 +369,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
       row = tsdbNextIterRow(pIter);
       if (row == NULL || dataRowKey(row) > maxKey) {
         rowKey = INT64_MAX;
+        isRowDel = false;
       } else {
         rowKey = dataRowKey(row);
         isRowDel = dataRowDeleted(row);
@@ -391,6 +399,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
       row = tsdbNextIterRow(pIter);
       if (row == NULL || dataRowKey(row) > maxKey) {
         rowKey = INT64_MAX;
+        isRowDel = false;
       } else {
         rowKey = dataRowKey(row);
         isRowDel = dataRowDeleted(row);

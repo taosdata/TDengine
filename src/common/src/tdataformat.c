@@ -205,7 +205,7 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
   pDataCol->offset = colOffset(pCol) + TD_DATA_ROW_HEAD_SIZE;
 
   pDataCol->len = 0;
-  if (pDataCol->type == TSDB_DATA_TYPE_BINARY || pDataCol->type == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_VAR_DATA_TYPE(pDataCol->type)) {
     pDataCol->dataOff = (VarDataOffsetT *)(*pBuf);
     pDataCol->pData = POINTER_SHIFT(*pBuf, sizeof(VarDataOffsetT) * maxPoints);
     pDataCol->spaceSize = pDataCol->bytes * maxPoints;
@@ -218,60 +218,29 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
   }
 }
 
+// value from timestamp should be TKEY here instead of TSKEY
 void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL && value != NULL);
 
-  switch (pCol->type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      // set offset
-      pCol->dataOff[numOfRows] = pCol->len;
-      // Copy data
-      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
-      // Update the length
-      pCol->len += varDataTLen(value);
-      break;
-    default:
-      ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
-      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
-      pCol->len += pCol->bytes;
-      break;
-  }
-}
-
-void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfRows) {
-  int pointsLeft = numOfRows - pointsToPop;
-
-  ASSERT(pointsLeft > 0);
-
-  if (pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR) {
-    ASSERT(pCol->len > 0);
-    VarDataOffsetT toffset = pCol->dataOff[pointsToPop];
-    pCol->len = pCol->len - toffset;
-    ASSERT(pCol->len > 0);
-    memmove(pCol->pData, POINTER_SHIFT(pCol->pData, toffset), pCol->len);
-    dataColSetOffset(pCol, pointsLeft);
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    // set offset
+    pCol->dataOff[numOfRows] = pCol->len;
+    // Copy data
+    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
+    // Update the length
+    pCol->len += varDataTLen(value);
   } else {
     ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
-    pCol->len = TYPE_BYTES[pCol->type] * pointsLeft;
-    memmove(pCol->pData, POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * pointsToPop), pCol->len);
+    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
+    pCol->len += pCol->bytes;
   }
 }
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
-  switch (pCol->type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      for (int i = 0; i < nEle; i++) {
-        if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
-      }
-      return true;
-    default:
-      for (int i = 0; i < nEle; i++) {
-        if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
-      }
-      return true;
+  for (int i = 0; i < nEle; i++) {
+    if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
   }
+  return true;
 }
 
 void dataColSetNullAt(SDataCol *pCol, int index) {
@@ -393,7 +362,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     pRet->cols[i].spaceSize = pDataCols->cols[i].spaceSize;
     pRet->cols[i].pData = (void *)((char *)pRet->buf + ((char *)(pDataCols->cols[i].pData) - (char *)(pDataCols->buf)));
 
-    if (pRet->cols[i].type == TSDB_DATA_TYPE_BINARY || pRet->cols[i].type == TSDB_DATA_TYPE_NCHAR) {
+    if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
       ASSERT(pDataCols->cols[i].dataOff != NULL);
       pRet->cols[i].dataOff =
           (int32_t *)((char *)pRet->buf + ((char *)(pDataCols->cols[i].dataOff) - (char *)(pDataCols->buf)));
@@ -403,7 +372,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
       pRet->cols[i].len = pDataCols->cols[i].len;
       if (pDataCols->cols[i].len > 0) {
         memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
-        if (pRet->cols[i].type == TSDB_DATA_TYPE_BINARY || pRet->cols[i].type == TSDB_DATA_TYPE_NCHAR) {
+        if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
           memcpy(pRet->cols[i].dataOff, pDataCols->cols[i].dataOff, sizeof(VarDataOffsetT) * pDataCols->maxPoints);
         }
       }
@@ -461,21 +430,6 @@ void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols)
     }
   }
   pCols->numOfRows++;
-}
-
-// Pop pointsToPop points from the SDataCols
-void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
-  int pointsLeft = pCols->numOfRows - pointsToPop;
-  if (pointsLeft <= 0) {
-    tdResetDataCols(pCols);
-    return;
-  }
-
-  for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
-    SDataCol *pCol = pCols->cols + iCol;
-    dataColPopPoints(pCol, pointsToPop, pCols->numOfRows);
-  }
-  pCols->numOfRows = pointsLeft;
 }
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
@@ -549,9 +503,9 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
                              target->maxPoints);
           }
         }
+        target->numOfRows++;
       }
 
-      target->numOfRows++;
       (*iter2)++;
       if (key1 == key2) (*iter1)++;
     }

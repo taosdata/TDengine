@@ -193,7 +193,7 @@ static FORCE_INLINE int tdAppendColVal(SDataRow row, void *value, int8_t type, i
     if (offset == 0) {
       ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
       TKEY tvalue = tdGetTKEY(*(TSKEY *)value);
-      memcpy(POINTER_SHIFT(row, toffset), &tvalue, TYPE_BYTES[type]);
+      memcpy(POINTER_SHIFT(row, toffset), (void *)(&tvalue), TYPE_BYTES[type]);
     } else {
       memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
     }
@@ -227,7 +227,6 @@ static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
 void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints);
-void dataColPopPoints(SDataCol *pCol, int pointsToPop, int numOfRows);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
@@ -235,28 +234,20 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
-  switch (pCol->type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
-      break;
-
-    default:
-      return POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
-      break;
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
+  } else {
+    return POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
   }
 }
 
 static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
   ASSERT(rows > 0);
 
-  switch (pDataCol->type) {
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      return pDataCol->dataOff[rows - 1] + varDataTLen(tdGetColDataOfRow(pDataCol, rows - 1));
-      break;
-    default:
-      return TYPE_BYTES[pDataCol->type] * rows;
+  if (IS_VAR_DATA_TYPE(pDataCol->type)) {
+    return pDataCol->dataOff[rows - 1] + varDataTLen(tdGetColDataOfRow(pDataCol, rows - 1));
+  } else {
+    return TYPE_BYTES[pDataCol->type] * rows;
   }
 }
 
@@ -277,11 +268,11 @@ typedef struct {
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyAt(pCols, idx) tdGetKey(dataColsTKeyAt(pCols, idx))
 #define dataColsTKeyFirst(pCols) ((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, 0)
-#define dataColsKeyFirst(pCols) ((pCols)->numOfRows == 0) ? TSDB_DATA_BIGINT_NULL : dataColsKeyAt(pCols, 0)
+#define dataColsKeyFirst(pCols) ((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, 0)
 #define dataColsTKeyLast(pCols) \
   (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, (pCols)->numOfRows - 1))
 #define dataColsKeyLast(pCols) \
-  (((pCols)->numOfRows == 0) ? TSDB_DATA_BIGINT_NULL : dataColsKeyAt(pCols, (pCols)->numOfRows - 1))
+  (((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, (pCols)->numOfRows - 1))
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
@@ -289,7 +280,6 @@ int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
-void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);  //!!!!
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 
 // ----------------- K-V data row structure
