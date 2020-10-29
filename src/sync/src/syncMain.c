@@ -137,6 +137,7 @@ void syncCleanUp() {
   }
 
   taosCloseRef(tsSyncRefId);
+  tsSyncRefId = -1;
 
   sInfo("sync module is cleaned up");
 }
@@ -1205,6 +1206,8 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
 
     pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
   }
+
+  taosReleaseRef(tsSyncRefId, pNode);
 }
 
 static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int qtype) {
