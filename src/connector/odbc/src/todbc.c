@@ -288,22 +288,22 @@ static iconv_t sql_get_w2c(sql_t *sql) {
 // static const char* tsdb_conn_conv_server_to_client(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
 // static const char* tsdb_conn_conv_wchars_to_server(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
 // static const char* tsdb_conn_conv_server_to_wchars(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
-//
+// 
 // static iconv_t sql_get_u2c(sql_t *sql) {
-  if (sql->u2c == (iconv_t)-1) {
-    sql->u2c = iconv_open("UTF-8", "UCS-4LE");
-  }
-
-  return sql->u2c;
-}
-
-static iconv_t sql_get_u2w(sql_t *sql) {
-  if (sql->u2w == (iconv_t)-1) {
-    sql->u2w = iconv_open("UCS-2LE", "UCS-4LE");
-  }
-
-  return sql->u2w;
-}
+//   if (sql->u2c == (iconv_t)-1) {
+//     sql->u2c = iconv_open("UTF-8", "UCS-4LE");
+//   }
+// 
+//   return sql->u2c;
+// }
+// 
+// static iconv_t sql_get_u2w(sql_t *sql) {
+//   if (sql->u2w == (iconv_t)-1) {
+//     sql->u2w = iconv_open("UCS-2LE", "UCS-4LE");
+//   }
+// 
+//   return sql->u2w;
+// }
 
 static SQLRETURN doSQLAllocEnv(SQLHENV *EnvironmentHandle)
 {
@@ -2165,7 +2165,7 @@ static SQLRETURN doSQLDriverConnect(
     return SQL_ERROR;
   }
 
-  NORM_STR_LENGTH(conn, szConnStrIn, cbConnStrIn)
+  NORM_STR_LENGTH(conn, szConnStrIn, cbConnStrIn);
 
   // DSN=<dsn>; UID=<uid>; PWD=<pwd>
 
