@@ -427,8 +427,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       } else {
         assert(code == TSDB_CODE_SUCCESS);      
       }
-     
-      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pSql->param != NULL);
+      // param already freed by other routine and pSql in tscCache when ctrl + c 
+      if (atomic_load_ptr(&pSql->param) == NULL) {
+        return;
+      }
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0));
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
       SSqlObj *         pParObj = trs->pParentSql;
