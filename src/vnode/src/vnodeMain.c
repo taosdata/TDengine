@@ -291,11 +291,15 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   if (pVnode->tsdb == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
-  } else if (terrno != TSDB_CODE_SUCCESS && pVnode->syncCfg.replica <= 1) {
+  } else if (terrno != TSDB_CODE_SUCCESS) {
     vError("vgId:%d, failed to open tsdb, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
-    vnodeCleanUp(pVnode);
-    return terrno;
+    if (pVnode->syncCfg.replica <= 1) {
+      vnodeCleanUp(pVnode);
+      return terrno;
+    } else {
+      pVnode->version = 0;
+    }
   }
 
   sprintf(temp, "%s/wal", rootDir);
