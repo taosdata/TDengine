@@ -5168,7 +5168,7 @@ static void doSaveContext(SQInfo *pQInfo) {
   SWITCH_ORDER(pQuery->order.order);
 
   if (pRuntimeEnv->pTSBuf != NULL) {
-    pRuntimeEnv->pTSBuf->cur.order = pQuery->order.order;
+    SWITCH_ORDER(pRuntimeEnv->pTSBuf->cur.order);
   }
 
   STsdbQueryCond cond = {

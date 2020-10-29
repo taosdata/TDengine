@@ -5281,11 +5281,14 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
 
   if (pParentQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, subClauseIndex);
-    size_t size = taosArrayGetSize(pQueryInfo->exprList);
-  
-    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, (int32_t)size - 1);
+    SSqlExpr* pExpr = NULL;
 
-    if (pExpr->functionId != TSDB_FUNC_TAG) {
+    size_t size = taosArrayGetSize(pQueryInfo->exprList);
+    if (size > 0) {
+      pExpr = tscSqlExprGet(pQueryInfo, (int32_t)size - 1);
+    }
+
+    if (pExpr == NULL || pExpr->functionId != TSDB_FUNC_TAG) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pParentQueryInfo, tableIndex);
 
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
