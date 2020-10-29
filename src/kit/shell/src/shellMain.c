@@ -80,7 +80,10 @@ int main(int argc, char* argv[]) {
   shellParseArgument(argc, argv, &args);
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    taosNetTest(args.host, (uint16_t)args.port, (uint16_t)args.endPort, args.pktLen, args.netTestRole);
+    taos_init();
+    CmdArguments cmdArgs;
+    memcpy(&cmdArgs, &args, sizeof(SShellArguments));
+    taosNetTest(&cmdArgs);
     exit(0);
   }
 
