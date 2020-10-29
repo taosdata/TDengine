@@ -2728,7 +2728,6 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
 int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd* pCmd) {
   const char* msg1 = "too many columns in group by clause";
   const char* msg2 = "invalid column name in group by clause";
-//  const char* msg3 = "group by columns must belong to one table";
   const char* msg7 = "not support group by expression";
   const char* msg8 = "not allowed column type for group by";
   const char* msg9 = "tags not allowed for table query";
@@ -2803,7 +2802,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
       tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
-      if (pSchema->type > TSDB_DATA_TYPE_BINARY) {
+      if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
       }
 
