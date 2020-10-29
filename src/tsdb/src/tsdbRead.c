@@ -1271,7 +1271,6 @@ static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STabl
   int32_t end = endPos;
 
   if (!ASCENDING_TRAVERSE(pQueryHandle->order)) {
-    assert(start >= end);
     SWAP(start, end, int32_t);
   }
 
