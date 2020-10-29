@@ -77,7 +77,7 @@ SSchema *tscGetTableColumnSchema(const STableMeta *pMeta, int32_t colIndex);
  * @param colId
  * @return
  */
-SSchema* tscGetTableColumnSchemaById(STableMeta* pTableMeta, int16_t colId);
+SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId);
 
 /**
  * check if the schema is valid or not, including following aspects:
