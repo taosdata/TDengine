@@ -138,14 +138,33 @@ pipeline {
             sh'''
             cd ${WORKSPACE}
             git checkout develop
-            cd tests/gotest
-            bash batchtest.sh
-            cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-            mvn clean package assembly:single >/dev/null 
-            java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
-            cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
-            python3 PythonChecker.py
             '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WORKSPACE}/tests/gotest
+                bash batchtest.sh
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                python3 PythonChecker.py
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                mvn clean package assembly:single >/dev/null 
+                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
+                dotnet run
+                '''
+            }
+          
          }
        }
 
