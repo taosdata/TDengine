@@ -567,7 +567,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
     int32_t totalTables = 0;
     for (int32_t i = 0; i < numOfGroups; ++i) {
       SVgroupTableInfo *pTableInfo = taosArrayGet(pTableMetaInfo->pVgroupTables, i);
-      totalTables += taosArrayGetSize(pTableInfo->itemList);
+      totalTables += (int32_t) taosArrayGetSize(pTableInfo->itemList);
     }
 
     tableSerialize = totalTables * sizeof(STableIdInfo);
