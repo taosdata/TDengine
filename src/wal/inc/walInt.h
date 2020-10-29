@@ -32,7 +32,27 @@ extern int32_t wDebugFlag;
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
 
 #define walPrefix "wal"
+#define walRefreshIntervalMs 1000
 #define walSignature (uint32_t)(0xFAFBFDFE)
+
+typedef struct {
+  uint64_t version;
+  int32_t  vgId;
+  int32_t  fd;
+  int32_t  keep;
+  int32_t  level;
+  int32_t  fsyncPeriod;
+  int32_t  fsyncSeq;
+  int32_t  fileIndex;
+  void*    timer;
+  void*    signature;
+  int      max;  // maximum number of wal files
+  uint32_t id;   // increase continuously
+  int      num;  // number of wal files
+  char     path[TSDB_FILENAME_LEN];
+  char     name[TSDB_FILENAME_LEN + 16];
+  pthread_mutex_t mutex;
+} SWal;
 
 #ifdef __cplusplus
 }
