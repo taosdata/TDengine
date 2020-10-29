@@ -404,7 +404,7 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
   if (ref == 0) {
     tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
-    tscCloseTscObj(pTscObj);
+    taosRemoveRef(tscRefId, pTscObj);
   }
 }
 
@@ -786,8 +786,8 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 }
 
 // TODO: all subqueries should be freed correctly before close this connection.
-void tscCloseTscObj(STscObj* pObj) {
-  assert(pObj != NULL);
+void tscCloseTscObj(void *param) {
+  STscObj *pObj = param;
 
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));

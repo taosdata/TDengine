@@ -14,11 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
-
-#define TAOS_RANDOM_FILE_FAIL_TEST
-
 #include "os.h"
-#include "tlog.h"
+#include "twal.h"
+#include "walInt.h"
+#include "walMgmt.h"
 #include "tchecksum.h"
 #include "tutil.h"
 #include "ttimer.h"
@@ -26,14 +25,6 @@
 #include "twal.h"
 #include "tqueue.h"
 
-#define walPrefix "wal"
-
-#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", 255, __VA_ARGS__); }}
-#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", 255, __VA_ARGS__); }}
-#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN ", 255, __VA_ARGS__); }}
-#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL ", 255, __VA_ARGS__); }}
-#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
-#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
   uint64_t version;
@@ -54,7 +45,6 @@ typedef struct {
 static void    *walTmrCtrl = NULL;
 static int     tsWalNum = 0;
 static pthread_once_t walModuleInit = PTHREAD_ONCE_INIT;
-static uint32_t walSignature = 0xFAFBFDFE;
 static int  walHandleExistingFiles(const char *path);
 static int  walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp);
 static int  walRemoveWalFiles(const char *path);
@@ -250,11 +240,13 @@ int walWrite(void *handle, SWalHead *pHead) {
   if (taosTWrite(pWal->fd, pHead, contLen) != contLen) {
     wError("wal:%s, failed to write(%s)", pWal->name, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
   } else {
     pWal->version = pHead->version;
   }
+  ASSERT(contLen == pHead->len + sizeof(SWalHead));
 
-  return terrno;
+  return 0;
 }
 
 void walFsync(void *handle) {
@@ -424,7 +416,7 @@ static int walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp) {
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wWarn("wal:%s, cksum is messed up, skip the rest of file", name);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      // ASSERT(false);
+      ASSERT(false);
       break;
     }
 
