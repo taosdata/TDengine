@@ -2121,7 +2121,16 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
       }
     }
 
-    // clear current group
+    // clear current group, unref unused table
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
+
+      // keyInfo.pTable may be NULL here.
+      if (pKeyInfo->pTable != keyInfo.pTable) {
+        tsdbUnRefTable(pKeyInfo->pTable);
+      }
+    }
+
     taosArrayClear(pGroup);
 
     // more than one table in each group, only one table left for each group
