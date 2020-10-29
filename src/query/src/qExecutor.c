@@ -1854,8 +1854,11 @@ static bool needReverseScan(SQuery *pQuery) {
     }
 
     if (functionId == TSDB_FUNC_LAST || functionId == TSDB_FUNC_LAST_DST) {
+      // the scan order to acquire the last result of the specified column
       int32_t order = (int32_t)pQuery->pSelectExpr[i].base.arg->argValue.i64;
-      return order != pQuery->order.order;
+      if (order != pQuery->order.order) {
+        return true;
+      }
     }
   }
 
