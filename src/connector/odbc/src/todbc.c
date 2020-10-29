@@ -129,6 +129,15 @@ do {                                                          \
   r_091c = SQL_SUCCESS;                                       \
 } while (0)
 
+#define NORM_STR_LENGTH(obj, ptr, len)                                               \
+do {                                                                                 \
+  if ((len) < 0 && (len)!=SQL_NTS) {                                                 \
+    SET_ERROR((obj), "HY090", TSDB_CODE_ODBC_BAD_ARG, "");                           \
+    return SQL_ERROR;                                                                \
+  }                                                                                  \
+  if (len==SQL_NTS) len = (ptr) ? (SQLSMALLINT)strlen((const char*)(ptr)) : 0;       \
+} while (0)
+
 #define PROFILING 0
 
 #define PROFILE(statement)                            \
@@ -277,22 +286,24 @@ static iconv_t sql_get_w2c(sql_t *sql) {
 //
 // static const char* tsdb_conn_conv_client_to_server(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
 // static const char* tsdb_conn_conv_server_to_client(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
-
+// static const char* tsdb_conn_conv_wchars_to_server(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
+// static const char* tsdb_conn_conv_server_to_wchars(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
+//
 // static iconv_t sql_get_u2c(sql_t *sql) {
-//   if (sql->u2c == (iconv_t)-1) {
-//     sql->u2c = iconv_open("UTF-8", "UCS-4LE");
-//   }
-//
-//   return sql->u2c;
-// }
-//
-// static iconv_t sql_get_u2w(sql_t *sql) {
-//   if (sql->u2w == (iconv_t)-1) {
-//     sql->u2w = iconv_open("UCS-2LE", "UCS-4LE");
-//   }
-//
-//   return sql->u2w;
-// }
+  if (sql->u2c == (iconv_t)-1) {
+    sql->u2c = iconv_open("UTF-8", "UCS-4LE");
+  }
+
+  return sql->u2c;
+}
+
+static iconv_t sql_get_u2w(sql_t *sql) {
+  if (sql->u2w == (iconv_t)-1) {
+    sql->u2w = iconv_open("UCS-2LE", "UCS-4LE");
+  }
+
+  return sql->u2w;
+}
 
 static SQLRETURN doSQLAllocEnv(SQLHENV *EnvironmentHandle)
 {
@@ -431,21 +442,9 @@ static SQLRETURN doSQLConnect(SQLHDBC ConnectionHandle,
     return SQL_ERROR;
   }
 
-  if (NameLength1 < 0 && NameLength1!=SQL_NTS) {
-    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
-    return SQL_ERROR;
-  }
-  if (NameLength2 < 0 && NameLength2!=SQL_NTS) {
-    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
-    return SQL_ERROR;
-  }
-  if (NameLength3 < 0 && NameLength3!=SQL_NTS) {
-    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
-    return SQL_ERROR;
-  }
-  if (NameLength1==SQL_NTS) NameLength1 = ServerName ?     (SQLSMALLINT)strlen((const char*)ServerName)     : 0;
-  if (NameLength2==SQL_NTS) NameLength2 = UserName ?       (SQLSMALLINT)strlen((const char*)UserName)       : 0;
-  if (NameLength3==SQL_NTS) NameLength3 = Authentication ? (SQLSMALLINT)strlen((const char*)Authentication) : 0;
+  NORM_STR_LENGTH(conn, ServerName,     NameLength1);
+  NORM_STR_LENGTH(conn, UserName,       NameLength2);
+  NORM_STR_LENGTH(conn, Authentication, NameLength3);
 
   if (NameLength1>SQL_MAX_DSN_LENGTH) {
     SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
@@ -666,15 +665,7 @@ static SQLRETURN doSQLExecDirect(SQLHSTMT StatementHandle,
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
 
-  if (!StatementText) {
-    SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "StatementText [%p] not allowed", StatementText);
-    return SQL_ERROR;
-  }
-  if (TextLength < 0 && TextLength!=SQL_NTS) {
-    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
-    return SQL_ERROR;
-  }
-  if (TextLength==SQL_NTS) TextLength = StatementText ? (SQLSMALLINT)strlen((const char*)StatementText) : 0;
+  NORM_STR_LENGTH(sql, StatementText, TextLength);
 
   if (sql->rs) {
     taos_free_result(sql->rs);
@@ -1159,15 +1150,7 @@ static SQLRETURN doSQLPrepare(SQLHSTMT StatementHandle,
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
 
-  if (!StatementText) {
-    SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "StatementText [%p] not allowed", StatementText);
-    return SQL_ERROR;
-  }
-  if (TextLength < 0 && TextLength!=SQL_NTS) {
-    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
-    return SQL_ERROR;
-  }
-  if (TextLength==SQL_NTS) TextLength = StatementText ? (SQLSMALLINT)strlen((const char*)StatementText) : 0;
+  NORM_STR_LENGTH(sql, StatementText, TextLength);
 
   if (sql->rs) {
     taos_free_result(sql->rs);
@@ -2182,15 +2165,7 @@ static SQLRETURN doSQLDriverConnect(
     return SQL_ERROR;
   }
 
-  if (!szConnStrIn) {
-    SET_ERROR(conn, "HY009", TSDB_CODE_ODBC_BAD_ARG, "szConnStrIn [%p] not allowed", szConnStrIn);
-    return SQL_ERROR;
-  }
-  if (cbConnStrIn < 0 && cbConnStrIn!=SQL_NTS) {
-    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
-    return SQL_ERROR;
-  }
-  if (cbConnStrIn==SQL_NTS) cbConnStrIn = szConnStrIn ? (SQLSMALLINT)strlen((const char*)szConnStrIn) : 0;
+  NORM_STR_LENGTH(conn, szConnStrIn, cbConnStrIn)
 
   // DSN=<dsn>; UID=<uid>; PWD=<pwd>
 
