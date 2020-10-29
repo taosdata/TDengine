@@ -266,6 +266,18 @@ static iconv_t sql_get_w2c(sql_t *sql) {
   return sql->w2c;
 }
 
+// typedef struct stack_buffer_s           stack_buffer_t;
+// struct stack_buffer_s {
+//   char                  buf[1024*16];
+//   size_t                next;
+// };
+//
+// static char* stack_buffer_alloc(stack_buffer_t *buffer, size_t bytes);
+// static int   is_owned_by_stack_buffer(stack_buffer_t *buffer, const char *ptr);
+//
+// static const char* tsdb_conn_conv_client_to_server(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
+// static const char* tsdb_conn_conv_server_to_client(conn_t *conn, stack_buffer_t *buffer, const char *src, size_t len);
+
 // static iconv_t sql_get_u2c(sql_t *sql) {
 //   if (sql->u2c == (iconv_t)-1) {
 //     sql->u2c = iconv_open("UTF-8", "UCS-4LE");
@@ -287,7 +299,7 @@ static SQLRETURN doSQLAllocEnv(SQLHENV *EnvironmentHandle)
   pthread_once(&init_once, init_routine);
 
   env_t *env = (env_t*)calloc(1, sizeof(*env));
-  if (!env) return SQL_ERROR;
+  if (!env) return SQL_INVALID_HANDLE;
 
   DASSERT(INC_REF(env)>0);
 
@@ -307,7 +319,7 @@ SQLRETURN SQL_API SQLAllocEnv(SQLHENV *EnvironmentHandle)
 static SQLRETURN doSQLFreeEnv(SQLHENV EnvironmentHandle)
 {
   env_t *env = (env_t*)EnvironmentHandle;
-  if (!env) return SQL_ERROR;
+  if (!env) return SQL_INVALID_HANDLE;
 
   DASSERT(GET_REF(env)==1);
 
@@ -335,7 +347,12 @@ static SQLRETURN doSQLAllocConnect(SQLHENV EnvironmentHandle,
                                    SQLHDBC *ConnectionHandle)
 {
   env_t *env = (env_t*)EnvironmentHandle;
-  if (!env) return SQL_ERROR;
+  if (!env) return SQL_INVALID_HANDLE;
+
+  if (!ConnectionHandle) {
+    SET_ERROR(env, "HY009", TSDB_CODE_ODBC_BAD_ARG, "ConnectionHandle [%p] not valid", ConnectionHandle);
+    return SQL_ERROR;
+  }
 
   DASSERT(INC_REF(env)>1);
 
@@ -371,7 +388,7 @@ SQLRETURN SQL_API SQLAllocConnect(SQLHENV EnvironmentHandle,
 static SQLRETURN doSQLFreeConnect(SQLHDBC ConnectionHandle)
 {
   conn_t *conn = (conn_t*)ConnectionHandle;
-  if (!conn) return SQL_ERROR;
+  if (!conn) return SQL_INVALID_HANDLE;
 
   DASSERT(GET_REF(conn)==1);
 
@@ -414,14 +431,22 @@ static SQLRETURN doSQLConnect(SQLHDBC ConnectionHandle,
     return SQL_ERROR;
   }
 
-  NameLength1 = (NameLength1==SQL_NTS) ? (SQLSMALLINT)strlen((const char*)ServerName) : NameLength1;
-  NameLength2 = (NameLength2==SQL_NTS) ? (SQLSMALLINT)strlen((const char*)UserName) : NameLength2;
-  NameLength3 = (NameLength3==SQL_NTS) ? (SQLSMALLINT)strlen((const char*)Authentication) : NameLength3;
-
-  if (NameLength1 < 0 || NameLength2 < 0 || NameLength3 < 0) {
+  if (NameLength1 < 0 && NameLength1!=SQL_NTS) {
     SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
     return SQL_ERROR;
   }
+  if (NameLength2 < 0 && NameLength2!=SQL_NTS) {
+    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  if (NameLength3 < 0 && NameLength3!=SQL_NTS) {
+    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  if (NameLength1==SQL_NTS) NameLength1 = ServerName ?     (SQLSMALLINT)strlen((const char*)ServerName)     : 0;
+  if (NameLength2==SQL_NTS) NameLength2 = UserName ?       (SQLSMALLINT)strlen((const char*)UserName)       : 0;
+  if (NameLength3==SQL_NTS) NameLength3 = Authentication ? (SQLSMALLINT)strlen((const char*)Authentication) : 0;
+
   if (NameLength1>SQL_MAX_DSN_LENGTH) {
     SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
     return SQL_ERROR;
@@ -468,7 +493,7 @@ SQLRETURN SQL_API SQLConnect(SQLHDBC ConnectionHandle,
 static SQLRETURN doSQLDisconnect(SQLHDBC ConnectionHandle)
 {
   conn_t *conn = (conn_t*)ConnectionHandle;
-  if (!conn) return SQL_ERROR;
+  if (!conn) return SQL_INVALID_HANDLE;
 
   if (conn->taos) {
     taos_close(conn->taos);
@@ -486,10 +511,15 @@ SQLRETURN SQL_API SQLDisconnect(SQLHDBC ConnectionHandle)
 }
 
 static SQLRETURN doSQLAllocStmt(SQLHDBC ConnectionHandle,
-                              SQLHSTMT *StatementHandle)
+                                SQLHSTMT *StatementHandle)
 {
   conn_t *conn = (conn_t*)ConnectionHandle;
-  if (!conn) return SQL_ERROR;
+  if (!conn) return SQL_INVALID_HANDLE;
+
+  if (!StatementHandle) {
+    SET_ERROR(conn, "HY009", TSDB_CODE_ODBC_BAD_ARG, "StatementHandle [%p] not valid", StatementHandle);
+    return SQL_ERROR;
+  }
 
   DASSERT(INC_REF(conn)>1);
 
@@ -530,20 +560,17 @@ static SQLRETURN doSQLAllocHandle(SQLSMALLINT HandleType, SQLHANDLE InputHandle,
   switch (HandleType) {
     case SQL_HANDLE_ENV: {
       SQLHENV env = {0};
+      if (!OutputHandle) return SQL_ERROR;
       SQLRETURN r = doSQLAllocEnv(&env);
-      if (r==SQL_SUCCESS && OutputHandle) *OutputHandle = env;
+      if (r==SQL_SUCCESS) *OutputHandle = env;
       return r;
     } break;
     case SQL_HANDLE_DBC: {
-      SQLHDBC dbc = {0};
-      SQLRETURN r = doSQLAllocConnect(InputHandle, &dbc);
-      if (r==SQL_SUCCESS && OutputHandle) *OutputHandle = dbc;
+      SQLRETURN r = doSQLAllocConnect(InputHandle, OutputHandle);
       return r;
     } break;
     case SQL_HANDLE_STMT: {
-      SQLHSTMT stmt = {0};
-      SQLRETURN r = doSQLAllocStmt(InputHandle, &stmt);
-      if (r==SQL_SUCCESS && OutputHandle) *OutputHandle = stmt;
+      SQLRETURN r = doSQLAllocStmt(InputHandle, OutputHandle);
       return r;
     } break;
     default: {
@@ -563,12 +590,20 @@ static SQLRETURN doSQLFreeStmt(SQLHSTMT StatementHandle,
                               SQLUSMALLINT Option)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
-  if (Option == SQL_CLOSE) return SQL_SUCCESS;
-  if (Option != SQL_DROP) {
-    SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NOT_SUPPORT, "free statement with Option[%x] not supported yet", Option);
-    return SQL_ERROR;
+  switch (Option) {
+    case SQL_CLOSE: return SQL_SUCCESS;
+    case SQL_DROP:  break;
+    case SQL_UNBIND:
+    case SQL_RESET_PARAMS: {
+      SET_ERROR(sql, "HY000", TSDB_CODE_ODBC_NOT_SUPPORT, "free statement with Option[%x] not supported yet", Option);
+      return SQL_ERROR;
+    } break;
+    default: {
+      SET_ERROR(sql, "HY092", TSDB_CODE_ODBC_OUT_OF_RANGE, "free statement with Option[%x] not supported yet", Option);
+      return SQL_ERROR;
+    } break;
   }
 
   DASSERT(GET_REF(sql)==1);
@@ -626,10 +661,20 @@ static SQLRETURN doSQLExecDirect(SQLHSTMT StatementHandle,
                                  SQLCHAR *StatementText, SQLINTEGER TextLength)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
+
+  if (!StatementText) {
+    SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "StatementText [%p] not allowed", StatementText);
+    return SQL_ERROR;
+  }
+  if (TextLength < 0 && TextLength!=SQL_NTS) {
+    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  if (TextLength==SQL_NTS) TextLength = StatementText ? (SQLSMALLINT)strlen((const char*)StatementText) : 0;
 
   if (sql->rs) {
     taos_free_result(sql->rs);
@@ -673,8 +718,23 @@ SQLRETURN SQL_API SQLExecDirect(SQLHSTMT StatementHandle,
   return r;
 }
 
-SQLRETURN SQL_API SQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER cbSqlStr)
+static SQLRETURN doSQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER cbSqlStr)
 {
+  sql_t *sql = (sql_t*)hstmt;
+  if (!sql) return SQL_INVALID_HANDLE;
+
+  CHK_CONN(sql);
+  CHK_CONN_TAOS(sql);
+
+  if (!szSqlStr) {
+    SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "szSqlStr [%p] not allowed", szSqlStr);
+    return SQL_ERROR;
+  }
+  if (cbSqlStr < 0) {
+    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+
   size_t bytes = 0;
   SQLCHAR *utf8 = wchars_to_chars(szSqlStr, (size_t)cbSqlStr, &bytes);
   SQLRETURN r = SQLExecDirect(hstmt, utf8, (SQLINTEGER)bytes);
@@ -682,11 +742,17 @@ SQLRETURN SQL_API SQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER 
   return r;
 }
 
+SQLRETURN SQL_API SQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER cbSqlStr)
+{
+  SQLRETURN r = doSQLExecDirectW(hstmt, szSqlStr, cbSqlStr);
+  return r;
+}
+
 static SQLRETURN doSQLNumResultCols(SQLHSTMT StatementHandle,
                                     SQLSMALLINT *ColumnCount)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
@@ -728,7 +794,22 @@ static SQLRETURN doSQLRowCount(SQLHSTMT StatementHandle,
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
 
-  if (sql->is_insert) {
+  // ref: https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlrowcount-function?view=sql-server-ver15
+  // Summary
+  // SQLRowCount returns the number of rows affected by an UPDATE, INSERT, or DELETE statement;
+  // an SQL_ADD, SQL_UPDATE_BY_BOOKMARK, or SQL_DELETE_BY_BOOKMARK operation in SQLBulkOperations;
+  // or an SQL_UPDATE or SQL_DELETE operation in SQLSetPos.
+
+  // how to fetch affected rows from taos?
+  // taos_affected_rows?
+
+  if (1) {
+    SET_ERROR(sql, "IM001", TSDB_CODE_ODBC_NOT_SUPPORT, "");
+    // if (RowCount) *RowCount = 0;
+    return SQL_SUCCESS_WITH_INFO;
+  }
+
+  if (!sql->is_insert) {
     if (RowCount) *RowCount = 0;
     return SQL_SUCCESS;
   }
@@ -789,6 +870,7 @@ static SQLRETURN doSQLColAttribute(SQLHSTMT StatementHandle,
       *NumericAttribute = (SQLLEN)do_field_display_size(field);
     } break;
     case SQL_COLUMN_LABEL: {
+      // todo: check BufferLength
       size_t n = sizeof(field->name);
       strncpy(CharacterAttribute, field->name, (n>BufferLength ? (size_t)BufferLength : n));
     } break;
@@ -823,7 +905,7 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
                               SQLLEN *StrLen_or_Ind)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
@@ -1047,7 +1129,7 @@ SQLRETURN SQL_API SQLGetData(SQLHSTMT StatementHandle,
 static SQLRETURN doSQLFetch(SQLHSTMT StatementHandle)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
@@ -1072,10 +1154,20 @@ static SQLRETURN doSQLPrepare(SQLHSTMT StatementHandle,
                               SQLCHAR *StatementText, SQLINTEGER TextLength)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
+
+  if (!StatementText) {
+    SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "StatementText [%p] not allowed", StatementText);
+    return SQL_ERROR;
+  }
+  if (TextLength < 0 && TextLength!=SQL_NTS) {
+    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  if (TextLength==SQL_NTS) TextLength = StatementText ? (SQLSMALLINT)strlen((const char*)StatementText) : 0;
 
   if (sql->rs) {
     taos_free_result(sql->rs);
@@ -1873,7 +1965,7 @@ static SQLRETURN do_execute(sql_t *sql)
   }
 
   sql->is_executed = 1;
-  if (sql->is_insert) return SQL_SUCCESS;
+  // if (sql->is_insert) return SQL_SUCCESS;
 
   SQLRETURN r = SQL_SUCCESS;
   PROFILE(sql->rs = taos_stmt_use_result(sql->stmt));
@@ -1995,7 +2087,7 @@ static SQLRETURN doSQLBindParameter(
     SQLLEN 		      *StrLen_or_Ind)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
@@ -2078,17 +2170,27 @@ static SQLRETURN doSQLDriverConnect(
     SQLUSMALLINT       fDriverCompletion)
 {
   conn_t *conn = (conn_t*)hdbc;
-  if (!conn) return SQL_ERROR;
+  if (!conn) return SQL_INVALID_HANDLE;
+
+  if (conn->taos) {
+    SET_ERROR(conn, "08002", TSDB_CODE_ODBC_CONNECTION_BUSY, "connection still in use");
+    return SQL_ERROR;
+  }
 
   if (fDriverCompletion!=SQL_DRIVER_NOPROMPT) {
     SET_ERROR(conn, "HYC00", TSDB_CODE_ODBC_NOT_SUPPORT, "option[%d] other than SQL_DRIVER_NOPROMPT not supported yet", fDriverCompletion);
     return SQL_ERROR;
   }
 
-  if (conn->taos) {
-    SET_ERROR(conn, "08002", TSDB_CODE_ODBC_CONNECTION_BUSY, "connection still in use");
+  if (!szConnStrIn) {
+    SET_ERROR(conn, "HY009", TSDB_CODE_ODBC_BAD_ARG, "szConnStrIn [%p] not allowed", szConnStrIn);
     return SQL_ERROR;
   }
+  if (cbConnStrIn < 0 && cbConnStrIn!=SQL_NTS) {
+    SET_ERROR(conn, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
+    return SQL_ERROR;
+  }
+  if (cbConnStrIn==SQL_NTS) cbConnStrIn = szConnStrIn ? (SQLSMALLINT)strlen((const char*)szConnStrIn) : 0;
 
   // DSN=<dsn>; UID=<uid>; PWD=<pwd>
 
@@ -2167,7 +2269,7 @@ static SQLRETURN doSQLSetConnectAttr(SQLHDBC ConnectionHandle,
                                      SQLINTEGER StringLength)
 {
   conn_t *conn = (conn_t*)ConnectionHandle;
-  if (!conn) return SQL_ERROR;
+  if (!conn) return SQL_INVALID_HANDLE;
 
   if (Attribute != SQL_ATTR_AUTOCOMMIT) {
     SET_ERROR(conn, "HYC00", TSDB_CODE_ODBC_NOT_SUPPORT, "Attribute other than SQL_ATTR_AUTOCOMMIT not supported yet");
@@ -2197,7 +2299,7 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
                                   SQLSMALLINT *DecimalDigits, SQLSMALLINT *Nullable)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
@@ -2212,6 +2314,10 @@ static SQLRETURN doSQLDescribeCol(SQLHSTMT StatementHandle,
 
   if (ColumnNumber<=0 || ColumnNumber>nfields) {
     SET_ERROR(sql, "07009", TSDB_CODE_ODBC_OUT_OF_RANGE, "invalid column number [%d]", ColumnNumber);
+    return SQL_ERROR;
+  }
+  if (BufferLength<0) {
+    SET_ERROR(sql, "HY090", TSDB_CODE_ODBC_BAD_ARG, "");
     return SQL_ERROR;
   }
 
@@ -2304,7 +2410,7 @@ SQLRETURN SQL_API SQLDescribeCol(SQLHSTMT StatementHandle,
 static SQLRETURN doSQLNumParams(SQLHSTMT hstmt, SQLSMALLINT *pcpar)
 {
   sql_t *sql = (sql_t*)hstmt;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
@@ -2349,7 +2455,7 @@ static SQLRETURN doSQLSetStmtAttr(SQLHSTMT StatementHandle,
                                   SQLINTEGER StringLength)
 {
   sql_t *sql = (sql_t*)StatementHandle;
-  if (!sql) return SQL_ERROR;
+  if (!sql) return SQL_INVALID_HANDLE;
 
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
