@@ -163,11 +163,17 @@ class Progress:
     BEGIN_THREAD_STEP = 1
     END_THREAD_STEP   = 2
     SERVICE_HEART_BEAT= 3
+    SERVICE_RECONNECT_START     = 4
+    SERVICE_RECONNECT_SUCCESS   = 5
+    SERVICE_RECONNECT_FAILURE   = 6
     tokens = {
         STEP_BOUNDARY:      '.',
         BEGIN_THREAD_STEP:  '[',
         END_THREAD_STEP:    '] ',
-        SERVICE_HEART_BEAT: '.Y.'
+        SERVICE_HEART_BEAT: '.Y.',
+        SERVICE_RECONNECT_START:    '<r.',
+        SERVICE_RECONNECT_SUCCESS:  '.r>',
+        SERVICE_RECONNECT_FAILURE:  '.xr>',
     }
 
     @classmethod

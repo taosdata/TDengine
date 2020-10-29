@@ -280,16 +280,18 @@ class TdeSubProcess:
         # process still alive, let's interrupt it
         print("Terminate running process, send SIG_INT and wait...")
         # sub process should end, then IPC queue should end, causing IO thread to end
-        self.subProcess.send_signal(signal.SIGINT)
+        # sig = signal.SIGINT
+        sig = signal.SIGKILL
+        self.subProcess.send_signal(sig) # SIGNINT or SIGKILL
         self.subProcess.wait(20)
         retCode = self.subProcess.returncode # should always be there
         # May throw subprocess.TimeoutExpired exception above, therefore
         # The process is guranteed to have ended by now
         self.subProcess = None        
         if retCode != 0: # != (- signal.SIGINT):
-            Logging.error("TSP.stop(): Failed to stop sub proc properly w/ SIG_INT, retCode={}".format(retCode))
+            Logging.error("TSP.stop(): Failed to stop sub proc properly w/ SIG {}, retCode={}".format(sig, retCode))
         else:
-            Logging.info("TSP.stop(): sub proc successfully terminated with SIG_INT")
+            Logging.info("TSP.stop(): sub proc successfully terminated with SIG {}".format(sig))
         return - retCode
 
 class ServiceManager:
@@ -394,6 +396,13 @@ class ServiceManager:
             if not ti.getStatus().isStopped():
                 return True
         return False
+
+    def isRunning(self):
+        for ti in self._tInsts:
+            if not ti.getStatus().isRunning():
+                return False
+        return True
+
 
     # def isRestarting(self):
     #     """

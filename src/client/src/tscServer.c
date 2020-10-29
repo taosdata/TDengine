@@ -190,18 +190,19 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   STscObj *pObj = (STscObj *)handle;
-  if (pObj == NULL || pObj->signature != pObj) {
+
+  int ret = taosAcquireRef(tscRefId, pObj);
+  if (ret < 0) {
+    tscTrace("%p failed to acquire TSC obj, reason:%s", pObj, tstrerror(ret));
     return;
   }
 
   SSqlObj* pHB = pObj->pHb;
-  if (pObj->pTimer != tmrId || pHB == NULL) {
-    return;
-  }
 
   void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
   if (p == NULL) {
     tscWarn("%p HB object has been released already", pHB);
+    taosReleaseRef(tscRefId, pObj);
     return;
   }
 
@@ -214,6 +215,8 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
   }
+
+  taosReleaseRef(tscRefId, pObj);
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {

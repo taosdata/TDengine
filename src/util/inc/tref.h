@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -13,37 +14,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNETTEST_H
-#define TDENGINE_TNETTEST_H
+#ifndef TDENGINE_TREF_H
+#define TDENGINE_TREF_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct CmdArguments {
-  char* host;
-  char* password;
-  char* user;
-  char* auth;
-  char* database;
-  char* timezone;
-  bool  is_raw_time;
-  bool  is_use_passwd;
-  char  file[TSDB_FILENAME_LEN];
-  char  dir[TSDB_FILENAME_LEN];
-  int   threadNum;
-  char* commands;
-  int   abort;
-  int   port;
-  int   endPort;
-  int   pktLen;
-  char* netTestRole;
-} CmdArguments;
+int  taosOpenRef(int max, void (*fp)(void *)); // return refId which will be used by other APIs
+void taosCloseRef(int refId); 
+int  taosListRef();  // return the number of references in system
+int  taosAddRef(int refId, void *p);
+int  taosAcquireRef(int refId, void *p);
+void taosReleaseRef(int refId, void *p);
 
-void taosNetTest(CmdArguments* args);
+#define taosRemoveRef taosReleaseRef
+
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TNETTEST_H
+#endif  // TDENGINE_TREF_H

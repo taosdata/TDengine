@@ -1226,11 +1226,17 @@ class Task():
             "To be implemeted by child classes, class name: {}".format(
                 self.__class__.__name__))
 
+    def _isServiceStable(self):
+        if not gSvcMgr:
+            return True  # we don't run service, so let's assume it's stable
+        return gSvcMgr.isStable() # otherwise let's examine the service
+
     def _isErrAcceptable(self, errno, msg):
         if errno in [
                 0x05,  # TSDB_CODE_RPC_NOT_READY
                 0x0B,  # Unable to establish connection, more details in TD-1648
                 0x200, # invalid SQL， TODO: re-examine with TD-934
+                0x20F, # query terminated, possibly due to vnoding being dropped, see TD-1776
                 0x217, # "db not selected", client side defined error code
                 # 0x218, # "Table does not exist" client side defined error code
                 0x360, # Table already exists
@@ -1262,7 +1268,7 @@ class Task():
                 return True
             elif msg.find("duplicated column names") != -1: # also alter table tag issues
                 return True
-        elif gSvcMgr and (not gSvcMgr.isStable()): # We are managing service, and ...
+        elif not self._isServiceStable(): # We are managing service, and ...
             Logging.info("Ignoring error when service starting/stopping: errno = {}, msg = {}".format(errno, msg))
             return True
         
@@ -1640,15 +1646,39 @@ class TaskReadData(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canReadData()
 
+    # def _canRestartService(self):
+    #     if not gSvcMgr:
+    #         return True # always
+    #     return gSvcMgr.isActive() # only if it's running TODO: race condition here
+
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         sTable = self._db.getFixedSuperTable()
 
-        # 1 in 5 chance, simulate a broken connection. 
-        if random.randrange(5) == 0:  # TODO: break connection in all situations
-            wt.getDbConn().close()
-            wt.getDbConn().open()
-            print("_r", end="", flush=True)
-        
+        # 1 in 5 chance, simulate a broken connection, only if service stable (not restarting)
+        if random.randrange(20)==0: # and self._canRestartService():  # TODO: break connection in all situations
+            # Logging.info("Attempting to reconnect to server") # TODO: change to DEBUG
+            Progress.emit(Progress.SERVICE_RECONNECT_START) 
+            try:
+                wt.getDbConn().close()
+                wt.getDbConn().open()
+            except ConnectionError as err: # may fail
+                if not gSvcMgr:
+                    Logging.error("Failed to reconnect in client-only mode")
+                    raise # Not OK if we are running in client-only mode
+                if gSvcMgr.isRunning(): # may have race conditon, but low prob, due to 
+                    Logging.error("Failed to reconnect when managed server is running")
+                    raise # Not OK if we are running normally
+
+                Progress.emit(Progress.SERVICE_RECONNECT_FAILURE) 
+                # Logging.info("Ignoring DB reconnect error")
+
+            # print("_r", end="", flush=True)
+            Progress.emit(Progress.SERVICE_RECONNECT_SUCCESS) 
+            # The above might have taken a lot of time, service might be running
+            # by now, causing error below to be incorrectly handled due to timing issue
+            return # TODO: fix server restart status race condtion
+
+
         dbc = wt.getDbConn()
         dbName = self._db.getName()
         for rTbName in sTable.getRegTables(dbc, dbName):  # regular tables

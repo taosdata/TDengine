@@ -30,6 +30,7 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 #include "tcache.h"
+#include "tref.h"
 
 #include "qExecutor.h"
 #include "qSqlparser.h"
@@ -446,7 +447,7 @@ void tscFreeSqlObj(SSqlObj *pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
 void tscFreeTableMetaHelper(void *pTableMeta);
 
-void tscCloseTscObj(STscObj *pObj);
+void tscCloseTscObj(void *pObj);
 
 // todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
@@ -516,6 +517,7 @@ extern void *    tscQhandle;
 extern int       tscKeepConn[];
 extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
+extern int       tscRefId;
   
 extern SRpcCorEpSet tscMgmtEpSet;
 

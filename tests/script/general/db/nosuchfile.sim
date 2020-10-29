@@ -1,0 +1,66 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 3000
+
+print ========== step3
+sql create database d1
+sql create table d1.t1 (t timestamp, i int)
+sql insert into d1.t1 values(now+1s, 35)
+sql insert into d1.t1 values(now+2s, 34)
+sql insert into d1.t1 values(now+3s, 33)
+sql insert into d1.t1 values(now+4s, 32)
+sql insert into d1.t1 values(now+5s, 31)
+
+print ========== step4
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+
+print ========== step5
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41  
+if $data01 != 31 then
+  return -1
+endi
+if $data11 != 32 then
+  return -1
+endi
+if $data21 != 33 then
+  return -1
+endi
+if $data31 != 34 then
+  return -1
+endi
+if $data41 != 35 then
+  return -1
+endi
+
+print ========== step6
+system_content rm -rf ../../../sim/dnode1/data/vnode/vnode2/tsdb/data
+
+print ========== step7
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41  
+if $data01 != null then
+  return -1
+endi
+if $data11 != null then
+  return -1
+endi
+if $data21 != null then
+  return -1
+endi
+if $data31 != null then
+  return -1
+endi
+if $data41 != null then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
