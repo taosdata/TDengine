@@ -713,7 +713,7 @@ static void doInitGlobalConfig() {
                      0, 0, tListLen(tsCharset), TSDB_CFG_UTYPE_NONE);
 
   tsInitConfigOption(cfg++, "tcptransferThreshold", &tsTCPTransferThreshold, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      500, 65480, 0, TSDB_CFG_UTYPE_BYTE);
 
   // connect configs
