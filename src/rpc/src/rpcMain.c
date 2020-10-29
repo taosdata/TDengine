@@ -215,6 +215,11 @@ static void  rpcUnlockConn(SRpcConn *pConn);
 static void  rpcAddRef(SRpcInfo *pRpc);
 static void  rpcDecRef(SRpcInfo *pRpc);
 
+static void rpcFree(void *p) {
+  tTrace("free mem: %p", p);
+  free(p);
+}
+
 static void rpcInit(void) {
 
   tsProgressTimer = tsRpcTimer/2; 
@@ -222,7 +227,7 @@ static void rpcInit(void) {
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
   tsRpcOverhead = sizeof(SRpcReqContext);
 
-  tsRpcRefId = taosOpenRef(200, free);
+  tsRpcRefId = taosOpenRef(200, rpcFree);
 }
  
 void *rpcOpen(const SRpcInit *pInit) {
