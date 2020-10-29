@@ -299,7 +299,7 @@ void *taosTransferDataViaTcp(void *argv) {
     return NULL;
   }
 
-  if (!taosCheckHandleViaTcpValid(&handleViaTcp)) {
+  if (handleViaTcp.handle && !taosCheckHandleViaTcpValid(&handleViaTcp)) {
     tError("%s UDP server read handle via tcp invalid, handle:%" PRIu64 ", hash:%" PRIu64, pSet->label, handleViaTcp.handle,
            handleViaTcp.hash);
     taosCloseSocket(connFd);
@@ -365,7 +365,7 @@ void *taosTransferDataViaTcp(void *argv) {
     pHeader = (STaosHeader *)handle;
     msgLen = (int32_t)htonl((uint32_t)pHeader->msgLen);
 
-    if (pHeader->tcp != 0 || msgLen < 1024) {
+    if (pHeader->tcp != 0 || msgLen < 100) {
       tError("%s invalid handle:%p, connection shall be closed", pSet->label, pHeader);
     } else {
       SMonitor *pMonitor = (SMonitor *)calloc(1, sizeof(SMonitor));
@@ -756,7 +756,8 @@ int taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *c
 
   if (pConn == NULL || pConn->signature != pConn) return -1;
 
-  if (dataLen >= RPC_MAX_UDP_SIZE) return taosSendPacketViaTcp(ip, port, data, dataLen, chandle);
+  assert(tsTCPTransferThreshold <= RPC_MAX_UDP_SIZE && tsTCPTransferThreshold > 0);
+  if (dataLen >= tsTCPTransferThreshold) return taosSendPacketViaTcp(ip, port, data, dataLen, chandle);
 
   if (pConn->hash == NULL) {
     struct sockaddr_in destAdd;
