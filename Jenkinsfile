@@ -86,6 +86,13 @@ pipeline {
                 ./crash_gen.sh -a -p -t 4 -s 2000
                 '''
             }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                ./crash_gen.sh --valgrind -p -t 10 -s 100 -b 4
+                ./handle_crash_gen_val_log.sh
+                '''
+            }
             sh '''
             date
             cd ${WKC}/tests
