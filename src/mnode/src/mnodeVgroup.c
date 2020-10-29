@@ -663,13 +663,13 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   for (int32_t i = 0; i < pShow->maxReplica; ++i) {
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "dnode%d", i + 1);
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%dDnode", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%dstatus", i + 1);
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%dStatus", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }
