@@ -38,22 +38,22 @@ extern int32_t wDebugFlag;
 #define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
 #define WAL_PATH_LEN   (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN   (TSDB_FILENAME_LEN + 32)
+#define WAL_FILE_NUM   3
 
 typedef struct {
   uint64_t version;
+  int64_t  fileId;
   int32_t  vgId;
   int32_t  fd;
   int32_t  keep;
   int32_t  level;
   int32_t  fsyncPeriod;
   int32_t  fsyncSeq;
-  int64_t  fileId;
   char     path[WAL_PATH_LEN];
   char     name[WAL_FILE_LEN];
   pthread_mutex_t mutex;
 } SWal;
 
-// util
 int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
 int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
 

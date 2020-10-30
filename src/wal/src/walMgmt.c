@@ -18,7 +18,6 @@
 #include "taoserror.h"
 #include "talloc.h"
 #include "tref.h"
-#include "tutil.h"
 #include "twal.h"
 #include "walInt.h"
 
@@ -135,9 +134,8 @@ void walClose(void *handle) {
 
 static int32_t walInitObj(SWal *pWal) {
   if (taosMkDir(pWal->path, 0755) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
-    return terrno;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   if (pWal->keep) {
@@ -147,9 +145,8 @@ static int32_t walInitObj(SWal *pWal) {
   walRenew(pWal);
 
   if (pWal && pWal->fd < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to open file since %s", pWal->vgId, pWal->path, strerror(errno));
-    return terrno;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
   wDebug("vgId:%d, file is initialized", pWal->vgId);
@@ -191,7 +188,7 @@ static void walFsyncAll() {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, tsWal.seq);
       int32_t code = fsync(pWal->fd);
       if (code != 0) {
-        wError("vgId:%d, file:%s, fsync failed since %s", pWal->vgId, pWal->name, strerror(code));
+        wError("vgId:%d, file:%s, failed to fsync since %s", pWal->vgId, pWal->name, strerror(code));
       }
     }
     pWal = taosIterateRef(tsWal.refId, pWal);

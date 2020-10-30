@@ -51,7 +51,7 @@ int32_t walRenew(void *handle) {
   if (!pWal->keep) {
     // remove the oldest wal file
     int64_t oldFileId = -1;
-    if (walGetOldFile(pWal, pWal->fileId, 2, &oldFileId) == 0) {
+    if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
       char walName[WAL_FILE_LEN] = {0};
       snprintf(walName, sizeof(walName), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, oldFileId);
 
@@ -161,12 +161,18 @@ int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
   if (handle == NULL) return -1;
   SWal *pWal = handle;
 
+  // for keep
+  if (*fileId == 0) *fileId = -1;
+
   pthread_mutex_lock(&(pWal->mutex));
+
   int32_t code = walGetNextFile(pWal, fileId);
   if (code >= 0) {
     sprintf(fileName, "wal/%s%" PRId64, WAL_PREFIX, *fileId);
     code = (*fileId == pWal->fileId) ? 0 : 1;
   }
+
+  wTrace("vgId:%d, get wal file, code:%d curId:%" PRId64 " outId:%" PRId64, pWal->vgId, code, pWal->fileId, *fileId);
   pthread_mutex_unlock(&(pWal->mutex));
 
   return code;
