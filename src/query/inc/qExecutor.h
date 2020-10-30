@@ -94,7 +94,7 @@ typedef struct SSingleColumnFilterInfo {
   SColumnFilterElem* pFilters;
 } SSingleColumnFilterInfo;
 
-typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
+typedef struct STableQueryInfo {
   TSKEY       lastKey;
   int32_t     groupIndex;     // group id in table list
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query

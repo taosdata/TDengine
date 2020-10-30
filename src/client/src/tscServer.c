@@ -886,7 +886,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     STSVnodeBlockInfo *pBlockInfo = tsBufGetVnodeBlockInfo(pQueryInfo->tsBuf, vnodeId);
     assert(QUERY_IS_JOIN_QUERY(pQueryInfo->type) && pBlockInfo != NULL);  // this query should not be sent
 
-    // todo refactor
+    // todo refactor, extract method and put into tsBuf.c
     if (fseek(pQueryInfo->tsBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
       int code = TAOS_SYSTEM_ERROR(ferror(pQueryInfo->tsBuf->f));
       tscError("%p: fseek failed: %s", pSql, tstrerror(code));

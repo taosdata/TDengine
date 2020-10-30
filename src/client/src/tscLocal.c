@@ -49,82 +49,6 @@ typedef struct SCreateBuilder {
 } SCreateBuilder; 
 static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, int16_t type, size_t valueLength);
 
-static int32_t getToStringLength(const char *pData, int32_t length, int32_t type) {
-  char buf[512] = {0};
-
-  int32_t len = 0;
-  int32_t MAX_BOOL_TYPE_LENGTH = 5;  // max(strlen("true"), strlen("false"));
-  switch (type) {
-    case TSDB_DATA_TYPE_BINARY:
-      return length;
-    case TSDB_DATA_TYPE_NCHAR:
-      return length;
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double dv = 0;
-      dv = GET_DOUBLE_VAL(pData);
-      len = sprintf(buf, "%lf", dv);
-      if (strncasecmp("nan", buf, 3) == 0) {
-        len = 4;
-      }
-    } break;
-    case TSDB_DATA_TYPE_FLOAT: {
-      float fv = 0;
-      fv = GET_FLOAT_VAL(pData);
-      len = sprintf(buf, "%f", fv);
-      if (strncasecmp("nan", buf, 3) == 0) {
-        len = 4;
-      }
-    } break;
-    case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_BIGINT:
-      len = sprintf(buf, "%" PRId64, *(int64_t *)pData);
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      len = MAX_BOOL_TYPE_LENGTH;
-      break;
-    default:
-      len = sprintf(buf, "%d", *(int32_t *)pData);
-      break;
-  };
-  return len;
-}
-
-/*
- * we need to convert all data into string, so we need to sprintf all kinds of
- * non-string data into string, and record its length to get the right
- * maximum length. The length may be less or greater than its original binary length:
- * For example:
- * length((short) 1) == 1, less than sizeof(short)
- * length((uint64_t) 123456789011) > 12, greater than sizsof(uint64_t)
- */
-static int32_t tscMaxLengthOfTagsFields(SSqlObj *pSql) {
-  STableMeta *pMeta = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->pTableMeta;
-
-  if (pMeta->tableType == TSDB_SUPER_TABLE || pMeta->tableType == TSDB_NORMAL_TABLE ||
-      pMeta->tableType == TSDB_STREAM_TABLE) {
-    return 0;
-  }
-
-  char *   pTagValue = tsGetTagsValue(pMeta);
-  SSchema *pTagsSchema = tscGetTableTagSchema(pMeta);
-
-  int32_t len = getToStringLength(pTagValue, pTagsSchema[0].bytes, pTagsSchema[0].type);
-
-  pTagValue += pTagsSchema[0].bytes;
-  int32_t numOfTags = tscGetNumOfTags(pMeta);
-  
-  for (int32_t i = 1; i < numOfTags; ++i) {
-    int32_t tLen = getToStringLength(pTagValue, pTagsSchema[i].bytes, pTagsSchema[i].type);
-    if (len < tLen) {
-      len = tLen;
-    }
-
-    pTagValue += pTagsSchema[i].bytes;
-  }
-
-  return len;
-}
-
 static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   SSqlRes *pRes = &pSql->res;
 
@@ -186,8 +110,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     return 0;
   }
 
-  // the following is handle display tags value for meters created according to metric
-  char *pTagValue = tsGetTagsValue(pMeta);
+  // the following is handle display tags for table created according to super table
   for (int32_t i = numOfRows; i < totalNumOfRows; ++i) {
     // field name
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
@@ -219,8 +142,6 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     char *target = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 3) * totalNumOfRows + pField->bytes * i;
     const char *src = "TAG";
     STR_WITH_MAXSIZE_TO_VARSTR(target, src, pField->bytes);
-
-    pTagValue += pSchema[i].bytes;
   }
 
   return 0;
@@ -286,10 +207,10 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   const int32_t TYPE_COLUMN_LENGTH = 16;
   const int32_t NOTE_COLUMN_MIN_LENGTH = 8;
 
-  int32_t noteFieldLen = tscMaxLengthOfTagsFields(pSql);
-  if (noteFieldLen == 0) {
-    noteFieldLen = NOTE_COLUMN_MIN_LENGTH;
-  }
+  int32_t noteFieldLen = NOTE_COLUMN_MIN_LENGTH;//tscMaxLengthOfTagsFields(pSql);
+//  if (noteFieldLen == 0) {
+//    noteFieldLen = NOTE_COLUMN_MIN_LENGTH;
+//  }
 
   int32_t rowLen = tscBuildTableSchemaResultFields(pSql, NUM_OF_DESC_TABLE_COLUMNS, TYPE_COLUMN_LENGTH, noteFieldLen);
   tscFieldInfoUpdateOffset(pQueryInfo);

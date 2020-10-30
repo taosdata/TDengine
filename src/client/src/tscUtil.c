@@ -338,34 +338,6 @@ void tscFreeSqlResult(SSqlObj* pSql) {
   memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
-void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
-  if (pSql == NULL || pSql->signature != pSql) {
-    return;
-  }
-
-  SSqlCmd* pCmd = &pSql->cmd;
-  int32_t cmd = pCmd->command;
-  if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
-      cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscRemoveFromSqlList(pSql);
-  }
-  
-  // pSql->sqlstr will be used by tscBuildQueryStreamDesc
-//  if (pObj->signature == pObj) {
-    //pthread_mutex_lock(&pObj->mutex);
-    taosTFree(pSql->sqlstr);
-    //pthread_mutex_unlock(&pObj->mutex);
-//  }
-  
-  tscFreeSqlResult(pSql);
-  
-  taosTFree(pSql->pSubs);
-  pSql->subState.numOfSub = 0;
-  pSql->self = 0;
-  
-  tscResetSqlCmdObj(pCmd, false);
-}
-
 static void tscFreeSubobj(SSqlObj* pSql) {
   if (pSql->subState.numOfSub == 0) {
     return;
@@ -434,22 +406,32 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscDebug("%p start to free sqlObj", pSql);
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
   tscFreeSubobj(pSql);
 
-  tscPartiallyFreeSqlObj(pSql);
+  SSqlCmd* pCmd = &pSql->cmd;
+  int32_t cmd = pCmd->command;
+  if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
+    tscRemoveFromSqlList(pSql);
+  }
 
   pSql->signature = NULL;
   pSql->fp = NULL;
-  
-  SSqlCmd* pCmd = &pSql->cmd;
+  taosTFree(pSql->sqlstr);
+
+  taosTFree(pSql->pSubs);
+  pSql->subState.numOfSub = 0;
+  pSql->self = 0;
+
+  tscFreeSqlResult(pSql);
+  tscResetSqlCmdObj(pCmd, false);
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   taosTFree(pCmd->payload);
   pCmd->allocSize = 0;
   
-  taosTFree(pSql->sqlstr);
   tsem_destroy(&pSql->rspSem);
-
   free(pSql);
 }
 

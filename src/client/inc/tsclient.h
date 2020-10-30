@@ -432,14 +432,6 @@ void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 void tscFreeSqlResult(SSqlObj *pSql);
 
 /**
- * only free part of resources allocated during query.
- * TODO remove it later
- * Note: this function is multi-thread safe.
- * @param pObj
- */
-void tscPartiallyFreeSqlObj(SSqlObj *pSql);
-
-/**
  * free sql object, release allocated resource
  * @param pObj
  */
