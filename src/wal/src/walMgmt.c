@@ -43,7 +43,7 @@ int32_t walInit() {
 
   int32_t code = walCreateThread();
   if (code != TSDB_CODE_SUCCESS) {
-    wError("failed to init wal module, reason:%s", tstrerror(code));
+    wError("failed to init wal module since %s", tstrerror(code));
     return code;
   }
 
@@ -87,8 +87,7 @@ void *walOpen(char *path, SWalCfg *pCfg) {
   }
 
   atomic_add_fetch_32(&tsWal.num, 1);
-  wDebug("vgId:%d, wal:%p is opened, level:%d period:%d path:%s", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod,
-         pWal->path);
+  wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod);
 
   return pWal;
 }
@@ -120,8 +119,8 @@ void walClose(void *handle) {
   SWal *pWal = handle;
   taosClose(pWal->fd);
 
-  if (pWal->keep == 0) {
-    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRIu64, pWal->path, WAL_PREFIX, pWal->fileId);
+  if (!pWal->keep) {
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
     if (remove(pWal->name) < 0) {
       wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
     } else {
@@ -137,11 +136,11 @@ void walClose(void *handle) {
 static int32_t walInitObj(SWal *pWal) {
   if (taosMkDir(pWal->path, 0755) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    wError("vgId:%d, wal:%s, failed to create directory, reason:%s", pWal->vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, file:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
     return terrno;
   }
 
-  if (pWal->keep == 1) {
+  if (pWal->keep) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -149,11 +148,11 @@ static int32_t walInitObj(SWal *pWal) {
 
   if (pWal && pWal->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    wError("vgId:%d, wal:%s, failed to open file, reason:%s", pWal->vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, file:%s, failed to open file since %s", pWal->vgId, pWal->path, strerror(errno));
     return terrno;
   }
 
-  wDebug("vgId:%d, wal:%s, is initialized", pWal->vgId, pWal->name);
+  wDebug("vgId:%d, file is initialized", pWal->vgId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -192,7 +191,7 @@ static void walFsyncAll() {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, tsWal.seq);
       int32_t code = fsync(pWal->fd);
       if (code != 0) {
-        wError("vgId:%d, wal:%s, fsync failed, reason:%s", pWal->vgId, pWal->name, strerror(code));
+        wError("vgId:%d, file:%s, fsync failed since %s", pWal->vgId, pWal->name, strerror(code));
       }
     }
     pWal = taosIterateRef(tsWal.refId, pWal);
@@ -215,7 +214,7 @@ static int32_t walCreateThread() {
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (pthread_create(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
-    wError("failed to create wal thread, reason:%s", strerror(errno));
+    wError("failed to create wal thread since %s", strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 

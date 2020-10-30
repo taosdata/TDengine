@@ -303,8 +303,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   sprintf(temp, "%s/wal", rootDir);
-  pVnode->wal = walOpen(temp, &pVnode->walCfg);
   pVnode->walCfg.vgId = pVnode->vgId;
+  pVnode->wal = walOpen(temp, &pVnode->walCfg);
   if (pVnode->wal == NULL) { 
     vnodeCleanUp(pVnode);
     return terrno;
