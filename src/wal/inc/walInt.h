@@ -53,6 +53,10 @@ typedef struct {
   pthread_mutex_t mutex;
 } SWal;
 
+// util
+int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
+int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
+
 #ifdef __cplusplus
 }
 #endif
