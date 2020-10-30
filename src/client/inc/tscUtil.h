@@ -75,6 +75,7 @@ typedef struct SJoinSupporter {
   SArray*         exprList;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
+  SSqlGroupbyExpr groupInfo;       // group by info
   struct STSBuf*  pTSBuf;          // the TSBuf struct that holds the compressed timestamp array
   FILE*           f;               // temporary file in order to create TSBuf
   char            path[PATH_MAX];  // temporary file path, todo dynamic allocate memory
@@ -225,7 +226,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
-SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables);
+SArray* tscVgroupTableInfoClone(SArray* pVgroupTables);
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
@@ -265,6 +266,7 @@ void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t sub
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
+int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId);
 
 void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 
