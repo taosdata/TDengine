@@ -434,7 +434,9 @@ int test_sqls_in_stmt(SQLHENV env, SQLHDBC conn, SQLHSTMT stmt, const char *sqls
     const char *p = NULL;
     do {
       if (line[0] == '#') break;
-      if (line[n-1] == '\n') line[n-1]='\0';
+      if (n>0 && line[n-1] == '\n') line[n-1]='\0';
+      if (n>0 && line[n-1] == '\r') line[n-1]='\0';
+      if (n>1 && line[n-2] == '\r') line[n-2]='\0';
       p = line;
       while (isspace(*p)) ++p;
 
