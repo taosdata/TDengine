@@ -51,13 +51,13 @@ int32_t walInit();
 void    walCleanUp();
 
 twalh   walOpen(char *path, SWalCfg *pCfg);
-int     walAlter(twalh pWal, SWalCfg *pCfg);
+int32_t walAlter(twalh pWal, SWalCfg *pCfg);
 void    walClose(twalh);
-int     walRenew(twalh);
-int     walWrite(twalh, SWalHead *);
+int32_t walRenew(twalh);
+int32_t walWrite(twalh, SWalHead *);
 void    walFsync(twalh);
-int     walRestore(twalh, void *pVnode, FWalWrite writeFp);
-int     walGetWalFile(twalh, char *name, uint32_t *index);
+int32_t walRestore(twalh, void *pVnode, FWalWrite writeFp);
+int32_t walGetWalFile(twalh, char *fileName, int64_t *fileId);
 int64_t walGetVersion(twalh);
 
 #ifdef __cplusplus

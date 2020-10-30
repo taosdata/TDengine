@@ -42,7 +42,7 @@ static int32_t  vnodeSaveVersion(SVnodeObj *pVnode);
 static int32_t  vnodeReadVersion(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
-static int      vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index);
+static int      vnodeGetWalInfo(void *ahandle, char *name, int64_t *index);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
 static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
@@ -304,6 +304,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   sprintf(temp, "%s/wal", rootDir);
   pVnode->wal = walOpen(temp, &pVnode->walCfg);
+  pVnode->walCfg.vgId = pVnode->vgId;
   if (pVnode->wal == NULL) { 
     vnodeCleanUp(pVnode);
     return terrno;
@@ -621,7 +622,7 @@ static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uin
   return tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);
 }
 
-static int vnodeGetWalInfo(void *ahandle, char *name, uint32_t *index) {
+static int vnodeGetWalInfo(void *ahandle, char *name, int64_t *index) {
   SVnodeObj *pVnode = ahandle;
   return walGetWalFile(pVnode->wal, name, index);
 }

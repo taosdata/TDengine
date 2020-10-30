@@ -40,6 +40,16 @@ void *tcalloc(int32_t size) {
   return p;
 }
 
+void *trealloc(void *p, int32_t size) {
+  p = realloc(p, size);
+  if (p == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to realloc memory, size:%d reason:%s", size, strerror(errno));
+  }
+
+  return p;
+}
+
 void tfree(void *p) { free(p); }
 
 void tmemzero(void *p, int32_t size) { memset(p, 0, size); }

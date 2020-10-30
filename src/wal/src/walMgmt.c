@@ -27,7 +27,6 @@ typedef struct {
   int32_t   num;
   int32_t   seq;
   int8_t    stop;
-  int8_t    reserved[3];
   pthread_t thread;
   pthread_mutex_t mutex;
 } SWalMgmt;
@@ -48,7 +47,7 @@ int32_t walInit() {
     return code;
   }
 
-  wInfo("wal module is initialized");
+  wInfo("wal module is initialized, refId:%d", tsWal.refId);
   return code;
 }
 
@@ -65,15 +64,13 @@ void *walOpen(char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
+  pWal->vgId = pCfg->vgId;
   pWal->fd = -1;
-  pWal->max = pCfg->wals;
-  pWal->id = 0;
-  pWal->num = 0;
+  pWal->fileId = -1;
   pWal->level = pCfg->walLevel;
   pWal->keep = pCfg->keep;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
-  pWal->signature = pWal;
-  tstrncpy(pWal->path, path, sizeof(path));
+  tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
 
   pWal->fsyncSeq = pCfg->fsyncPeriod % 1000;
@@ -90,12 +87,14 @@ void *walOpen(char *path, SWalCfg *pCfg) {
   }
 
   atomic_add_fetch_32(&tsWal.num, 1);
-  wDebug("vgId:%d, wal is opened, level:%d period:%d path:%s", pWal->vgId, pWal->level, pWal->fsyncPeriod, pWal->path);
+  wDebug("vgId:%d, wal:%p is opened, level:%d period:%d path:%s", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod,
+         pWal->path);
 
   return pWal;
 }
 
 int32_t walAlter(void *handle, SWalCfg *pCfg) {
+  if (handle == NULL) return TSDB_CODE_WAL_APP_ERROR;
   SWal *pWal = handle;
 
   if (pWal->level == pCfg->walLevel && pWal->fsyncPeriod == pCfg->fsyncPeriod) {
@@ -109,26 +108,27 @@ int32_t walAlter(void *handle, SWalCfg *pCfg) {
 
   pWal->level = pCfg->walLevel;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
+  pWal->fsyncSeq = pCfg->fsyncPeriod % 1000;
+  if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
   return TSDB_CODE_SUCCESS;
 }
 
 void walClose(void *handle) {
+  if (handle == NULL) return;
+
   SWal *pWal = handle;
   taosClose(pWal->fd);
 
   if (pWal->keep == 0) {
-    // remove all files in the directory
-    for (int32_t i = 0; i < pWal->num; ++i) {
-      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%d", pWal->path, walPrefix, pWal->id - i);
-      if (remove(pWal->name) < 0) {
-        wError("vgId:%d, wal:%s, failed to remove", pWal->vgId, pWal->name);
-      } else {
-        wDebug("vgId:%d, wal:%s, it is removed", pWal->vgId, pWal->name);
-      }
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRIu64, pWal->path, WAL_PREFIX, pWal->fileId);
+    if (remove(pWal->name) < 0) {
+      wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
+    } else {
+      wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
     }
   } else {
-    wDebug("vgId:%d, wal:%s, it is closed and kept", pWal->vgId, pWal->name);
+    wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
   }
 
   taosRemoveRef(tsWal.refId, pWal);
@@ -145,6 +145,8 @@ static int32_t walInitObj(SWal *pWal) {
     return TSDB_CODE_SUCCESS;
   }
 
+  walRenew(pWal);
+
   if (pWal && pWal->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, wal:%s, failed to open file, reason:%s", pWal->vgId, pWal->path, strerror(errno));
@@ -156,53 +158,45 @@ static int32_t walInitObj(SWal *pWal) {
 }
 
 static void walFreeObj(void *wal) {
-  SWal *pWal = pWal;
-  wDebug("vgId:%d, wal is freed", pWal->vgId);
+  SWal *pWal = wal;
+  wDebug("vgId:%d, wal:%p is freed", pWal->vgId, pWal);
 
   taosClose(pWal->fd);
   pthread_mutex_destroy(&pWal->mutex);
   tfree(pWal);
 }
 
-// static bool walNeedFsync(SWal *pWal) {
-//   if (pWal->fsyncPeriod <= 0 || pWal->level != TAOS_WAL_FSYNC) {
-//     return false;
-//   }
+static bool walNeedFsync(SWal *pWal) {
+  if (pWal->fsyncPeriod <= 0 || pWal->level != TAOS_WAL_FSYNC) {
+    return false;
+  }
 
-//   if (tsWal.seq % pWal->fsyncSeq == 0) {
-//     return true;
-//   }
+  if (tsWal.seq % pWal->fsyncSeq == 0) {
+    return true;
+  }
 
-//   return false;
-// }
+  return false;
+}
 
 static void walUpdateSeq() {
-  taosMsleep(walRefreshIntervalMs);
+  taosMsleep(WAL_REFRESH_MS);
   if (++tsWal.seq <= 0) {
     tsWal.seq = 1;
   }
 }
 
 static void walFsyncAll() {
-  // int32_t code;
-  // void *  pIter = taosRefCreateIter(tsWal.refId);
-
-  // while (taosRefIterNext(pIter)) {
-  //   SWal *pWal = taosRefIterGet(pIter);
-  //   if (pWal == NULL) break;
-
-  //   if (!walNeedFsync(pWal)) {
-  //     wTrace("wal:%s, do fsync, level:%d seq:%d rseq:%d", pWal->name, pWal->level, pWal->fsyncSeq, tsWal.refreshSeq);
-  //     code = walFsync(pWal);
-  //     if (code != TSDB_CODE_SUCCESS) {
-  //       wError("wal:%s, fsync failed(%s)", pWal->name, strerror(code));
-  //     }
-  //   }
-
-  //   taosReleaseRef(pWal);
-  // }
-
-  // taosRefDestroyIter(pIter);
+  SWal *pWal = taosIterateRef(tsWal.refId, NULL);
+  while (pWal) {
+    if (walNeedFsync(pWal)) {
+      wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, tsWal.seq);
+      int32_t code = fsync(pWal->fd);
+      if (code != 0) {
+        wError("vgId:%d, wal:%s, fsync failed, reason:%s", pWal->vgId, pWal->name, strerror(code));
+      }
+    }
+    pWal = taosIterateRef(tsWal.refId, pWal);
+  }
 }
 
 static void *walThreadFunc(void *param) {
@@ -232,6 +226,7 @@ static int32_t walCreateThread() {
 }
 
 static void walStopThread() {
+  tsWal.stop = 1;
   if (tsWal.thread) {
     pthread_join(tsWal.thread, NULL);
   }
