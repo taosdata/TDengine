@@ -16,7 +16,21 @@
 #ifndef _TODBC_FLEX_H_
 #define _TODBC_FLEX_H_
 
-int todbc_parse_conn_string(const char *conn, char **dsn, char **uid, char **pwd, char **host);
+typedef struct conn_val_s              conn_val_t;
+struct conn_val_s {
+    char                *key;
+    char                *dsn;
+    char                *uid;
+    char                *pwd;
+    char                *db;
+    char                *host;
+    char                *svr_enc;
+    char                *cli_enc;
+};
+
+
+void conn_val_reset(conn_val_t *val);
+int todbc_parse_conn_string(const char *conn, conn_val_t *val);
 
 #endif // _TODBC_FLEX_H_
 

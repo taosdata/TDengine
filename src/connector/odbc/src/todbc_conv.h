@@ -23,16 +23,49 @@
 
 typedef enum {
   TSDB_CONV_OK             = 0,
+  TSDB_CONV_NOT_AVAIL,
   TSDB_CONV_OOM,
   TSDB_CONV_OOR,
   TSDB_CONV_TRUNC_FRACTION,
   TSDB_CONV_TRUNC,
   TSDB_CONV_CHAR_NOT_NUM,
+  TSDB_CONV_CHAR_NOT_TS,
   TSDB_CONV_GENERAL,
   TSDB_CONV_BAD_CHAR,
 } TSDB_CONV_CODE;
 
 const char* tsdb_conv_code_str(TSDB_CONV_CODE code);
+
+typedef struct stack_buffer_s           stack_buffer_t;
+struct stack_buffer_s {
+  char                  buf[1024*16];
+  size_t                next;
+};
+
+char* stack_buffer_alloc(stack_buffer_t *buffer, size_t bytes);
+int is_owned_by_stack_buffer(stack_buffer_t *buffer, const char *ptr);
+
+typedef struct tsdb_conv_s             tsdb_conv_t;
+tsdb_conv_t*   tsdb_conv_open(const char *from_enc, const char *to_enc);
+void           tsdb_conv_close(tsdb_conv_t *cnv);
+TSDB_CONV_CODE tsdb_conv_write(tsdb_conv_t *cnv, const char *src, size_t *slen, char *dst, size_t *dlen);
+TSDB_CONV_CODE tsdb_conv_write_int64(tsdb_conv_t *cnv, int64_t val, char *dst, size_t *dlen);
+TSDB_CONV_CODE tsdb_conv_write_double(tsdb_conv_t *cnv, double val, char *dst, size_t *dlen);
+TSDB_CONV_CODE tsdb_conv_write_timestamp(tsdb_conv_t *cnv, SQL_TIMESTAMP_STRUCT val, char *dst, size_t *dlen);
+
+TSDB_CONV_CODE tsdb_conv_chars_to_bit(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int8_t *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_tinyint(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int8_t *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_smallint(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int16_t *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_int(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int32_t *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_bigint(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int64_t *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_ts(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int64_t *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_float(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, float *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_double(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, double *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_timestamp(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, SQL_TIMESTAMP_STRUCT *dst);
+TSDB_CONV_CODE tsdb_conv_chars_to_timestamp_ts(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, int64_t *dst);
+TSDB_CONV_CODE tsdb_conv(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *src, size_t slen, const char **dst, size_t *dlen);
+void           tsdb_conv_free(tsdb_conv_t *cnv, const char *ptr, stack_buffer_t *buffer, const char *src);
+
 
 TSDB_CONV_CODE tsdb_iconv_conv(iconv_t cnv, const unsigned char *src, size_t *slen, unsigned char *dst, size_t *dlen);
 
@@ -66,6 +99,7 @@ TSDB_CONV_CODE tsdb_chars_to_bigint(const char *src, size_t smax, int64_t *dst);
 TSDB_CONV_CODE tsdb_chars_to_ts(const char *src, size_t smax, int64_t *dst);
 TSDB_CONV_CODE tsdb_chars_to_float(const char *src, size_t smax, float *dst);
 TSDB_CONV_CODE tsdb_chars_to_double(const char *src, size_t smax, double *dst);
+TSDB_CONV_CODE tsdb_chars_to_timestamp(const char *src, size_t smax, SQL_TIMESTAMP_STRUCT *dst);
 TSDB_CONV_CODE tsdb_chars_to_char(const char *src, size_t smax, char *dst, size_t dmax);
 
 TSDB_CONV_CODE tsdb_wchars_to_bit(iconv_t cnv, const unsigned char *src, size_t smax, int8_t *dst);

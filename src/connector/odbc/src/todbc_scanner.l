@@ -7,15 +7,6 @@
 #define strcasecmp _stricmp
 #endif
 
-typedef struct params_s              params_t;
-struct params_s {
-    char                *key;
-    char                *dsn;
-    char                *uid;
-    char                *pwd;
-    char                *host;
-};
-
 #define PUSH_STATE(state)      yy_push_state(state, yyscanner)
 #define POP_STATE()            yy_pop_state(yyscanner)
 
@@ -61,8 +52,23 @@ do {                                                 \
         yyextra->pwd = strdup(yytext);               \
         break;                                       \
     }                                                \
+    if (strcasecmp(yyextra->key, "DB")==0) {         \
+        free(yyextra->db);                           \
+        yyextra->pwd = strdup(yytext);               \
+        break;                                       \
+    }                                                \
     if (strcasecmp(yyextra->key, "HOST")==0) {       \
         free(yyextra->host);                         \
+        yyextra->host = strdup(yytext);              \
+        break;                                       \
+    }                                                \
+    if (strcasecmp(yyextra->key, "SERVER_ENC")==0) { \
+        free(yyextra->svr_enc);                      \
+        yyextra->host = strdup(yytext);              \
+        break;                                       \
+    }                                                \
+    if (strcasecmp(yyextra->key, "CLIENT_ENC")==0) { \
+        free(yyextra->cli_enc);                      \
         yyextra->host = strdup(yytext);              \
         break;                                       \
     }                                                \
@@ -71,7 +77,7 @@ do {                                                 \
 %}
 
 %option prefix="todbc_yy"
-%option extra-type="struct params_s *"
+%option extra-type="conn_val_t *"
 %option nounistd
 %option never-interactive
 %option reentrant
@@ -115,20 +121,45 @@ do {                                                 \
 <VAL>.|\n         { return -1; }
 %%
 
-int todbc_parse_conn_string(const char *conn, char **dsn, char **uid, char **pwd, char **host) {
+int todbc_parse_conn_string(const char *conn, conn_val_t *val) {
   yyscan_t arg = {0};
-  params_t params = {0};
   yylex_init(&arg);
   yyset_debug(0, arg);
-  yyset_extra(&params, arg);
+  yyset_extra(val, arg);
   yy_scan_string(conn, arg);
   int ret =yylex(arg);
   yylex_destroy(arg);
-  *dsn = params.dsn;
-  *uid = params.uid;
-  *pwd = params.pwd;
-  *host = params.host;
+  if (val->key) free(val->key); val->key = NULL;
+  if (ret) {
+    conn_val_reset(val);
+  }
   return ret ? -1 : 0;
 }
 
+void conn_val_reset(conn_val_t *val) {
+  if (val->key) {
+    free(val->key); val->key = NULL;
+  }
+  if (val->dsn) {
+    free(val->dsn); val->dsn = NULL;
+  }
+  if (val->uid) {
+    free(val->uid); val->uid = NULL;
+  }
+  if (val->pwd) {
+    free(val->pwd); val->pwd = NULL;
+  }
+  if (val->db) {
+    free(val->db); val->db = NULL;
+  }
+  if (val->host) {
+    free(val->host); val->host = NULL;
+  }
+  if (val->svr_enc) {
+    free(val->svr_enc); val->svr_enc = NULL;
+  }
+  if (val->cli_enc) {
+    free(val->cli_enc); val->cli_enc = NULL;
+  }
+}
 
