@@ -2728,7 +2728,6 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
 int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd* pCmd) {
   const char* msg1 = "too many columns in group by clause";
   const char* msg2 = "invalid column name in group by clause";
-//  const char* msg3 = "group by columns must belong to one table";
   const char* msg7 = "not support group by expression";
   const char* msg8 = "not allowed column type for group by";
   const char* msg9 = "tags not allowed for table query";
@@ -2803,7 +2802,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
       tscColumnListInsert(pTableMetaInfo->tagColList, &index);
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
-      if (pSchema->type > TSDB_DATA_TYPE_BINARY) {
+      if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
       }
 
@@ -5281,20 +5280,26 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
 
   if (pParentQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, subClauseIndex);
+    SSqlExpr* pExpr = NULL;
+
     size_t size = taosArrayGetSize(pQueryInfo->exprList);
-  
-    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, (int32_t)size - 1);
+    if (size > 0) {
+      pExpr = tscSqlExprGet(pQueryInfo, (int32_t)size - 1);
+    }
 
-    if (pExpr->functionId != TSDB_FUNC_TAG) {
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
-      int16_t         columnInfo = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-      SColumnIndex    index = {.tableIndex = 0, .columnIndex = columnInfo};
-      SSchema*        pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+    if (pExpr == NULL || pExpr->functionId != TSDB_FUNC_TAG) {
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pParentQueryInfo, tableIndex);
 
-      int16_t type = pSchema[index.columnIndex].type;
-      int16_t bytes = pSchema[index.columnIndex].bytes;
-      char*   name = pSchema[index.columnIndex].name;
-  
+      int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
+
+      SSchema* pTagSchema = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, colId);
+      int16_t colIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, colId);
+      SColumnIndex    index = {.tableIndex = 0, .columnIndex = colIndex};
+
+      char*   name = pTagSchema->name;
+      int16_t type = pTagSchema->type;
+      int16_t bytes = pTagSchema->bytes;
+
       pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, type, bytes, bytes, true);
       pExpr->colInfo.flag = TSDB_COL_TAG;
 

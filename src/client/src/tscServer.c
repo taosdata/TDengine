@@ -150,7 +150,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   if (pObj == NULL) return;
 
   if (pObj != pObj->signature) {
-    tscError("heart beat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
+    tscError("heartbeat msg, pObj:%p, signature:%p invalid", pObj, pObj->signature);
     return;
   }
 
@@ -175,12 +175,12 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscDebug("heartbeat failed, code:%s", tstrerror(code));
+    tscDebug("%p heartbeat failed, code:%s", pObj->pHb, tstrerror(code));
   }
 
   if (pObj->pHb != NULL) {
     int32_t waitingDuring = tsShellActivityTimer * 500;
-    tscDebug("%p start heartbeat in %dms", pSql, waitingDuring);
+    tscDebug("%p send heartbeat in %dms", pSql, waitingDuring);
 
     taosTmrReset(tscProcessActivityTimer, waitingDuring, pObj, tscTmr, &pObj->pTimer);
   } else {
@@ -190,29 +190,33 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   STscObj *pObj = (STscObj *)handle;
-  if (pObj == NULL || pObj->signature != pObj) {
+
+  int ret = taosAcquireRef(tscRefId, pObj);
+  if (ret < 0) {
+    tscTrace("%p failed to acquire TSC obj, reason:%s", pObj, tstrerror(ret));
     return;
   }
 
   SSqlObj* pHB = pObj->pHb;
-  if (pObj->pTimer != tmrId || pHB == NULL) {
-    return;
-  }
 
   void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
   if (p == NULL) {
     tscWarn("%p HB object has been released already", pHB);
+    taosReleaseRef(tscRefId, pObj);
     return;
   }
 
   assert(*pHB->self == pHB);
 
+  pHB->retry = 0;
   int32_t code = tscProcessSql(pHB);
   taosCacheRelease(tscObjCache, (void**) &p, false);
 
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
   }
+
+  taosReleaseRef(tscRefId, pObj);
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
@@ -549,11 +553,28 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
   int32_t srcColListSize = (int32_t)(taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo));
-  
-  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+
+  size_t  numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   int32_t exprSize = (int32_t)(sizeof(SSqlFuncMsg) * numOfExprs);
-  
-  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + 4096;
+
+  int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
+
+  int32_t tableSerialize = 0;
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  if (pTableMetaInfo->pVgroupTables != NULL) {
+    size_t numOfGroups = taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+
+    int32_t totalTables = 0;
+    for (int32_t i = 0; i < numOfGroups; ++i) {
+      SVgroupTableInfo *pTableInfo = taosArrayGet(pTableMetaInfo->pVgroupTables, i);
+      totalTables += (int32_t) taosArrayGetSize(pTableInfo->itemList);
+    }
+
+    tableSerialize = totalTables * sizeof(STableIdInfo);
+  }
+
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize +
+         tableSerialize + 4096;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
@@ -1638,11 +1659,14 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int size = numOfQueries * sizeof(SQueryDesc) + numOfStreams * sizeof(SStreamDesc) + sizeof(SCMHeartBeatMsg) + 100;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
-    tscError("%p failed to malloc for heartbeat msg", pSql);
+    tscError("%p failed to create heartbeat msg", pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  // TODO the expired hb and client can not be identified by server till now.
   SCMHeartBeatMsg *pHeartbeat = (SCMHeartBeatMsg *)pCmd->payload;
+  tstrncpy(pHeartbeat->clientVer, version, tListLen(pHeartbeat->clientVer));
+
   pHeartbeat->numOfQueries = numOfQueries;
   pHeartbeat->numOfStreams = numOfStreams;
 
@@ -1995,9 +2019,10 @@ static void createHBObj(STscObj* pObj) {
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
-  char temp[TSDB_TABLE_FNAME_LEN * 2];
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
+
+  char temp[TSDB_TABLE_FNAME_LEN * 2] = {0};
 
   SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
   tstrncpy(pObj->acctId, pConnect->acctId, sizeof(pObj->acctId));  // copy acctId from response
@@ -2017,6 +2042,8 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->connId = htonl(pConnect->connId);
 
   createHBObj(pObj);
+
+  //launch a timer to send heartbeat to maintain the connection and send status to mnode
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
 
   return 0;
