@@ -2169,6 +2169,7 @@ int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId) {
 
   // can not reach here
   assert(0);
+  return INT16_MIN;
 }
 
 bool tscIsUpdateQuery(SSqlObj* pSql) {
