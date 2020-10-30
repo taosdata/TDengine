@@ -3762,6 +3762,7 @@ void destroyTableQueryInfoImpl(STableQueryInfo *pTableQueryInfo) {
     return;
   }
 
+  tVariantDestroy(&pTableQueryInfo->tag);
   cleanupTimeWindowInfo(&pTableQueryInfo->windowResInfo);
 }
 
@@ -6345,7 +6346,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
     for(int32_t j = 0; j < s; ++j) {
       STableKeyInfo* info = taosArrayGet(pa, j);
 
-      void* buf = (char*)pQInfo->pBuf + index * sizeof(STableQueryInfo);
+      void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
 
       window.skey = info->lastKey;
       STableQueryInfo* item = createTableQueryInfo(&pQInfo->runtimeEnv, info->pTable, window, buf);

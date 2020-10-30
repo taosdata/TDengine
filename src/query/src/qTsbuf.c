@@ -156,7 +156,8 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
   } else {
 //    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
-  
+
+  tVariantDestroy(&pTSBuf->block.tag);
   free(pTSBuf);
   return NULL;
 }
@@ -284,12 +285,12 @@ static void expandBuffer(STSList* ptsData, int32_t inputSize) {
 
 STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   STSBlock* pBlock = &pTSBuf->block;
-  
+
   // clear the memory buffer
-  void* tmp = pBlock->payload;
-  memset(pBlock, 0, sizeof(STSBlock));
-  pBlock->payload = tmp;
-  
+  pBlock->compLen   = 0;
+  pBlock->padding   = 0;
+  pBlock->numOfElem = 0;
+
   if (order == TSDB_ORDER_DESC) {
     /*
      * set the right position for the reversed traverse, the reversed traverse is started from

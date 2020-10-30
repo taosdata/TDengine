@@ -520,9 +520,10 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
       taosArrayPush(result, &info);
     }
 
-    tscDebug("%p tid:%d, uid:%"PRIu64",vgId:%d added for vnode query", pSql, tt->tid, tt->uid, tt->vgId)
     STableIdInfo item = {.uid = tt->uid, .tid = tt->tid, .key = INT64_MIN};
     taosArrayPush(vgTables, &item);
+
+    tscDebug("%p tid:%d, uid:%"PRIu64",vgId:%d added, total:%d", pSql, tt->tid, tt->uid, tt->vgId, (int32_t) taosArrayGetSize(vgTables));
     prev = tt;
   }
 
@@ -602,10 +603,10 @@ static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSq
 }
 
 static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray** s1, SArray** s2) {
-  tscDebug("%p all subqueries retrieve <tid, tags> complete, do tags match", pParentSql);
-
   SJoinSupporter* p1 = pParentSql->pSubs[0]->param;
   SJoinSupporter* p2 = pParentSql->pSubs[1]->param;
+
+  tscDebug("%p all subquery retrieve <tid, tags> complete, do tags match, %d, %d", pParentSql, p1->num, p2->num);
 
   // sort according to the tag value
   qsort(p1->pIdTagList, p1->num, p1->tagSize, tagValCompar);
@@ -655,6 +656,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   qsort((*s1)->pData, t1, size, tidTagsCompar);
   qsort((*s2)->pData, t2, size, tidTagsCompar);
 
+  tscDebug("%p tags match complete, result: %"PRId64", %"PRId64, pParentSql, t1, t2);
   return TSDB_CODE_SUCCESS;
 }
 
