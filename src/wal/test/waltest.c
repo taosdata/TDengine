@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
   printf("%d wal files are written\n", total);
 
   int64_t index = 0;
-  char     name[256];
+  char    name[256];
 
   while (1) {
     int code = walGetWalFile(pWal, name, &index);

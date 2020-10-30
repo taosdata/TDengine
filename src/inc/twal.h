@@ -41,7 +41,6 @@ typedef struct {
   int8_t  walLevel;     // wal level
   int8_t  wals;         // number of WAL files;
   int8_t  keep;         // keep the wal file when closed
-  int8_t  reserved[5];
 } SWalCfg;
 
 typedef void* twalh;  // WAL HANDLE

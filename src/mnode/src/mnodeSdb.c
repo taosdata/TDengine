@@ -237,8 +237,8 @@ static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint3
   return 0;
 }
 
-static int sdbGetWalInfo(void *ahandle, char *name, int64_t *index) {
-  return walGetWalFile(tsSdbObj.wal, name, index);
+static int32_t sdbGetWalInfo(void *ahandle, char *fileName, int64_t *fileId) {
+  return walGetWalFile(tsSdbObj.wal, fileName, fileId);
 }
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {

@@ -58,7 +58,7 @@ int32_t walRenew(void *handle) {
 
   if (!pWal->keep && lastId != -1) {
     // remove last wal file
-    char name[TSDB_FILENAME_LEN + 20];
+    char name[WAL_FILE_LEN];
     snprintf(name, sizeof(name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, lastId);
     if (remove(name) < 0) {
       wError("vgId:%d, file:%s, failed to remove since %s", pWal->vgId, name, strerror(errno));
