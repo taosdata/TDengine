@@ -40,7 +40,9 @@ IF (TD_WINDOWS_64)
   endif ()
   find_package(FLEX)
   if(NOT FLEX_FOUND)
-    message(FATAL_ERROR "you need to install flex first")
+    message(WARNING "you need to install flex first\n"
+                    "you may go to: https://github.com/lexxmark/winflexbison\n"
+                    "or download from: https://github.com/lexxmark/winflexbison/releases")
   else ()
     ADD_SUBDIRECTORY(src)
     ADD_SUBDIRECTORY(tools)
