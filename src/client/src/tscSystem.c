@@ -159,7 +159,7 @@ void taos_init_imp(void) {
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 
 // this function may be called by user or system, or by both simultaneously.
-void taos_cleanup() {
+void taos_cleanup(void) {
   tscDebug("start to cleanup client environment");
 
   void* m = tscMetaCache;
