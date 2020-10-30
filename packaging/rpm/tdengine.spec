@@ -2,7 +2,7 @@
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
 
-Name:		TDengine
+Name:		tdengine
 Version:	%{_version}
 Release:	3%{?dist}
 Summary:	tdengine from taosdata
