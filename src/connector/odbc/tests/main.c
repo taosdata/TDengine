@@ -16,7 +16,10 @@
 do {                                              \
   D("testing: %s", #statement);                   \
   int r = (statement);                            \
-  if (r) return 1;                                \
+  if (r) {                                        \
+    D("testing failed: %s", #statement);          \
+    return 1;                                     \
+  }                                               \
 } while (0);
 
 
@@ -543,6 +546,7 @@ int main(int argc, char *argv[]) {
     CHK_TEST(test_sqls(dsn, uid, pwd, connstr, sqls));
   }
 
+  D("Done!");
   return 0;
 }
 

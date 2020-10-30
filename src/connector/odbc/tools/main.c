@@ -113,6 +113,8 @@ static int do_install(int i, int argc, char *argv[]) {
     return -1;
   }
 
+  fprintf(stderr, "ODBC driver [%s] has been installed in [%s], and UsageCount is now [%d]\n",
+          driverName, driverPath, usageCount);
   return argc;
 }
 
@@ -152,8 +154,12 @@ static int do_uninstall(int i, int argc, char *argv[]) {
       fprintf(stderr, "failed to remove driver [%s]\n", driverName);
       return -1;
     }
-    if (!forceful) return argc;
+    if (!forceful) {
+      fprintf(stderr, "UsageCount for ODBC driver [%s] is now: [%d]\n", driverName, usageCount);
+      return argc;
+    }
   } while (usageCount > 0);
+  fprintf(stderr, "ODBC driver [%s] is now fully uninstalled\n", driverName);
   return argc;
 }
 
