@@ -229,6 +229,8 @@ struct env_s {
   uint64_t                refcount;
   unsigned int            destroying:1;
 
+  char                    env_locale[64];
+
   taos_error_t            err;
 };
 
@@ -245,6 +247,8 @@ struct conn_s {
   tsdb_conv_t            *utf16_to_utf8;
   tsdb_conv_t            *utf16_to_server;
   tsdb_conv_t            *client_to_utf8;
+  tsdb_conv_t            *env_to_client;
+  tsdb_conv_t            *client_to_env;
 
   TAOS                   *taos;
 
@@ -339,6 +343,20 @@ static tsdb_conv_t* tsdb_conn_client_to_utf8(conn_t *conn) {
   return conn->client_to_utf8;
 }
 
+static tsdb_conv_t* tsdb_conn_env_to_client(conn_t *conn) {
+  if (!conn->env_to_client) {
+    conn->env_to_client = tsdb_conv_open(conn->env->env_locale, conn->client_enc);
+  }
+  return conn->env_to_client;
+}
+
+static tsdb_conv_t* tsdb_conn_client_to_env(conn_t *conn) {
+  if (!conn->client_to_env) {
+    conn->client_to_env = tsdb_conv_open(conn->client_enc, conn->env->env_locale);
+  }
+  return conn->client_to_env;
+}
+
 static void tsdb_conn_close_convs(conn_t *conn) {
   if (0) {
     tsdb_conn_server_to_client(NULL);
@@ -366,6 +384,14 @@ static void tsdb_conn_close_convs(conn_t *conn) {
   if (conn->client_to_utf8) {
     tsdb_conv_close(conn->client_to_utf8);
     conn->client_to_utf8 = NULL;
+  }
+  if (conn->env_to_client) {
+    tsdb_conv_close(conn->env_to_client);
+    conn->env_to_client = NULL;
+  }
+  if (conn->client_to_env) {
+    tsdb_conv_close(conn->client_to_env);
+    conn->client_to_env = NULL;
   }
 }
 
@@ -402,6 +428,12 @@ static SQLRETURN doSQLAllocEnv(SQLHENV *EnvironmentHandle)
   if (!env) return SQL_INVALID_HANDLE;
 
   DASSERT(INC_REF(env)>0);
+
+#ifdef _MSC_VER
+  snprintf(env->env_locale, sizeof(env->env_locale), GB18030_ENC);
+#else
+  snprintf(env->env_locale, sizeof(env->env_locale), UTF8_ENC);
+#endif
 
   *EnvironmentHandle = env;
 
@@ -464,10 +496,11 @@ static SQLRETURN doSQLAllocConnect(SQLHENV EnvironmentHandle,
       break;
     }
 
-    snprintf(conn->client_enc, sizeof(conn->client_enc), UTF8_ENC);
-    snprintf(conn->server_enc, sizeof(conn->server_enc), UTF8_ENC);
-
     conn->env = env;
+
+    snprintf(conn->client_enc, sizeof(conn->client_enc), "%s", conn->env->env_locale);
+    snprintf(conn->server_enc, sizeof(conn->server_enc), "%s", conn->env->env_locale);
+
     *ConnectionHandle = conn;
 
     DASSERT(INC_REF(conn)>0);
@@ -1219,10 +1252,10 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
       field_bytes -= VARSTR_HEADER_SIZE;
       switch (target.ct) {
         case SQL_C_CHAR: {
-          tsdb_conv_t *server_to_client = tsdb_conn_server_to_client(conn);
+          tsdb_conv_t *env_to_client = tsdb_conn_env_to_client(conn);
           size_t slen = strnlen((const char*)row, field_bytes);
           size_t len = (size_t)BufferLength;
-          TSDB_CONV_CODE code = tsdb_conv_write(server_to_client,
+          TSDB_CONV_CODE code = tsdb_conv_write(env_to_client,
                                    (const char*)row, &slen,
                                    (char*)TargetValue, &len);
           if (StrLen_or_Ind) *StrLen_or_Ind = (SQLLEN)((size_t)BufferLength - len);
@@ -2067,12 +2100,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           CHK_CONV(1, code);
         } break;
         case SQL_C_CHAR: {
-          tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
+          tsdb_conv_t *client_to_env = tsdb_conn_client_to_env(conn);
           size_t slen = (size_t)*soi;
           if (slen==SQL_NTS) slen = strlen((const char*)paramValue);
           const char *buf = NULL;
           size_t blen = 0;
-          TSDB_CONV_CODE code = tsdb_conv(client_to_server, NULL, (const char *)paramValue, slen, &buf, &blen);
+          TSDB_CONV_CODE code = tsdb_conv(client_to_env, NULL, (const char *)paramValue, slen, &buf, &blen);
           if (code==TSDB_CONV_OK) {
             if (buf!=(const char*)paramValue) {
               bind->allocated = 1;
