@@ -113,7 +113,6 @@ int tsdbUpdateRowInMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
     } else {
       if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
     }
-    if ((!isRowDelete) && (TABLE_LASTKEY(pTable) < key)) TABLE_LASTKEY(pTable) = key;
 
     if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
     if (pMemTable->keyLast < key) pMemTable->keyLast = key;

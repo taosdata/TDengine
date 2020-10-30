@@ -124,8 +124,8 @@ typedef uint64_t TKEY;
 
 #define TKEY_INVALID UINT64_MAX
 #define TKEY_NULL TKEY_INVALID
-#define TKEY_NEGATIVE_FLAG (((TKEY)1) << (sizeof(TKEY) * 8 - 1))
-#define TKEY_DELETE_FLAG (((TKEY)1) << (sizeof(TKEY) * 8 - 2))
+#define TKEY_NEGATIVE_FLAG (((TKEY)1) << 63)
+#define TKEY_DELETE_FLAG (((TKEY)1) << 62)
 #define TKEY_VALUE_FILTER (~(TKEY_NEGATIVE_FLAG | TKEY_DELETE_FLAG))
 
 #define TKEY_IS_NEGATIVE(tkey) (((tkey)&TKEY_NEGATIVE_FLAG) != 0)
