@@ -58,7 +58,7 @@ rm -rf debug && cmake -B debug && cmake --build debug && cmake --install debug &
 - `cmake -G "NMake Makefiles" -B debug`
 - `cmake --build debug`
 - `cmake --install debug`
-- open your `Command Prompt` with Administrator's privilidge
+- open your `Command Prompt` with Administrator's priviledge
 - remove previously installed TAOS ODBC driver: run `C:\TDengine\todbcinst -u -f -n TAOS`
 - install TAOS ODBC driver that was just built: run `C:\TDengine\todbcinst -i -n TAOS -p C:\TDengine\driver`
 
