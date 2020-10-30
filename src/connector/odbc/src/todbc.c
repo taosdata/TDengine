@@ -167,7 +167,8 @@ do {                                                                    \
   TSDB_CONV_CODE code_0c80 = (statement);                               \
   switch (code_0c80) {                                                  \
     case TSDB_CONV_OK: return SQL_SUCCESS;                              \
-    case TSDB_CONV_OOM: {                                               \
+    case TSDB_CONV_OOM:                                                 \
+    case TSDB_CONV_NOT_AVAIL: {                                         \
       SET_ERROR(sql, "HY001", TSDB_CODE_ODBC_OOM, "");                  \
       return SQL_ERROR;                                                 \
     } break;                                                            \
@@ -175,7 +176,8 @@ do {                                                                    \
       SET_ERROR(sql, "22003", TSDB_CODE_ODBC_CONV_OOR, "");             \
       return SQL_ERROR;                                                 \
     } break;                                                            \
-    case TSDB_CONV_CHAR_NOT_NUM: {                                      \
+    case TSDB_CONV_CHAR_NOT_NUM:                                        \
+    case TSDB_CONV_CHAR_NOT_TS: {                                       \
       SET_ERROR(sql, "22018", TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM, "");    \
       return SQL_ERROR;                                                 \
     } break;                                                            \
@@ -187,8 +189,12 @@ do {                                                                    \
       SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_TRUNC, "");           \
       return SQL_ERROR;                                                 \
     } break;                                                            \
+    case TSDB_CONV_BAD_CHAR: {                                          \
+      SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_TRUNC, "");           \
+      return SQL_ERROR;                                                 \
+    } break;                                                            \
     default: {                                                          \
-      DASSERTX(0, "internal logic error");                              \
+      DASSERTX(0, "internal logic error: %d", code_0c80);                              \
       return SQL_ERROR; /* never reached here */                        \
     } break;                                                            \
   }                                                                     \

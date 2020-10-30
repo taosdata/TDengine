@@ -64,12 +64,12 @@ do {                                                 \
     }                                                \
     if (strcasecmp(yyextra->key, "SERVER_ENC")==0) { \
         free(yyextra->svr_enc);                      \
-        yyextra->host = strdup(yytext);              \
+        yyextra->svr_enc = strdup(yytext);              \
         break;                                       \
     }                                                \
     if (strcasecmp(yyextra->key, "CLIENT_ENC")==0) { \
         free(yyextra->cli_enc);                      \
-        yyextra->host = strdup(yytext);              \
+        yyextra->cli_enc = strdup(yytext);              \
         break;                                       \
     }                                                \
 } while (0)
@@ -98,7 +98,7 @@ do {                                                 \
           if (state == VAL)     yyterminate();
           return -1; }
 [[:space:]]+    { }
-[[:alnum:]]+    { set_key(); PUSH_STATE(KEY); }
+[[:alnum:]_]+   { set_key(); PUSH_STATE(KEY); }
 .|\n            { return -1; }
 
 <KEY>[[:space:]]+   { }
