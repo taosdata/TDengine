@@ -19,6 +19,7 @@ Description=Connection to TAOS
 Driver=TAOS
 EOF
 
+# better remove first ?
 sudo odbcinst -i -d -f "${BLD_DIR}/template.ini" &&
 odbcinst -i -s -f "${BLD_DIR}/template.dsn" &&
 echo "odbc install done"
