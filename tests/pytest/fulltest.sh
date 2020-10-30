@@ -154,6 +154,7 @@ python3 ./test.py -f query/queryConnection.py
 python3 ./test.py -f query/queryCountCSVData.py
 python3 ./test.py -f query/natualInterval.py
 python3 ./test.py -f query/bug1471.py
+python3 ./test.py -f query/dataLossTest.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py

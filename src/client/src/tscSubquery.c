@@ -320,11 +320,8 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pQueryInfo->colList = pSupporter->colList;
     pQueryInfo->exprList = pSupporter->exprList;
     pQueryInfo->fieldsInfo = pSupporter->fieldsInfo;
+    pQueryInfo->groupbyExpr = pSupporter->groupInfo;
 
-    pSupporter->exprList = NULL;
-    pSupporter->colList = NULL;
-    memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
-  
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->subState.numOfSub == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
   
@@ -332,7 +329,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
     pTableMetaInfo->pVgroupTables = pSupporter->pVgroupTables;
+
+    pSupporter->exprList = NULL;
+    pSupporter->colList = NULL;
     pSupporter->pVgroupTables = NULL;
+    memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
+    memset(&pSupporter->groupInfo, 0, sizeof(SSqlGroupbyExpr));
 
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
@@ -460,18 +462,36 @@ static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
 
 }
 
-int32_t tscCompareTidTags(const void* p1, const void* p2) {
-  const STidTags* t1 = (const STidTags*) varDataVal(p1);
-  const STidTags* t2 = (const STidTags*) varDataVal(p2);
+int32_t tidTagsCompar(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*) (p1);
+  const STidTags* t2 = (const STidTags*) (p2);
   
   if (t1->vgId != t2->vgId) {
     return (t1->vgId > t2->vgId) ? 1 : -1;
   }
 
-  if (t1->tid != t2->tid) {
-    return (t1->tid > t2->tid) ? 1 : -1;
+  tstr* tag1 = (tstr*) t1->tag;
+  tstr* tag2 = (tstr*) t2->tag;
+
+  if (tag1->len != tag2->len) {
+    return (tag1->len > tag2->len)? 1: -1;
   }
-  return 0;
+
+  return strncmp(tag1->data, tag2->data, tag1->len);
+}
+
+int32_t tagValCompar(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*) varDataVal(p1);
+  const STidTags* t2 = (const STidTags*) varDataVal(p2);
+
+  tstr* tag1 = (tstr*) t1->tag;
+  tstr* tag2 = (tstr*) t2->tag;
+
+  if (tag1->len != tag2->len) {
+    return (tag1->len > tag2->len)? 1: -1;
+  }
+
+  return strncmp(tag1->data, tag2->data, tag1->len);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {
@@ -587,17 +607,19 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   SJoinSupporter* p1 = pParentSql->pSubs[0]->param;
   SJoinSupporter* p2 = pParentSql->pSubs[1]->param;
 
-  qsort(p1->pIdTagList, p1->num, p1->tagSize, tscCompareTidTags);
-  qsort(p2->pIdTagList, p2->num, p2->tagSize, tscCompareTidTags);
+  // sort according to the tag value
+  qsort(p1->pIdTagList, p1->num, p1->tagSize, tagValCompar);
+  qsort(p2->pIdTagList, p2->num, p2->tagSize, tagValCompar);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
-  SSchema* pColSchema = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
+  SSchema* pColSchema = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
   // int16_t for padding
-  *s1 = taosArrayInit(p1->num, p1->tagSize - sizeof(int16_t));
-  *s2 = taosArrayInit(p2->num, p2->tagSize - sizeof(int16_t));
+  int32_t size = p1->tagSize - sizeof(int16_t);
+  *s1 = taosArrayInit(p1->num, size);
+  *s2 = taosArrayInit(p2->num, size);
 
   if (!(checkForDuplicateTagVal(pColSchema, p1, pParentSql) && checkForDuplicateTagVal(pColSchema, p2, pParentSql))) {
     return TSDB_CODE_QRY_DUP_JOIN_KEY;
@@ -624,6 +646,14 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
       i++;
     }
   }
+
+  // reorganize the tid-tag value according to both the vgroup id and tag values
+  // sort according to the tag value
+  size_t t1 = taosArrayGetSize(*s1);
+  size_t t2 = taosArrayGetSize(*s2);
+
+  qsort((*s1)->pData, t1, size, tidTagsCompar);
+  qsort((*s2)->pData, t2, size, tidTagsCompar);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -744,10 +774,10 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
 
     SSqlObj* psub1 = pParentSql->pSubs[0];
-    ((SJoinSupporter*)psub1->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo1->pVgroupTables);
+    ((SJoinSupporter*)psub1->param)->pVgroupTables =  tscVgroupTableInfoClone(pTableMetaInfo1->pVgroupTables);
 
     SSqlObj* psub2 = pParentSql->pSubs[1];
-    ((SJoinSupporter*)psub2->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo2->pVgroupTables);
+    ((SJoinSupporter*)psub2->param)->pVgroupTables =  tscVgroupTableInfoClone(pTableMetaInfo2->pVgroupTables);
 
     pParentSql->subState.numOfSub = 2;
     pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;
@@ -1313,6 +1343,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
+    pSupporter->groupInfo = pNewQueryInfo->groupbyExpr;
+    memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
+
     pNew->cmd.numOfCols = 0;
     pNewQueryInfo->interval.interval = 0;
     pSupporter->limit = pNewQueryInfo->limit;
@@ -1333,17 +1366,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       assert(pTagCond->joinInfo.hasJoin);
 
       int32_t tagColId = tscGetJoinTagColIdByUid(pTagCond, pTableMetaInfo->pTableMeta->id.uid);
-      SSchema* s = tscGetTableColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
+      SSchema* s = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
 
-      // get the tag colId column index
-      int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
-      SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-      for(int32_t i = 0; i < numOfTags; ++i) {
-        if (pSchema[i].colId == tagColId) {
-          colIndex.columnIndex = i;
-          break;
-        }
-      }
+      colIndex.columnIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, tagColId);
 
       int16_t bytes = 0;
       int16_t type  = 0;
@@ -2165,7 +2190,8 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     numOfRes = (int32_t)(MIN(numOfRes, remain));
   }
 
-  if (numOfRes == 0) {
+  if (numOfRes == 0) {  // no result any more, free all subquery objects
+    freeJoinSubqueryObj(pSql);
     return;
   }
 

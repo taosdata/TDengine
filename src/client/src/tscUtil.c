@@ -1665,6 +1665,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
     taosArrayDestroy(pQueryInfo->groupbyExpr.columnInfo);
     pQueryInfo->groupbyExpr.columnInfo = NULL;
+    pQueryInfo->groupbyExpr.numOfGroupCols = 0;
   }
   
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
@@ -1713,7 +1714,7 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   taosArrayRemove(pVgroupTable, index);
 }
 
-SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
+SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
   if (pVgroupTables == NULL) {
     return NULL;
   }
@@ -1739,7 +1740,7 @@ SArray* tscCloneVgroupTableInfo(SArray* pVgroupTables) {
 }
 
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache) {
-  tscDebug("%p deref the table meta in cache, numOfTables:%d", address, pQueryInfo->numOfTables);
+  tscDebug("%p unref %d tables in the tableMeta cache", address, pQueryInfo->numOfTables);
   
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
@@ -1779,6 +1780,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
   }
 
+  // TODO handle malloc failure
   pTableMetaInfo->tagColList = taosArrayInit(4, POINTER_BYTES);
   if (pTableMetaInfo->tagColList == NULL) {
     return NULL;
@@ -1788,7 +1790,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, -1);
   }
 
-  pTableMetaInfo->pVgroupTables = tscCloneVgroupTableInfo(pVgroupTables);
+  pTableMetaInfo->pVgroupTables = tscVgroupTableInfoClone(pVgroupTables);
   
   pQueryInfo->numOfTables += 1;
   return pTableMetaInfo;
@@ -2155,6 +2157,19 @@ int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
   }
 }
 
+int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId) {
+  int32_t numOfTags = tscGetNumOfColumns(pTableMeta);
+
+  SSchema* pSchema = tscGetTableTagSchema(pTableMeta);
+  for(int32_t i = 0; i < numOfTags; ++i) {
+    if (pSchema[i].colId == colId) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 bool tscIsUpdateQuery(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -2469,6 +2484,7 @@ void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src) {
   dst->vgId = src->vgId;
   dst->numOfEps = src->numOfEps;
   for(int32_t i = 0; i < dst->numOfEps; ++i) {
+    taosTFree(dst->epAddr[i].fqdn);
     dst->epAddr[i].port = src->epAddr[i].port;
     dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
   }
