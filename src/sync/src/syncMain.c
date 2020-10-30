@@ -1105,6 +1105,7 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
+  if (taosAcquireRef(tsSyncRefId, pNode) < 0) return;
   pthread_mutex_lock(&(pNode->mutex));
 
   sDebug("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
@@ -1115,6 +1116,7 @@ static void syncProcessBrokenLink(void *param) {
   }
 
   pthread_mutex_unlock(&(pNode->mutex));
+  taosReleaseRef(tsSyncRefId, pNode);
 }
 
 static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
