@@ -60,6 +60,7 @@ do {                                                                            
   snprintf((char*)obj->err.sql_state, sizeof(obj->err.sql_state), "%s", sqlstate);                        \
 } while (0)
 
+
 #define CLR_ERROR(obj)                                                          \
 do {                                                                            \
   obj->err.err_no = TSDB_CODE_SUCCESS;                                          \
@@ -2275,7 +2276,11 @@ static SQLRETURN doSQLGetDiagField(SQLSMALLINT HandleType, SQLHANDLE Handle,
                                    SQLPOINTER DiagInfo, SQLSMALLINT BufferLength,
                                    SQLSMALLINT *StringLength)
 {
-  // if this function is not exported, isql will never call SQLGetDiagRec
+  switch (DiagIdentifier) {
+    case SQL_DIAG_CLASS_ORIGIN: {
+      *StringLength = 0;
+    } break;
+  }
   return SQL_SUCCESS;
 }
 
