@@ -25,7 +25,7 @@ class TDSql:
         self.queryCols = 0
         self.affectedRows = 0
 
-    def init(self, cursor, log=True):
+    def init(self, cursor, log=False):
         self.cursor = cursor
 
         if (log):
