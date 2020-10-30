@@ -166,6 +166,8 @@ class Progress:
     SERVICE_RECONNECT_START     = 4
     SERVICE_RECONNECT_SUCCESS   = 5
     SERVICE_RECONNECT_FAILURE   = 6
+    CREATE_TABLE_ATTEMPT        = 7
+
     tokens = {
         STEP_BOUNDARY:      '.',
         BEGIN_THREAD_STEP:  '[',
@@ -174,6 +176,7 @@ class Progress:
         SERVICE_RECONNECT_START:    '<r.',
         SERVICE_RECONNECT_SUCCESS:  '.r>',
         SERVICE_RECONNECT_FAILURE:  '.xr>',
+        CREATE_TABLE_ATTEMPT: '_c',
     }
 
     @classmethod
