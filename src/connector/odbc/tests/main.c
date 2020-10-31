@@ -22,6 +22,17 @@ do {                                              \
   }                                               \
 } while (0);
 
+typedef struct db_column_s          db_column_t;
+struct db_column_s {
+  char                    name[4096]; // seems enough
+  SQLSMALLINT             nameLength;
+  SQLSMALLINT             dataType;
+  SQLULEN                 columnSize;
+  SQLSMALLINT             decimalDigits;
+  SQLSMALLINT             nullable;
+};
+
+static db_column_t       *columns = NULL;
 
 typedef struct data_s            data_t;
 struct data_s {
@@ -129,6 +140,30 @@ static int open_driver_connect(const char *connstr, SQLHENV *pEnv, SQLHDBC *pCon
 
   return 1;
 }
+
+static SQLRETURN traverse_cols(SQLHSTMT stmt, SQLSMALLINT cols) {
+  SQLRETURN r = SQL_ERROR;
+  for (SQLSMALLINT i=0; i<cols; ++i) {
+    db_column_t column = {0};
+    r = SQLDescribeCol(stmt, (SQLUSMALLINT)(i+1), (SQLCHAR*)column.name,
+                       (SQLSMALLINT)sizeof(column.name), &column.nameLength,
+                       &column.dataType, &column.columnSize,
+                       &column.decimalDigits, &column.nullable);
+    CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "");
+    D("col%02d:[%s]%d,type:[%d],colSize:[%"PRId64"],decimalDigits:[%d],nullable:[%d]",
+       i+1, column.name, column.nameLength, column.dataType, column.columnSize,
+       column.decimalDigits, column.nullable);
+    db_column_t *col = (db_column_t*)realloc(columns, (size_t)(i+1)*sizeof(*col));
+    if (!col) {
+      D("out of memory");
+      return SQL_ERROR;
+    }
+    col[i] = column;
+    columns = col;
+  }
+  return SQL_SUCCESS;
+}
+
 static int do_statement(SQLHSTMT stmt, const char *statement) {
   SQLRETURN r = 0;
   do {
@@ -140,6 +175,7 @@ static int do_statement(SQLHSTMT stmt, const char *statement) {
     CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "");
     if (r) break;
     if (cols <= 0) break;
+    r = traverse_cols(stmt, cols);
     char buf[4096];
     while (1) {
       SQLRETURN r = SQLFetch(stmt);
