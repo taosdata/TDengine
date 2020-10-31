@@ -407,7 +407,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, inmem size:%dbytes, file size:%"PRId64" bytes",
+    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " B, inmem size:%dbytes, file size:%"PRId64" bytes",
         pResultBuf->handle, pResultBuf->totalBufSize, listNEles(pResultBuf->lruList) * pResultBuf->pageSize,
         pResultBuf->fileSize);
 
