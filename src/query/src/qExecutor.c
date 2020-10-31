@@ -4246,6 +4246,23 @@ static void queryCostStatis(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryCostInfo *pSummary = &pRuntimeEnv->summary;
 
+  uint64_t hashSize = taosHashGetMemSize(pQInfo->runtimeEnv.windowResInfo.hashList);
+
+  hashSize += taosHashGetMemSize(pQInfo->tableqinfoGroupInfo.map);
+  int32_t numOfGroup = GET_NUM_OF_TABLEGROUP(pQInfo);
+  for(int32_t i = 0; i < numOfGroup; ++i) {
+    SArray* pa = GET_TABLEGROUP(pQInfo, i);
+
+    int32_t numOfTables = taosArrayGetSize(pa);
+    for(int32_t j = 0; j < numOfTables; ++j) {
+      STableQueryInfo* pTableQueryInfo = taosArrayGetP(pa, j);
+
+      hashSize += taosHashGetMemSize(pTableQueryInfo->windowResInfo.hashList);
+    }
+  }
+
+  pSummary->hashSize = hashSize;
+
   // add the merge time
   pSummary->elapsedTime += pSummary->firstStageMergeTime;
 
@@ -4254,8 +4271,8 @@ static void queryCostStatis(SQInfo *pQInfo) {
          pQInfo, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
          pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
 
-  qDebug("QInfo:%p :cost summary: windowInfo size:%f k, numOfWin:%"PRId64", tableInfoSize:%f k", pQInfo, pSummary->winInfoSize/1024.0,
-      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0);
+  qDebug("QInfo:%p :cost summary: windowInfo size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb, hashTable:%.2f Kb", pQInfo, pSummary->winInfoSize/1024.0,
+      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
 }
 
 static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBlockInfo) {
