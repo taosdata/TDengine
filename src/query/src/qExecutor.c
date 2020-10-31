@@ -461,16 +461,16 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
 
     // more than the capacity, reallocate the resources
     if (pWindowResInfo->size >= pWindowResInfo->capacity) {
-      int64_t newCap = 0;
+      int64_t newCapacity = 0;
       if (pWindowResInfo->capacity > 10000) {
-        newCap = (int64_t)(pWindowResInfo->capacity * 1.25);
+        newCapacity = (int64_t)(pWindowResInfo->capacity * 1.25);
       } else {
-        newCap = (int64_t)(pWindowResInfo->capacity * 1.5);
+        newCapacity = (int64_t)(pWindowResInfo->capacity * 1.5);
       }
 
-      char *t = realloc(pWindowResInfo->pResult, (size_t)(newCap * sizeof(SWindowResult)));
-      pRuntimeEnv->summary.winInfoSize += (newCap - pWindowResInfo->capacity) * sizeof(SWindowResult);
-      pRuntimeEnv->summary.numOfTimeWindows += (newCap - pWindowResInfo->capacity);
+      char *t = realloc(pWindowResInfo->pResult, (size_t)(newCapacity * sizeof(SWindowResult)));
+      pRuntimeEnv->summary.winInfoSize += (newCapacity - pWindowResInfo->capacity) * sizeof(SWindowResult);
+      pRuntimeEnv->summary.numOfTimeWindows += (newCapacity - pWindowResInfo->capacity);
 
       if (t == NULL) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -478,19 +478,19 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
 
       pWindowResInfo->pResult = (SWindowResult *)t;
 
-      int32_t inc = (int32_t)newCap - pWindowResInfo->capacity;
+      int32_t inc = (int32_t)newCapacity - pWindowResInfo->capacity;
       memset(&pWindowResInfo->pResult[pWindowResInfo->capacity], 0, sizeof(SWindowResult) * inc);
 
       pRuntimeEnv->summary.winInfoSize += (pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * inc;
 
-      for (int32_t i = pWindowResInfo->capacity; i < newCap; ++i) {
+      for (int32_t i = pWindowResInfo->capacity; i < newCapacity; ++i) {
         int32_t ret = createQueryResultInfo(pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
         if (ret != TSDB_CODE_SUCCESS) {
           longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
       }
 
-      pWindowResInfo->capacity = (int32_t)newCap;
+      pWindowResInfo->capacity = (int32_t)newCapacity;
     }
 
     // add a new result set for a new group

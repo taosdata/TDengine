@@ -798,3 +798,11 @@ SHashNode *getNextHashNode(SHashMutableIterator *pIter) {
 
   return NULL;
 }
+
+size_t taosHashGetMemSize(const SHashObj *pHashObj) {
+  if (pHashObj == NULL) {
+    return 0;
+  }
+
+  return (pHashObj->capacity * sizeof(SHashEntry) + POINTER_BYTES) + sizeof(SHashNode) * taosHashGetSize(pHashObj);
+}

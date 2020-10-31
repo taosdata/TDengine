@@ -124,6 +124,7 @@ typedef struct SQueryCostInfo {
   uint64_t firstStageMergeTime;
   uint64_t winInfoSize;
   uint64_t tableInfoSize;
+  uint64_t hashSize;
   uint64_t numOfTimeWindows;
 } SQueryCostInfo;
 

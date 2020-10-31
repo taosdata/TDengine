@@ -49,16 +49,16 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   SQueryCostInfo* pSummary = &pRuntimeEnv->summary;
 
   // use the pointer arraylist
-  pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
+  pWindowResInfo->pResult = calloc(pWindowResInfo->capacity, sizeof(SWindowResult));
   if (pWindowResInfo->pResult == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   pWindowResInfo->interval = pRuntimeEnv->pQuery->interval.interval;
 
-  pSummary->winInfoSize += sizeof(SWindowResult) * threshold;
+  pSummary->winInfoSize += sizeof(SWindowResult) * pWindowResInfo->capacity;
   pSummary->winInfoSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
-  pSummary->numOfTimeWindows = threshold;
+  pSummary->numOfTimeWindows = pWindowResInfo->capacity;
 
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
