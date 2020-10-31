@@ -32,7 +32,7 @@ extern int32_t wDebugFlag;
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
 
 #define WAL_PREFIX     "wal"
-#define WAL_PREFIX_LEN 3
+#define WAL_PREFIX_LEN 2
 #define WAL_REFRESH_MS 1000
 #define WAL_MAX_SIZE   (1024 * 1024)
 #define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
@@ -56,6 +56,7 @@ typedef struct {
 
 int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
 int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
+int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
 
 #ifdef __cplusplus
 }

@@ -36,7 +36,12 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is closed", pWal->vgId, pWal->name);
   }
 
-  pWal->fileId = (pWal->keep ? 0 : taosGetTimestampUs());
+  if (pWal->keep) {
+    pWal->fileId = 0;
+  } else {
+    if (walGetNewFile(pWal, &pWal->fileId) != 0) pWal->fileId = 0;
+    pWal->fileId++;
+  }
 
   snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
   pWal->fd = open(pWal->name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -82,6 +87,8 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
   int32_t contLen = pHead->len + sizeof(SWalHead);
 
+  pthread_mutex_lock(&pWal->mutex);
+
   if (taosTWrite(pWal->fd, pHead, contLen) != contLen) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
@@ -89,6 +96,8 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
     pWal->version = pHead->version;
     wTrace("vgId:%d, write version:%" PRId64 ", fileId:%" PRId64, pWal->vgId, pWal->version, pWal->fileId);
   }
+
+  pthread_mutex_unlock(&pWal->mutex);
 
   ASSERT(contLen == pHead->len + sizeof(SWalHead));
 

@@ -23,7 +23,6 @@
 
 typedef struct {
   int32_t   refId;
-  int32_t   num;
   int32_t   seq;
   int8_t    stop;
   pthread_t thread;
@@ -85,7 +84,6 @@ void *walOpen(char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-  atomic_add_fetch_32(&tsWal.num, 1);
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod);
 
   return pWal;
@@ -116,19 +114,28 @@ void walClose(void *handle) {
   if (handle == NULL) return;
 
   SWal *pWal = handle;
+  pthread_mutex_lock(&pWal->mutex);
+
   taosClose(pWal->fd);
 
   if (!pWal->keep) {
-    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
-    if (remove(pWal->name) < 0) {
-      wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
-    } else {
-      wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
+    int64_t fileId = -1;
+    while (walGetNextFile(pWal, &fileId) >= 0) {
+      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
+
+      if (fileId == pWal->fileId) {
+        wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
+      } else if (remove(pWal->name) < 0) {
+        wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
+      } else {
+        wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
+      }
     }
   } else {
     wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
   }
 
+  pthread_mutex_unlock(&pWal->mutex);
   taosRemoveRef(tsWal.refId, pWal);
 }
 
