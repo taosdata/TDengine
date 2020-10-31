@@ -702,7 +702,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   }
 
   int32_t code = TSDB_CODE_TSC_INVALID_SQL;
-  char *  tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
+  char *  tmpTokenBuf = calloc(1, 16*1024);  // used for deleting Escape character: \\, \', \"
   if (NULL == tmpTokenBuf) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
