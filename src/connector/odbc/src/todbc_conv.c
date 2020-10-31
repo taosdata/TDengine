@@ -35,6 +35,10 @@ const char* tsdb_conv_code_str(TSDB_CONV_CODE code) {
     case TSDB_CONV_CHAR_NOT_TS:        return "TSDB_CONV_CHAR_NOT_TS";
     case TSDB_CONV_NOT_VALID_TS:       return "TSDB_CONV_NOT_VALID_TS";
     case TSDB_CONV_GENERAL:            return "TSDB_CONV_GENERAL";
+    case TSDB_CONV_SRC_TOO_LARGE:      return "TSDB_CONV_SRC_TOO_LARGE";
+    case TSDB_CONV_SRC_BAD_SEQ:        return "TSDB_CONV_SRC_BAD_SEQ";
+    case TSDB_CONV_SRC_INCOMPLETE:     return "TSDB_CONV_SRC_INCOMPLETE";
+    case TSDB_CONV_SRC_GENERAL:        return "TSDB_CONV_SRC_GENERAL";
     case TSDB_CONV_BAD_CHAR:           return "TSDB_CONV_BAD_CHAR";
     default: return "UNKNOWN";
   };
@@ -408,7 +412,7 @@ tsdb_conv_t* tsdb_conv_open(const char *from_enc, const char *to_enc) {
   pthread_once(&once, once_init);
   tsdb_conv_t *cnv = (tsdb_conv_t*)calloc(1, sizeof(*cnv));
   if (!cnv) return NULL;
-  if (strcmp(from_enc, to_enc)==0) {
+  if (strcmp(from_enc, to_enc)==0 && 0) {
     cnv->cnv = (iconv_t)-1;
     cnv->direct = 1;
     return cnv;
@@ -619,7 +623,20 @@ TSDB_CONV_CODE tsdb_conv(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *s
   size_t r = iconv(cnv->cnv, (char**)&src, &slen, &buf, &blen);
   do {
     if (r==(size_t)-1) {
-      code = TSDB_CONV_BAD_CHAR;
+      switch(errno) {
+        case E2BIG: {
+          code = TSDB_CONV_SRC_TOO_LARGE;
+        } break;
+        case EILSEQ: {
+          code = TSDB_CONV_SRC_BAD_SEQ;
+        } break;
+        case EINVAL: {
+          code = TSDB_CONV_SRC_INCOMPLETE;
+        } break;
+        default: {
+          code = TSDB_CONV_SRC_GENERAL;
+        } break;
+      }
       break;
     }
     if (slen) {

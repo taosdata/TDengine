@@ -193,6 +193,22 @@ do {                                                                    \
       SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_TRUNC, "");           \
       return SQL_ERROR;                                                 \
     } break;                                                            \
+    case TSDB_CONV_SRC_TOO_LARGE: {                                     \
+      SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_SRC_TOO_LARGE, "");   \
+      return SQL_ERROR;                                                 \
+    } break;                                                            \
+    case TSDB_CONV_SRC_BAD_SEQ: {                                       \
+      SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_SRC_BAD_SEQ, "");     \
+      return SQL_ERROR;                                                 \
+    } break;                                                            \
+    case TSDB_CONV_SRC_INCOMPLETE: {                                    \
+      SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_SRC_INCOMPLETE, "");  \
+      return SQL_ERROR;                                                 \
+    } break;                                                            \
+    case TSDB_CONV_SRC_GENERAL: {                                       \
+      SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_SRC_GENERAL, "");     \
+      return SQL_ERROR;                                                 \
+    } break;                                                            \
     case TSDB_CONV_BAD_CHAR: {                                          \
       SET_ERROR(sql, "22001", TSDB_CODE_ODBC_CONV_TRUNC, "");           \
       return SQL_ERROR;                                                 \
