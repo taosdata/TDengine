@@ -103,7 +103,7 @@ void taos_init_imp(void) {
     }
 
     taosReadGlobalCfg();
-    taosCheckGlobalCfg();
+    // taosCheckGlobalCfg();
 
     tscDebug("starting to initialize TAOS client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);

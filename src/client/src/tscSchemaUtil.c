@@ -140,7 +140,7 @@ struct SSchema tscGetTbnameColumnSchema() {
   strcpy(s.name, TSQL_TBNAME_L);
   return s;
 }
-static void tscInitCorVgroupInfo(SCMCorVgroupInfo *corVgroupInfo, SVgroupInfo *vgroupInfo) {
+static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupInfo *vgroupInfo) {
   corVgroupInfo->version = 0;
   corVgroupInfo->inUse = 0;
   corVgroupInfo->numOfEps = vgroupInfo->numOfEps;

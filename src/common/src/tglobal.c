@@ -1316,7 +1316,7 @@ void taosInitGlobalCfg() {
   pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig);
 }
 
-int32_t taosCheckGlobalCfg() {
+bool taosCheckGlobalCfg() {
   char fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
@@ -1375,9 +1375,9 @@ int32_t taosCheckGlobalCfg() {
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
-  taosPrintGlobalCfg();
+  // taosPrintGlobalCfg();
 
-  return 0;
+  return true;
 }
 
 int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
