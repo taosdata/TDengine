@@ -27,18 +27,7 @@ const char* sql_c_type(int type);
 int is_valid_sql_c_type(int type);
 int is_valid_sql_sql_type(int type);
 
-int string_conv(const char *fromcode, const char *tocode,
-                const unsigned char *src, size_t sbytes,
-                unsigned char *dst, size_t dbytes,
-                size_t *consumed, size_t *generated);
 int utf8_chars(const char *src);
-
-unsigned char* utf8_to_ucs4le(const char *utf8, size_t *chars);
-char*          ucs4le_to_utf8(const unsigned char *ucs4le, size_t slen, size_t *chars);
-SQLCHAR*       wchars_to_chars(const SQLWCHAR *wchars, size_t chs, size_t *bytes);
-
-size_t         wchars_to_chars2(const SQLWCHAR *src, size_t slen, SQLCHAR *dst, size_t dlen);
-size_t         chars_to_wchars2(const SQLCHAR *src, size_t slen, SQLWCHAR *dst, size_t dlen);
 
 #endif // _TODBC_UTIL_H_
 

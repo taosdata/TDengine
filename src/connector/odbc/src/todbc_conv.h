@@ -70,10 +70,6 @@ TSDB_CONV_CODE tsdb_conv(tsdb_conv_t *cnv, stack_buffer_t *buffer, const char *s
 void           tsdb_conv_free(tsdb_conv_t *cnv, const char *ptr, stack_buffer_t *buffer, const char *src);
 
 
-TSDB_CONV_CODE tsdb_iconv_conv(iconv_t cnv, const unsigned char *src, size_t *slen, unsigned char *dst, size_t *dlen);
-
-
-
 TSDB_CONV_CODE tsdb_int64_to_bit(int64_t src, int8_t *dst);
 TSDB_CONV_CODE tsdb_int64_to_tinyint(int64_t src, int8_t *dst);
 TSDB_CONV_CODE tsdb_int64_to_smallint(int64_t src, int16_t *dst);
@@ -104,16 +100,6 @@ TSDB_CONV_CODE tsdb_chars_to_float(const char *src, size_t smax, float *dst);
 TSDB_CONV_CODE tsdb_chars_to_double(const char *src, size_t smax, double *dst);
 TSDB_CONV_CODE tsdb_chars_to_timestamp(const char *src, size_t smax, SQL_TIMESTAMP_STRUCT *dst);
 TSDB_CONV_CODE tsdb_chars_to_char(const char *src, size_t smax, char *dst, size_t dmax);
-
-TSDB_CONV_CODE tsdb_wchars_to_bit(iconv_t cnv, const unsigned char *src, size_t smax, int8_t *dst);
-TSDB_CONV_CODE tsdb_wchars_to_tinyint(iconv_t cnv, const unsigned char *src, size_t smax, int8_t *dst);
-TSDB_CONV_CODE tsdb_wchars_to_smallint(iconv_t cnv, const unsigned char *src, size_t smax, int16_t *dst);
-TSDB_CONV_CODE tsdb_wchars_to_int(iconv_t cnv, const unsigned char *src, size_t smax, int32_t *dst);
-TSDB_CONV_CODE tsdb_wchars_to_bigint(iconv_t cnv, const unsigned char *src, size_t smax, int64_t *dst);
-TSDB_CONV_CODE tsdb_wchars_to_ts(iconv_t cnv, const unsigned char *src, size_t smax, int64_t *dst);
-TSDB_CONV_CODE tsdb_wchars_to_float(iconv_t cnv, const unsigned char *src, size_t smax, float *dst);
-TSDB_CONV_CODE tsdb_wchars_to_double(iconv_t cnv, const unsigned char *src, size_t smax, double *dst);
-TSDB_CONV_CODE tsdb_wchars_to_char(iconv_t cnv, const unsigned char *src, size_t smax, char *dst, size_t dmax);
 
 #endif // _todbc_conv_h_
 

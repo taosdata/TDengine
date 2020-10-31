@@ -74,7 +74,6 @@ do {                                                                            
   if (Sqlstate) strncpy((char*)Sqlstate, (char*)obj->err.sql_state, n);                          \
   if (NativeError) *NativeError = obj->err.err_no;                                               \
   snprintf((char*)MessageText, (size_t)BufferLength, "%s", obj->err.err_str);                    \
-  if (TextLength && obj->err.err_str) *TextLength = (SQLSMALLINT)strlen(obj->err.err_str);       \
   if (TextLength && obj->err.err_str) *TextLength = (SQLSMALLINT)utf8_chars(obj->err.err_str);   \
 } while (0)
 
@@ -264,10 +263,6 @@ struct sql_s {
   uint64_t                refcount;
   conn_t                 *conn;
 
-  iconv_t                 w2c;      // wchar* -> char*
-  iconv_t                 u2c;      // unicode -> char*
-  iconv_t                 u2w;      // unicode -> wchar*
-
   TAOS_STMT              *stmt;
   param_bind_t           *params;
   int                     n_params;
@@ -297,14 +292,6 @@ static pthread_once_t          init_once         = PTHREAD_ONCE_INIT;
 static void init_routine(void);
 
 static size_t do_field_display_size(TAOS_FIELD *field);
-static iconv_t sql_get_w2c(sql_t *sql) {
-  if (sql->w2c == (iconv_t)-1) {
-    sql->w2c = iconv_open("UTF-8", "UCS-2LE");
-  }
-
-  return sql->w2c;
-}
-
 
 static tsdb_conv_t* tsdb_conn_client_to_server(conn_t *conn) {
   if (!conn->client_to_server) {
@@ -408,22 +395,6 @@ do {                                                                            
     free((char*)v_096a);                                                                \
   }                                                                                     \
 } while (0)
-
-// static iconv_t sql_get_u2c(sql_t *sql) {
-//   if (sql->u2c == (iconv_t)-1) {
-//     sql->u2c = iconv_open("UTF-8", "UCS-4LE");
-//   }
-// 
-//   return sql->u2c;
-// }
-// 
-// static iconv_t sql_get_u2w(sql_t *sql) {
-//   if (sql->u2w == (iconv_t)-1) {
-//     sql->u2w = iconv_open("UCS-2LE", "UCS-4LE");
-//   }
-// 
-//   return sql->u2w;
-// }
 
 static SQLRETURN doSQLAllocEnv(SQLHENV *EnvironmentHandle)
 {
@@ -666,10 +637,6 @@ static SQLRETURN doSQLAllocStmt(SQLHDBC ConnectionHandle,
       break;
     }
 
-    sql->w2c = (iconv_t)-1;
-    sql->u2c = (iconv_t)-1;
-    sql->u2w = (iconv_t)-1;
-
     sql->conn = conn;
     DASSERT(INC_REF(sql)>0);
 
@@ -767,19 +734,6 @@ static SQLRETURN doSQLFreeStmt(SQLHSTMT StatementHandle,
 
   FREE_ERROR(sql);
 
-  if (sql->w2c!=(iconv_t)-1) {
-    iconv_close(sql->w2c);
-    sql->w2c = (iconv_t)-1;
-  }
-  if (sql->u2c!=(iconv_t)-1) {
-    iconv_close(sql->u2c);
-    sql->u2c = (iconv_t)-1;
-  }
-  if (sql->u2w!=(iconv_t)-1) {
-    iconv_close(sql->u2w);
-    sql->u2w = (iconv_t)-1;
-  }
-
   free(sql);
 
   return SQL_SUCCESS;
@@ -793,11 +747,22 @@ SQLRETURN SQL_API SQLFreeStmt(SQLHSTMT StatementHandle,
   return r;
 }
 
+static SQLRETURN do_exec_direct(sql_t *sql, TSDB_CONV_CODE code, const char *statement) {
+  if (code) CHK_CONV(1, code);
+  DASSERT(code==TSDB_CONV_OK);
+
+  SQLRETURN r = SQL_ERROR;
+  do {
+    sql->rs = taos_query(sql->conn->taos, statement);
+    CHK_RS(r, sql, "failed to execute");
+  } while (0);
+
+  return r;
+}
+
 static SQLRETURN doSQLExecDirect(SQLHSTMT StatementHandle,
                                  SQLCHAR *StatementText, SQLINTEGER TextLength)
 {
-  stack_buffer_t buffer; buffer.next = 0;
-
   sql_t *sql = (sql_t*)StatementHandle;
   if (!sql) return SQL_INVALID_HANDLE;
 
@@ -825,20 +790,14 @@ static SQLRETURN doSQLExecDirect(SQLHSTMT StatementHandle,
   }
   sql->n_params = 0;
 
+  SQLRETURN r = SQL_SUCCESS;
+  stack_buffer_t buffer; buffer.next = 0;
   tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
   const char *stxt = NULL;
-
-  SQLRETURN r = SQL_ERROR;
   do {
-    tsdb_conv(client_to_server, &buffer, (const char*)StatementText, (size_t)TextLength, &stxt, NULL);
-    if (!stxt) {
-      SET_ERROR(sql, "HY001", TSDB_CODE_ODBC_OOM, "");
-      break;
-    }
-    sql->rs = taos_query(sql->conn->taos, stxt);
-    CHK_RS(r, sql, "failed to execute");
+    TSDB_CONV_CODE code = tsdb_conv(client_to_server, &buffer, (const char*)StatementText, (size_t)TextLength, &stxt, NULL);
+    r = do_exec_direct(sql, code, stxt);
   } while (0);
-
   tsdb_conv_free(client_to_server, stxt, &buffer, (const char*)StatementText);
 
   return r;
@@ -860,6 +819,8 @@ static SQLRETURN doSQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER
   CHK_CONN(sql);
   CHK_CONN_TAOS(sql);
 
+  conn_t *conn = sql->conn;
+
   if (!szSqlStr) {
     SET_ERROR(sql, "HY009", TSDB_CODE_ODBC_BAD_ARG, "szSqlStr [%p] not allowed", szSqlStr);
     return SQL_ERROR;
@@ -869,10 +830,17 @@ static SQLRETURN doSQLExecDirectW(SQLHSTMT hstmt, SQLWCHAR *szSqlStr, SQLINTEGER
     return SQL_ERROR;
   }
 
-  size_t bytes = 0;
-  SQLCHAR *utf8 = wchars_to_chars(szSqlStr, (size_t)cbSqlStr, &bytes);
-  SQLRETURN r = SQLExecDirect(hstmt, utf8, (SQLINTEGER)bytes);
-  if (utf8) free(utf8);
+  SQLRETURN r = SQL_SUCCESS;
+  stack_buffer_t buffer; buffer.next = 0;
+  tsdb_conv_t *utf16_to_server = tsdb_conn_utf16_to_server(conn);
+  const char *stxt = NULL;
+  do {
+    size_t slen = (size_t)cbSqlStr * sizeof(*szSqlStr);
+    TSDB_CONV_CODE code = tsdb_conv(utf16_to_server, &buffer, (const char*)szSqlStr, slen, &stxt, NULL);
+    r = do_exec_direct(sql, code, stxt);
+  } while (0);
+  tsdb_conv_free(utf16_to_server, stxt, &buffer, (const char*)szSqlStr);
+
   return r;
 }
 
@@ -1572,7 +1540,11 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           CHK_CONV(1, tsdb_conv_chars_to_bit(client_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.b));
         } break;
         case SQL_C_WCHAR: {
-          CHK_CONV(1, tsdb_wchars_to_bit(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.b));
+          stack_buffer_t buffer; buffer.next = 0;
+          tsdb_conv_t *utf16_to_utf8 = tsdb_conn_utf16_to_utf8(conn);
+          size_t slen = (size_t)*soi;
+          DASSERT(slen != SQL_NTS);
+          CHK_CONV(1, tsdb_conv_chars_to_bit(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.b));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -1629,7 +1601,11 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           // CHK_CONV(1, tsdb_chars_to_tinyint((const char *)paramValue, (size_t)*soi, &bind->u.v1));
         } break;
         case SQL_C_WCHAR: {
-          CHK_CONV(1, tsdb_wchars_to_tinyint(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.v1));
+          stack_buffer_t buffer; buffer.next = 0;
+          tsdb_conv_t *utf16_to_utf8 = tsdb_conn_utf16_to_utf8(conn);
+          size_t slen = (size_t)*soi;
+          DASSERT(slen != SQL_NTS);
+          CHK_CONV(1, tsdb_conv_chars_to_tinyint(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.v1));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -1688,7 +1664,11 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           // CHK_CONV(1, tsdb_chars_to_smallint((const char*)paramValue, (size_t)*soi, &bind->u.v2));
         } break;
         case SQL_C_WCHAR: {
-          CHK_CONV(1, tsdb_wchars_to_smallint(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.v2));
+          stack_buffer_t buffer; buffer.next = 0;
+          tsdb_conv_t *utf16_to_utf8 = tsdb_conn_utf16_to_utf8(conn);
+          size_t slen = (size_t)*soi;
+          DASSERT(slen != SQL_NTS);
+          CHK_CONV(1, tsdb_conv_chars_to_smallint(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.v2));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -1747,7 +1727,11 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           // CHK_CONV(1, tsdb_chars_to_int((const char*)paramValue, (size_t)*soi, &bind->u.v4));
         } break;
         case SQL_C_WCHAR: {
-          CHK_CONV(1, tsdb_wchars_to_int(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.v4));
+          stack_buffer_t buffer; buffer.next = 0;
+          tsdb_conv_t *utf16_to_utf8 = tsdb_conn_utf16_to_utf8(conn);
+          size_t slen = (size_t)*soi;
+          DASSERT(slen != SQL_NTS);
+          CHK_CONV(1, tsdb_conv_chars_to_int(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.v4));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -1806,7 +1790,11 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           // CHK_CONV(1, tsdb_chars_to_bigint((const char*)paramValue, (size_t)*soi, &bind->u.v8));
         } break;
         case SQL_C_WCHAR: {
-          CHK_CONV(1, tsdb_wchars_to_bigint(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.v8));
+          stack_buffer_t buffer; buffer.next = 0;
+          tsdb_conv_t *utf16_to_utf8 = tsdb_conn_utf16_to_utf8(conn);
+          size_t slen = (size_t)*soi;
+          DASSERT(slen != SQL_NTS);
+          CHK_CONV(1, tsdb_conv_chars_to_bigint(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.v8));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -1868,7 +1856,6 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           size_t slen = (size_t)*soi;
           if (slen==SQL_NTS) slen = strlen((const char*)paramValue);
           CHK_CONV(1, tsdb_conv_chars_to_float(client_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.f4));
-          // CHK_CONV(1, tsdb_chars_to_float((const char*)paramValue, (size_t)*soi, &bind->u.f4));
         } break;
         case SQL_C_WCHAR: {
           stack_buffer_t buffer; buffer.next = 0;
@@ -1876,7 +1863,6 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           size_t slen = (size_t)*soi;
           DASSERT(slen != SQL_NTS);
           CHK_CONV(1, tsdb_conv_chars_to_float(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.f4));
-          // CHK_CONV(1, tsdb_wchars_to_float(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.f4));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -1944,7 +1930,6 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           size_t slen = (size_t)*soi;
           DASSERT(slen != SQL_NTS);
           CHK_CONV(1, tsdb_conv_chars_to_double(utf16_to_utf8, &buffer, (const char *)paramValue, slen, &bind->u.f8));
-          // CHK_CONV(1, tsdb_wchars_to_double(sql_get_w2c(sql), (const unsigned char*)paramValue, (size_t)*soi, &bind->u.f8));
         } break;
         case SQL_C_USHORT:
         case SQL_C_ULONG:
@@ -2817,11 +2802,6 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
 
 
 static void init_routine(void) {
-  if (0) {
-    string_conv(NULL, NULL, NULL, 0, NULL, 0, NULL, NULL);
-    utf8_to_ucs4le(NULL, NULL);
-    ucs4le_to_utf8(NULL, 0, NULL);
-  }
   taos_init();
 }
 
