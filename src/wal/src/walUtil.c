@@ -106,7 +106,7 @@ int32_t walGetNewFile(SWal *pWal, int64_t *newFileId) {
   }
   closedir(dir);
 
-  if (maxFileId == INT64_MAX) {
+  if (maxFileId == INT64_MIN) {
     *newFileId = 0;
   } else {
     *newFileId = maxFileId;
