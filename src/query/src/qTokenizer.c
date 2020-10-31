@@ -251,16 +251,16 @@ static const char isIdChar[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, /* 7x */
 };
 
-static void* KeywordHashTable = NULL;
+static void* keywordHashTable = NULL;
 
 static void doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
   
-  KeywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
+  keywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
     void* ptr = &keywordTable[i];
-    taosHashPut(KeywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
+    taosHashPut(keywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
   }
 }
 
@@ -282,7 +282,7 @@ int tSQLKeywordCode(const char* z, int n) {
     }
   }
 
-  SKeyword** pKey = (SKeyword**)taosHashGet(KeywordHashTable, key, n);
+  SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
   return (pKey != NULL)? (*pKey)->type:TK_ID;
 }
 
@@ -660,5 +660,8 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
 bool isKeyWord(const char* z, int32_t len) { return (tSQLKeywordCode((char*)z, len) != TK_ID); }
 
 void taosCleanupKeywordsTable() {
-  taosHashCleanup(KeywordHashTable);
+  void* m = keywordHashTable;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
+    taosHashCleanup(m);
+  }
 }

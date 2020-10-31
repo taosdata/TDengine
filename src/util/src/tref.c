@@ -143,8 +143,6 @@ int taosAddRef(int refId, void *p)
     return TSDB_CODE_REF_INVALID_ID;
   }
 
-  uTrace("refId:%d p:%p try to add", refId, p);
-
   pSet = tsRefSetList + refId;
   taosIncRefCount(pSet);
   if (pSet->state != TSDB_REF_STATE_ACTIVE) {
@@ -159,8 +157,8 @@ int taosAddRef(int refId, void *p)
   taosLockList(pSet->lockedBy+hash);
   
   pNode = pSet->nodeList[hash];
-  while ( pNode ) {
-    if ( pNode->p == p )
+  while (pNode) {
+    if (pNode->p == p)
       break;
 
     pNode = pNode->next;  
@@ -176,8 +174,9 @@ int taosAddRef(int refId, void *p)
       pNode->count = 1;
       pNode->prev = 0;
       pNode->next = pSet->nodeList[hash];
+      if (pSet->nodeList[hash]) pSet->nodeList[hash]->prev = pNode;
       pSet->nodeList[hash] = pNode;
-      uTrace("refId:%d p:%p is added, count::%d", refId, p, pSet->count);
+      uTrace("refId:%d p:%p is added, count:%d  malloc mem: %p", refId, p, pSet->count, pNode);
     } else {
       code = TSDB_CODE_REF_NO_MEMORY;
       uTrace("refId:%d p:%p is not added, since no memory", refId, p);
@@ -197,12 +196,10 @@ int taosAcquireRef(int refId, void *p)
   SRefNode *pNode;
   SRefSet  *pSet;
 
-  if ( refId < 0 || refId >= TSDB_REF_OBJECTS ) {
+  if (refId < 0 || refId >= TSDB_REF_OBJECTS) {
     uTrace("refId:%d p:%p failed to acquire, refId not valid", refId, p);
     return TSDB_CODE_REF_INVALID_ID;
   }
-
-  uTrace("refId:%d p:%p try to acquire", refId, p);
 
   pSet = tsRefSetList + refId;
   taosIncRefCount(pSet);
@@ -253,8 +250,6 @@ void taosReleaseRef(int refId, void *p)
     return;
   }
 
-  uTrace("refId:%d p:%p try to release", refId, p);
-
   pSet = tsRefSetList + refId;
   if (pSet->state == TSDB_REF_STATE_EMPTY) {
     uTrace("refId:%d p:%p failed to release, cleaned", refId, p);
@@ -267,7 +262,7 @@ void taosReleaseRef(int refId, void *p)
   
   pNode = pSet->nodeList[hash];
   while (pNode) {
-    if ( pNode->p == p )
+    if (pNode->p == p)
       break;
 
     pNode = pNode->next;  
@@ -291,7 +286,7 @@ void taosReleaseRef(int refId, void *p)
 
       free(pNode);
       released = 1;
-      uTrace("refId:%d p:%p is removed, count::%d", refId, p, pSet->count);
+      uTrace("refId:%d p:%p is removed, count:%d, free mem: %p", refId, p, pSet->count, pNode);
     } else {
       uTrace("refId:%d p:%p is released", refId, p);
     }
@@ -302,6 +297,75 @@ void taosReleaseRef(int refId, void *p)
   taosUnlockList(pSet->lockedBy+hash);
 
   if (released) taosDecRefCount(pSet);
+}
+
+// if p is NULL, return the first p in hash list, otherwise, return the next after p
+void *taosIterateRef(int refId, void *p) {
+  SRefNode *pNode = NULL;
+  SRefSet  *pSet;
+
+  if (refId < 0 || refId >= TSDB_REF_OBJECTS) {
+    uTrace("refId:%d p:%p failed to iterate, refId not valid", refId, p);
+    return NULL;
+  }
+
+  pSet = tsRefSetList + refId;
+  taosIncRefCount(pSet);
+  if (pSet->state != TSDB_REF_STATE_ACTIVE) {
+    uTrace("refId:%d p:%p failed to iterate, not active", refId, p);
+    taosDecRefCount(pSet);
+    return NULL;
+  }
+
+  int hash = 0;
+  if (p) {
+    hash = taosHashRef(pSet, p);
+    taosLockList(pSet->lockedBy+hash);
+
+    pNode = pSet->nodeList[hash];
+    while (pNode) {
+      if (pNode->p == p) break;
+      pNode = pNode->next;   
+    }
+
+    if (pNode == NULL) {
+      uError("refId:%d p:%p not there, quit", refId, p);
+      taosUnlockList(pSet->lockedBy+hash);
+      return NULL;
+    }
+
+    // p is there
+    pNode = pNode->next;
+    if (pNode == NULL) { 
+      taosUnlockList(pSet->lockedBy+hash);
+      hash++;
+    }
+  }
+
+  if (pNode == NULL) {
+    for (; hash < pSet->max; ++hash) {
+      taosLockList(pSet->lockedBy+hash);
+      pNode = pSet->nodeList[hash];
+      if (pNode) break; 
+      taosUnlockList(pSet->lockedBy+hash);
+    }
+  } 
+
+  void *newP = NULL;
+  if (pNode) {
+    pNode->count++;  // acquire it
+    newP = pNode->p;  
+    taosUnlockList(pSet->lockedBy+hash);
+    uTrace("refId:%d p:%p is returned", refId, p);
+  } else {
+    uTrace("refId:%d p:%p the list is over", refId, p);
+  }
+
+  if (p) taosReleaseRef(refId, p);  // release the current one
+
+  taosDecRefCount(pSet);
+
+  return newP;
 }
 
 int taosListRef() {

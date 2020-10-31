@@ -13,37 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNETTEST_H
-#define TDENGINE_TNETTEST_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct CmdArguments {
-  char* host;
-  char* password;
-  char* user;
-  char* auth;
-  char* database;
-  char* timezone;
-  bool  is_raw_time;
-  bool  is_use_passwd;
-  char  file[TSDB_FILENAME_LEN];
-  char  dir[TSDB_FILENAME_LEN];
-  int   threadNum;
-  char* commands;
-  int   abort;
-  int   port;
-  int   endPort;
-  int   pktLen;
-  char* netTestRole;
-} CmdArguments;
-
-void taosNetTest(CmdArguments* args);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // TDENGINE_TNETTEST_H
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "taoserror.h"
+#include "twal.h"
+#include "walInt.h"
+#include "walMgmt.h"

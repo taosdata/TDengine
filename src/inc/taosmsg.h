@@ -106,6 +106,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
 
+  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "network-test" )
+
+
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
 #endif
@@ -792,6 +796,7 @@ typedef struct {
 } SStreamDesc;
 
 typedef struct {
+  char     clientVer[TSDB_VERSION_LEN];
   uint32_t connId;
   int32_t  pid;
   int32_t  numOfQueries;

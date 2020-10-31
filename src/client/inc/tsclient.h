@@ -128,7 +128,7 @@ typedef struct STableMetaInfo {
 typedef struct SSqlExpr {
   char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
   SColIndex colInfo;
-  int64_t   uid;            // refactor use the pointer
+  uint64_t  uid;            // refactor use the pointer
   int16_t   functionId;     // function id in aAgg array
   int16_t   resType;        // return value type
   int16_t   resBytes;       // length of return value
