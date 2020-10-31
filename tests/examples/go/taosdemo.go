@@ -87,7 +87,7 @@ func init() {
 
 func printAllArgs() {
 	fmt.Printf("\n============= args parse result: =============\n")
-	fmt.Printf("dbName:               %v\n", configPara.hostName)
+	fmt.Printf("hostName:               %v\n", configPara.hostName)
 	fmt.Printf("serverPort:           %v\n", configPara.serverPort)
 	fmt.Printf("usr:                  %v\n", configPara.user)
 	fmt.Printf("password:             %v\n", configPara.password)

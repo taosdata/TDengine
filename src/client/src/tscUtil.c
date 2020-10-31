@@ -2158,7 +2158,7 @@ int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
 }
 
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId) {
-  int32_t numOfTags = tscGetNumOfColumns(pTableMeta);
+  int32_t numOfTags = tscGetNumOfTags(pTableMeta);
 
   SSchema* pSchema = tscGetTableTagSchema(pTableMeta);
   for(int32_t i = 0; i < numOfTags; ++i) {
@@ -2167,7 +2167,9 @@ int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId) {
     }
   }
 
-  return -1;
+  // can not reach here
+  assert(0);
+  return INT16_MIN;
 }
 
 bool tscIsUpdateQuery(SSqlObj* pSql) {
