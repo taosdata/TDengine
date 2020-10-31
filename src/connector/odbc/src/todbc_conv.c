@@ -62,6 +62,7 @@ const char* tsdb_conv_code_str(TSDB_CONV_CODE code) {
     case TSDB_CONV_TRUNC:              return "TSDB_CONV_TRUNC";
     case TSDB_CONV_CHAR_NOT_NUM:       return "TSDB_CONV_CHAR_NOT_NUM";
     case TSDB_CONV_CHAR_NOT_TS:        return "TSDB_CONV_CHAR_NOT_TS";
+    case TSDB_CONV_NOT_VALID_TS:       return "TSDB_CONV_NOT_VALID_TS";
     case TSDB_CONV_GENERAL:            return "TSDB_CONV_GENERAL";
     case TSDB_CONV_BAD_CHAR:           return "TSDB_CONV_BAD_CHAR";
     default: return "UNKNOWN";
@@ -592,7 +593,20 @@ struct tsdb_conv_s {
   unsigned int        direct:1;
 };
 
+static tsdb_conv_t      no_conversion = {0};
+static pthread_once_t   once          = PTHREAD_ONCE_INIT;
+static void once_init(void) {
+  no_conversion.cnv    = (iconv_t)-1;
+  no_conversion.direct = 1;
+}
+
+tsdb_conv_t* tsdb_conv_direct() { // get a non-conversion-converter
+  pthread_once(&once, once_init);
+  return &no_conversion;
+}
+
 tsdb_conv_t* tsdb_conv_open(const char *from_enc, const char *to_enc) {
+  pthread_once(&once, once_init);
   tsdb_conv_t *cnv = (tsdb_conv_t*)calloc(1, sizeof(*cnv));
   if (!cnv) return NULL;
   if (strcmp(from_enc, to_enc)==0) {
@@ -611,6 +625,7 @@ tsdb_conv_t* tsdb_conv_open(const char *from_enc, const char *to_enc) {
 
 void tsdb_conv_close(tsdb_conv_t *cnv) {
   if (!cnv) return;
+  if (cnv == &no_conversion) return;
   if (!cnv->direct) {
     if (cnv->cnv != (iconv_t)-1) {
       iconv_close(cnv->cnv);

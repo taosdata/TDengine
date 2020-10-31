@@ -379,6 +379,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x210d, "statement 
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x210e, "connection still busy")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x210f, "bad connection string")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_ARG,                 0, 0x2110, "bad argument")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_VALID_TS,       0, 0x2111, "not a valid timestamp")
 
 
 #ifdef TAOS_ERROR_C

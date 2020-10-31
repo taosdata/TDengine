@@ -30,6 +30,7 @@ typedef enum {
   TSDB_CONV_TRUNC,
   TSDB_CONV_CHAR_NOT_NUM,
   TSDB_CONV_CHAR_NOT_TS,
+  TSDB_CONV_NOT_VALID_TS,
   TSDB_CONV_GENERAL,
   TSDB_CONV_BAD_CHAR,
 } TSDB_CONV_CODE;
@@ -46,8 +47,10 @@ char* stack_buffer_alloc(stack_buffer_t *buffer, size_t bytes);
 int is_owned_by_stack_buffer(stack_buffer_t *buffer, const char *ptr);
 
 typedef struct tsdb_conv_s             tsdb_conv_t;
+tsdb_conv_t*   tsdb_conv_direct(); // get a non-conversion-converter
 tsdb_conv_t*   tsdb_conv_open(const char *from_enc, const char *to_enc);
 void           tsdb_conv_close(tsdb_conv_t *cnv);
+
 TSDB_CONV_CODE tsdb_conv_write(tsdb_conv_t *cnv, const char *src, size_t *slen, char *dst, size_t *dlen);
 TSDB_CONV_CODE tsdb_conv_write_int64(tsdb_conv_t *cnv, int64_t val, char *dst, size_t *dlen);
 TSDB_CONV_CODE tsdb_conv_write_double(tsdb_conv_t *cnv, double val, char *dst, size_t *dlen);
