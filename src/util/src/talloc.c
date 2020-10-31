@@ -17,8 +17,10 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tulog.h"
+#include "talloc.h"
 
 #define TSDB_HAVE_MEMALIGN
+#ifndef TSDB_USE_SYS_MEM
 
 void *tmalloc(int32_t size) {
   void *p = malloc(size);
@@ -73,4 +75,5 @@ void *tmemalign(int32_t alignment, int32_t size) {
 
 void *tmemalign(int32_t alignment, int32_t size) { return tmalloc(size); }
 
+#endif
 #endif
