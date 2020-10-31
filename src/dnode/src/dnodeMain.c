@@ -19,6 +19,7 @@
 #include "tutil.h"
 #include "tconfig.h"
 #include "tglobal.h"
+#include "twal.h"
 #include "dnode.h"
 #include "dnodeInt.h"
 #include "dnodeMgmt.h"
@@ -50,6 +51,7 @@ typedef struct {
 
 static const SDnodeComponent tsDnodeComponents[] = {
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"wal",       walInit,             walCleanUp},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},

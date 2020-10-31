@@ -175,7 +175,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -237,8 +237,8 @@ static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint3
   return 0;
 }
 
-static int sdbGetWalInfo(void *ahandle, char *name, uint32_t *index) {
-  return walGetWalFile(tsSdbObj.wal, name, index);
+static int32_t sdbGetWalInfo(void *ahandle, char *fileName, int64_t *fileId) {
+  return walGetWalFile(tsSdbObj.wal, fileName, fileId);
 }
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {
