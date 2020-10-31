@@ -792,13 +792,13 @@ static SQLRETURN doSQLExecDirect(SQLHSTMT StatementHandle,
 
   SQLRETURN r = SQL_SUCCESS;
   stack_buffer_t buffer; buffer.next = 0;
-  tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
+  tsdb_conv_t *client_to_env = tsdb_conn_client_to_env(conn);
   const char *stxt = NULL;
   do {
-    TSDB_CONV_CODE code = tsdb_conv(client_to_server, &buffer, (const char*)StatementText, (size_t)TextLength, &stxt, NULL);
+    TSDB_CONV_CODE code = tsdb_conv(client_to_env, &buffer, (const char*)StatementText, (size_t)TextLength, &stxt, NULL);
     r = do_exec_direct(sql, code, stxt);
   } while (0);
-  tsdb_conv_free(client_to_server, stxt, &buffer, (const char*)StatementText);
+  tsdb_conv_free(client_to_env, stxt, &buffer, (const char*)StatementText);
 
   return r;
 }
