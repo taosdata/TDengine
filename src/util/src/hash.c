@@ -804,5 +804,5 @@ size_t taosHashGetMemSize(const SHashObj *pHashObj) {
     return 0;
   }
 
-  return (pHashObj->capacity * sizeof(SHashEntry) + POINTER_BYTES) + sizeof(SHashNode) * taosHashGetSize(pHashObj);
+  return (pHashObj->capacity * (sizeof(SHashEntry) + POINTER_BYTES)) + sizeof(SHashNode) * taosHashGetSize(pHashObj) + sizeof(SHashObj);
 }

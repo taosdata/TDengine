@@ -36,12 +36,6 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->threshold = threshold;
   
   pWindowResInfo->type = type;
-  _hash_fn_t fn = taosGetDefaultHashFunction(type);
-  pWindowResInfo->hashList = taosHashInit(threshold, fn, true, false);
-  if (pWindowResInfo->hashList == NULL) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
-  }
-  
   pWindowResInfo->curIndex = -1;
   pWindowResInfo->size     = 0;
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
@@ -83,7 +77,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     return;
   }
   if (pWindowResInfo->capacity == 0) {
-    assert(pWindowResInfo->hashList == NULL && pWindowResInfo->pResult == NULL);
+    assert(/*pWindowResInfo->hashList == NULL && */pWindowResInfo->pResult == NULL);
     return;
   }
   
@@ -93,7 +87,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     }
   }
   
-  taosHashCleanup(pWindowResInfo->hashList);
+//  taosHashCleanup(pWindowResInfo->hashList);
   taosTFree(pWindowResInfo->pResult);
 }
 
@@ -108,11 +102,11 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   }
   
   pWindowResInfo->curIndex = -1;
-  taosHashCleanup(pWindowResInfo->hashList);
+//  taosHashCleanup(pWindowResInfo->hashList);
   pWindowResInfo->size = 0;
   
-  _hash_fn_t fn = taosGetDefaultHashFunction(pWindowResInfo->type);
-  pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, true, false);
+//  _hash_fn_t fn = taosGetDefaultHashFunction(pWindowResInfo->type);
+//  pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, true, false);
   
   pWindowResInfo->startTime = TSKEY_INITIAL_VAL;
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
@@ -127,10 +121,10 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   int32_t numOfClosed = numOfClosedTimeWindow(pWindowResInfo);
   assert(num >= 0 && num <= numOfClosed);
 
-  int16_t type = pWindowResInfo->type;
-
-  char *key = NULL;
-  int16_t bytes = -1;
+  int16_t  type = pWindowResInfo->type;
+  uint64_t uid  = 0; // uid is always set to be 0.
+  char    *key  = NULL;
+  int16_t  bytes = -1;
 
   for (int32_t i = 0; i < num; ++i) {
     SWindowResult *pResult = &pWindowResInfo->pResult[i];
@@ -145,7 +139,8 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
         bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
       }
 
-      taosHashRemove(pWindowResInfo->hashList, (const char *)key, bytes);
+      SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
+      taosHashRemove(pRuntimeEnv->pWindowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     } else {
       break;
     }
@@ -177,12 +172,15 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
       bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
     }
 
-    int32_t *p = (int32_t *)taosHashGet(pWindowResInfo->hashList, (const char *)key, bytes);
+    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
+    int32_t *p = (int32_t *)taosHashGet(pRuntimeEnv->pWindowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     assert(p != NULL); 
 
     int32_t  v = (*p - num);
     assert(v >= 0 && v <= pWindowResInfo->size);
-    taosHashPut(pWindowResInfo->hashList, (char *)key, bytes, (char *)&v, sizeof(int32_t));
+
+    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
+    taosHashPut(pRuntimeEnv->pWindowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), (char *)&v, sizeof(int32_t));
   }
   
   pWindowResInfo->curIndex = -1;

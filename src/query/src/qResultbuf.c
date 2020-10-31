@@ -407,14 +407,14 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " B, inmem size:%dbytes, file size:%"PRId64" bytes",
-        pResultBuf->handle, pResultBuf->totalBufSize, listNEles(pResultBuf->lruList) * pResultBuf->pageSize,
+    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, inmem size:%dbytes, file size:%"PRId64" bytes",
+        pResultBuf->handle, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize,
         pResultBuf->fileSize);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
-           pResultBuf->totalBufSize);
+    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, no file created", pResultBuf->handle,
+           pResultBuf->totalBufSize/1024.0);
   }
 
   unlink(pResultBuf->path);

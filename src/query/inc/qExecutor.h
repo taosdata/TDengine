@@ -70,7 +70,8 @@ typedef struct SResultRec {
 
 typedef struct SWindowResInfo {
   SWindowResult* pResult;    // result list
-  SHashObj*      hashList;   // hash list for quick access
+//  uint64_t       uid;        // table uid, in order to identify the result from global hash table
+//  SHashObj*      hashList;   // hash list for quick access
   int16_t        type;       // data type for hash key
   int32_t        capacity;   // max capacity
   int32_t        curIndex;   // current start active index
@@ -177,6 +178,8 @@ typedef struct SQueryRuntimeEnv {
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
+  SHashObj*            pWindowHashTable; // quick locate the window object for each result
+  char*                keyBuf;           // window key buffer
 } SQueryRuntimeEnv;
 
 enum {
