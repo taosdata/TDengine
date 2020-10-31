@@ -619,11 +619,15 @@ static bool isTopBottomQuery(SQueryInfo* pQueryInfo) {
 int32_t parseIntervalClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg1 = "invalid query expression";
   const char* msg2 = "interval cannot be less than 10 ms";
+  const char* msg3 = "sliding cannot be used without interval";
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0) {
+    if (pQuerySql->sliding.n > 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
