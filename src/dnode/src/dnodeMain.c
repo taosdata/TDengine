@@ -58,7 +58,7 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"dnodecfg",  dnodeInitCfg,        dnodeCleanupCfg},
   {"dnodeeps",  dnodeInitEps,        dnodeCleanupEps},
   {"mnodeinfos",dnodeInitMInfos,     dnodeCleanupMInfos},
-  // {"globalcfg" ,taosCheckGlobalCfg,  NULL},
+  {"globalcfg" ,taosCheckGlobalCfg,  NULL},
   {"wal",       walInit,             walCleanUp},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
@@ -85,7 +85,9 @@ static int dnodeCreateDir(const char *dir) {
 
 static void dnodeCleanupComponents(int32_t stepId) {
   for (int32_t i = stepId; i >= 0; i--) {
-    tsDnodeComponents[i].cleanup();
+    if (tsDnodeComponents[i].cleanup) {
+      (*tsDnodeComponents[i].cleanup)();
+    }
   }
 }
 
@@ -122,14 +124,12 @@ int32_t dnodeInitSystem() {
     printf("failed to init log file\n");
   }
 
-  if (!taosReadGlobalCfg() || !taosCheckGlobalCfg()) {
+  if (!taosReadGlobalCfg()) {
     taosPrintGlobalCfg();
     dError("TDengine read global config failed");
     return -1;
   }
 
-  taosPrintGlobalCfg();
-  
   dInfo("start to initialize TDengine");
 
   if (dnodeInitComponents() != 0) {

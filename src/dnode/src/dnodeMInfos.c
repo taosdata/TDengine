@@ -124,10 +124,10 @@ void dnodeGetEpSetForShell(SRpcEpSet *epSet) {
 }
 
 static void dnodePrintMInfos(SMnodeInfos *minfos) {
-  // dInfo("print mnode infos, mnodeNum:%d inUse:%d", minfos->mnodeNum, minfos->inUse);
-  // for (int32_t i = 0; i < minfos->mnodeNum; i++) {
-  //   dInfo("mnode index:%d, %s", minfos->mnodeInfos[i].mnodeId, minfos->mnodeInfos[i].mnodeEp);
-  // }
+  dInfo("print mnode infos, mnodeNum:%d inUse:%d", minfos->mnodeNum, minfos->inUse);
+  for (int32_t i = 0; i < minfos->mnodeNum; i++) {
+    dInfo("mnode index:%d, %s", minfos->mnodeInfos[i].mnodeId, minfos->mnodeInfos[i].mnodeEp);
+  }
 }
 
 static void dnodeResetMInfos(SMnodeInfos *minfos) {
@@ -240,10 +240,10 @@ PARSE_MINFOS_OVER:
   if (fp != NULL) fclose(fp);
   terrno = 0;
 
-  // for (int32_t i = 0; i < minfos.mnodeNum; ++i) {
-  //   SMnodeInfo *mInfo = &minfos.mnodeInfos[i];
-  //   dnodeUpdateEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
-  // }
+  for (int32_t i = 0; i < minfos.mnodeNum; ++i) {
+    SMnodeInfo *mInfo = &minfos.mnodeInfos[i];
+    dnodeUpdateEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
+  }
   dnodeResetMInfos(&minfos);
   return 0;
 }
