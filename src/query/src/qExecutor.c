@@ -469,7 +469,7 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
       }
 
       char *t = realloc(pWindowResInfo->pResult, (size_t)(newCap * sizeof(SWindowResult)));
-      pRuntimeEnv->summary.internalSupSize += (newCap - pWindowResInfo->capacity) * sizeof(SWindowResult);
+      pRuntimeEnv->summary.winInfoSize += (newCap - pWindowResInfo->capacity) * sizeof(SWindowResult);
       pRuntimeEnv->summary.numOfTimeWindows += (newCap - pWindowResInfo->capacity);
 
       if (t == NULL) {
@@ -481,7 +481,7 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
       int32_t inc = (int32_t)newCap - pWindowResInfo->capacity;
       memset(&pWindowResInfo->pResult[pWindowResInfo->capacity], 0, sizeof(SWindowResult) * inc);
 
-      pRuntimeEnv->summary.internalSupSize += (pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * inc;
+      pRuntimeEnv->summary.winInfoSize += (pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * inc;
 
       for (int32_t i = pWindowResInfo->capacity; i < newCap; ++i) {
         int32_t ret = createQueryResultInfo(pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
@@ -4254,8 +4254,8 @@ static void queryCostStatis(SQInfo *pQInfo) {
          pQInfo, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
          pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
 
-  qDebug("QInfo:%p :cost summary: internal size:%"PRId64"B, numOfWin:%"PRId64, pQInfo, pSummary->internalSupSize,
-      pSummary->numOfTimeWindows);
+  qDebug("QInfo:%p :cost summary: windowInfo size:%"PRId64" k, numOfWin:%"PRId64", tableInfoSize:%"PRId64" k", pQInfo, pSummary->winInfoSize,
+      pSummary->numOfTimeWindows/1000, pSummary->tableInfoSize/1000);
 }
 
 static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBlockInfo) {
@@ -6312,6 +6312,8 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   int tableIndex = 0;
 
   pQInfo->runtimeEnv.interBufSize = getOutputInterResultBufSize(pQuery);
+  pQInfo->runtimeEnv.summary.tableInfoSize += (pTableGroupInfo->numOfTables * sizeof(STableQueryInfo));
+
   pQInfo->pBuf = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
   if (pQInfo->pBuf == NULL) {
     goto _cleanup;

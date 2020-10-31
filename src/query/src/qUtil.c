@@ -56,8 +56,8 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
 
   pWindowResInfo->interval = pRuntimeEnv->pQuery->interval.interval;
 
-  pSummary->internalSupSize += sizeof(SWindowResult) * threshold;
-  pSummary->internalSupSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
+  pSummary->winInfoSize += sizeof(SWindowResult) * threshold;
+  pSummary->winInfoSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
   pSummary->numOfTimeWindows = threshold;
 
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
