@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#define TSDB_USE_SYS_MEM
+
 #ifdef TSDB_USE_SYS_MEM
   #define tmalloc(size) malloc(size)
   #define tcalloc(size) calloc(1, size)
