@@ -72,6 +72,8 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   char file[TSDB_FILENAME_LEN + 30] = {0};
   sprintf(file, "%s/vnode%d/config.json", tsVnodeDir, pVnode->vgId);
 
+  vnodeMsg.cfg.vgId = pVnode->vgId;
+
   fp = fopen(file, "r");
   if (!fp) {
     vError("vgId:%d, failed to open vnode cfg file:%s to read, error:%s", pVnode->vgId, file, strerror(errno));

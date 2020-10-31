@@ -87,6 +87,7 @@ bool dnodeCheckEpChanged(int32_t dnodeId, char *epstr) {
     char epSaved[TSDB_EP_LEN + 1];
     snprintf(epSaved, TSDB_EP_LEN, "%s:%u", ep->dnodeFqdn, ep->dnodePort);
     changed = strcmp(epstr, epSaved) != 0;
+    tstrncpy(epstr, epSaved, TSDB_EP_LEN);
   }
   pthread_mutex_unlock(&tsEpsMutex);
   return changed;
@@ -234,6 +235,8 @@ PRASE_EPS_OVER:
 
   dnodeResetEps(eps);
   if (eps) free(eps);
+
+  dnodeUpdateEp(dnodeGetDnodeId(), tsLocalEp, tsLocalFqdn, &tsServerPort);
 
   terrno = 0;
   return 0;
