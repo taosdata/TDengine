@@ -4254,8 +4254,8 @@ static void queryCostStatis(SQInfo *pQInfo) {
          pQInfo, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
          pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
 
-  qDebug("QInfo:%p :cost summary: windowInfo size:%"PRId64" k, numOfWin:%"PRId64", tableInfoSize:%"PRId64" k", pQInfo, pSummary->winInfoSize,
-      pSummary->numOfTimeWindows/1000, pSummary->tableInfoSize/1000);
+  qDebug("QInfo:%p :cost summary: windowInfo size:%f k, numOfWin:%"PRId64", tableInfoSize:%f k", pQInfo, pSummary->winInfoSize/1024.0,
+      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0);
 }
 
 static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBlockInfo) {
