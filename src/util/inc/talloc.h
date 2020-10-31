@@ -13,11 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_WAL_MGMT_H
-#define TDENGINE_WAL_MGMT_H
+#ifndef TDENGINE_UTIL_ALLOC_H
+#define TDENGINE_UTIL_ALLOC_H
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#define TSDB_USE_SYS_MEM
+
+#ifdef TSDB_USE_SYS_MEM
+  #define tmalloc(size) malloc(size)
+  #define tcalloc(size) calloc(1, size)
+  #define trealloc(p, size) realloc(p, size)
+  #define tmemalign(alignment, size) malloc(size)
+  #define tfree(p) free(p)
+  #define tmemzero(p, size) memset(p, 0, size)
+#else
+  void *tmalloc(int32_t size);
+  void *tcalloc(int32_t size);
+  void *trealloc(void *p, int32_t size);
+  void *tmemalign(int32_t alignment, int32_t size);
+  void  tfree(void *p);
+  void  tmemzero(void *p, int32_t size);
 #endif
 
 #ifdef __cplusplus

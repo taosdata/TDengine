@@ -19,6 +19,7 @@
 #include "tutil.h"
 #include "tconfig.h"
 #include "tglobal.h"
+#include "twal.h"
 #include "dnode.h"
 #include "dnodeInt.h"
 #include "dnodeMgmt.h"
@@ -58,6 +59,7 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"dnodeeps",  dnodeInitEps,        dnodeCleanupEps},
   {"mnodeinfos",dnodeInitMInfos,     dnodeCleanupMInfos},
   {"globalcfg" ,taosCheckGlobalCfg,  NULL},
+  {"wal",       walInit,             walCleanUp},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
   {"vwrite",    dnodeInitVnodeWrite, dnodeCleanupVnodeWrite},

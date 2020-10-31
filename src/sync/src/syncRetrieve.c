@@ -287,7 +287,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   return -1;
 }
 
-static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, uint32_t index) {
+static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int        code = -1;
   char       fname[TSDB_FILENAME_LEN * 2];  // full path to wal file
@@ -377,7 +377,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer) {
   int32_t     size;
   struct stat fstat;
   int         code = -1;
-  uint32_t    index = 0;
+  int64_t     index = 0;
 
   while (1) {
     // retrieve wal info
