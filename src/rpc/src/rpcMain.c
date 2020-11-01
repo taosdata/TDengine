@@ -341,7 +341,7 @@ void *rpcMallocCont(int contLen) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
   } else {
-    tTrace("malloc mem: %p", start);
+    tTrace("malloc mem:%p size:%d", start, size);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
@@ -1479,7 +1479,7 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
       pNewHead->msgLen = rpcMsgLenFromCont(origLen);
       rpcFreeMsg(pHead); // free the compressed message buffer
       pHead = pNewHead; 
-      tTrace("decomp malloc mem: %p", temp);
+      tTrace("decomp malloc mem:%p", temp);
     } else {
       tError("failed to allocate memory to decompress msg, contLen:%d", contLen);
     }

@@ -299,6 +299,7 @@ int32_t dnodeInitTelemetry() {
     dTrace("failed to create telemetry thread, reason:%s", strerror(errno));
   }
 
+  dInfo("dnode telemetry is initialized");
   return 0;
 }
 

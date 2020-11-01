@@ -114,7 +114,7 @@ static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
 static int32_t getTableIndexImpl(SStrToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
-static int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate);
+static int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate);
 
 static SColumnList getColumnList(int32_t num, int16_t tableIndex, int32_t columnIndex);
 
@@ -417,7 +417,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       char* pMsg = pCmd->payload;
 
-      SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
+      SCfgDnodeMsg* pCfg = (SCfgDnodeMsg*)pMsg;
       pDCL->a[0].n = strdequote(pDCL->a[0].z);
       
       strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
@@ -5189,7 +5189,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setKeepOption(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
+static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   const char* msg = "invalid number of options";
 
   pMsg->daysToKeep = htonl(-1);
@@ -5220,7 +5220,7 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBInfo*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTimePrecision(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDbInfo) {
+static int32_t setTimePrecision(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDbInfo) {
   const char* msg = "invalid time precision";
 
   pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
@@ -5244,7 +5244,7 @@ static int32_t setTimePrecision(SSqlCmd* pCmd, SCMCreateDbMsg* pMsg, SCreateDBIn
   return TSDB_CODE_SUCCESS;
 }
 
-static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
+static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->maxTables = htonl(-1);  // max tables can not be set anymore
   pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
   pMsg->totalBlocks = htonl(pCreateDb->numOfBlocks);
@@ -5261,7 +5261,7 @@ static void setCreateDBOption(SCMCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {
-  SCMCreateDbMsg* pMsg = (SCMCreateDbMsg*)(pCmd->payload);
+  SCreateDbMsg* pMsg = (SCreateDbMsg *)(pCmd->payload);
   setCreateDBOption(pMsg, pCreateDbSql);
 
   if (setKeepOption(pCmd, pMsg, pCreateDbSql) != TSDB_CODE_SUCCESS) {
@@ -5779,7 +5779,7 @@ int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
 }
 
 // can only perform the parameters based on the macro definitation
-int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCMCreateDbMsg* pCreate) {
+int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
   char msg[512] = {0};
 
   if (pCreate->walLevel != -1 && (pCreate->walLevel < TSDB_MIN_WAL_LEVEL || pCreate->walLevel > TSDB_MAX_WAL_LEVEL)) {

@@ -140,7 +140,7 @@ struct SSchema tscGetTbnameColumnSchema() {
   strcpy(s.name, TSQL_TBNAME_L);
   return s;
 }
-static void tscInitCorVgroupInfo(SCMCorVgroupInfo *corVgroupInfo, SCMVgroupInfo *vgroupInfo) {
+static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupInfo *vgroupInfo) {
   corVgroupInfo->version = 0;
   corVgroupInfo->inUse = 0;
   corVgroupInfo->numOfEps = vgroupInfo->numOfEps;
@@ -166,7 +166,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
 
-  SCMVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;
+  SVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;
   pVgroupInfo->numOfEps = pTableMetaMsg->vgroup.numOfEps;
   pVgroupInfo->vgId = pTableMetaMsg->vgroup.vgId;
 

@@ -209,12 +209,13 @@ static void *taosRecvUdpData(void *param) {
       continue;
     }
 
-    char *tmsg = malloc(dataLen + tsRpcOverhead);
+    int32_t size = dataLen + tsRpcOverhead;
+    char *tmsg = malloc(size);
     if (NULL == tmsg) {
       tError("%s failed to allocate memory, size:%" PRId64, pConn->label, (int64_t)dataLen);
       continue;
     } else {
-      tTrace("UDP malloc mem: %p", tmsg);
+      tTrace("UDP malloc mem:%p size:%d", tmsg, size);
     }
 
     tmsg += tsRpcOverhead;  // overhead for SRpcReqContext

@@ -312,7 +312,7 @@ void sdbUpdateAsync() {
 }
 
 void sdbUpdateSync(void *pMnodes) {
-  SDMMnodeInfos *mnodes = pMnodes;
+  SMnodeInfos *mnodes = pMnodes;
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync config later");
     return;
@@ -346,10 +346,10 @@ void sdbUpdateSync(void *pMnodes) {
     syncCfg.replica = index;
     mDebug("mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
   } else {
-    for (index = 0; index < mnodes->nodeNum; ++index) {
-      SDMMnodeInfo *node = &mnodes->nodeInfos[index];
-      syncCfg.nodeInfo[index].nodeId = node->nodeId;
-      taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
+    for (index = 0; index < mnodes->mnodeNum; ++index) {
+      SMnodeInfo *node = &mnodes->mnodeInfos[index];
+      syncCfg.nodeInfo[index].nodeId = node->mnodeId;
+      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
       syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
     }
     syncCfg.replica = index;

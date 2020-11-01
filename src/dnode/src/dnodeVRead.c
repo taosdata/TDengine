@@ -61,7 +61,7 @@ int32_t dnodeInitVnodeRead() {
     pWorker->workerId = i;
   }
 
-  dInfo("dnode read is opened, min worker:%d max worker:%d", readPool.min, readPool.max);
+  dInfo("dnode read is initialized, min worker:%d max worker:%d", readPool.min, readPool.max);
   return 0;
 }
 
