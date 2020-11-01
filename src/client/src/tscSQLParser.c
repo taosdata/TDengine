@@ -4427,8 +4427,8 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
 int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema) {
   const char* msg0 = "only support order by primary timestamp";
   const char* msg1 = "invalid column name";
-  const char* msg2 = "only support order by primary timestamp and queried column";
-  const char* msg3 = "only support order by primary timestamp and first tag in groupby clause";
+  const char* msg2 = "only support order by primary timestamp or queried column";
+  const char* msg3 = "only support order by primary timestamp or first tag in groupby clause";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
