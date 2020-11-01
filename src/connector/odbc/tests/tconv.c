@@ -3,21 +3,21 @@
 #ifdef _MSC_VER
 #include <winsock2.h>
 #include <windows.h>
-#include "msvcIconv.h"
-#else
-#include <iconv.h>
 #endif
+
+#include <iconv.h>
 
 
 #include <stdio.h>
 #include <string.h>
 
 static void usage(const char *arg0);
-static int  do_conv(iconv_t cnv, FILE *fin);
+static int  do_conv(iconv_t cnv, FILE *fin, FILE *fout);
 
 int main(int argc, char *argv[]) {
   const char *from_enc = "UTF-8";
   const char *to_enc   = "UTF-8";
+  const char *dst_file = NULL;
   const char *src      = NULL;
 #ifdef _MSC_VER
   from_enc = "CP936";
@@ -44,6 +44,14 @@ int main(int argc, char *argv[]) {
       }
       to_enc = argv[i];
       continue;
+    } else if (strcmp(arg, "-o") == 0 ) {
+      i += 1;
+      if (i>=argc) {
+        fprintf(stderr, "expecing <dst_file>, but got nothing\n");
+        return 1;
+      }
+      dst_file = argv[i];
+      continue;
     } else if (arg[0]=='-') {
       fprintf(stderr, "unknown argument: [%s]\n", arg);
       return 1;
@@ -56,33 +64,49 @@ int main(int argc, char *argv[]) {
       continue;
     }
   }
+  int r = -1;
   FILE *fin = src ? fopen(src, "rb") : stdin;
-  if (!fin) {
-    fprintf(stderr, "failed to open file [%s]\n", src);
-    return 1;
-  }
-  int r = 0;
+  FILE *fout = dst_file ? fopen(dst_file, "wb") : stdout;
+  iconv_t cnv = iconv_open(to_enc, from_enc);
   do {
-    iconv_t cnv = iconv_open(to_enc, from_enc);
+    if (!fin) {
+      fprintf(stderr, "failed to open file [%s]\n", src);
+      break;
+    }
+    if (!fout) {
+      fprintf(stderr, "failed to open file [%s]\n", dst_file);
+      break;
+    }
+#ifdef _MSC_VER
+    if (fout == stdout) {
+      r = _setmode(_fileno(fout), _O_BINARY);
+      if (r == -1) {
+        fprintf(stderr, "Cannot set binary mode for output stream: %d[%s]\n", errno, strerror(errno));
+      }
+    }
+#endif
+
     if (cnv == (iconv_t)-1) {
       fprintf(stderr, "failed to open conv from [%s] to [%s]: [%s]\n", from_enc, to_enc, strerror(errno));
-      return -1;
+      break;
     }
-    r = do_conv(cnv, fin);
+    r = do_conv(cnv, fin, fout);
     iconv_close(cnv);
+    cnv = (iconv_t)-1;
   } while (0);
-  fclose(fin);
+  if (fin && fin != stdin) fclose(fin);
+  if (fout && fout != stdout) fclose(fout);
   return r ? 1 : 0;
 }
 
 static void usage(const char *arg0) {
-  fprintf(stderr, "%s -h | [-f <from_enc>] [-t <to_enc>] [file]\n", arg0);
+  fprintf(stderr, "%s -h | [-f <from_enc>] [-t <to_enc>] [-o <dst file>] [file]\n", arg0);
   return;
 }
 
-#define IN_SIZE     (256*1024)
+#define IN_SIZE     (64*1024)
 #define OUT_SIZE    (8*IN_SIZE)
-static int do_conv(iconv_t cnv, FILE *fin) {
+static int do_conv(iconv_t cnv, FILE *fin, FILE *fout) {
   int r = 0;
   char src[IN_SIZE];
   size_t slen = sizeof(src);
@@ -117,7 +141,7 @@ static int do_conv(iconv_t cnv, FILE *fin) {
             break;
           }
         }
-        n = fwrite(dst, 1, (size_t)(dd-dst), stdout);
+        n = fwrite(dst, 1, (size_t)(dd-dst), fout);
         if (n<dd-dst) {
           fprintf(stderr, "failed to write: [%s]\n", strerror(errno));
           r = -1;
