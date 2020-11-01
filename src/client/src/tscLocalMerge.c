@@ -489,7 +489,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
       tscDebug("%p waiting for delete procedure, status: %d", pSql, status);
     }
 
-    pLocalReducer->pFillInfo = taosDestoryFillInfo(pLocalReducer->pFillInfo);
+    pLocalReducer->pFillInfo = taosDestroyFillInfo(pLocalReducer->pFillInfo);
 
     if (pLocalReducer->pCtx != NULL) {
       for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {

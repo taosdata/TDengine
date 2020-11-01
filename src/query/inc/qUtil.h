@@ -44,7 +44,7 @@ void    removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int
 
 static FORCE_INLINE SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot) {
   assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
-  return &pWindowResInfo->pResult[slot];
+  return pWindowResInfo->pResult[slot];
 }
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
@@ -70,5 +70,15 @@ bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
 
 __filter_func_t *getRangeFilterFuncArray(int32_t type);
 __filter_func_t *getValueFilterFuncArray(int32_t type);
+
+size_t getWindowResultSize(SQueryRuntimeEnv* pRuntimeEnv);
+
+SWindowResultPool* initWindowResultPool(size_t size);
+SWindowResult* getNewWindowResult(SWindowResultPool* p);
+int64_t getWindowResultPoolMemSize(SWindowResultPool* p);
+void* destroyWindowResultPool(SWindowResultPool* p);
+int32_t getNumOfAllocatedWindowResult(SWindowResultPool* p);
+int32_t getNumOfUsedWindowResult(SWindowResultPool* p);
+
 
 #endif  // TDENGINE_QUERYUTIL_H

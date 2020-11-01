@@ -14,8 +14,9 @@
  */
 
 #include "os.h"
-#include "hash.h"
 #include "taosmsg.h"
+#include "hash.h"
+
 #include "qExecutor.h"
 #include "qUtil.h"
 
@@ -40,36 +41,27 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->size     = 0;
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
 
-  SQueryCostInfo* pSummary = &pRuntimeEnv->summary;
+//  SQueryCostInfo* pSummary = &pRuntimeEnv->summary;
 
-  // use the pointer arraylist
-  pWindowResInfo->pResult = calloc(pWindowResInfo->capacity, sizeof(SWindowResult));
+  pWindowResInfo->pResult = calloc(pWindowResInfo->capacity, POINTER_BYTES);
   if (pWindowResInfo->pResult == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   pWindowResInfo->interval = pRuntimeEnv->pQuery->interval.interval;
 
-  pSummary->winInfoSize += sizeof(SWindowResult) * pWindowResInfo->capacity;
-  pSummary->winInfoSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
-  pSummary->numOfTimeWindows = pWindowResInfo->capacity;
+//  pSummary->winInfoSize += POINTER_BYTES * pWindowResInfo->capacity;
+//  pSummary->winInfoSize += (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo) + pRuntimeEnv->interBufSize) * pWindowResInfo->capacity;
+//  pSummary->numOfTimeWindows = pWindowResInfo->capacity;
 
-  for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
-    int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-  }
+//  for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
+//    int32_t code = createQueryResultInfo(pRuntimeEnv->pQuery, pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, pRuntimeEnv->interBufSize);
+//    if (code != TSDB_CODE_SUCCESS) {
+//      return code;
+//    }
+//  }
   
   return TSDB_CODE_SUCCESS;
-}
-
-void destroyTimeWindowRes(SWindowResult *pWindowRes) {
-  if (pWindowRes == NULL) {
-    return;
-  }
-
-  free(pWindowRes->resultInfo);
 }
 
 void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
@@ -81,13 +73,6 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     return;
   }
   
-  if (pWindowResInfo->pResult != NULL) {
-    for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
-      destroyTimeWindowRes(&pWindowResInfo->pResult[i]);
-    }
-  }
-  
-//  taosHashCleanup(pWindowResInfo->hashList);
   taosTFree(pWindowResInfo->pResult);
 }
 
@@ -97,16 +82,12 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   }
   
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
-    SWindowResult *pWindowRes = &pWindowResInfo->pResult[i];
+    SWindowResult *pWindowRes = pWindowResInfo->pResult[i];
     clearTimeWindowResBuf(pRuntimeEnv, pWindowRes);
   }
   
   pWindowResInfo->curIndex = -1;
-//  taosHashCleanup(pWindowResInfo->hashList);
   pWindowResInfo->size = 0;
-  
-//  _hash_fn_t fn = taosGetDefaultHashFunction(pWindowResInfo->type);
-//  pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, true, false);
   
   pWindowResInfo->startTime = TSKEY_INITIAL_VAL;
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
@@ -127,7 +108,7 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   int16_t  bytes = -1;
 
   for (int32_t i = 0; i < num; ++i) {
-    SWindowResult *pResult = &pWindowResInfo->pResult[i];
+    SWindowResult *pResult = pWindowResInfo->pResult[i];
     if (pResult->closed) {  // remove the window slot from hash table
 
       // todo refactor
@@ -150,19 +131,19 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   
   // clear all the closed windows from the window list
   for (int32_t k = 0; k < remain; ++k) {
-    copyTimeWindowResBuf(pRuntimeEnv, &pWindowResInfo->pResult[k], &pWindowResInfo->pResult[num + k]);
+    copyTimeWindowResBuf(pRuntimeEnv, pWindowResInfo->pResult[k], pWindowResInfo->pResult[num + k]);
   }
   
   // move the unclosed window in the front of the window list
   for (int32_t k = remain; k < pWindowResInfo->size; ++k) {
-    SWindowResult *pWindowRes = &pWindowResInfo->pResult[k];
+    SWindowResult *pWindowRes = pWindowResInfo->pResult[k];
     clearTimeWindowResBuf(pRuntimeEnv, pWindowRes);
   }
   
   pWindowResInfo->size = remain;
 
   for (int32_t k = 0; k < pWindowResInfo->size; ++k) {
-    SWindowResult *pResult = &pWindowResInfo->pResult[k];
+    SWindowResult *pResult = pWindowResInfo->pResult[k];
 
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
       key = varDataVal(pResult->key);
@@ -198,7 +179,7 @@ void clearClosedTimeWindow(SQueryRuntimeEnv *pRuntimeEnv) {
 
 int32_t numOfClosedTimeWindow(SWindowResInfo *pWindowResInfo) {
   int32_t i = 0;
-  while (i < pWindowResInfo->size && pWindowResInfo->pResult[i].closed) {
+  while (i < pWindowResInfo->size && pWindowResInfo->pResult[i]->closed) {
     ++i;
   }
   
@@ -209,11 +190,11 @@ void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
   assert(pWindowResInfo->size >= 0 && pWindowResInfo->capacity >= pWindowResInfo->size);
   
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
-    if (pWindowResInfo->pResult[i].closed) {
+    if (pWindowResInfo->pResult[i]->closed) {
       continue;
     }
     
-    pWindowResInfo->pResult[i].closed = true;
+    pWindowResInfo->pResult[i]->closed = true;
   }
 }
 
@@ -229,19 +210,19 @@ void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_
   }
 
   // get the result order
-  int32_t resultOrder = (pWindowResInfo->pResult[0].win.skey < pWindowResInfo->pResult[1].win.skey)? 1:-1;
+  int32_t resultOrder = (pWindowResInfo->pResult[0]->win.skey < pWindowResInfo->pResult[1]->win.skey)? 1:-1;
   if (order != resultOrder) {
     return;
   }
 
   int32_t i = 0;
   if (order == QUERY_ASC_FORWARD_STEP) {
-    TSKEY ekey = pWindowResInfo->pResult[i].win.ekey;
+    TSKEY ekey = pWindowResInfo->pResult[i]->win.ekey;
     while (i < pWindowResInfo->size && (ekey < lastKey)) {
       ++i;
     }
   } else if (order == QUERY_DESC_FORWARD_STEP) {
-    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i].win.skey > lastKey)) {
+    while (i < pWindowResInfo->size && (pWindowResInfo->pResult[i]->win.skey > lastKey)) {
       ++i;
     }
   }
@@ -318,3 +299,77 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *dst, con
   }
 }
 
+size_t getWindowResultSize(SQueryRuntimeEnv* pRuntimeEnv) {
+  return (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultInfo)) + pRuntimeEnv->interBufSize + sizeof(SWindowResult);
+}
+
+SWindowResultPool* initWindowResultPool(size_t size) {
+  SWindowResultPool* p = calloc(1, sizeof(SWindowResultPool));
+  if (p == NULL) {
+    return NULL;
+  }
+
+  p->numOfElemPerBlock = 128;
+
+  p->elemSize = size;
+  p->blockSize = p->numOfElemPerBlock * p->elemSize;
+
+  p->position.pos = 0;
+
+  p->pData = taosArrayInit(8, POINTER_BYTES);
+  return p;
+}
+
+SWindowResult* getNewWindowResult(SWindowResultPool* p) {
+  if (p == NULL) {
+    return NULL;
+  }
+
+  void* ptr = NULL;
+  if (p->position.pos == 0) {
+    ptr = calloc(1, p->blockSize);
+    taosArrayPush(p->pData, &ptr);
+
+  } else {
+    size_t last = taosArrayGetSize(p->pData);
+
+    void** pBlock = taosArrayGet(p->pData, last - 1);
+    ptr = (*pBlock) + p->elemSize * p->position.pos;
+  }
+
+  p->position.pos = (p->position.pos + 1)%p->numOfElemPerBlock;
+  return ptr;
+}
+
+int64_t getWindowResultPoolMemSize(SWindowResultPool* p) {
+  if (p == NULL) {
+    return 0;
+  }
+
+  return taosArrayGetSize(p->pData) * p->blockSize;
+}
+
+int32_t getNumOfAllocatedWindowResult(SWindowResultPool* p) {
+  return taosArrayGetSize(p->pData) * p->numOfElemPerBlock;
+}
+
+int32_t getNumOfUsedWindowResult(SWindowResultPool* p) {
+  return getNumOfAllocatedWindowResult(p) - p->numOfElemPerBlock + p->position.pos;
+}
+
+void* destroyWindowResultPool(SWindowResultPool* p) {
+  if (p == NULL) {
+    return NULL;
+  }
+
+  size_t size = taosArrayGetSize(p->pData);
+  for(int32_t i = 0; i < size; ++i) {
+    void** ptr = taosArrayGet(p->pData, i);
+    taosTFree(*ptr);
+  }
+
+  taosArrayDestroy(p->pData);
+
+  taosTFree(p);
+  return NULL;
+}

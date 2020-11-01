@@ -40,6 +40,19 @@ typedef struct SGroupResInfo {
   int32_t  rowId;
 } SGroupResInfo;
 
+typedef struct SWindowResultPool {
+  int32_t elemSize;
+  int32_t blockSize;
+  int32_t numOfElemPerBlock;
+
+  struct {
+    int32_t blockIndex;
+    int32_t pos;
+  } position;
+
+  SArray* pData;    // SArray<void*>
+} SWindowResultPool;
+
 typedef struct SSqlGroupbyExpr {
   int16_t tableIndex;
   SArray* columnInfo;  // SArray<SColIndex>, group by columns information
@@ -69,9 +82,7 @@ typedef struct SResultRec {
 } SResultRec;
 
 typedef struct SWindowResInfo {
-  SWindowResult* pResult;    // result list
-//  uint64_t       uid;        // table uid, in order to identify the result from global hash table
-//  SHashObj*      hashList;   // hash list for quick access
+  SWindowResult** pResult;    // result list
   int16_t        type;       // data type for hash key
   int32_t        capacity;   // max capacity
   int32_t        curIndex;   // current start active index
@@ -180,6 +191,7 @@ typedef struct SQueryRuntimeEnv {
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*            pWindowHashTable; // quick locate the window object for each result
   char*                keyBuf;           // window key buffer
+  SWindowResultPool*   pool;             // window result object pool
 } SQueryRuntimeEnv;
 
 enum {
