@@ -2728,6 +2728,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
 int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd* pCmd) {
   const char* msg1 = "too many columns in group by clause";
   const char* msg2 = "invalid column name in group by clause";
+  const char* msg3 = "columns from one table allowed as group by columns";
   const char* msg7 = "not support group by expression";
   const char* msg8 = "not allowed column type for group by";
   const char* msg9 = "tags not allowed for table query";
@@ -2763,7 +2764,11 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    tableIndex = index.tableIndex;
+    if (tableIndex == COLUMN_INDEX_INITIAL_VAL) {
+      tableIndex = index.tableIndex;
+    } else if (tableIndex != index.tableIndex) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
 
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
     pTableMeta = pTableMetaInfo->pTableMeta;
