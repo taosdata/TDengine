@@ -31,8 +31,7 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   return size;
 }
 
-int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size,
-                          int32_t threshold, int16_t type) {
+int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, int32_t size, int32_t threshold, int16_t type) {
   pWindowResInfo->capacity = size;
   pWindowResInfo->threshold = threshold;
   
@@ -46,7 +45,6 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  pWindowResInfo->interval = pRuntimeEnv->pQuery->interval.interval;
   return TSDB_CODE_SUCCESS;
 }
 
