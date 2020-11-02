@@ -168,7 +168,7 @@ typedef struct SQuery {
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
-  SResultRowCellInfo*  resultInfo;       // todo refactor to merge with SWindowResInfo
+  SResultRow*          pResultRow;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
   int32_t              numOfRowsPerPage;
@@ -190,7 +190,7 @@ typedef struct SQueryRuntimeEnv {
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*            pResultRowHashTable; // quick locate the window object for each result
   char*                keyBuf;           // window key buffer
-  SResultRowPool*   pool;             // window result object pool
+  SResultRowPool*      pool;             // window result object pool
 
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
 } SQueryRuntimeEnv;

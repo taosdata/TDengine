@@ -99,7 +99,7 @@ typedef struct SSumInfo {
 // the attribute of hasResult is not needed since the num attribute would server as this purpose
 typedef struct SAvgInfo {
   double  sum;
-  int64_t num;  // num servers as the hasResult attribute in other struct
+  int64_t num;
 } SAvgInfo;
 
 typedef struct SStddevInfo {
@@ -167,7 +167,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = 0;//*bytes;
+
+    if (functionId == TSDB_FUNC_INTERP) {
+      *interBytes = sizeof(SInterpInfoDetail);
+    } else {
+      *interBytes = 0;
+    }
+
     return TSDB_CODE_SUCCESS;
   }
   
@@ -175,21 +181,21 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = (int16_t)(dataBytes + sizeof(int16_t) + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE);
-    *interBytes = 0;//*bytes;
+    *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_COUNT) {
     *type = TSDB_DATA_TYPE_BIGINT;
     *bytes = sizeof(int64_t);
-    *interBytes = 0;//*bytes;
+    *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_ARITHM) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interBytes = 0;//*bytes;
+    *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
   
@@ -333,11 +339,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   
   return TSDB_CODE_SUCCESS;
 }
-
-//void setResultInfoBuf(SResultRowCellInfo *pResInfo, char* buf) {
-//  assert(GET_ROWCELL_INTERBUF(pResInfo) == NULL);
-//  GET_ROWCELL_INTERBUF(pResInfo) = buf;
-//}
 
 // set the query flag to denote that query is completed
 static void no_next_step(SQLFunctionCtx *pCtx) {
@@ -3998,7 +3999,6 @@ static void interp_function(SQLFunctionCtx *pCtx) {
         }
       }
     }
-    
   }
   
   SET_VAL(pCtx, pCtx->size, 1);

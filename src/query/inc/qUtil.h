@@ -42,7 +42,7 @@ void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
 void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
 void    removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
 
-static FORCE_INLINE SResultRow *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot) {
+static FORCE_INLINE SResultRow *getResultRow(SWindowResInfo *pWindowResInfo, int32_t slot) {
   assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
   return pWindowResInfo->pResult[slot];
 }
@@ -52,7 +52,7 @@ static FORCE_INLINE SResultRow *getWindowResult(SWindowResInfo *pWindowResInfo, 
 
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
-int32_t createQueryResultInfo(SQuery *pQuery, SResultRow *pResultRow);
+int32_t initResultRow(SResultRow *pResultRow);
 
 static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SResultRow *pResult,
     tFilePage* page) {

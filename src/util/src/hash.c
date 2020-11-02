@@ -114,10 +114,12 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
  * @param dsize   size of actual data
  * @return        hash node
  */
-static FORCE_INLINE SHashNode *doUpdateHashNode(SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
+static FORCE_INLINE SHashNode *doUpdateHashNode(SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
   assert(pNode->keyLen == pNewNode->keyLen);
   if (prev != NULL) {
     prev->next = pNewNode;
+  } else {
+    pe->next = pNewNode;
   }
 
   pNewNode->next = pNode->next;
@@ -242,7 +244,10 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
   } else {
     // not support the update operation, return error
     if (pHashObj->enableUpdate) {
-      doUpdateHashNode(prev, pNode, pNewNode);
+      doUpdateHashNode(pe, prev, pNode, pNewNode);
+      DO_FREE_HASH_NODE(pNode);
+    } else {
+      DO_FREE_HASH_NODE(pNewNode);
     }
 
     if (pHashObj->type == HASH_ENTRY_LOCK) {
@@ -252,7 +257,6 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // enable resize
     __rd_unlock(&pHashObj->lock, pHashObj->type);
 
-    DO_FREE_HASH_NODE(pNewNode);
     return pHashObj->enableUpdate ? 0 : -1;
   }
 }
