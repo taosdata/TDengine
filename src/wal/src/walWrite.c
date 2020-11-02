@@ -264,6 +264,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId,
            pWal->fileId, pWal->version, pHead->version, pHead->len);
 
+    if (pWal->keep) pWal->version = pHead->version;
+
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
   }
 
