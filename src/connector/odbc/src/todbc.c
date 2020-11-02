@@ -22,6 +22,7 @@
 
 #include "taos.h"
 
+#include "tglobal.h"
 #include "taoserror.h"
 #include "todbc_util.h"
 #include "todbc_conv.h"
@@ -250,6 +251,7 @@ struct env_s {
   unsigned int            destroying:1;
 
   char                    env_locale[64];
+  char                    env_charset[64];
 
   taos_error_t            err;
 };
@@ -258,8 +260,8 @@ struct conn_s {
   uint64_t                refcount;
   env_t                  *env;
 
-  char                    client_enc[64];
-  char                    server_enc[64];
+  char                    client_enc[64];  // ODBC client that communicates with this driver
+  char                    server_enc[64];  // taos dynamic library that's loaded by this driver
 
   tsdb_conv_t            *client_to_server;
   tsdb_conv_t            *server_to_client;
@@ -267,8 +269,6 @@ struct conn_s {
   tsdb_conv_t            *utf16_to_utf8;
   tsdb_conv_t            *utf16_to_server;
   tsdb_conv_t            *client_to_utf8;
-  tsdb_conv_t            *env_to_client;
-  tsdb_conv_t            *client_to_env;
 
   TAOS                   *taos;
 
@@ -330,14 +330,14 @@ static tsdb_conv_t* tsdb_conn_utf8_to_client(conn_t *conn) {
   return conn->utf8_to_client;
 }
 
-tsdb_conv_t* tsdb_conn_utf16_to_utf8(conn_t *conn) {
+static tsdb_conv_t* tsdb_conn_utf16_to_utf8(conn_t *conn) {
   if (!conn->utf16_to_utf8) {
     conn->utf16_to_utf8 = tsdb_conv_open(UTF16_ENC, UTF8_ENC);
   }
   return conn->utf16_to_utf8;
 }
 
-tsdb_conv_t* tsdb_conn_utf16_to_server(conn_t *conn) {
+static tsdb_conv_t* tsdb_conn_utf16_to_server(conn_t *conn) {
   if (!conn->utf16_to_server) {
     conn->utf16_to_server = tsdb_conv_open(UTF16_ENC, conn->server_enc);
   }
@@ -351,24 +351,7 @@ static tsdb_conv_t* tsdb_conn_client_to_utf8(conn_t *conn) {
   return conn->client_to_utf8;
 }
 
-static tsdb_conv_t* tsdb_conn_env_to_client(conn_t *conn) {
-  if (!conn->env_to_client) {
-    conn->env_to_client = tsdb_conv_open(conn->env->env_locale, conn->client_enc);
-  }
-  return conn->env_to_client;
-}
-
-static tsdb_conv_t* tsdb_conn_client_to_env(conn_t *conn) {
-  if (!conn->client_to_env) {
-    conn->client_to_env = tsdb_conv_open(conn->client_enc, conn->env->env_locale);
-  }
-  return conn->client_to_env;
-}
-
 static void tsdb_conn_close_convs(conn_t *conn) {
-  if (0) {
-    tsdb_conn_server_to_client(NULL);
-  }
   if (conn->client_to_server) {
     tsdb_conv_close(conn->client_to_server);
     conn->client_to_server = NULL;
@@ -393,14 +376,6 @@ static void tsdb_conn_close_convs(conn_t *conn) {
     tsdb_conv_close(conn->client_to_utf8);
     conn->client_to_utf8 = NULL;
   }
-  if (conn->env_to_client) {
-    tsdb_conv_close(conn->env_to_client);
-    conn->env_to_client = NULL;
-  }
-  if (conn->client_to_env) {
-    tsdb_conv_close(conn->client_to_env);
-    conn->client_to_env = NULL;
-  }
 }
 
 #define SFREE(buffer, v, src)                                                           \
@@ -421,11 +396,8 @@ static SQLRETURN doSQLAllocEnv(SQLHENV *EnvironmentHandle)
 
   DASSERT(INC_REF(env)>0);
 
-#ifdef _MSC_VER
-  snprintf(env->env_locale, sizeof(env->env_locale), GB18030_ENC);
-#else
-  snprintf(env->env_locale, sizeof(env->env_locale), UTF8_ENC);
-#endif
+  snprintf(env->env_locale,  sizeof(env->env_locale),  "%s", tsLocale);
+  snprintf(env->env_charset, sizeof(env->env_charset), "%s", tsCharset);
 
   *EnvironmentHandle = env;
 
@@ -490,8 +462,8 @@ static SQLRETURN doSQLAllocConnect(SQLHENV EnvironmentHandle,
 
     conn->env = env;
 
-    snprintf(conn->client_enc, sizeof(conn->client_enc), "%s", conn->env->env_locale);
-    snprintf(conn->server_enc, sizeof(conn->server_enc), "%s", conn->env->env_locale);
+    snprintf(conn->client_enc, sizeof(conn->client_enc), "%s", conn->env->env_charset);
+    snprintf(conn->server_enc, sizeof(conn->server_enc), "%s", conn->env->env_charset);
 
     *ConnectionHandle = conn;
 
@@ -808,13 +780,13 @@ static SQLRETURN doSQLExecDirect(SQLHSTMT StatementHandle,
 
   SQLRETURN r = SQL_SUCCESS;
   stack_buffer_t buffer; buffer.next = 0;
-  tsdb_conv_t *client_to_env = tsdb_conn_client_to_env(conn);
+  tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
   const char *stxt = NULL;
   do {
-    TSDB_CONV_CODE code = tsdb_conv(client_to_env, &buffer, (const char*)StatementText, (size_t)TextLength, &stxt, NULL);
+    TSDB_CONV_CODE code = tsdb_conv(client_to_server, &buffer, (const char*)StatementText, (size_t)TextLength, &stxt, NULL);
     r = do_exec_direct(sql, code, stxt);
   } while (0);
-  tsdb_conv_free(client_to_env, stxt, &buffer, (const char*)StatementText);
+  tsdb_conv_free(client_to_server, stxt, &buffer, (const char*)StatementText);
 
   return r;
 }
@@ -1218,14 +1190,29 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
       field_bytes -= VARSTR_HEADER_SIZE;
       switch (target.ct) {
         case SQL_C_CHAR: {
+          // taos cares nothing about what would be stored in 'binary' as most sql implementations do
+          // but the client requires to fetch it as a SQL_C_CHAR
+          // thus, we first try to decode binary to client charset
+          // if failed, we then do hex-serialization
+
           tsdb_conv_t *server_to_client = tsdb_conn_server_to_client(conn);
           size_t slen = strnlen((const char*)row, field_bytes);
           size_t len = (size_t)BufferLength;
           TSDB_CONV_CODE code = tsdb_conv_write(server_to_client,
-                                   (const char*)row, &slen,
-                                   (char*)TargetValue, &len);
-          if (StrLen_or_Ind) *StrLen_or_Ind = (SQLLEN)((size_t)BufferLength - len);
-          CHK_CONV(0, code);
+                                    (const char*)row, &slen,
+                                    (char*)TargetValue, &len);
+          if (code==TSDB_CONV_OK) {
+            if (StrLen_or_Ind) *StrLen_or_Ind = (SQLLEN)((size_t)BufferLength - len);
+            CHK_CONV(0, code);
+            // code never reached here
+          }
+
+          // todo: hex-serialization
+          const char *bad = "<bad-charset>";
+          int n = snprintf((char*)TargetValue, (size_t)BufferLength, "%s", bad);
+          // what if n < 0 ?
+          if (StrLen_or_Ind) *StrLen_or_Ind = n;
+          CHK_CONV(0, n>=BufferLength ? TSDB_CONV_TRUNC : TSDB_CONV_OK);
         } break;
         default: {
           SET_ERROR(sql, "HYC00", TSDB_CODE_ODBC_NOT_SUPPORT,
@@ -1240,10 +1227,10 @@ static SQLRETURN doSQLGetData(SQLHSTMT StatementHandle,
       field_bytes -= VARSTR_HEADER_SIZE;
       switch (target.ct) {
         case SQL_C_CHAR: {
-          tsdb_conv_t *env_to_client = tsdb_conn_env_to_client(conn);
+          tsdb_conv_t *server_to_client = tsdb_conn_server_to_client(conn);
           size_t slen = strnlen((const char*)row, field_bytes);
           size_t len = (size_t)BufferLength;
-          TSDB_CONV_CODE code = tsdb_conv_write(env_to_client,
+          TSDB_CONV_CODE code = tsdb_conv_write(server_to_client,
                                    (const char*)row, &slen,
                                    (char*)TargetValue, &len);
           if (StrLen_or_Ind) *StrLen_or_Ind = (SQLLEN)((size_t)BufferLength - len);
@@ -2044,38 +2031,84 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
       bind->length = &bind->buffer_length;
       switch (valueType) {
         case SQL_C_WCHAR: {
-          tsdb_conv_t *utf16_to_server = tsdb_conn_utf16_to_server(conn);
+          // taos cares nothing about what would be stored in 'binary' as most sql implementations do
+          // thus, we just copy it as is
+          // it's caller's responsibility to maintain data-consistency
+          // if he/she is going to use 'binary' to store characters
+          // taos might extend it's sql syntax to let user specify
+          // what charset is to be used for specific 'binary' field when
+          // table is to be created
+          // in such way, 'binary' would be 'internationalized'
+          // but actually speaking, normally, 'char' field is a better
+          // one for this purpose
           size_t slen = (size_t)*soi;
           DASSERT(slen != SQL_NTS);
-          const char *buf = NULL;
-          size_t blen = 0;
-          TSDB_CONV_CODE code = tsdb_conv(utf16_to_server, NULL, (const char *)paramValue, slen, &buf, &blen);
-          if (code==TSDB_CONV_OK) {
-            if (buf!=(const char*)paramValue) {
-              bind->allocated = 1;
-            }
-            bind->u.bin = (unsigned char*)buf;
-            bind->buffer_length = blen;
-            bind->buffer = bind->u.bin;
+          bind->u.bin = (unsigned char*)malloc(slen + 1); // add null-terminator, just for case of use
+          if (!bind->u.bin) {
+            CHK_CONV(1, TSDB_CONV_OOM);
+            // code never reached here
           }
-          CHK_CONV(1, code);
+          memcpy(bind->u.bin, paramValue, slen);
+          bind->buffer_length = slen;
+          bind->buffer = bind->u.bin;
+          CHK_CONV(1, TSDB_CONV_OK);
+
+          // tsdb_conv_t *utf16_to_server = tsdb_conn_utf16_to_server(conn);
+          // size_t slen = (size_t)*soi;
+          // DASSERT(slen != SQL_NTS);
+          // const char *buf = NULL;
+          // size_t blen = 0;
+          // TSDB_CONV_CODE code = tsdb_conv(utf16_to_server, NULL, (const char *)paramValue, slen, &buf, &blen);
+          // if (code==TSDB_CONV_OK) {
+          //   if (buf!=(const char*)paramValue) {
+          //     bind->allocated = 1;
+          //   }
+          //   bind->u.bin = (unsigned char*)buf;
+          //   bind->buffer_length = blen;
+          //   bind->buffer = bind->u.bin;
+          // }
+          // CHK_CONV(1, code);
         } break;
         case SQL_C_CHAR: {
-          tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
+          // taos cares nothing about what would be stored in 'binary' as most sql implementations do
+          // thus, we just copy it as is
+          // it's caller's responsibility to maintain data-consistency
+          // if he/she is going to use 'binary' to store characters
+          // taos might extend it's sql syntax to let user specify
+          // what charset is to be used for specific 'binary' field when
+          // table is to be created
+          // in such way, 'binary' would be 'internationalized'
+          // but actually speaking, normally, 'char' field is a better
+          // one for this purpose
           size_t slen = (size_t)*soi;
           if (slen==SQL_NTS) slen = strlen((const char*)paramValue);
-          const char *buf = NULL;
-          size_t blen = 0;
-          TSDB_CONV_CODE code = tsdb_conv(client_to_server, NULL, (const char *)paramValue, slen, &buf, &blen);
-          if (code==TSDB_CONV_OK) {
-            if (buf!=(const char*)paramValue) {
-              bind->allocated = 1;
-            }
-            bind->u.bin = (unsigned char*)buf;
-            bind->buffer_length = blen;
-            bind->buffer = bind->u.bin;
+          // we can not use strndup, because ODBC client might pass in a buffer without null-terminated
+          bind->u.bin = (unsigned char*)malloc(slen + 1); // add null-terminator, just for case of use
+          if (!bind->u.bin) {
+            CHK_CONV(1, TSDB_CONV_OOM);
+            // code never reached here
           }
-          CHK_CONV(1, code);
+          memcpy(bind->u.bin, paramValue, slen);
+          bind->buffer_length = slen;
+          bind->buffer = bind->u.bin;
+          CHK_CONV(1, TSDB_CONV_OK);
+          // code never reached here
+
+          // tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
+          // size_t slen = (size_t)*soi;
+          // if (slen==SQL_NTS) slen = strlen((const char*)paramValue);
+          // const char *buf = NULL;
+          // size_t blen = 0;
+          // TSDB_CONV_CODE code = tsdb_conv(client_to_server, NULL, (const char *)paramValue, slen, &buf, &blen);
+          // if (code==TSDB_CONV_OK) {
+          //   if (buf!=(const char*)paramValue) {
+          //     bind->allocated = 1;
+          //   }
+          //   bind->u.bin = (unsigned char*)buf;
+          //   bind->buffer_length = blen;
+          //   bind->buffer = bind->u.bin;
+          // }
+          // CHK_CONV(1, code);
         } break;
         case SQL_C_SHORT:
         case SQL_C_SSHORT:
@@ -2131,12 +2164,12 @@ static SQLRETURN do_bind_param_value(sql_t *sql, int idx_row, int idx, param_bin
           CHK_CONV(1, code);
         } break;
         case SQL_C_CHAR: {
-          tsdb_conv_t *client_to_env = tsdb_conn_client_to_env(conn);
+          tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
           size_t slen = (size_t)*soi;
           if (slen==SQL_NTS) slen = strlen((const char*)paramValue);
           const char *buf = NULL;
           size_t blen = 0;
-          TSDB_CONV_CODE code = tsdb_conv(client_to_env, NULL, (const char *)paramValue, slen, &buf, &blen);
+          TSDB_CONV_CODE code = tsdb_conv(client_to_server, NULL, (const char *)paramValue, slen, &buf, &blen);
           if (code==TSDB_CONV_OK) {
             if (buf!=(const char*)paramValue) {
               bind->allocated = 1;
@@ -2819,6 +2852,8 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
 
 static void init_routine(void) {
   taos_init();
+  D("tsLocale:  [%s]", tsLocale);
+  D("tsCharset: [%s]", tsCharset);
 }
 
 static size_t do_field_display_size(TAOS_FIELD *field) {
