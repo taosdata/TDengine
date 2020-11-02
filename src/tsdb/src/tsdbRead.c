@@ -72,8 +72,8 @@ typedef struct STableCheckInfo {
   STable*       pTableObj;
   SCompInfo*    pCompInfo;
   int32_t       compSize;
-  int32_t       numOfBlocks;    // number of qualified data blocks not the original blocks
-  int32_t       chosen;         // indicate which iterator should move forward
+  int32_t       numOfBlocks:29; // number of qualified data blocks not the original blocks
+  int8_t        chosen:2;       // indicate which iterator should move forward
   bool          initBuf;        // whether to initialize the in-memory skip list iterator or not
   SSkipListIterator* iter;      // mem buffer skip list iterator
   SSkipListIterator* iiter;     // imem buffer skip list iterator
