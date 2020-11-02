@@ -73,12 +73,12 @@ __filter_func_t *getValueFilterFuncArray(int32_t type);
 
 size_t getWindowResultSize(SQueryRuntimeEnv* pRuntimeEnv);
 
-SWindowResultPool* initWindowResultPool(size_t size);
-SResultRow* getNewWindowResult(SWindowResultPool* p);
-int64_t getWindowResultPoolMemSize(SWindowResultPool* p);
-void* destroyWindowResultPool(SWindowResultPool* p);
-int32_t getNumOfAllocatedWindowResult(SWindowResultPool* p);
-int32_t getNumOfUsedWindowResult(SWindowResultPool* p);
+SResultRowPool* initResultRowPool(size_t size);
+SResultRow* getNewResultRow(SResultRowPool* p);
+int64_t getResultRowPoolMemSize(SResultRowPool* p);
+void* destroyResultRowPool(SResultRowPool* p);
+int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
+int32_t getNumOfUsedResultRows(SResultRowPool* p);
 
 
 #endif  // TDENGINE_QUERYUTIL_H

@@ -452,7 +452,7 @@ static SResultRow *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWindow
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, uid);
-  int32_t *p1 = (int32_t *) taosHashGet(pRuntimeEnv->pWindowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+  int32_t *p1 = (int32_t *) taosHashGet(pRuntimeEnv->pResultRowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
   if (p1 != NULL) {
     pWindowResInfo->curIndex = *p1;
   } else {
@@ -485,7 +485,7 @@ static SResultRow *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWindow
       pWindowResInfo->capacity = (int32_t)newCapacity;
     }
 //      pRuntimeEnv->summary.winInfoSize += (pQuery->numOfOutput * sizeof(SResultRowCellInfo) + pRuntimeEnv->interBufSize) * inc;
-      SResultRow* pResult = getNewWindowResult(pRuntimeEnv->pool);
+      SResultRow* pResult = getNewResultRow(pRuntimeEnv->pool);
       pWindowResInfo->pResult[pWindowResInfo->size] = pResult;
       int32_t ret = createQueryResultInfo(pQuery, pResult);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -494,7 +494,7 @@ static SResultRow *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWindow
 
     // add a new result set for a new group
     pWindowResInfo->curIndex = pWindowResInfo->size++;
-    taosHashPut(pRuntimeEnv->pWindowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), (char *)&pWindowResInfo->curIndex, sizeof(int32_t));
+    taosHashPut(pRuntimeEnv->pResultRowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), (char *)&pWindowResInfo->curIndex, sizeof(int32_t));
   }
 
   // too many time window in query
@@ -1771,10 +1771,10 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pTSBuf = tsBufDestroy(pRuntimeEnv->pTSBuf);
   taosTFree(pRuntimeEnv->keyBuf);
 
-  taosHashCleanup(pRuntimeEnv->pWindowHashTable);
-  pRuntimeEnv->pWindowHashTable = NULL;
+  taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
+  pRuntimeEnv->pResultRowHashTable = NULL;
 
-  pRuntimeEnv->pool = destroyWindowResultPool(pRuntimeEnv->pool);
+  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
 }
 
 #define IS_QUERY_KILLED(_q) ((_q)->code == TSDB_CODE_TSC_QUERY_CANCELLED)
@@ -4246,16 +4246,16 @@ static void queryCostStatis(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryCostInfo *pSummary = &pRuntimeEnv->summary;
 
-  uint64_t hashSize = taosHashGetMemSize(pQInfo->runtimeEnv.pWindowHashTable);
+  uint64_t hashSize = taosHashGetMemSize(pQInfo->runtimeEnv.pResultRowHashTable);
   hashSize += taosHashGetMemSize(pQInfo->tableqinfoGroupInfo.map);
   pSummary->hashSize = hashSize;
 
   // add the merge time
   pSummary->elapsedTime += pSummary->firstStageMergeTime;
 
-  SWindowResultPool* p = pQInfo->runtimeEnv.pool;
-  pSummary->winInfoSize = getWindowResultPoolMemSize(p);
-  pSummary->numOfTimeWindows = getNumOfAllocatedWindowResult(p);
+  SResultRowPool* p = pQInfo->runtimeEnv.pool;
+  pSummary->winInfoSize = getResultRowPoolMemSize(p);
+  pSummary->numOfTimeWindows = getNumOfAllocatedResultRows(p);
 
   qDebug("QInfo:%p :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
          "load block statis:%d, load data block:%d, total rows:%"PRId64 ", check rows:%"PRId64,
@@ -6322,9 +6322,9 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   pQInfo->runtimeEnv.interBufSize = getOutputInterResultBufSize(pQuery);
   pQInfo->runtimeEnv.summary.tableInfoSize += (pTableGroupInfo->numOfTables * sizeof(STableQueryInfo));
 
-  pQInfo->runtimeEnv.pWindowHashTable = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pQInfo->runtimeEnv.pResultRowHashTable = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pQInfo->runtimeEnv.keyBuf = malloc(TSDB_MAX_BYTES_PER_ROW);
-  pQInfo->runtimeEnv.pool = initWindowResultPool(getWindowResultSize(&pQInfo->runtimeEnv));
+  pQInfo->runtimeEnv.pool = initResultRowPool(getWindowResultSize(&pQInfo->runtimeEnv));
 
   pQInfo->pBuf = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
   if (pQInfo->pBuf == NULL) {

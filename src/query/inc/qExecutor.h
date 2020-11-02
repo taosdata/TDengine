@@ -40,7 +40,7 @@ typedef struct SGroupResInfo {
   int32_t  rowId;
 } SGroupResInfo;
 
-typedef struct SWindowResultPool {
+typedef struct SResultRowPool {
   int32_t elemSize;
   int32_t blockSize;
   int32_t numOfElemPerBlock;
@@ -51,7 +51,7 @@ typedef struct SWindowResultPool {
   } position;
 
   SArray* pData;    // SArray<void*>
-} SWindowResultPool;
+} SResultRowPool;
 
 typedef struct SSqlGroupbyExpr {
   int16_t tableIndex;
@@ -188,9 +188,9 @@ typedef struct SQueryRuntimeEnv {
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
-  SHashObj*            pWindowHashTable; // quick locate the window object for each result
+  SHashObj*            pResultRowHashTable; // quick locate the window object for each result
   char*                keyBuf;           // window key buffer
-  SWindowResultPool*   pool;             // window result object pool
+  SResultRowPool*   pool;             // window result object pool
 
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
 } SQueryRuntimeEnv;

@@ -105,7 +105,7 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
       }
 
       SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
-      taosHashRemove(pRuntimeEnv->pWindowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+      taosHashRemove(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     } else {
       break;
     }
@@ -138,14 +138,14 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
     }
 
     SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
-    int32_t *p = (int32_t *)taosHashGet(pRuntimeEnv->pWindowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+    int32_t *p = (int32_t *)taosHashGet(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     assert(p != NULL); 
 
     int32_t  v = (*p - num);
     assert(v >= 0 && v <= pWindowResInfo->size);
 
     SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
-    taosHashPut(pRuntimeEnv->pWindowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), (char *)&v, sizeof(int32_t));
+    taosHashPut(pRuntimeEnv->pResultRowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), (char *)&v, sizeof(int32_t));
   }
   
   pWindowResInfo->curIndex = -1;
@@ -292,8 +292,8 @@ size_t getWindowResultSize(SQueryRuntimeEnv* pRuntimeEnv) {
   return (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultRowCellInfo)) + pRuntimeEnv->interBufSize + sizeof(SResultRow);
 }
 
-SWindowResultPool* initWindowResultPool(size_t size) {
-  SWindowResultPool* p = calloc(1, sizeof(SWindowResultPool));
+SResultRowPool* initResultRowPool(size_t size) {
+  SResultRowPool* p = calloc(1, sizeof(SResultRowPool));
   if (p == NULL) {
     return NULL;
   }
@@ -309,7 +309,7 @@ SWindowResultPool* initWindowResultPool(size_t size) {
   return p;
 }
 
-SResultRow* getNewWindowResult(SWindowResultPool* p) {
+SResultRow* getNewResultRow(SResultRowPool* p) {
   if (p == NULL) {
     return NULL;
   }
@@ -330,7 +330,7 @@ SResultRow* getNewWindowResult(SWindowResultPool* p) {
   return ptr;
 }
 
-int64_t getWindowResultPoolMemSize(SWindowResultPool* p) {
+int64_t getResultRowPoolMemSize(SResultRowPool* p) {
   if (p == NULL) {
     return 0;
   }
@@ -338,15 +338,15 @@ int64_t getWindowResultPoolMemSize(SWindowResultPool* p) {
   return taosArrayGetSize(p->pData) * p->blockSize;
 }
 
-int32_t getNumOfAllocatedWindowResult(SWindowResultPool* p) {
+int32_t getNumOfAllocatedResultRows(SResultRowPool* p) {
   return taosArrayGetSize(p->pData) * p->numOfElemPerBlock;
 }
 
-int32_t getNumOfUsedWindowResult(SWindowResultPool* p) {
-  return getNumOfAllocatedWindowResult(p) - p->numOfElemPerBlock + p->position.pos;
+int32_t getNumOfUsedResultRows(SResultRowPool* p) {
+  return getNumOfAllocatedResultRows(p) - p->numOfElemPerBlock + p->position.pos;
 }
 
-void* destroyWindowResultPool(SWindowResultPool* p) {
+void* destroyResultRowPool(SResultRowPool* p) {
   if (p == NULL) {
     return NULL;
   }
