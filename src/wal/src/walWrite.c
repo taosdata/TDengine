@@ -80,6 +80,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   int32_t code = 0;
 
   // no wal
+  if (pWal->fd <= 0) return 0;
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
   if (pHead->version <= pWal->version) return 0;
 
