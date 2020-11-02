@@ -66,7 +66,7 @@ typedef struct SLocalReducer {
   SFillInfo*             pFillInfo;          // interpolation support structure
   char *                 pFinalRes;          // result data after interpo
   tFilePage *            discardData;
-  SResultInfo *          pResInfo;
+  SResultRowCellInfo *          pResInfo;
   bool                   discard;
   int32_t                offset;             // limit offset value
   bool                   orderPrjOnSTable;   // projection query on stable

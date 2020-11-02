@@ -99,12 +99,12 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
       pCtx->param[1].i64Key = pQueryInfo->order.orderColId;
     }
 
-    SResultInfo *pResInfo = &pReducer->pResInfo[i];
-    pResInfo->bufLen = pExpr->interBytes;
-    pResInfo->interResultBuf = calloc(1, (size_t) pResInfo->bufLen);
+//    SResultRowCellInfo *pResInfo = &pReducer->pResInfo[i];
+    pCtx->interBufBytes   = pExpr->interBytes;
+//    pResInfo->interResultBuf = calloc(1, (size_t) pCtx->interBufBytes);
 
     pCtx->resultInfo = &pReducer->pResInfo[i];
-    pCtx->resultInfo->superTableQ = true;
+    pCtx->stableQuery = true;
   }
 
   int16_t          n = 0;
@@ -345,7 +345,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   size_t numOfCols = tscSqlExprNumOfExprs(pQueryInfo);
   
   pReducer->pTempBuffer->num = 0;
-  pReducer->pResInfo = calloc(numOfCols, sizeof(SResultInfo));
+  pReducer->pResInfo = calloc(numOfCols, sizeof(SResultRowCellInfo));
 
   tscCreateResPointerInfo(pRes, pQueryInfo);
   tscInitSqlContext(pCmd, pReducer, pDesc);
@@ -512,7 +512,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     if (pLocalReducer->pResInfo != NULL) {
       size_t num = tscSqlExprNumOfExprs(pQueryInfo);
       for (int32_t i = 0; i < num; ++i) {
-        taosTFree(pLocalReducer->pResInfo[i].interResultBuf);
+//        taosTFree(pLocalReducer->pResInfo[i].interResultBuf);
       }
 
       taosTFree(pLocalReducer->pResInfo);
@@ -1072,7 +1072,7 @@ static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx)
       continue;
     }
 
-    SResultInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
+    SResultRowCellInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
     if (maxOutput < pResInfo->numOfRes) {
       maxOutput = pResInfo->numOfRes;
     }

@@ -61,14 +61,14 @@ typedef struct SSqlGroupbyExpr {
   int16_t orderType;   // order by type: asc/desc
 } SSqlGroupbyExpr;
 
-typedef struct SWindowResult {
+typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
   int32_t       rowId:15;
   bool          closed:1;    // this result status: closed or opened
   uint16_t      numOfRows;   // number of rows of current time window
-  SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
+  SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   union {STimeWindow win; char* key;};  // start key of current time window
-} SWindowResult;
+} SResultRow;
 
 /**
  * If the number of generated results is greater than this value,
@@ -82,7 +82,7 @@ typedef struct SResultRec {
 } SResultRec;
 
 typedef struct SWindowResInfo {
-  SWindowResult** pResult;    // result list
+  SResultRow**   pResult;    // result list
   int16_t        type;       // data type for hash key
   int32_t        capacity;   // max capacity
   int32_t        curIndex;   // current start active index
@@ -169,11 +169,11 @@ typedef struct SQuery {
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
-  SResultInfo*         resultInfo;       // todo refactor to merge with SWindowResInfo
+  SResultRowCellInfo*  resultInfo;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
   int32_t              numOfRowsPerPage;
-  int16_t              offset[TSDB_MAX_COLUMNS];
+  uint16_t             offset[TSDB_MAX_COLUMNS];
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   SWindowResInfo       windowResInfo;
@@ -192,6 +192,8 @@ typedef struct SQueryRuntimeEnv {
   SHashObj*            pWindowHashTable; // quick locate the window object for each result
   char*                keyBuf;           // window key buffer
   SWindowResultPool*   pool;             // window result object pool
+
+  int32_t*             rowCellInfoOffset;// offset value for each row result cell info
 } SQueryRuntimeEnv;
 
 enum {
