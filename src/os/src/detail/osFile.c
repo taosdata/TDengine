@@ -110,6 +110,10 @@ int64_t taosWrite(int32_t fd, void *buf, int64_t n) {
   return n;
 }
 
+int64_t taosLSeek(int32_t fd, int64_t offset, int32_t whence) {
+  return lseek(fd, offset, whence);
+}
+
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
 
 int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size) {
