@@ -49,6 +49,7 @@ typedef struct {
   int32_t  level;
   int32_t  fsyncPeriod;
   int32_t  fsyncSeq;
+  int8_t   stop;
   char     path[WAL_PATH_LEN];
   char     name[WAL_FILE_LEN];
   pthread_mutex_t mutex;

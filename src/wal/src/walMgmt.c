@@ -110,6 +110,16 @@ int32_t walAlter(void *handle, SWalCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
+void walStop(void *handle) {
+  if (handle == NULL) return;
+  SWal *pWal = handle;
+
+  pthread_mutex_lock(&pWal->mutex);
+  pWal->stop = 1;
+  pthread_mutex_unlock(&pWal->mutex);
+  wDebug("vgId:%d, stop write wal", pWal->vgId);
+}
+
 void walClose(void *handle) {
   if (handle == NULL) return;
 

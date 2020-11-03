@@ -386,6 +386,10 @@ void vnodeRelease(void *pVnodeRaw) {
     pVnode->qMgmt = NULL;
   }
 
+  if (pVnode->wal) {
+    walStop(pVnode->wal);
+  }
+
   if (pVnode->tsdb) {
     tsdbCloseRepo(pVnode->tsdb, 1);
     pVnode->tsdb = NULL;
