@@ -1048,6 +1048,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   }
 
   // update the records for each subquery in parent sql object.
+  bool isSTableSub = tscIsTwoStageSTableQuery(pQueryInfo, 0);
   for (int32_t i = 0; i < pState->numOfSub; ++i) {
     if (pParentSql->pSubs[i] == NULL) {
       tscDebug("%p %p sub:%d not retrieve data", pParentSql, NULL, i);
@@ -1061,8 +1062,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
                pRes1->numOfRows, pRes1->numOfTotal);
       assert(pRes1->row < pRes1->numOfRows);
     } else {
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pParentSql->pSubs[i]->cmd, 0);
-      if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+      if (!isSTableSub) {
         pRes1->numOfClauseTotal += pRes1->numOfRows;
       }
 
