@@ -21,7 +21,7 @@
 #include "twal.h"
 #include "walInt.h"
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name);
+static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
 
 int32_t walRenew(void *handle) {
   if (handle == NULL) return 0;
@@ -132,7 +132,7 @@ int32_t walRestore(void *handle, void *pVnode, int32_t (*writeFp)(void *, void *
     snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
     wDebug("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
-    int32_t code = walRestoreWalFile(pWal, pVnode, writeFp, walName);
+    int32_t code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
     if (code != TSDB_CODE_SUCCESS) {
       wError("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
       continue;
@@ -223,7 +223,7 @@ static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int32_t fd, i
   return TSDB_CODE_WAL_FILE_CORRUPTED;
 }
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name) {
+static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId) {
   int32_t size = WAL_MAX_SIZE;
   void *  buffer = tmalloc(size);
   if (buffer == NULL) {
@@ -297,8 +297,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId,
-           pWal->fileId, pWal->version, pHead->version, pHead->len);
+    wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId, fileId,
+           pWal->version, pHead->version, pHead->len);
 
     if (pWal->keep) pWal->version = pHead->version;
 
