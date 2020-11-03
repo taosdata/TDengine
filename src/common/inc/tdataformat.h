@@ -267,8 +267,8 @@ typedef struct {
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyAt(pCols, idx) tdGetKey(dataColsTKeyAt(pCols, idx))
-#define dataColsTKeyFirst(pCols) ((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, 0)
-#define dataColsKeyFirst(pCols) ((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, 0)
+#define dataColsTKeyFirst(pCols) (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, 0))
+#define dataColsKeyFirst(pCols) (((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, 0))
 #define dataColsTKeyLast(pCols) \
   (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, (pCols)->numOfRows - 1))
 #define dataColsKeyLast(pCols) \
