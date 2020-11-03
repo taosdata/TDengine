@@ -1,187 +1,321 @@
-# clear env set up
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
 
-$t0 = 1603152000000
+# -*- coding: utf-8 -*-
 
-create database db update 1 days 30;
+import sys
+import taos
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
 
-## STEP 1: UPDATE THE LAST RECORD REPEATEDLY
-create table t1 (ts timestamp, a int);
 
-for ($i = 0; $i < 100; $i++) {
-  insert into t1 values ($t0, $i);
+class TDTestCase:
+    def init(self, conn, logSql):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor())
 
-  restart to commit
-  check query result
-}
+        self.ts = 1603152000000
+    
+    def restartTaosd(self):
+        tdDnodes.stop(1)
+        tdDnodes.startWithoutSleep(1)
+        tdSql.execute("use udb")
 
-## STEP 2: UPDATE THE WHOLE LAST BLOCK
-create table t2 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t2 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+    def run(self):              
+        tdSql.prepare()
 
-for ($i = 0; $i < 50; $i++) {
-  insert into t2 values ($t0 + $i, 2);
-}
+        tdSql.execute("create database udb update 1 days 30")   
+        tdSql.execute("use udb")
 
-check query result
-restart to commit
-check query result
+        print("==============step 1: UPDATE THE LAST RECORD REPEATEDLY")                     
+        tdSql.execute("create table t1 (ts timestamp, a int)")
 
-## STEP 3: UPDATE PART OF THE LAST BLOCK
-create table t3 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t3 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        for i in range(5):
+            tdSql.execute("insert into t1 values(%d, %d)" % (self.ts, i))
+            self.restartTaosd()
+            tdSql.query("select * from t1")            
+            tdSql.checkRows(1)            
+            tdSql.checkData(0, 1, i)
 
-for ($i = 0; $i < 25; $i++) {
-  insert into t3 values ($t0 + $i, 2);
-}
+        print("==============step 2: UPDATE THE WHOLE LAST BLOCK")
+        tdSql.execute("create table t2 (ts timestamp, a int)")
 
-check query result
-restart to commit
-check query result
+        for i in range(50):
+            tdSql.execute("insert into t2 values(%d, 1)" % (self.ts + i))
+        self.restartTaosd()
+        tdSql.query("select * from t2")
+        tdSql.checkRows(50)
+        for i in range(50):
+            tdSql.checkData(i, 1, 1)
 
-for ($i = 25; $i < 50; $i++) {
-  insert into t3 values ($t0 + $i, 2);
-}
+        for i in range(50):
+            tdSql.execute("insert into t2 values(%d, 2)" % (self.ts + i))
+        tdSql.query("select * from t2")
+        for i in range(50):
+            tdSql.checkData(i, 1, 2)
 
-check query result
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t2")
+        tdSql.checkRows(50)
+        for i in range(50):
+            tdSql.checkData(i, 1, 2)
 
-## STEP 4: UPDATE AND INSERT APPEND AT END OF DATA
-create table t4 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t4 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        print("==============step 3: UPDATE PART OF THE LAST BLOCK")
+        tdSql.execute("create table t3 (ts timestamp, a int)")
 
-for ($i = 0; $i < 25; $i++) {
-  insert into t4 values ($t0 + $i, 2);
-}
+        for i in range(50):
+            tdSql.execute("insert into t3 values(%d, 1)" % (self.ts + i))
+        self.restartTaosd()
+        tdSql.query("select * from t3")
+        tdSql.checkRows(50)
+        for i in range(50):
+            tdSql.checkData(i, 1, 1)
 
-for ($i = 50; $i < 60; $i++) {
-  insert into t4 values ($t0 + $i, 2);
-}
+        for i in range(25):
+            tdSql.execute("insert into t3 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t3")
+        for i in range(25):
+            tdSql.checkData(i, 1, 2)
+        for i in range(25, 50):
+            tdSql.checkData(i, 1, 1)
 
-check query result
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t3")
+        tdSql.checkRows(50)
+        for i in range(25):
+            tdSql.checkData(i, 1, 2)
+        for i in range(25, 50):
+            tdSql.checkData(i, 1, 1)
+        
+        print("==============step 4: UPDATE AND INSERT APPEND AT END OF DATA")
+        tdSql.execute("create table t4 (ts timestamp, a int)")
 
-## STEP 5: UPDATE AND INSERT PREPEND SOME DATA
-create table t5 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t5 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        for i in range(50):
+            tdSql.execute("insert into t4 values(%d, 1)" % (self.ts + i))
+        
+        self.restartTaosd()
+        tdSql.query("select * from t4")
+        tdSql.checkRows(50)
+        for i in range(50):
+            tdSql.checkData(i, 1, 1)
 
-for ($i = -10; $i < 0; $i++) {
-  insert into t4 values ($t0 + $i, 2);
-}
+        for i in range(25):
+            tdSql.execute("insert into t4 values(%d, 2)" % (self.ts + i))
+        
+        for i in range(50, 60):
+            tdSql.execute("insert into t4 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t4")
+        tdSql.checkRows(60)
+        for i in range(25):
+            tdSql.checkData(i, 1, 2)
+        for i in range(25, 50):
+            tdSql.checkData(i, 1, 1)
+        for i in range(50, 60):
+            tdSql.checkData(i, 1, 2)
+        
+        self.restartTaosd()
+        tdSql.query("select * from t4")
+        tdSql.checkRows(60)
+        for i in range(25):
+            tdSql.checkData(i, 1, 2)
+        for i in range(25, 50):
+            tdSql.checkData(i, 1, 1)
+        for i in range(50, 60):
+            tdSql.checkData(i, 1, 2)
 
-for ($i = 0; $i < 25; $i++) {
-  insert into t5 values ($t0 + $i, 2);
-}
+        print("==============step 5: UPDATE AND INSERT PREPEND SOME DATA")
+        tdSql.execute("create table t5 (ts timestamp, a int)")
 
-check query result
-restart to commit
-check query result
+        for i in range(50):
+            tdSql.execute("insert into t5 values(%d, 1)" % (self.ts + i))
+        
+        self.restartTaosd()
+        tdSql.query("select * from t5")
+        tdSql.checkRows(50)
+        for i in range(50):
+            tdSql.checkData(i, 1, 1)
+        
+        for i in range(-10, 0):
+            tdSql.execute("insert into t5 values(%d, 2)" % (self.ts + i))
+        
+        for i in range(25):
+            tdSql.execute("insert into t5 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t5")
+        tdSql.checkRows(60)
+        tdSql.query("select sum(a) from t5")
+        tdSql.checkData(0, 0, 95)
 
-for ($i = -10; $i < 0; $i++) {
-  insert into t4 values ($t0 + $i, 3);
-}
+        self.restartTaosd()
+        tdSql.query("select * from t5")
+        tdSql.checkRows(60)
+        tdSql.query("select sum(a) from t5")
+        tdSql.checkData(0, 0, 95)
 
-for ($i = 25; $i < 50; $i++) {
-  insert into t5 values ($t0 + $i, 3);
-}
+        for i in range(-10, 0):
+            tdSql.execute("insert into t5 values(%d, 3)" % (self.ts + i))
+        
+        for i in range(25, 50):
+            tdSql.execute("insert into t5 values(%d, 3)" % (self.ts + i))
 
-check query result
-restart to commit
-check query result
+        tdSql.query("select * from t5")
+        tdSql.checkRows(60)
+        tdSql.query("select sum(a) from t5")
+        tdSql.checkData(0, 0, 155)
 
-## STEP 6: INSERT AHEAD A LOT OF DATA
-create table t6 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t6 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t5")
+        tdSql.checkRows(60)
+        tdSql.query("select sum(a) from t5")
+        tdSql.checkData(0, 0, 155)
+        
 
-for ($i = -1000; $i < 0; $i++) {
-  insert into t6 values ($t0 + $i, 2);
-}
+        print("==============step 6: INSERT AHEAD A LOT OF DATA")
+        tdSql.execute("create table t6 (ts timestamp, a int)")
 
-check query result
-restart to commit
-check query result
+        for i in range(50):
+            tdSql.execute("insert into t6 values(%d, 1)" % (self.ts + i))
 
-## STEP 7: INSERT AHEAD A LOT AND UPDATE
-create table t7 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t7 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t6")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0, 0, 50)
+        
+        for i in range(-1000, 0):
+            tdSql.execute("insert into t6 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t6")
+        tdSql.checkRows(1050)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0, 0, 2050)
 
-for ($i = -1000; $i < 25; $i++) {
-  insert into t7 values ($t0 + $i, 2);
-}
+        self.restartTaosd()
+        tdSql.query("select * from t6")
+        tdSql.checkRows(1050)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0, 0, 2050)
 
-check query result
-restart to commit
-check query result
+        print("==============step 7: INSERT AHEAD A LOT AND UPDATE")
+        tdSql.execute("create table t7 (ts timestamp, a int)")
 
-## STEP 8: INSERT AHEAD A LOT AND UPDATE
-create table t8 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t8 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        for i in range(50):
+            tdSql.execute("insert into t7 values(%d, 1)" % (self.ts + i))
 
-for ($i = 25; $i < 6000; $i++) {
-  insert into t8 values ($t0 + $i, 2);
-}
+        self.restartTaosd()
+        tdSql.query("select * from t7")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t7")
+        tdSql.checkData(0, 0, 50)
+        
+        for i in range(-1000, 25):
+            tdSql.execute("insert into t7 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t7")
+        tdSql.checkRows(1050)
+        tdSql.query("select sum(a) from t7")
+        tdSql.checkData(0, 0, 2075)
 
-check query result
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t7")
+        tdSql.checkRows(1050)
+        tdSql.query("select sum(a) from t7")
+        tdSql.checkData(0, 0, 2075)
 
-## STEP 9: UPDATE ONLY MIDDLE
-create table t9 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t9 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        print("==============step 8: INSERT AFTER A LOT AND UPDATE")
+        tdSql.execute("create table t8 (ts timestamp, a int)")
 
-for ($i = 20; $i < 30; $i++) {
-  insert into t9 values ($t0 + $i, 2);
-}
+        for i in range(50):
+            tdSql.execute("insert into t8 values(%d, 1)" % (self.ts + i))
 
-check query result
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t8")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t8")
+        tdSql.checkData(0, 0, 50)
+        
+        for i in range(25, 6000):
+            tdSql.execute("insert into t8 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t8")
+        tdSql.checkRows(6000)
+        tdSql.query("select sum(a) from t8")
+        tdSql.checkData(0, 0, 11975)
 
-## STEP 10: A LOT OF DATA COVER THE WHOLE BLOCK
-create table t10 (ts timestamp, a int);
-for ($i = 0; $i < 50; $i++) {
-  insert into t10 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+        self.restartTaosd()
+        tdSql.query("select * from t8")
+        tdSql.checkRows(6000)
+        tdSql.query("select sum(a) from t8")
+        tdSql.checkData(0, 0, 11975)
 
-for ($i = -4000; $i < 4000; $i++) {
-  insert into t10 values ($t0 + $i, 2);
-}
+        print("==============step 9: UPDATE ONLY MIDDLE")
+        tdSql.execute("create table t9 (ts timestamp, a int)")
 
-check query result
-restart to commit
-check query result
+        for i in range(50):
+            tdSql.execute("insert into t9 values(%d, 1)" % (self.ts + i))
+
+        self.restartTaosd()
+        tdSql.query("select * from t9")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t9")
+        tdSql.checkData(0, 0, 50)
+        
+        for i in range(20, 30):
+            tdSql.execute("insert into t9 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t9")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t9")
+        tdSql.checkData(0, 0, 60)
+
+        self.restartTaosd()
+        tdSql.query("select * from t9")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t9")
+        tdSql.checkData(0, 0, 60)
+        
+        print("==============step 10: A LOT OF DATA COVER THE WHOLE BLOCK")
+        tdSql.execute("create table t10 (ts timestamp, a int)")
+
+        for i in range(50):
+            tdSql.execute("insert into t10 values(%d, 1)" % (self.ts + i))
+
+        self.restartTaosd()
+        tdSql.query("select * from t10")
+        tdSql.checkRows(50)
+        tdSql.query("select sum(a) from t10")
+        tdSql.checkData(0, 0, 50)
+        
+        for i in range(-4000, 4000):
+            tdSql.execute("insert into t10 values(%d, 2)" % (self.ts + i))
+        
+        tdSql.query("select * from t10")
+        tdSql.checkRows(8000)
+        tdSql.query("select sum(a) from t10")
+        tdSql.checkData(0, 0, 16000)
+
+        self.restartTaosd()
+        tdSql.query("select * from t10")
+        tdSql.checkRows(8000)
+        tdSql.query("select sum(a) from t10")
+        tdSql.checkData(0, 0, 16000)
+
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
+
+
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())

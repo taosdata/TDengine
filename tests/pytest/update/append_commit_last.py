@@ -1,42 +1,85 @@
-# clear env set up
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
 
-create database db update 1;
+# -*- coding: utf-8 -*-
 
-## Step 1
-$loops = 1000
-#t0 = 1604298064000
+import sys
+import taos
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
 
-create table t1 (ts timestamp, a int);
-for ($i = 0; $i < $loops; $i++) {
-  insert into t1 values ($t0 + $i, 1);
-  restart to commit
-  check query result
-}
 
-## Step 2
-create table t2 (ts timestamp, a int);
+class TDTestCase:
+    def init(self, conn, logSql):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor())
 
-insert into t2 ($t0, 1);
-restart to commit
-check query result
+        self.ts = 1604298064000
+    
+    def restartTaosd(self):
+        tdDnodes.stop(1)
+        tdDnodes.startWithoutSleep(1)
+        tdSql.execute("use udb")
 
-for ($i = 1; $i <= 150; $i++) {
-  insert into t2 values ($t0 + $i, 1);
-}
-restart to commit
-check query result
+    def run(self):            
+        tdSql.prepare()
 
-## Step 3
-create table t3 (ts timestamp, a int);
+        print("==============step1")
+        tdSql.execute("create database udb update 1")        
+        tdSql.execute("use udb")
+        tdSql.execute("create table t1 (ts timestamp, a int)")
 
-insert into t3 ($t0, 1);
-restart to commit
-check query result
+        for i in range(10):
+            tdSql.execute("insert into t1 values(%d, 1)" % (self.ts + i))
+            self.restartTaosd()
+            tdSql.query("select * from t1")
+            tdSql.checkRows(i + 1)
 
-for ($i = 0; $i < 8; $i++) {
-  for ($j = 1; $j <= 10; $j++) {
-    insert into t3 values ($t0 + $i * 10 + $j , 1);
-  }
-}
-restart to commit
-check query result
+
+        print("==============step2")
+        tdSql.execute("create table t2 (ts timestamp, a int)")
+        tdSql.execute("insert into t2 values(%d, 1)" % self.ts)
+        self.restartTaosd()
+        tdSql.query("select * from t2")
+        tdSql.checkRows(1)
+
+        for i in range(1, 151):
+            tdSql.execute("insert into t2 values(%d, 1)" % (self.ts + i))
+        
+        self.restartTaosd()
+        tdSql.query("select * from t2")
+        tdSql.checkRows(151)
+
+
+        print("==============step3")
+        tdSql.execute("create table t3 (ts timestamp, a int)")
+        tdSql.execute("insert into t3 values(%d, 1)" % self.ts)
+        self.restartTaosd()
+        tdSql.query("select * from t3")
+        tdSql.checkRows(1)
+
+        for i in range(8):
+            for j in range(1, 11):
+                tdSql.execute("insert into t3 values(%d, 1)" % (self.ts + i * 10 + j))
+        
+        self.restartTaosd()
+        tdSql.query("select * from t3")
+        tdSql.checkRows(81)
+
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
+
+
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())
