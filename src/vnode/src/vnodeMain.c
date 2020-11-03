@@ -310,6 +310,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
+  walRenew(pVnode->wal);
+
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
