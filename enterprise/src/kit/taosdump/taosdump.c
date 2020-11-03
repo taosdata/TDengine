@@ -543,7 +543,7 @@ int32_t taosSaveAllNormalTableToTempFile(TAOS *taosCon, char*meter, char* metric
   tstrncpy(tableRecord.name, meter, TSDB_TABLE_NAME_LEN);
   tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
-  taosTWrite(*fd, &tableRecord, sizeof(STableRecord));
+  taosWrite(*fd, &tableRecord, sizeof(STableRecord));
   return 0;
 }
 
@@ -598,7 +598,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
     tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
     numOfTable++;
 
@@ -1211,7 +1211,7 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
   while ((row = taos_fetch_row(tmpResult)) != NULL) {  
     memset(&tableRecord, 0, sizeof(STableRecord));
     strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
   }  
   
   taos_free_result(tmpResult);
@@ -1300,7 +1300,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
 
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
     numOfTable++;
 
