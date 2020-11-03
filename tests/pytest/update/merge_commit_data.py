@@ -57,9 +57,7 @@ class TDTestCase:
           tdSql.query("select * from t1")
           tdSql.checkRows(insertRows)
           tdDnodes.stop(1)
-          time.sleep(5)
           tdDnodes.start(1)
-          time.sleep(5)
           tdSql.query("select * from t1")
           tdSql.checkRows(insertRows)
         print("==========step2")
@@ -73,6 +71,7 @@ class TDTestCase:
         tdSql.query("select * from t2")
         tdSql.checkRows(insertRows)
         tdDnodes.stop(1)
+        tdDnodes.start(1)
         tdSql.query("select * from t2")
         tdSql.checkRows(insertRows)
         for i in range(-100,0):
