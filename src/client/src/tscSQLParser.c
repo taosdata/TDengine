@@ -1211,7 +1211,7 @@ static void tscInsertPrimaryTSSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex*
   tscColumnListInsert(pQueryInfo->colList, &tsCol);
 }
 static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSQLExprItem* pItem) {
-  const char* msg1 = "invalid column name, or illegal column type";
+  const char* msg1 = "invalid column name, illegal column type, or columns in arithmetic expression from two tables";
   const char* msg2 = "invalid arithmetic expression in select clause";
   const char* msg3 = "tag columns can not be used in arithmetic expression";
   const char* msg4 = "columns from different table mixed up in arithmetic expression";
@@ -3353,7 +3353,8 @@ int32_t doArithmeticExprToString(tSQLExpr* pExpr, char** exprString) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type) {
+static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList,
+    int32_t* type, uint64_t* uid) {
   if (pExpr->nSQLOptr == TK_ID) {
     if (*type == NON_ARITHMEIC_EXPR) {
       *type = NORMAL_ARITHMETIC;
@@ -3402,13 +3403,22 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQuer
     }
 
     // Not supported data type in arithmetic expression
+    uint64_t id = -1;
     for(int32_t i = 0; i < inc; ++i) {
       SSqlExpr* p1 = tscSqlExprGet(pQueryInfo, i + outputIndex);
       int16_t t = p1->resType;
       if (t == TSDB_DATA_TYPE_BINARY || t == TSDB_DATA_TYPE_NCHAR || t == TSDB_DATA_TYPE_BOOL || t == TSDB_DATA_TYPE_TIMESTAMP) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
+
+      if (i == 0) {
+        id = p1->uid;
+      } else if (id != p1->uid){
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
     }
+
+    *uid = id;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3420,13 +3430,16 @@ static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryI
   }
 
   tSQLExpr* pLeft = pExpr->pLeft;
+  uint64_t uidLeft = 0;
+  uint64_t uidRight = 0;
+
   if (pLeft->nSQLOptr >= TK_PLUS && pLeft->nSQLOptr <= TK_REM) {
     int32_t ret = validateArithmeticSQLExpr(pCmd, pLeft, pQueryInfo, pList, type);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
   } else {
-    int32_t ret = validateSQLExpr(pCmd, pLeft, pQueryInfo, pList, type);
+    int32_t ret = validateSQLExpr(pCmd, pLeft, pQueryInfo, pList, type, &uidLeft);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -3439,9 +3452,14 @@ static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryI
       return ret;
     }
   } else {
-    int32_t ret = validateSQLExpr(pCmd, pRight, pQueryInfo, pList, type);
+    int32_t ret = validateSQLExpr(pCmd, pRight, pQueryInfo, pList, type, &uidRight);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
+    }
+
+    // the expression not from the same table, return error
+    if (uidLeft != uidRight) {
+      return TSDB_CODE_TSC_INVALID_SQL;
     }
   }
 
