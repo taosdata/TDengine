@@ -16,17 +16,20 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tulog.h"
+#include "tglobal.h"
 
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char* tdengineTmpFileNamePrefix = "tdengine-";
-    char tmpPath[PATH_MAX];
+  char tmpPath[PATH_MAX];
 
-  char *tmpDir = getenv("tmp");
-  if (tmpDir == NULL) {
-    tmpDir = "";
+  int32_t len = (int32_t)strlen(tsTempDir);
+  memcpy(tmpPath, tsTempDir, len);
+
+  if (tmpPath[len - 1] != '/' && tmpPath[len - 1] != '\\') {
+      tmpPath[len++] = '\\';
   }
-  
-  strcpy(tmpPath, tmpDir);
+
+  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
