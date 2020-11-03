@@ -189,7 +189,6 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
 
       STSElem el1 = tsBufGetElem(pSupporter1->pTSBuf);
       if (el1.vnode < 0) {  // no data exists, abort
-        completed = true;
         break;
       }
     }

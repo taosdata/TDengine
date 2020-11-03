@@ -472,13 +472,20 @@ void mergeIdenticalVnodeBufferTest() {
   tsBufFlush(pTSBuf2);
 
   tsBufMerge(pTSBuf1, pTSBuf2);
-  EXPECT_EQ(pTSBuf1->numOfVnodes, 1);
+  EXPECT_EQ(pTSBuf1->numOfVnodes, 2);
   EXPECT_EQ(pTSBuf1->numOfTotal, numOfTags * 2 * num);
 
   tsBufResetPos(pTSBuf1);
+
+  int32_t count = 0;
   while (tsBufNextPos(pTSBuf1)) {
     STSElem elem = tsBufGetElem(pTSBuf1);
-    EXPECT_EQ(elem.vnode, 12);
+
+    if (count++ < numOfTags * num) {
+      EXPECT_EQ(elem.vnode, 12);
+    } else {
+      EXPECT_EQ(elem.vnode, 77);
+    }
 
     printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.vnode, elem.tag->i64Key, elem.ts);
   }

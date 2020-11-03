@@ -219,6 +219,15 @@ static void shrinkBuffer(STSList* ptsData) {
   }
 }
 
+static int32_t getTagAreaLength(tVariant* pa) {
+  int32_t t = sizeof(pa->nLen) * 2 + sizeof(pa->nType);
+  if (pa->nType != TSDB_DATA_TYPE_NULL) {
+    t += pa->nLen;
+  }
+
+  return t;
+}
+
 static void writeDataToDisk(STSBuf* pTSBuf) {
   if (pTSBuf->tsData.len == 0) {
     return;
@@ -244,19 +253,27 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    */
   int32_t metaLen = 0;
   metaLen += (int32_t)fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
-  metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
 
+  int32_t trueLen = pBlock->tag.nLen;
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, sizeof(int64_t), pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
+  } else {
+    trueLen = 0;
+    metaLen += (int32_t)fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
   }
 
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
   fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-  
+
+  metaLen += fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+  assert(metaLen == getTagAreaLength(&pBlock->tag));
+
   int32_t blockSize = metaLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
   pTSBuf->fileSize += blockSize;
   
@@ -291,17 +308,22 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   pBlock->padding   = 0;
   pBlock->numOfElem = 0;
 
+  int32_t offset = -1;
+
   if (order == TSDB_ORDER_DESC) {
     /*
      * set the right position for the reversed traverse, the reversed traverse is started from
      * the end of each comp data block
      */
-    int32_t ret = fseek(pTSBuf->f, -(int32_t)(sizeof(pBlock->padding)), SEEK_CUR);
-    size_t sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+    int32_t prev = -(int32_t) (sizeof(pBlock->padding) + sizeof(pBlock->tag.nLen));
+    int32_t ret = fseek(pTSBuf->f, prev, SEEK_CUR);
+    size_t sz = fread(&pBlock->padding, 1, sizeof(pBlock->padding), pTSBuf->f);
+    sz = fread(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     UNUSED(sz); 
-    
+
     pBlock->compLen = pBlock->padding;
-    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
+
+    offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + getTagAreaLength(&pBlock->tag);
     ret = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(ret);
   }
@@ -320,7 +342,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
     sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    sz = fread(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+    sz = fread(&pBlock->tag.i64Key, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
   }
 
   sz = fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
@@ -328,8 +350,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   sz = fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
   UNUSED(sz);
   sz = fread(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
-  UNUSED(sz);
-  
+
   if (decomp) {
     pTSBuf->tsData.len =
         tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
@@ -338,11 +359,20 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   
   // read the comp length at the length of comp block
   sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+  assert(pBlock->padding == pBlock->compLen);
+
+  int32_t n = 0;
+  sz = fread(&n, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_NULL) {
+    assert(n == 0);
+  } else {
+    assert(n == pBlock->tag.nLen);
+  }
+
   UNUSED(sz);
   
   // for backwards traverse, set the start position at the end of previous block
   if (order == TSDB_ORDER_DESC) {
-    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
     int32_t r = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(r);
   }
@@ -479,7 +509,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   if (pTSBuf->cur.order == TSDB_ORDER_DESC) {
     STSBlock* pBlock = &pTSBuf->block;
     int32_t   compBlockSize =
-        pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
+        pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + getTagAreaLength(&pBlock->tag);
     int32_t ret = fseek(pTSBuf->f, -compBlockSize, SEEK_CUR);
     UNUSED(ret);
   }
@@ -507,7 +537,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
     }
     
     if (tVariantCompare(&pTSBuf->block.tag, tag) == 0) {
-      return i;
+      return (pTSBuf->cur.order == TSDB_ORDER_ASC)? i: (pBlockInfo->numOfBlocks - (i + 1));
     }
   }
   
@@ -993,4 +1023,29 @@ void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
   for(int32_t i = 0; i < size; ++i) {
     (*vnodeId)[i] = pTSBuf->pData[i].info.vnode;
   }
+}
+
+int32_t dumpFileBlockByVnodeId(STSBuf* pTSBuf, int32_t vnodeId, void* buf, int32_t* len, int32_t* numOfBlocks) {
+  STSVnodeBlockInfo *pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
+
+  *len = 0;
+  *numOfBlocks = 0;
+
+  if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
+    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+//    qError("%p: fseek failed: %s", pSql, tstrerror(code));
+    return code;
+  }
+
+  size_t s = fread(buf, 1, pBlockInfo->compLen, pTSBuf->f);
+  if (s != pBlockInfo->compLen) {
+    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+//    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
+    return code;
+  }
+
+  *len = pBlockInfo->compLen;
+  *numOfBlocks = pBlockInfo->numOfBlocks;
+
+  return TSDB_CODE_SUCCESS;
 }

@@ -65,7 +65,6 @@ static bool validateTagParams(tFieldList* pTagsList, tFieldList* pFieldList, SSq
 static int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStrToken* tableName, int32_t* len);
 
 static void getColumnName(tSQLExprItem* pItem, char* resultFieldName, int32_t nameLength);
-static void getRevisedName(char* resultFieldName, int32_t functionId, int32_t maxLen, char* columnName);
 
 static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult);
 static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
@@ -1625,12 +1624,11 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 }
 
 static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSchema* pSchema, SConvertFunc cvtFunc,
-    char* aliasName, int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult) {
+                                       tSQLExprItem* item, int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult) {
   const char* msg1 = "not support column types";
 
   int16_t type = 0;
   int16_t bytes = 0;
-  char    columnName[TSDB_COL_NAME_LEN] = {0};
   int32_t functionID = cvtFunc.execFuncId;
 
   if (functionID == TSDB_FUNC_SPREAD) {
@@ -1647,14 +1645,13 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     bytes = pSchema[pColIndex->columnIndex].bytes;
   }
   
-  if (aliasName != NULL) {
-    tstrncpy(columnName, aliasName, sizeof(columnName));
-  } else {
-    getRevisedName(columnName, cvtFunc.originFuncId, sizeof(columnName) - 1, pSchema[pColIndex->columnIndex].name);
-  }
-
   SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, pColIndex, type, bytes, bytes, false);
-  tstrncpy(pExpr->aliasName, columnName, sizeof(pExpr->aliasName));
+  if (item->aliasName != NULL) {
+    tstrncpy(pExpr->aliasName, item->aliasName, tListLen(pExpr->aliasName));
+  } else {
+    int32_t len = MIN(tListLen(pExpr->aliasName), item->pNode->token.n + 1);
+    tstrncpy(pExpr->aliasName, item->pNode->token.z, len);
+  }
 
   if (cvtFunc.originFuncId == TSDB_FUNC_LAST_ROW && cvtFunc.originFuncId != functionID) {
     pExpr->colInfo.flag |= TSDB_COL_NULL;
@@ -1674,7 +1671,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   // if it is not in the final result, do not add it
   SColumnList ids = getColumnList(1, pColIndex->tableIndex, pColIndex->columnIndex);
   if (finalResult) {
-    insertResultField(pQueryInfo, resColIdx, &ids, bytes, (int8_t)type, columnName, pExpr);
+    insertResultField(pQueryInfo, resColIdx, &ids, bytes, (int8_t)type, pExpr->aliasName, pExpr);
   } else {
     tscColumnListInsert(pQueryInfo->colList, &(ids.ids[0]));
   }
@@ -1939,8 +1936,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
-          if (pParamElem->pNode->nSQLOptr == TK_ALL) {
-            // select table.*
+          if (pParamElem->pNode->nSQLOptr == TK_ALL) { // select table.*
             SStrToken tmpToken = pParamElem->pNode->colInfo;
 
             if (getTableIndexByName(&tmpToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -1952,7 +1948,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
               index.columnIndex = j;
-              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex++, &index, finalResult) != 0) {
+              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem, colIndex++, &index, finalResult) != 0) {
                 return TSDB_CODE_TSC_INVALID_SQL;
               }
             }
@@ -1970,7 +1966,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
               return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
             }
 
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex + i, &index, finalResult) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem, colIndex + i, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -2007,7 +2003,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           for (int32_t i = 0; i < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
             SColumnIndex index = {.tableIndex = j, .columnIndex = i};
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem->aliasName, colIndex, &index, finalResult) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem, colIndex, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -2238,10 +2234,6 @@ void getColumnName(tSQLExprItem* pItem, char* resultFieldName, int32_t nameLengt
     int32_t len = ((int32_t)pItem->pNode->operand.n < nameLength) ? (int32_t)pItem->pNode->operand.n : nameLength;
     strncpy(resultFieldName, pItem->pNode->operand.z, len);
   }
-}
-
-void getRevisedName(char* resultFieldName, int32_t functionId, int32_t maxLen, char* columnName) {
-  snprintf(resultFieldName, maxLen, "%s(%s)", aAggs[functionId].aName, columnName);
 }
 
 static bool isTablenameToken(SStrToken* token) {

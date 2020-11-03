@@ -878,37 +878,19 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // compressed ts block
   pQueryMsg->tsOffset = htonl((int32_t)(pMsg - pCmd->payload));
-  int32_t tsLen = 0;
-  int32_t numOfBlocks = 0;
 
   if (pQueryInfo->tsBuf != NULL) {
     int32_t vnodeId = htonl(pQueryMsg->head.vgId);
-    STSVnodeBlockInfo *pBlockInfo = tsBufGetVnodeBlockInfo(pQueryInfo->tsBuf, vnodeId);
-    assert(QUERY_IS_JOIN_QUERY(pQueryInfo->type) && pBlockInfo != NULL);  // this query should not be sent
-
-    // todo refactor, extract method and put into tsBuf.c
-    if (fseek(pQueryInfo->tsBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
-      int code = TAOS_SYSTEM_ERROR(ferror(pQueryInfo->tsBuf->f));
-      tscError("%p: fseek failed: %s", pSql, tstrerror(code));
+    int32_t code = dumpFileBlockByVnodeId(pQueryInfo->tsBuf, vnodeId, pMsg, &pQueryMsg->tsLen, &pQueryMsg->tsNumOfBlocks);
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    size_t s = fread(pMsg, 1, pBlockInfo->compLen, pQueryInfo->tsBuf->f);
-    if (s != pBlockInfo->compLen) {
-      int code = TAOS_SYSTEM_ERROR(ferror(pQueryInfo->tsBuf->f));
-      tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
-      return code;
-    }
+    pMsg += pQueryMsg->tsLen;
 
-    pMsg += pBlockInfo->compLen;
-    tsLen = pBlockInfo->compLen;
-    numOfBlocks = pBlockInfo->numOfBlocks;
-  }
-
-  pQueryMsg->tsLen = htonl(tsLen);
-  pQueryMsg->tsNumOfBlocks = htonl(numOfBlocks);
-  if (pQueryInfo->tsBuf != NULL) {
     pQueryMsg->tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
+    pQueryMsg->tsLen   = htonl(pQueryMsg->tsLen);
+    pQueryMsg->tsNumOfBlocks = htonl(pQueryMsg->tsNumOfBlocks);
   }
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
