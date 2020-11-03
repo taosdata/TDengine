@@ -149,7 +149,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer) {
     int sfd = open(name, O_RDONLY);
     if (sfd < 0) break;
 
-    ret = taosTSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
+    ret = taosSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
     close(sfd);
     if (ret < 0) break;
 
@@ -406,7 +406,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer) {
     int sfd = open(fname, O_RDONLY);
     if (sfd < 0) break;
 
-    code = taosTSendFile(pPeer->syncFd, sfd, NULL, size);
+    code = taosSendFile(pPeer->syncFd, sfd, NULL, size);
     close(sfd);
     if (code < 0) break;
 

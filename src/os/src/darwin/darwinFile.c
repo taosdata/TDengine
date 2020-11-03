@@ -19,21 +19,19 @@
 
 #define _SEND_FILE_STEP_ 1000
 
-int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
+int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t count) {
   fseek(in_file, (int32_t)(*offset), 0);
-  int writeLen = 0;
-  uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
+  int     writeLen = 0;
+  uint8_t buffer[_SEND_FILE_STEP_] = {0};
 
   for (int len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
     size_t rlen = fread(buffer, 1, _SEND_FILE_STEP_, in_file);
     if (rlen <= 0) {
       return writeLen;
-    }
-    else if (rlen < _SEND_FILE_STEP_) {
+    } else if (rlen < _SEND_FILE_STEP_) {
       fwrite(buffer, 1, rlen, out_file);
       return (int)(writeLen + rlen);
-    }
-    else {
+    } else {
       fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
       writeLen += _SEND_FILE_STEP_;
     }
@@ -44,8 +42,7 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
     size_t rlen = fread(buffer, 1, remain, in_file);
     if (rlen <= 0) {
       return writeLen;
-    }
-    else {
+    } else {
       fwrite(buffer, 1, remain, out_file);
       writeLen += remain;
     }
@@ -54,7 +51,7 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
   return writeLen;
 }
 
-ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
-  uError("not implemented yet");
+int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t* offset, int64_t size) {
+  uError("taosSendFile not implemented yet");
   return -1;
 }
