@@ -51,6 +51,7 @@ void    walCleanUp();
 
 twalh   walOpen(char *path, SWalCfg *pCfg);
 int32_t walAlter(twalh pWal, SWalCfg *pCfg);
+void    walStop(twalh);
 void    walClose(twalh);
 int32_t walRenew(twalh);
 int32_t walWrite(twalh, SWalHead *);

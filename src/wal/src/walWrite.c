@@ -29,6 +29,11 @@ int32_t walRenew(void *handle) {
   SWal *  pWal = handle;
   int32_t code = 0;
 
+  if (pWal->stop) {
+    wDebug("vgId:%d, do not create a new wal file", pWal->vgId);
+    return 0;
+  }
+
   pthread_mutex_lock(&pWal->mutex);
 
   if (pWal->fd >= 0) {
@@ -151,7 +156,7 @@ int32_t walRestore(void *handle, void *pVnode, int32_t (*writeFp)(void *, void *
   if (!pWal->keep) return TSDB_CODE_SUCCESS;
 
   if (count == 0) {
-    wDebug("vgId:%d, file:%s not exist, renew it", pWal->vgId, pWal->name);
+    wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
     return walRenew(pWal);
   } else {
     // open the existing WAL file in append mode
