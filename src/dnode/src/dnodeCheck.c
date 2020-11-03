@@ -15,9 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
 #include "tglobal.h"
-#include "mnode.h"
 #include "dnodeInt.h"
 #include "dnodeCheck.h"
 
@@ -30,8 +28,8 @@ typedef struct {
   void    (*stopFp)();
 } SCheckItem;
 
-static    SCheckItem  tsCheckItem[TSDB_CHECK_ITEM_MAX] = {{0}};
-int64_t   tsMinFreeMemSizeForStart = 0;
+static  SCheckItem  tsCheckItem[TSDB_CHECK_ITEM_MAX] = {{0}};
+int64_t tsMinFreeMemSizeForStart = 0;
 
 static int bindTcpPort(int port) {
   int    serverSocket;
@@ -264,8 +262,6 @@ int32_t dnodeInitCheck() {
     }
   }
 
+  dInfo("dnode check is initialized");
   return 0;
 }
-
-
-

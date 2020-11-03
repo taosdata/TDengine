@@ -778,7 +778,7 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessTableMetaMsg(SMnodeMsg *pMsg) {
-  SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+  STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->createFlag = htons(pInfo->createFlag);
   mDebug("app:%p:%p, table:%s, table meta msg is received from thandle:%p, createFlag:%d", pMsg->rpcMsg.ahandle, pMsg,
          pInfo->tableId, pMsg->rpcMsg.handle, pInfo->createFlag);
@@ -915,8 +915,8 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
       SVgObj *pVgroup = mnodeGetVgroup(*pVgId);
       if (pVgroup == NULL) break;
 
-      SMDDropSTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropSTableMsg));
-      pDrop->contLen = htonl(sizeof(SMDDropSTableMsg));
+      SDropSTableMsg *pDrop = rpcMallocCont(sizeof(SDropSTableMsg));
+      pDrop->contLen = htonl(sizeof(SDropSTableMsg));
       pDrop->vgId = htonl(pVgroup->vgId);
       pDrop->uid = htobe64(pStable->uid);
       mnodeExtractTableName(pStable->info.tableId, pDrop->tableId);
@@ -924,7 +924,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
       mInfo("app:%p:%p, stable:%s, send drop stable msg to vgId:%d", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId,
              pVgroup->vgId);
       SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pVgroup);
-      SRpcMsg   rpcMsg = {.pCont = pDrop, .contLen = sizeof(SMDDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
+      SRpcMsg   rpcMsg = {.pCont = pDrop, .contLen = sizeof(SDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
       dnodeSendMsgToDnode(&epSet, &rpcMsg);
       mnodeDecVgroupRef(pVgroup);
     }
@@ -1472,31 +1472,31 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
-  SCMSTableVgroupMsg *pInfo = pMsg->rpcMsg.pCont;
+  SSTableVgroupMsg *pInfo = pMsg->rpcMsg.pCont;
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
   // reserve space
-  int32_t contLen = sizeof(SCMSTableVgroupRspMsg) + 32 * sizeof(SCMVgroupMsg) + sizeof(SVgroupsMsg);
+  int32_t contLen = sizeof(SSTableVgroupRspMsg) + 32 * sizeof(SVgroupMsg) + sizeof(SVgroupsMsg);
   for (int32_t i = 0; i < numOfTable; ++i) {
-    char *stableName = (char*)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN) * i;
+    char *stableName = (char *)pInfo + sizeof(SSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN)*i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
     if (pTable != NULL && pTable->vgHash != NULL) {
-      contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SCMVgroupMsg) + sizeof(SVgroupsMsg));
-    } 
-    
+      contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SVgroupMsg) + sizeof(SVgroupsMsg));
+    }
+
     mnodeDecTableRef(pTable);
   }
 
-  SCMSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
+  SSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
   pRsp->numOfTables = 0;
-  char *msg = (char *)pRsp + sizeof(SCMSTableVgroupRspMsg);
+  char *msg = (char *)pRsp + sizeof(SSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
-    char *          stableName = (char *)pInfo + sizeof(SCMSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN)*i;
+    char *          stableName = (char *)pInfo + sizeof(SSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN)*i;
     SSuperTableObj *pTable = mnodeGetSuperTable(stableName);
     if (pTable == NULL) {
       mError("app:%p:%p, stable:%s, not exist while get stable vgroup info", pMsg->rpcMsg.ahandle, pMsg, stableName);
@@ -1548,7 +1548,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       pVgroupMsg->numOfVgroups = htonl(vgSize);
 
       // one table is done, try the next table
-      msg += sizeof(SVgroupsMsg) + vgSize * sizeof(SCMVgroupMsg);
+      msg += sizeof(SVgroupsMsg) + vgSize * sizeof(SVgroupMsg);
       pRsp->numOfTables++;
     }
   }
@@ -2146,7 +2146,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 }
 
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
-  SCMTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+  STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   STagData *pTags = (STagData *)pInfo->tags;
   int32_t tagLen = htonl(pTags->dataLen);
   if (pTags->name[0] == 0) {
@@ -2307,7 +2307,7 @@ static SChildTableObj* mnodeGetTableByPos(int32_t vnode, int32_t tid) {
 static int32_t mnodeProcessTableCfgMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_COM_OPS_NOT_SUPPORT;
 #if 0  
-  SDMConfigTableMsg *pCfg = pMsg->rpcMsg.pCont;
+  SConfigTableMsg *pCfg = pMsg->rpcMsg.pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->vgId = htonl(pCfg->vgId);
   pCfg->sid = htonl(pCfg->sid);
@@ -2469,7 +2469,7 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
 }
 
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
-  SCMMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+  SMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
   int32_t totalMallocLen = 4 * 1024 * 1024;  // first malloc 4 MB, subsequent reallocation as twice
@@ -2705,7 +2705,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
 }
 
 static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
-  SCMAlterTableMsg *pAlter = pMsg->rpcMsg.pCont;
+  SAlterTableMsg *pAlter = pMsg->rpcMsg.pCont;
   mDebug("app:%p:%p, table:%s, alter table msg is received from thandle:%p", pMsg->rpcMsg.ahandle, pMsg,
          pAlter->tableId, pMsg->rpcMsg.handle);
 

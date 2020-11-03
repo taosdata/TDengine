@@ -114,6 +114,7 @@ int32_t dnodeInitModules() {
     }
   }
 
+  dInfo("dnode modules is initialized");
   return 0;
 }
 
@@ -146,8 +147,8 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   }
 }
 
-bool dnodeStartMnode(void *pMnodes) {
-  SDMMnodeInfos *mnodes = pMnodes;
+bool dnodeStartMnode(SMnodeInfos *minfos) {
+  SMnodeInfos *mnodes = minfos;
 
   if (tsModuleStatus & (1 << TSDB_MOD_MNODE)) {
     dDebug("mnode module is already started, module status:%d", tsModuleStatus);

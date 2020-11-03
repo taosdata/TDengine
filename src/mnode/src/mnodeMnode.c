@@ -38,7 +38,7 @@ static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
 static SRpcEpSet     tsMnodeEpSetForShell;
 static SRpcEpSet     tsMnodeEpSetForPeer;
-static SDMMnodeInfos tsMnodeInfos;
+static SMnodeInfos   tsMnodeInfos;
 static int32_t mnodeGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -70,8 +70,9 @@ static int32_t mnodeMnodeActionInsert(SSdbOper *pOper) {
 
   pDnode->isMgmt = true;
   mnodeDecDnodeRef(pDnode);
-  
-  mInfo("mnode:%d, fqdn:%s ep:%s port:%d, do insert action", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
+
+  mInfo("mnode:%d, fqdn:%s ep:%s port:%u, do insert action", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
+        pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -202,7 +203,7 @@ void mnodeUpdateMnodeEpSet() {
 
   memset(&tsMnodeEpSetForShell, 0, sizeof(SRpcEpSet));
   memset(&tsMnodeEpSetForPeer, 0, sizeof(SRpcEpSet));
-  memset(&tsMnodeInfos, 0, sizeof(SDMMnodeInfos));
+  memset(&tsMnodeInfos, 0, sizeof(SMnodeInfos));
 
   int32_t index = 0;
   void *  pIter = NULL;
@@ -221,8 +222,8 @@ void mnodeUpdateMnodeEpSet() {
       tsMnodeEpSetForPeer.port[index] = htons(pDnode->dnodePort + TSDB_PORT_DNODEDNODE);
       mDebug("mnode:%d, for peer fqdn:%s %d", pDnode->dnodeId, tsMnodeEpSetForPeer.fqdn[index], htons(tsMnodeEpSetForPeer.port[index]));
 
-      tsMnodeInfos.nodeInfos[index].nodeId = htonl(pMnode->mnodeId);
-      strcpy(tsMnodeInfos.nodeInfos[index].nodeEp, pDnode->dnodeEp);
+      tsMnodeInfos.mnodeInfos[index].mnodeId = htonl(pMnode->mnodeId);
+      strcpy(tsMnodeInfos.mnodeInfos[index].mnodeEp, pDnode->dnodeEp);
 
       if (pMnode->role == TAOS_SYNC_ROLE_MASTER) {
         tsMnodeEpSetForShell.inUse = index;
@@ -238,7 +239,7 @@ void mnodeUpdateMnodeEpSet() {
     mnodeDecMnodeRef(pMnode);
   }
 
-  tsMnodeInfos.nodeNum = index;
+  tsMnodeInfos.mnodeNum = index;
   tsMnodeEpSetForShell.numOfEps = index;
   tsMnodeEpSetForPeer.numOfEps = index;
 
@@ -260,19 +261,19 @@ void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet) {
 }
 
 char* mnodeGetMnodeMasterEp() {
-  return tsMnodeInfos.nodeInfos[tsMnodeInfos.inUse].nodeEp;
+  return tsMnodeInfos.mnodeInfos[tsMnodeInfos.inUse].mnodeEp;
 }
 
 void mnodeGetMnodeInfos(void *mnodeInfos) {
   mnodeMnodeRdLock();
-  *(SDMMnodeInfos *)mnodeInfos = tsMnodeInfos;
+  *(SMnodeInfos *)mnodeInfos = tsMnodeInfos;
   mnodeMnodeUnLock();
 }
 
 static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
   mDebug("dnode:%d, send create mnode msg to dnode %s", dnodeId, dnodeEp);
 
-  SMDCreateMnodeMsg *pCreate = rpcMallocCont(sizeof(SMDCreateMnodeMsg));
+  SCreateMnodeMsg *pCreate = rpcMallocCont(sizeof(SCreateMnodeMsg));
   if (pCreate == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
@@ -280,21 +281,21 @@ static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
     tstrncpy(pCreate->dnodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
     pCreate->mnodes = tsMnodeInfos;
     bool found = false;
-    for (int i = 0; i < pCreate->mnodes.nodeNum; ++i) {
-      if (pCreate->mnodes.nodeInfos[i].nodeId == htonl(dnodeId)) {
+    for (int i = 0; i < pCreate->mnodes.mnodeNum; ++i) {
+      if (pCreate->mnodes.mnodeInfos[i].mnodeId == htonl(dnodeId)) {
         found = true;
       }
     }
     if (!found) {
-      pCreate->mnodes.nodeInfos[pCreate->mnodes.nodeNum].nodeId = htonl(dnodeId);
-      tstrncpy(pCreate->mnodes.nodeInfos[pCreate->mnodes.nodeNum].nodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
-      pCreate->mnodes.nodeNum++;
+      pCreate->mnodes.mnodeInfos[pCreate->mnodes.mnodeNum].mnodeId = htonl(dnodeId);
+      tstrncpy(pCreate->mnodes.mnodeInfos[pCreate->mnodes.mnodeNum].mnodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
+      pCreate->mnodes.mnodeNum++;
     }
   }
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pCreate;
-  rpcMsg.contLen = sizeof(SMDCreateMnodeMsg);
+  rpcMsg.contLen = sizeof(SCreateMnodeMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_MD_CREATE_MNODE;
 
   SRpcMsg   rpcRsp = {0};

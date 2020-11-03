@@ -818,11 +818,11 @@ void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   }
 }
 
-static SMDCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
+static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   SDbObj *pDb = pVgroup->pDb;
   if (pDb == NULL) return NULL;
 
-  SMDCreateVnodeMsg *pVnode = rpcMallocCont(sizeof(SMDCreateVnodeMsg));
+  SCreateVnodeMsg *pVnode = rpcMallocCont(sizeof(SCreateVnodeMsg));
   if (pVnode == NULL) return NULL;
 
   strcpy(pVnode->db, pVgroup->dbName);
@@ -830,7 +830,7 @@ static SMDCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   //TODO: dynamic alloc tables in tsdb
   maxTables = MAX(10000, tsMaxTablePerVnode);
 
-  SMDVnodeCfg *pCfg = &pVnode->cfg;
+  SVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
   pCfg->cfgVersion          = htonl(pDb->cfgVersion);
   pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
@@ -852,7 +852,7 @@ static SMDCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->quorum              = pDb->cfg.quorum;
   pCfg->update              = pDb->cfg.update;
   
-  SMDVnodeDesc *pNodes = pVnode->nodes;
+  SVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
     SDnodeObj *pDnode = pVgroup->vnodeGid[j].pDnode;
     if (pDnode != NULL) {
@@ -887,11 +887,11 @@ SRpcEpSet mnodeGetEpSetFromIp(char *ep) {
 }
 
 static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
-  SMDAlterVnodeMsg *pAlter = mnodeBuildVnodeMsg(pVgroup);
+  SAlterVnodeMsg *pAlter = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .ahandle = NULL,
     .pCont   = pAlter,
-    .contLen = pAlter ? sizeof(SMDAlterVnodeMsg) : 0,
+    .contLen = pAlter ? sizeof(SAlterVnodeMsg) : 0,
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_ALTER_VNODE
   };
@@ -910,11 +910,11 @@ void mnodeSendAlterVgroupMsg(SVgObj *pVgroup) {
 }
 
 static void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, void *ahandle) {
-  SMDCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
+  SCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .ahandle = ahandle,
     .pCont   = pCreate,
-    .contLen = pCreate ? sizeof(SMDCreateVnodeMsg) : 0,
+    .contLen = pCreate ? sizeof(SCreateVnodeMsg) : 0,
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_CREATE_VNODE
   };
@@ -983,8 +983,8 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   }
 }
 
-static SMDDropVnodeMsg *mnodeBuildDropVnodeMsg(int32_t vgId) {
-  SMDDropVnodeMsg *pDrop = rpcMallocCont(sizeof(SMDDropVnodeMsg));
+static SDropVnodeMsg *mnodeBuildDropVnodeMsg(int32_t vgId) {
+  SDropVnodeMsg *pDrop = rpcMallocCont(sizeof(SDropVnodeMsg));
   if (pDrop == NULL) return NULL;
 
   pDrop->vgId = htonl(vgId);
@@ -992,11 +992,11 @@ static SMDDropVnodeMsg *mnodeBuildDropVnodeMsg(int32_t vgId) {
 }
 
 void mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle) {
-  SMDDropVnodeMsg *pDrop = mnodeBuildDropVnodeMsg(vgId);
+  SDropVnodeMsg *pDrop = mnodeBuildDropVnodeMsg(vgId);
   SRpcMsg rpcMsg = {
       .ahandle = ahandle,
       .pCont   = pDrop,
-      .contLen = pDrop ? sizeof(SMDDropVnodeMsg) : 0,
+      .contLen = pDrop ? sizeof(SDropVnodeMsg) : 0,
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_DROP_VNODE
   };
@@ -1045,7 +1045,7 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 }
 
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {
-  SDMConfigVnodeMsg *pCfg = pMsg->rpcMsg.pCont;
+  SConfigVnodeMsg *pCfg = pMsg->rpcMsg.pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->vgId    = htonl(pCfg->vgId);
 
