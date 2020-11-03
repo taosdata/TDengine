@@ -1,33 +1,90 @@
-# clear env set up
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
 
-create database db update 1
-$t0 = 1604298064000
+# -*- coding: utf-8 -*-
 
-## Step 1
-create table t1 (ts timestamp, a int);
+import sys
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
 
-for ($i = 0; $i < 200; $i++) {
-  insert into t1 values ($t0 + $i, 1);
-}
 
-restart to commit
-check query result
+class TDTestCase:
+    def init(self, conn, logSql):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor(), logSql)
 
-for ($k = 1; $k <= 100; $k++) {
-  for ($i = 0; $i < 200; $i++) {
-    insert into t1 values ($t0 + $k * 200 $i, 1);
-  }
+    def run(self):
+        print("==========step1")
+        print("create table && insert data")
+        s = 'reset query cache'
+        tdSql.execute(s)
+        s = 'drop database if exists db'
+        tdSql.execute(s)
+        s = 'create database db  update 1'
+        tdSql.execute(s)
+        s = 'use db'
+        tdSql.execute(s)
+        ret = tdSql.execute('create table t1 (ts timestamp, a int)')
 
-  restart to commit
-  check query result
-}
+        insertRows = 200
+        t0 = 1604298064000
+        tdLog.info("insert %d rows" % (insertRows))
+        for i in range(0, insertRows):
+          ret = tdSql.execute(
+              'insert into t1 values (%d , 1)' %
+              (t0+i))
+        print("==========step2")
+        print("restart to commit ")
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from db.t1")
+        tdSql.checkRows(insertRows)
+        for k in range(0,100):
+          tdLog.info("insert %d rows" % (insertRows))
+          for i in range (0,insertRows):
+            ret = tdSql.execute(
+                'insert into db.t1 values(%d,1)' %
+                (t0+k*200+i)
+            )
+          tdDnodes.stop(1)
+          time.sleep(5)
+          tdDnodes.start(1)
+          time.sleep(5)
+          tdSql.query("select * from db.t1")
+          tdSql.checkRows(insertRows+200*k)
+        print("==========step2")
+        print("insert into another table ")
+        s = 'use db'
+        tdSql.execute(s)
+        ret = tdSql.execute('create table t2 (ts timestamp, a int)')
+        insertRows = 20000
+        for i in range(0, insertRows):
+          ret = tdSql.execute(
+              'insert into t2 values (%d, 1)' %
+              (t0+i))
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t2")
+        tdSql.checkRows(insertRows)
 
-## Step 2
-create table t2 (ts timestamp, a int);
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
 
-for ($i = 0; $i < 20000; $i++) {
-  insert into t2 values ($t0 + $i, 1);
-}
 
-restart to commit
-check query result
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())
