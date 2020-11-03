@@ -136,7 +136,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define in_addr_t unsigned long
 #define socklen_t int
 #define htobe64 htonll
-#define twrite write
 #define getpid _getpid
 
 struct tm *localtime_r(const time_t *timep, struct tm *result);

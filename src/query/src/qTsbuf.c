@@ -772,7 +772,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
 
-  ssize_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
+  int64_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
   if (rc == -1) {
 //    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));

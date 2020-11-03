@@ -535,7 +535,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
   ASSERT(pStore->info.size == TD_KVSTORE_HEADER_SIZE);
 
   while (true) {
-    ssize_t tsize = taosRead(pStore->fd, tbuf, sizeof(SKVRecord));
+    int64_t tsize = taosRead(pStore->fd, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
     if (tsize < sizeof(SKVRecord)) {
       uError("failed to read %" PRIzu " bytes from file %s at offset %" PRId64 "since %s", sizeof(SKVRecord), pStore->fname,

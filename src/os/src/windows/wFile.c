@@ -40,19 +40,19 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
 
 #define _SEND_FILE_STEP_ 1000
 
-int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
+int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t count) {
   fseek(in_file, (int32_t)(*offset), 0);
-  int writeLen = 0;
+  int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
   
-  for (int len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+  for (int64_t len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
     size_t rlen = fread(buffer, 1, _SEND_FILE_STEP_, in_file);
     if (rlen <= 0) {
       return writeLen;
     }
     else if (rlen < _SEND_FILE_STEP_) {
       fwrite(buffer, 1, rlen, out_file);
-      return (int)(writeLen + rlen);
+      return (int64_t)(writeLen + rlen);
     }
     else {
       fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
@@ -60,7 +60,7 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
     }
   }
 
-  int remain = count - writeLen;
+  int64_t remain = count - writeLen;
   if (remain > 0) {
     size_t rlen = fread(buffer, 1, remain, in_file);
     if (rlen <= 0) {
