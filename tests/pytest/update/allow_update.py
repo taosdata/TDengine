@@ -36,10 +36,11 @@ class TDTestCase:
         tdSql.prepare()
         startTs = self.ts
 
-        print("==============step1")        
         tdSql.execute("create database udb update 1")
         tdSql.execute("use udb")
         tdSql.execute("create table t (ts timestamp, a int)")
+        
+        print("==============step1")
         tdSql.execute("insert into t values (%d, 1)" % (startTs))
         tdSql.execute("insert into t values (%d, 1)" % (startTs - 3))
         tdSql.execute("insert into t values (%d, 1)" % (startTs + 3))
@@ -159,7 +160,73 @@ class TDTestCase:
         tdSql.checkData(5, 0, 6)        
         tdSql.checkData(6, 0, 6)
         tdSql.checkData(7, 0, 6)
-        tdSql.checkData(8, 0, 6)        
+        tdSql.checkData(8, 0, 6)
+        
+        tdSql.execute("create table subt (ts timestamp, a int, b float, c binary(16), d bool)")
+        
+        print("==============step1")
+        tdSql.execute("insert into subt (ts, a, c) values (%d, 1, 'c+0')" % (startTs))
+        tdSql.execute("insert into subt (ts, a, c) values (%d, 1, 'c-3')" % (startTs - 3))
+        tdSql.execute("insert into subt (ts, a, c) values (%d, 1, 'c+3')" % (startTs + 3))
+        
+        tdSql.query("select * from subt")
+        tdSql.checkRows(3)
+        
+        tdSql.query("select a,b,c,d from subt")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(0, 2, 'c-3')
+        tdSql.checkData(1, 2, 'c+0')
+        tdSql.checkData(2, 2, 'c+3')
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(1, 3, None)
+        tdSql.checkData(2, 3, None)
+
+        print("==============step2")
+        tdSql.execute("insert into subt (ts, b, d) values (%d, 2.0, true)" % (startTs))
+        tdSql.execute("insert into subt (ts, b, d) values (%d, 2.0, true)" % (startTs - 3))
+        tdSql.execute("insert into subt (ts, b, d) values (%d, 2.0, false)" % (startTs + 3))
+        
+        tdSql.query("select * from subt")
+        tdSql.checkRows(3)
+        
+        tdSql.query("select a,b,c,d from subt")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, None)
+        tdSql.checkData(0, 1, 2.0)
+        tdSql.checkData(1, 1, 2.0)
+        tdSql.checkData(2, 1, 2.0)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 2, None)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(2, 3, 0)
+        
+        # restart taosd to commit, and check
+        self.restartTaosd();
+        
+        tdSql.query("select * from subt")
+        tdSql.checkRows(3)
+        
+        tdSql.query("select a,b,c,d from subt")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, None)
+        tdSql.checkData(0, 1, 2.0)
+        tdSql.checkData(1, 1, 2.0)
+        tdSql.checkData(2, 1, 2.0)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 2, None)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(2, 3, 0)
 
     def stop(self):
         tdSql.close()
