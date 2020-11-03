@@ -447,7 +447,7 @@ static bool hasNullValue(SColIndex* pColIndex, SDataStatis *pStatis, SDataStatis
   return true;
 }
 
-static SResultRow *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo, char *pData,
+static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo, char *pData,
                                              int16_t bytes, bool masterscan, uint64_t uid) {
   SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, uid);
   int32_t *p1 =
@@ -601,8 +601,8 @@ static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowRes
   assert(win->skey <= win->ekey);
   SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
-  SResultRow *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&win->skey, TSDB_KEYSIZE, masterscan, pBockInfo->uid);
-  if (pWindowRes == NULL) {
+  SResultRow *pResultRow = doPrepareResultRowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&win->skey, TSDB_KEYSIZE, masterscan, pBockInfo->uid);
+  if (pResultRow == NULL) {
     *newWind = false;
 
     return masterscan? -1:0;
@@ -611,17 +611,16 @@ static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowRes
   *newWind = true;
 
   // not assign result buffer yet, add new result buffer
-  if (pWindowRes->pageId == -1) {
-    int32_t ret = addNewWindowResultBuf(pWindowRes, pResultBuf, pBockInfo->tid, pRuntimeEnv->numOfRowsPerPage);
+  if (pResultRow->pageId == -1) {
+    int32_t ret = addNewWindowResultBuf(pResultRow, pResultBuf, pBockInfo->tid, pRuntimeEnv->numOfRowsPerPage);
     if (ret != TSDB_CODE_SUCCESS) {
       return -1;
     }
   }
 
   // set time window for current result
-  pWindowRes->win = (*win);
-
-  setWindowResOutputBufInitCtx(pRuntimeEnv, pWindowRes);
+  pResultRow->win = (*win);
+  setWindowResOutputBufInitCtx(pRuntimeEnv, pResultRow);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1111,8 +1110,8 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
   }
 
   uint64_t uid = groupIndex; // uid is always set to be 0.
-  SResultRow *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, d, len, true, uid);
-  if (pWindowRes == NULL) {
+  SResultRow *pResultRow = doPrepareResultRowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, d, len, true, uid);
+  if (pResultRow == NULL) {
     return -1;
   }
 
@@ -1126,21 +1125,21 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
   }
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    pWindowRes->key = malloc(varDataTLen(pData));
-    varDataCopy(pWindowRes->key, pData);
+    pResultRow->key = malloc(varDataTLen(pData));
+    varDataCopy(pResultRow->key, pData);
   } else {
-    pWindowRes->win.skey = v;
-    pWindowRes->win.ekey = v;
+    pResultRow->win.skey = v;
+    pResultRow->win.ekey = v;
   }
 
-  if (pWindowRes->pageId == -1) {
-    int32_t ret = addNewWindowResultBuf(pWindowRes, pResultBuf, GROUPRESULTID, pRuntimeEnv->numOfRowsPerPage);
+  if (pResultRow->pageId == -1) {
+    int32_t ret = addNewWindowResultBuf(pResultRow, pResultBuf, GROUPRESULTID, pRuntimeEnv->numOfRowsPerPage);
     if (ret != 0) {
       return -1;
     }
   }
 
-  setResultOutputBuf(pRuntimeEnv, pWindowRes);
+  setResultOutputBuf(pRuntimeEnv, pResultRow);
   initCtxOutputBuf(pRuntimeEnv);
   return TSDB_CODE_SUCCESS;
 }
@@ -3755,9 +3754,9 @@ void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
   }
 
   uint64_t uid = 0; // uid is always set to be 0
-  SResultRow *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&groupIndex,
+  SResultRow *pResultRow = doPrepareResultRowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&groupIndex,
       sizeof(groupIndex), true, uid);
-  if (pWindowRes == NULL) {
+  if (pResultRow == NULL) {
     return;
   }
 
@@ -3765,8 +3764,8 @@ void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
    */
-  if (pWindowRes->pageId == -1) {
-    if (addNewWindowResultBuf(pWindowRes, pRuntimeEnv->pResultBuf, groupIndex, pRuntimeEnv->numOfRowsPerPage) !=
+  if (pResultRow->pageId == -1) {
+    if (addNewWindowResultBuf(pResultRow, pRuntimeEnv->pResultBuf, groupIndex, pRuntimeEnv->numOfRowsPerPage) !=
         TSDB_CODE_SUCCESS) {
       return;
     }
@@ -3774,7 +3773,7 @@ void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
 
   // record the current active group id
   pRuntimeEnv->prevGroupId = groupIndex;
-  setResultOutputBuf(pRuntimeEnv, pWindowRes);
+  setResultOutputBuf(pRuntimeEnv, pResultRow);
   initCtxOutputBuf(pRuntimeEnv);
 }
 
