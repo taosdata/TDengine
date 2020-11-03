@@ -46,9 +46,7 @@ class TDTestCase:
         print("==========step2")
         print("restart to commit ")
         tdDnodes.stop(1)
-        time.sleep(5)
         tdDnodes.start(1)
-        time.sleep(5)
         tdSql.query("select * from db.t1")
         tdSql.checkRows(insertRows)
         for k in range(0,100):
@@ -59,9 +57,7 @@ class TDTestCase:
                 (t0+k*200+i)
             )
           tdDnodes.stop(1)
-          time.sleep(5)
           tdDnodes.start(1)
-          time.sleep(5)
           tdSql.query("select * from db.t1")
           tdSql.checkRows(insertRows+200*k)
         print("==========step2")
@@ -75,9 +71,7 @@ class TDTestCase:
               'insert into t2 values (%d, 1)' %
               (t0+i))
         tdDnodes.stop(1)
-        time.sleep(5)
         tdDnodes.start(1)
-        time.sleep(5)
         tdSql.query("select * from t2")
         tdSql.checkRows(insertRows)
 
