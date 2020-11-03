@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#define treadfile(fd, buf, count) read(fd, buf, count)
-#define twritefile(fd, buf, count) write(fd, buf, count)
-#define tlseekfile(fd, offset, whence) lseek(fd, offset, whence)
-#define tclosefile(fd)    \
+#define tread(fd, buf, count) read(fd, buf, count)
+#define twrite(fd, buf, count) write(fd, buf, count)
+#define tlseek(fd, offset, whence) lseek(fd, offset, whence)
+#define tclose(fd)    \
   {                       \
     if (FD_VALID(x)) {    \
       close(x);           \

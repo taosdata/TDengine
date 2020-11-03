@@ -37,7 +37,7 @@ int32_t walRenew(void *handle) {
   pthread_mutex_lock(&pWal->mutex);
 
   if (pWal->fd >= 0) {
-    close(pWal->fd);
+    tclose(pWal->fd);
     wDebug("vgId:%d, file:%s, it is closed", pWal->vgId, pWal->name);
   }
 
@@ -310,7 +310,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
   }
 
-  close(fd);
+  tclose(fd);
   tfree(buffer);
 
   return code;
