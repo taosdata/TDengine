@@ -1,206 +1,397 @@
-# clear env set up
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
 
-$t0 = 1603152000000
+# -*- coding: utf-8 -*-
 
-create database db update 1 days 30;
+import sys
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
 
-## Step 1. UPDATE THE WHOLE DATA BLOCK REPEATEDLY
-create table t1 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t1 values ($t0 + $i, 1);
-}
 
-restart to commit
-check query result
+class TDTestCase:
+    def init(self, conn, logSql):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor(), logSql)
 
-for ($k = 0; $k < 10; $k++) {
-  for ($i = 0; $i < 200; $i++) {
-    insert into t1 values ($t0 + $i, 1);
-  }
+    def run(self):
+        print("==========step1")
+        print("UPDATE THE WHOLE DATA BLOCK REPEATEDLY")
+        s = 'reset query cache'
+        tdSql.execute(s)
+        s = 'drop database if exists db'
+        tdSql.execute(s)
+        s = 'create database db update 1 days 30'
+        tdSql.execute(s)
+        s = 'use db'
+        tdSql.execute(s)
+        ret = tdSql.execute('create table t1 (ts timestamp, a int)')
 
-  check query result
-  restart to commit
-  check query result
-}
+        insertRows = 200
+        t0 = 1603152000000
+        tdLog.info("insert %d rows" % (insertRows))
+        for i in range(0, insertRows):
+          ret = tdSql.execute(
+            'insert into t1 values (%d , 1)' %
+            (t0 + i))
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t1")
+        tdSql.checkRows(insertRows)
 
-## Step 2. PREPEND DATA
-create table t2 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t2 values ($t0 + $i, 1);
-}
+        for k in range(0,10):
+          for i in range (0,insertRows):
+            ret = tdSql.execute(
+              'insert into t1 values(%d,1)' %
+              (t0+i)
+            )
+          tdSql.query("select * from t1")
+          tdSql.checkRows(insertRows)
+          tdDnodes.stop(1)
+          time.sleep(5)
+          tdDnodes.start(1)
+          time.sleep(5)
+          tdSql.query("select * from t1")
+          tdSql.checkRows(insertRows)
+        print("==========step2")
+        print("PREPEND DATA ")
+        ret = tdSql.execute('create table t2 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t2 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t2")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t2")
+        tdSql.checkRows(insertRows)
+        for i in range(-100,0):
+          ret = tdSql.execute(
+                'insert into t2 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t2")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t2")
+        tdSql.checkRows(insertRows+100)
+        print("==========step3")
+        print("PREPEND MASSIVE DATA ")
+        ret = tdSql.execute('create table t3 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t3 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t3")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t3")
+        tdSql.checkRows(insertRows)
+        for i in range(-6000,0):
+          ret = tdSql.execute(
+                'insert into t3 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t3")
+        tdSql.checkRows(insertRows+6000)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t3")
+        tdSql.checkRows(insertRows+6000)
+        print("==========step4")
+        print("APPEND DATA")
+        ret = tdSql.execute('create table t4 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t4 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t4")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t4")
+        tdSql.checkRows(insertRows)
+        for i in range(0,100):
+          ret = tdSql.execute(
+                'insert into t4 values (%d , 1)' %
+                (t0+200+i))
+        tdSql.query("select * from t4")
+        tdSql.checkRows(insertRows+100)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t4")
+        tdSql.checkRows(insertRows+100)
+        print("==========step5")
+        print("APPEND DATA")
+        ret = tdSql.execute('create table t5 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t5 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t5")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t5")
+        tdSql.checkRows(insertRows)
+        for i in range(0,6000):
+          ret = tdSql.execute(
+                'insert into t5 values (%d , 1)' %
+                (t0+200+i))
+        tdSql.query("select * from t5")
+        tdSql.checkRows(insertRows+6000)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t5")
+        tdSql.checkRows(insertRows+6000)
+        print("==========step6")
+        print("UPDATE BLOCK IN TWO STEP")
+        ret = tdSql.execute('create table t6 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t6 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t6")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t6")
+        tdSql.checkRows(insertRows)
+        for i in range(0,100):
+          ret = tdSql.execute(
+                'insert into t6 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t6")
+        tdSql.checkRows(insertRows+100)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0,0,'300')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t6")
+        tdSql.checkRows(insertRows+100)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0,0,'300')
+        for i in range(0,200):
+          ret = tdSql.execute(
+                'insert into t6 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t6")
+        tdSql.checkRows(insertRows+200)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0,0,'400')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t6")
+        tdSql.checkRows(insertRows+200)
+        tdSql.query("select sum(a) from t6")
+        tdSql.checkData(0,0,'400')
+        print("==========step7")
+        print("UPDATE LAST HALF AND INSERT LITTLE DATA")
+        ret = tdSql.execute('create table t7 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t7 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t7")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t7")
+        tdSql.checkRows(insertRows)
+        for i in range(100,300):
+          ret = tdSql.execute(
+                'insert into t7 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t7")
+        tdSql.checkRows(insertRows+200)
+        tdSql.query("select sum(a) from t7")
+        tdSql.checkData(0,0,'500')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t7")
+        tdSql.checkRows(insertRows+100)
+        tdSql.query("select sum(a) from t7")
+        tdSql.checkData(0,0,'500')
+        print("==========step8")
+        print("UPDATE LAST HALF AND INSERT MASSIVE DATA")
+        ret = tdSql.execute('create table t8 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t8 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t8")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t8")
+        tdSql.checkRows(insertRows)
+        for i in range(6000):
+          ret = tdSql.execute(
+                'insert into t8 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t8")
+        tdSql.checkRows(6000)
+        tdSql.query("select sum(a) from t8")
+        tdSql.checkData(0,0,'12000')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t8")
+        tdSql.checkRows(6000)
+        tdSql.query("select sum(a) from t8")
+        tdSql.checkData(0,0,'12000')
+        print("==========step9")
+        print("UPDATE FIRST HALF AND PREPEND LITTLE DATA")
+        ret = tdSql.execute('create table t9 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t9 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t9")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t9")
+        tdSql.checkRows(insertRows)
+        for i in range(-100,100):
+          ret = tdSql.execute(
+                'insert into t9 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t9")
+        tdSql.checkRows(300)
+        tdSql.query("select sum(a) from t9")
+        tdSql.checkData(0,0,'500')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t9")
+        tdSql.checkRows(300)
+        tdSql.query("select sum(a) from t9")
+        tdSql.checkData(0,0,'500')
+        print("==========step10")
+        print("UPDATE FIRST HALF AND PREPEND MASSIVE DATA")
+        ret = tdSql.execute('create table t10 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t10 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t10")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t10")
+        tdSql.checkRows(insertRows)
+        for i in range(-6000,100):
+          ret = tdSql.execute(
+                'insert into t10 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t10")
+        tdSql.checkRows(6200)
+        tdSql.query("select sum(a) from t10")
+        tdSql.checkData(0,0,'12300')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t10")
+        tdSql.checkRows(6200)
+        tdSql.query("select sum(a) from t10")
+        tdSql.checkData(0,0,'12300')
+        print("==========step11")
+        print("UPDATE FIRST HALF AND APPEND MASSIVE DATA")
+        ret = tdSql.execute('create table t11 (ts timestamp, a int)')
+        insertRows = 200
+        for i in range(0, insertRows):
+            ret = tdSql.execute(
+                'insert into t11 values (%d , 1)' %
+                (t0+i))
+        tdSql.query("select * from t11")
+        tdSql.checkRows(insertRows)
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t11")
+        tdSql.checkRows(insertRows)
+        for i in range(100):
+          ret = tdSql.execute(
+                'insert into t11 values (%d , 2)' %
+                (t0+i))
+        for i in range(200,6000):
+          ret = tdSql.execute(
+                'insert into t11 values (%d , 2)' %
+                (t0+i))
+        tdSql.query("select * from t11")
+        tdSql.checkRows(6000)
+        tdSql.query("select sum(a) from t11")
+        tdSql.checkData(0,0,'11500')
+        tdDnodes.stop(1)
+        time.sleep(5)
+        tdDnodes.start(1)
+        time.sleep(5)
+        tdSql.query("select * from t11")
+        tdSql.checkRows(6000)
+        tdSql.query("select sum(a) from t11")
+        tdSql.checkData(0,0,'11500')
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
 
-restart to commit
-check query result
 
-for ($i = -100; $i < 0; $i++) {
-  insert into t2 values ($t0 + $i, 1);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 3. PREPEND MASSIVE DATA
-create table t3 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t3 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = -6000; $i < 0; $i++) {
-  insert into t3 values ($t0 + $i, 1);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 4. APPEND DATA
-create table t4 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t4 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = 0; $i < 100; $i++) {
-  insert into t4 values ($t0 + 200 + $i, 1);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 5. APPEND MASSIVE DATA
-create table t5 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t5 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = 0; $i < 6000; $i++) {
-  insert into t5 values ($t0 + 200 + $i, 1);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 6. UPDATE BLOCK IN TWO STEP
-create table t6 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t6 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = 0; $i < 100; $i++) {
-  insert into t6 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
-
-for ($i = 100; $i < 200; $i++) {
-  insert into t6 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 7. UPDATE LAST HALF AND INSERT LITTLE DATA
-create table t7 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t7 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = 100; $i < 300; $i++) {
-  insert into t7 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 8. UPDATE LAST HALF AND INSERT MASSIVE DATA
-create table t8 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t8 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = 100; $i < 6000; $i++) {
-  insert into t8 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 9. UPDATE FIRST HALF AND PREPEND LITTLE DATA
-create table t9 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t9 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = -100; $i < 100; $i++) {
-  insert into t9 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 10. UPDATE FIRST HALF AND PREPEND MASSIVE DATA
-create table t10 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t10 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = -6000; $i < 100; $i++) {
-  insert into t10 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
-
-## Step 11. UPDATE FIRST HALF AND APPEND MASSIVE DATA
-create table t11 (ts timestamp, a int);
-for ($i = 0; $i < 200; $i++) {
-  insert into t11 values ($t0 + $i, 1);
-}
-
-restart to commit
-check query result
-
-for ($i = 0; $i < 100; $i++) {
-  insert into t11 values ($t0 + $i, 2);
-}
-
-for ($i = 200; $i < 6000; $i++) {
-  insert into t11 values ($t0 + $i, 2);
-}
-
-check query result
-restart to commit
-check query result
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())

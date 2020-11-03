@@ -63,7 +63,7 @@ class TDTestCase:
           tdDnodes.start(1)
           time.sleep(5)
           tdSql.query("select * from db.t1")
-          tdSql.checkRows(insertRows+200*(k+1))
+          tdSql.checkRows(insertRows+200*k)
         print("==========step2")
         print("insert into another table ")
         s = 'use db'
