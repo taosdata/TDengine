@@ -28,8 +28,8 @@
 #include "dnodeMgmt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMPeer.h"
+#include "dnodeMInfos.h"
 
-extern void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
@@ -72,7 +72,7 @@ int32_t dnodeInitServer() {
     return -1;
   }
 
-  dInfo("inter-dnodes RPC server is opened");
+  dInfo("dnode inter-dnodes RPC server is initialized");
   return 0;
 }
 
@@ -137,7 +137,7 @@ int32_t dnodeInitClient() {
     return -1;
   }
 
-  dInfo("inter-dnodes rpc client is opened");
+  dInfo("dnode inter-dnodes rpc client is initialized");
   return 0;
 }
 
@@ -145,13 +145,13 @@ void dnodeCleanupClient() {
   if (tsDnodeClientRpc) {
     rpcClose(tsDnodeClientRpc);
     tsDnodeClientRpc = NULL;
-    dInfo("inter-dnodes rpc client is closed");
+    dInfo("dnode inter-dnodes rpc client is closed");
   }
 }
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
-    dnodeUpdateMnodeEpSetForPeer(pEpSet);
+    dnodeUpdateEpSetForPeer(pEpSet);
   }
 
   if (dnodeProcessRspMsgFp[pMsg->msgType]) {    
@@ -173,7 +173,7 @@ void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
 
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcEpSet epSet = {0};
-  dnodeGetMnodeEpSetForPeer(&epSet);
+  dnodeGetEpSetForPeer(&epSet);
   rpcSendRecv(tsDnodeClientRpc, &epSet, rpcMsg, rpcRsp);
 }
 

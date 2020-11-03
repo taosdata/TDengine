@@ -46,5 +46,16 @@ void osInit() {
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");  
   strcpy(tsOsName, "Windows");
+
+  const char *tmpDir = getenv("tmp");
+  if (tmpDir != NULL) {
+    tmpDir = getenv("temp");
+  }
+  if (tmpDir != NULL) {
+    strcpy(tsTempDir, tmpDir);
+  } else {
+    strcpy(tsTempDir, "C:\\Windows\\Temp");
+  }
+  
   taosWinSocketInit();
 }

@@ -60,7 +60,7 @@ int32_t dnodeInitMnodeRead() {
     dDebug("dnode mread worker:%d is created", i);
   }
 
-  dDebug("dnode mread is opened, workers:%d qset:%p", tsMReadPool.maxNum, tsMReadQset);
+  dDebug("dnode mread is initialized, workers:%d qset:%p", tsMReadPool.maxNum, tsMReadQset);
   return 0;
 }
 

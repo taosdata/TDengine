@@ -1572,7 +1572,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
   if ((!TSDB_IS_LAST_BLOCK(&oBlock)) && keyFirst < pCompBlock->keyFirst) {
     while (true) {
       tdResetDataCols(pDataCols);
-      tsdbLoadDataFromCache(pTable, pCommitIter->pIter, oBlock.keyFirst, defaultRowsInBlock, pDataCols, NULL, 0,
+      tsdbLoadDataFromCache(pTable, pCommitIter->pIter, oBlock.keyFirst-1, defaultRowsInBlock, pDataCols, NULL, 0,
                             pCfg->update, pMergeInfo);
       ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);
       if (pDataCols->numOfRows == 0) break;
@@ -1714,6 +1714,8 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);
     }
+
+    if (pTarget->numOfRows >= maxRows) break;
   }
 }
 
