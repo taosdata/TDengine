@@ -203,7 +203,7 @@ static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int32_t fd, i
   while (1) {
     pos++;
 
-    if (taosLSeek(fd, pos, SEEK_SET) < 0) {
+    if (lseek(fd, pos, SEEK_SET) < 0) {
       wError("vgId:%d, failed to seek from corrupted wal file since %s", pWal->vgId, strerror(errno));
       return TSDB_CODE_WAL_FILE_CORRUPTED;
     }
