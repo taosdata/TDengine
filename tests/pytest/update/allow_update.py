@@ -164,7 +164,7 @@ class TDTestCase:
         
         tdSql.execute("create table subt (ts timestamp, a int, b float, c binary(16), d bool)")
         
-        print("==============step1")
+        print("==============step7")
         tdSql.execute("insert into subt (ts, a, c) values (%d, 1, 'c+0')" % (startTs))
         tdSql.execute("insert into subt (ts, a, c) values (%d, 1, 'c-3')" % (startTs - 3))
         tdSql.execute("insert into subt (ts, a, c) values (%d, 1, 'c+3')" % (startTs + 3))
@@ -186,7 +186,7 @@ class TDTestCase:
         tdSql.checkData(1, 3, None)
         tdSql.checkData(2, 3, None)
 
-        print("==============step2")
+        print("==============step8")
         tdSql.execute("insert into subt (ts, b, d) values (%d, 2.0, true)" % (startTs))
         tdSql.execute("insert into subt (ts, b, d) values (%d, 2.0, true)" % (startTs - 3))
         tdSql.execute("insert into subt (ts, b, d) values (%d, 2.0, false)" % (startTs + 3))
@@ -227,6 +227,35 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(1, 3, 1)
         tdSql.checkData(2, 3, 0)
+        
+        
+        
+        tdSql.execute("create table ct (ts timestamp, a int, b float, c binary(128))")
+        
+        print("==============step9")        
+        insertRows = 20000
+        for i in range(0, insertRows):
+          tdSql.execute("insert into ct values (%d , %d, %d, 'aabbccddeeffgghhiijjkkllmmoonn112233445566778899xxyyzz')" % (startTs + i, i, i))
+        
+        tdSql.query("select * from ct")
+        tdSql.checkRows(insertRows)        
+        
+        for i in range(0, insertRows):
+          tdSql.execute("insert into ct values (%d , %d, %d, 'aabbccddeeffgghhiijjkkllmmoonn112233445566778899xxyyzz')" % (startTs + i, i+insertRows, i+insertRows))
+        
+        tdSql.query("select * from ct")
+        tdSql.checkRows(insertRows)
+        
+        tdSql.query("select a,b from ct limit 3")
+        tdSql.checkData(0, 0, insertRows+0)
+        tdSql.checkData(1, 0, insertRows+1)
+        tdSql.checkData(2, 0, insertRows+2)
+        
+        tdSql.checkData(0, 1, insertRows+0)
+        tdSql.checkData(1, 1, insertRows+1)
+        tdSql.checkData(2, 1, insertRows+2)
+        
+        
 
     def stop(self):
         tdSql.close()
