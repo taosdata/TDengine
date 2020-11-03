@@ -133,9 +133,7 @@ void walClose(void *handle) {
     while (walGetNextFile(pWal, &fileId) >= 0) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
-      if (fileId == pWal->fileId) {
-        wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
-      } else if (remove(pWal->name) < 0) {
+      if (remove(pWal->name) < 0) {
         wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
       } else {
         wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
