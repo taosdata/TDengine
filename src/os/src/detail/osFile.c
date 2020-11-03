@@ -15,16 +15,21 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tglobal.h"
 
 #ifndef TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char *tdengineTmpFileNamePrefix = "tdengine-";
 
   char  tmpPath[PATH_MAX];
-  char *tmpDir = "/tmp/";
+  int32_t len = strlen(tsTempDir);
+  memcpy(tmpPath, tsTempDir, len);
 
-  strcpy(tmpPath, tmpDir);
-  strcat(tmpPath, tdengineTmpFileNamePrefix);
+  if (tmpPath[len - 1] != '/') {
+      tmpPath[len++] = '/';
+  }
+
+  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
