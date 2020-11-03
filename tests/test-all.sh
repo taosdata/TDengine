@@ -9,7 +9,7 @@ NC='\033[0m'
 
 function runSimCaseOneByOne {
   while read -r line; do
-    if [[ $line =~ ^./test.sh* ]]; then
+    if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
       start_time=`date +%s`
