@@ -1061,7 +1061,11 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
                pRes1->numOfRows, pRes1->numOfTotal);
       assert(pRes1->row < pRes1->numOfRows);
     } else {
-      pRes1->numOfClauseTotal += pRes1->numOfRows;
+      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pParentSql->pSubs[i]->cmd, 0);
+      if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+        pRes1->numOfClauseTotal += pRes1->numOfRows;
+      }
+
       tscDebug("%p sub:%p index:%d numOfRows:%"PRId64" total:%"PRId64, pParentSql, pParentSql->pSubs[i], i,
                pRes1->numOfRows, pRes1->numOfTotal);
     }
