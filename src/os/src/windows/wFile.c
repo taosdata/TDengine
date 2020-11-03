@@ -75,12 +75,12 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
   return writeLen;
 }
 
-ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
-  uError("taosTSendFileImp no implemented yet");
+int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t* offset, int64_t size) {
+  uError("taosSendFile no implemented yet");
   return 0;
 }
 
-int taosFtruncate(int fd, int64_t length) {
+int32_t taosFtruncate(int32_t fd, int64_t length) {
   uError("taosFtruncate no implemented yet");
   return 0;
 }
