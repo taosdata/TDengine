@@ -38,9 +38,9 @@
 
 6. 检查防火墙设置，确认TCP/UDP 端口6030-6042 是打开的
 
-7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/lib/taos*里, 并且*/usr/local/lib/taos*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
+7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/taos/driver*里, 并且*/usr/local/taos/driver*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
 
-8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*driver/c/taos.dll*在你的系统搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
+8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*C:\TDengine\driver\taos.dll*在你的系统库函数搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
 
 9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
    检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
