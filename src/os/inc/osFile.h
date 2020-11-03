@@ -25,9 +25,9 @@ extern "C" {
 #define tlseek(fd, offset, whence) lseek(fd, offset, whence)
 #define tclose(fd)    \
   {                       \
-    if (FD_VALID(x)) {    \
-      close(x);           \
-      x = FD_INITIALIZER; \
+    if (FD_VALID(fd)) {    \
+      close(fd);           \
+      fd = FD_INITIALIZER; \
     }                     \
   }
 
