@@ -82,6 +82,8 @@ void createEnvironment(TAOS *conn, int32_t count, int32_t totalCnt, int32_t poin
     if (taos_errno(pSql) != 0) {
       printf("%s\n", taos_errstr(conn));
     }
+
+    taos_free_result(pSql);
   }
 
   for (int32_t i = 0; i < totalCnt; ++i) {

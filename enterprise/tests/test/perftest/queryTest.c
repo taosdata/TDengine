@@ -343,6 +343,7 @@ void generatedData(TAOS* taos) {
 int main(int argc, char** argv) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
   taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -384,7 +385,6 @@ int main(int argc, char** argv) {
 //  }
 
 //  executeSQL(conn,"create database join_db0", NULL);
-  executeSQL(conn,"use join_m_db0", NULL);
 //  executeSQL(conn, "select count(*) from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' "
 //                   "interval(1h) fill(NULL) group by t1 order by ts desc;", NULL);
 
@@ -394,15 +394,12 @@ int main(int argc, char** argv) {
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-//    createEnvironment(conn, 20, 20, 200, 30);
-//    executeSQL(conn, "select count(meters.ts),count(meters1.ts), first(meters1.ts) from meters,meters1 where meters.ts = meters1.ts and meters.t7 = meters1.t7;", NULL);
-//    executeSQL(conn, "select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7) "
-//                     "from join_mt0, join_mt1 "
-//                     "where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts "
-//                     "interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;", NULL);
-
-//    executeSQL(conn, "select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c1), first(join_mt0.c5), last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;", NULL);
-    executeSQL(conn, "select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;", NULL);
+//    executeSQL(conn, "use test", NULL);
+//    createEnvironment(conn, 100000, 100000, 80, 30);
+    executeSQL(conn, "use join_m_db0", NULL);
+//    executeSQL(conn, "select count(meters.ts) from meters,meters1 where meters.ts = meters1.ts and meters.t7 = meters1.t7;", NULL);
+    executeSQL(conn, "select count(join_mt0.c1), first(join_mt0.c1)/count(*), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+    executeSQL(conn, "select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c1), first(join_mt0.c5), last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;", NULL);
     taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
