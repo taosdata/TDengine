@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "talloc.h"
 #include "tref.h"
 #include "twal.h"
 #include "walInt.h"

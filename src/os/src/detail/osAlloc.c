@@ -17,10 +17,10 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tulog.h"
-#include "talloc.h"
+#include "osAlloc.h"
 
 #define TSDB_HAVE_MEMALIGN
-#ifndef TSDB_USE_SYS_MEM
+#ifdef TAOS_OS_FUNC_ALLOC
 
 void *tmalloc(int32_t size) {
   void *p = malloc(size);
