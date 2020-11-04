@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
 #include "os.h"
 #include "hash.h"
 #include "taoserror.h"

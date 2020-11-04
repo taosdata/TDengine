@@ -55,7 +55,7 @@ void walCleanUp() {
 }
 
 void *walOpen(char *path, SWalCfg *pCfg) {
-  SWal *pWal = tcalloc(sizeof(SWal));
+  SWal *pWal = tcalloc(1, sizeof(SWal));
   if (pWal == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;

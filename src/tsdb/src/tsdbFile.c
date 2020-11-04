@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #define _DEFAULT_SOURCE
-#include <regex.h>
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
+#include <regex.h>
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"

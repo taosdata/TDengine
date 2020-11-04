@@ -71,7 +71,7 @@ int32_t taosRenameFile(char *fullPath, char *suffix, char delimiter, char **dstP
   return rename(fullPath, *dstPath);
 }
 
-int64_t taosRead(int32_t fd, void *buf, int64_t count) {
+int64_t taosReadImp(int32_t fd, void *buf, int64_t count) {
   int64_t leftbytes = count;
   int64_t readbytes;
   char *  tbuf = (char *)buf;
@@ -95,7 +95,7 @@ int64_t taosRead(int32_t fd, void *buf, int64_t count) {
   return count;
 }
 
-int64_t taosWrite(int32_t fd, void *buf, int64_t n) {
+int64_t taosWriteImp(int32_t fd, void *buf, int64_t n) {
   int64_t nleft = n;
   int64_t nwritten = 0;
   char *  tbuf = (char *)buf;
@@ -113,6 +113,10 @@ int64_t taosWrite(int32_t fd, void *buf, int64_t n) {
   }
 
   return n;
+}
+
+int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence) {
+  return (int64_t)tlseek(fd, (long)offset, whence);
 }
 
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
