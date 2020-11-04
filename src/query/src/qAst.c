@@ -609,7 +609,7 @@ int32_t intersect(SArray *pLeft, SArray *pRight, SArray *pFinalRes) {
 /*
  * traverse the result and apply the function to each item to check if the item is qualified or not
  */
-static void tArrayTraverse(tExprNode *pExpr, __result_filter_fn_t fp, SArray *pResult) {
+static UNUSED_FUNC void tArrayTraverse(tExprNode *pExpr, __result_filter_fn_t fp, SArray *pResult) {
   assert(pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_VALUE && fp != NULL);
 
   //  scan the result array list and check for each item in the list
