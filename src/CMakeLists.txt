@@ -21,5 +21,5 @@ ADD_SUBDIRECTORY(wal)
 ADD_SUBDIRECTORY(cq)
 ADD_SUBDIRECTORY(dnode)
 ADD_SUBDIRECTORY(connector/odbc)
-# ADD_SUBDIRECTORY(connector/jdbc)
+ADD_SUBDIRECTORY(connector/jdbc)
 

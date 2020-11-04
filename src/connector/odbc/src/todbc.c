@@ -2852,8 +2852,6 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
 
 static void init_routine(void) {
   taos_init();
-  D("tsLocale:  [%s]", tsLocale);
-  D("tsCharset: [%s]", tsCharset);
 }
 
 static size_t do_field_display_size(TAOS_FIELD *field) {
