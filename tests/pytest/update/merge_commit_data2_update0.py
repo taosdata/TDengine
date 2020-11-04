@@ -23,8 +23,8 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-    
-    
+
+
     def restart_taosd(self,db):
         tdDnodes.stop(1)
         tdDnodes.startWithoutSleep(1)
@@ -49,7 +49,7 @@ class TDTestCase:
         tdSql.execute(sql)
         sql = 'drop database if exists db'
         tdSql.execute(sql)
-        sql = 'create database db update 1 days 30;'
+        sql = 'create database db update 0 days 30;'
         tdSql.execute(sql)
         sql = 'use db;'
         tdSql.execute(sql)
@@ -97,7 +97,7 @@ class TDTestCase:
         tdSql.query('select * from db.t1;')
         print(tdSql.queryResult)
         for i in range(insert_rows):
-            tdSql.checkData(i, 1, 2)
+            tdSql.checkData(i, 1, 1)
         for i in range(insert_rows, insert_rows*2):
             tdSql.checkData(i, 1, 1)
 
@@ -106,7 +106,7 @@ class TDTestCase:
         tdSql.query('select * from db.t1;')
         # print(tdSql.queryResult)
         for i in range(insert_rows):
-            tdSql.checkData(i, 1, 2)
+            tdSql.checkData(i, 1, 1)
         for i in range(insert_rows, insert_rows*2):
             tdSql.checkData(i, 1, 1)
 
@@ -129,7 +129,7 @@ class TDTestCase:
         for k in range(10):
             for i in range(10):
                 tdSql.execute('insert into t2 values (%d , 1)' %(t0 + 200 + k * 10 + i))
-                print('insert into t2 values (%d , 1)' %(t0 + 200 + k * 10 + i))
+                # print('insert into t2 values (%d , 1)' %(t0 + 200 + k * 10 + i))
 
 
         print("==========step2")
@@ -169,15 +169,23 @@ class TDTestCase:
         print("==========step2")
         print('check query result before restart')
         tdSql.query('select * from db.t3;')
-        for i in range(5200):
+        for i in range(200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(200, 5000):
             tdSql.checkData(i, 1, 2)
+        for i in range(5000, 5200):
+            tdSql.checkData(i, 1, 1)
         # print(tdSql.queryResult)
         print('restart to commit')
         self.restart_taosd('db')
         print('check query result after restart')
         tdSql.query('select * from db.t3;')
-        for i in range(5200):
+        for i in range(200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(200, 5000):
             tdSql.checkData(i, 1, 2)
+        for i in range(5000, 5200):
+            tdSql.checkData(i, 1, 1)
 
         print("==================================4 start")
         print("==========step1")
@@ -207,9 +215,7 @@ class TDTestCase:
 
         print('check query result before restart')
         tdSql.query('select * from db.t4;')
-        for i in range(100):
-            tdSql.checkData(i, 1, 2)
-        for i in range(100, 200):
+        for i in range(200):
             tdSql.checkData(i, 1, 1)
         for i in range(200, 5000):
             tdSql.checkData(i, 1, 2)
@@ -219,15 +225,13 @@ class TDTestCase:
         print('check query result after restart')
         self.restart_taosd('db')
         tdSql.query('select * from db.t4;')
-        for i in range(100):
-            tdSql.checkData(i, 1, 2)
-        for i in range(100, 200):
+        for i in range(200):
             tdSql.checkData(i, 1, 1)
         for i in range(200, 5000):
             tdSql.checkData(i, 1, 2)
         for i in range(5000, 5200):
             tdSql.checkData(i, 1, 1)
-
+        #
         print("==================================5 start")
         print("==========step1")
         print("create table && insert data")
@@ -256,26 +260,22 @@ class TDTestCase:
 
         print('check query result before restart')
         tdSql.query('select * from db.t5;')
-        for i in range(100):
+        for i in range(200):
             tdSql.checkData(i, 1, 1)
-        for i in range(100, 5000):
+        for i in range(200, 5000):
             tdSql.checkData(i, 1, 2)
-        for i in range(5000, 5100):
+        for i in range(5000, 5200):
             tdSql.checkData(i, 1, 1)
-        for i in range(5100, 5200):
-            tdSql.checkData(i, 1, 2)
 
         print('check query result after restart')
         self.restart_taosd('db')
         tdSql.query('select * from db.t5;')
-        for i in range(100):
+        for i in range(200):
             tdSql.checkData(i, 1, 1)
-        for i in range(100, 5000):
+        for i in range(200, 5000):
             tdSql.checkData(i, 1, 2)
-        for i in range(5000, 5100):
+        for i in range(5000, 5200):
             tdSql.checkData(i, 1, 1)
-        for i in range(5100, 5200):
-            tdSql.checkData(i, 1, 2)
 
         print("==================================6 start")
         print("==========step1")
@@ -300,14 +300,30 @@ class TDTestCase:
         print('check query result before restart')
         tdSql.query('select * from db.t6;')
         tdSql.checkRows(11000)
-        for i in range(11000):
+        for i in range(1000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(1000,1200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(1200,6000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(6000,6200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
 
         print('check query result after restart')
         self.restart_taosd('db')
         tdSql.query('select * from db.t6;')
         tdSql.checkRows(11000)
-        for i in range(11000):
+        for i in range(1000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(1000,1200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(1200,6000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(6000,6200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
 
 
@@ -332,14 +348,30 @@ class TDTestCase:
         print('check query result before restart')
         tdSql.query('select * from db.t7;')
         tdSql.checkRows(11000)
-        for i in range(11000):
+        for i in range(1000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(1000,1200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(1200,6000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(6000,6200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
 
         print('check query result after restart')
         self.restart_taosd('db')
         tdSql.query('select * from db.t7;')
         tdSql.checkRows(11000)
-        for i in range(11000):
+        for i in range(1000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(1000,1200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(1200,6000):
+            tdSql.checkData(i, 1, 2)
+        for i in range(6000,6200):
+            tdSql.checkData(i, 1, 1)
+        for i in range(6200, 11000):
             tdSql.checkData(i, 1, 2)
 
 
