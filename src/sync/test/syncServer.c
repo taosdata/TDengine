@@ -254,7 +254,7 @@ uint32_t getFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex
   return magic;
 }
 
-int getWalInfo(void *ahandle, char *name, uint32_t *index) {
+int getWalInfo(void *ahandle, char *name, int64_t *index) {
   struct stat fstat;
   char        aname[280];
 

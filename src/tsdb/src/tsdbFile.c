@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #define _DEFAULT_SOURCE
-#include <regex.h>
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
+#include <regex.h>
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
@@ -428,7 +426,7 @@ int tsdbUpdateFileHeader(SFile *pFile) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-  if (taosTWrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosWrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -493,7 +491,7 @@ int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
     return -1;
   }
 
-  if (taosTRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to read file %s header part with %d bytes, reason:%s", pFile->fname, TSDB_FILE_HEAD_SIZE,
               strerror(errno));
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;

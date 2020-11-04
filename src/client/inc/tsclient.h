@@ -90,12 +90,12 @@ typedef struct STableComInfo {
   int32_t rowSize;
 } STableComInfo;
 
-typedef struct SCMCorVgroupInfo {
-  int32_t    version;
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddr1   epAddr[TSDB_MAX_REPLICA];
-} SCMCorVgroupInfo;
+typedef struct SCorVgroupInfo {
+  int32_t  version;
+  int8_t   inUse;
+  int8_t   numOfEps;
+  SEpAddr1 epAddr[TSDB_MAX_REPLICA];
+} SCorVgroupInfo;
 
 typedef struct STableMeta {
   STableComInfo  tableInfo;
@@ -103,8 +103,8 @@ typedef struct STableMeta {
   int16_t        sversion;
   int16_t        tversion;
   char           sTableId[TSDB_TABLE_FNAME_LEN];
-  SCMVgroupInfo  vgroupInfo;
-  SCMCorVgroupInfo  corVgroupInfo;
+  SVgroupInfo    vgroupInfo;
+  SCorVgroupInfo corVgroupInfo;
   STableId       id;
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;

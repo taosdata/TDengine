@@ -19,9 +19,11 @@
 extern "C" {
 #endif
 
-#define TAOS_WAL_NOLOG   0
-#define TAOS_WAL_WRITE   1
-#define TAOS_WAL_FSYNC   2
+typedef enum {
+  TAOS_WAL_NOLOG = 0,
+  TAOS_WAL_WRITE = 1,
+  TAOS_WAL_FSYNC = 2
+} EWalType;
 
 typedef struct {
   int8_t   msgType;
@@ -34,8 +36,9 @@ typedef struct {
 } SWalHead;
 
 typedef struct {
-  int8_t  walLevel;     // wal level
+  int32_t vgId;
   int32_t fsyncPeriod;  // millisecond
+  int8_t  walLevel;     // wal level
   int8_t  wals;         // number of WAL files;
   int8_t  keep;         // keep the wal file when closed
 } SWalCfg;
@@ -43,14 +46,18 @@ typedef struct {
 typedef void* twalh;  // WAL HANDLE
 typedef int (*FWalWrite)(void *ahandle, void *pHead, int type);
 
-twalh   walOpen(const char *path, const SWalCfg *pCfg);
-int     walAlter(twalh pWal, const SWalCfg *pCfg);
+int32_t walInit();
+void    walCleanUp();
+
+twalh   walOpen(char *path, SWalCfg *pCfg);
+int32_t walAlter(twalh pWal, SWalCfg *pCfg);
+void    walStop(twalh);
 void    walClose(twalh);
-int     walRenew(twalh);
-int     walWrite(twalh, SWalHead *);
+int32_t walRenew(twalh);
+int32_t walWrite(twalh, SWalHead *);
 void    walFsync(twalh);
-int     walRestore(twalh, void *pVnode, FWalWrite writeFp);
-int     walGetWalFile(twalh, char *name, uint32_t *index);
+int32_t walRestore(twalh, void *pVnode, FWalWrite writeFp);
+int32_t walGetWalFile(twalh, char *fileName, int64_t *fileId);
 int64_t walGetVersion(twalh);
 
 #ifdef __cplusplus

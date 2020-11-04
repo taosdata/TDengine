@@ -2428,7 +2428,7 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
     return NULL;
   }
 
-  size_t size = sizeof(SVgroupsInfo) + sizeof(SCMVgroupInfo) * vgroupList->numOfVgroups;
+  size_t size = sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupList->numOfVgroups;
   SVgroupsInfo* pNew = calloc(1, size);
   if (pNew == NULL) {
     return NULL;
@@ -2437,9 +2437,9 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
   pNew->numOfVgroups = vgroupList->numOfVgroups;
 
   for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SCMVgroupInfo* pNewVInfo = &pNew->vgroups[i];
+    SVgroupInfo* pNewVInfo = &pNew->vgroups[i];
 
-    SCMVgroupInfo* pvInfo = &vgroupList->vgroups[i];
+    SVgroupInfo* pvInfo = &vgroupList->vgroups[i];
     pNewVInfo->vgId = pvInfo->vgId;
     pNewVInfo->numOfEps = pvInfo->numOfEps;
 
@@ -2458,7 +2458,7 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
   }
 
   for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SCMVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
+    SVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
 
     for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
       taosTFree(pVgroupInfo->epAddr[j].fqdn);
@@ -2469,7 +2469,7 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
   return NULL;
 }
 
-void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src) {
+void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
   dst->vgId = src->vgId;
   dst->numOfEps = src->numOfEps;
   for(int32_t i = 0; i < dst->numOfEps; ++i) {

@@ -13,12 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_WAL_MGMT_H
-#define TDENGINE_WAL_MGMT_H
+#ifndef TDENGINE_VNODE_VERSION_H
+#define TDENGINE_VNODE_VERSION_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+int32_t vnodeReadVersion(SVnodeObj *pVnode);
+int32_t vnodeSaveVersion(SVnodeObj *pVnode);
 
 #ifdef __cplusplus
 }

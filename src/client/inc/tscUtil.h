@@ -87,8 +87,8 @@ typedef struct SJoinSupporter {
 } SJoinSupporter;
 
 typedef struct SVgroupTableInfo {
-  SCMVgroupInfo vgInfo;
-  SArray*       itemList;   //SArray<STableIdInfo>
+  SVgroupInfo vgInfo;
+  SArray*     itemList;   //SArray<STableIdInfo>
 } SVgroupTableInfo;
 
 static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
@@ -239,7 +239,7 @@ void tscDoQuery(SSqlObj* pSql);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
-void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src);
+void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
 /**
  * The create object function must be successful expect for the out of memory issue.
  *
