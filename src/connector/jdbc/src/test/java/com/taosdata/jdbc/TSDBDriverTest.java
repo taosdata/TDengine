@@ -115,6 +115,7 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
+            e.printStackTrace();
             if (!isTaosdActived)
                 assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
             else
@@ -135,11 +136,13 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
-            if (!isTaosdActived)
-                assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
-            else
-                fail("failure - should not throw Exception");
             e.printStackTrace();
+            if (!isTaosdActived) {
+                assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
+            }
+            else {
+                fail("failure - should not throw Exception");
+            }
         }
     }
 
@@ -157,6 +160,7 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
+            e.printStackTrace();
             if (!isTaosdActived)
                 assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
             else
