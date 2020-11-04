@@ -44,10 +44,10 @@ public class TSDBDriverTest {
             return;
         try {
             System.loadLibrary(libPath);
+            islibLoaded = true;
         } catch (UnsatisfiedLinkError error) {
             islibLoaded = false;
         }
-        islibLoaded = true;
     }
 
     @Test
