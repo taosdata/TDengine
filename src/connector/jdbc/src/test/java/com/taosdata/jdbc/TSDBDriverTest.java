@@ -136,10 +136,8 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
             if (!isTaosdActived) {
-                System.out.println(e.getMessage());
-                assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
+                assertEquals("failure - should throw SQLException", SQLException.class, e.getClass());
             } else {
                 fail("failure - should not throw Exception");
             }
