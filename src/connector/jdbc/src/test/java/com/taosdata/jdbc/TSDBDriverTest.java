@@ -159,6 +159,7 @@ public class TSDBDriverTest {
         try {
             if (islibLoaded) {
                 Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+                System.out.println(conn);
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
