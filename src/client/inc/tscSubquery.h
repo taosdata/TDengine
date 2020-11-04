@@ -23,7 +23,7 @@ extern "C" {
 #include "tscUtil.h"
 #include "tsclient.h"
 
-void tscFetchDatablockFromSubquery(SSqlObj* pSql);
+void tscFetchDatablockForSubquery(SSqlObj* pSql);
 
 void tscSetupOutputColumnIndex(SSqlObj* pSql);
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);

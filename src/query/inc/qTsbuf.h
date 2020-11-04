@@ -135,6 +135,12 @@ int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf);
 
 void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId);
 
+int32_t dumpFileBlockByVnodeId(STSBuf* pTSBuf, int32_t vnodeId, void* buf, int32_t* len, int32_t* numOfBlocks);
+
+STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag);
+
+bool tsBufIsValidElem(STSElem* pElem);
+
 #ifdef __cplusplus
 }
 #endif

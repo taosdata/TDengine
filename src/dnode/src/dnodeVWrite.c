@@ -15,74 +15,65 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "taoserror.h"
-#include "tutil.h"
+#include "tglobal.h"
 #include "tqueue.h"
-#include "trpc.h"
 #include "tsdb.h"
 #include "twal.h"
-#include "tdataformat.h"
-#include "tglobal.h"
 #include "tsync.h"
 #include "vnode.h"
-#include "dnodeInt.h"
 #include "syncInt.h"
-#include "dnodeVWrite.h"
-#include "dnodeMgmt.h"
+#include "dnodeInt.h"
 
 typedef struct {
-  taos_qall  qall;
-  taos_qset  qset;      // queue set
-  pthread_t  thread;    // thread
-  int32_t    workerId;  // worker ID
+  taos_qall qall;
+  taos_qset qset;      // queue set
+  int32_t   workerId;  // worker ID
+  pthread_t thread;    // thread
 } SWriteWorker;
 
 typedef struct {
-  SRspRet  rspRet;
-  int32_t  processedCount;
-  int32_t  code;
-  void    *pCont;
-  int32_t  contLen;
-  SRpcMsg  rpcMsg;
+  SRspRet rspRet;
+  SRpcMsg rpcMsg;
+  int32_t processedCount;
+  int32_t code;
+  int32_t contLen;
+  void *  pCont;
 } SWriteMsg;
 
 typedef struct {
-  int32_t        max;        // max number of workers
-  int32_t        nextId;     // from 0 to max-1, cyclic
-  SWriteWorker  *writeWorker;
+  int32_t max;     // max number of workers
+  int32_t nextId;  // from 0 to max-1, cyclic
+  SWriteWorker *worker;
   pthread_mutex_t mutex;
 } SWriteWorkerPool;
 
+static SWriteWorkerPool tsVWriteWP;
 static void *dnodeProcessWriteQueue(void *param);
-static void  dnodeHandleIdleWorker(SWriteWorker *pWorker);
 
-SWriteWorkerPool wWorkerPool;
+int32_t dnodeInitVWrite() {
+  tsVWriteWP.max = tsNumOfCores;
+  tsVWriteWP.worker = (SWriteWorker *)tcalloc(sizeof(SWriteWorker), tsVWriteWP.max);
+  if (tsVWriteWP.worker == NULL) return -1;
+  pthread_mutex_init(&tsVWriteWP.mutex, NULL);
 
-int32_t dnodeInitVnodeWrite() {
-  wWorkerPool.max = tsNumOfCores;
-  wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
-  if (wWorkerPool.writeWorker == NULL) return -1;
-  pthread_mutex_init(&wWorkerPool.mutex, NULL);
-
-  for (int32_t i = 0; i < wWorkerPool.max; ++i) {
-    wWorkerPool.writeWorker[i].workerId = i;
+  for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
+    tsVWriteWP.worker[i].workerId = i;
   }
 
-  dInfo("dnode write is opened, max worker %d", wWorkerPool.max);
+  dInfo("dnode vwrite is initialized, max worker %d", tsVWriteWP.max);
   return 0;
 }
 
-void dnodeCleanupVnodeWrite() {
-  for (int32_t i = 0; i < wWorkerPool.max; ++i) {
-    SWriteWorker *pWorker = wWorkerPool.writeWorker + i;
+void dnodeCleanupVWrite() {
+  for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
+    SWriteWorker *pWorker = tsVWriteWP.worker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(pWorker->qset);
     }
   }
 
-  for (int32_t i = 0; i < wWorkerPool.max; ++i) {
-    SWriteWorker *pWorker = wWorkerPool.writeWorker + i;
+  for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
+    SWriteWorker *pWorker = tsVWriteWP.worker + i;
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
@@ -90,13 +81,13 @@ void dnodeCleanupVnodeWrite() {
     }
   }
 
-  pthread_mutex_destroy(&wWorkerPool.mutex);
-  free(wWorkerPool.writeWorker);
-  dInfo("dnode write is closed");
+  pthread_mutex_destroy(&tsVWriteWP.mutex);
+  tfree(tsVWriteWP.worker);
+  dInfo("dnode vwrite is closed");
 }
 
-void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
-  char *pCont = (char *)pMsg->pCont;
+void dnodeDispatchToVWriteQueue(SRpcMsg *pMsg) {
+  char *pCont = pMsg->pCont;
 
   if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
     SMsgDesc *pDesc = (SMsgDesc *)pCont;
@@ -111,7 +102,7 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   taos_queue queue = vnodeAcquireWqueue(pHead->vgId);
   if (queue) {
     // put message into queue
-    SWriteMsg *pWrite = (SWriteMsg *)taosAllocateQitem(sizeof(SWriteMsg));
+    SWriteMsg *pWrite = taosAllocateQitem(sizeof(SWriteMsg));
     pWrite->rpcMsg    = *pMsg;
     pWrite->pCont     = pCont;
     pWrite->contLen   = pHead->contLen;
@@ -130,12 +121,12 @@ void dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateVnodeWqueue(void *pVnode) {
-  pthread_mutex_lock(&wWorkerPool.mutex);
-  SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
+void *dnodeAllocVWriteQueue(void *pVnode) {
+  pthread_mutex_lock(&tsVWriteWP.mutex);
+  SWriteWorker *pWorker = tsVWriteWP.worker + tsVWriteWP.nextId;
   void *queue = taosOpenQueue();
   if (queue == NULL) {
-    pthread_mutex_unlock(&wWorkerPool.mutex);
+    pthread_mutex_unlock(&tsVWriteWP.mutex);
     return NULL;
   }
 
@@ -143,7 +134,7 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
     pWorker->qset = taosOpenQset();
     if (pWorker->qset == NULL) {
       taosCloseQueue(queue);
-      pthread_mutex_unlock(&wWorkerPool.mutex);
+      pthread_mutex_unlock(&tsVWriteWP.mutex);
       return NULL;
     }
 
@@ -152,7 +143,7 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
     if (pWorker->qall == NULL) {
       taosCloseQset(pWorker->qset);
       taosCloseQueue(queue);
-      pthread_mutex_unlock(&wWorkerPool.mutex);
+      pthread_mutex_unlock(&tsVWriteWP.mutex);
       return NULL;
     }
     pthread_attr_t thAttr;
@@ -160,37 +151,35 @@ void *dnodeAllocateVnodeWqueue(void *pVnode) {
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
     if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessWriteQueue, pWorker) != 0) {
-      dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+      dError("failed to create thread to process vwrite queue since %s", strerror(errno));
       taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
       taosCloseQueue(queue);
       queue = NULL;
     } else {
-      dDebug("write worker:%d is launched", pWorker->workerId);
-      wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
+      dDebug("dnode vwrite worker:%d is launched", pWorker->workerId);
+      tsVWriteWP.nextId = (tsVWriteWP.nextId + 1) % tsVWriteWP.max;
     }
 
     pthread_attr_destroy(&thAttr);
   } else {
     taosAddIntoQset(pWorker->qset, queue, pVnode);
-    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
+    tsVWriteWP.nextId = (tsVWriteWP.nextId + 1) % tsVWriteWP.max;
   }
 
-  pthread_mutex_unlock(&wWorkerPool.mutex);
-  dDebug("pVnode:%p, write queue:%p is allocated", pVnode, queue);
+  pthread_mutex_unlock(&tsVWriteWP.mutex);
+  dDebug("pVnode:%p, dnode vwrite queue:%p is allocated", pVnode, queue);
 
   return queue;
 }
 
-void dnodeFreeVnodeWqueue(void *wqueue) {
+void dnodeFreeVWriteQueue(void *wqueue) {
   taosCloseQueue(wqueue);
-
-  // dynamically adjust the number of threads
 }
 
-void dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code) {
-  SWriteMsg *pWrite = (SWriteMsg *)param;
-  if (pWrite == NULL) return;
+void dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code) {
+  if (param == NULL) return;
+  SWriteMsg *pWrite = param;
 
   if (code < 0) pWrite->code = code;
   int32_t count = atomic_add_fetch_32(&pWrite->processedCount, 1);
@@ -215,44 +204,45 @@ static void *dnodeProcessWriteQueue(void *param) {
   SWriteWorker *pWorker = (SWriteWorker *)param;
   SWriteMsg *   pWrite;
   SWalHead *    pHead;
-  int32_t       numOfMsgs;
-  int           type;
-  void *        pVnode, *item;
   SRspRet *     pRspRet;
+  void *        pVnode;
+  void *        pItem;
+  int32_t       numOfMsgs;
+  int32_t       qtype;
 
-  dDebug("write worker:%d is running", pWorker->workerId);
+  dDebug("dnode vwrite worker:%d is running", pWorker->workerId);
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
     if (numOfMsgs == 0) {
-      dDebug("qset:%p, dnode write got no message from qset, exiting", pWorker->qset);
+      dDebug("qset:%p, dnode vwrite got no message from qset, exiting", pWorker->qset);
       break;
     }
 
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       pWrite = NULL;
       pRspRet = NULL;
-      taosGetQitem(pWorker->qall, &type, &item);
-      if (type == TAOS_QTYPE_RPC) {
-        pWrite = (SWriteMsg *)item;
+      taosGetQitem(pWorker->qall, &qtype, &pItem);
+      if (qtype == TAOS_QTYPE_RPC) {
+        pWrite = pItem;
         pRspRet = &pWrite->rspRet;
-        pHead = (SWalHead *)(pWrite->pCont - sizeof(SWalHead));
+        pHead = (SWalHead *)((char *)pWrite->pCont - sizeof(SWalHead));
         pHead->msgType = pWrite->rpcMsg.msgType;
         pHead->version = 0;
         pHead->len = pWrite->contLen;
         dDebug("%p, rpc msg:%s will be processed in vwrite queue", pWrite->rpcMsg.ahandle,
                taosMsg[pWrite->rpcMsg.msgType]);
-      } else if (type == TAOS_QTYPE_CQ) {
-        pHead = (SWalHead *)((char*)item + sizeof(SSyncHead));
+      } else if (qtype == TAOS_QTYPE_CQ) {
+        pHead = (SWalHead *)((char *)pItem + sizeof(SSyncHead));
         dTrace("%p, CQ wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType],
                pHead->version);
       } else {
-        pHead = (SWalHead *)item;
+        pHead = pItem;
         dTrace("%p, wal msg:%s will be processed in vwrite queue, version:%" PRIu64, pHead, taosMsg[pHead->msgType],
                pHead->version);
       }
 
-      int32_t code = vnodeProcessWrite(pVnode, type, pHead, pRspRet);
+      int32_t code = vnodeProcessWrite(pVnode, qtype, pHead, pRspRet);
       dTrace("%p, msg:%s is processed in vwrite queue, version:%" PRIu64 ", result:%s", pHead, taosMsg[pHead->msgType],
              pHead->version, tstrerror(code));
 
@@ -267,37 +257,21 @@ static void *dnodeProcessWriteQueue(void *param) {
     // browse all items, and process them one by one
     taosResetQitems(pWorker->qall);
     for (int32_t i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(pWorker->qall, &type, &item);
-      if (type == TAOS_QTYPE_RPC) {
-        pWrite = (SWriteMsg *)item;
-        dnodeSendRpcVnodeWriteRsp(pVnode, item, pWrite->rpcMsg.code);
-      } else if (type == TAOS_QTYPE_FWD) {
-        pHead = (SWalHead *)item;
+      taosGetQitem(pWorker->qall, &qtype, &pItem);
+      if (qtype == TAOS_QTYPE_RPC) {
+        pWrite = pItem;
+        dnodeSendRpcVWriteRsp(pVnode, pItem, pWrite->rpcMsg.code);
+      } else if (qtype == TAOS_QTYPE_FWD) {
+        pHead = pItem;
         vnodeConfirmForward(pVnode, pHead->version, 0);
-        taosFreeQitem(item);
+        taosFreeQitem(pItem);
         vnodeRelease(pVnode);
       } else {
-        taosFreeQitem(item);
+        taosFreeQitem(pItem);
         vnodeRelease(pVnode);
       }
     }
   }
 
   return NULL;
-}
-
-UNUSED_FUNC
-static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
-  int32_t num = taosGetQueueNumber(pWorker->qset);
-
-  if (num > 0) {
-    usleep(30000);
-    sched_yield();
-  } else {
-    taosFreeQall(pWorker->qall);
-    taosCloseQset(pWorker->qset);
-    pWorker->qset = NULL;
-    dDebug("write worker:%d is released", pWorker->workerId);
-    pthread_exit(NULL);
-  }
 }

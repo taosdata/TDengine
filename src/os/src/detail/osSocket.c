@@ -19,8 +19,8 @@
 
 #ifndef TAOS_OS_FUNC_SOCKET
 
-int taosSetNonblocking(SOCKET sock, int on) {
-  int flags = 0;
+int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
+  int32_t flags = 0;
   if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
     uError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
@@ -43,7 +43,7 @@ void taosBlockSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
     uError("failed to block SIGPIPE");
   }
@@ -53,7 +53,7 @@ void taosBlockSIGPIPE() {
 
 #ifndef TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 
-int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen) {
+int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 

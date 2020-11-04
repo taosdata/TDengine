@@ -268,7 +268,7 @@ static void dnodeGetEmail(char* filepath) {
     return;
   }
   
-  if (taosTRead(fd, (void *)tsEmail, TSDB_FQDN_LEN) < 0) {
+  if (taosRead(fd, (void *)tsEmail, TSDB_FQDN_LEN) < 0) {
     dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
   } 
 
@@ -299,6 +299,7 @@ int32_t dnodeInitTelemetry() {
     dTrace("failed to create telemetry thread, reason:%s", strerror(errno));
   }
 
+  dInfo("dnode telemetry is initialized");
   return 0;
 }
 

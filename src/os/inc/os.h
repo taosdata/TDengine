@@ -52,9 +52,10 @@ extern "C" {
 #include "osWindows.h"
 #endif
 
+#include "osDef.h"
+#include "osAlloc.h"
 #include "osAtomic.h"
 #include "osCommon.h"
-#include "osDef.h"
 #include "osDir.h"
 #include "osFile.h"
 #include "osLz4.h"
