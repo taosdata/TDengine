@@ -303,9 +303,8 @@ SResultRowPool* initResultRowPool(size_t size) {
 
   p->numOfElemPerBlock = 128;
 
-  p->elemSize = size;
+  p->elemSize = (int32_t) size;
   p->blockSize = p->numOfElemPerBlock * p->elemSize;
-
   p->position.pos = 0;
 
   p->pData = taosArrayInit(8, POINTER_BYTES);
