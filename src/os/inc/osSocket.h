@@ -42,10 +42,10 @@ extern "C" {
 
 #ifdef TAOS_RANDOM_NETWORK_FAIL
   #ifdef TAOS_RANDOM_NETWORK_FAIL_TEST
-    ssize_t taosSendRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags);
-    ssize_t taosSendToRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-    ssize_t taosReadSocketRandomFail(int32_t fd, void *buf, size_t count);
-    ssize_t taosWriteSocketRandomFail(int32_t fd, const void *buf, size_t count);
+    int64_t taosSendRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags);
+    int64_t taosSendToRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+    int64_t taosReadSocketRandomFail(int32_t fd, void *buf, size_t count);
+    int64_t taosWriteSocketRandomFail(int32_t fd, const void *buf, size_t count);
     #undef taosSend
     #undef taosSendto
     #undef taosReadSocket
