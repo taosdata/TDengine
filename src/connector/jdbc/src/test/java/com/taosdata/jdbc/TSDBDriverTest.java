@@ -37,18 +37,6 @@ public class TSDBDriverTest {
             islibLoaded = false;
             return;
         }
-//        String libPath = null;
-//        switch (osName) {
-//            case "linux":
-//                libPath = "/usr/lib/libtaos.so";
-//                break;
-//            case "windows":
-//                libPath = "C:\\TDengine\\driver\\taos.dll";
-//                break;
-//            default:
-//        }
-//        if (libPath == null)
-//            return;
         try {
             System.loadLibrary("taos");
             islibLoaded = true;
@@ -58,16 +46,21 @@ public class TSDBDriverTest {
         }
 
         try {
-            Process exec = Runtime.getRuntime().exec("ps -ef | grep taosd | grep -v \"grep\"");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(exec.getInputStream()));
-            int lineCnt = 0;
-            while (reader.readLine() != null) {
-                lineCnt++;
-            }
-            if (lineCnt > 0)
-                isTaosdActived = true;
-            else
+            if (osName.equals("linux")) {
+                String[] cmd = {"/bin/bash", "-c", "ps -ef | grep taosd | grep -v \"grep\""};
+                Process exec = Runtime.getRuntime().exec(cmd);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(exec.getInputStream()));
+                int lineCnt = 0;
+                while (reader.readLine() != null) {
+                    lineCnt++;
+                }
+                if (lineCnt > 0)
+                    isTaosdActived = true;
+                else
+                    isTaosdActived = false;
+            } else {
                 isTaosdActived = false;
+            }
         } catch (IOException e) {
             isTaosdActived = false;
         }
@@ -146,6 +139,7 @@ public class TSDBDriverTest {
                 assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
             else
                 fail("failure - should not throw Exception");
+            e.printStackTrace();
         }
     }
 
