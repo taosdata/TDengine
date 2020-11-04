@@ -315,9 +315,9 @@ if $data03 != 0 then
   return -1
 endi
 
-select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt1.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
-select count(join_mt0.c1), first(join_mt0.c1)/count(*), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
-select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
-select last(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+sql_error select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt1.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+sql select count(join_mt0.c1), first(join_mt0.c1)/count(*), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+sql select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+sql select last(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -435,53 +435,53 @@ sql insert into t1 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.00
 sql insert into t2 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ; 
 sql insert into t2 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ; 
 
-sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2;
-if $rows != 40 then
-  return -1
-endi
-
-if $data01 != 1.000000000 then
-  return -1
-endi
-if $data02 != t1 then
-  return -1
-endi
-if $data03 != 1 then
-  return -1
-endi
-if $data04 != 1 then
-  return -1
-endi
-
-if $data11 != 1.000000000 then
-  return -1
-endi
-if $data12 != t1 then
-  return -1
-endi
-if $data13 != 1 then
-  return -1
-endi
-if $data14 != 1 then
-  return -1
-endi
-
-sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2 limit 1;
-if $rows != 2 then
-  return -1
-endi
-
-if $data11 != 1.000000000 then
-  return -1
-endi
-if $data12 != t2 then
-  return -1
-endi
-if $data13 != 1 then
-  return -1
-endi
-if $data14 != 2 then
-  return -1
-endi
+#sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2;
+#if $rows != 40 then
+#  return -1
+#endi
+#
+#if $data01 != 1.000000000 then
+#  return -1
+#endi
+#if $data02 != t1 then
+#  return -1
+#endi
+#if $data03 != 1 then
+#  return -1
+#endi
+#if $data04 != 1 then
+#  return -1
+#endi
+#
+#if $data11 != 1.000000000 then
+#  return -1
+#endi
+#if $data12 != t1 then
+#  return -1
+#endi
+#if $data13 != 1 then
+#  return -1
+#endi
+#if $data14 != 1 then
+#  return -1
+#endi
+#
+#sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2 limit 1;
+#if $rows != 2 then
+#  return -1
+#endi
+#
+#if $data11 != 1.000000000 then
+#  return -1
+#endi
+#if $data12 != t2 then
+#  return -1
+#endi
+#if $data13 != 1 then
+#  return -1
+#endi
+#if $data14 != 2 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
