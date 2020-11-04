@@ -108,7 +108,7 @@ public class TSDBDriverTest {
 
     @Test
     public void testConnectWithJdbcURL() {
-        final String url = "jdbc:TAOS://localhost:3306/log?user=root&password=taosdata";
+        final String url = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         try {
             if (islibLoaded) {
                 Connection conn = DriverManager.getConnection(url);
@@ -124,7 +124,7 @@ public class TSDBDriverTest {
 
     @Test
     public void testConnectWithProperties() {
-        final String jdbcUrl = "jdbc:TAOS://localhost.com:6030/test?user=root&password=taosdata";
+        final String jdbcUrl = "jdbc:TAOS://localhost:6030/test?user=root&password=taosdata";
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
