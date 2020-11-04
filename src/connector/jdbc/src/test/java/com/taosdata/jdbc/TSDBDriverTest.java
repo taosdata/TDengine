@@ -1,6 +1,5 @@
 package com.taosdata.jdbc;
 
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,22 +29,27 @@ public class TSDBDriverTest {
     @BeforeClass
     public static void before() {
         String osName = System.getProperty("os.name").toLowerCase();
-        String libPath = null;
-        switch (osName) {
-            case "linux":
-                libPath = "/usr/lib/libtaos.so";
-                break;
-            case "windows":
-                libPath = "C:\\TDengine\\driver\\taos.dll";
-                break;
-            default:
-        }
-        if (libPath == null)
+        if (!osName.equals("linux") && !osName.equals("windows")) {
+            islibLoaded = false;
             return;
+        }
+//        String libPath = null;
+//        switch (osName) {
+//            case "linux":
+//                libPath = "/usr/lib/libtaos.so";
+//                break;
+//            case "windows":
+//                libPath = "C:\\TDengine\\driver\\taos.dll";
+//                break;
+//            default:
+//        }
+//        if (libPath == null)
+//            return;
         try {
-            System.loadLibrary(libPath);
+            System.loadLibrary("taos");
             islibLoaded = true;
         } catch (UnsatisfiedLinkError error) {
+            System.out.println("load tdengine lib failed.");
             islibLoaded = false;
         }
     }
