@@ -316,7 +316,7 @@ static SArray* buildVgroupTableByResult(SQueryInfo* pQueryInfo, SArray* pVgroupT
   int32_t* list = NULL;
   tsBufGetVnodeIdList(pQueryInfo->tsBuf, &num, &list);
 
-  int32_t numOfGroups = taosArrayGetSize(pVgroupTables);
+  size_t numOfGroups = taosArrayGetSize(pVgroupTables);
 
   SArray* pNew = taosArrayInit(num, sizeof(SVgroupTableInfo));
 
