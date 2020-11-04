@@ -271,7 +271,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
 
-  metaLen += fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+  metaLen += (int32_t) fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
   assert(metaLen == getTagAreaLength(&pBlock->tag));
 
   int32_t blockSize = metaLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
