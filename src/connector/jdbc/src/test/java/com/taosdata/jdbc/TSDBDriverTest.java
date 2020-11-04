@@ -125,7 +125,7 @@ public class TSDBDriverTest {
 
     @Test
     public void testConnectWithProperties() {
-        final String jdbcUrl = "jdbc:TAOS://localhost:6030/test?user=root&password=taosdata";
+        final String jdbcUrl = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
@@ -138,9 +138,9 @@ public class TSDBDriverTest {
         } catch (SQLException e) {
             e.printStackTrace();
             if (!isTaosdActived) {
+                System.out.println(e.getMessage());
                 assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
-            }
-            else {
+            } else {
                 fail("failure - should not throw Exception");
             }
         }
@@ -148,7 +148,7 @@ public class TSDBDriverTest {
 
     @Test
     public void testConnectWithConfigFile() {
-        String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
+        String jdbcUrl = "jdbc:TAOS://:/log?user=root&password=taosdata";
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
