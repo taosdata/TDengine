@@ -175,7 +175,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -237,8 +237,8 @@ static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint3
   return 0;
 }
 
-static int sdbGetWalInfo(void *ahandle, char *name, uint32_t *index) {
-  return walGetWalFile(tsSdbObj.wal, name, index);
+static int32_t sdbGetWalInfo(void *ahandle, char *fileName, int64_t *fileId) {
+  return walGetWalFile(tsSdbObj.wal, fileName, fileId);
 }
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {
@@ -312,7 +312,7 @@ void sdbUpdateAsync() {
 }
 
 void sdbUpdateSync(void *pMnodes) {
-  SDMMnodeInfos *mnodes = pMnodes;
+  SMnodeInfos *mnodes = pMnodes;
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync config later");
     return;
@@ -346,10 +346,10 @@ void sdbUpdateSync(void *pMnodes) {
     syncCfg.replica = index;
     mDebug("mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
   } else {
-    for (index = 0; index < mnodes->nodeNum; ++index) {
-      SDMMnodeInfo *node = &mnodes->nodeInfos[index];
-      syncCfg.nodeInfo[index].nodeId = node->nodeId;
-      taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
+    for (index = 0; index < mnodes->mnodeNum; ++index) {
+      SMnodeInfo *node = &mnodes->mnodeInfos[index];
+      syncCfg.nodeInfo[index].nodeId = node->mnodeId;
+      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
       syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
     }
     syncCfg.replica = index;

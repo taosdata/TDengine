@@ -183,7 +183,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 }
 
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
-  SMDDropSTableMsg *pTable = pCont;
+  SDropSTableMsg *pTable = pCont;
   int32_t           code = TSDB_CODE_SUCCESS;
 
   vDebug("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
@@ -204,7 +204,6 @@ static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspR
   return TSDB_CODE_SUCCESS;
 }
 
-
 int vnodeWriteCqMsgToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;
   SWalHead * pHead = data;
@@ -221,7 +220,6 @@ int vnodeWriteCqMsgToQueue(void *param, void *data, int type) {
 
   return 0;
 }
-
 
 int vnodeWriteToQueue(void *param, void *data, int type) {
   SVnodeObj *pVnode = param;

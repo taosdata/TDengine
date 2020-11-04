@@ -8,8 +8,8 @@ sleep 3000
 sql connect
 
 $i = 0
-$dbPrefix = tb_in_db
-$tbPrefix = tb_in_tb
+$dbPrefix = d
+$tbPrefix = t
 $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
@@ -22,28 +22,27 @@ sql create table $tb (ts timestamp, speed int)
 
 $x = 0
 while $x < 10
-  $ms = $x . m 
-  sql insert into $tb values (now + $ms , $x ) 
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  
+  sql insert into $tb values ($ms , $x ) 
   $x = $x + 1
 endw 
 
 print =============== step 2
-sql insert into $tb values (now - 5m , 10)
-sql insert into $tb values (now - 6m , 10)
-sql insert into $tb values (now - 7m , 10)
-sql insert into $tb values (now - 8m , 10)
+$x = 0
+while $x < 5
+  $cc = $x * 60000
+  $ms = 1551481600000 + $cc
+  
+  sql insert into $tb values ($ms , $x ) 
+  $x = $x + 1
+endw 
 
 sql select * from $tb
 
 print $rows points data are retrieved
-if $rows != 14 then 
-  return -1
-endi
-
-sql drop database $db
-sleep 1000
-sql show databases
-if $rows != 0 then 
+if $rows != 15 then 
   return -1
 endi
 

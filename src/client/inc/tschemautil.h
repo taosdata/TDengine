@@ -107,9 +107,6 @@ SSchema tscGetTbnameColumnSchema();
  */
 STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size);
 
-//todo tags value as well as the table id structure needs refactor
-char *tsGetTagsValue(STableMeta *pMeta);
-
 #ifdef __cplusplus
 }
 #endif

@@ -99,7 +99,7 @@ typedef struct SSumInfo {
 // the attribute of hasResult is not needed since the num attribute would server as this purpose
 typedef struct SAvgInfo {
   double  sum;
-  int64_t num;  // num servers as the hasResult attribute in other struct
+  int64_t num;
 } SAvgInfo;
 
 typedef struct SStddevInfo {
@@ -167,7 +167,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = *bytes + sizeof(SResultInfo);
+
+    if (functionId == TSDB_FUNC_INTERP) {
+      *interBytes = sizeof(SInterpInfoDetail);
+    } else {
+      *interBytes = 0;
+    }
+
     return TSDB_CODE_SUCCESS;
   }
   
@@ -175,21 +181,21 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = (int16_t)(dataBytes + sizeof(int16_t) + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE);
-    *interBytes = *bytes;
+    *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_COUNT) {
     *type = TSDB_DATA_TYPE_BIGINT;
     *bytes = sizeof(int64_t);
-    *interBytes = *bytes;
+    *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
   
   if (functionId == TSDB_FUNC_ARITHM) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
-    *interBytes = *bytes;
+    *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
   
@@ -298,7 +304,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_FIRST || functionId == TSDB_FUNC_LAST) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = dataBytes + sizeof(SResultInfo);
+    *interBytes = dataBytes;
   } else if (functionId == TSDB_FUNC_SPREAD) {
     *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
@@ -310,7 +316,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE;  // string
-    *interBytes = *bytes + sizeof(SResultInfo);
+    *interBytes = *bytes;
   } else if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = (int16_t)(dataBytes + sizeof(SFirstLastInfo));
@@ -334,28 +340,20 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   return TSDB_CODE_SUCCESS;
 }
 
-void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf) {
-  assert(pResInfo->interResultBuf == NULL);
-  
-  pResInfo->bufLen = size;
-  pResInfo->superTableQ = superTable;
-  pResInfo->interResultBuf = buf;
-}
-
 // set the query flag to denote that query is completed
 static void no_next_step(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->complete = true;
 }
 
 static bool function_setup(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->initialized) {
     return false;
   }
   
   memset(pCtx->aOutputBuf, 0, (size_t)pCtx->outputBytes);
-  initResultInfo(pResInfo);
+  initResultInfo(pResInfo, pCtx->interBufBytes);
   return true;
 }
 
@@ -367,7 +365,7 @@ static bool function_setup(SQLFunctionCtx *pCtx) {
  * @param pCtx
  */
 static void function_finalizer(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->hasResult != DATA_SET_FLAG) {
     if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
       setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
@@ -431,7 +429,7 @@ static void count_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   *((int64_t *)pCtx->aOutputBuf) += 1;
   
   // do not need it actually
-  SResultInfo *pInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
   pInfo->hasResult = DATA_SET_FLAG;
 }
 
@@ -592,8 +590,8 @@ static void sum_function(SQLFunctionCtx *pCtx) {
   do_sum(pCtx);
   
   // keep the result data in output buffer, not in the intermediate buffer
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult == DATA_SET_FLAG && pResInfo->superTableQ) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
     // set the flag for super table query
     SSumInfo *pSum = (SSumInfo *)pCtx->aOutputBuf;
     pSum->hasResult = DATA_SET_FLAG;
@@ -604,8 +602,8 @@ static void sum_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   do_sum_f(pCtx, index);
   
   // keep the result data in output buffer, not in the intermediate buffer
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult == DATA_SET_FLAG && pResInfo->superTableQ) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
     SSumInfo *pSum = (SSumInfo *)pCtx->aOutputBuf;
     pSum->hasResult = DATA_SET_FLAG;
   }
@@ -615,8 +613,7 @@ static int32_t sum_merge_impl(const SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
   GET_TRUE_DATA_TYPE();
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  assert(pCtx->stableQuery);
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *    input = GET_INPUT_CHAR_INDEX(pCtx, i);
@@ -661,7 +658,7 @@ static void sum_func_second_merge(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = sum_merge_impl(pCtx);
   
   SET_VAL(pCtx, notNullElems, 1);
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   if (notNullElems > 0) {
     pResInfo->hasResult = DATA_SET_FLAG;
@@ -755,9 +752,9 @@ static void avg_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
   // NOTE: keep the intermediate result into the interResultBuf
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  SAvgInfo *pAvgInfo = (SAvgInfo *)pResInfo->interResultBuf;
+  SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   double *  pVal = &pAvgInfo->sum;
   
   if (pCtx->preAggVals.isSet) {
@@ -800,8 +797,8 @@ static void avg_function(SQLFunctionCtx *pCtx) {
   }
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SAvgInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SAvgInfo));
   }
 }
 
@@ -814,9 +811,9 @@ static void avg_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
   
   // NOTE: keep the intermediate result into the interResultBuf
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  SAvgInfo *pAvgInfo = (SAvgInfo *)pResInfo->interResultBuf;
+  SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
     pAvgInfo->sum += GET_INT8_VAL(pData);
@@ -839,16 +836,16 @@ static void avg_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pResInfo->hasResult = DATA_SET_FLAG;
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SAvgInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SAvgInfo));
   }
 }
 
 static void avg_func_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  assert(pCtx->stableQuery);
   
-  SAvgInfo *pAvgInfo = (SAvgInfo *)pResInfo->interResultBuf;
+  SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   char *    input = GET_INPUT_CHAR(pCtx);
   
   for (int32_t i = 0; i < pCtx->size; ++i, input += pCtx->inputBytes) {
@@ -864,12 +861,12 @@ static void avg_func_merge(SQLFunctionCtx *pCtx) {
   // if the data set hasResult is not set, the result is null
   if (pAvgInfo->num > 0) {
     pResInfo->hasResult = DATA_SET_FLAG;
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SAvgInfo));
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SAvgInfo));
   }
 }
 
 static void avg_func_second_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   double *sum = (double*) pCtx->aOutputBuf;
   char *  input = GET_INPUT_CHAR(pCtx);
@@ -883,7 +880,7 @@ static void avg_func_second_merge(SQLFunctionCtx *pCtx) {
     *sum += pInput->sum;
     
     // keep the number of data into the temp buffer
-    *(int64_t *)pResInfo->interResultBuf += pInput->num;
+    *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo) += pInput->num;
   }
 }
 
@@ -891,21 +888,21 @@ static void avg_func_second_merge(SQLFunctionCtx *pCtx) {
  * the average value is calculated in finalize routine, since current routine does not know the exact number of points
  */
 static void avg_finalizer(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
-    if (GET_INT64_VAL(pResInfo->interResultBuf) <= 0) {
+    if (GET_INT64_VAL(GET_ROWCELL_INTERBUF(pResInfo)) <= 0) {
       setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
       return;  // empty table
     }
     
-    *(double *)pCtx->aOutputBuf = (*(double *)pCtx->aOutputBuf) / *(int64_t *)pResInfo->interResultBuf;
+    *(double *)pCtx->aOutputBuf = (*(double *)pCtx->aOutputBuf) / *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo);
   } else {  // this is the secondary merge, only in the secondary merge, the input type is TSDB_DATA_TYPE_BINARY
     assert(pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_DOUBLE);
     
-    SAvgInfo *pAvgInfo = (SAvgInfo *)pResInfo->interResultBuf;
+    SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
     
     if (pAvgInfo->num == 0) {  // all data are NULL or empty table
       setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
@@ -1116,11 +1113,11 @@ static void min_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
     
     // set the flag for super table query
-    if (pResInfo->superTableQ) {
+    if (pCtx->stableQuery) {
       *(pCtx->aOutputBuf + pCtx->inputBytes) = DATA_SET_FLAG;
     }
   }
@@ -1133,11 +1130,11 @@ static void max_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
     
     // set the flag for super table query
-    if (pResInfo->superTableQ) {
+    if (pCtx->stableQuery) {
       *(pCtx->aOutputBuf + pCtx->inputBytes) = DATA_SET_FLAG;
     }
   }
@@ -1148,8 +1145,7 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
   
   GET_TRUE_DATA_TYPE();
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  assert(pCtx->stableQuery);
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *input = GET_INPUT_CHAR_INDEX(pCtx, i);
@@ -1210,7 +1206,7 @@ static void min_func_merge(SQLFunctionCtx *pCtx) {
   
   SET_VAL(pCtx, notNullElems, 1);
   
-  if (notNullElems > 0) {  // for super table query, SResultInfo is not used
+  if (notNullElems > 0) {  // for super table query, SResultRowCellInfo is not used
     char *flag = pCtx->aOutputBuf + pCtx->inputBytes;
     *flag = DATA_SET_FLAG;
   }
@@ -1221,7 +1217,7 @@ static void min_func_second_merge(SQLFunctionCtx *pCtx) {
   
   SET_VAL(pCtx, notNullElems, 1);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (notNullElems > 0) {
     pResInfo->hasResult = DATA_SET_FLAG;
   }
@@ -1242,7 +1238,7 @@ static void max_func_second_merge(SQLFunctionCtx *pCtx) {
   
   SET_VAL(pCtx, numOfElem, 1);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (numOfElem > 0) {
     pResInfo->hasResult = DATA_SET_FLAG;
   }
@@ -1297,8 +1293,8 @@ static void max_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
   minMax_function_f(pCtx, index, 0);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult == DATA_SET_FLAG && pResInfo->superTableQ) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
     char *flag = pCtx->aOutputBuf + pCtx->inputBytes;
     *flag = DATA_SET_FLAG;
   }
@@ -1313,8 +1309,8 @@ static void min_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SET_VAL(pCtx, 1, 1);
   minMax_function_f(pCtx, index, 1);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->hasResult == DATA_SET_FLAG && pResInfo->superTableQ) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
     char *flag = pCtx->aOutputBuf + pCtx->inputBytes;
     *flag = DATA_SET_FLAG;
   }
@@ -1330,7 +1326,7 @@ static void min_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
 static void stddev_function(SQLFunctionCtx *pCtx) {
   // the second stage to calculate standard deviation
-  SStddevInfo *pStd = GET_RES_INFO(pCtx)->interResultBuf;
+  SStddevInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   
   if (pStd->stage == 0) {  // the first stage is to calculate average value
     avg_function(pCtx);
@@ -1381,8 +1377,8 @@ static void stddev_function(SQLFunctionCtx *pCtx) {
 
 static void stddev_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   // the second stage to calculate standard deviation
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SStddevInfo *pStd = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SStddevInfo *pStd = GET_ROWCELL_INTERBUF(pResInfo);
   
   /* the first stage is to calculate average value */
   if (pStd->stage == 0) {
@@ -1433,8 +1429,8 @@ static void stddev_next_step(SQLFunctionCtx *pCtx) {
    * the stddevInfo and the average info struct share the same buffer area
    * And the position of each element in their struct is exactly the same matched
    */
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SStddevInfo *pStd = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SStddevInfo *pStd = GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pStd->stage == 0) {
     /*
@@ -1449,7 +1445,7 @@ static void stddev_next_step(SQLFunctionCtx *pCtx) {
     pResInfo->initialized = true; // set it initialized to avoid re-initialization
     
     // save average value into tmpBuf, for second stage scan
-    SAvgInfo *pAvg = pResInfo->interResultBuf;
+    SAvgInfo *pAvg = GET_ROWCELL_INTERBUF(pResInfo);
     
     pStd->avg = GET_DOUBLE_VAL(pCtx->aOutputBuf);
     assert((isnan(pAvg->sum) && pAvg->num == 0) || (pStd->num == pAvg->num && pStd->avg == pAvg->sum));
@@ -1459,7 +1455,7 @@ static void stddev_next_step(SQLFunctionCtx *pCtx) {
 }
 
 static void stddev_finalizer(SQLFunctionCtx *pCtx) {
-  SStddevInfo *pStd = (SStddevInfo *)GET_RES_INFO(pCtx)->interResultBuf;
+  SStddevInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   
   if (pStd->num <= 0) {
     setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
@@ -1505,7 +1501,7 @@ static void first_function(SQLFunctionCtx *pCtx) {
     TSKEY k = pCtx->ptsList[i];
     DO_UPDATE_TAG_COLUMNS(pCtx, k);
     
-    SResultInfo *pInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->complete = true;
     
@@ -1532,7 +1528,7 @@ static void first_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY ts = pCtx->ptsList[index];
   DO_UPDATE_TAG_COLUMNS(pCtx, ts);
   
-  SResultInfo *pInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
   pInfo->hasResult = DATA_SET_FLAG;
   pInfo->complete = true;  // get the first not-null data, completed
 }
@@ -1576,7 +1572,7 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
     
     first_data_assign_impl(pCtx, data, i);
     
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
     
     notNullElems++;
@@ -1604,8 +1600,7 @@ static void first_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
   char *pData = GET_INPUT_CHAR(pCtx);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pCtx->size == 1 && pResInfo->superTableQ);
+  assert(pCtx->size == 1 && pCtx->stableQuery);
   
   SFirstLastInfo *pInput = (SFirstLastInfo *)(pData + pCtx->inputBytes);
   if (pInput->hasResult != DATA_SET_FLAG) {
@@ -1620,8 +1615,8 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
 }
 
 static void first_dist_func_second_merge(SQLFunctionCtx *pCtx) {
-  assert(pCtx->resultInfo->superTableQ);
-  
+  assert(pCtx->stableQuery);
+
   char *          pData = GET_INPUT_CHAR(pCtx);
   SFirstLastInfo *pInput = (SFirstLastInfo*) (pData + pCtx->outputBytes);
   if (pInput->hasResult != DATA_SET_FLAG) {
@@ -1668,7 +1663,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
     TSKEY ts = pCtx->ptsList[i];
     DO_UPDATE_TAG_COLUMNS(pCtx, ts);
     
-    SResultInfo *pInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
     pInfo->hasResult = DATA_SET_FLAG;
     
     pInfo->complete = true;  // set query completed on this column
@@ -1691,7 +1686,7 @@ static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY ts = pCtx->ptsList[index];
   DO_UPDATE_TAG_COLUMNS(pCtx, ts);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   pResInfo->complete = true;  // set query completed
 }
@@ -1740,7 +1735,7 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
     
     last_data_assign_impl(pCtx, data, i);
     
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
     
     notNullElems++;
@@ -1776,8 +1771,7 @@ static void last_dist_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 static void last_dist_func_merge(SQLFunctionCtx *pCtx) {
   char *pData = GET_INPUT_CHAR(pCtx);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pCtx->size == 1 && pResInfo->superTableQ);
+  assert(pCtx->size == 1 && pCtx->stableQuery);
   
   // the input data is null
   SFirstLastInfo *pInput = (SFirstLastInfo *)(pData + pCtx->inputBytes);
@@ -1833,11 +1827,11 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
   // assign the last element in current data block
   assignVal(pCtx->aOutputBuf, pData + (pCtx->size - 1) * pCtx->inputBytes, pCtx->inputBytes, pCtx->inputType);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   
   // set the result to final result buffer in case of super table query
-  if (pResInfo->superTableQ) {
+  if (pCtx->stableQuery) {
     SLastrowInfo *pInfo1 = (SLastrowInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
     pInfo1->ts = pCtx->ptsList[pCtx->size - 1];
     pInfo1->hasResult = DATA_SET_FLAG;
@@ -1852,7 +1846,7 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
 
 static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->hasResult != DATA_SET_FLAG) {
     if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
       setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
@@ -2044,8 +2038,8 @@ static int32_t resDataAscComparFn(const void *pLeft, const void *pRight) {
 static int32_t resDataDescComparFn(const void *pLeft, const void *pRight) { return -resDataAscComparFn(pLeft, pRight); }
 
 static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  STopBotInfo *pRes = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STopBotInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
   
   tValuePair **tvp = pRes->res;
   
@@ -2135,18 +2129,18 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
  * top/bottom use the intermediate result buffer to keep the intermediate result
  */
 static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   // only the first_stage_merge is directly written data into final output buffer
-  if (pResInfo->superTableQ && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
+  if (pCtx->stableQuery && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
     return (STopBotInfo*) pCtx->aOutputBuf;
   } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
-    return pResInfo->interResultBuf;
+    return GET_ROWCELL_INTERBUF(pResInfo);
   }
 }
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo == NULL) {
     return true;
   }
@@ -2252,7 +2246,7 @@ static void top_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
   }
 }
@@ -2270,7 +2264,7 @@ static void top_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   do_top_function_add(pRes, (int32_t)pCtx->param[0].i64Key, pData, pCtx->ptsList[index], pCtx->inputType, &pCtx->tagInfo, NULL,
                       0);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 
@@ -2285,8 +2279,7 @@ static void top_func_merge(SQLFunctionCtx *pCtx) {
   // remmap the input buffer may cause the struct pointer invalid, so rebuild the STopBotInfo is necessary
   buildTopBotStruct(pInput, pCtx);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ && pCtx->outputType == TSDB_DATA_TYPE_BINARY && pCtx->size == 1);
+  assert(pCtx->stableQuery && pCtx->outputType == TSDB_DATA_TYPE_BINARY && pCtx->size == 1);
   
   STopBotInfo *pOutput = getTopBotOutputInfo(pCtx);
   
@@ -2314,7 +2307,7 @@ static void top_func_second_merge(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pInput->num, pOutput->num);
   
   if (pOutput->num > 0) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
   }
 }
@@ -2343,7 +2336,7 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
   }
 }
@@ -2359,7 +2352,7 @@ static void bottom_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64Key, pData, pCtx->ptsList[index], pCtx->inputType, &pCtx->tagInfo,
                          NULL, 0);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 
@@ -2374,8 +2367,7 @@ static void bottom_func_merge(SQLFunctionCtx *pCtx) {
   // remmap the input buffer may cause the struct pointer invalid, so rebuild the STopBotInfo is necessary
   buildTopBotStruct(pInput, pCtx);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ && pCtx->outputType == TSDB_DATA_TYPE_BINARY && pCtx->size == 1);
+  assert(pCtx->stableQuery && pCtx->outputType == TSDB_DATA_TYPE_BINARY && pCtx->size == 1);
   
   STopBotInfo *pOutput = getTopBotOutputInfo(pCtx);
   
@@ -2403,16 +2395,16 @@ static void bottom_func_second_merge(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, pInput->num, pOutput->num);
   
   if (pOutput->num > 0) {
-    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     pResInfo->hasResult = DATA_SET_FLAG;
   }
 }
 
 static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   // data in temporary list is less than the required number of results, not enough qualified number of results
-  STopBotInfo *pRes = pResInfo->interResultBuf;
+  STopBotInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
   if (pRes->num == 0) {  // no result
     assert(pResInfo->hasResult != DATA_SET_FLAG);
     // TODO:
@@ -2443,8 +2435,8 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   }
 
   // in the first round, get the min-max value of all involved data
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SPercentileInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   SET_DOUBLE_VAL(&pInfo->minval, DBL_MAX);
   SET_DOUBLE_VAL(&pInfo->maxval, -DBL_MAX);
   pInfo->numOfElems = 0;
@@ -2455,8 +2447,8 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
 static void percentile_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
-  SResultInfo *    pResInfo = GET_RES_INFO(pCtx);
-  SPercentileInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *    pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
@@ -2546,9 +2538,9 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
 
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
-  SPercentileInfo *pInfo = (SPercentileInfo *)pResInfo->interResultBuf;
+  SPercentileInfo *pInfo = (SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->stage == 0) {
     // TODO extract functions
@@ -2595,8 +2587,8 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   double v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64Key : pCtx->param[0].dKey;
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  tMemBucket * pMemBucket = ((SPercentileInfo *)pResInfo->interResultBuf)->pMemBucket;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  tMemBucket * pMemBucket = ((SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo))->pMemBucket;
   
   if (pMemBucket->total > 0) {  // check for null
     *(double *)pCtx->aOutputBuf = getPercentile(pMemBucket, v);
@@ -2609,8 +2601,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 static void percentile_next_step(SQLFunctionCtx *pCtx) {
-  SResultInfo *    pResInfo = GET_RES_INFO(pCtx);
-  SPercentileInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *    pResInfo = GET_RES_INFO(pCtx);
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->stage == 0) {
     // all data are null, set it completed
@@ -2627,12 +2619,12 @@ static void percentile_next_step(SQLFunctionCtx *pCtx) {
 
 //////////////////////////////////////////////////////////////////////////////////
 static SAPercentileInfo *getAPerctInfo(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  if (pResInfo->superTableQ && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
+  if (pCtx->stableQuery && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
     return (SAPercentileInfo*) pCtx->aOutputBuf;
   } else {
-    return pResInfo->interResultBuf;
+    return GET_ROWCELL_INTERBUF(pResInfo);
   }
 }
 
@@ -2651,7 +2643,7 @@ static bool apercentile_function_setup(SQLFunctionCtx *pCtx) {
 static void apercentile_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
@@ -2704,8 +2696,8 @@ static void apercentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
   
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);  // pResInfo->interResultBuf;
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
   
   double v = 0;
   switch (pCtx->inputType) {
@@ -2736,8 +2728,8 @@ static void apercentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 }
 
 static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  assert(pCtx->stableQuery);
   
   SAPercentileInfo *pInput = (SAPercentileInfo *)GET_INPUT_CHAR(pCtx);
   
@@ -2794,7 +2786,7 @@ static void apercentile_func_second_merge(SQLFunctionCtx *pCtx) {
     pOutput->pHisto = pRes;
   }
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   SET_VAL(pCtx, 1, 1);
 }
@@ -2802,8 +2794,8 @@ static void apercentile_func_second_merge(SQLFunctionCtx *pCtx) {
 static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
   double v = (pCtx->param[0].nType == TSDB_DATA_TYPE_INT) ? pCtx->param[0].i64Key : pCtx->param[0].dKey;
   
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SAPercentileInfo *pOutput = pResInfo->interResultBuf;
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SAPercentileInfo *pOutput = GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
     if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
@@ -2840,8 +2832,8 @@ static bool leastsquares_function_setup(SQLFunctionCtx *pCtx) {
     return false;
   }
   
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // 2*3 matrix
   pInfo->startVal = pCtx->param[0].dKey;
@@ -2867,8 +2859,8 @@ static bool leastsquares_function_setup(SQLFunctionCtx *pCtx) {
   }
 
 static void leastsquares_function(SQLFunctionCtx *pCtx) {
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   double(*param)[3] = pInfo->mat;
   double x = pInfo->startVal;
@@ -2938,8 +2930,8 @@ static void leastsquares_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
   
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   double(*param)[3] = pInfo->mat;
   
@@ -2988,8 +2980,8 @@ static void leastsquares_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
 static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   // no data in query
-  SResultInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pInfo->num == 0) {
     if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
@@ -3054,7 +3046,7 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
 }
 
 static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pCtx->numOfParams == 2) {  // the number of output rows should not affect the final number of rows, so set it to be 0
     return;
   }
@@ -3486,7 +3478,7 @@ static bool spread_function_setup(SQLFunctionCtx *pCtx) {
     return false;
   }
   
-  SSpreadInfo *pInfo = GET_RES_INFO(pCtx)->interResultBuf;
+  SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   
   // this is the server-side setup function in client-side, the secondary merge do not need this procedure
   if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
@@ -3501,8 +3493,8 @@ static bool spread_function_setup(SQLFunctionCtx *pCtx) {
 }
 
 static void spread_function(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSpreadInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   int32_t numOfElems = 0;
   
@@ -3568,8 +3560,8 @@ static void spread_function(SQLFunctionCtx *pCtx) {
   }
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SSpreadInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SSpreadInfo));
   }
 }
 
@@ -3581,8 +3573,8 @@ static void spread_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   SET_VAL(pCtx, 1, 1);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSpreadInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   double val = 0.0;
   if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
@@ -3611,16 +3603,16 @@ static void spread_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pResInfo->hasResult = DATA_SET_FLAG;
   pInfo->hasResult = DATA_SET_FLAG;
   
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SSpreadInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SSpreadInfo));
   }
 }
 
 void spread_func_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  assert(pCtx->stableQuery);
   
-  SSpreadInfo *pResData = pResInfo->interResultBuf;
+  SSpreadInfo *pResData = GET_ROWCELL_INTERBUF(pResInfo);
   
   int32_t notNullElems = 0;
   for (int32_t i = 0; i < pCtx->size; ++i) {
@@ -3644,7 +3636,7 @@ void spread_func_merge(SQLFunctionCtx *pCtx) {
   }
   
   if (notNullElems > 0) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SSpreadInfo));
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SSpreadInfo));
     pResInfo->hasResult = DATA_SET_FLAG;
   }
 }
@@ -3675,7 +3667,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
    * here we do not check the input data types, because in case of metric query,
    * the type of intermediate data is binary
    */
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
@@ -3690,7 +3682,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
     assert((pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_DOUBLE) ||
         (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP));
     
-    SSpreadInfo *pInfo = GET_RES_INFO(pCtx)->interResultBuf;
+    SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
     if (pInfo->hasResult != DATA_SET_FLAG) {
       setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
       return;
@@ -3714,8 +3706,8 @@ static bool twa_function_setup(SQLFunctionCtx *pCtx) {
     return false;
   }
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);  //->aOutputBuf + pCtx->outputBytes;
-  STwaInfo *   pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);  //->aOutputBuf + pCtx->outputBytes;
+  STwaInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   pInfo->lastKey = INT64_MIN;
   pInfo->type = pCtx->inputType;
@@ -3754,8 +3746,8 @@ static void twa_function(SQLFunctionCtx *pCtx) {
   
   int32_t notNullElems = 0;
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  STwaInfo *   pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STwaInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   int32_t i = 0;
   
@@ -3808,7 +3800,7 @@ static void twa_function(SQLFunctionCtx *pCtx) {
     pResInfo->hasResult = DATA_SET_FLAG;
   }
   
-  if (pResInfo->superTableQ) {
+  if (pCtx->stableQuery) {
     memcpy(pCtx->aOutputBuf, pInfo, sizeof(STwaInfo));
   }
   
@@ -3825,8 +3817,8 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   TSKEY *primaryKey = pCtx->ptsList;
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  STwaInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pInfo->lastKey == INT64_MIN) {
     pInfo->lastKey = pCtx->nStartQueryTimestamp;
@@ -3848,14 +3840,13 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   //  pCtx->numOfIteratedElems += 1;
   pResInfo->hasResult = DATA_SET_FLAG;
   
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(STwaInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(STwaInfo));
   }
 }
 
 static void twa_func_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  assert(pCtx->stableQuery);
   
   STwaInfo *pBuf = (STwaInfo *)pCtx->aOutputBuf;
   char *    indicator = pCtx->aInputElemBuf;
@@ -3895,16 +3886,16 @@ static void twa_func_merge(SQLFunctionCtx *pCtx) {
  */
 void twa_function_copy(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  memcpy(pResInfo->interResultBuf, pCtx->aInputElemBuf, (size_t)pCtx->inputBytes);
+  memcpy(GET_ROWCELL_INTERBUF(pResInfo), pCtx->aInputElemBuf, (size_t)pCtx->inputBytes);
   pResInfo->hasResult = ((STwaInfo *)pCtx->aInputElemBuf)->hasResult;
 }
 
 void twa_function_finalizer(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  STwaInfo *pInfo = (STwaInfo *)pResInfo->interResultBuf;
+  STwaInfo *pInfo = (STwaInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   assert(pInfo->EKey >= pInfo->lastKey && pInfo->hasResult == pResInfo->hasResult);
   
   if (pInfo->hasResult != DATA_SET_FLAG) {
@@ -3932,8 +3923,8 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
  */
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SInterpInfoDetail* pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SInterpInfoDetail* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pCtx->size == 1) {
     char *pData = GET_INPUT_CHAR(pCtx);
@@ -4008,7 +3999,6 @@ static void interp_function(SQLFunctionCtx *pCtx) {
         }
       }
     }
-    
   }
   
   SET_VAL(pCtx, pCtx->size, 1);
@@ -4019,8 +4009,8 @@ static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {
     return false;  // not initialized since it has been initialized
   }
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  STSCompInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STSCompInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   pInfo->pTSBuf = tsBufCreate(false, pCtx->order);
   pInfo->pTSBuf->tsOrder = pCtx->order;
@@ -4028,8 +4018,8 @@ static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {
 }
 
 static void ts_comp_function(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  STSBuf *     pTSbuf = ((STSCompInfo *)(pResInfo->interResultBuf))->pTSBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STSBuf *     pTSbuf = ((STSCompInfo *)(GET_ROWCELL_INTERBUF(pResInfo)))->pTSBuf;
   
   const char *input = GET_INPUT_CHAR(pCtx);
   
@@ -4053,8 +4043,8 @@ static void ts_comp_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  STSCompInfo *pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STSCompInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   STSBuf *pTSbuf = pInfo->pTSBuf;
   
@@ -4065,9 +4055,9 @@ static void ts_comp_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 }
 
 static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  STSCompInfo *pInfo = pResInfo->interResultBuf;
+  STSCompInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   STSBuf *     pTSbuf = pInfo->pTSBuf;
   
   tsBufFlush(pTSbuf);
@@ -4116,8 +4106,8 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
     return false;
   }
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);  //->aOutputBuf + pCtx->outputBytes;
-  SRateInfo *   pInfo = pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);  //->aOutputBuf + pCtx->outputBytes;
+  SRateInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   pInfo->CorrectionValue = 0;
   pInfo->firstKey    = INT64_MIN;
@@ -4136,8 +4126,8 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
 static void rate_function(SQLFunctionCtx *pCtx) {
   
   int32_t      notNullElems = 0;
-  SResultInfo *pResInfo     = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo    = (SRateInfo *)pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo     = GET_RES_INFO(pCtx);
+  SRateInfo   *pRateInfo    = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY       *primaryKey   = pCtx->ptsList;
   
   tscDebug("%p rate_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
@@ -4200,8 +4190,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
   }
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SRateInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
   }
 }
 
@@ -4212,8 +4202,8 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
   
   // NOTE: keep the intermediate result into the interResultBuf
-  SResultInfo *pResInfo   = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo  = (SRateInfo *)pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo   = GET_RES_INFO(pCtx);
+  SRateInfo   *pRateInfo  = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY       *primaryKey = pCtx->ptsList;
   
   int64_t v = 0;
@@ -4257,20 +4247,18 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pResInfo->hasResult  = DATA_SET_FLAG;
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SRateInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
   }
 }
 
 
 
 static void rate_func_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  assert(pCtx->stableQuery);
   
   tscDebug("rate_func_merge() size:%d", pCtx->size);
   
-  //SRateInfo *pRateInfo = (SRateInfo *)pResInfo->interResultBuf;
   SRateInfo *pBuf      = (SRateInfo *)pCtx->aOutputBuf;
   char      *indicator = pCtx->aInputElemBuf;
   
@@ -4303,8 +4291,8 @@ static void rate_func_merge(SQLFunctionCtx *pCtx) {
 static void rate_func_copy(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
   
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  memcpy(pResInfo->interResultBuf, pCtx->aInputElemBuf, (size_t)pCtx->inputBytes);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  memcpy(GET_ROWCELL_INTERBUF(pResInfo), pCtx->aInputElemBuf, (size_t)pCtx->inputBytes);
   pResInfo->hasResult = ((SRateInfo*)pCtx->aInputElemBuf)->hasResult;
   
   SRateInfo* pRateInfo = (SRateInfo*)pCtx->aInputElemBuf;
@@ -4315,8 +4303,8 @@ static void rate_func_copy(SQLFunctionCtx *pCtx) {
 
 
 static void rate_finalizer(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo  = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo = (SRateInfo *)pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo  = GET_RES_INFO(pCtx);
+  SRateInfo   *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   
   tscDebug("%p isIRate:%d firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " lastValue:%" PRId64 " CorrectionValue:%" PRId64 " hasResult:%d",
          pCtx, pRateInfo->isIRate, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, pRateInfo->hasResult);
@@ -4341,8 +4329,8 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
 static void irate_function(SQLFunctionCtx *pCtx) {
   
   int32_t       notNullElems = 0;
-  SResultInfo  *pResInfo     = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo    = (SRateInfo *)pResInfo->interResultBuf;
+  SResultRowCellInfo  *pResInfo     = GET_RES_INFO(pCtx);
+  SRateInfo   *pRateInfo    = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY        *primaryKey   = pCtx->ptsList;
   
   tscDebug("%p irate_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
@@ -4404,8 +4392,8 @@ static void irate_function(SQLFunctionCtx *pCtx) {
   }
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SRateInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
   }
 }
 
@@ -4416,8 +4404,8 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
   
   // NOTE: keep the intermediate result into the interResultBuf
-  SResultInfo  *pResInfo   = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo  = (SRateInfo *)pResInfo->interResultBuf;
+  SResultRowCellInfo  *pResInfo   = GET_RES_INFO(pCtx);
+  SRateInfo   *pRateInfo  = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY        *primaryKey = pCtx->ptsList;
   
   int64_t v = 0;
@@ -4453,16 +4441,16 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pResInfo->hasResult  = DATA_SET_FLAG;
   
   // keep the data into the final output buffer for super table query since this execution may be the last one
-  if (pResInfo->superTableQ) {
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SRateInfo));
+  if (pCtx->stableQuery) {
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
   }
 }
 
 static void do_sumrate_merge(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pResInfo->superTableQ);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  assert(pCtx->stableQuery);
   
-  SRateInfo *pRateInfo = (SRateInfo *)pResInfo->interResultBuf;
+  SRateInfo *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   char *    input = GET_INPUT_CHAR(pCtx);
   
   for (int32_t i = 0; i < pCtx->size; ++i, input += pCtx->inputBytes) {
@@ -4486,7 +4474,7 @@ static void do_sumrate_merge(SQLFunctionCtx *pCtx) {
   if (DATA_SET_FLAG == pRateInfo->hasResult) {
     pResInfo->hasResult = DATA_SET_FLAG;
     SET_VAL(pCtx, pRateInfo->num, 1);
-    memcpy(pCtx->aOutputBuf, pResInfo->interResultBuf, sizeof(SRateInfo));
+    memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
   }
 }
 
@@ -4501,10 +4489,10 @@ static void sumrate_func_second_merge(SQLFunctionCtx *pCtx) {
 }
 
 static void sumrate_finalizer(SQLFunctionCtx *pCtx) {
-  SResultInfo *pResInfo  = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo = (SRateInfo *)pResInfo->interResultBuf;
+  SResultRowCellInfo *pResInfo  = GET_RES_INFO(pCtx);
+  SRateInfo   *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   
-  tscDebug("%p sumrate_finalizer() superTableQ:%d num:%" PRId64 " sum:%f hasResult:%d", pCtx, pResInfo->superTableQ, pRateInfo->num, pRateInfo->sum, pRateInfo->hasResult);
+  tscDebug("%p sumrate_finalizer() superTableQ:%d num:%" PRId64 " sum:%f hasResult:%d", pCtx, pCtx->stableQuery, pRateInfo->num, pRateInfo->sum, pRateInfo->hasResult);
   
   if (pRateInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->aOutputBuf, TSDB_DATA_TYPE_DOUBLE, sizeof(double));

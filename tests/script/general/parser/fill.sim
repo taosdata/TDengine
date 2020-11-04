@@ -116,7 +116,7 @@ if $data81 != 1 then
 endi
 
 # avg_with_fill
-print avg_witt_constant_fill
+print avg_with_constant_fill
 sql select avg(c1), avg(c2), avg(c3), avg(c4), avg(c5) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 6, 6, 6, 6, 6)
 if $rows != 9 then 
   return -1
@@ -371,12 +371,10 @@ if $data11 != 99 then
 endi
 
 sql select * from $tb
-#print data08 = $data08
 if $data08 != NCHAR then
+  print expect NCHAR, actual:$data08
   return -1
 endi
-#return -1
-
 
 # fill_into_nonarithmetic_fieds
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)

@@ -244,7 +244,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
 
     *p++ = c;
-    if (c == ';') {
+    if (c == ';' && quote == 0) {
       c = *p;
       *p = 0;
       if (shellRunSingleCommand(con, cmd) < 0) {

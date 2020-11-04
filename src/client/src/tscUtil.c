@@ -338,34 +338,6 @@ void tscFreeSqlResult(SSqlObj* pSql) {
   memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
-void tscPartiallyFreeSqlObj(SSqlObj* pSql) {
-  if (pSql == NULL || pSql->signature != pSql) {
-    return;
-  }
-
-  SSqlCmd* pCmd = &pSql->cmd;
-  int32_t cmd = pCmd->command;
-  if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
-      cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscRemoveFromSqlList(pSql);
-  }
-  
-  // pSql->sqlstr will be used by tscBuildQueryStreamDesc
-//  if (pObj->signature == pObj) {
-    //pthread_mutex_lock(&pObj->mutex);
-    taosTFree(pSql->sqlstr);
-    //pthread_mutex_unlock(&pObj->mutex);
-//  }
-  
-  tscFreeSqlResult(pSql);
-  
-  taosTFree(pSql->pSubs);
-  pSql->subState.numOfSub = 0;
-  pSql->self = 0;
-  
-  tscResetSqlCmdObj(pCmd, false);
-}
-
 static void tscFreeSubobj(SSqlObj* pSql) {
   if (pSql->subState.numOfSub == 0) {
     return;
@@ -434,22 +406,32 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscDebug("%p start to free sqlObj", pSql);
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
   tscFreeSubobj(pSql);
 
-  tscPartiallyFreeSqlObj(pSql);
+  SSqlCmd* pCmd = &pSql->cmd;
+  int32_t cmd = pCmd->command;
+  if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_LOCALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
+    tscRemoveFromSqlList(pSql);
+  }
 
   pSql->signature = NULL;
   pSql->fp = NULL;
-  
-  SSqlCmd* pCmd = &pSql->cmd;
+  taosTFree(pSql->sqlstr);
+
+  taosTFree(pSql->pSubs);
+  pSql->subState.numOfSub = 0;
+  pSql->self = 0;
+
+  tscFreeSqlResult(pSql);
+  tscResetSqlCmdObj(pCmd, false);
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   taosTFree(pCmd->payload);
   pCmd->allocSize = 0;
   
-  taosTFree(pSql->sqlstr);
   tsem_destroy(&pSql->rspSem);
-
   free(pSql);
 }
 
@@ -1714,6 +1696,17 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   taosArrayRemove(pVgroupTable, index);
 }
 
+void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
+  memset(info, 0, sizeof(SVgroupTableInfo));
+
+  info->vgInfo = pInfo->vgInfo;
+  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+    info->vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
+  }
+
+  info->itemList = taosArrayClone(pInfo->itemList);
+}
+
 SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
   if (pVgroupTables == NULL) {
     return NULL;
@@ -1725,14 +1718,8 @@ SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
   SVgroupTableInfo info;
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
-    memset(&info, 0, sizeof(SVgroupTableInfo));
+    tscVgroupTableCopy(&info, pInfo);
 
-    info.vgInfo = pInfo->vgInfo;
-    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-      info.vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
-    }
-
-    info.itemList = taosArrayClone(pInfo->itemList);
     taosArrayPush(pa, &info);
   }
 
@@ -2441,7 +2428,7 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
     return NULL;
   }
 
-  size_t size = sizeof(SVgroupsInfo) + sizeof(SCMVgroupInfo) * vgroupList->numOfVgroups;
+  size_t size = sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupList->numOfVgroups;
   SVgroupsInfo* pNew = calloc(1, size);
   if (pNew == NULL) {
     return NULL;
@@ -2450,9 +2437,9 @@ SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *vgroupList) {
   pNew->numOfVgroups = vgroupList->numOfVgroups;
 
   for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SCMVgroupInfo* pNewVInfo = &pNew->vgroups[i];
+    SVgroupInfo* pNewVInfo = &pNew->vgroups[i];
 
-    SCMVgroupInfo* pvInfo = &vgroupList->vgroups[i];
+    SVgroupInfo* pvInfo = &vgroupList->vgroups[i];
     pNewVInfo->vgId = pvInfo->vgId;
     pNewVInfo->numOfEps = pvInfo->numOfEps;
 
@@ -2471,7 +2458,7 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
   }
 
   for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SCMVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
+    SVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
 
     for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
       taosTFree(pVgroupInfo->epAddr[j].fqdn);
@@ -2482,7 +2469,7 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
   return NULL;
 }
 
-void tscSCMVgroupInfoCopy(SCMVgroupInfo* dst, const SCMVgroupInfo* src) {
+void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
   dst->vgId = src->vgId;
   dst->numOfEps = src->numOfEps;
   for(int32_t i = 0; i < dst->numOfEps; ++i) {
