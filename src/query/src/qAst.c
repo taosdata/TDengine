@@ -660,7 +660,7 @@ static bool filterItem(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *p
  * @param pSchema   tag schemas
  * @param fp        filter callback function
  */
-static void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SExprTraverseSupp *param) {
+static UNUSED_FUNC void exprTreeTraverseImpl(tExprNode *pExpr, SArray *pResult, SExprTraverseSupp *param) {
   size_t size = taosArrayGetSize(pResult);
   
   SArray* array = taosArrayInit(size, POINTER_BYTES);
@@ -749,48 +749,13 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
   }
 
   // recursive traverse left child branch
+  // The value of hasPK is always 0.
   uint8_t weight = pLeft->_node.hasPK + pRight->_node.hasPK;
+  assert(weight == 0 && pSkipList != NULL && taosArrayGetSize(result) == 0);
+  //apply the hierarchical expression to every node in skiplist for find the qualified nodes
+  tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
 
-  if (weight == 0 ) {
-    if (taosArrayGetSize(result) > 0 && pSkipList == NULL) {
-    /**
-     * Perform the filter operation based on the initial filter result, which is obtained from filtering from index.
-     * Since no index presented, the filter operation is done by scan all elements in the result set.
-     *
-     * if the query is a high selectivity filter, only small portion of meters are retrieved.
-     */
-      exprTreeTraverseImpl(pExpr, result, param);
-    } else {
-      /**
-       * apply the hierarchical expression to every node in skiplist for find the qualified nodes
-       */
-      assert(taosArrayGetSize(result) == 0);
-      tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
-    }
-
-    return;
-  }
-  
-  if (weight == 2 || (weight == 1 && pExpr->_node.optr == TSDB_RELATION_OR)) {
-    SArray* rLeft  = taosArrayInit(10, POINTER_BYTES);
-    SArray* rRight = taosArrayInit(10, POINTER_BYTES);
-
-    tExprTreeTraverse(pLeft, pSkipList, rLeft, param);
-    tExprTreeTraverse(pRight, pSkipList, rRight, param);
-
-    if (pExpr->_node.optr == TSDB_RELATION_AND) {  // CROSS
-      intersect(rLeft, rRight, result);
-    } else if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
-      merge(rLeft, rRight, result);
-    } else {
-      assert(false);
-    }
-
-    taosArrayDestroy(rLeft);
-    taosArrayDestroy(rRight);
-    return;
-  }
-
+  #if 0
   /*
     * (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) is handled here
     *
@@ -819,6 +784,7 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
     * So, we do not set the skip list index as a parameter
     */
   tExprTreeTraverse(pSecond, NULL, result, param);
+#endif
 }
 
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
