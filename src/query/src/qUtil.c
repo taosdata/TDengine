@@ -325,7 +325,7 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
     size_t last = taosArrayGetSize(p->pData);
 
     void** pBlock = taosArrayGet(p->pData, last - 1);
-    ptr = (*pBlock) + p->elemSize * p->position.pos;
+    ptr = ((char*) (*pBlock)) + p->elemSize * p->position.pos;
   }
 
   p->position.pos = (p->position.pos + 1)%p->numOfElemPerBlock;
@@ -343,7 +343,7 @@ int64_t getResultRowPoolMemSize(SResultRowPool* p) {
 }
 
 int32_t getNumOfAllocatedResultRows(SResultRowPool* p) {
-  return taosArrayGetSize(p->pData) * p->numOfElemPerBlock;
+  return (int32_t) taosArrayGetSize(p->pData) * p->numOfElemPerBlock;
 }
 
 int32_t getNumOfUsedResultRows(SResultRowPool* p) {
