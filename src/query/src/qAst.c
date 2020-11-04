@@ -733,10 +733,6 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
     assert(pLeft->nodeType == TSQL_NODE_COL && (pRight->nodeType == TSQL_NODE_VALUE || pRight->nodeType == TSQL_NODE_DUMMY));
 
     param->setupInfoFn(pExpr, param->pExtInfo);
-    if (pSkipList == NULL) {
-      tArrayTraverse(pExpr, param->nodeFilterFn, result);
-      return;
-    }
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
     if (pQueryInfo->indexed && pQueryInfo->optr != TSDB_RELATION_LIKE) {
@@ -748,10 +744,10 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
     return;
   }
 
-  // recursive traverse left child branch
   // The value of hasPK is always 0.
   uint8_t weight = pLeft->_node.hasPK + pRight->_node.hasPK;
   assert(weight == 0 && pSkipList != NULL && taosArrayGetSize(result) == 0);
+
   //apply the hierarchical expression to every node in skiplist for find the qualified nodes
   tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
 
