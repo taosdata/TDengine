@@ -156,8 +156,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
               win->ekey = elem1.ts;
             }
 
-            tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
-            tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
+            tsBufAppend(output1, elem1.id, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
+            tsBufAppend(output2, elem2.id, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
           } else {
             pLimit->offset -= 1;//offset apply to projection?
           }
@@ -193,8 +193,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   TSKEY et = taosGetTimestampUs();
   tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
            "intersecting, skey:%" PRId64 ", ekey:%" PRId64 ", numOfVnode:%d, elapsed time:%" PRId64 " us",
-           pSql, numOfInput1, numOfInput2, output1->numOfTotal, output1->numOfVnodes, win->skey, win->ekey,
-           tsBufGetNumOfVnodes(output1), et - st);
+           pSql, numOfInput1, numOfInput2, output1->numOfTotal, output1->numOfGroups, win->skey, win->ekey,
+           tsBufGetNumOfGroup(output1), et - st);
 
   return output1->numOfTotal;
 }
@@ -282,7 +282,7 @@ static UNUSED_FUNC bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
 static void filterVgroupTables(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
-  tsBufGetVnodeIdList(pQueryInfo->tsBuf, &num, &list);
+  tsBufGetGroupIdList(pQueryInfo->tsBuf, &num, &list);
 
   // The virtual node, of which all tables are disqualified after the timestamp intersection,
   // is removed to avoid next stage query.
@@ -314,7 +314,7 @@ static void filterVgroupTables(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
 static SArray* buildVgroupTableByResult(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
-  tsBufGetVnodeIdList(pQueryInfo->tsBuf, &num, &list);
+  tsBufGetGroupIdList(pQueryInfo->tsBuf, &num, &list);
 
   int32_t numOfGroups = taosArrayGetSize(pVgroupTables);
 
