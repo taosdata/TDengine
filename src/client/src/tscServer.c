@@ -880,8 +880,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tsOffset = htonl((int32_t)(pMsg - pCmd->payload));
 
   if (pQueryInfo->tsBuf != NULL) {
-    int32_t vnodeId = htonl(pQueryMsg->head.vgId);
-    int32_t code = dumpFileBlockByVnodeId(pQueryInfo->tsBuf, vnodeId, pMsg, &pQueryMsg->tsLen, &pQueryMsg->tsNumOfBlocks);
+    // note: here used the index instead of actual vnode id.
+    int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
+    int32_t code = dumpFileBlockByVnodeId(pQueryInfo->tsBuf, vnodeIndex, pMsg, &pQueryMsg->tsLen, &pQueryMsg->tsNumOfBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

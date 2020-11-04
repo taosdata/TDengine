@@ -1696,6 +1696,17 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
   taosArrayRemove(pVgroupTable, index);
 }
 
+void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
+  memset(info, 0, sizeof(SVgroupTableInfo));
+
+  info->vgInfo = pInfo->vgInfo;
+  for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
+    info->vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
+  }
+
+  info->itemList = taosArrayClone(pInfo->itemList);
+}
+
 SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
   if (pVgroupTables == NULL) {
     return NULL;
@@ -1707,14 +1718,8 @@ SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
   SVgroupTableInfo info;
   for (size_t i = 0; i < num; i++) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
-    memset(&info, 0, sizeof(SVgroupTableInfo));
+    tscVgroupTableCopy(&info, pInfo);
 
-    info.vgInfo = pInfo->vgInfo;
-    for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-      info.vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
-    }
-
-    info.itemList = taosArrayClone(pInfo->itemList);
     taosArrayPush(pa, &info);
   }
 

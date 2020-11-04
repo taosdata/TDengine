@@ -1632,7 +1632,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 }
 
 static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSchema* pSchema, SConvertFunc cvtFunc,
-                                       tSQLExprItem* item, int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult) {
+                                       const char* name, int32_t resColIdx, SColumnIndex* pColIndex, bool finalResult) {
   const char* msg1 = "not support column types";
 
   int16_t type = 0;
@@ -1640,7 +1640,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   int32_t functionID = cvtFunc.execFuncId;
 
   if (functionID == TSDB_FUNC_SPREAD) {
-    int32_t t1 = pSchema[pColIndex->columnIndex].type;
+    int32_t t1 = pSchema->type;
     if (t1 == TSDB_DATA_TYPE_BINARY || t1 == TSDB_DATA_TYPE_NCHAR || t1 == TSDB_DATA_TYPE_BOOL) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       return -1;
@@ -1649,17 +1649,12 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
       bytes = tDataTypeDesc[type].nSize;
     }
   } else {
-    type = pSchema[pColIndex->columnIndex].type;
-    bytes = pSchema[pColIndex->columnIndex].bytes;
+    type = pSchema->type;
+    bytes = pSchema->bytes;
   }
   
   SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, pColIndex, type, bytes, bytes, false);
-  if (item->aliasName != NULL) {
-    tstrncpy(pExpr->aliasName, item->aliasName, tListLen(pExpr->aliasName));
-  } else {
-    int32_t len = MIN(tListLen(pExpr->aliasName), item->pNode->token.n + 1);
-    tstrncpy(pExpr->aliasName, item->pNode->token.z, len);
-  }
+  tstrncpy(pExpr->aliasName, name, tListLen(pExpr->aliasName));
 
   if (cvtFunc.originFuncId == TSDB_FUNC_LAST_ROW && cvtFunc.originFuncId != functionID) {
     pExpr->colInfo.flag |= TSDB_COL_NULL;
@@ -1685,6 +1680,18 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+void setResultColName(char* name, tSQLExprItem* pItem, int32_t functionId, SStrToken* pToken) {
+  if (pItem->aliasName != NULL) {
+    tstrncpy(name, pItem->aliasName, TSDB_COL_NAME_LEN);
+  } else {
+    char uname[TSDB_COL_NAME_LEN] = {0};
+    int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
+    tstrncpy(uname, pToken->z, len);
+
+    snprintf(name, TSDB_COL_NAME_LEN - 1, "%s(%s)", aAggs[functionId].aName, uname);
+  }
 }
 
 int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult) {
@@ -1954,9 +1961,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
             SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
+            char name[TSDB_COL_NAME_LEN] = {0};
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
               index.columnIndex = j;
-              if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem, colIndex++, &index, finalResult) != 0) {
+              SStrToken t = {.z = pSchema[j].name, .n = strnlen(pSchema[j].name, TSDB_COL_NAME_LEN)};
+              setResultColName(name, pItem, cvtFunc.originFuncId, &t);
+
+              if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[j], cvtFunc, name, colIndex++, &index, finalResult) != 0) {
                 return TSDB_CODE_TSC_INVALID_SQL;
               }
             }
@@ -1967,14 +1978,18 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             }
 
             pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-            SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
             // functions can not be applied to tags
             if ((index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) || (index.columnIndex < 0)) {
               return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
             }
 
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem, colIndex + i, &index, finalResult) != 0) {
+            char name[TSDB_COL_NAME_LEN] = {0};
+
+            SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+            setResultColName(name, pItem, cvtFunc.originFuncId, &pParamElem->pNode->colInfo);
+
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, name, colIndex + i, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -2011,7 +2026,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           for (int32_t i = 0; i < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
             SColumnIndex index = {.tableIndex = j, .columnIndex = i};
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, pItem, colIndex, &index, finalResult) != 0) {
+
+            char name[TSDB_COL_NAME_LEN] = {0};
+            SStrToken t = {.z = pSchema->name, .n = strnlen(pSchema->name, TSDB_COL_NAME_LEN)};
+            setResultColName(name, pItem, cvtFunc.originFuncId, &t);
+
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[index.columnIndex], cvtFunc, name, colIndex, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
@@ -3458,7 +3478,7 @@ static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryI
     }
 
     // the expression not from the same table, return error
-    if (uidLeft != uidRight) {
+    if (uidLeft != uidRight && uidLeft != 0 && uidRight != 0) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
   }

@@ -339,9 +339,9 @@ typedef struct STscObj {
 } STscObj;
 
 typedef struct SSubqueryState {
-  int32_t          numOfRemain;         // the number of remain unfinished subquery
-  int32_t          numOfSub;            // the number of total sub-queries
-  uint64_t         numOfRetrievedRows;  // total number of points in this query
+  int32_t  numOfRemain;         // the number of remain unfinished subquery
+  int32_t  numOfSub;            // the number of total sub-queries
+  uint64_t numOfRetrievedRows;  // total number of points in this query
 } SSubqueryState;
 
 typedef struct SSqlObj {
@@ -515,7 +515,6 @@ extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
-int32_t tscCompareTidTags(const void* p1, const void* p2);
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
 
 #ifdef __cplusplus
