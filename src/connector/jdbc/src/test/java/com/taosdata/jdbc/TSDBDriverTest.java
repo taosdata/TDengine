@@ -3,6 +3,9 @@ package com.taosdata.jdbc;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.Properties;
 
@@ -25,6 +28,7 @@ public class TSDBDriverTest {
             "jdbc:TAOS://localhost:0/?user=root&password=taosdata"
     };
     private static boolean islibLoaded;
+    private static boolean isTaosdActived;
 
     @BeforeClass
     public static void before() {
@@ -51,6 +55,21 @@ public class TSDBDriverTest {
         } catch (UnsatisfiedLinkError error) {
             System.out.println("load tdengine lib failed.");
             islibLoaded = false;
+        }
+
+        try {
+            Process exec = Runtime.getRuntime().exec("ps -ef | grep taosd | grep -v \"grep\"");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(exec.getInputStream()));
+            int lineCnt = 0;
+            while (reader.readLine() != null) {
+                lineCnt++;
+            }
+            if (lineCnt > 0)
+                isTaosdActived = true;
+            else
+                isTaosdActived = false;
+        } catch (IOException e) {
+            isTaosdActived = false;
         }
     }
 
@@ -96,7 +115,6 @@ public class TSDBDriverTest {
 
     @Test
     public void testConnectWithJdbcURL() {
-
         final String url = "jdbc:TAOS://localhost:3306/log?user=root&password=taosdata";
         try {
             if (islibLoaded) {
@@ -104,7 +122,10 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            if (!isTaosdActived)
+                assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
+            else
+                fail("failure - should not throw Exception");
         }
     }
 
@@ -121,7 +142,10 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            if (!isTaosdActived)
+                assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
+            else
+                fail("failure - should not throw Exception");
         }
     }
 
@@ -138,7 +162,10 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            if (!isTaosdActived)
+                assertEquals("failure - should throw SQLException", "TDengine Error: Unable to establish connection", e.getMessage());
+            else
+                fail("failure - should not throw Exception");
         }
     }
 
