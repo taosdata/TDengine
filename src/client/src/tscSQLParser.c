@@ -1690,7 +1690,12 @@ void setResultColName(char* name, tSQLExprItem* pItem, int32_t functionId, SStrT
     int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(uname, pToken->z, len);
 
-    snprintf(name, TSDB_COL_NAME_LEN - 1, "%s(%s)", aAggs[functionId].aName, uname);
+    int32_t size = TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].aName) + 2 + 1;
+    char tmp[TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].aName) + 2 + 1] = {0};
+
+    snprintf(tmp, size, "%s(%s)", aAggs[functionId].aName, uname);
+
+    tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
   }
 }
 
