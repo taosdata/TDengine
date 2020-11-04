@@ -71,7 +71,7 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
 
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp);
 
-void* taosDestoryFillInfo(SFillInfo *pFillInfo);
+void* taosDestroyFillInfo(SFillInfo *pFillInfo);
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
