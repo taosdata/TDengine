@@ -197,28 +197,6 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   return pTableMeta;
 }
 
-/**
- * the TableMeta data format in memory is as follows:
- *
- * +--------------------+
- * |STableMeta Body data|  sizeof(STableMeta)
- * +--------------------+
- * |Schema data         |  numOfTotalColumns * sizeof(SSchema)
- * +--------------------+
- * |Tags data           |  tag_col_1.bytes + tag_col_2.bytes + ....
- * +--------------------+
- *
- * @param pTableMeta
- * @return
- */
-char* tsGetTagsValue(STableMeta* pTableMeta) {
-  int32_t offset = 0;
-//  int32_t  numOfTotalCols = pTableMeta->numOfColumns + pTableMeta->numOfTags;
-//  uint32_t offset = sizeof(STableMeta) + numOfTotalCols * sizeof(SSchema);
-
-  return ((char*)pTableMeta + offset);
-}
-
 // todo refactor
 UNUSED_FUNC static FORCE_INLINE char* skipSegments(char* input, char delim, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {

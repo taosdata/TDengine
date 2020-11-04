@@ -15,13 +15,22 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
+#define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
+  do {                                               \
+    assert(sizeof(_uid) == sizeof(uint64_t));        \
+    *(uint64_t *)(_k) = (_uid);                      \
+    memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
+  } while (0)
+
+#define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
+
 int32_t getOutputInterResultBufSize(SQuery* pQuery);
 
-void clearTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* pOneOutputRes);
-void copyTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* dst, const SWindowResult* src);
+void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pRow);
+void copyResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* dst, const SResultRow* src);
+SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
 
-int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t size,
-                          int32_t threshold, int16_t type);
+int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, int32_t size, int32_t threshold, int16_t type);
 
 void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo);
 void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
@@ -33,9 +42,9 @@ void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
 void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
 void    removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
 
-static FORCE_INLINE SWindowResult *getWindowResult(SWindowResInfo *pWindowResInfo, int32_t slot) {
+static FORCE_INLINE SResultRow *getResultRow(SWindowResInfo *pWindowResInfo, int32_t slot) {
   assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
-  return &pWindowResInfo->pResult[slot];
+  return pWindowResInfo->pResult[slot];
 }
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
@@ -43,9 +52,9 @@ static FORCE_INLINE SWindowResult *getWindowResult(SWindowResInfo *pWindowResInf
 
 bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
 
-int32_t createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, size_t interBufSize);
+int32_t initResultRow(SResultRow *pResultRow);
 
-static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SWindowResult *pResult,
+static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SResultRow *pResult,
     tFilePage* page) {
   assert(pResult != NULL && pRuntimeEnv != NULL);
 
@@ -61,5 +70,15 @@ bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
 
 __filter_func_t *getRangeFilterFuncArray(int32_t type);
 __filter_func_t *getValueFilterFuncArray(int32_t type);
+
+size_t getWindowResultSize(SQueryRuntimeEnv* pRuntimeEnv);
+
+SResultRowPool* initResultRowPool(size_t size);
+SResultRow* getNewResultRow(SResultRowPool* p);
+int64_t getResultRowPoolMemSize(SResultRowPool* p);
+void* destroyResultRowPool(SResultRowPool* p);
+int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
+int32_t getNumOfUsedResultRows(SResultRowPool* p);
+
 
 #endif  // TDENGINE_QUERYUTIL_H

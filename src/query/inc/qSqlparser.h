@@ -223,13 +223,6 @@ typedef struct tSQLExprList {
   tSQLExprItem *a;      /* One entry for each expression */
 } tSQLExprList;
 
-typedef struct tSQLExprListList {
-  int32_t        nList;  /* Number of expressions on the list */
-  int32_t        nAlloc; /* Number of entries allocated below */
-  tSQLExprList **a;      /* one entry for each row */
-} tSQLExprListList;
-
-
 /**
  *
  * @param yyp      The parser

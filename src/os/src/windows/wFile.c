@@ -16,17 +16,20 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tulog.h"
+#include "tglobal.h"
 
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char* tdengineTmpFileNamePrefix = "tdengine-";
-    char tmpPath[PATH_MAX];
+  char tmpPath[PATH_MAX];
 
-  char *tmpDir = getenv("tmp");
-  if (tmpDir == NULL) {
-    tmpDir = "";
+  int32_t len = (int32_t)strlen(tsTempDir);
+  memcpy(tmpPath, tsTempDir, len);
+
+  if (tmpPath[len - 1] != '/' && tmpPath[len - 1] != '\\') {
+      tmpPath[len++] = '\\';
   }
-  
-  strcpy(tmpPath, tmpDir);
+
+  strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
@@ -40,19 +43,19 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
 
 #define _SEND_FILE_STEP_ 1000
 
-int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
+int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t count) {
   fseek(in_file, (int32_t)(*offset), 0);
-  int writeLen = 0;
+  int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
   
-  for (int len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+  for (int64_t len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
     size_t rlen = fread(buffer, 1, _SEND_FILE_STEP_, in_file);
     if (rlen <= 0) {
       return writeLen;
     }
     else if (rlen < _SEND_FILE_STEP_) {
       fwrite(buffer, 1, rlen, out_file);
-      return (int)(writeLen + rlen);
+      return (int64_t)(writeLen + rlen);
     }
     else {
       fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
@@ -60,7 +63,7 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
     }
   }
 
-  int remain = count - writeLen;
+  int64_t remain = count - writeLen;
   if (remain > 0) {
     size_t rlen = fread(buffer, 1, remain, in_file);
     if (rlen <= 0) {
@@ -75,12 +78,12 @@ int taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t cou
   return writeLen;
 }
 
-ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size) {
-  uError("taosTSendFileImp no implemented yet");
+int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t* offset, int64_t size) {
+  uError("taosSendFile no implemented yet");
   return 0;
 }
 
-int taosFtruncate(int fd, int64_t length) {
+int32_t taosFtruncate(int32_t fd, int64_t length) {
   uError("taosFtruncate no implemented yet");
   return 0;
 }

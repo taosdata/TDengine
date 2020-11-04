@@ -14,14 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
+#define TAOS_RANDOM_FILE_FAIL_TEST
 #include "os.h"
-#include "talloc.h"
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "twal.h"
 #include "walInt.h"
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name);
+static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
 
 int32_t walRenew(void *handle) {
   if (handle == NULL) return 0;
@@ -29,10 +29,15 @@ int32_t walRenew(void *handle) {
   SWal *  pWal = handle;
   int32_t code = 0;
 
+  if (pWal->stop) {
+    wDebug("vgId:%d, do not create a new wal file", pWal->vgId);
+    return 0;
+  }
+
   pthread_mutex_lock(&pWal->mutex);
 
   if (pWal->fd >= 0) {
-    close(pWal->fd);
+    tclose(pWal->fd);
     wDebug("vgId:%d, file:%s, it is closed", pWal->vgId, pWal->name);
   }
 
@@ -80,6 +85,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   int32_t code = 0;
 
   // no wal
+  if (pWal->fd <= 0) return 0;
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
   if (pHead->version <= pWal->version) return 0;
 
@@ -89,12 +95,13 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
 
   pthread_mutex_lock(&pWal->mutex);
 
-  if (taosTWrite(pWal->fd, pHead, contLen) != contLen) {
+  if (taosWrite(pWal->fd, pHead, contLen) != contLen) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
+    wTrace("vgId:%d, fileId:%" PRId64 " fd:%d, write wal ver:%" PRId64 ", head ver:%" PRIu64 ", len:%d ", pWal->vgId,
+           pWal->fileId, pWal->fd, pWal->version, pHead->version, pHead->len);
     pWal->version = pHead->version;
-    wTrace("vgId:%d, write version:%" PRId64 ", fileId:%" PRId64, pWal->vgId, pWal->version, pWal->fileId);
   }
 
   pthread_mutex_unlock(&pWal->mutex);
@@ -130,9 +137,9 @@ int32_t walRestore(void *handle, void *pVnode, int32_t (*writeFp)(void *, void *
     snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
     wDebug("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
-    int32_t code = walRestoreWalFile(pWal, pVnode, writeFp, walName);
+    int32_t code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
     if (code != TSDB_CODE_SUCCESS) {
-      wDebug("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
+      wError("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
       continue;
     }
 
@@ -149,7 +156,7 @@ int32_t walRestore(void *handle, void *pVnode, int32_t (*writeFp)(void *, void *
   if (!pWal->keep) return TSDB_CODE_SUCCESS;
 
   if (count == 0) {
-    wDebug("vgId:%d, file:%s not exist, renew it", pWal->vgId, pWal->name);
+    wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
     return walRenew(pWal);
   } else {
     // open the existing WAL file in append mode
@@ -187,7 +194,41 @@ int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
   return code;
 }
 
-static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name) {
+static void walFtruncate(SWal *pWal, int32_t fd, int64_t offset) {
+  taosFtruncate(fd, offset);
+  fsync(fd);
+}
+
+static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int32_t fd, int64_t *offset) {
+  int64_t pos = *offset;
+  while (1) {
+    pos++;
+
+    if (lseek(fd, pos, SEEK_SET) < 0) {
+      wError("vgId:%d, failed to seek from corrupted wal file since %s", pWal->vgId, strerror(errno));
+      return TSDB_CODE_WAL_FILE_CORRUPTED;
+    }
+
+    if (taosRead(fd, pHead, sizeof(SWalHead)) <= 0) {
+      wError("vgId:%d, read to end of corrupted wal file, offset:%" PRId64, pWal->vgId, pos);
+      return TSDB_CODE_WAL_FILE_CORRUPTED;
+    }
+
+    if (pHead->signature != WAL_SIGNATURE) {
+      continue;
+    }
+
+    if (taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
+      wInfo("vgId:%d, wal head cksum check passed, offset:%" PRId64, pWal->vgId, pos);
+      *offset = pos;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_WAL_FILE_CORRUPTED;
+}
+
+static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId) {
   int32_t size = WAL_MAX_SIZE;
   void *  buffer = tmalloc(size);
   if (buffer == NULL) {
@@ -205,32 +246,33 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   wDebug("vgId:%d, file:%s, start to restore", pWal->vgId, name);
 
   int32_t   code = TSDB_CODE_SUCCESS;
-  size_t    offset = 0;
+  int64_t   offset = 0;
   SWalHead *pHead = buffer;
 
   while (1) {
-    int32_t ret = taosTRead(fd, pHead, sizeof(SWalHead));
+    int32_t ret = taosRead(fd, pHead, sizeof(SWalHead));
     if (ret == 0) break;
 
     if (ret < 0) {
-      wError("vgId:%d, file:%s, failed to read wal head part since %s", pWal->vgId, name, strerror(errno));
+      wError("vgId:%d, file:%s, failed to read wal head since %s", pWal->vgId, name, strerror(errno));
       code = TAOS_SYSTEM_ERROR(errno);
       break;
     }
 
     if (ret < sizeof(SWalHead)) {
-      wError("vgId:%d, file:%s, failed to read wal head since %s, read size:%d, skip the rest of file", pWal->vgId,
-             name, strerror(errno), ret);
-      taosFtruncate(fd, offset);
-      fsync(fd);
+      wError("vgId:%d, file:%s, failed to read wal head, ret is %d", pWal->vgId, name, ret);
+      walFtruncate(pWal, fd, offset);
       break;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
-      wError("vgId:%d, file:%s, wal head cksum is messed up, skip the rest of file", pWal->vgId, name);
-      code = TSDB_CODE_WAL_FILE_CORRUPTED;
-      ASSERT(false);
-      break;
+      wError("vgId:%d, file:%s, wal head cksum is messed up, ver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
+             pHead->version, pHead->len, offset);
+      code = walSkipCorruptedRecord(pWal, pHead, fd, &offset);
+      if (code != TSDB_CODE_SUCCESS) {
+        walFtruncate(pWal, fd, offset);
+        break;
+      }
     }
 
     if (pHead->len > size - sizeof(SWalHead)) {
@@ -245,31 +287,30 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       pHead = buffer;
     }
 
-    ret = taosTRead(fd, pHead->cont, pHead->len);
+    ret = taosRead(fd, pHead->cont, pHead->len);
     if (ret < 0) {
-      wError("vgId:%d, file:%s failed to read wal body part since %s", pWal->vgId, name, strerror(errno));
+      wError("vgId:%d, file:%s, failed to read wal body since %s", pWal->vgId, name, strerror(errno));
       code = TAOS_SYSTEM_ERROR(errno);
       break;
     }
 
     if (ret < pHead->len) {
-      wError("vgId:%d, file:%s, failed to read body since %s, read size:%d len:%d , skip the rest of file", pWal->vgId,
-             name, strerror(errno), ret, pHead->len);
-      taosFtruncate(fd, offset);
-      fsync(fd);
-      break;
+      wError("vgId:%d, file:%s, failed to read wal body, ret:%d len:%d", pWal->vgId, name, ret, pHead->len);
+      offset += sizeof(SWalHead);
+      continue;
     }
 
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    if (pWal->keep) pWal->version = pHead->version;
+    wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId, fileId,
+           pWal->version, pHead->version, pHead->len);
 
-    wTrace("vgId:%d, restore version:%" PRIu64 ", fileId:%" PRId64, pWal->vgId, pWal->version, pWal->fileId);
+    if (pWal->keep) pWal->version = pHead->version;
 
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
   }
 
-  close(fd);
+  tclose(fd);
   tfree(buffer);
 
   return code;

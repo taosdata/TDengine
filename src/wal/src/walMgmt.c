@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "talloc.h"
 #include "tref.h"
 #include "twal.h"
 #include "walInt.h"
@@ -56,7 +55,7 @@ void walCleanUp() {
 }
 
 void *walOpen(char *path, SWalCfg *pCfg) {
-  SWal *pWal = tcalloc(sizeof(SWal));
+  SWal *pWal = tcalloc(1, sizeof(SWal));
   if (pWal == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
@@ -110,6 +109,16 @@ int32_t walAlter(void *handle, SWalCfg *pCfg) {
   return TSDB_CODE_SUCCESS;
 }
 
+void walStop(void *handle) {
+  if (handle == NULL) return;
+  SWal *pWal = handle;
+
+  pthread_mutex_lock(&pWal->mutex);
+  pWal->stop = 1;
+  pthread_mutex_unlock(&pWal->mutex);
+  wDebug("vgId:%d, stop write wal", pWal->vgId);
+}
+
 void walClose(void *handle) {
   if (handle == NULL) return;
 
@@ -123,9 +132,7 @@ void walClose(void *handle) {
     while (walGetNextFile(pWal, &fileId) >= 0) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
-      if (fileId == pWal->fileId) {
-        wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
-      } else if (remove(pWal->name) < 0) {
+      if (remove(pWal->name) < 0) {
         wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
       } else {
         wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
@@ -141,22 +148,11 @@ void walClose(void *handle) {
 
 static int32_t walInitObj(SWal *pWal) {
   if (taosMkDir(pWal->path, 0755) != 0) {
-    wError("vgId:%d, file:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  if (pWal->keep) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  walRenew(pWal);
-
-  if (pWal && pWal->fd < 0) {
-    wError("vgId:%d, file:%s, failed to open file since %s", pWal->vgId, pWal->path, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
-  }
-
-  wDebug("vgId:%d, file is initialized", pWal->vgId);
+  wDebug("vgId:%d, object is initialized", pWal->vgId);
   return TSDB_CODE_SUCCESS;
 }
 
