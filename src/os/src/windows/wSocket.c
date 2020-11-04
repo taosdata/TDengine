@@ -34,7 +34,7 @@ void taosWinSocketInit() {
   }
 }
 
-int taosSetNonblocking(SOCKET sock, int on) {
+int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   u_long mode;
   if (on) {
     mode = 1;
@@ -48,7 +48,7 @@ int taosSetNonblocking(SOCKET sock, int on) {
 
 void taosBlockSIGPIPE() {}
 
-int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen) {
+int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
   if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
     return 0;
   }
@@ -72,7 +72,7 @@ int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int op
 
 uint32_t taosInetAddr(char *ipAddr) {
   uint32_t value;
-  int ret = inet_pton(AF_INET, ipAddr, &value);
+  int32_t ret = inet_pton(AF_INET, ipAddr, &value);
   if (ret <= 0) {
     return INADDR_NONE;
   } else {

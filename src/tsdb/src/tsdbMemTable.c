@@ -322,6 +322,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   memset(pMergeInfo, 0, sizeof(*pMergeInfo));
   pMergeInfo->keyFirst = INT64_MAX;
   pMergeInfo->keyLast = INT64_MIN;
+  if (pCols) tdResetDataCols(pCols);
 
   row = tsdbNextIterRow(pIter);
   if (row == NULL || dataRowKey(row) > maxKey) {

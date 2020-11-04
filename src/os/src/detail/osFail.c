@@ -20,7 +20,7 @@
 
 #ifdef TAOS_RANDOM_NETWORK_FAIL
 
-ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags) {
+ssize_t taosSendRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags) {
   if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
     errno = ECONNRESET;
     return -1;
@@ -29,7 +29,7 @@ ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags) {
   return send(sockfd, buf, len, flags);
 }
 
-ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
+ssize_t taosSendToRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags, const struct sockaddr *dest_addr,
                            socklen_t addrlen) {
   if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
     errno = ECONNRESET;
@@ -39,7 +39,7 @@ ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags,
   return sendto(sockfd, buf, len, flags, dest_addr, addrlen);
 }
 
-ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count) {
+ssize_t taosReadSocketRandomFail(int32_t fd, void *buf, size_t count) {
   if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
     errno = ECONNRESET;
     return -1;
@@ -48,7 +48,7 @@ ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count) {
   return read(fd, buf, count);
 }
 
-ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count) {
+ssize_t taosWriteSocketRandomFail(int32_t fd, const void *buf, size_t count) {
   if (rand() % RANDOM_NETWORK_FAIL_FACTOR == 0) {
     errno = EINTR;
     return -1;
@@ -61,10 +61,10 @@ ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count) {
 
 #ifdef TAOS_RANDOM_FILE_FAIL
 
-static int random_file_fail_factor = 20;
+static int32_t random_file_fail_factor = 20;
 static FILE *fpRandomFileFailOutput = NULL;
 
-void taosSetRandomFileFailFactor(int factor) { 
+void taosSetRandomFileFailFactor(int32_t factor) { 
   random_file_fail_factor = factor;
 }
 
@@ -77,7 +77,7 @@ static void close_random_file_fail_output() {
   }
 }
 
-static void random_file_fail_output_sig(int sig) {
+static void random_file_fail_output_sig(int32_t sig) {
   fprintf(fpRandomFileFailOutput, "signal %d received.\n", sig);
 
   struct sigaction act = {0};
@@ -105,7 +105,7 @@ void taosSetRandomFileFailOutput(const char *path) {
   sigaction(SIGILL, &act, NULL);
 }
 
-ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line) {
+ssize_t taosReadFileRandomFail(int32_t fd, void *buf, size_t count, const char *file, uint32_t line) {
   if (random_file_fail_factor > 0) {
     if (rand() % random_file_fail_factor == 0) {
       errno = EIO;
@@ -113,10 +113,10 @@ ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file
     }
   }
 
-  return taosTReadImp(fd, buf, count);
+  return taosRead(fd, buf, count);
 }
 
-ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line) {
+ssize_t taosWriteFileRandomFail(int32_t fd, void *buf, size_t count, const char *file, uint32_t line) {
   if (random_file_fail_factor > 0) {
     if (rand() % random_file_fail_factor == 0) {
       errno = EIO;
@@ -124,10 +124,10 @@ ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *fil
     }
   }
 
-  return taosTWriteImp(fd, buf, count);
+  return taosWrite(fd, buf, count);
 }
 
-off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line) {
+off_t taosLSeekRandomFail(int32_t fd, off_t offset, int32_t whence, const char *file, uint32_t line) {
   if (random_file_fail_factor > 0) {
     if (rand() % random_file_fail_factor == 0) {
       errno = EIO;
@@ -135,7 +135,7 @@ off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, ui
     }
   }
 
-  return lseek(fd, offset, whence);
+  return taosLSeek(fd, offset, whence);
 }
 
 #endif //TAOS_RANDOM_FILE_FAIL
