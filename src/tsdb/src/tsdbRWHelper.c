@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
