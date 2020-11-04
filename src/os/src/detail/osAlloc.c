@@ -17,10 +17,10 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tulog.h"
-#include "talloc.h"
+#include "osAlloc.h"
 
 #define TSDB_HAVE_MEMALIGN
-#ifndef TSDB_USE_SYS_MEM
+#ifdef TAOS_OS_FUNC_ALLOC
 
 void *tmalloc(int32_t size) {
   void *p = malloc(size);
@@ -32,11 +32,11 @@ void *tmalloc(int32_t size) {
   return p;
 }
 
-void *tcalloc(int32_t size) {
-  void *p = calloc(1, size);
+void *tcalloc(int32_t nmemb, int32_t size) {
+  void *p = calloc(nmemb, size);
   if (p == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to calloc memory, size:%d reason:%s", size, strerror(errno));
+    uError("failed to calloc memory, nmemb:%d size:%d reason:%s", nmemb, size, strerror(errno));
   }
 
   return p;

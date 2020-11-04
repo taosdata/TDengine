@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
@@ -338,7 +336,7 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
         return -1;
       }
 
-      if (taosTSendFile(helperNewLastF(pHelper)->fd, helperLastF(pHelper)->fd, NULL, pCompBlock->len) < pCompBlock->len) {
+      if (taosSendFile(helperNewLastF(pHelper)->fd, helperLastF(pHelper)->fd, NULL, pCompBlock->len) < pCompBlock->len) {
         tsdbError("vgId:%d failed to sendfile from file %s to file %s since %s", REPO_ID(pHelper->pRepo),
                   helperLastF(pHelper)->fname, helperNewLastF(pHelper)->fname, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -383,7 +381,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     pIdx->tid = pHelper->tableInfo.tid;
     ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
 
-    if (taosTWrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < (int)pIdx->len) {
+    if (taosWrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < (int)pIdx->len) {
       tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
                 pFile->fname, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -435,7 +433,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
 
   ASSERT(offset == pFile->info.size);
 
-  if (taosTWrite(pFile->fd, (void *)pHelper->pWIdx, pFile->info.len) < (int)pFile->info.len) {
+  if (taosWrite(pFile->fd, (void *)pHelper->pWIdx, pFile->info.len) < (int)pFile->info.len) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pFile->info.len,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -457,7 +455,7 @@ int tsdbLoadCompIdxImpl(SFile *pFile, uint32_t offset, uint32_t len, void *buffe
     return -1;
   }
 
-  if (taosTRead(pFile->fd, buffer, len) < len) {
+  if (taosRead(pFile->fd, buffer, len) < len) {
     tsdbError("%s: read file %s offset %u len %u failed since %s", prefixMsg, pFile->fname, offset, len,
               strerror(errno));
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
@@ -554,7 +552,7 @@ int tsdbLoadCompInfoImpl(SFile *pFile, SCompIdx *pIdx, SCompInfo **ppCompInfo) {
     return -1;
   }
 
-  if (taosTRead(pFile->fd, (void *)(*ppCompInfo), pIdx->len) < (int)pIdx->len) {
+  if (taosRead(pFile->fd, (void *)(*ppCompInfo), pIdx->len) < (int)pIdx->len) {
     tsdbError("%s: read file %s offset %u len %u failed since %s", prefixMsg, pFile->fname, pIdx->offset, pIdx->len,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -611,7 +609,7 @@ int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target) {
     return -1;
   }
 
-  if (taosTRead(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
+  if (taosRead(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
     tsdbError("vgId:%d failed to read %" PRIzu " bytes from file %s since %s", REPO_ID(pHelper->pRepo), tsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -826,7 +824,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
                                        sizeof(TSCKSUM));
 
   // Write the whole block to file
-  if (taosTWrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
+  if (taosWrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(helperRepo(pHelper)), lsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1252,7 +1250,7 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
     return -1;
   }
 
-  if (taosTRead(pFile->fd, pHelper->pBuffer, pCompCol->len) < pCompCol->len) {
+  if (taosRead(pFile->fd, pHelper->pBuffer, pCompCol->len) < pCompCol->len) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pCompCol->len, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1367,7 +1365,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  if (taosTRead(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) {
+  if (taosRead(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pCompBlock->len,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1495,7 +1493,6 @@ static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter,
     ASSERT(pIdx->len > 0);
     SCompBlock *pCompBlock = blockAtIdx(pHelper, pIdx->numOfBlocks - 1);
     ASSERT(pCompBlock->last && pCompBlock->numOfRows < pCfg->minRowsPerFileBlock);
-    tdResetDataCols(pDataCols);
     tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, defaultRowsInBlock - pCompBlock->numOfRows, pDataCols,
                           NULL, 0, pCfg->update, pMergeInfo);
 
@@ -1525,7 +1522,6 @@ static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter,
     }
   } else {
     ASSERT(!pHelper->hasOldLastBlock);
-    tdResetDataCols(pDataCols);
     tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, defaultRowsInBlock, pDataCols, NULL, 0, pCfg->update, pMergeInfo);
     ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);
 
@@ -1571,7 +1567,6 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
 
   if ((!TSDB_IS_LAST_BLOCK(&oBlock)) && keyFirst < pCompBlock->keyFirst) {
     while (true) {
-      tdResetDataCols(pDataCols);
       tsdbLoadDataFromCache(pTable, pCommitIter->pIter, oBlock.keyFirst-1, defaultRowsInBlock, pDataCols, NULL, 0,
                             pCfg->update, pMergeInfo);
       ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);

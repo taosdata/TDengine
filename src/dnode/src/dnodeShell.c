@@ -38,10 +38,10 @@ static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
 int32_t dnodeInitShell() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]          = dnodeDispatchToVnodeReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]          = dnodeDispatchToVnodeReadQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVWriteQueue;
   
   // the following message shall be treated as mnode write
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = dnodeDispatchToMnodeWriteQueue;
