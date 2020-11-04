@@ -434,12 +434,12 @@ void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols)
 
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
-  ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
   ASSERT(target->numOfCols == source->numOfCols);
 
   SDataCols *pTarget = NULL;
 
   if (dataColsKeyLast(target) < dataColsKeyFirst(source)) {  // No overlap
+    ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
         if (source->cols[j].len > 0) {
@@ -509,6 +509,8 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
       (*iter2)++;
       if (key1 == key2) (*iter1)++;
     }
+
+    ASSERT(target->numOfRows <= target->maxPoints);
   }
 }
 
