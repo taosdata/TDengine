@@ -1973,7 +1973,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             char name[TSDB_COL_NAME_LEN] = {0};
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
               index.columnIndex = j;
-              SStrToken t = {.z = pSchema[j].name, .n = strnlen(pSchema[j].name, TSDB_COL_NAME_LEN)};
+              SStrToken t = {.z = pSchema[j].name, .n = (uint32_t)strnlen(pSchema[j].name, TSDB_COL_NAME_LEN)};
               setResultColName(name, pItem, cvtFunc.originFuncId, &t);
 
               if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[j], cvtFunc, name, colIndex++, &index, finalResult) != 0) {
@@ -2037,7 +2037,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             SColumnIndex index = {.tableIndex = j, .columnIndex = i};
 
             char name[TSDB_COL_NAME_LEN] = {0};
-            SStrToken t = {.z = pSchema->name, .n = strnlen(pSchema->name, TSDB_COL_NAME_LEN)};
+            SStrToken t = {.z = pSchema->name, .n = (uint32_t)strnlen(pSchema->name, TSDB_COL_NAME_LEN)};
             setResultColName(name, pItem, cvtFunc.originFuncId, &t);
 
             if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[index.columnIndex], cvtFunc, name, colIndex, &index, finalResult) != 0) {
