@@ -32,11 +32,11 @@ void *tmalloc(int32_t size) {
   return p;
 }
 
-void *tcalloc(int32_t size) {
-  void *p = calloc(1, size);
+void *tcalloc(int32_t nmemb, int32_t size) {
+  void *p = calloc(nmemb, size);
   if (p == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to calloc memory, size:%d reason:%s", size, strerror(errno));
+    uError("failed to calloc memory, nmemb:%d size:%d reason:%s", nmemb, size, strerror(errno));
   }
 
   return p;
