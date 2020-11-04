@@ -969,8 +969,13 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   }
 
   if (update >= 0 && update != pDb->cfg.update) {
+#if 0
     mDebug("db:%s, update:%d change to %d", pDb->name, pDb->cfg.update, update);
     newCfg.update = update;
+#else
+    mError("db:%s, can't alter update option", pDb->name);
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+#endif
   }
 
   return newCfg;
