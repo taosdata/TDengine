@@ -1,0 +1,157 @@
+pipeline {
+  agent none
+  environment{
+      WK = '/var/lib/jenkins/workspace/TDinternal'
+      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+  }
+
+  stages {
+      stage('pre_build'){
+          agent{label 'release'}
+          steps{
+            sh '''
+            cd ${WKC}
+            git checkout develop
+            git pull
+            git submodule update 
+            git checkout $branch_version||git checkout -b $branch_version|git push
+            cd ${WK}
+            git checkout $branch_version||git checkout -b $branch_version|git push
+            '''
+          }
+      }
+      stage('build'){
+        parallel{
+            stage('linux'){
+                agent{label 'release'}
+                steps{
+                    sh '''
+                    cd ${WK}
+                    git pull
+                    cd ${WK}/enterprise/packaging
+                    ./new_ver_release_j.sh $version $branch_version $docker $tag
+                    cd ${WKC}/alter
+                    ./release.sh -n $verson
+                    '''
+                }
+            }
+            stage('windows'){
+                agent{label 'win_192.168.1.201'}
+                steps{
+                    bat '''
+                    d:
+                    cd D:\\3-Jenkins\\taos
+                    release.bat %version% %branch_version%
+                    '''
+                    dir('D:\\3-Jenkins\\taos\\workspace\\win_re') {
+                        stash includes: '*.*',name:'win_re'
+                    }
+                }
+            }
+        }    
+      }
+      stage('install'){
+          agent{label 'release'}
+          steps{
+              sh '''
+              rmtaos||echo 'no taosd'
+              '''
+              
+              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WK}/enterprise/release/v$version/community
+                echo '\n\n' | dpkg -i TDengine-server-$version-Linux-x64.deb
+                systemctl start taosd
+                cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
+                python3 PythonChecker.py
+                dpkg -r tdengine
+                '''
+              }
+              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WK}/enterprise/release/v$version/community
+                tar zxf TDengine-server-$version-Linux-x64.tar.gz
+                cd TDengine-server-$version
+                echo '\n\n' |./install.sh
+                systemctl start taosd
+                '''
+              }
+              
+              
+             
+              
+          }
+      }
+      stage('test') {
+      parallel {
+        stage('linux') {
+          agent{label 'release'}
+          steps {
+            
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/gotest
+                bash batchtest.sh
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
+                python3 PythonChecker.py
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/JDBC/JDBCDemo/
+                mvn clean package assembly:single >/dev/null 
+                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
+                dotnet run
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/nodejs
+                npm init -y 
+                npm install td2.0-connector --unsafe-perm=true
+                node nodejsChecker.js host=localhost
+                '''
+            }
+            
+          }
+        }
+        stage('windows'){
+            agent{label 'win_192.168.1.201'}
+            steps{
+                bat '''
+                d:
+                cd D:\\3-Jenkins\\taos
+                Cs_test.bat %version%
+                '''
+            }
+        }
+        
+      }
+      }
+      stage('publish'){
+          agent{label 'release'}
+          steps{
+              dir('/data/0-TDengine-version-release/temple'){
+                  sh 'rm -f *.exe'
+                  unstash 'win_re'
+                  sh 'cp -r /data/0-TDengine-version-release/temple /data/0-TDengine-version-release/v$version'
+              }
+              sh'''
+              cp -r ${WK}/enterprise/release/v$version/* /data/0-TDengine-version-release/v$version
+              cp ${WKC}/alter/TDengine-alert-$version-Linux-x64.tar.gz /data/0-TDengine-version-release/v$version
+              '''
+          }
+      }
+      
+    }
+
+}
