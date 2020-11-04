@@ -95,6 +95,11 @@ class DbConn:
         # print("dbs = {}, str = {}, ret2={}, type2={}".format(dbs, dbName,ret2, type(dbName)))
         return dbName in dbs # TODO: super weird type mangling seen, once here
 
+    def existsSuperTable(self, stName):
+        self.query("show stables")
+        sts = [v[0] for v in self.getQueryResult()]
+        return stName in sts
+
     def hasTables(self):
         return self.query("show tables") > 0
 
@@ -240,6 +245,7 @@ class MyTDSql:
 
     def _execInternal(self, sql):
         startTime = time.time() 
+        # Logging.debug("Executing SQL: " + sql)
         ret = self._cursor.execute(sql)
         # print("\nSQL success: {}".format(sql))
         queryTime =  time.time() - startTime

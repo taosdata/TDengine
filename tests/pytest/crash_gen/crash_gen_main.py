@@ -38,9 +38,9 @@ import resource
 from guppy import hpy
 import gc
 
-from .service_manager import ServiceManager, TdeInstance
-from .misc import Logging, Status, CrashGenError, Dice, Helper, Progress
-from .db import DbConn, MyTDSql, DbConnNative, DbManager
+from crash_gen.service_manager import ServiceManager, TdeInstance
+from crash_gen.misc import Logging, Status, CrashGenError, Dice, Helper, Progress
+from crash_gen.db import DbConn, MyTDSql, DbConnNative, DbManager
 
 import taos
 import requests
@@ -435,7 +435,7 @@ class ThreadCoordinator:
         Logging.debug("\r\n\n--> Main thread ready to finish up...")
         Logging.debug("Main thread joining all threads")
         self._pool.joinAll()  # Get all threads to finish
-        Logging.info("\nAll worker threads finished")
+        Logging.info(". . . All worker threads finished") # No CR/LF before
         self._execStats.endExec()
 
     def cleanup(self): # free resources
@@ -1072,17 +1072,18 @@ class Database:
         t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
-        Logging.info("Setting up TICKS to start from: {}".format(t4))
+        Logging.debug("Setting up TICKS to start from: {}".format(t4))
         return t4
 
     @classmethod
     def getNextTick(cls):        
         with cls._clsLock:  # prevent duplicate tick
-            if cls._lastLaggingTick==0:
+            if cls._lastLaggingTick==0 or cls._lastTick==0 : # not initialized
                 # 10k at 1/20 chance, should be enough to avoid overlaps
-                cls._lastLaggingTick = cls.setupLastTick() + datetime.timedelta(0, -10000)                 
-            if cls._lastTick==0: # should be quite a bit into the future
-                cls._lastTick = cls.setupLastTick()  
+                tick = cls.setupLastTick()
+                cls._lastTick = tick
+                cls._lastLaggingTick = tick + datetime.timedelta(0, -10000)                 
+                # if : # should be quite a bit into the future
 
             if Dice.throw(20) == 0:  # 1 in 20 chance, return lagging tick
                 cls._lastLaggingTick += datetime.timedelta(0, 1) # Go back in time 100 seconds
@@ -1322,7 +1323,7 @@ class Task():
                 self._err = err
                 self._aborted = True
         except Exception as e:
-            self.logInfo("Non-TAOS exception encountered")
+            Logging.info("Non-TAOS exception encountered with: {}".format(self.__class__.__name__))
             self._err = e
             self._aborted = True
             traceback.print_exc()
@@ -1566,8 +1567,11 @@ class TaskCreateSuperTable(StateTransitionTask):
 
         sTable = self._db.getFixedSuperTable() # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
+
         sTable.create(wt.getDbConn(), self._db.getName(), 
-            {'ts':'timestamp', 'speed':'int'}, {'b':'binary(200)', 'f':'float'})
+            {'ts':'timestamp', 'speed':'int'}, {'b':'binary(200)', 'f':'float'},
+            dropIfExists = True
+            )
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that
         # automatically
@@ -1580,14 +1584,41 @@ class TdSuperTable:
     def getName(self):
         return self._stName
 
+    def drop(self, dbc, dbName, skipCheck = False):
+        if self.exists(dbc, dbName) : # if myself exists
+            fullTableName = dbName + '.' + self._stName                
+            dbc.execute("DROP TABLE {}".format(fullTableName))
+        else:
+            if not skipCheck:
+                raise CrashGenError("Cannot drop non-existant super table: {}".format(self._stName))
+
+    def exists(self, dbc, dbName):
+        dbc.execute("USE " + dbName)
+        return dbc.existsSuperTable(self._stName)
+
     # TODO: odd semantic, create() method is usually static?
-    def create(self, dbc, dbName, cols: dict, tags: dict):
+    def create(self, dbc, dbName, cols: dict, tags: dict,
+        dropIfExists = False
+        ):
+
         '''Creating a super table'''
-        sql = "CREATE TABLE {}.{} ({}) TAGS ({})".format(
-            dbName,
-            self._stName,
-            ",".join(['%s %s'%(k,v) for (k,v) in cols.items()]),
-            ",".join(['%s %s'%(k,v) for (k,v) in tags.items()])
+        dbc.execute("USE " + dbName)
+        fullTableName = dbName + '.' + self._stName       
+        if dbc.existsSuperTable(self._stName):
+            if dropIfExists: 
+                dbc.execute("DROP TABLE {}".format(fullTableName))
+            else: # error
+                raise CrashGenError("Cannot create super table, already exists: {}".format(self._stName))
+                 
+        # Now let's create
+        sql = "CREATE TABLE {} ({})".format(
+            fullTableName,
+            ",".join(['%s %s'%(k,v) for (k,v) in cols.items()]))
+        if tags is None :
+            sql += " TAGS (dummy int) "
+        else:
+            sql += " TAGS ({})".format(
+                ",".join(['%s %s'%(k,v) for (k,v) in tags.items()])
             )
         dbc.execute(sql)        
 
@@ -1611,17 +1642,19 @@ class TdSuperTable:
             return
 
         # acquire a lock first, so as to be able to *verify*. More details in TD-1471
-        fullTableName = dbName + '.' + regTableName       
-        task.lockTable(fullTableName)
+        fullTableName = dbName + '.' + regTableName      
+        if task is not None:  # optional lock
+            task.lockTable(fullTableName)
         Progress.emit(Progress.CREATE_TABLE_ATTEMPT) # ATTEMPT to create a new table
-        print("(" + fullTableName[-3:] + ")", end="", flush=True)  
+        # print("(" + fullTableName[-3:] + ")", end="", flush=True)  
         try:
             sql = "CREATE TABLE {} USING {}.{} tags ({})".format(
                 fullTableName, dbName, self._stName, self._getTagStrForSql(dbc, dbName)
             )
             dbc.execute(sql)
         finally:
-            task.unlockTable(fullTableName) # no matter what
+            if task is not None:
+                task.unlockTable(fullTableName) # no matter what
 
     def _getTagStrForSql(self, dbc, dbName: str) :
         tags = self._getTags(dbc, dbName)
@@ -1840,7 +1873,7 @@ class TaskRestartService(StateTransitionTask):
 
         with self._classLock:
             if self._isRunning:
-                print("Skipping restart task, another running already")
+                Logging.info("Skipping restart task, another running already")
                 return
             self._isRunning = True
 
@@ -1999,7 +2032,7 @@ class ThreadStacks: # stack info for all threads
 
 class ClientManager:
     def __init__(self):
-        print("Starting service manager")
+        Logging.info("Starting service manager")
         # signal.signal(signal.SIGTERM, self.sigIntHandler)
         # signal.signal(signal.SIGINT, self.sigIntHandler)
 
@@ -2101,7 +2134,7 @@ class ClientManager:
         thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
         self.tc = ThreadCoordinator(thPool, dbManager)
         
-        print("Starting client instance to: {}".format(tInst))
+        Logging.info("Starting client instance: {}".format(tInst))
         self.tc.run()
         # print("exec stats: {}".format(self.tc.getExecStats()))
         # print("TC failed = {}".format(self.tc.isFailed()))
