@@ -477,7 +477,7 @@ void tsBufFlush(STSBuf* pTSBuf) {
   fsync(fileno(pTSBuf->f));
 }
 
-static int32_t tsBufFindVnodeIndexFromId(STSVnodeBlockInfoEx* pVnodeInfoEx, int32_t numOfVnodes, int32_t vnodeId) {
+static int32_t tsBufFindVnodeById(STSVnodeBlockInfoEx* pVnodeInfoEx, int32_t numOfVnodes, int32_t vnodeId) {
   int32_t j = -1;
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     if (pVnodeInfoEx[i].info.vnode == vnodeId) {
@@ -606,7 +606,7 @@ static int32_t doUpdateVnodeInfo(STSBuf* pTSBuf, int64_t offset, STSVnodeBlockIn
 }
 
 STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId) {
-  int32_t j = tsBufFindVnodeIndexFromId(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
+  int32_t j = tsBufFindVnodeById(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
   if (j == -1) {
     return NULL;
   }
@@ -870,7 +870,7 @@ STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag) {
     return elem;
   }
   
-  int32_t j = tsBufFindVnodeIndexFromId(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
+  int32_t j = tsBufFindVnodeById(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
   if (j == -1) {
     return elem;
   }
@@ -1025,8 +1025,9 @@ void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
   }
 }
 
-int32_t dumpFileBlockByVnodeId(STSBuf* pTSBuf, int32_t vnodeId, void* buf, int32_t* len, int32_t* numOfBlocks) {
-  STSVnodeBlockInfo *pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
+int32_t dumpFileBlockByVnodeId(STSBuf* pTSBuf, int32_t vnodeIndex, void* buf, int32_t* len, int32_t* numOfBlocks) {
+  assert(vnodeIndex >= 0 && vnodeIndex < pTSBuf->numOfVnodes);
+  STSVnodeBlockInfo *pBlockInfo = &pTSBuf->pData[vnodeIndex].info;
 
   *len = 0;
   *numOfBlocks = 0;
@@ -1048,4 +1049,21 @@ int32_t dumpFileBlockByVnodeId(STSBuf* pTSBuf, int32_t vnodeId, void* buf, int32
   *numOfBlocks = pBlockInfo->numOfBlocks;
 
   return TSDB_CODE_SUCCESS;
+}
+
+STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag) {
+  STSElem el = {.vnode = -1};
+
+  for (int32_t i = 0; i < pTSBuf->numOfVnodes; ++i) {
+    el = tsBufGetElemStartPos(pTSBuf, pTSBuf->pData[i].info.vnode, pTag);
+    if (el.vnode == pTSBuf->pData[i].info.vnode) {
+      return el;
+    }
+  }
+
+  return el;
+}
+
+bool tsBufIsValidElem(STSElem* pElem) {
+  return pElem->vnode >= 0;
 }
