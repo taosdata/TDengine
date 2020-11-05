@@ -111,11 +111,12 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   return code;
 }
 
-void walFsync(void *handle) {
+void walFsync(void *handle, bool forceFsync) {
   SWal *pWal = handle;
-  if (pWal == NULL || pWal->level != TAOS_WAL_FSYNC || pWal->fd < 0) return;
+  if (pWal == NULL || pWal->fd < 0) return;
 
-  if (pWal->fsyncPeriod == 0) {
+  if (forceFsync || (pWal->level == TAOS_WAL_FSYNC && pWal->fsyncPeriod == 0)) {
+    wTrace("vgId:%d, file:%s, do fsync, force:%d", pWal->vgId, pWal->name, forceFsync);
     if (fsync(pWal->fd) < 0) {
       wError("vgId:%d, file:%s, fsync failed since %s", pWal->vgId, pWal->name, strerror(errno));
     }

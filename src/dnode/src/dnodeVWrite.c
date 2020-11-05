@@ -204,6 +204,7 @@ static void *dnodeProcessVWriteQueue(void *param) {
       break;
     }
 
+    bool forceFsync = false;
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
       dTrace("%p, msg:%p:%s will be processed in vwrite queue, qtype:%d version:%" PRIu64, pWrite->rpcAhandle, pWrite,
@@ -211,11 +212,12 @@ static void *dnodeProcessVWriteQueue(void *param) {
 
       pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
       if (pWrite->code <= 0) pWrite->processedCount = 1;
+      if (pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 
       dTrace("msg:%p is processed in vwrite queue, result:%s", pWrite, tstrerror(pWrite->code));
     }
 
-    walFsync(vnodeGetWal(pVnode));
+    walFsync(vnodeGetWal(pVnode), forceFsync);
 
     // browse all items, and process them one by one
     taosResetQitems(pWorker->qall);
