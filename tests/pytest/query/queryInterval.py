@@ -35,10 +35,11 @@ class TDTestCase:
                         % (self.ts, self.ts + 2000000000, self.ts + 4000000000, self.ts + 5000000000, self.ts + 7000000000))        
 
         tdSql.query("select avg(voltage) from st interval(1n)")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 1, 221.4)
-        tdSql.checkData(1, 1, 227.0)
-        tdSql.checkData(2, 1, 222.0)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 220.0)
+        tdSql.checkData(1, 1, 222.33333333333334)
+        tdSql.checkData(2, 1, 227.0)
+        tdSql.checkData(3, 1, 222.0)
         
         tdSql.query("select avg(voltage) from st interval(1n, 15d)")
         tdSql.checkRows(4)

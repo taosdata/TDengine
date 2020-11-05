@@ -49,7 +49,6 @@ typedef struct SFillInfo {
   int32_t numOfTags;            // number of tags
   int32_t numOfCols;            // number of columns, including the tags columns
   int32_t rowSize;              // size of each row
-//  char ** pTags;                // tags value for current interpolation
   SFillTagColInfo* pTags;       // tags value for filling gap
   SInterval interval;
   char *  prevValues;           // previous row of data, to generate the interpolation results
@@ -83,7 +82,7 @@ int64_t getFilledNumOfRes(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRo
 
 int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
 
-int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+int32_t taosGetLinearInterpolationVal(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
 
 int64_t taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
 
