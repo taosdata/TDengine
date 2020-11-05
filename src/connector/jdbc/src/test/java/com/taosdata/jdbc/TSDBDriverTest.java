@@ -113,6 +113,7 @@ public class TSDBDriverTest {
                 conn = DriverManager.getConnection(jdbcUrl, connProps);
                 assertNotNull("failure - connection should not be null", conn);
             }
+            printRs();
         } catch (SQLException e) {
             e.printStackTrace();
             fail("failure - should not throw Exception");
@@ -209,8 +210,7 @@ public class TSDBDriverTest {
         assertNull("failure - getParentLogger should be be null", new TSDBDriver().getParentLogger());
     }
 
-    @After
-    public void after() {
+    public void printRs() {
         Statement statement = null;
         try {
             statement = conn.createStatement();
