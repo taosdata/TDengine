@@ -560,7 +560,7 @@ void rpcCancelRequest(int64_t rid) {
 
   rpcCloseConn(pContext->pConn);
 
-  taosReleaseRef(tsRpcRefId, pContext);
+  taosReleaseRef(tsRpcRefId, rid);
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -629,7 +629,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     // if there is an outgoing message, free it
     if (pConn->outType && pConn->pReqMsg) {
       if (pConn->pContext) pConn->pContext->pConn = NULL; 
-      taosRemoveRef(tsRpcRefId, pConn->pContext);
+      taosRemoveRef(tsRpcRefId, pConn->pContext->rid);
     }
   }
 
@@ -1110,7 +1110,7 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   }
 
   // free the request message
-  taosRemoveRef(tsRpcRefId, pContext); 
+  taosRemoveRef(tsRpcRefId, pContext->rid); 
 }
 
 static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext) {

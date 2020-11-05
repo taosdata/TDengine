@@ -44,12 +44,12 @@ static void     vnodeCtrlFlow(void *handle, int32_t mseconds);
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 #ifndef _SYNC
-tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
-void    syncStop(tsync_h shandle) {}
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
-int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
+int64_t syncStart(const SSyncInfo *info) { return NULL; }
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int qtype) { return 0; }
+void    syncStop(int64_t rid) {}
+int32_t syncReconfig(int64_t rid, const SSyncCfg * cfg) { return 0; }
+int     syncGetNodesRole(int64_t rid, SNodesRole * cfg) { return 0; }
+void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {}
 #endif
 
 char* vnodeStatus[] = {
@@ -330,7 +330,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 #ifndef _SYNC
   pVnode->role = TAOS_SYNC_ROLE_MASTER;
 #else
-  if (pVnode->sync == NULL) {
+  if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
     vnodeCleanUp(pVnode);
@@ -589,9 +589,9 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   }
 
   // stop replication module
-  if (pVnode->sync) {
-    void *sync = pVnode->sync;
-    pVnode->sync = NULL;
+  if (pVnode->sync > 0) {
+    int64_t sync = pVnode->sync;
+    pVnode->sync = -1;
     syncStop(sync);
   }
 

@@ -182,27 +182,23 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     int32_t waitingDuring = tsShellActivityTimer * 500;
     tscDebug("%p send heartbeat in %dms", pSql, waitingDuring);
 
-    taosTmrReset(tscProcessActivityTimer, waitingDuring, pObj, tscTmr, &pObj->pTimer);
+    taosTmrReset(tscProcessActivityTimer, waitingDuring, (void *)pObj->rid, tscTmr, &pObj->pTimer);
   } else {
     tscDebug("%p start to close tscObj:%p, not send heartbeat again", pSql, pObj);
   }
 }
 
 void tscProcessActivityTimer(void *handle, void *tmrId) {
-  STscObj *pObj = (STscObj *)handle;
-
-  int ret = taosAcquireRef(tscRefId, pObj);
-  if (ret < 0) {
-    tscTrace("%p failed to acquire TSC obj, reason:%s", pObj, tstrerror(ret));
-    return;
-  }
+  int64_t rid = (int64_t) handle;
+  STscObj *pObj = taosAcquireRef(tscRefId, rid);
+  if (pObj == NULL) return; 
 
   SSqlObj* pHB = pObj->pHb;
 
   void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
   if (p == NULL) {
     tscWarn("%p HB object has been released already", pHB);
-    taosReleaseRef(tscRefId, pObj);
+    taosReleaseRef(tscRefId, pObj->rid);
     return;
   }
 
@@ -216,7 +212,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
   }
 
-  taosReleaseRef(tscRefId, pObj);
+  taosReleaseRef(tscRefId, rid);
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
@@ -241,7 +237,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .pCont   = pMsg,
       .contLen = pSql->cmd.payloadLen,
       .ahandle = pSql,
-      .handle  = &pSql->pRpcCtx,
+      .handle  = NULL,
       .code    = 0
   };
 
@@ -249,7 +245,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   // Otherwise, the pSql object may have been released already during the response function, which is
   // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
   // cause crash.
-  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
+  pSql->rpcRid = rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -269,7 +265,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   assert(*pSql->self == pSql);
-  pSql->pRpcCtx = NULL;
+  pSql->rpcRid = -1;
 
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
@@ -2026,7 +2022,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   createHBObj(pObj);
 
   //launch a timer to send heartbeat to maintain the connection and send status to mnode
-  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
+  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, (void *)pObj->rid, tscTmr, &pObj->pTimer);
 
   return 0;
 }
