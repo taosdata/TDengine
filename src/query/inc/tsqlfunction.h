@@ -145,15 +145,14 @@ typedef struct SInterpInfoDetail {
   int8_t primaryCol;
 } SInterpInfoDetail;
 
-typedef struct SResultInfo {
+typedef struct SResultRowCellInfo {
   int8_t   hasResult;       // result generated, not NULL value
-  bool     initialized;   // output buffer has been initialized
-  bool     complete;      // query has completed
-  bool     superTableQ;   // is super table query
-  uint32_t bufLen;       // buffer size
-  uint64_t numOfRes;        // num of output result in current buffer
-  void*    interResultBuf;  // output result buffer
-} SResultInfo;
+  bool     initialized;     // output buffer has been initialized
+  bool     complete;        // query has completed
+  uint16_t numOfRes;        // num of output result in current buffer
+} SResultRowCellInfo;
+
+#define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowCellInfo)))
 
 struct SQLFunctionCtx;
 
@@ -175,9 +174,11 @@ typedef struct SQLFunctionCtx {
   int16_t      inputBytes;
   
   int16_t      outputType;
-  int16_t      outputBytes;  // size of results, determined by function and input column data type
-  bool         hasNull;      // null value exist in current block
+  int16_t      outputBytes;   // size of results, determined by function and input column data type
+  int32_t      interBufBytes; // internal buffer size
+  bool         hasNull;       // null value exist in current block
   bool         requireNull;  // require null in some function
+  bool         stableQuery;
   int16_t      functionId;   // function id
   void *       aInputElemBuf;
   char *       aOutputBuf;            // final result output buffer, point to sdata->data
@@ -189,7 +190,8 @@ typedef struct SQLFunctionCtx {
   void *       ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SQLPreAggVal preAggVals;
   tVariant     tag;
-  SResultInfo *resultInfo;
+
+  SResultRowCellInfo *resultInfo;
 
   SExtTagsInfo tagInfo;
 } SQLFunctionCtx;
@@ -274,16 +276,16 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const cha
     (_r)->initialized = false; \
   } while (0)
 
-void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable, char* buf);
+//void setResultInfoBuf(SResultRowCellInfo *pResInfo, char* buf);
 
-static FORCE_INLINE void initResultInfo(SResultInfo *pResInfo) {
+static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, uint32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
   pResInfo->complete = false;
   pResInfo->hasResult = false;
   pResInfo->numOfRes = 0;
   
-  memset(pResInfo->interResultBuf, 0, (size_t)pResInfo->bufLen);
+  memset(GET_ROWCELL_INTERBUF(pResInfo), 0, (size_t)bufLen);
 }
 
 #ifdef __cplusplus

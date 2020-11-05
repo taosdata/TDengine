@@ -176,7 +176,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   }
 
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscFetchDatablockFromSubquery(pSql);
+    tscFetchDatablockForSubquery(pSql);
   } else {
     tscProcessSql(pSql);
   }
@@ -226,7 +226,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   
   // handle the sub queries of join query
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscFetchDatablockFromSubquery(pSql);
+    tscFetchDatablockForSubquery(pSql);
   } else if (pRes->completed) {
     if(pCmd->command == TSDB_SQL_FETCH || (pCmd->command >= TSDB_SQL_SERV_STATUS && pCmd->command <= TSDB_SQL_CURRENT_USER)) {
       if (hasMoreVnodesToTry(pSql)) {  // sequentially retrieve data from remain vnodes.

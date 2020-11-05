@@ -91,7 +91,7 @@ void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->numOfTotal   = 0;
 }
 
-void* taosDestoryFillInfo(SFillInfo* pFillInfo) {
+void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   if (pFillInfo == NULL) {
     return NULL;
   }

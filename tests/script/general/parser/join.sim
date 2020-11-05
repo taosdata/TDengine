@@ -444,6 +444,9 @@ if $rows != $val then
   return -1
 endi
 
+#===============================================================
+sql select first(join_tb0.c8),first(join_tb0.c9) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true
+
 #====================group by=========================================
 
 
