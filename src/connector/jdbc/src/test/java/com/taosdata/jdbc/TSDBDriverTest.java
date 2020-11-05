@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.sql.*;
+import java.util.Enumeration;
 import java.util.Properties;
 
 import static org.junit.Assert.*;
@@ -68,7 +69,6 @@ public class TSDBDriverTest {
         }
     }
 
-
     @Test
     public void testConnectWithJdbcURL() {
         final String url = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
@@ -114,6 +114,12 @@ public class TSDBDriverTest {
                 assertNotNull("failure - connection should not be null", conn);
             }
             printRs();
+            Properties clientInfo = conn.getClientInfo();
+            Enumeration<?> propertyNames = clientInfo.propertyNames();
+            while (propertyNames.hasMoreElements()) {
+                String name = (String) propertyNames.nextElement();
+                System.out.println(name + " : " + clientInfo.getProperty(name));
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             fail("failure - should not throw Exception");

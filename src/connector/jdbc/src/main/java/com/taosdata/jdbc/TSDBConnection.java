@@ -197,12 +197,13 @@ public class TSDBConnection implements Connection {
     }
 
     public SQLWarning getWarnings() throws SQLException {
+        //todo: implement getWarnings according to the warning messages returned from TDengine
         throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public void clearWarnings() throws SQLException {
         // left blank to support HikariCP connection
-        //todo: implement getWarnings according to the warning messages returned from TDengine
+        //todo: implement clearWarnings according to the warning messages returned from TDengine
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
