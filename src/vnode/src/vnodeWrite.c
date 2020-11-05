@@ -46,10 +46,11 @@ void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL]  = vnodeProcessUpdateTagValMsg;
 }
 
-int32_t vnodeProcessWrite(void *param, int32_t qtype, SVWriteMsg *pWrite) {
-  int32_t    code = 0;
-  SVnodeObj *pVnode = param;
-  SWalHead * pHead = pWrite->pHead;
+int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+  int32_t     code = 0;
+  SVnodeObj * pVnode = vparam;
+  SWalHead *  pHead = wparam;
+  SRspRet *   pRspRet = rparam;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
     vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[pHead->msgType]);
@@ -80,7 +81,7 @@ int32_t vnodeProcessWrite(void *param, int32_t qtype, SVWriteMsg *pWrite) {
 
   // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
   int32_t syncCode = 0;
-  syncCode = syncForwardToPeer(pVnode->sync, pHead, &pWrite->rspRet, qtype);
+  syncCode = syncForwardToPeer(pVnode->sync, pHead, pRspRet, qtype);
   if (syncCode < 0) return syncCode;
 
   // write into WAL
@@ -90,7 +91,7 @@ int32_t vnodeProcessWrite(void *param, int32_t qtype, SVWriteMsg *pWrite) {
   pVnode->version = pHead->version;
 
   // write data locally
-  code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, &pWrite->rspRet);
+  code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, pRspRet);
   if (code < 0) return code;
 
   return syncCode;
@@ -204,7 +205,7 @@ static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspR
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *pMsg) {
+int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
   SVnodeObj *pVnode = vparam;
   SWalHead * pHead = wparam;
 
@@ -219,8 +220,8 @@ int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *pMsg)
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  if (pMsg != NULL) {
-    SRpcMsg *pRpcMsg = pMsg;
+  if (rparam != NULL) {
+    SRpcMsg *pRpcMsg = rparam;
     pWrite->rpcHandle = pRpcMsg->handle;
     pWrite->rpcAhandle = pRpcMsg->ahandle;
   }

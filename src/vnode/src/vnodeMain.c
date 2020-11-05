@@ -305,7 +305,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return terrno;
   }
 
-  walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
+  walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
   if (pVnode->version == 0) {
     pVnode->version = walGetVersion(pVnode->wal);
   }

@@ -211,7 +211,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       dTrace("%p, msg:%p:%s will be processed in vwrite queue, qtype:%d version:%" PRIu64, pWrite->rpcAhandle, pWrite,
              taosMsg[pWrite->pHead->msgType], qtype, pWrite->pHead->version);
 
-      pWrite->code = vnodeProcessWrite(pVnode, qtype, pWrite);
+      pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
       if (pWrite->code <= 0) pWrite->processedCount = 1;
 
       dTrace("msg:%p is processed in vwrite queue, result:%s", pWrite, tstrerror(pWrite->code));

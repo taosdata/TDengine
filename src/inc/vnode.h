@@ -66,8 +66,8 @@ void*   vnodeAcquireRqueue(int32_t vgId);  // add refCount, get read queue
 void    vnodeRelease(void *pVnode);        // dec refCount
 void*   vnodeGetWal(void *pVnode);
 
-int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *pMsg);
-int32_t vnodeProcessWrite(void *param, int32_t qtype, SVWriteMsg *pWrite);
+int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *rparam);
+int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam);
 int32_t vnodeCheckWrite(void *pVnode);
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
 void    vnodeBuildStatusMsg(void *param);
