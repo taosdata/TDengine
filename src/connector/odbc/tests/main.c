@@ -24,8 +24,8 @@ do {                                              \
 
 typedef struct db_column_s          db_column_t;
 struct db_column_s {
-  char                    name[4096]; // seems enough
   SQLSMALLINT             nameLength;
+  char                    name[4096]; // seems enough
   SQLSMALLINT             dataType;
   SQLULEN                 columnSize;
   SQLSMALLINT             decimalDigits;
