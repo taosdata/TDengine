@@ -82,13 +82,13 @@ int taosOpenRef(int max, void (*fp)(void *))
  
   for (i = 0; i < TSDB_REF_OBJECTS; ++i) {
     tsNextId = (tsNextId + 1) % TSDB_REF_OBJECTS;
+    if (tsNextId == 0) tsNextId = 1;   // dont use 0 as rsetId
     if (tsRefSetList[tsNextId].state == TSDB_REF_STATE_EMPTY) break;
   } 
 
   if (i < TSDB_REF_OBJECTS) {
     rsetId = tsNextId;
     pSet = tsRefSetList + rsetId;
-    taosIncRsetCount(pSet);
     pSet->max = max;
     pSet->nodeList = nodeList;
     pSet->lockedBy = lockedBy;
@@ -96,6 +96,7 @@ int taosOpenRef(int max, void (*fp)(void *))
     pSet->rid = 1;
     pSet->rsetId = rsetId;
     pSet->state = TSDB_REF_STATE_ACTIVE;
+    taosIncRsetCount(pSet);
 
     tsRefSetNum++;
     uTrace("rsetId:%d is opened, max:%d, fp:%p refSetNum:%d", rsetId, max, fp, tsRefSetNum);
@@ -469,12 +470,12 @@ static void taosInitRefModule(void) {
 
 static void taosIncRsetCount(SRefSet *pSet) {
   atomic_add_fetch_32(&pSet->count, 1);
-  uTrace("rsetId:%d inc count:%d", pSet->rsetId, pSet->count);
+  // uTrace("rsetId:%d inc count:%d", pSet->rsetId, count);
 }
 
 static void taosDecRsetCount(SRefSet *pSet) {
   int32_t count = atomic_sub_fetch_32(&pSet->count, 1);
-  uTrace("rsetId:%d dec count:%d", pSet->rsetId, pSet->count);
+  // uTrace("rsetId:%d dec count:%d", pSet->rsetId, count);
 
   if (count > 0) return;
 
