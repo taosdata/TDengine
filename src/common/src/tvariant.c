@@ -108,7 +108,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
-      pVar->pz = calloc(len, sizeof(char));
+      pVar->pz = calloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
       break;
