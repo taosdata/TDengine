@@ -7,3 +7,6 @@
 [submodule "tests/examples/rust"]
 	path = tests/examples/rust
 	url = https://github.com/songtianyi/tdengine-rust-bindings.git
+[submodule "src/connector/hivemq-tdengine-extension"]
+	path = src/connector/hivemq-tdengine-extension
+	url = https://github.com/huskar-t/hivemq-tdengine-extension.git

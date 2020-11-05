@@ -24,6 +24,7 @@ python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
+python3 ./test.py -f table/create_sensitive.py
 #python3 ./test.py -f table/tablename-boundary.py
 
 # tag
@@ -186,7 +187,7 @@ python3 ./test.py -f functions/function_leastsquares.py -r 1
 python3 ./test.py -f functions/function_max.py -r 1
 python3 ./test.py -f functions/function_min.py -r 1
 python3 ./test.py -f functions/function_operations.py -r 1 
-python3 ./test.py -f functions/function_percentile.py
+python3 ./test.py -f functions/function_percentile.py -r 1
 python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1

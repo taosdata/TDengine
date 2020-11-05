@@ -23,7 +23,6 @@
 #include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tscSubquery.h"
 
 typedef struct SInsertSupporter {
   SSqlObj*  pSql;
@@ -58,6 +57,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   
   pSubQueryInfo1->tsBuf = output1;
   pSubQueryInfo2->tsBuf = output2;
+
+  TSKEY st = taosGetTimestampUs();
 
   // no result generated, return directly
   if (pSupporter1->pTSBuf == NULL || pSupporter2->pTSBuf == NULL) {
@@ -95,7 +96,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
     tscInfo("%" PRId64 ", tags:%"PRId64" \t %" PRId64 ", tags:%"PRId64, elem1.ts, elem1.tag.i64Key, elem2.ts, elem2.tag.i64Key);
 #endif
 
-    int32_t res = tVariantCompare(&elem1.tag, &elem2.tag);
+    int32_t res = tVariantCompare(elem1.tag, elem2.tag);
     if (res == -1 || (res == 0 && tsCompare(order, elem1.ts, elem2.ts))) {
       if (!tsBufNextPos(pSupporter1->pTSBuf)) {
         break;
@@ -122,8 +123,9 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
           win->ekey = elem1.ts;
         }
         
-        tsBufAppend(output1, elem1.vnode, &elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
-        tsBufAppend(output2, elem2.vnode, &elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
+        tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
+        tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
+
       } else {
         pLimit->offset -= 1;
       }
@@ -158,9 +160,10 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   tsBufDestroy(pSupporter1->pTSBuf);
   tsBufDestroy(pSupporter2->pTSBuf);
 
-  tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks "
-           "intersecting, skey:%" PRId64 ", ekey:%" PRId64, pSql, numOfInput1, numOfInput2, output1->numOfTotal,
-           win->skey, win->ekey);
+  TSKEY et = taosGetTimestampUs();
+  tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
+           "intersecting, skey:%" PRId64 ", ekey:%" PRId64 ", numOfVnode:%d, elasped time:%"PRId64" us", pSql, numOfInput1, numOfInput2, output1->numOfTotal,
+           output1->numOfVnodes, win->skey, win->ekey, tsBufGetNumOfVnodes(output1), et - st);
 
   return output1->numOfTotal;
 }
@@ -214,6 +217,11 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
     fclose(pSupporter->f);
     unlink(pSupporter->path);
     pSupporter->f = NULL;
+  }
+
+  if (pSupporter->pVgroupTables != NULL) {
+    taosArrayDestroy(pSupporter->pVgroupTables);
+    pSupporter->pVgroupTables = NULL;
   }
 
   taosTFree(pSupporter->pIdTagList);
@@ -305,7 +313,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
-
     memcpy(&pQueryInfo->interval, &pSupporter->interval, sizeof(pQueryInfo->interval));
 
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
@@ -324,7 +331,9 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     tscFieldInfoUpdateOffset(pNewQueryInfo);
   
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
-  
+    pTableMetaInfo->pVgroupTables = pSupporter->pVgroupTables;
+    pSupporter->pVgroupTables = NULL;
+
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
      * during the timestamp intersection.
@@ -356,9 +365,38 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-      pExpr->param[0].i64Key = colId;
+      pExpr->param[0] = (tVariant) {.i64Key = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
       pExpr->numOfParams = 1;
     }
+
+    int32_t num = 0;
+    int32_t *list = NULL;
+    tsBufGetVnodeIdList(pNewQueryInfo->tsBuf, &num, &list);
+
+    if (pTableMetaInfo->pVgroupTables != NULL) {
+      for(int32_t k = 0; k < taosArrayGetSize(pTableMetaInfo->pVgroupTables);) {
+        SVgroupTableInfo* p = taosArrayGet(pTableMetaInfo->pVgroupTables, k);
+
+        bool found = false;
+        for(int32_t f = 0; f < num; ++f) {
+          if (p->vgInfo.vgId == list[f]) {
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          tscRemoveVgroupTableGroup(pTableMetaInfo->pVgroupTables, k);
+        } else {
+          k++;
+        }
+      }
+
+      assert(taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0);
+      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+    }
+
+    taosTFree(list);
 
     size_t numOfCols = taosArrayGetSize(pNewQueryInfo->colList);
     tscDebug("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
@@ -418,6 +456,8 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
 static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
   assert(pQueryInfo->window.skey <= win->skey && pQueryInfo->window.ekey >= win->ekey);
   pQueryInfo->window = *win;
+
+
 }
 
 int32_t tscCompareTidTags(const void* p1, const void* p2) {
@@ -474,10 +514,11 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   SSqlCmd* pCmd = &pSql->cmd;
   tscClearSubqueryInfo(pCmd);
   tscFreeSqlResult(pSql);
-  
+
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  assert(pQueryInfo->numOfTables == 1);
+
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
   tscInitQueryInfo(pQueryInfo);
 
   TSDB_QUERY_CLEAR_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
@@ -524,13 +565,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   tscProcessSql(pSql);
 }
 
-static bool checkForDuplicateTagVal(SQueryInfo* pQueryInfo, SJoinSupporter* p1, SSqlObj* pPSqlObj) {
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);// todo: tags mismatch, tags not completed
-  SColumn *pCol = taosArrayGetP(pTableMetaInfo->tagColList, 0);
-  SSchema *pColSchema = &pSchema[pCol->colIndex.columnIndex];
-
+static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSqlObj* pPSqlObj) {
   for(int32_t i = 1; i < p1->num; ++i) {
     STidTags* prev = (STidTags*) varDataVal(p1->pIdTagList + (i - 1) * p1->tagSize);
     STidTags* p = (STidTags*) varDataVal(p1->pIdTagList + i * p1->tagSize);
@@ -564,7 +599,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   *s1 = taosArrayInit(p1->num, p1->tagSize - sizeof(int16_t));
   *s2 = taosArrayInit(p2->num, p2->tagSize - sizeof(int16_t));
 
-  if (!(checkForDuplicateTagVal(pQueryInfo, p1, pParentSql) && checkForDuplicateTagVal(pQueryInfo, p2, pParentSql))) {
+  if (!(checkForDuplicateTagVal(pColSchema, p1, pParentSql) && checkForDuplicateTagVal(pColSchema, p2, pParentSql))) {
     return TSDB_CODE_QRY_DUP_JOIN_KEY;
   }
 
@@ -708,6 +743,12 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     STableMetaInfo* pTableMetaInfo2 = tscGetMetaInfo(pQueryInfo2, 0);
     tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
 
+    SSqlObj* psub1 = pParentSql->pSubs[0];
+    ((SJoinSupporter*)psub1->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo1->pVgroupTables);
+
+    SSqlObj* psub2 = pParentSql->pSubs[1];
+    ((SJoinSupporter*)psub2->param)->pVgroupTables =  tscCloneVgroupTableInfo(pTableMetaInfo2->pVgroupTables);
+
     pParentSql->subState.numOfSub = 2;
     pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;
 
@@ -766,9 +807,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       pSupporter->pTSBuf = pBuf;
     } else {
       assert(pQueryInfo->numOfTables == 1);  // for subquery, only one
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-      tsBufMerge(pSupporter->pTSBuf, pBuf, pTableMetaInfo->vgroupIndex);
+      tsBufMerge(pSupporter->pTSBuf, pBuf);
       tsBufDestroy(pBuf);
     }
 
@@ -835,6 +874,8 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   // launch the query the retrieve actual results from vnode along with the filtered timestamp
   SQueryInfo* pPQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
   updateQueryTimeRange(pPQueryInfo, &win);
+
+  //update the vgroup that involved in real data query
   tscLaunchRealSubqueries(pParentSql);
 }
 
@@ -868,20 +909,27 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     assert(pQueryInfo->numOfTables == 1);
 
     // for projection query, need to try next vnode if current vnode is exhausted
-    if ((++pTableMetaInfo->vgroupIndex) < pTableMetaInfo->vgroupList->numOfVgroups) {
-      pState->numOfRemain = 1;
-      pState->numOfSub = 1;
+    int32_t numOfVgroups = 0;  // TODO refactor
+    if (pTableMetaInfo->pVgroupTables != NULL) {
+      numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    } else {
+      numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
+    }
 
+    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
+      tscDebug("%p no result in current vnode anymore, try next vnode, vgIndex:%d", pSql, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
-      tscProcessSql(pSql);
 
+      tscProcessSql(pSql);
       return;
+    } else {
+      tscDebug("%p no result in current subquery anymore", pSql);
     }
   }
 
-  if (atomic_sub_fetch_32(&pParentSql->subState.numOfRemain, 1) > 0) {
-    tscDebug("%p sub:%p completed, remain:%d, total:%d", pParentSql, tres, pParentSql->subState.numOfRemain, pState->numOfSub);
+  if (atomic_sub_fetch_32(&pState->numOfRemain, 1) > 0) {
+    tscDebug("%p sub:%p completed, remain:%d, total:%d", pParentSql, tres, pState->numOfRemain, pState->numOfSub);
     return;
   }
 
@@ -895,60 +943,60 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   // update the records for each subquery in parent sql object.
   for (int32_t i = 0; i < pState->numOfSub; ++i) {
     if (pParentSql->pSubs[i] == NULL) {
+      tscDebug("%p %p sub:%d not retrieve data", pParentSql, NULL, i);
       continue;
     }
 
     SSqlRes* pRes1 = &pParentSql->pSubs[i]->res;
-    pRes1->numOfClauseTotal += pRes1->numOfRows;
+
+    if (pRes1->row > 0 && pRes1->numOfRows > 0) {
+      tscDebug("%p sub:%p index:%d numOfRows:%"PRId64" total:%"PRId64 " (not retrieve)", pParentSql, pParentSql->pSubs[i], i,
+               pRes1->numOfRows, pRes1->numOfTotal);
+      assert(pRes1->row < pRes1->numOfRows);
+    } else {
+      pRes1->numOfClauseTotal += pRes1->numOfRows;
+      tscDebug("%p sub:%p index:%d numOfRows:%"PRId64" total:%"PRId64, pParentSql, pParentSql->pSubs[i], i,
+               pRes1->numOfRows, pRes1->numOfTotal);
+    }
   }
 
   // data has retrieved to client, build the join results
   tscBuildResFromSubqueries(pParentSql);
 }
 
-static SJoinSupporter* tscUpdateSubqueryStatus(SSqlObj* pSql, int32_t numOfFetch) {
-  int32_t notInvolved = 0;
-  SJoinSupporter* pSupporter = NULL;
-  SSubqueryState* pState = &pSql->subState;
-  
-  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    if (pSql->pSubs[i] == NULL) {
-      notInvolved++;
-    } else {
-      pSupporter = (SJoinSupporter*)pSql->pSubs[i]->param;
-    }
-  }
-  
-  pState->numOfRemain = numOfFetch;
-  return pSupporter;
-}
-
 void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   assert(pSql->subState.numOfSub >= 1);
   
   int32_t numOfFetch = 0;
-  bool hasData = true;
+  bool    hasData = true;
+  bool    reachLimit = false;
+
+  // if the subquery is NULL, it does not involved in the final result generation
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    // if the subquery is NULL, it does not involved in the final result generation
     SSqlObj* pSub = pSql->pSubs[i];
     if (pSub == NULL) {
       continue;
     }
-    
+
     SSqlRes *pRes = &pSub->res;
+
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSub->cmd, 0);
 
     if (!tscHasReachLimitation(pQueryInfo, pRes)) {
       if (pRes->row >= pRes->numOfRows) {
+        // no data left in current result buffer
         hasData = false;
 
+        // The current query is completed for the active vnode, try next vnode if exists
+        // If it is completed, no need to fetch anymore.
         if (!pRes->completed) {
           numOfFetch++;
         }
       }
     } else {  // has reach the limitation, no data anymore
       if (pRes->row >= pRes->numOfRows) {
-        hasData = false;
+        reachLimit = true;
+        hasData    = false;
         break;
       }
     }
@@ -958,29 +1006,102 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   if (hasData) {
     tscBuildResFromSubqueries(pSql);
     return;
-  } else if (numOfFetch <= 0) {
+  }
+
+  // If at least one subquery is completed in current vnode, try the next vnode in case of multi-vnode
+  // super table projection query.
+  if (reachLimit) {
     pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
-    
+
     if (pSql->res.code == TSDB_CODE_SUCCESS) {
       (*pSql->fp)(pSql->param, pSql, 0);
     } else {
       tscQueueAsyncRes(pSql);
     }
-    
+
+    return;
+  }
+
+  if (numOfFetch <= 0) {
+    bool tryNextVnode = false;
+
+    SSqlObj*    pp = pSql->pSubs[0];
+    SQueryInfo* pi = tscGetQueryInfoDetail(&pp->cmd, 0);
+
+    // get the number of subquery that need to retrieve the next vnode.
+    if (tscNonOrderedProjectionQueryOnSTable(pi, 0)) {
+      for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+        SSqlObj* pSub = pSql->pSubs[i];
+        if (pSub != NULL && pSub->res.row >= pSub->res.numOfRows && pSub->res.completed) {
+          pSql->subState.numOfRemain++;
+        }
+      }
+    }
+
+    for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+      SSqlObj* pSub = pSql->pSubs[i];
+      if (pSub == NULL) {
+        continue;
+      }
+
+      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSub->cmd, 0);
+
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
+          pSub->res.completed) {
+        STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+        assert(pQueryInfo->numOfTables == 1);
+
+        // for projection query, need to try next vnode if current vnode is exhausted
+        int32_t numOfVgroups = 0;  // TODO refactor
+        if (pTableMetaInfo->pVgroupTables != NULL) {
+          numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+        } else {
+          numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
+        }
+
+        if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
+          tscDebug("%p no result in current vnode anymore, try next vnode, vgIndex:%d", pSub,
+                   pTableMetaInfo->vgroupIndex);
+          pSub->cmd.command = TSDB_SQL_SELECT;
+          pSub->fp = tscJoinQueryCallback;
+
+          tscProcessSql(pSub);
+          tryNextVnode = true;
+        } else {
+          tscDebug("%p no result in current subquery anymore", pSub);
+        }
+      }
+    }
+
+    if (tryNextVnode) {
+      return;
+    }
+
+    pSql->res.completed = true;
+    freeJoinSubqueryObj(pSql);
+
+    if (pSql->res.code == TSDB_CODE_SUCCESS) {
+      (*pSql->fp)(pSql->param, pSql, 0);
+    } else {
+      tscQueueAsyncRes(pSql);
+    }
+
     return;
   }
 
   // TODO multi-vnode retrieve for projection query with limitation has bugs, since the global limiation is not handled
+  // retrieve data from current vnode.
   tscDebug("%p retrieve data from %d subqueries", pSql, numOfFetch);
-  SJoinSupporter* pSupporter = tscUpdateSubqueryStatus(pSql, numOfFetch);
-  
+  SJoinSupporter* pSupporter = NULL;
+  pSql->subState.numOfRemain = numOfFetch;
+
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SSqlObj* pSql1 = pSql->pSubs[i];
     if (pSql1 == NULL) {
       continue;
     }
-    
+
     SSqlRes* pRes1 = &pSql1->res;
     SSqlCmd* pCmd1 = &pSql1->cmd;
 
@@ -1122,7 +1243,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
    * data instead of returning to its invoker
    */
   if (pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-    pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;  // reset the record value
+//    pParentSql->subState.numOfRemain = pParentSql->subState.numOfSub;  // reset the record value
 
     pSql->fp = joinRetrieveFinalResCallback;  // continue retrieve data
     pSql->cmd.command = TSDB_SQL_FETCH;
@@ -1386,7 +1507,13 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;
 
-  pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
+  pState->numOfSub = 0;
+  if (pTableMetaInfo->pVgroupTables == NULL) {
+    pState->numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
+  } else {
+    pState->numOfSub = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+  }
+
   assert(pState->numOfSub > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
@@ -2017,7 +2144,7 @@ static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t column
   assert(pInfo->pSqlExpr != NULL);
 
   *bytes = pInfo->pSqlExpr->resBytes;
-  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows;
+  char* pData = pRes->data + pInfo->pSqlExpr->offset * pRes->numOfRows + pRes->row * (*bytes);
 
   return pData;
 }
@@ -2029,11 +2156,13 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
 
   int32_t numOfRes = INT32_MAX;
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    if (pSql->pSubs[i] == NULL) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    if (pSub == NULL) {
       continue;
     }
 
-    numOfRes = (int32_t)(MIN(numOfRes, pSql->pSubs[i]->res.numOfRows));
+    int32_t remain = (int32_t)(pSub->res.numOfRows - pSub->res.row);
+    numOfRes = (int32_t)(MIN(numOfRes, remain));
   }
 
   if (numOfRes == 0) {
@@ -2059,14 +2188,23 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SColumnIndex* pIndex = &pRes->pColumnIndex[i];
-    SSqlRes *pRes1 = &pSql->pSubs[pIndex->tableIndex]->res;
-    SSqlCmd *pCmd1 = &pSql->pSubs[pIndex->tableIndex]->cmd;
+    SSqlRes*      pRes1 = &pSql->pSubs[pIndex->tableIndex]->res;
+    SSqlCmd*      pCmd1 = &pSql->pSubs[pIndex->tableIndex]->cmd;
 
     char* pData = getResultBlockPosition(pCmd1, pRes1, pIndex->columnIndex, &bytes);
     memcpy(data, pData, bytes * numOfRes);
 
     data += bytes * numOfRes;
-    pRes1->row = numOfRes;
+  }
+
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    if (pSub == NULL) {
+      continue;
+    }
+
+    pSub->res.row += numOfRes;
+    assert(pSub->res.row <= pSub->res.numOfRows);
   }
 
   pRes->numOfRows = numOfRes;
@@ -2085,6 +2223,8 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
 
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+    pRes->numOfCols =  (int32_t)numOfExprs;
+
     pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
     pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
     pRes->length = calloc(numOfExprs, sizeof(int32_t));

@@ -96,6 +96,12 @@ class TDTestCase:
         tdSql.query("select * from st order by ts desc")
         self.checkColumnSorted(0, "desc")
 
+        print("======= step 2: verify order for special column =========")
+        
+        tdSql.query("select tbcol1 from st order by ts desc")
+
+        tdSql.query("select tbcol6 from st order by ts desc")
+
         for i in range(1, 10):
             tdSql.error("select * from st order by tbcol%d" % i)
             tdSql.error("select * from st order by tbcol%d asc" % i)

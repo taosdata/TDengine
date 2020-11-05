@@ -877,22 +877,13 @@ static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
 
   int32_t nLen = 0;
   for (int32_t i = 0; i < pFieldList->nField; ++i) {
-    if (pFieldList->p[i].bytes == 0) {
+    TAOS_FIELD* pField = &pFieldList->p[i];
+
+    if (pField->bytes == 0) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       return false;
     }
-    nLen += pFieldList->p[i].bytes;
-  }
 
-  // max row length must be less than TSDB_MAX_BYTES_PER_ROW
-  if (nLen > TSDB_MAX_BYTES_PER_ROW) {
-    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    return false;
-  }
-
-  // field name must be unique
-  for (int32_t i = 0; i < pFieldList->nField; ++i) {
-    TAOS_FIELD* pField = &pFieldList->p[i];
     if (pField->type < TSDB_DATA_TYPE_BOOL || pField->type > TSDB_DATA_TYPE_NCHAR) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
       return false;
@@ -909,10 +900,19 @@ static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
       return false;
     }
 
+    // field name must be unique
     if (has(pFieldList, i + 1, pFieldList->p[i].name) == true) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
+
+    nLen += pField->bytes;
+  }
+
+  // max row length must be less than TSDB_MAX_BYTES_PER_ROW
+  if (nLen > TSDB_MAX_BYTES_PER_ROW) {
+    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    return false;
   }
 
   return true;

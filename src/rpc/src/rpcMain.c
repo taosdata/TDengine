@@ -20,6 +20,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "lz4.h"
+#include "tref.h"
 #include "taoserror.h"
 #include "tsocket.h"
 #include "tglobal.h"
@@ -72,7 +73,6 @@ typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcEpSet epSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
-  void     *signature;  // for validation
   struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
@@ -131,6 +131,10 @@ int tsProgressTimer = 100;
 int tsRpcMaxRetry;
 int tsRpcHeadSize;
 int tsRpcOverhead;
+
+static int     tsRpcRefId = -1;
+static int32_t tsRpcNum = 0;
+static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
 
 // server:0 client:1  tcp:2 udp:0
 #define RPC_CONN_UDPS   0
@@ -211,13 +215,20 @@ static void  rpcUnlockConn(SRpcConn *pConn);
 static void  rpcAddRef(SRpcInfo *pRpc);
 static void  rpcDecRef(SRpcInfo *pRpc);
 
-void *rpcOpen(const SRpcInit *pInit) {
-  SRpcInfo *pRpc;
+static void rpcInit(void) {
 
   tsProgressTimer = tsRpcTimer/2; 
   tsRpcMaxRetry = tsRpcMaxTime * 1000/tsProgressTimer;
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
   tsRpcOverhead = sizeof(SRpcReqContext);
+
+  tsRpcRefId = taosOpenRef(200, free);
+}
+ 
+void *rpcOpen(const SRpcInit *pInit) {
+  SRpcInfo *pRpc;
+
+  pthread_once(&tsRpcInit, rpcInit);
 
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
@@ -236,6 +247,8 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
   pRpc->refCount = 1;
+
+  atomic_add_fetch_32(&tsRpcNum, 1);
 
   size_t size = sizeof(SRpcConn) * pRpc->sessions;
   pRpc->connList = (SRpcConn *)calloc(1, size);
@@ -363,7 +376,6 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   int contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
   pContext = (SRpcReqContext *) ((char*)pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
   pContext->ahandle = pMsg->ahandle;
-  pContext->signature = pContext;
   pContext->pRpc = (SRpcInfo *)shandle;
   pContext->epSet = *pEpSet;
   pContext->contLen = contLen;
@@ -386,6 +398,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   // set the handle to pContext, so app can cancel the request
   if (pMsg->handle) *((void **)pMsg->handle) = pContext;
 
+  taosAddRef(tsRpcRefId, pContext);
   rpcSendReqToServer(pRpc, pContext);
 
   return;
@@ -536,14 +549,15 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
 void rpcCancelRequest(void *handle) {
   SRpcReqContext *pContext = handle;
 
-  // signature is used to check if pContext is freed. 
-  // pContext may have been released just before app calls the rpcCancelRequest 
-  if (pContext == NULL || pContext->signature != pContext) return;
+  int code = taosAcquireRef(tsRpcRefId, pContext);
+  if (code < 0) return;
 
   if (pContext->pConn) {
     tDebug("%s, app tries to cancel request", pContext->pConn->info);
     rpcCloseConn(pContext->pConn);
   }
+
+  taosReleaseRef(tsRpcRefId, pContext);
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -612,7 +626,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     // if there is an outgoing message, free it
     if (pConn->outType && pConn->pReqMsg) {
       if (pConn->pContext) pConn->pContext->pConn = NULL; 
-      rpcFreeMsg(pConn->pReqMsg);
+      taosRemoveRef(tsRpcRefId, pConn->pContext);
     }
   }
 
@@ -1068,7 +1082,6 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = pContext->pRpc;
 
-  pContext->signature = NULL;
   pContext->pConn = NULL;
   if (pContext->pRsp) { 
     // for synchronous API
@@ -1085,7 +1098,7 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   }
 
   // free the request message
-  rpcFreeCont(pContext->pCont); 
+  taosRemoveRef(tsRpcRefId, pContext); 
 }
 
 static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext) {
@@ -1593,6 +1606,12 @@ static void rpcDecRef(SRpcInfo *pRpc)
     pthread_mutex_destroy(&pRpc->mutex);
     tDebug("%s rpc resources are released", pRpc->label);
     taosTFree(pRpc);
+
+    int count = atomic_sub_fetch_32(&tsRpcNum, 1);
+    if (count == 0) {
+      taosCloseRef(tsRpcRefId);
+      // tsRpcInit = PTHREAD_ONCE_INIT;    // windows compliling error  
+    }
   }
 }
 

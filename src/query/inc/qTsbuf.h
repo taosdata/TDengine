@@ -35,16 +35,9 @@ typedef struct STSList {
   int32_t len;
 } STSList;
 
-typedef struct STSRawBlock {
-  int32_t vnode;
-  int64_t tag;
-  TSKEY*  ts;
-  int32_t len;
-} STSRawBlock;
-
 typedef struct STSElem {
   TSKEY     ts;
-  tVariant  tag;
+  tVariant* tag;
   int32_t   vnode;
 } STSElem;
 
@@ -84,6 +77,7 @@ typedef struct STSBuf {
   char     path[PATH_MAX];
   uint32_t fileSize;
 
+  // todo use array
   STSVnodeBlockInfoEx* pData;
   uint32_t             numOfAlloc;
   uint32_t             numOfVnodes;
@@ -106,12 +100,12 @@ typedef struct STSBufFileHeader {
 
 STSBuf* tsBufCreate(bool autoDelete, int32_t order);
 STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete);
-STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder);
+STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder, int32_t vnodeId);
 
 void* tsBufDestroy(STSBuf* pTSBuf);
 
 void    tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len);
-int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
+int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf);
 
 STSBuf* tsBufClone(STSBuf* pTSBuf);
 
@@ -121,6 +115,7 @@ void tsBufFlush(STSBuf* pTSBuf);
 
 void    tsBufResetPos(STSBuf* pTSBuf);
 STSElem tsBufGetElem(STSBuf* pTSBuf);
+
 bool    tsBufNextPos(STSBuf* pTSBuf);
 
 STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag);
@@ -135,6 +130,10 @@ void tsBufSetCursor(STSBuf* pTSBuf, STSCursor* pCur);
  * @param pTSBuf
  */
 void tsBufDisplay(STSBuf* pTSBuf);
+
+int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf);
+
+void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId);
 
 #ifdef __cplusplus
 }

@@ -58,7 +58,7 @@ cp -r ${top_dir}/src/connector/grafanaplugin        ${pkg_dir}${install_home_pat
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector
-cp ${compile_dir}/build/lib/taos-jdbcdriver*dist.*  ${pkg_dir}${install_home_path}/connector
+cp ${compile_dir}/build/lib/taos-jdbcdriver*dist.*  ${pkg_dir}${install_home_path}/connector ||:
 
 cp -r ${compile_dir}/../packaging/deb/DEBIAN        ${pkg_dir}/
 chmod 755 ${pkg_dir}/DEBIAN/*

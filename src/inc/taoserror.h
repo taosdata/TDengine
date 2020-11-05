@@ -28,7 +28,7 @@ extern "C" {
 #else
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (0x80000000 | ((mod)<<16) | (code));
 #endif
-
+ 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
@@ -37,7 +37,7 @@ const char* tstrerror(int32_t err);
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
-
+ 
 #define TSDB_CODE_SUCCESS                   0
 
 #ifdef TAOS_ERROR_C
@@ -74,6 +74,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_COM_MEMORY_CORRUPTED,         0, 0x0101, "Memory cor
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_OUT_OF_MEMORY,            0, 0x0102, "Out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_INVALID_CFG_MSG,          0, 0x0103, "Invalid config message")
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_FILE_CORRUPTED,           0, 0x0104, "Data file corrupted")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                0, 0x0105, "Ref out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     0, 0x0106, "too many Ref Objs")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               0, 0x0107, "Ref ID is removed")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               0, 0x0108, "Invalid Ref ID")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            0, 0x0109, "Ref is already there")
+TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                0, 0x010A, "Ref is not there")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_SQL,              0, 0x0200, "Invalid SQL statement")
@@ -182,7 +188,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            0, 0x0401, "Dnode out 
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_WRITE_ACCESS,          0, 0x0402, "No permission for disk files in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          0, 0x0403, "Invalid message length")
 
-// vnode
+// vnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_MSG_NOT_PROCESSED,        0, 0x0501, "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_NEED_REPROCESSED,  0, 0x0502, "Action need to be reprocessed")
@@ -230,6 +236,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_READY,                0, 0x0707, "Query not 
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_HAS_RSP,                  0, 0x0708, "Query should response")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_IN_EXEC,                  0, 0x0709, "Multiple retrieval of this query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      0, 0x070A, "Too many time window in query")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,      0, 0x070B, "Query buffer limit has reached")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "License expired")

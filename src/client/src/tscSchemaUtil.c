@@ -177,7 +177,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
     pVgroupInfo->epAddr[i].port = pEpMsg->port;
   }
 
-  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMeta->vgroupInfo);
+  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, pVgroupInfo);
 
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;

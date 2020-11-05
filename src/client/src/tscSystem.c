@@ -36,6 +36,7 @@ void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
 int     tsInsertHeadSize;
+int     tscRefId;
 
 int tscNumOfThreads;
 
@@ -146,6 +147,8 @@ void taos_init_imp(void) {
     tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeRegisteredSqlObj, "sqlObj");
   }
 
+  tscRefId = taosOpenRef(200, tscCloseTscObj);
+
   tscDebug("client is initialized successfully");
 }
 
@@ -165,6 +168,7 @@ void taos_cleanup() {
     tscQhandle = NULL;
   }
 
+  taosCloseRef(tscRefId);
   taosCleanupKeywordsTable();
   taosCloseLog();
   

@@ -21,7 +21,7 @@ $mt = $mtPrefix . $i
 
 $tstart = 100000
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db keep 36500
 sql use $db

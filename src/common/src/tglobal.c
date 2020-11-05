@@ -45,14 +45,14 @@ int32_t  tsEnableTelemetryReporting = 1;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 
 // common
-int32_t tsRpcTimer = 1000;
-int32_t tsRpcMaxTime = 600;  // seconds;
-int32_t tsMaxShellConns = 5000;
+int32_t tsRpcTimer       = 1000;
+int32_t tsRpcMaxTime     = 600;  // seconds;
+int32_t tsMaxShellConns  = 5000;
 int32_t tsMaxConnections = 5000;
-int32_t tsShellActivityTimer = 3;  // second
-float   tsNumOfThreadsPerCore = 1.0;
-float   tsRatioOfQueryThreads = 0.5;
-int8_t  tsDaylight = 0;
+int32_t tsShellActivityTimer  = 3;  // second
+float   tsNumOfThreadsPerCore = 1.0f;
+float   tsRatioOfQueryThreads = 0.5f;
+int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
@@ -98,6 +98,12 @@ float tsStreamComputDelayRatio = 0.1f;
 
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
+
+// the maximum allowed query buffer size during query processing for each data node.
+// -1 no limit (default)
+// 0  no query allowed, queries are disabled
+// positive value (in MB)
+int32_t tsQueryBufferSize = -1;
 
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
@@ -676,7 +682,7 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = TSDB_MIN_CACHE_BLOCK_SIZE;
   cfg.maxValue = TSDB_MAX_CACHE_BLOCK_SIZE;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_Mb;
+  cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
 
   cfg.option = "blocks";
@@ -837,6 +843,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "queryBufferSize";
+  cfg.ptr = &tsQueryBufferSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -1;
+  cfg.maxValue = 500000000000.0f;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
   // locale & charset

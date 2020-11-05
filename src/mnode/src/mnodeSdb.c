@@ -281,7 +281,14 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
              ((SSdbTable *)pOper->table)->tableName, pOper->pObj, sdbGetKeyStr(pOper->table, pHead->cont),
              pHead->version, action, tstrerror(pOper->retCode));
     if (action == SDB_ACTION_INSERT) {
-      sdbDeleteHash(pOper->table, pOper);
+      // It's better to create a table in two stages, create it first and then set it success
+      //sdbDeleteHash(pOper->table, pOper);
+      SSdbOper oper = {
+        .type  = SDB_OPER_GLOBAL,
+        .table = pOper->table,
+        .pObj  = pOper->pObj
+      };
+      sdbDeleteRow(&oper);
     }
   }
 
