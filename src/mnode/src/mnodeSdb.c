@@ -1090,7 +1090,7 @@ static void *sdbWorkerFp(void *param) {
       }
     }
 
-    walFsync(tsSdbObj.wal);
+    walFsync(tsSdbObj.wal, true);
 
     // browse all items, and process them one by one
     taosResetQitems(tsSdbWriteQall);

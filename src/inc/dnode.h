@@ -55,9 +55,9 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid);
 
 void *dnodeAllocVWriteQueue(void *pVnode);
 void  dnodeFreeVWriteQueue(void *wqueue);
+void  dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code);
 void *dnodeAllocVReadQueue(void *pVnode);
 void  dnodeFreeVReadQueue(void *rqueue);
-void  dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code);
 
 int32_t dnodeAllocateMnodePqueue();
 void    dnodeFreeMnodePqueue();

@@ -37,20 +37,20 @@ typedef struct {
 } SRspRet;
 
 typedef struct {
-  SRspRet  rspRet;
-  void    *pCont;
-  int32_t  contLen;
-  SRpcMsg  rpcMsg;
-} SReadMsg;
+  SRspRet rspRet;
+  void *  pCont;
+  int32_t contLen;
+  SRpcMsg rpcMsg;
+} SVReadMsg;
 
 typedef struct {
-  int32_t   code;
-  int32_t   processedCount;
-  void *    rpcHandle;
-  void *    rpcAhandle;
-  SRspRet   rspRet;
-  char      reserveForSync[16];
-  SWalHead  pHead[];
+  int32_t  code;
+  int32_t  processedCount;
+  void *   rpcHandle;
+  void *   rpcAhandle;
+  SRspRet  rspRet;
+  char     reserveForSync[16];
+  SWalHead pHead[];
 } SVWriteMsg;
 
 extern char *vnodeStatus[];
@@ -66,8 +66,8 @@ void*   vnodeAcquireRqueue(int32_t vgId);  // add refCount, get read queue
 void    vnodeRelease(void *pVnode);        // dec refCount
 void*   vnodeGetWal(void *pVnode);
 
-int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *pMsg);
-int32_t vnodeProcessWrite(void *param, int32_t qtype, SVWriteMsg *pWrite);
+int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rparam);
+int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam);
 int32_t vnodeCheckWrite(void *pVnode);
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
 void    vnodeBuildStatusMsg(void *param);
@@ -77,7 +77,7 @@ void    vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes);
 int32_t vnodeInitResources();
 void    vnodeCleanupResources();
 
-int32_t vnodeProcessRead(void *pVnode, SReadMsg *pReadMsg);
+int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pReadMsg);
 int32_t vnodeCheckRead(void *pVnode);
 
 #ifdef __cplusplus

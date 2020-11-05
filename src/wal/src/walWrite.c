@@ -111,11 +111,12 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   return code;
 }
 
-void walFsync(void *handle) {
+void walFsync(void *handle, bool forceFsync) {
   SWal *pWal = handle;
-  if (pWal == NULL || pWal->level != TAOS_WAL_FSYNC || pWal->fd < 0) return;
+  if (pWal == NULL || pWal->fd < 0) return;
 
-  if (pWal->fsyncPeriod == 0) {
+  if (forceFsync || (pWal->level == TAOS_WAL_FSYNC && pWal->fsyncPeriod == 0)) {
+    wTrace("vgId:%d, file:%s, do fsync", pWal->vgId, pWal->name);
     if (fsync(pWal->fd) < 0) {
       wError("vgId:%d, file:%s, fsync failed since %s", pWal->vgId, pWal->name, strerror(errno));
     }
@@ -143,12 +144,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
       continue;
     }
 
-    if (!pWal->keep) {
-      wDebug("vgId:%d, file:%s, restore success, remove this file", pWal->vgId, walName);
-      remove(walName);
-    } else {
-      wDebug("vgId:%d, file:%s, restore success and keep it", pWal->vgId, walName);
-    }
+    wDebug("vgId:%d, file:%s, restore success and keep it", pWal->vgId, walName);
 
     count++;
   }
@@ -305,8 +301,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId, fileId,
            pWal->version, pHead->version, pHead->len);
 
-    if (pWal->keep) pWal->version = pHead->version;
-
+    pWal->version = pHead->version;
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
 

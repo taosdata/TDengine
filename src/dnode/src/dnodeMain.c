@@ -61,7 +61,7 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"mnodeinfos",dnodeInitMInfos,     dnodeCleanupMInfos},
   {"wal",       walInit,             walCleanUp},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
-  {"vread",     dnodeInitVnodeRead,  dnodeCleanupVnodeRead},
+  {"vread",     dnodeInitVRead,      dnodeCleanupVRead},
   {"vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
   {"mread",     dnodeInitMnodeRead,  dnodeCleanupMnodeRead},
   {"mwrite",    dnodeInitMnodeWrite, dnodeCleanupMnodeWrite},
