@@ -29,9 +29,9 @@
 #include "vnodeInt.h"
 #include "tqueue.h"
 
-static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SReadMsg *pReadMsg);
-static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg);
-static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg);
+static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pReadMsg);
+static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg);
+static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg);
 static int32_t  vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId);
 
 void vnodeInitReadFp(void) {
@@ -44,7 +44,7 @@ void vnodeInitReadFp(void) {
 // still required, or there will be a deadlock, so we don’t do any check here, but put the check codes before the
 // request enters the queue
 //
-int32_t vnodeProcessRead(void *param, SReadMsg *pReadMsg) {
+int32_t vnodeProcessRead(void *param, SVReadMsg *pReadMsg) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
   int msgType = pReadMsg->rpcMsg.msgType;
 
@@ -82,7 +82,7 @@ static int32_t vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void **qhandle, void
   int32_t code = vnodeCheckRead(pVnode);
   if (code != TSDB_CODE_SUCCESS) return code;
 
-  SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
+  SVReadMsg *pRead = (SVReadMsg *)taosAllocateQitem(sizeof(SVReadMsg));
   pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
   pRead->pCont = qhandle;
   pRead->contLen = 0;
@@ -146,7 +146,7 @@ static void vnodeBuildNoResultQueryRsp(SRspRet *pRet) {
   pRsp->completed = true;
 }
 
-static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
+static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
   void *   pCont = pReadMsg->pCont;
   int32_t  contLen = pReadMsg->contLen;
   SRspRet *pRet = &pReadMsg->rspRet;
@@ -274,7 +274,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
   return code;
 }
 
-static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SReadMsg *pReadMsg) {
+static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
   void *   pCont = pReadMsg->pCont;
   SRspRet *pRet = &pReadMsg->rspRet;
 

@@ -205,7 +205,7 @@ static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspR
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
   SVnodeObj *pVnode = vparam;
   SWalHead * pHead = wparam;
 

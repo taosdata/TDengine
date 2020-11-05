@@ -266,7 +266,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   strcpy(cqCfg.pass, tsInternalPass);
   strcpy(cqCfg.db, pVnode->db);
   cqCfg.vgId = vnode;
-  cqCfg.cqWrite = vnodeWriteToQueue;
+  cqCfg.cqWrite = vnodeWriteToWQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
   if (pVnode->cq == NULL) {
     vnodeCleanUp(pVnode);
@@ -320,7 +320,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.ahandle = pVnode;
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
-  syncInfo.writeToCache = vnodeWriteToQueue;
+  syncInfo.writeToCache = vnodeWriteToWQueue;
   syncInfo.confirmForward = dnodeSendRpcVWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
