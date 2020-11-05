@@ -70,8 +70,8 @@ typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uin
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
 typedef int32_t  (*FGetWalInfo)(void *ahandle, char *fileName, int64_t *fileId); 
  
-// when a forward pkt is received, call this to handle data 
-typedef int      (*FWriteToCache)(void *ahandle, void *pHead, int type);
+// when a forward pkt is received, call this to handle data
+typedef int32_t  (*FWriteToCache)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
 // when forward is confirmed by peer, master call this API to notify app
 typedef void     (*FConfirmForward)(void *ahandle, void *mhandle, int32_t code);

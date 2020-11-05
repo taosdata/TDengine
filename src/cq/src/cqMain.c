@@ -334,7 +334,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pHead->version = 0;
 
   // write into vnode write queue
-  pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ);
+  pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ, NULL);
   free(buffer);
 }
 

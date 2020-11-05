@@ -154,7 +154,7 @@ static int syncRestoreWal(SSyncPeer *pPeer) {
     if (ret < 0) break;
 
     sDebug("%s, restore a record, ver:%" PRIu64, pPeer->id, pHead->version);
-    (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
+    (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
   if (code < 0) {
@@ -169,7 +169,7 @@ static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SWalHead * pHead = (SWalHead *)offset;
 
-  (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
+  (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD, NULL);
   offset += pHead->len + sizeof(SWalHead);
 
   return offset;
