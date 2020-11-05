@@ -266,7 +266,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   strcpy(cqCfg.pass, tsInternalPass);
   strcpy(cqCfg.db, pVnode->db);
   cqCfg.vgId = vnode;
-  cqCfg.cqWrite = vnodeWriteCqMsgToQueue;
+  cqCfg.cqWrite = vnodeWriteToQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
   if (pVnode->cq == NULL) {
     vnodeCleanUp(pVnode);
@@ -365,6 +365,7 @@ int32_t vnodeClose(int32_t vgId) {
 }
 
 void vnodeRelease(void *pVnodeRaw) {
+  if (pVnodeRaw == NULL) return;
   SVnodeObj *pVnode = pVnodeRaw;
   int32_t    vgId = pVnode->vgId;
 

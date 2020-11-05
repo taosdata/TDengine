@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "twal.h"
+
 typedef enum _VN_STATUS {
   TAOS_VN_STATUS_INIT,
   TAOS_VN_STATUS_READY,
@@ -29,9 +31,9 @@ typedef enum _VN_STATUS {
 } EVnStatus;
 
 typedef struct {
-  int   len;
-  void *rsp;
-  void *qhandle; //used by query and retrieve msg
+  int32_t len;
+  void *  rsp;
+  void *  qhandle;  // used by query and retrieve msg
 } SRspRet;
 
 typedef struct {
@@ -40,6 +42,16 @@ typedef struct {
   int32_t  contLen;
   SRpcMsg  rpcMsg;
 } SReadMsg;
+
+typedef struct {
+  int32_t   code;
+  int32_t   processedCount;
+  void *    rpcHandle;
+  void *    rpcAhandle;
+  SRspRet   rspRet;
+  char      reserveForSync[16];
+  SWalHead  pHead[];
+} SVWriteMsg;
 
 extern char *vnodeStatus[];
 
@@ -55,7 +67,9 @@ void*   vnodeAcquireWqueue(int32_t vgId);  // add recCount, get write queue
 void    vnodeRelease(void *pVnode);        // dec refCount
 void*   vnodeGetWal(void *pVnode);
 
-int32_t vnodeProcessWrite(void *pVnode, int qtype, void *pHead, void *item);
+
+int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *pMsg);
+int32_t vnodeProcessWrite(void *param, int32_t qtype, SVWriteMsg *pWrite);
 int32_t vnodeCheckWrite(void *pVnode);
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
 void    vnodeBuildStatusMsg(void *param);

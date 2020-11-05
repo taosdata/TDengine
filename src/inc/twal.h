@@ -43,8 +43,8 @@ typedef struct {
   int8_t  keep;         // keep the wal file when closed
 } SWalCfg;
 
-typedef void* twalh;  // WAL HANDLE
-typedef int (*FWalWrite)(void *ahandle, void *pHead, int type);
+typedef void *  twalh;  // WAL HANDLE
+typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
 int32_t walInit();
 void    walCleanUp();
