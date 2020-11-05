@@ -326,6 +326,7 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
   return 0;
 }
 
+// TODO move to comm module
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
   if (versionStr == NULL || versionNubmer == NULL) {
     return false;

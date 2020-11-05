@@ -1,0 +1,137 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 3000
+
+print ========== step2
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode $hostname3
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname4
+system sh/exec.sh -n dnode4 -s start
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 3000
+	if $x == 10 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
+  goto show2
+endi
+if $data2_2 != 0 then
+  goto show2
+endi
+if $data2_3 != 0 then
+  goto show2
+endi
+if $data2_4 != 0 then
+  goto show2
+endi
+
+print ========== step3
+sql create database d1 replica 3
+sql create table d1.t1 (t timestamp, i int)
+sql insert into d1.t1 values(now+1s, 35)
+sql insert into d1.t1 values(now+2s, 34)
+sql insert into d1.t1 values(now+3s, 33)
+sql insert into d1.t1 values(now+4s, 32)
+sql insert into d1.t1 values(now+5s, 31)
+
+$x = 0
+show3: 
+	$x = $x + 1
+	sleep 3000
+	if $x == 10 then 
+		return -1
+	endi
+	
+sql show dnodes
+print dnode1 openVnodes $data2_1
+print dnode2 openVnodes $data2_2
+print dnode3 openVnodes $data2_3
+print dnode4 openVnodes $data2_4
+if $data2_1 != 0 then
+  goto show3
+endi
+if $data2_2 != 1 then
+  goto show3
+endi
+if $data2_3 != 1 then
+  goto show3
+endi
+if $data2_4 != 1 then
+  goto show3
+endi
+
+print ========== step4
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+
+print ========== step5
+system_content rm -rf ../../../sim/dnode4/data/vnode/vnode2/tsdb/data
+
+print ========== step6
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+sleep 10000
+
+print ========== step7
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41  
+if $data01 != 31 then
+  return -1
+endi
+if $data11 != 32 then
+  return -1
+endi
+if $data21 != 33 then
+  return -1
+endi
+if $data31 != 34 then
+  return -1
+endi
+if $data41 != 35 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

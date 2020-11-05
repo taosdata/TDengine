@@ -38,10 +38,10 @@ static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
 int32_t dnodeInitShell() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]          = dnodeDispatchToVnodeReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]          = dnodeDispatchToVnodeReadQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVWriteQueue;
   
   // the following message shall be treated as mnode write
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = dnodeDispatchToMnodeWriteQueue;
@@ -97,7 +97,7 @@ int32_t dnodeInitShell() {
     return -1;
   }
 
-  dInfo("shell rpc server is opened");
+  dInfo("dnode shell rpc server is initialized");
   return 0;
 }
 
@@ -146,12 +146,12 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   int code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
   if (code != TSDB_CODE_APP_NOT_READY) return code;
 
-  SDMAuthMsg *pMsg = rpcMallocCont(sizeof(SDMAuthMsg));
+  SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
   tstrncpy(pMsg->user, user, sizeof(pMsg->user));
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pMsg;
-  rpcMsg.contLen = sizeof(SDMAuthMsg);
+  rpcMsg.contLen = sizeof(SAuthMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_DM_AUTH;
   
   dDebug("user:%s, send auth msg to mnodes", user);
@@ -161,7 +161,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   if (rpcRsp.code != 0) {
     dError("user:%s, auth msg received from mnodes, error:%s", user, tstrerror(rpcRsp.code));
   } else {
-    SDMAuthRsp *pRsp = rpcRsp.pCont;
+    SAuthRsp *pRsp = rpcRsp.pCont;
     dDebug("user:%s, auth msg received from mnodes", user);
     memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
     memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
@@ -176,8 +176,8 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
 void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
   dDebug("vgId:%d, tid:%d send config table msg to mnode", vgId, tid);
 
-  int32_t contLen = sizeof(SDMConfigTableMsg);
-  SDMConfigTableMsg *pMsg = rpcMallocCont(contLen);
+  int32_t contLen = sizeof(SConfigTableMsg);
+  SConfigTableMsg *pMsg = rpcMallocCont(contLen);
 
   pMsg->dnodeId = htonl(dnodeGetDnodeId());
   pMsg->vgId = htonl(vgId);

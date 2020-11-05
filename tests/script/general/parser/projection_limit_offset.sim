@@ -324,8 +324,22 @@ sql create table tm0 using m1 tags(1);
 sql create table tm1 using m1 tags(2);
 
 sql insert into tm0 values(10000, 1) (20000, 2)(30000, 3) (40000, NULL) (50000, 2) tm1 values(10001, 2)(20000,4)(90000,9);
-sql select count(*),first(k),last(k) from m1 where tbname in ('tm0') interval(1s) order by ts desc;
 
+#=============================tbase-1205
+sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
+
+print ===================>TD-1834
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts asc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select count(*),first(k),last(k) from m1 where tbname in ('tm0') interval(1s) order by ts desc;
 if $row != 5 then
     return -1
 endi
@@ -386,7 +400,25 @@ sql_error select k+1,sum(k) from tm0;
 sql_error select k, sum(k) from tm0;
 sql_error select k, sum(k)+1 from tm0;
 
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
 #=============================tbase-1205
 sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
+
+print ===================>TD-1834
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts asc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from tm0 where ts>11000 and ts< 20000 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
 
 

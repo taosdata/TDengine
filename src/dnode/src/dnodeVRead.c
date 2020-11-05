@@ -61,7 +61,7 @@ int32_t dnodeInitVnodeRead() {
     pWorker->workerId = i;
   }
 
-  dInfo("dnode read is opened, min worker:%d max worker:%d", readPool.min, readPool.max);
+  dInfo("dnode read is initialized, min worker:%d max worker:%d", readPool.min, readPool.max);
   return 0;
 }
 
@@ -132,7 +132,7 @@ void dnodeDispatchToVnodeReadQueue(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateVnodeRqueue(void *pVnode) {
+void *dnodeAllocVReadQueue(void *pVnode) {
   pthread_mutex_lock(&readPool.mutex);
   taos_queue queue = taosOpenQueue();
   if (queue == NULL) {
@@ -167,7 +167,7 @@ void *dnodeAllocateVnodeRqueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeVnodeRqueue(void *rqueue) {
+void dnodeFreeVReadQueue(void *rqueue) {
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads

@@ -21,15 +21,42 @@
 extern "C" {
 #endif
 
-int  taosOpenRef(int max, void (*fp)(void *)); // return refId which will be used by other APIs
-void taosCloseRef(int refId); 
-int  taosListRef();  // return the number of references in system
-int  taosAddRef(int refId, void *p);
-int  taosAcquireRef(int refId, void *p);
-void taosReleaseRef(int refId, void *p);
+// open an instance, return refId which will be used by other APIs
+int  taosOpenRef(int max, void (*fp)(void *)); 
 
+// close the Ref instance
+void taosCloseRef(int refId); 
+
+// add ref, p is the pointer to resource or pointer ID
+int  taosAddRef(int refId, void *p);
 #define taosRemoveRef taosReleaseRef
 
+// acquire ref, p is the pointer to resource or pointer ID
+int  taosAcquireRef(int refId, void *p);
+
+// release ref, p is the pointer to resource or pinter ID
+void taosReleaseRef(int refId, void *p);
+
+// return the first if p is null, otherwise return the next after p
+void *taosIterateRef(int refId, void *p);
+
+// return the number of references in system
+int  taosListRef();  
+
+/* sample code to iterate the refs 
+
+void demoIterateRefs(int refId) {
+
+  void *p = taosIterateRef(refId, NULL);
+  while (p) {
+
+    // process P
+
+    p = taosIterateRef(refId, p);
+  }
+}
+
+*/
 
 #ifdef __cplusplus
 }

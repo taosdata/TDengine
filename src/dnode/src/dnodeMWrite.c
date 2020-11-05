@@ -60,7 +60,7 @@ int32_t dnodeInitMnodeWrite() {
     dDebug("dnode mwrite worker:%d is created", i);
   }
 
-  dDebug("dnode mwrite is opened, workers:%d qset:%p", tsMWritePool.maxNum, tsMWriteQset);
+  dDebug("dnode mwrite is initialized, workers:%d qset:%p", tsMWritePool.maxNum, tsMWriteQset);
   return 0;
 }
 

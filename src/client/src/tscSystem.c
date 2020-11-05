@@ -80,7 +80,7 @@ int32_t tscInitRpc(const char *user, const char *secretEncrypt, void **pDnodeCon
 
 
 void taos_init_imp(void) {
-  char temp[128];
+  char temp[128]  = {0};
   
   errno = TSDB_CODE_SUCCESS;
   srand(taosGetTimestampSec());
@@ -104,7 +104,6 @@ void taos_init_imp(void) {
 
     taosReadGlobalCfg();
     taosCheckGlobalCfg();
-    taosPrintGlobalCfg();
 
     tscDebug("starting to initialize TAOS client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
@@ -149,30 +148,42 @@ void taos_init_imp(void) {
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
 
+  // in other language APIs, taos_cleanup is not available yet.
+  // So, to make sure taos_cleanup will be invoked to clean up the allocated
+  // resource to suppress the valgrind warning.
+  atexit(taos_cleanup);
   tscDebug("client is initialized successfully");
 }
 
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 
-void taos_cleanup() {
-  if (tscMetaCache != NULL) {
-    taosCacheCleanup(tscMetaCache);
-    tscMetaCache = NULL;
+// this function may be called by user or system, or by both simultaneously.
+void taos_cleanup(void) {
+  tscDebug("start to cleanup client environment");
 
-    taosCacheCleanup(tscObjCache);
-    tscObjCache = NULL;
+  void* m = tscMetaCache;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&tscMetaCache, m, 0) == m) {
+    taosCacheCleanup(m);
   }
-  
-  if (tscQhandle != NULL) {
-    taosCleanUpScheduler(tscQhandle);
-    tscQhandle = NULL;
+
+  m = tscObjCache;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&tscObjCache, m, 0) == m) {
+    taosCacheCleanup(m);
+  }
+
+  m = tscQhandle;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&tscQhandle, m, 0) == m) {
+    taosCleanUpScheduler(m);
   }
 
   taosCloseRef(tscRefId);
   taosCleanupKeywordsTable();
   taosCloseLog();
-  
-  taosTmrCleanUp(tscTmr);
+
+  m = tscTmr;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {
+    taosTmrCleanUp(m);
+  }
 }
 
 static int taos_options_imp(TSDB_OPTION option, const char *pStr) {

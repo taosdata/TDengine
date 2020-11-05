@@ -58,6 +58,7 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int32_t tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+char    tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -1310,13 +1311,23 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+  cfg.option = "tempDir";
+  cfg.ptr = tsTempDir;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsTempDir);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
 }
 
 void taosInitGlobalCfg() {
   pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig);
 }
 
-bool taosCheckGlobalCfg() {
+int32_t taosCheckGlobalCfg() {
   char fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
@@ -1375,7 +1386,9 @@ bool taosCheckGlobalCfg() {
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
-  return true;
+  taosPrintGlobalCfg();
+
+  return 0;
 }
 
 int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {

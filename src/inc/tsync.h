@@ -68,7 +68,7 @@ typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uin
 
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
-typedef int      (*FGetWalInfo)(void *ahandle, char *name, uint32_t *index); 
+typedef int32_t  (*FGetWalInfo)(void *ahandle, char *fileName, int64_t *fileId); 
  
 // when a forward pkt is received, call this to handle data 
 typedef int      (*FWriteToCache)(void *ahandle, void *pHead, int type);

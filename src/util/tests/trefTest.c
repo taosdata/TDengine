@@ -17,6 +17,19 @@ typedef struct {
   void **p;
 } SRefSpace;
 
+void iterateRefs(int refId) {
+  int  count = 0;
+
+  void *p = taosIterateRef(refId, NULL);
+  while (p) {
+    // process P
+    count++;
+    p = taosIterateRef(refId, p);
+  }    
+
+  printf(" %d ", count); 
+}
+
 void *takeRefActions(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
   int code, id;
@@ -44,6 +57,9 @@ void *takeRefActions(void *param) {
       usleep(id % 5 + 1);
       taosReleaseRef(pSpace->refId, pSpace->p[id]);
     }
+
+    id = random() % pSpace->refNum; 
+    iterateRefs(id);
   }  
 
   for (int i=0; i < pSpace->refNum; ++i) {
@@ -63,7 +79,7 @@ void *openRefSpace(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
 
   printf("c");
-  pSpace->refId = taosOpenRef(10000, myfree);
+  pSpace->refId = taosOpenRef(50, myfree);
 
   if (pSpace->refId < 0) {
     printf("failed to open ref, reson:%s\n", tstrerror(pSpace->refId));

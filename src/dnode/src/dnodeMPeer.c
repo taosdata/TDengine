@@ -58,7 +58,7 @@ int32_t dnodeInitMnodePeer() {
     dDebug("dnode mpeer worker:%d is created", i);
   }
 
-  dDebug("dnode mpeer is opened, workers:%d qset:%p", tsMPeerPool.maxNum, tsMPeerQset);
+  dDebug("dnode mpeer is initialized, workers:%d qset:%p", tsMPeerPool.maxNum, tsMPeerQset);
   return 0;
 }
 

@@ -341,7 +341,7 @@ void *rpcMallocCont(int contLen) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
   } else {
-    tTrace("malloc mem: %p", start);
+    tTrace("malloc mem:%p size:%d", start, size);
   }
 
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
@@ -557,10 +557,7 @@ void rpcCancelRequest(void *handle) {
   int code = taosAcquireRef(tsRpcRefId, pContext);
   if (code < 0) return;
 
-  if (pContext->pConn) {
-    tDebug("%s, app tries to cancel request", pContext->pConn->info);
-    rpcCloseConn(pContext->pConn);
-  }
+  rpcCloseConn(pContext->pConn);
 
   taosReleaseRef(tsRpcRefId, pContext);
 }
@@ -655,6 +652,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
 
 static void rpcCloseConn(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
+  if (pConn == NULL) return;
 
   rpcLockConn(pConn);
 
@@ -1026,6 +1024,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   if (pConn->outType) {
     SRpcReqContext *pContext = pConn->pContext;
     pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    pContext->pConn = NULL;
     pConn->pReqMsg = NULL;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
@@ -1076,6 +1075,13 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
+
+      if (pHead->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
+        rpcSendQuickRsp(pConn, TSDB_CODE_SUCCESS);
+        rpcFreeMsg(pRecv->msg); 
+        return pConn;
+      }
+      
       rpcProcessIncomingMsg(pConn, pHead, pContext);
     }
   }
@@ -1128,6 +1134,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
     // it's a response
     rpcMsg.handle = pContext;
     rpcMsg.ahandle = pContext->ahandle;
+    pContext->pConn = NULL;
 
     // for UDP, port may be changed by server, the port in epSet shall be used for cache
     if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
@@ -1363,6 +1370,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
       tDebug("%s, failed to send msg:%s to %s:%hu", pConn->info, taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
       if (pConn->pContext) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+        pConn->pContext->pConn = NULL;
         pConn->pReqMsg = NULL;
         taosTmrStart(rpcProcessConnError, 0, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
@@ -1471,7 +1479,7 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
       pNewHead->msgLen = rpcMsgLenFromCont(origLen);
       rpcFreeMsg(pHead); // free the compressed message buffer
       pHead = pNewHead; 
-      tTrace("decomp malloc mem: %p", temp);
+      tTrace("decomp malloc mem:%p", temp);
     } else {
       tError("failed to allocate memory to decompress msg, contLen:%d", contLen);
     }
