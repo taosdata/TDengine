@@ -2155,6 +2155,7 @@ void *syncWrite(void *sarg) {
           
           if (0 != retCode) {
             printf("========curl return fail, threadID[%d]\n", winfo->threadID);
+            free(buffer);
             return NULL;
           }
         }
@@ -2189,6 +2190,7 @@ void *syncWrite(void *sarg) {
     }
     //printf("========loop %d childTables duration:%"PRId64 "========inserted rows:%d\n", winfo->end_table_id - winfo->start_table_id, et - st, i);
   }
+  free(buffer);
   return NULL;
 }
 
