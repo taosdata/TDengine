@@ -1049,6 +1049,11 @@ void startMultiThreadCreateChildTable(char* cols, int threads, int ntables, char
     pthread_join(pids[i], NULL);
   }
 
+  for (int i = 0; i < threads; i++) {
+    threadInfo *t_info = infos + i;
+    taos_close(t_info->taos);
+  }
+
   free(pids);
   free(infos);  
 }
@@ -2711,7 +2716,8 @@ int main(int argc, char *argv[]) {
   }  else {
     ;
   }
-  
+
+  taos_cleanup();
   return 0;
 }
 
