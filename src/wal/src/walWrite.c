@@ -122,7 +122,7 @@ void walFsync(void *handle) {
   }
 }
 
-int32_t walRestore(void *handle, void *pVnode, int32_t (*writeFp)(void *, void *, int32_t)) {
+int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
   if (handle == NULL) return -1;
 
   SWal *  pWal = handle;
@@ -307,7 +307,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     if (pWal->keep) pWal->version = pHead->version;
 
-    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL);
+    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
   tclose(fd);
