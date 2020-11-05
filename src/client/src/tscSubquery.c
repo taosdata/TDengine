@@ -853,11 +853,15 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   if (taosArrayGetSize(s1) == 0 || taosArrayGetSize(s2) == 0) {  // no results,return.
+    assert(pParentSql->fp != tscJoinQueryCallback);
+
     tscDebug("%p tag intersect does not generated qualified tables for join, free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);
 
     // set no result command
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    assert(pParentSql->fp != tscJoinQueryCallback);
+
     (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
   } else {
     // proceed to for ts_comp query
