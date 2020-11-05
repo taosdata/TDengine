@@ -13,22 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <assert.h>
-#ifndef _ALPINE
-  #include <error.h>
-#endif
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <wordexp.h>
 #include <iconv.h>
-#include <time.h>
-
 #include "os.h"
 #include "taos.h"
 #include "taosdef.h"
@@ -558,7 +543,7 @@ int32_t taosSaveAllNormalTableToTempFile(TAOS *taosCon, char*meter, char* metric
   tstrncpy(tableRecord.name, meter, TSDB_TABLE_NAME_LEN);
   tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
-  taosTWrite(*fd, &tableRecord, sizeof(STableRecord));
+  taosWrite(*fd, &tableRecord, sizeof(STableRecord));
   return 0;
 }
 
@@ -613,7 +598,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
     tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
     numOfTable++;
 
@@ -920,19 +905,20 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       taos_free_result(tmpResult);
       return -1;
     }
-  
+
+    //int32_t* length = taos_fetch_lengths(tmpResult);
     switch (fields[0].type) {
       case TSDB_DATA_TYPE_BOOL:
-        sprintf(tableDes->cols[i].note, "%d", ((((int)(*((char *)row[0]))) == 1) ? 1 : 0));
+        sprintf(tableDes->cols[i].note, "%d", ((((int32_t)(*((char *)row[0]))) == 1) ? 1 : 0));
         break;
       case TSDB_DATA_TYPE_TINYINT:
-        sprintf(tableDes->cols[i].note, "%d", (int)(*((char *)row[0])));
+        sprintf(tableDes->cols[i].note, "%d", *((int8_t *)row[0]));
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        sprintf(tableDes->cols[i].note, "%d", (int)(*((short *)row[0])));
+        sprintf(tableDes->cols[i].note, "%d", *((int16_t *)row[0]));
         break;
       case TSDB_DATA_TYPE_INT:
-        sprintf(tableDes->cols[i].note, "%d", *((int *)row[0]));
+        sprintf(tableDes->cols[i].note, "%d", *((int32_t *)row[0]));
         break;
       case TSDB_DATA_TYPE_BIGINT:
         sprintf(tableDes->cols[i].note, "%" PRId64 "", *((int64_t *)row[0]));
@@ -944,12 +930,14 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
         sprintf(tableDes->cols[i].note, "%f", GET_DOUBLE_VAL(row[0]));
         break;
       case TSDB_DATA_TYPE_BINARY:
+        memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
         converStringToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
       case TSDB_DATA_TYPE_NCHAR:
+        memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         convertNCharToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
@@ -1223,7 +1211,7 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
   while ((row = taos_fetch_row(tmpResult)) != NULL) {  
     memset(&tableRecord, 0, sizeof(STableRecord));
     strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
   }  
   
   taos_free_result(tmpResult);
@@ -1312,7 +1300,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
 
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
     numOfTable++;
 
@@ -1542,16 +1530,16 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
 
       switch (fields[col].type) {
         case TSDB_DATA_TYPE_BOOL:
-          pstr += sprintf(pstr, "%d", ((((int)(*((char *)row[col]))) == 1) ? 1 : 0));
+          pstr += sprintf(pstr, "%d", ((((int32_t)(*((char *)row[col]))) == 1) ? 1 : 0));
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          pstr += sprintf(pstr, "%d", (int)(*((char *)row[col])));
+          pstr += sprintf(pstr, "%d", *((int8_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          pstr += sprintf(pstr, "%d", (int)(*((short *)row[col])));
+          pstr += sprintf(pstr, "%d", *((int16_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_INT:
-          pstr += sprintf(pstr, "%d", *((int *)row[col]));
+          pstr += sprintf(pstr, "%d", *((int32_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
           pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));

@@ -18,5 +18,3 @@ docker pull tdengine/tdengine:${version}
 
 docker tag tdengine/tdengine:$version tdengine/tdengine:latest
 docker push tdengine/tdengine:latest
-
-

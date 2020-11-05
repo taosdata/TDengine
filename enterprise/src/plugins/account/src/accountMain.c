@@ -669,7 +669,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
 }
 
 static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
-  SCMCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
+  SCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
   SAcctObj *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
     mInfo("acct:%s, already exist, update it", pCreate->user);
@@ -698,7 +698,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
-  SCMDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
@@ -710,7 +710,7 @@ static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
-  SCMAlterAcctMsg *pAlter = pMsg->rpcMsg.pCont;
+  SAlterAcctMsg *pAlter = pMsg->rpcMsg.pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
   pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);

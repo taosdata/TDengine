@@ -5,7 +5,8 @@ TARGET_DIR = ../src/
 
 TARGET = $(TARGET_DIR)/machine.o
 
-CFLAGS = -c -std=gnu99 -Wall -fPIC -g -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -DLINUX -D_TD_ARM_64\
+CFLAGS = -c -std=gnu99 -Wall -fPIC -g -fsigned-char -fpack-struct=8  \
+    -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -DLINUX -D_TD_ARM_64        \
     -I../../../../../community/src/os/linux/inc/      \
     -I../../../../../community/src/client/inc/        \
     -I../../../../../community/src/inc/               \
