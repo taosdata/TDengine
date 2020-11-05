@@ -97,7 +97,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   return syncCode;
 }
 
-int32_t vnodeCheckWrite(void *param) {
+static int32_t vnodeCheckWrite(void *param) {
   SVnodeObj *pVnode = param;
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
     vDebug("vgId:%d, no write auth, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
