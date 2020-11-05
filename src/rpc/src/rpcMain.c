@@ -221,14 +221,18 @@ static void rpcFree(void *p) {
   free(p);
 }
 
-static void rpcInit(void) {
-
+void rpcInit(void) {
   tsProgressTimer = tsRpcTimer/2; 
   tsRpcMaxRetry = tsRpcMaxTime * 1000/tsProgressTimer;
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
+}
+ 
+void rpcCleanup(void) {
+  taosCloseRef(tsRpcRefId);
+  tsRpcRefId = -1;
 }
  
 void *rpcOpen(const SRpcInit *pInit) {
@@ -1621,11 +1625,7 @@ static void rpcDecRef(SRpcInfo *pRpc)
     tDebug("%s rpc resources are released", pRpc->label);
     taosTFree(pRpc);
 
-    int count = atomic_sub_fetch_32(&tsRpcNum, 1);
-    if (count == 0) {
-      // taosCloseRef(tsRpcRefId);
-      // tsRpcInit = PTHREAD_ONCE_INIT;    // windows compliling error  
-    }
+    atomic_sub_fetch_32(&tsRpcNum, 1);
   }
 }
 
