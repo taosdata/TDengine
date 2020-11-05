@@ -2139,7 +2139,7 @@ void *syncWrite(void *sarg) {
           inserted++;
           k++;
   
-          if (inserted >= superTblInfo->insertRows) break;
+          if (inserted >= superTblInfo->insertRows || (TSDB_MAX_SQL_LEN - len) < (superTblInfo->lenOfOneRow + 128)) break;
         }
   
         if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {          
