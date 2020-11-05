@@ -878,7 +878,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pQueryInfo->tsBuf != NULL) {
     // note: here used the index instead of actual vnode id.
     int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
-    int32_t code = dumpFileBlockByVnodeId(pQueryInfo->tsBuf, vnodeIndex, pMsg, &pQueryMsg->tsLen, &pQueryMsg->tsNumOfBlocks);
+    int32_t code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vnodeIndex, pMsg, &pQueryMsg->tsLen, &pQueryMsg->tsNumOfBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

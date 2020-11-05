@@ -70,7 +70,7 @@ void *walOpen(char *path, SWalCfg *pCfg) {
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
 
-  pWal->fsyncSeq = pCfg->fsyncPeriod % 1000;
+  pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
   if (walInitObj(pWal) != TSDB_CODE_SUCCESS) {

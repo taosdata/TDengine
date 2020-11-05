@@ -65,12 +65,12 @@ int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t co
 
   int64_t remain = count - writeLen;
   if (remain > 0) {
-    size_t rlen = fread(buffer, 1, remain, in_file);
+    size_t rlen = fread(buffer, 1, (size_t) remain, in_file);
     if (rlen <= 0) {
       return writeLen;
     }
     else {
-      fwrite(buffer, 1, remain, out_file);
+      fwrite(buffer, 1, (size_t) remain, out_file);
       writeLen += remain;
     }
   }

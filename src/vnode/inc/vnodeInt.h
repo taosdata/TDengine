@@ -61,8 +61,6 @@ typedef struct {
   char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
-int  vnodeWriteToQueue(void *param, void *pHead, int type);
-int  vnodeWriteCqMsgToQueue(void *param, void *pHead, int type);
 void vnodeInitWriteFp(void);
 void vnodeInitReadFp(void);
 

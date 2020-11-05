@@ -854,7 +854,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
 
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     // nodeVersion = pHead->version;
-    (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD);
+    (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_FWD, NULL);
   } else {
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       syncSaveIntoBuffer(pPeer, pHead);

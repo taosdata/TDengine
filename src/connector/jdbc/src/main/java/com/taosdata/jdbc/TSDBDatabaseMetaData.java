@@ -96,7 +96,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public int getDriverMajorVersion() {
-        return 0;
+        return 2;
     }
 
     public int getDriverMinorVersion() {
