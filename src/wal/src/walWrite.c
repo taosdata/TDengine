@@ -116,7 +116,7 @@ void walFsync(void *handle, bool forceFsync) {
   if (pWal == NULL || pWal->fd < 0) return;
 
   if (forceFsync || (pWal->level == TAOS_WAL_FSYNC && pWal->fsyncPeriod == 0)) {
-    wTrace("vgId:%d, file:%s, do fsync, force:%d", pWal->vgId, pWal->name, forceFsync);
+    wTrace("vgId:%d, file:%s, do fsync", pWal->vgId, pWal->name);
     if (fsync(pWal->fd) < 0) {
       wError("vgId:%d, file:%s, fsync failed since %s", pWal->vgId, pWal->name, strerror(errno));
     }
