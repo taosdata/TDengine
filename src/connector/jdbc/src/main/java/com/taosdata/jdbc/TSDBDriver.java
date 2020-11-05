@@ -249,6 +249,7 @@ public class TSDBDriver implements java.sql.Driver {
             return null;
 
         // parse properties
+        String urlForMeta = url;
         int beginningOfSlashes = url.indexOf("//");
         int index = url.indexOf("?");
         if (index != -1) {
@@ -271,6 +272,10 @@ public class TSDBDriver implements java.sql.Driver {
                 }
             }
         }
+        // parse Product Name
+        String dbProductName = url.substring(0, beginningOfSlashes);
+        dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
+        dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
         // parse dbname
         url = url.substring(beginningOfSlashes + 2);
         int indexOfSlash = url.indexOf("/");
@@ -291,6 +296,9 @@ public class TSDBDriver implements java.sql.Driver {
         if (url != null && url.length() > 0 && url.trim().length() > 0) {
             urlProps.setProperty(TSDBDriver.PROPERTY_KEY_HOST, url);
         }
+
+        this.dbMetaData = new TSDBDatabaseMetaData(dbProductName, urlForMeta, urlProps.getProperty(TSDBDriver.PROPERTY_KEY_USER));
+
         /*
         String urlForMeta = url;
         String dbProductName = url.substring(url.indexOf(":") + 1);

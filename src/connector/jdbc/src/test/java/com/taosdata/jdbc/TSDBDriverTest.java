@@ -57,6 +57,12 @@ public class TSDBDriverTest {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
 
