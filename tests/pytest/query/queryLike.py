@@ -33,7 +33,7 @@ class TDTestCase:
 
         tdSql.execute("create table test_cars(ts timestamp, c nchar(2)) tags(t1 nchar(20))")
         tdSql.execute("insert into car1 using test_cars tags('150 90 30 04 00 002') values(now, 'bb');")
-        tdSql.query("select count(*) from test_cars where t1 like '%50 90 30 04 00 00%'")
+        tdSql.query("select * from test_cars where t1 like '%50 90 30 04 00 00%'")        
         tdSql.checkRows(1)
 
     def stop(self):
