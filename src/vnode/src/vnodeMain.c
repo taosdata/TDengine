@@ -483,21 +483,6 @@ void *vnodeAcquireRqueue(int32_t vgId) {
   return pVnode->rqueue;
 }
 
-void *vnodeAcquireWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return NULL;
-
-  int32_t code = vnodeCheckWrite(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    vInfo("vgId:%d, can not provide write service, status is %s", vgId, vnodeStatus[pVnode->status]);
-    vnodeRelease(pVnode);
-    return NULL;
-  }
-
-  return pVnode->wqueue;
-}
-
 void *vnodeGetWal(void *pVnode) {
   return ((SVnodeObj *)pVnode)->wal;
 }

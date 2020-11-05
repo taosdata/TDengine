@@ -208,8 +208,9 @@ int32_t vnodeWriteToQueue(void *vparam, void *wparam, int32_t qtype, void *pMsg)
   SVnodeObj *pVnode = vparam;
   SWalHead * pHead = wparam;
 
-  if (qtype == TAOS_QTYPE_RPC && vnodeCheckWrite(pVnode) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  if (qtype == TAOS_QTYPE_RPC) {
+    int32_t code = vnodeCheckWrite(pVnode);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   int32_t size = sizeof(SVWriteMsg) + sizeof(SWalHead) + pHead->len;
