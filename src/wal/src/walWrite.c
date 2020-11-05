@@ -143,12 +143,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
       continue;
     }
 
-    if (!pWal->keep) {
-      wDebug("vgId:%d, file:%s, restore success, remove this file", pWal->vgId, walName);
-      remove(walName);
-    } else {
-      wDebug("vgId:%d, file:%s, restore success and keep it", pWal->vgId, walName);
-    }
+    wDebug("vgId:%d, file:%s, restore success and keep it", pWal->vgId, walName);
 
     count++;
   }
