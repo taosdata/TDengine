@@ -1,5 +1,6 @@
 package com.taosdata.jdbc;
 
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -29,6 +30,8 @@ public class TSDBDriverTest {
     };
     private static boolean islibLoaded = false;
     private static boolean isTaosdActived;
+
+    private Connection conn;
 
     @BeforeClass
     public static void before() {
@@ -71,7 +74,7 @@ public class TSDBDriverTest {
         final String url = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         try {
             if (islibLoaded && isTaosdActived) {
-                Connection conn = DriverManager.getConnection(url);
+                conn = DriverManager.getConnection(url);
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
@@ -89,7 +92,7 @@ public class TSDBDriverTest {
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         try {
             if (islibLoaded && isTaosdActived) {
-                Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+                conn = DriverManager.getConnection(jdbcUrl, connProps);
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
@@ -107,7 +110,7 @@ public class TSDBDriverTest {
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         try {
             if (islibLoaded && isTaosdActived) {
-                Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+                conn = DriverManager.getConnection(jdbcUrl, connProps);
                 assertNotNull("failure - connection should not be null", conn);
             }
         } catch (SQLException e) {
@@ -204,5 +207,23 @@ public class TSDBDriverTest {
     @Test
     public void testGetParentLogger() throws SQLFeatureNotSupportedException {
         assertNull("failure - getParentLogger should be be null", new TSDBDriver().getParentLogger());
+    }
+
+    @After
+    public void after() {
+        Statement statement = null;
+        try {
+            statement = conn.createStatement();
+            ResultSet resultSet = statement.executeQuery("show databases");
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            while (resultSet.next()) {
+                for (int i = 1; i <= metaData.getColumnCount(); i++) {
+                    System.out.print(metaData.getColumnLabel(i) + " : " + resultSet.getString(i) + "\t");
+                }
+                System.out.println();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }
