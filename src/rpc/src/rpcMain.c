@@ -82,6 +82,7 @@ typedef struct {
   int8_t    oldInUse;   // server EP inUse passed by app
   int8_t    redirect;   // flag to indicate redirect
   int8_t    connType;   // connection type
+  int32_t   rid;        // refId returned by taosAddRef
   SRpcMsg  *pRsp;       // for synchronous API
   tsem_t   *pSem;       // for synchronous API
   SRpcEpSet *pSet;      // for synchronous API 
@@ -374,7 +375,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
+int64_t rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -403,10 +404,11 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   // set the handle to pContext, so app can cancel the request
   if (pMsg->handle) *((void **)pMsg->handle) = pContext;
 
-  taosAddRef(tsRpcRefId, pContext);
+  pContext->rid = taosAddRef(tsRpcRefId, pContext);
+
   rpcSendReqToServer(pRpc, pContext);
 
-  return;
+  return pContext->rid;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -551,11 +553,10 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
   return code;
 }
 
-void rpcCancelRequest(void *handle) {
-  SRpcReqContext *pContext = handle;
+void rpcCancelRequest(int64_t rid) {
 
-  int code = taosAcquireRef(tsRpcRefId, pContext);
-  if (code < 0) return;
+  SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rid);
+  if (pContext == NULL) return;
 
   rpcCloseConn(pContext->pConn);
 

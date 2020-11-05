@@ -32,7 +32,10 @@ int taosCloseRef(int refId);
 // add ref, p is the pointer to resource or pointer ID
 // return Reference ID(rid) allocated. On error, -1 is returned, and terrno is set appropriately
 int64_t taosAddRef(int refId, void *p);   
-#define taosRemoveRef taosReleaseRef
+
+// remove ref, rid is the reference ID returned by taosAddRef
+// return 0 if success. On error, -1 is returned, and terrno is set appropriately
+int taosRemoveRef(int rsetId, int64_t rid);
 
 // acquire ref, rid is the reference ID returned by taosAddRef
 // return the resource p. On error, NULL is returned, and terrno is set appropriately
