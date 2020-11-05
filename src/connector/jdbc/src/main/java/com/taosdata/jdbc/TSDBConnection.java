@@ -52,7 +52,6 @@ public class TSDBConnection implements Connection {
 
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
         this.dbMetaData = meta;
-
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME), info.getProperty(TSDBDriver.PROPERTY_KEY_USER),

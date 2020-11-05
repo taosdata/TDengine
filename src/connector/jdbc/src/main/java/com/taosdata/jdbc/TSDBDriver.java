@@ -168,13 +168,6 @@ public class TSDBDriver implements java.sql.Driver {
         }
 
         try {
-
-            Enumeration<?> propertyNames = props.propertyNames();
-            while (propertyNames.hasMoreElements()) {
-                Object name = propertyNames.nextElement();
-                System.out.println(name + " : " + props.get(name));
-            }
-
             TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR),
                     (String) props.get(PROPERTY_KEY_LOCALE),
                     (String) props.get(PROPERTY_KEY_CHARSET),

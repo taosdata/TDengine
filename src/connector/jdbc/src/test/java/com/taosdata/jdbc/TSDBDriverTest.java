@@ -113,13 +113,6 @@ public class TSDBDriverTest {
                 conn = DriverManager.getConnection(jdbcUrl, connProps);
                 assertNotNull("failure - connection should not be null", conn);
             }
-            printRs();
-            Properties clientInfo = conn.getClientInfo();
-            Enumeration<?> propertyNames = clientInfo.propertyNames();
-            while (propertyNames.hasMoreElements()) {
-                String name = (String) propertyNames.nextElement();
-                System.out.println(name + " : " + clientInfo.getProperty(name));
-            }
         } catch (SQLException e) {
             e.printStackTrace();
             fail("failure - should not throw Exception");
