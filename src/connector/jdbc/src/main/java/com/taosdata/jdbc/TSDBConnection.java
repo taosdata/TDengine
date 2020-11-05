@@ -52,7 +52,6 @@ public class TSDBConnection implements Connection {
 
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
         this.dbMetaData = meta;
-
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME), info.getProperty(TSDBDriver.PROPERTY_KEY_USER),
@@ -197,12 +196,13 @@ public class TSDBConnection implements Connection {
     }
 
     public SQLWarning getWarnings() throws SQLException {
+        //todo: implement getWarnings according to the warning messages returned from TDengine
         throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public void clearWarnings() throws SQLException {
         // left blank to support HikariCP connection
-        //todo: implement getWarnings according to the warning messages returned from TDengine
+        //todo: implement clearWarnings according to the warning messages returned from TDengine
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {

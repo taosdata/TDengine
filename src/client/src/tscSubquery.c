@@ -2366,7 +2366,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
 
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    pRes->numOfCols =  (int32_t)numOfExprs;
+    pRes->numOfCols =  (int16_t)numOfExprs;
 
     pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
     pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
