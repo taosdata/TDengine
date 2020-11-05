@@ -1,6 +1,5 @@
 package com.taosdata.jdbc;
 
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -8,7 +7,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.sql.*;
-import java.util.Enumeration;
 import java.util.Properties;
 
 import static org.junit.Assert.*;
@@ -209,29 +207,4 @@ public class TSDBDriverTest {
         assertNull("failure - getParentLogger should be be null", new TSDBDriver().getParentLogger());
     }
 
-    public void printRs() {
-        Statement statement = null;
-        try {
-            statement = conn.createStatement();
-            ResultSet resultSet = statement.executeQuery("show databases");
-            ResultSetMetaData metaData = resultSet.getMetaData();
-            while (resultSet.next()) {
-                for (int i = 1; i <= metaData.getColumnCount(); i++) {
-                    System.out.print(metaData.getColumnLabel(i) + " : " + resultSet.getString(i) + "\t");
-                }
-                System.out.println();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                if (statement != null)
-                    statement.close();
-                if (conn != null)
-                    conn.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-    }
 }
