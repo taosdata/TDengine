@@ -376,7 +376,7 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
   if (ref == 0) {
     tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
-    taosRemoveRef(tscRefId, pTscObj);
+    taosRemoveRef(tscRefId, pTscObj->rid);
   }
 }
 
