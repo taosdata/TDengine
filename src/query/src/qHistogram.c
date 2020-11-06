@@ -168,7 +168,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       (*pHisto)->numOfEntries += 1;
     }
   } else { /* insert a new slot */
-    if ((*pHisto)->numOfElems > 1 && idx < (*pHisto)->numOfEntries) {
+    if ((*pHisto)->numOfElems >= 1 && idx < (*pHisto)->numOfEntries) {
       if (idx > 0) {
         assert((*pHisto)->elems[idx - 1].val <= val);
       }

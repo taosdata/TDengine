@@ -23,7 +23,7 @@
 int64_t  ver = 0;
 void    *pWal = NULL;
 
-int writeToQueue(void *pVnode, void *data, int type) {
+int writeToQueue(void *pVnode, void *data, int type, void *pMsg) {
   // do nothing
   SWalHead *pHead = data;
 

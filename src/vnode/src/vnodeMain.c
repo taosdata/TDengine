@@ -267,7 +267,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   strcpy(cqCfg.pass, tsInternalPass);
   strcpy(cqCfg.db, pVnode->db);
   cqCfg.vgId = vnode;
-  cqCfg.cqWrite = vnodeWriteCqMsgToQueue;
+  cqCfg.cqWrite = vnodeWriteToWQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
   if (pVnode->cq == NULL) {
     vnodeCleanUp(pVnode);
@@ -306,7 +306,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return terrno;
   }
 
-  walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
+  walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
   if (pVnode->version == 0) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
@@ -321,7 +321,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.ahandle = pVnode;
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
-  syncInfo.writeToCache = vnodeWriteToQueue;
+  syncInfo.writeToCache = vnodeWriteToWQueue;
   syncInfo.confirmForward = dnodeSendRpcVWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
@@ -366,6 +366,7 @@ int32_t vnodeClose(int32_t vgId) {
 }
 
 void vnodeRelease(void *pVnodeRaw) {
+  if (pVnodeRaw == NULL) return;
   SVnodeObj *pVnode = pVnodeRaw;
   int32_t    vgId = pVnode->vgId;
 
@@ -466,36 +467,6 @@ void *vnodeAcquire(int32_t vgId) {
   }
 
   return *ppVnode;
-}
-
-void *vnodeAcquireRqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return NULL;
-
-  int32_t code = vnodeCheckRead(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    vInfo("vgId:%d, can not provide read service, status is %s", vgId, vnodeStatus[pVnode->status]);
-    vnodeRelease(pVnode);
-    return NULL;
-  }
-
-  return pVnode->rqueue;
-}
-
-void *vnodeAcquireWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return NULL;
-
-  int32_t code = vnodeCheckWrite(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    vInfo("vgId:%d, can not provide write service, status is %s", vgId, vnodeStatus[pVnode->status]);
-    vnodeRelease(pVnode);
-    return NULL;
-  }
-
-  return pVnode->wqueue;
 }
 
 void *vnodeGetWal(void *pVnode) {

@@ -3978,7 +3978,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
           if (isNull(data1, srcType) || isNull(data2, srcType)) {
             setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
           } else {
-            taosDoLinearInterpolation(pCtx->outputType, &point1, &point2, &point);
+            taosGetLinearInterpolationVal(pCtx->outputType, &point1, &point2, &point);
           }
         } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
           point1.val = data1;
@@ -3987,7 +3987,7 @@ static void interp_function(SQLFunctionCtx *pCtx) {
           if (isNull(data1, srcType) || isNull(data2, srcType)) {
             setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
           } else {
-            taosDoLinearInterpolation(pCtx->outputType, &point1, &point2, &point);
+            taosGetLinearInterpolationVal(pCtx->outputType, &point1, &point2, &point);
           }
         
         } else {
