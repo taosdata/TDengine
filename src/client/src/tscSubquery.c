@@ -565,7 +565,7 @@ int32_t tagValCompar(const void* p1, const void* p2) {
     return (tag1->len > tag2->len)? 1: -1;
   }
 
-  return strncmp(tag1->data, tag2->data, tag1->len);
+  return memcmp(tag1->data, tag2->data, tag1->len);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {
