@@ -239,6 +239,7 @@ wal(Y)     ::= WAL INTEGER(X).                { Y = X; }
 fsync(Y)   ::= FSYNC INTEGER(X).              { Y = X; }
 comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
+update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }     
 
 %type db_optr {SCreateDBInfo}
 db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
@@ -256,6 +257,7 @@ db_optr(Y) ::= db_optr(Z) fsync(X).          { Y = Z; Y.fsyncPeriod = strtol(X.z
 db_optr(Y) ::= db_optr(Z) comp(X).           { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
 db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
+db_optr(Y) ::= db_optr(Z) update(X).         { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 
 %type alter_db_optr {SCreateDBInfo}
 alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
@@ -267,6 +269,7 @@ alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = s
 alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) update(X).       { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X). { 

@@ -320,6 +320,15 @@ typedef struct {
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
+typedef struct {
+  int   rowsInserted;
+  int   rowsUpdated;
+  int   rowsDeleteSucceed;
+  int   rowsDeleteFailed;
+  int   nOperations;
+  TSKEY keyFirst;
+  TSKEY keyLast;
+} SMergeInfo;
 // ------------------ tsdbScan.c
 typedef struct {
   SFileGroup fGroup;
@@ -422,7 +431,7 @@ void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
-int   tsdbInsertRowToMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
+int   tsdbUpdateRowInMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
@@ -430,7 +439,7 @@ void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemTable* pMem, SMemTable* pIMem)
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
-                            TSKEY* filterKeys, int nFilterKeys);
+                            TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
 
 static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
@@ -438,14 +447,21 @@ static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   SSkipListNode* node = tSkipListIterGet(pIter);
   if (node == NULL) return NULL;
 
-  return *(SDataRow *)SL_GET_NODE_DATA(node);
+  return (SDataRow)SL_GET_NODE_DATA(node);
 }
 
 static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator* pIter) {
   SDataRow row = tsdbNextIterRow(pIter);
-  if (row == NULL) return -1;
+  if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
 
   return dataRowKey(row);
+}
+
+static FORCE_INLINE TKEY tsdbNextIterTKey(SSkipListIterator* pIter) {
+  SDataRow row = tsdbNextIterRow(pIter);
+  if (row == NULL) return TKEY_NULL;
+
+  return dataRowTKey(row);
 }
 
 static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
