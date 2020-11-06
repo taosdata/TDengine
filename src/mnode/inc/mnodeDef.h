@@ -172,7 +172,8 @@ typedef struct {
   int8_t  walLevel;
   int8_t  replications;
   int8_t  quorum;
-  int8_t  reserved[12];
+  int8_t  update;
+  int8_t  reserved[11];
 } SDbCfg;
 
 typedef struct SDbObj {

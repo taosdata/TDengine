@@ -170,7 +170,7 @@ int64_t getFilledNumOfRes(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows
   int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
 
   TSKEY ekey1 = ekey;
-  if (pFillInfo->order != TSDB_ORDER_ASC) {
+  if (!FILL_IS_ASC_FILL(pFillInfo)) {
     pFillInfo->endKey = taosTimeTruncate(ekey, &pFillInfo->interval, pFillInfo->precision);
   }
 

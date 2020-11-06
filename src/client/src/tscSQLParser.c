@@ -5311,6 +5311,7 @@ static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->replications = pCreateDb->replica;
   pMsg->quorum = pCreateDb->quorum;
   pMsg->ignoreExist = pCreateDb->ignoreExists;
+  pMsg->update = pCreateDb->update;
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {

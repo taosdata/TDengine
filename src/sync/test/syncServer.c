@@ -30,7 +30,7 @@ int       dataFd = -1;
 void *    qhandle = NULL;
 int       walNum = 0;
 uint64_t  tversion = 0;
-void *    syncHandle;
+int64_t   syncHandle;
 int       role;
 int       nodeId;
 char      path[256];

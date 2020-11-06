@@ -850,6 +850,7 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
   pCfg->wals                = 3;
   pCfg->quorum              = pDb->cfg.quorum;
+  pCfg->update              = pDb->cfg.update;
   
   SVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {

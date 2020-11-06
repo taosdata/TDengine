@@ -21,38 +21,48 @@
 extern "C" {
 #endif
 
-// open an instance, return refId which will be used by other APIs
-int  taosOpenRef(int max, void (*fp)(void *)); 
+// open a reference set, max is the mod used by hash, fp is the pointer to free resource function
+// return rsetId which will be used by other APIs. On error, -1 is returned, and terrno is set appropriately
+int taosOpenRef(int max, void (*fp)(void *)); 
 
-// close the Ref instance
-void taosCloseRef(int refId); 
+// close the reference set, refId is the return value by taosOpenRef
+// return 0 if success. On error, -1 is returned, and terrno is set appropriately
+int taosCloseRef(int refId); 
 
 // add ref, p is the pointer to resource or pointer ID
-int  taosAddRef(int refId, void *p);
-#define taosRemoveRef taosReleaseRef
+// return Reference ID(rid) allocated. On error, -1 is returned, and terrno is set appropriately
+int64_t taosAddRef(int refId, void *p);   
 
-// acquire ref, p is the pointer to resource or pointer ID
-int  taosAcquireRef(int refId, void *p);
+// remove ref, rid is the reference ID returned by taosAddRef
+// return 0 if success. On error, -1 is returned, and terrno is set appropriately
+int taosRemoveRef(int rsetId, int64_t rid);
 
-// release ref, p is the pointer to resource or pinter ID
-void taosReleaseRef(int refId, void *p);
+// acquire ref, rid is the reference ID returned by taosAddRef
+// return the resource p. On error, NULL is returned, and terrno is set appropriately
+void *taosAcquireRef(int rsetId, int64_t rid);
 
-// return the first if p is null, otherwise return the next after p
-void *taosIterateRef(int refId, void *p);
+// release ref, rid is the reference ID returned by taosAddRef
+// return 0 if success. On error, -1 is returned, and terrno is set appropriately
+int taosReleaseRef(int rsetId, int64_t rid);
+
+// return the first reference if rid is 0, otherwise return the next after current reference. 
+// if return value is NULL, it means list is over(if terrno is set, it means error happens)
+void *taosIterateRef(int rsetId, int64_t rid);
 
 // return the number of references in system
 int  taosListRef();  
 
 /* sample code to iterate the refs 
 
-void demoIterateRefs(int refId) {
+void demoIterateRefs(int rsetId) {
 
-  void *p = taosIterateRef(refId, NULL);
+  void *p = taosIterateRef(refId, 0);
   while (p) {
-
     // process P
+    
+    // get the rid from p
 
-    p = taosIterateRef(refId, p);
+    p = taosIterateRef(rsetId, rid);
   }
 }
 
