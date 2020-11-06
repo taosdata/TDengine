@@ -72,7 +72,7 @@ typedef struct {
   ESyncRole  role;
   ESdbStatus status;
   int64_t    version;
-  void *     sync;
+  int64_t    sync;
   void *     wal;
   SSyncCfg   cfg;
   int32_t    numOfTables;
@@ -212,7 +212,7 @@ static void sdbRestoreTables() {
 }
 
 void sdbUpdateMnodeRoles() {
-  if (tsSdbObj.sync == NULL) return;
+  if (tsSdbObj.sync <= 0) return;
 
   SNodesRole roles = {0};
   syncGetNodesRole(tsSdbObj.sync, &roles);
@@ -433,7 +433,7 @@ void sdbCleanUp() {
 
   if (tsSdbObj.sync) {
     syncStop(tsSdbObj.sync);
-    tsSdbObj.sync = NULL;
+    tsSdbObj.sync = -1;
   }
 
   if (tsSdbObj.wal) {

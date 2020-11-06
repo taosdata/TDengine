@@ -141,6 +141,7 @@ typedef struct SSyncNode {
   int8_t       replica;
   int8_t       quorum;
   uint32_t     vgId;
+  int64_t      rid;
   void        *ahandle;
   int8_t       selfIndex;
   SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA+1];  // extra one for arbitrator

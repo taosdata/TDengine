@@ -47,7 +47,7 @@ typedef struct {
   void        *rqueue;
   void        *wal;
   void        *tsdb;
-  void        *sync;
+  int64_t      sync;
   void        *events;
   void        *cq;  // continuous query
   int32_t      cfgVersion;
