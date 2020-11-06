@@ -2156,7 +2156,7 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   }
 
   int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + tagLen;
-  SCMCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
+  SCMCreateTableMsg *pCreateMsg = calloc(1, contLen);
   if (pCreateMsg == NULL) {
     mError("app:%p:%p, table:%s, failed to create table while get meta info, no enough memory", pMsg->rpcMsg.ahandle,
            pMsg, pInfo->tableId);
@@ -2174,11 +2174,13 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   mDebug("app:%p:%p, table:%s, start to create on demand, tagLen:%d stable:%s",
          pMsg->rpcMsg.ahandle, pMsg, pInfo->tableId, tagLen, pTags->name);
 
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  if (pMsg->rpcMsg.pCont != pMsg->pCont) {
+    tfree(pMsg->rpcMsg.pCont);
+  }
   pMsg->rpcMsg.msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
   pMsg->rpcMsg.pCont = pCreateMsg;
   pMsg->rpcMsg.contLen = contLen;
-  
+
   return TSDB_CODE_MND_ACTION_NEED_REPROCESSED;
 }
 
