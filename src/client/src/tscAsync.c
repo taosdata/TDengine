@@ -428,6 +428,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       } else {
         assert(code == TSDB_CODE_SUCCESS);      
       }
+
       // param already freed by other routine and pSql in tscCache when ctrl + c 
       if (atomic_load_ptr(&pSql->param) == NULL) {
         return;
@@ -441,6 +442,20 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vgroupIndex &&
           pTableMetaInfo->vgroupIndex >= 0 && pTableMetaInfo->vgroupList != NULL);
 
+      // tscProcessSql can add error into async res
+      tscProcessSql(pSql);
+      return;
+    } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
+      tscDebug("%p update table meta in local cache, continue to process sql and send corresponding tid_tag query", pSql);
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+      code = tscGetTableMeta(pSql, pTableMetaInfo);
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        return;
+      } else {
+        assert(code == TSDB_CODE_SUCCESS);
+      }
+
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0));
       // tscProcessSql can add error into async res
       tscProcessSql(pSql);
       return;
@@ -465,7 +480,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           tscResetSqlCmdObj(pCmd, false);
 
           code = tsParseSql(pSql, true);
-
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             return;
           } else if (code != TSDB_CODE_SUCCESS) {
