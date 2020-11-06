@@ -49,7 +49,7 @@ static taos_queue tsHttpQueue;
 
 void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t numOfRows, void (*fp)(void *param, void *result, int32_t numOfRows)) {
   if (tsHttpQueue != NULL) {
-    SHttpResult *pMsg = (SHttpResult *)taosAllocateQitem(sizeof(SHttpResult));
+    SHttpResult *pMsg = taosAllocateQitem(sizeof(SHttpResult));
     pMsg->param = param;
     pMsg->result = result;
     pMsg->numOfRows = numOfRows;

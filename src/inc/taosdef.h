@@ -424,42 +424,43 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_DNODEDNODE 5 
 #define TSDB_PORT_SYNC       10 
 #define TSDB_PORT_HTTP       11 
-#define TSDB_PORT_ARBITRATOR 12 
-
-#define TAOS_QTYPE_RPC      0
-#define TAOS_QTYPE_FWD      1
-#define TAOS_QTYPE_WAL      2 
-#define TAOS_QTYPE_CQ       3
-#define TAOS_QTYPE_QUERY    4
+#define TSDB_PORT_ARBITRATOR 12
 
 typedef enum {
-  TSDB_SUPER_TABLE        = 0,  // super table
-  TSDB_CHILD_TABLE        = 1,  // table created from super table
-  TSDB_NORMAL_TABLE       = 2,  // ordinary table
-  TSDB_STREAM_TABLE       = 3,  // table created from stream computing
-  TSDB_TABLE_MAX          = 4
+  TAOS_QTYPE_RPC   = 0,
+  TAOS_QTYPE_FWD   = 1,
+  TAOS_QTYPE_WAL   = 2,
+  TAOS_QTYPE_CQ    = 3,
+  TAOS_QTYPE_QUERY = 4
+} EQType;
+
+typedef enum {
+  TSDB_SUPER_TABLE  = 0,   // super table
+  TSDB_CHILD_TABLE  = 1,   // table created from super table
+  TSDB_NORMAL_TABLE = 2,  // ordinary table
+  TSDB_STREAM_TABLE = 3,  // table created from stream computing
+  TSDB_TABLE_MAX    = 4
 } ETableType;
 
 typedef enum {
-  TSDB_MOD_MNODE,
-  TSDB_MOD_HTTP,
-  TSDB_MOD_MONITOR,
-  TSDB_MOD_MQTT,
-  TSDB_MOD_MAX
+  TSDB_MOD_MNODE   = 0,
+  TSDB_MOD_HTTP    = 1,
+  TSDB_MOD_MONITOR = 2,
+  TSDB_MOD_MQTT    = 3,
+  TSDB_MOD_MAX     = 4
 } EModuleType;
 
-  typedef enum {
-    TSDB_CHECK_ITEM_NETWORK,
-    TSDB_CHECK_ITEM_MEM,
-    TSDB_CHECK_ITEM_CPU,
-    TSDB_CHECK_ITEM_DISK,
-    TSDB_CHECK_ITEM_OS,    
-    TSDB_CHECK_ITEM_ACCESS,    
-    TSDB_CHECK_ITEM_VERSION,
-    TSDB_CHECK_ITEM_DATAFILE,
-    TSDB_CHECK_ITEM_MAX
-  } ECheckItemType;
-
+typedef enum {
+  TSDB_CHECK_ITEM_NETWORK,
+  TSDB_CHECK_ITEM_MEM,
+  TSDB_CHECK_ITEM_CPU,
+  TSDB_CHECK_ITEM_DISK,
+  TSDB_CHECK_ITEM_OS,    
+  TSDB_CHECK_ITEM_ACCESS,    
+  TSDB_CHECK_ITEM_VERSION,
+  TSDB_CHECK_ITEM_DATAFILE,
+  TSDB_CHECK_ITEM_MAX
+} ECheckItemType;
 
 #ifdef __cplusplus
 }

@@ -1043,7 +1043,7 @@ void sdbFreeWritequeue() {
 int32_t sdbWriteToQueue(void *param, void *data, int32_t qtype, void *pMsg) {
   SWalHead *pHead = data;
   int32_t   size = sizeof(SWalHead) + pHead->len;
-  SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);
+  SWalHead *pWal = taosAllocateQitem(size);
   memcpy(pWal, pHead, size);
 
   taosWriteQitem(tsSdbWriteQueue, qtype, pWal);

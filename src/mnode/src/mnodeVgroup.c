@@ -694,7 +694,7 @@ static bool mnodeFilterVgroups(SVgObj *pVgroup, STableObj *pTable) {
     return true;
   }
 
-  SChildTableObj *pCTable = (SChildTableObj *)pTable;
+  SCTableObj *pCTable = (SCTableObj *)pTable;
   if (pVgroup->vgId == pCTable->vgId) {
     return true;
   } else {
@@ -791,7 +791,7 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
-void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
+void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
   if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
@@ -807,7 +807,7 @@ void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   }
 }
 
-void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
+void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   if (pTable->tid >= 1) {
     taosFreeId(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables--;

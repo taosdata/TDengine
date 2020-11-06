@@ -129,7 +129,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
     return;
   }
 
-  SMnodeMsg *pWrite = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
+  SMnodeMsg *pWrite = taosAllocateQitem(sizeof(SMnodeMsg));
   mnodeCreateMsg(pWrite, pMsg);
 
   dDebug("app:%p:%p, msg:%s is put into mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,

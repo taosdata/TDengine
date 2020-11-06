@@ -129,7 +129,7 @@ void dnodeDispatchToMReadQueue(SRpcMsg *pMsg) {
     return;
   }
 
-  SMnodeMsg *pRead = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
+  SMnodeMsg *pRead = taosAllocateQitem(sizeof(SMnodeMsg));
   mnodeCreateMsg(pRead, pMsg);
   taosWriteQitem(tsMReadQueue, TAOS_QTYPE_RPC, pRead);
 }

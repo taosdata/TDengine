@@ -19,6 +19,7 @@
  * to dnode. All theses messages are handled from here
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
 #include "tglobal.h"

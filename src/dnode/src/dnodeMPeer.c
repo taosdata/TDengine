@@ -128,7 +128,7 @@ void dnodeDispatchToMPeerQueue(SRpcMsg *pMsg) {
     return;
   }
 
-  SMnodeMsg *pPeer = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
+  SMnodeMsg *pPeer = taosAllocateQitem(sizeof(SMnodeMsg));
   mnodeCreateMsg(pPeer, pMsg);
   taosWriteQitem(tsMPeerQueue, TAOS_QTYPE_RPC, pPeer);
 }
