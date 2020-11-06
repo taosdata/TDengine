@@ -130,8 +130,19 @@ class TDTestCase:
         tdSql.query("select percentile(col6, 100) from test")
         tdSql.checkData(0, 0, np.percentile(floatData, 100)) 
         tdSql.query("select apercentile(col6, 100) from test")
-        print("apercentile result: %s" % tdSql.getData(0, 0))       
+        print("apercentile result: %s" % tdSql.getData(0, 0)) 
 
+        tdSql.execute("create table meters (ts timestamp, voltage int) tags(loc nchar(20))")
+        tdSql.execute("create table t0 using meters tags('beijing')")
+        tdSql.execute("create table t1 using meters tags('shanghai')")
+        for i in range(self.rowNum):
+            tdSql.execute("insert into t0 values(%d, %d)" % (self.ts + i, i + 1))            
+            tdSql.execute("insert into t1 values(%d, %d)" % (self.ts + i, i + 1))            
+        
+        tdSql.error("select percentile(voltage, 20) from meters")
+        tdSql.query("select apercentile(voltage, 20) from meters")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
