@@ -23,7 +23,7 @@ struct conn_val_s {
     char                *uid;
     char                *pwd;
     char                *db;
-    char                *host;
+    char                *server;
     char                *svr_enc;
     char                *cli_enc;
 };

@@ -58,18 +58,18 @@ do {                                                 \
         break;                                       \
     }                                                \
     if (strcasecmp(yyextra->key, "HOST")==0) {       \
-        free(yyextra->host);                         \
-        yyextra->host = strdup(yytext);              \
+        free(yyextra->server);                       \
+        yyextra->server = strdup(yytext);            \
         break;                                       \
     }                                                \
     if (strcasecmp(yyextra->key, "SERVER_ENC")==0) { \
         free(yyextra->svr_enc);                      \
-        yyextra->svr_enc = strdup(yytext);              \
+        yyextra->svr_enc = strdup(yytext);           \
         break;                                       \
     }                                                \
     if (strcasecmp(yyextra->key, "CLIENT_ENC")==0) { \
         free(yyextra->cli_enc);                      \
-        yyextra->cli_enc = strdup(yytext);              \
+        yyextra->cli_enc = strdup(yytext);           \
         break;                                       \
     }                                                \
 } while (0)
@@ -152,8 +152,8 @@ void conn_val_reset(conn_val_t *val) {
   if (val->db) {
     free(val->db); val->db = NULL;
   }
-  if (val->host) {
-    free(val->host); val->host = NULL;
+  if (val->server) {
+    free(val->server); val->server = NULL;
   }
   if (val->svr_enc) {
     free(val->svr_enc); val->svr_enc = NULL;

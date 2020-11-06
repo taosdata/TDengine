@@ -37,7 +37,7 @@ IF (TD_WINDOWS_64)
               ${todbc_flex_scanner_src}
               ${CMAKE_CURRENT_BINARY_DIR}/todbc.rc
               todbc.def)
-  TARGET_LINK_LIBRARIES(todbc taos_static)
+  TARGET_LINK_LIBRARIES(todbc taos_static odbccp32 legacy_stdio_definitions)
   target_include_directories(todbc PUBLIC .)
   target_compile_definitions(todbc PRIVATE "todbc_EXPORT")
 
