@@ -124,13 +124,12 @@ void dnodeFreeMPeerQueue() {
 void dnodeDispatchToMPeerQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMPeerQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, false);
-    rpcFreeCont(pMsg->pCont);
-    return;
+  } else {
+    SMnodeMsg *pPeer = mnodeCreateMsg(pMsg);
+    taosWriteQitem(tsMPeerQueue, TAOS_QTYPE_RPC, pPeer);
   }
 
-  SMnodeMsg *pPeer = taosAllocateQitem(sizeof(SMnodeMsg));
-  mnodeCreateMsg(pPeer, pMsg);
-  taosWriteQitem(tsMPeerQueue, TAOS_QTYPE_RPC, pPeer);
+  rpcFreeCont(pMsg->pCont);
 }
 
 static void dnodeFreeMPeerMsg(SMnodeMsg *pPeer) {

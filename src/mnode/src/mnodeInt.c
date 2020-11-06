@@ -18,7 +18,7 @@
 #include "taosmsg.h"
 #include "taoserror.h"
 #include "trpc.h"
-#include "tcache.h"
+#include "tqueue.h"
 #include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
@@ -34,8 +34,15 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
-void mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg) {
-  pMsg->rpcMsg = *rpcMsg;
+void *mnodeCreateMsg(SRpcMsg *pRpcMsg) {
+  int32_t    size = sizeof(SMnodeMsg) + pRpcMsg->contLen;
+  SMnodeMsg *pMsg = taosAllocateQitem(size);
+
+  pMsg->rpcMsg = *pRpcMsg;
+  pMsg->rpcMsg.pCont = pMsg->pCont;
+  memcpy(pMsg->pCont, pRpcMsg->pCont, pRpcMsg->contLen);
+
+  return pMsg;
 }
 
 int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
@@ -54,7 +61,6 @@ int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
 
 void mnodeCleanupMsg(SMnodeMsg *pMsg) {
   if (pMsg != NULL) {
-    if (pMsg->rpcMsg.pCont) rpcFreeCont(pMsg->rpcMsg.pCont);
     if (pMsg->pUser) mnodeDecUserRef(pMsg->pUser);
     if (pMsg->pDb) mnodeDecDbRef(pMsg->pDb);
     if (pMsg->pVgroup) mnodeDecVgroupRef(pMsg->pVgroup);

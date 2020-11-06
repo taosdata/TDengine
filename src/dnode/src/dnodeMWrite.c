@@ -125,16 +125,14 @@ void dnodeFreeMWritequeue() {
 void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, true);
-    rpcFreeCont(pMsg->pCont);
-    return;
+  } else {
+    SMnodeMsg *pWrite = mnodeCreateMsg(pMsg);
+    dDebug("app:%p:%p, msg:%s is put into mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,
+           taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
+    taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
 
-  SMnodeMsg *pWrite = taosAllocateQitem(sizeof(SMnodeMsg));
-  mnodeCreateMsg(pWrite, pMsg);
-
-  dDebug("app:%p:%p, msg:%s is put into mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,
-         taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
-  taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
+  rpcFreeCont(pMsg->pCont);
 }
 
 static void dnodeFreeMWriteMsg(SMnodeMsg *pWrite) {

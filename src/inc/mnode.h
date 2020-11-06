@@ -50,9 +50,10 @@ typedef struct SMnodeMsg {
   int32_t   code;
   void *    pObj;
   SRpcMsg   rpcMsg;
+  char      pCont[];
 } SMnodeMsg;
 
-void    mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg);
+void *  mnodeCreateMsg(SRpcMsg *pRpcMsg);
 int32_t mnodeInitMsg(SMnodeMsg *pMsg);
 void    mnodeCleanupMsg(SMnodeMsg *pMsg);
 
