@@ -46,6 +46,34 @@ void taos_insert_call_back(void *param, TAOS_RES *tres, int code);
 void taos_select_call_back(void *param, TAOS_RES *tres, int code);
 void taos_error(TAOS *taos);
 
+static void queryDB(TAOS *taos, char *command) {
+  int i;
+  TAOS_RES *pSql = NULL;
+  int32_t   code = -1;
+
+  for (i = 0; i < 5; i++) {
+    if (NULL != pSql) {
+      taos_free_result(pSql);
+      pSql = NULL;
+    }
+    
+    pSql = taos_query(taos, command);
+    code = taos_errno(pSql);
+    if (0 == code) {
+      break;
+    }    
+  }
+
+  if (code != 0) {
+    fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
+    taos_free_result(pSql);
+    taos_close(taos);
+    exit(EXIT_FAILURE);
+  }
+
+  taos_free_result(pSql);
+}
+
 int main(int argc, char *argv[])
 {
   TAOS   *taos;
@@ -78,16 +106,14 @@ int main(int argc, char *argv[])
 
   printf("success to connect to server\n");
 
-  sprintf(sql, "drop database %s", db);
-  taos_query(taos, sql);
+  sprintf(sql, "drop database if exists %s", db);
+  queryDB(taos, sql);
 
   sprintf(sql, "create database %s", db);
-  if (taos_query(taos, sql) != 0)
-    taos_error(taos);
+  queryDB(taos, sql);
 
   sprintf(sql, "use %s", db);
-  if (taos_query(taos, sql) != 0)
-    taos_error(taos);
+  queryDB(taos, sql);
 
   strcpy(prefix, "asytbl_");
   for (i = 0; i < numOfTables; ++i) {
@@ -95,8 +121,7 @@ int main(int argc, char *argv[])
     tableList[i].taos = taos;
     sprintf(tableList[i].name, "%s%d", prefix, i);
     sprintf(sql, "create table %s%d (ts timestamp, volume bigint)", prefix, i);
-    if (taos_query(taos, sql) != 0)
-      taos_error(taos);
+    queryDB(taos, sql);
   }  
 
   gettimeofday(&systemTime, NULL);
