@@ -86,9 +86,9 @@ static int open_connect(const char *dsn, const char *uid, const char *pwd, SQLHE
     CHK_RESULT(r, SQL_HANDLE_ENV, env, "");
     if (r!=SQL_SUCCESS) break;
     do {
-      r = SQLConnect(conn, (SQLCHAR*)dsn, (SQLSMALLINT)strlen(dsn),
-                           (SQLCHAR*)uid, (SQLSMALLINT)strlen(uid),
-                           (SQLCHAR*)pwd, (SQLSMALLINT)strlen(pwd));
+      r = SQLConnect(conn, (SQLCHAR*)dsn, (SQLSMALLINT)(dsn ? strlen(dsn) : 0),
+                           (SQLCHAR*)uid, (SQLSMALLINT)(uid ? strlen(uid) : 0),
+                           (SQLCHAR*)pwd, (SQLSMALLINT)(pwd ? strlen(pwd) : 0));
       CHK_RESULT(r, SQL_HANDLE_DBC, conn, "");
       if (r==SQL_SUCCESS) {
         *pEnv  = env;
@@ -119,7 +119,7 @@ static int open_driver_connect(const char *connstr, SQLHENV *pEnv, SQLHDBC *pCon
       SQLHDBC         ConnectionHandle      = conn;
       SQLHWND         WindowHandle          = NULL;
       SQLCHAR *       InConnectionString    = (SQLCHAR*)connstr;
-      SQLSMALLINT     StringLength1         = (SQLSMALLINT)strlen(connstr);
+      SQLSMALLINT     StringLength1         = (SQLSMALLINT)(connstr ? strlen(connstr) : 0);
       SQLCHAR *       OutConnectionString   = buf;
       SQLSMALLINT     BufferLength          = sizeof(buf);
       SQLSMALLINT *   StringLength2Ptr      = &blen;
@@ -525,64 +525,149 @@ int test_sqls(const char *dsn, const char *uid, const char *pwd, const char *con
   } else {
     CHK_TEST(open_driver_connect(connstr, &env, &conn));
   }
-  r = test_sqls_in_conn(env, conn, sqls);
+  if (sqls) {
+    r = test_sqls_in_conn(env, conn, sqls);
+  }
   SQLDisconnect(conn);
   SQLFreeConnect(conn);
   SQLFreeEnv(env);
   return r ? 1 : 0;
 }
 
+void usage(const char *arg0) {
+  fprintf(stdout, "%s usage:\n", arg0);
+  fprintf(stdout, "%s [--dsn <dsn>] [--uid <uid>] [--pwd <pwd>] [--dcs <dcs>] [--sts <sts>]\n", arg0);
+  fprintf(stdout, "  --dsn <dsn>: DSN\n");
+  fprintf(stdout, "  --uid <uid>: UID\n");
+  fprintf(stdout, "  --pwd <pwd>: PWD\n");
+  fprintf(stdout, "  --dcs <dcs>: driver connection string\n");
+  fprintf(stdout, "  --sts <sts>: file where statements store\n");
+}
+
 int main(int argc, char *argv[]) {
-  if (argc==1) {
-    CHK_TEST(test_env());
-    return 0;
-  }
+  // if (argc==1) {
+  //   CHK_TEST(test_env());
+  //   CHK_TEST(test1("TAOS_DSN", "root", "taoxsdata"));
+  //   D("Done!");
+  //   return 0;
+  // }
 
-  const char *dsn = (argc>1) ? argv[1] : NULL;
-  const char *uid = (argc>2) ? argv[2] : NULL;
-  const char *pwd = (argc>3) ? argv[3] : NULL;
-  const char *connstr = (argc>4) ? argv[4] : NULL;
-  const char *sqls = (argc>5) ? argv[5] : NULL;
-
-  dsn = NULL;
-  uid = NULL;
-  pwd = NULL;
-  connstr = argv[1];
-  sqls = argv[2];
-  if (0) {
-    CHK_TEST(test_env());
-
-    CHK_TEST(test1(dsn, uid, pwd));
-
-    const char *statements[] = {
-      "drop database if exists m",
-      "create database m",
-      "use m",
-      "drop database m",
-      NULL
-    };
-    CHK_TEST(test_statements(dsn, uid, pwd, statements));
-
-    if (connstr)
-      CHK_TEST(test_driver_connect(connstr));
-
-    if (connstr) {
-      SQLHENV env  = {0};
-      SQLHDBC conn = {0};
-      CHK_TEST(open_driver_connect(connstr, &env, &conn));
-      int r = tests(env, conn);
-      SQLDisconnect(conn);
-      SQLFreeConnect(conn);
-      SQLFreeEnv(env);
-      if (r) return 1;
+  const char *dsn = NULL;
+  const char *uid = NULL;
+  const char *pwd = NULL;
+  const char *dcs = NULL; // driver connection string
+  const char *sts = NULL; // statements file
+  for (size_t i=1; i<argc; ++i) {
+    const char *arg = argv[i];
+    if (strcmp(arg, "-h")==0) {
+      usage(argv[0]);
+      return 0;
+    }
+    if (strcmp(arg, "--dsn")==0) {
+      ++i;
+      if (i>=argc) {
+        D("<dsn> expected but got nothing");
+        return 1;
+      }
+      if (dcs) {
+        D("--dcs has already been specified");
+        return 1;
+      }
+      dsn = argv[i];
+      continue;
+    }
+    if (strcmp(arg, "--uid")==0) {
+      ++i;
+      if (i>=argc) {
+        D("<uid> expected but got nothing");
+        return 1;
+      }
+      uid = argv[i];
+      continue;
+    }
+    if (strcmp(arg, "--pwd")==0) {
+      ++i;
+      if (i>=argc) {
+        D("<pwd> expected but got nothing");
+        return 1;
+      }
+      pwd = argv[i];
+      continue;
+    }
+    if (strcmp(arg, "--dcs")==0) {
+      ++i;
+      if (i>=argc) {
+        D("<dcs> expected but got nothing");
+        return 1;
+      }
+      if (dsn || uid || pwd) {
+        D("either of --dsn/--uid/--pwd has already been specified");
+        return 1;
+      }
+      dcs = argv[i];
+      continue;
+    }
+    if (strcmp(arg, "--sts")==0) {
+      ++i;
+      if (i>=argc) {
+        D("<sts> expected but got nothing");
+        return 1;
+      }
+      sts = argv[i];
+      continue;
     }
   }
-
-  if ((dsn || connstr) && 1) {
-    CHK_TEST(test_sqls(dsn, uid, pwd, connstr, sqls));
-  }
-
+  CHK_TEST(test_sqls(dsn, uid, pwd, dcs, sts));
   D("Done!");
   return 0;
+
+  if (0) {
+    const char *dsn = (argc>1) ? argv[1] : NULL;
+    const char *uid = (argc>2) ? argv[2] : NULL;
+    const char *pwd = (argc>3) ? argv[3] : NULL;
+    const char *connstr = (argc>4) ? argv[4] : NULL;
+    const char *sqls = (argc>5) ? argv[5] : NULL;
+
+    dsn = NULL;
+    uid = NULL;
+    pwd = NULL;
+    connstr = argv[1];
+    sqls = argv[2];
+    if (0) {
+      CHK_TEST(test_env());
+
+      CHK_TEST(test1(dsn, uid, pwd));
+
+      const char *statements[] = {
+        "drop database if exists m",
+        "create database m",
+        "use m",
+        "drop database m",
+        NULL
+      };
+      CHK_TEST(test_statements(dsn, uid, pwd, statements));
+
+      if (connstr)
+        CHK_TEST(test_driver_connect(connstr));
+
+      if (connstr) {
+        SQLHENV env  = {0};
+        SQLHDBC conn = {0};
+        CHK_TEST(open_driver_connect(connstr, &env, &conn));
+        int r = tests(env, conn);
+        SQLDisconnect(conn);
+        SQLFreeConnect(conn);
+        SQLFreeEnv(env);
+        if (r) return 1;
+      }
+    }
+
+    if ((dsn || connstr) && 1) {
+      CHK_TEST(test_sqls(dsn, uid, pwd, connstr, sqls));
+    }
+
+    D("Done!");
+    return 0;
+  }
 }
 

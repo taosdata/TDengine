@@ -27,7 +27,18 @@
 #include "todbc_util.h"
 #include "todbc_conv.h"
 
+#include "os.h"
+
+#include <odbcinst.h>
 #include <sqlext.h>
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+#ifndef TRUE
+#define TRUE 1
+#endif
 
 #define UTF8_ENC     "UTF-8"
 #define UTF16_ENC    "UCS-2LE"
@@ -549,9 +560,20 @@ static SQLRETURN doSQLConnect(SQLHDBC ConnectionHandle,
   const char *auth       = NULL;
 
   do {
+    D("server: %s", serverName);
+    D("user: %s", userName);
+    D("auth: %s", auth);
     tsdb_conv(client_to_server, &buffer, (const char*)ServerName,     (size_t)NameLength1, &serverName, NULL);
     tsdb_conv(client_to_server, &buffer, (const char*)UserName,       (size_t)NameLength2, &userName,   NULL);
     tsdb_conv(client_to_server, &buffer, (const char*)Authentication, (size_t)NameLength3, &auth,       NULL);
+    D("server: %s", serverName);
+    D("user: %s", userName);
+    D("auth: %s", auth);
+    char haha[4096]; haha[0] = '\0';
+    int n = SQLGetPrivateProfileString(serverName, "Server", "null", haha, sizeof(haha)-1, NULL);
+    D("n: %d", n);
+    D("haha: [%s]", haha);
+
     if ((!serverName) || (!userName) || (!auth)) {
       SET_ERROR(conn, "HY001", TSDB_CODE_ODBC_OOM, "");
       break;
@@ -2847,6 +2869,21 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
   return r;
 }
 
+BOOL INSTAPI ConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
+{
+  return FALSE;
+}
+
+BOOL INSTAPI ConfigTranslator(HWND hwndParent, DWORD *pvOption)
+{
+  return FALSE;
+}
+
+BOOL INSTAPI ConfigDriver(HWND hwndParent, WORD fRequest, LPCSTR lpszDriver, LPCSTR lpszArgs,
+                          LPSTR lpszMsg, WORD cbMsgMax, WORD *pcbMsgOut)
+{
+  return FALSE;
+}
 
 
 

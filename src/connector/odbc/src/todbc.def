@@ -25,4 +25,7 @@ SQLSetConnectAttr
 SQLDescribeCol
 SQLNumParams
 SQLSetStmtAttr
+ConfigDSN
+ConfigTranslator
+ConfigDriver
 

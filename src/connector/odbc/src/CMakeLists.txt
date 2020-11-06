@@ -15,7 +15,7 @@ IF (TD_LINUX_64)
   ADD_LIBRARY(todbc SHARED ${SRC} ${todbc_flex_scanner_src})
   SET_TARGET_PROPERTIES(todbc PROPERTIES CLEAN_DIRECT_OUTPUT 1)
   SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
-  TARGET_LINK_LIBRARIES(todbc taos)
+  TARGET_LINK_LIBRARIES(todbc taos odbcinst)
   target_include_directories(todbc PUBLIC .)
 
   install(CODE "execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install.sh ${CMAKE_BINARY_DIR})")
