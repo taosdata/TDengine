@@ -61,7 +61,7 @@ ssize_t tfwrite(int64_t tfd, const void *buf, size_t count) {
 
   int fd = (int)(uintptr_t)p;
 
-  ssize_t ret = write(fd, buf, count);
+  ssize_t ret = write(fd, buf, (uint32_t)count);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
@@ -75,7 +75,7 @@ ssize_t tfread(int64_t tfd, void *buf, size_t count) {
 
   int fd = (int)(uintptr_t)p;
 
-  ssize_t ret = read(fd, buf, count);
+  ssize_t ret = read(fd, buf, (uint32_t)count);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
