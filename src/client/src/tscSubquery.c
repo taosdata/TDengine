@@ -523,7 +523,7 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
   assert(pSqlObj->subState.numOfRemain > 0);
 
   if (atomic_sub_fetch_32(&pSqlObj->subState.numOfRemain, 1) <= 0) {
-    tscError("%p all subquery return and query failed, global code:%d", pSqlObj, pSqlObj->res.code);
+    tscError("%p all subquery return and query failed, global code:%s", pSqlObj, tstrerror(pSqlObj->res.code));
     freeJoinSubqueryObj(pSqlObj);
   }
 }

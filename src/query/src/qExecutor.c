@@ -1609,7 +1609,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
 
   pRuntimeEnv->pCtx = (SQLFunctionCtx *)calloc(pQuery->numOfOutput, sizeof(SQLFunctionCtx));
   pRuntimeEnv->rowCellInfoOffset = calloc(pQuery->numOfOutput, sizeof(int32_t));
-  pRuntimeEnv->pResultRow = getNewResultRow(pRuntimeEnv->pool);//calloc(1, sizeof(SResultRow));
+  pRuntimeEnv->pResultRow = getNewResultRow(pRuntimeEnv->pool);
 
   if (pRuntimeEnv->pResultRow == NULL || pRuntimeEnv->pCtx == NULL || pRuntimeEnv->rowCellInfoOffset == NULL) {
     goto _clean;
@@ -1745,6 +1745,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   pRuntimeEnv->pTSBuf = tsBufDestroy(pRuntimeEnv->pTSBuf);
   taosTFree(pRuntimeEnv->keyBuf);
+  taosTFree(pRuntimeEnv->rowCellInfoOffset);
 
   taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
   pRuntimeEnv->pResultRowHashTable = NULL;

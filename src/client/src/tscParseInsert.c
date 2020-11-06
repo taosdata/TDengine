@@ -1309,7 +1309,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   if ((!pCmd->parseFinished) && (!initial)) {
     tscDebug("%p resume to parse sql: %s", pSql, pCmd->curSql);
   }
-  
+
   ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
