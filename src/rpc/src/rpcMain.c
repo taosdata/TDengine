@@ -82,7 +82,7 @@ typedef struct {
   int8_t    oldInUse;   // server EP inUse passed by app
   int8_t    redirect;   // flag to indicate redirect
   int8_t    connType;   // connection type
-  int32_t   rid;        // refId returned by taosAddRef
+  int64_t   rid;        // refId returned by taosAddRef
   SRpcMsg  *pRsp;       // for synchronous API
   tsem_t   *pSem;       // for synchronous API
   SRpcEpSet *pSet;      // for synchronous API 
