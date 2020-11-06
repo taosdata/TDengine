@@ -5,7 +5,9 @@ GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
-
+nohup /root/TDinternal/debug/build/bin/taosd -c /root/TDinternal/community/sim/dnode1/cfg >/dev/null &
+./crash_gen.sh --valgrind -p -t 10 -s 100 -b 4
+pidof taosd|xargs kill  
 grep 'start to execute\|ERROR SUMMARY' valgrind.err|grep -v 'grep'|uniq|tee crash_gen_mem_err.log
 
 for memError in `grep 'ERROR SUMMARY' crash_gen_mem_err.log | awk '{print $4}'`
