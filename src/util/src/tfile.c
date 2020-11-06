@@ -19,13 +19,13 @@
 #include "tutil.h"
 #include "tref.h"
 
-static int tsFileRsetId = -1;
+static int32_t tsFileRsetId = -1;
 
 static void taosCloseFile(void *p) {
-  close((int)(uintptr_t)p);
+  close((int32_t)(uintptr_t)p);
 }
 
-int tfinit() {
+int32_t tfinit() {
   tsFileRsetId = taosOpenRef(2000, taosCloseFile);
   return tsFileRsetId;
 }
@@ -35,8 +35,8 @@ void tfcleanup() {
   tsFileRsetId = -1;
 }
 
-int64_t tfopen(const char *pathname, int flags) {
-  int fd = open(pathname, flags);
+int64_t tfopen(const char *pathname, int32_t flags) {
+  int32_t fd = open(pathname, flags);
 
   if (fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -54,31 +54,28 @@ int64_t tfclose(int64_t tfd) {
   return taosRemoveRef(tsFileRsetId, tfd);
 }
 
-ssize_t tfwrite(int64_t tfd, const void *buf, size_t count) {
-
+int64_t tfwrite(int64_t tfd, void *buf, int64_t count) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
   if (p == NULL) return -1;
 
-  int fd = (int)(uintptr_t)p;
+  int32_t fd = (int32_t)(uintptr_t)p;
 
-  ssize_t ret = write(fd, buf, (uint32_t)count);
+  int64_t ret = taosWrite(fd, buf, count);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return ret;
 }
 
-ssize_t tfread(int64_t tfd, void *buf, size_t count) {
-
+int64_t tfread(int64_t tfd, void *buf, int64_t count) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
   if (p == NULL) return -1;
 
-  int fd = (int)(uintptr_t)p;
+  int32_t fd = (int32_t)(uintptr_t)p;
 
-  ssize_t ret = read(fd, buf, (uint32_t)count);
+  int64_t ret = taosRead(fd, buf, count);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return ret;
 }
-

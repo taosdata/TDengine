@@ -23,18 +23,17 @@ extern "C" {
 #include <unistd.h>
 
 // init taos file module
-int  tfinit();
+int32_t tfinit();
 
 // clean up taos file module
 void tfcleanup();
 
 // the same syntax as UNIX standard open/close/read/write
 // but FD is int64_t and will never be reused
-int64_t tfopen(const char *pathname, int flags);
+int64_t tfopen(const char *pathname, int32_t flags);
 int64_t tfclose(int64_t tfd);
-ssize_t tfwrite(int64_t tfd, const void *buf, size_t count);
-ssize_t tfread(int64_t tfd, void *buf, size_t count);
-
+int64_t tfwrite(int64_t tfd, void *buf, int64_t count);
+int64_t tfread(int64_t tfd, void *buf, int64_t count);
 
 #ifdef __cplusplus
 }
