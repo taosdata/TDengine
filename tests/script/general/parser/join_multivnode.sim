@@ -134,66 +134,8 @@ sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbna
 
 #1970-01-01 08:01:40.800 |                    10 |              45.000000000 |         0 |     true |     false |           0 |
 #1970-01-01 08:01:40.790 |                    10 |             945.000000000 |        90 |     true |      true |           0 |
-sql select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc limit 20 offset 19;
-if $rows != 20 then
-  return -1
-endi
+sql_error select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc limit 20 offset 19;
 
-if $data00 != @70-01-01 08:01:40.800@ then
-  return -1
-endi
-
-if $data01 != 10 then
-  return -1
-endi
-
-if $data02 != 45.000000000 then
-  return -1
-endi
-
-if $data03 != 0 then
-  return -1
-endi
-
-if $data04 != 1 then
-  return -1
-endi
-
-if $data05 != 0 then
-  return -1
-endi
-
-if $data06 != 0 then
-  return -1
-endi
-
-if $data10 != @70-01-01 08:01:40.790@ then
-  return -1
-endi
-
-if $data11 != 10 then
-  return -1
-endi
-
-if $data12 != 945.000000000 then
-  return -1
-endi
-
-if $data13 != 90 then
-  return -1
-endi
-
-if $data14 != 1 then
-  return -1
-endi
-
-if $data15 != 1 then
-  return -1
-endi
-
-if $data16 != 0 then
-  return -1
-endi
 
 sql select count(join_mt0.c1), sum(join_mt0.c2)/count(*), avg(c2), first(join_mt0.c5), last(c7) from join_mt0  interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;
 if $rows != 100 then
@@ -261,59 +203,9 @@ if $data16 != 2 then
 endi
 
 # this function will cause shell crash
-sql select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;
-if $rows != 100 then
-  return -1
-endi
+sql_error select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;
 
-if $data00 != @70-01-01 08:01:40.990@ then
-  return -1
-endi
-
-if $data01 != 10 then
-  return -1
-endi
-
-if $data02 != 90 then
-  return -1
-endi
-
-if $data03 != 0 then
-  return -1
-endi
-
-if $data11 != 10 then
-  return -1
-endi
-
-if $data12 != 80 then
-  return -1
-endi
-
-if $data13 != 0 then
-  return -1
-endi
-
-sql select last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10m) group by join_mt0.t1 order by join_mt0.ts asc;
-if $rows != 1 then
- return -1
-endi
-
-if $data00 != @70-01-01 08:00:00.000@ then
-  return -1
-endi
-
-if $data01 != 1 then
-  return -1
-endi
-
-if $data02 != 0 then
-  return -1
-endi
-
-if $data03 != 0 then
-  return -1
-endi
+sql_error select last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10m) group by join_mt0.t1 order by join_mt0.ts asc;
 
 sql_error select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt1.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
 sql select count(join_mt0.c1), first(join_mt0.c1)/count(*), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
