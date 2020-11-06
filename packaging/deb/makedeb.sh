@@ -48,7 +48,7 @@ cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
+#cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver 
