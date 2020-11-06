@@ -43,7 +43,7 @@ int64_t tfopen(const char *pathname, int flags) {
     return -1;
   } 
 
-  void *p = (void *)(long)fd;
+  void *p = (void *)(int64_t)fd;
   int64_t rid = taosAddRef(tsFileRsetId, p);
   if (rid < 0) close(fd);
 
