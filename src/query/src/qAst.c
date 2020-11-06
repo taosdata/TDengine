@@ -32,7 +32,6 @@
 #include "tstoken.h"
 #include "ttokendef.h"
 #include "tulog.h"
-#include "tutil.h"
 
 /*
  *
