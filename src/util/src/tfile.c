@@ -57,7 +57,7 @@ int64_t tfclose(int64_t tfd) {
 ssize_t tfwrite(int64_t tfd, const void *buf, size_t count) {
 
   void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return terrno;
+  if (p == NULL) return -1;
 
   int fd = (int)(uintptr_t)p;
 
@@ -71,7 +71,7 @@ ssize_t tfwrite(int64_t tfd, const void *buf, size_t count) {
 ssize_t tfread(int64_t tfd, void *buf, size_t count) {
 
   void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return terrno;
+  if (p == NULL) return -1;
 
   int fd = (int)(uintptr_t)p;
 
