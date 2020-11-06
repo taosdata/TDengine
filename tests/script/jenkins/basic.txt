@@ -57,8 +57,8 @@ cd ../../../debug; make
 ./test.sh -f general/db/delete_reuse2.sim
 ./test.sh -f general/db/delete_reusevnode.sim
 ./test.sh -f general/db/delete_reusevnode2.sim
-./test.sh -f general/db/delete_writing1.sim
-./test.sh -f general/db/delete_writing2.sim
+#./test.sh -f general/db/delete_writing1.sim
+#./test.sh -f general/db/delete_writing2.sim
 ./test.sh -f general/db/delete.sim
 ./test.sh -f general/db/len.sim
 ./test.sh -f general/db/repeat.sim
