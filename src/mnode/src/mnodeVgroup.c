@@ -529,7 +529,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
     SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
     (void)sdbUpdateRow(&desc);
 
-    dnodeReprocessMnodeWriteMsg(pMsg);
+    dnodeReprocessMWriteMsg(pMsg);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     // if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_READY) {
     //   mInfo("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
@@ -537,7 +537,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
     //   pVgroup->status = TAOS_VG_STATUS_READY;
     //   SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
     //   (void)sdbUpdateRow(&desc);
-    //   dnodeReprocessMnodeWriteMsg(pMsg);
+    //   dnodeReprocessMWriteMsg(pMsg);
     //   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     // } else {
     //   mError("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d, but vgroup is dropping", pMsg->rpcMsg.ahandle,
@@ -969,7 +969,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pVgroup = NULL;
       mnodeDestroyVgroup(pVgroup);
-      dnodeSendRpcMnodeWriteRsp(mnodeMsg, code);
+      dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
     SSdbOper oper = {
@@ -978,7 +978,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       .pObj = pVgroup
     };
     sdbDeleteRow(&oper);
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, mnodeMsg->code);
+    dnodeSendRpcMWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }
 
@@ -1040,7 +1040,7 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
     code = TSDB_CODE_MND_SDB_ERROR;
   }
 
-  dnodeReprocessMnodeWriteMsg(mnodeMsg);
+  dnodeReprocessMWriteMsg(mnodeMsg);
 }
 
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {

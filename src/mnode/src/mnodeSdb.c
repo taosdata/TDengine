@@ -295,7 +295,7 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   if (pOper->writeCb != NULL) {
     pOper->retCode = (*pOper->writeCb)(pMsg, pOper->retCode);
   }
-  dnodeSendRpcMnodeWriteRsp(pMsg, pOper->retCode);
+  dnodeSendRpcMWriteRsp(pMsg, pOper->retCode);
 
   // if ahandle, means this func is called by sdb write
   if (ahandle == NULL) {

@@ -113,7 +113,7 @@ void dnodeDispatchToVWriteQueue(SRpcMsg *pRpcMsg) {
 void *dnodeAllocVWriteQueue(void *pVnode) {
   pthread_mutex_lock(&tsVWriteWP.mutex);
   SVWriteWorker *pWorker = tsVWriteWP.worker + tsVWriteWP.nextId;
-  void *queue = taosOpenQueue();
+  taos_queue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&tsVWriteWP.mutex);
     return NULL;

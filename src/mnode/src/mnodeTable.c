@@ -1679,12 +1679,12 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
              pTable->info.tableId, pMsg->rpcMsg.handle);
 
       pMsg->retry = 0;
-      dnodeReprocessMnodeWriteMsg(pMsg);
+      dnodeReprocessMWriteMsg(pMsg);
     } else {
       mDebug("app:%p:%p, table:%s, created in dnode, thandle:%p", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId,
              pMsg->rpcMsg.handle);
 
-      dnodeSendRpcMnodeWriteRsp(pMsg, TSDB_CODE_SUCCESS);
+      dnodeSendRpcMWriteRsp(pMsg, TSDB_CODE_SUCCESS);
     }
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   } else {
@@ -2351,14 +2351,14 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
     mError("app:%p:%p, table:%s, failed to drop in dnode, vgId:%d sid:%d uid:%" PRIu64 ", reason:%s",
            mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid,
            tstrerror(rpcMsg->code));
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
+    dnodeSendRpcMWriteRsp(mnodeMsg, rpcMsg->code);
     return;
   }
 
   if (mnodeMsg->pVgroup == NULL) mnodeMsg->pVgroup = mnodeGetVgroup(pTable->vgId);
   if (mnodeMsg->pVgroup == NULL) {
     mError("app:%p:%p, table:%s, failed to get vgroup", mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId);
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_MND_VGROUP_NOT_EXIST);
+    dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_MND_VGROUP_NOT_EXIST);
     return;
   }
 
@@ -2368,7 +2368,7 @@ static void mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg) {
     mnodeDropVgroup(mnodeMsg->pVgroup, NULL);
   }
 
-  dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+  dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
 }
 
 /*
@@ -2399,7 +2399,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
     mnodeSendDropChildTableMsg(mnodeMsg, false);
     rpcMsg->code = TSDB_CODE_SUCCESS;
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
+    dnodeSendRpcMWriteRsp(mnodeMsg, rpcMsg->code);
     return;
   }
 
@@ -2416,7 +2416,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pTable = NULL;
       mnodeDestroyChildTable(pTable);
-      dnodeSendRpcMnodeWriteRsp(mnodeMsg, code);
+      dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
     if (mnodeMsg->retry++ < 10) {
@@ -2425,7 +2425,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, pTable->vgId, pTable->tid,
              pTable->uid, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
 
-      dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
+      dnodeDelayReprocessMWriteMsg(mnodeMsg);
     } else {
       mError("app:%p:%p, table:%s, failed to create in dnode, vgId:%d sid:%d uid:%" PRIu64 ", result:%s thandle:%p",
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid,
@@ -2434,7 +2434,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
       SSdbOper oper = {.type = SDB_OPER_GLOBAL, .table = tsChildTableSdb, .pObj = pTable};
       sdbDeleteRow(&oper);
 
-      dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
+      dnodeSendRpcMWriteRsp(mnodeMsg, rpcMsg->code);
     }
   }
 }
@@ -2452,18 +2452,18 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
     mDebug("app:%p:%p, ctable:%s, altered in dnode, thandle:%p result:%s", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
            pTable->info.tableId, mnodeMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
 
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+    dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
   } else {
     if (mnodeMsg->retry++ < 3) {
       mDebug("app:%p:%p, table:%s, alter table rsp received, need retry, times:%d result:%s thandle:%p",
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, tstrerror(rpcMsg->code),
              mnodeMsg->rpcMsg.handle);
 
-      dnodeDelayReprocessMnodeWriteMsg(mnodeMsg);
+      dnodeDelayReprocessMWriteMsg(mnodeMsg);
     } else {
       mError("app:%p:%p, table:%s, failed to alter in dnode, result:%s thandle:%p", mnodeMsg->rpcMsg.ahandle, mnodeMsg,
              pTable->info.tableId, tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
-      dnodeSendRpcMnodeWriteRsp(mnodeMsg, rpcMsg->code);
+      dnodeSendRpcMWriteRsp(mnodeMsg, rpcMsg->code);
     }
   }
 }

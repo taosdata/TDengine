@@ -19,7 +19,6 @@
 #include "taoserror.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "tutil.h"
 #include "tsdb.h"
 #include "twal.h"
 #include "tsync.h"
@@ -185,7 +184,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SDropSTableMsg *pTable = pCont;
-  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t         code = TSDB_CODE_SUCCESS;
 
   vDebug("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
 

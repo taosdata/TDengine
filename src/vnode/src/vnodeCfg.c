@@ -22,7 +22,6 @@
 #include "tsdb.h"
 #include "dnode.h"
 #include "vnodeInt.h"
-#include "vnodeVersion.h"
 #include "vnodeCfg.h"
 
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
