@@ -11,7 +11,7 @@
 ###################################################################
 
 import sys
-from crash_gen.crash_gen import MainExec
+from crash_gen.crash_gen_main import MainExec
 
 if __name__ == "__main__":
     
