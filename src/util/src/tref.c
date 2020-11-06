@@ -398,9 +398,7 @@ static int taosDecRefCount(int rsetId, int64_t rid, int remove) {
     return -1;
   }
   
-  terrno = 0;
   hash = rid % pSet->max;
-
   taosLockList(pSet->lockedBy+hash);
   
   pNode = pSet->nodeList[hash];
