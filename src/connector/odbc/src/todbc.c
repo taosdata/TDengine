@@ -2892,16 +2892,8 @@ struct kv_s {
   int   val;
 };
 
-static BOOL doDSNAdd(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
+static BOOL get_driver_dll_path(char *buf, size_t len)
 {
-  BOOL r = TRUE;
-
-  kv_t *kvs = NULL;
-  
-  kv_t dsn = {0};
-  kv_t driver = {0};
-
-  char driver_dll[MAX_PATH + 1];
   HMODULE hm = NULL;
 
   if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -2911,72 +2903,99 @@ static BOOL doDSNAdd(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
       LOG("GetModuleHandle failed, error = %d\n", ret);
       return FALSE;
   }
-  if (GetModuleFileName(hm, driver_dll, sizeof(driver_dll)) == 0)
+  if (GetModuleFileName(hm, buf, len) == 0)
   {
       int ret = GetLastError();
       LOG("GetModuleFileName failed, error = %d\n", ret);
       return FALSE;
   }
-  LOG("path: [%s]", driver_dll);
+  return TRUE;
+}
 
-  const char *p = lpszAttributes;
-  int ikvs = 0;
-  while (p && *p) {
-    LOG("attr: [%s]", p);
-    char *line = strdup(p);
-    if (!line) { r = FALSE; break; }
-    char *v = strchr(line, '=');
-    if (v) *v = '\0';
+static BOOL doDSNAdd(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
+{
+  BOOL r = TRUE;
 
-    if (stricmp(line, "DSN")==0) {
+  kv_t *kvs = NULL;
+
+  kv_t dsn = {0};
+  char *line = NULL;
+
+  do {
+    char driver_dll[MAX_PATH + 1];
+    r = get_driver_dll_path(driver_dll, sizeof(driver_dll));
+    LOG("path: [%s]", driver_dll);
+    if (!r) break;
+
+    dsn.line = strdup("DSN=TAOS_DEMO");
+    if (!dsn.line) { r = FALSE; break; }
+
+    const char *p = lpszAttributes;
+    int ikvs = 0;
+    while (p && *p) {
+      LOG("attr: [%s]", p);
+      line = strdup(p);
+      if (!line) { r = FALSE; break; }
+      char *v = strchr(line, '=');
       if (!v) { r = FALSE; break; }
-      if (dsn.line) {
-        free(dsn.line);
-        dsn.line = NULL;
-        dsn.val  = 0;
-      }
-      dsn.line = line;
-      if (v) dsn.val = v - line + 1;
-    } else if (stricmp(line, "Driver")==0) {
-      if (!v) { r = FALSE; break; }
-      if (driver.line) {
-        free(driver.line);
-        driver.line = NULL;
-        driver.val  = 0;
-      }
-      driver.line = line;
-      if (v) driver.val = v - line + 1;
-    } else {
-      kv_t *t = (kv_t*)realloc(kvs, (ikvs+1)*sizeof(*t));
-      if (!t) { r = FALSE; free(line); break; }
-      t[ikvs].line = line;
-      if (v) t[ikvs].val = v - line + 1;
 
-      kvs = t;
-      ++ikvs;
+      if (strstr(line, "DSN")==line) {
+        if (dsn.line) {
+          free(dsn.line);
+          dsn.line = NULL;
+          dsn.val  = 0;
+        }
+        dsn.line = line;
+        line = NULL;
+      } else {
+        kv_t *t = (kv_t*)realloc(kvs, (ikvs+1)*sizeof(*t));
+        if (!t) { r = FALSE; free(line); break; }
+        t[ikvs].line = line;
+        *v = '\0';
+        if (v) t[ikvs].val = v - line + 1;
+        line = NULL;
+
+        kvs = t;
+        ++ikvs;
+      }
+
+      p += strlen(p) + 1;
     }
 
-    p += strlen(p) + 1;
-  }
+    if (hwndParent) {
+      MessageBox(hwndParent, "Please use odbcconf to add DSN for TAOS ODBC Driver", "Warning!", MB_OK|MB_ICONEXCLAMATION);
+    }
+    if (!r) break;
 
-  if (!dsn.line || !driver.line) {
-    LOG("lack of either DSN or Driver");
-  } else {
-    LOG("Driver[%s]", driver.line+driver.val);
-    if (r) r = SQLWritePrivateProfileString("ODBC Data Sources", dsn.line+dsn.val, driver.line+driver.val, "Odbc.ini");
-    LOG("r:%d", r);
-    if (r) r = SQLWritePrivateProfileString(dsn.line+dsn.val, "Driver", driver_dll, "Odbc.ini");
-    LOG("r:%d", r);
-  }
+    char *v = NULL;
+    v = strchr(dsn.line, '=');
+    if (!v) { r = FALSE; break; }
+    *v = '\0';
+    dsn.val = v - dsn.line + 1;
 
-  for (int i=0; r && i<ikvs; ++i) {
-    const char *k = kvs[i].line;
-    const char *v = NULL;
-    if (kvs[i].val) v = kvs[i].line + kvs[i].val;
-    LOG("DSN[%s]/%s/%s", dsn.line+dsn.val, k, v);
-    r = SQLWritePrivateProfileString(dsn.line+dsn.val, k, v, "Odbc.ini");
-    LOG("r:%d", r);
-  }
+    if ((!dsn.line)) {
+      if (!r) LOG("lack of either DSN or Driver");
+    } else {
+      LOG("DSN/Driver[%s/%s]", dsn.line+dsn.val, lpszDriver);
+      if (r) r = SQLWritePrivateProfileString("ODBC Data Sources", dsn.line+dsn.val, lpszDriver, "Odbc.ini");
+      LOG("r:%d", r);
+      LOG("DSN/Driver_dll[%s/%s]", dsn.line+dsn.val, driver_dll);
+      if (r) r = SQLWritePrivateProfileString(dsn.line+dsn.val, "Driver", driver_dll, "Odbc.ini");
+      LOG("r:%d", r);
+    }
+
+    for (int i=0; r && i<ikvs; ++i) {
+      const char *k = kvs[i].line;
+      const char *v = NULL;
+      if (kvs[i].val) v = kvs[i].line + kvs[i].val;
+      LOG("DSN[%s]/%s/%s", dsn.line+dsn.val, k, v);
+      r = SQLWritePrivateProfileString(dsn.line+dsn.val, k, v, "Odbc.ini");
+      LOG("r:%d", r);
+    }
+  } while (0);
+
+  if (dsn.line) free(dsn.line);
+  if (line) free(line);
 
   return r;
 }
@@ -2996,46 +3015,68 @@ static BOOL doDSNRemove(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttribute
   BOOL r = TRUE;
 
   kv_t dsn = {0};
+  char *line = NULL;
 
-  const char *p = lpszAttributes;
-  int ikvs = 0;
-  while (p && *p) {
-    LOG("attr: [%s]", p);
-    char *line = strdup(p);
-    if (!line) { r = FALSE; break; }
-    char *v = strchr(line, '=');
-    if (v) *v = '\0';
-
-    if (stricmp(line, "DSN")==0) {
+  do {
+    const char *p = lpszAttributes;
+    int ikvs = 0;
+    while (p && *p) {
+      LOG("attr: [%s]", p);
+      line = strdup(p);
+      if (!line) { r = FALSE; break; }
+      char *v = strchr(line, '=');
       if (!v) { r = FALSE; break; }
-      if (dsn.line) {
-        free(dsn.line);
-        dsn.line = NULL;
-        dsn.val  = 0;
+      *v = '\0';
+
+      if (strstr(line, "DSN")==line) {
+        if (dsn.line) {
+          free(dsn.line);
+          dsn.line = NULL;
+          dsn.val  = 0;
+        }
+        dsn.line = line;
+        dsn.val = v - line + 1;
+        line = NULL;
+        break;
+      } else {
+        free(line);
+        line = NULL;
       }
-      dsn.line = line;
-      if (v) dsn.val = v - line + 1;
+
+      p += strlen(p) + 1;
     }
 
-    p += strlen(p) + 1;
-  }
+    if (!r) break;
 
-  if (!dsn.line) {
-    LOG("lack of either DSN");
-  } else {
-    LOG("DSN[%s]", dsn.line+dsn.val);
-    if (r) r = SQLWritePrivateProfileString("ODBC Data Sources", dsn.line+dsn.val, NULL, "Odbc.ini");
+    if (!dsn.line) {
+      LOG("lack of DSN");
+      r = FALSE;
+      break;
+    }
+
+    LOG("delete ODBC Data Sources/[%s]", dsn.line+dsn.val);
+    r = SQLWritePrivateProfileString("ODBC Data Sources", dsn.line+dsn.val, NULL, "Odbc.ini");
     LOG("r:%d", r);
-  }
+    if (!r) break;
 
-  char buf[8192];
-  LOG("DSN[%s]", dsn.line+dsn.val);
-  if (r) r = SQLGetPrivateProfileString(dsn.line+dsn.val, NULL, "null", buf, sizeof(buf), "Odbc.ini");
-  LOG("r:%d", r);
+    char buf[8192];
+    LOG("fetch DSN[%s]", dsn.line+dsn.val);
+    r = SQLGetPrivateProfileString(dsn.line+dsn.val, NULL, "null", buf, sizeof(buf), "Odbc.ini");
+    LOG("r:%d", r);
+    if (!r) break;
 
-  if (r) LOG("returns: [%s]", buf);
+    int n = 0;
+    char *s = buf;
+    while (s && *s && n++<10) {
+      LOG("delete %s/[%s]", dsn.line+dsn.val, s);
+      SQLWritePrivateProfileString(dsn.line+dsn.val, s, NULL, "Odbc.ini");
+      s += strlen(s) + 1;
+    }
+  } while (0);
 
-  return FALSE;
+  if (dsn.line) free(dsn.line);
+  if (line) free(line);
+  return r;
 }
 
 static BOOL doConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
@@ -3048,7 +3089,7 @@ static BOOL doConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCST
     case ODBC_REMOVE_DSN: sReq = "ODBC_REMOVE_DSN";   break;
     default:              sReq = "UNKNOWN";           break;
   }
-  LOG("req:[%s];driver:[%s]", sReq, lpszDriver, lpszAttributes);
+  LOG("req:[%s];Driver:[%s];Attr:[%s]", sReq, lpszDriver, lpszAttributes);
   switch(fRequest) {
     case ODBC_ADD_DSN: {
       r = doDSNAdd(hwndParent, lpszDriver, lpszAttributes);
@@ -3070,20 +3111,17 @@ BOOL INSTAPI ConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCSTR
 {
   BOOL r;
   r = doConfigDSN(hwndParent, fRequest, lpszDriver, lpszAttributes);
-  D("return r: %d", r);
   return r;
 }
 
 BOOL INSTAPI ConfigTranslator(HWND hwndParent, DWORD *pvOption)
 {
-  D("====================");
   return FALSE;
 }
 
 BOOL INSTAPI ConfigDriver(HWND hwndParent, WORD fRequest, LPCSTR lpszDriver, LPCSTR lpszArgs,
                           LPSTR lpszMsg, WORD cbMsgMax, WORD *pcbMsgOut)
 {
-  D("x====================");
   return FALSE;
 }
 
