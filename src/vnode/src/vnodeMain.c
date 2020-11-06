@@ -140,6 +140,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.compression         = pVnodeCfg->cfg.compression;
+  tsdbCfg.update              = pVnodeCfg->cfg.update;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
@@ -466,21 +467,6 @@ void *vnodeAcquire(int32_t vgId) {
   }
 
   return *ppVnode;
-}
-
-void *vnodeAcquireRqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return NULL;
-
-  int32_t code = vnodeCheckRead(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    vInfo("vgId:%d, can not provide read service, status is %s", vgId, vnodeStatus[pVnode->status]);
-    vnodeRelease(pVnode);
-    return NULL;
-  }
-
-  return pVnode->rqueue;
 }
 
 void *vnodeGetWal(void *pVnode) {

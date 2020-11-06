@@ -27,6 +27,7 @@ pipeline {
             cd debug
             cmake .. > /dev/null
             make > /dev/null
+            make install > /dev/null
             cd ${WKC}/tests
             #./test-all.sh smoke
             ./test-all.sh pytest
