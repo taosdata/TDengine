@@ -150,6 +150,7 @@ static void verify_query(TAOS* taos) {
 
   res = taos_query(taos, "select * from meters");
   taos_stop_query(res);
+  taos_free_result(res);
 }
 
 
