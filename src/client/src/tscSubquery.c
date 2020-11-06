@@ -523,7 +523,7 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
   assert(pSqlObj->subState.numOfRemain > 0);
 
   if (atomic_sub_fetch_32(&pSqlObj->subState.numOfRemain, 1) <= 0) {
-    tscError("%p all subquery return and query failed, global code:%d", pSqlObj, pSqlObj->res.code);
+    tscError("%p all subquery return and query failed, global code:%s", pSqlObj, tstrerror(pSqlObj->res.code));
     freeJoinSubqueryObj(pSqlObj);
   }
 }
@@ -565,7 +565,7 @@ int32_t tagValCompar(const void* p1, const void* p2) {
     return (tag1->len > tag2->len)? 1: -1;
   }
 
-  return strncmp(tag1->data, tag2->data, tag1->len);
+  return memcmp(tag1->data, tag2->data, tag1->len);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {

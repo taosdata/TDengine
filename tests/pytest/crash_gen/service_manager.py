@@ -47,6 +47,17 @@ class TdeInstance():
                 .format(selfPath, projPath))
         return buildPath
 
+    @classmethod
+    def prepareGcovEnv(cls, env):
+        # Ref: https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
+        bPath = cls._getBuildPath() # build PATH
+        numSegments = len(bPath.split('/')) - 1 # "/x/TDengine/build" should yield 3
+        numSegments = numSegments - 1 # DEBUG only
+        env['GCOV_PREFIX'] = bPath + '/svc_gcov'
+        env['GCOV_PREFIX_STRIP'] = str(numSegments) # Strip every element, plus, ENV needs strings
+        Logging.info("Preparing GCOV environement to strip {} elements and use path: {}".format(
+            numSegments, env['GCOV_PREFIX'] ))
+
     def __init__(self, subdir='test', tInstNum=0, port=6030, fepPort=6030):
         self._buildDir  = self._getBuildPath()
         self._subdir    = '/' + subdir # TODO: tolerate "/"
@@ -217,6 +228,11 @@ class TdeSubProcess:
         #     raise CrashGenError("Empty instance not allowed in TdeSubProcess")
         # self._tInst = tInst # Default create at ServiceManagerThread
 
+    def __repr__(self):
+        if self.subProcess is None:
+            return '[TdeSubProc: Empty]'
+        return '[TdeSubProc: pid = {}]'.format(self.getPid())
+
     def getStdOut(self):
         return self.subProcess.stdout
 
@@ -235,16 +251,29 @@ class TdeSubProcess:
         # Sanity check
         if self.subProcess:  # already there
             raise RuntimeError("Corrupt process state")
-    
+
+        # Prepare environment variables for coverage information
+        # Ref: https://stackoverflow.com/questions/2231227/python-subprocess-popen-with-a-modified-environment
+        myEnv = os.environ.copy()
+        TdeInstance.prepareGcovEnv(myEnv)
+
+        # print(myEnv)
+        # print(myEnv.items())
+        # print("Starting TDengine via Shell: {}".format(cmdLineStr))
+
+        useShell = True    
         self.subProcess = subprocess.Popen(
-            cmdLine,
-            shell=False,
+            ' '.join(cmdLine) if useShell else cmdLine,
+            shell=useShell,
             # svcCmdSingle, shell=True, # capture core dump?
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             # bufsize=1, # not supported in binary mode
-            close_fds=ON_POSIX
+            close_fds=ON_POSIX,
+            env=myEnv
             )  # had text=True, which interferred with reading EOF
+
+    STOP_SIGNAL = signal.SIGKILL # What signal to use (in kill) to stop a taosd process?
 
     def stop(self):
         """
@@ -267,7 +296,7 @@ class TdeSubProcess:
         SIGUSR2         12
         """
         if not self.subProcess:
-            print("Sub process already stopped")
+            Logging.error("Sub process already stopped")
             return  # -1
 
         retCode = self.subProcess.poll() # ret -N means killed with signal N, otherwise it's from exit(N)
@@ -278,20 +307,25 @@ class TdeSubProcess:
             return retCode
 
         # process still alive, let's interrupt it
-        print("Terminate running process, send SIG_INT and wait...")
-        # sub process should end, then IPC queue should end, causing IO thread to end
-        # sig = signal.SIGINT
-        sig = signal.SIGKILL
-        self.subProcess.send_signal(sig) # SIGNINT or SIGKILL
+        Logging.info("Terminate running process, send SIG_{} and wait...".format(self.STOP_SIGNAL))
+        # sub process should end, then IPC queue should end, causing IO thread to end        
+        topSubProc = psutil.Process(self.subProcess.pid)
+        for child in topSubProc.children(recursive=True):  # or parent.children() for recursive=False
+            child.send_signal(self.STOP_SIGNAL)
+            time.sleep(0.2) # 200 ms
+        # topSubProc.send_signal(sig) # now kill the main sub process (likely the Shell)
+
+        self.subProcess.send_signal(self.STOP_SIGNAL) # main sub process (likely the Shell)
         self.subProcess.wait(20)
         retCode = self.subProcess.returncode # should always be there
         # May throw subprocess.TimeoutExpired exception above, therefore
         # The process is guranteed to have ended by now
         self.subProcess = None        
         if retCode != 0: # != (- signal.SIGINT):
-            Logging.error("TSP.stop(): Failed to stop sub proc properly w/ SIG {}, retCode={}".format(sig, retCode))
+            Logging.error("TSP.stop(): Failed to stop sub proc properly w/ SIG {}, retCode={}".format(
+                self.STOP_SIGNAL, retCode))
         else:
-            Logging.info("TSP.stop(): sub proc successfully terminated with SIG {}".format(sig))
+            Logging.info("TSP.stop(): sub proc successfully terminated with SIG {}".format(self.STOP_SIGNAL))
         return - retCode
 
 class ServiceManager:
@@ -439,7 +473,7 @@ class ServiceManager:
                     
             time.sleep(self.PAUSE_BETWEEN_IPC_CHECK)  # pause, before next round
         # raise CrashGenError("dummy")
-        print("Service Manager Thread (with subprocess) ended, main thread exiting...")
+        Logging.info("Service Manager Thread (with subprocess) ended, main thread exiting...")
 
     def _getFirstInstance(self):
         return self._tInsts[0]
@@ -452,7 +486,7 @@ class ServiceManager:
             # Find if there's already a taosd service, and then kill it
             for proc in psutil.process_iter():
                 if proc.name() == 'taosd':
-                    print("Killing an existing TAOSD process in 2 seconds... press CTRL-C to interrupt")
+                    Logging.info("Killing an existing TAOSD process in 2 seconds... press CTRL-C to interrupt")
                     time.sleep(2.0)
                     proc.kill()
                 # print("Process: {}".format(proc.name()))
@@ -559,7 +593,8 @@ class ServiceManagerThread:
         for i in range(0, 100):
             time.sleep(1.0)
             # self.procIpcBatch() # don't pump message during start up
-            print("_zz_", end="", flush=True)
+            Progress.emit(Progress.SERVICE_START_NAP)
+            # print("_zz_", end="", flush=True)
             if self._status.isRunning():
                 Logging.info("[] TDengine service READY to process requests")
                 Logging.info("[] TAOS service started: {}".format(self))
@@ -595,12 +630,12 @@ class ServiceManagerThread:
 
     def stop(self):
         # can be called from both main thread or signal handler
-        print("Terminating TDengine service running as the sub process...")
+        Logging.info("Terminating TDengine service running as the sub process...")
         if self.getStatus().isStopped():
-            print("Service already stopped")
+            Logging.info("Service already stopped")
             return
         if self.getStatus().isStopping():
-            print("Service is already being stopped")
+            Logging.info("Service is already being stopped")
             return
         # Linux will send Control-C generated SIGINT to the TDengine process
         # already, ref:
@@ -616,10 +651,10 @@ class ServiceManagerThread:
             if retCode == signal.SIGSEGV : # SGV
                 Logging.error("[[--ERROR--]]: TDengine service SEGV fault (check core file!)")
         except subprocess.TimeoutExpired as err:
-            print("Time out waiting for TDengine service process to exit")
+            Logging.info("Time out waiting for TDengine service process to exit")
         else:    
             if self._tdeSubProcess.isRunning():  # still running, should now never happen
-                print("FAILED to stop sub process, it is still running... pid = {}".format(
+                Logging.error("FAILED to stop sub process, it is still running... pid = {}".format(
                     self._tdeSubProcess.getPid()))
             else:
                 self._tdeSubProcess = None  # not running any more
@@ -683,9 +718,9 @@ class ServiceManagerThread:
                 return  # we are done with THIS BATCH
             else:  # got line, printing out
                 if forceOutput:
-                    Logging.info(line)
+                    Logging.info('[TAOSD] ' + line)
                 else:
-                    Logging.debug(line)
+                    Logging.debug('[TAOSD] ' + line)
         print(">", end="", flush=True)
 
     _ProgressBars = ["--", "//", "||", "\\\\"]
@@ -728,11 +763,11 @@ class ServiceManagerThread:
 
             # queue.put(line)
         # meaning sub process must have died
-        Logging.info("\nEnd of stream detected for TDengine STDOUT: {}".format(self))
+        Logging.info("EOF for TDengine STDOUT: {}".format(self))
         out.close()
 
     def svcErrorReader(self, err: IO, queue):
         for line in iter(err.readline, b''):
-            print("\nTDengine Service (taosd) ERROR (from stderr): {}".format(line))
-        Logging.info("\nEnd of stream detected for TDengine STDERR: {}".format(self))
+            Logging.info("TDengine STDERR: {}".format(line))
+        Logging.info("EOF for TDengine STDERR: {}".format(self))
         err.close()
