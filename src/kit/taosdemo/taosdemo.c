@@ -795,7 +795,7 @@ int main(int argc, char *argv[]) {
 
   printf("Spent %.4f seconds to insert %lld records with %d record(s) per request: %.2f records/second\n",
          t, (long long int)ntables * nrecords_per_table, nrecords_per_request,
-         ntables * nrecords_per_table / t);
+         ((long long int)ntables * nrecords_per_table) / t);
 
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
