@@ -555,50 +555,48 @@ static SQLRETURN doSQLConnect(SQLHDBC ConnectionHandle,
   }
 
   tsdb_conv_t *client_to_server = tsdb_conn_client_to_server(conn);
-  const char *serverName = NULL;
-  const char *userName   = NULL;
-  const char *auth       = NULL;
+  const char *dsn = NULL;
+  const char *uid = NULL;
+  const char *pwd = NULL;
+  const char *svr = NULL;
+  char server[4096]; server[0] = '\0';
 
   do {
-    D("server: %s", serverName);
-    D("user: %s", userName);
-    D("auth: %s", auth);
-    tsdb_conv(client_to_server, &buffer, (const char*)ServerName,     (size_t)NameLength1, &serverName, NULL);
-    tsdb_conv(client_to_server, &buffer, (const char*)UserName,       (size_t)NameLength2, &userName,   NULL);
-    tsdb_conv(client_to_server, &buffer, (const char*)Authentication, (size_t)NameLength3, &auth,       NULL);
-    D("server: %s", serverName);
-    D("user: %s", userName);
-    D("auth: %s", auth);
-    char sbuf[4096]; sbuf[0] = '\0';
-    int n = SQLGetPrivateProfileString(serverName, "Server", "null", sbuf, sizeof(sbuf)-1, "Odbc.ini");
-    D("n: %d", n);
-    D("sbuf: [%s]", sbuf);
-    if (n==0) snprintf(sbuf, sizeof(sbuf), "localhost:6030");
-    char *ip         = NULL;
-    int   port       = 0;
-    char *p = strchr(sbuf, ':');
-    if (p) {
-      ip = strndup(sbuf, (size_t)(p-sbuf));
-      port = atoi(p+1);
+    tsdb_conv(client_to_server, &buffer, (const char*)ServerName,     (size_t)NameLength1, &dsn, NULL);
+    tsdb_conv(client_to_server, &buffer, (const char*)UserName,       (size_t)NameLength2, &uid, NULL);
+    tsdb_conv(client_to_server, &buffer, (const char*)Authentication, (size_t)NameLength3, &pwd, NULL);
+    int n = SQLGetPrivateProfileString(dsn, "Server", "", server, sizeof(server)-1, "Odbc.ini");
+    if (n<=0) {
+      snprintf(server, sizeof(server), "localhost:6030"); // all 7-bit ascii
     }
+    tsdb_conv(client_to_server, &buffer, (const char*)server, (size_t)strlen(server), &svr, NULL);
 
-    if ((!serverName) || (!userName) || (!auth)) {
+    if ((!dsn) || (!uid) || (!pwd) || (!svr)) {
       SET_ERROR(conn, "HY001", TSDB_CODE_ODBC_OOM, "");
       break;
     }
 
+    char *ip         = NULL;
+    int   port       = 0;
+    char *p = strchr(svr, ':');
+    if (p) {
+      ip = strndup(svr, (size_t)(p-svr));
+      port = atoi(p+1);
+    }
+
     // TODO: data-race
     // TODO: shall receive ip/port from odbc.ini
-    conn->taos = taos_connect(ip, userName, auth, NULL, port);
+    conn->taos = taos_connect(ip, uid, pwd, NULL, (uint16_t)port);
     if (!conn->taos) {
-      SET_ERROR(conn, "08001", terrno, "failed to connect to data source");
+      SET_ERROR(conn, "08001", terrno, "failed to connect to data source for DSN[%s] @[%s:%d]", dsn, ip, port);
       break;
     }
   } while (0);
 
-  tsdb_conv_free(client_to_server, serverName, &buffer, (const char*)ServerName);
-  tsdb_conv_free(client_to_server, userName,   &buffer, (const char*)UserName);
-  tsdb_conv_free(client_to_server, auth,       &buffer, (const char*)Authentication);
+  tsdb_conv_free(client_to_server, dsn, &buffer, (const char*)ServerName);
+  tsdb_conv_free(client_to_server, uid, &buffer, (const char*)UserName);
+  tsdb_conv_free(client_to_server, pwd, &buffer, (const char*)Authentication);
+  tsdb_conv_free(client_to_server, svr, &buffer, (const char*)server);
 
   return conn->taos ? SQL_SUCCESS : SQL_ERROR;
 }
@@ -2877,6 +2875,8 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
   return r;
 }
 
+#ifdef _MSC_VER
+
 #define LOG(fmt, ...)                                \
 do {                                                 \
   FILE *fout = fopen("C:\\test\\test.log", "ab+");   \
@@ -3125,6 +3125,7 @@ BOOL INSTAPI ConfigDriver(HWND hwndParent, WORD fRequest, LPCSTR lpszDriver, LPC
   return FALSE;
 }
 
+#endif // _MSC_VER
 
 
 static void init_routine(void) {
