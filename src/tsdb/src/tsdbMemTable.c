@@ -196,6 +196,8 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) 
   if (pIMem != NULL) {
     tsdbUnRefMemTable(pRepo, pIMem);
   }
+
+  tsdbDebug("vgId:%d utake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
 }
 
 void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {

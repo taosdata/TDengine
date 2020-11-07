@@ -20,7 +20,6 @@
 #include "exception.h"
 
 #include "../../query/inc/qAst.h"  // todo move to common module
-#include "../../query/inc/qExecutor.h"  // todo move to common module
 #include "tlosertree.h"
 #include "tsdb.h"
 #include "tsdbMain.h"
@@ -120,8 +119,9 @@ typedef struct STsdbQueryHandle {
 
   SDataCols     *pDataCols;        // in order to hold current file data block
   int32_t        allocSize;        // allocated data block size
-  SMemTable     *mem;              // mem-table
-  SMemTable     *imem;             // imem-table, acquired from snapshot
+  SMemRef       *pMemRef;
+//  SMemTable     *mem;              // mem-table
+//  SMemTable     *imem;             // imem-table, acquired from snapshot
   SArray        *defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
   SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
@@ -184,26 +184,26 @@ static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS
   return pLocalIdList;
 }
 
-static void tsdbMayTakeMemSnapshot(TsdbQueryHandleT pHandle) { 
-  STsdbQueryHandle* pSecQueryHandle = (STsdbQueryHandle*) pHandle;
-  SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo);
+static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
+  assert(pQueryHandle != NULL && pQueryHandle->pMemRef != NULL);
 
-  if (pQInfo->memRef.ref++ == 0) {
-    tsdbTakeMemSnapshot(pSecQueryHandle->pTsdb, &pSecQueryHandle->mem, &pSecQueryHandle->imem);
-    pQInfo->memRef.mem = pSecQueryHandle->mem;
-    pQInfo->memRef.imem = pSecQueryHandle->imem;
-  } else {
-    pSecQueryHandle->mem = (SMemTable *)(pQInfo->memRef.mem);
-    pSecQueryHandle->imem = (SMemTable *)(pQInfo->memRef.imem);
+  SMemRef* pMemRef = pQueryHandle->pMemRef;
+  if (pQueryHandle->pMemRef->ref++ == 0) {
+    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem));
   }
 }
-static void tsdbMayUnTakeMemSnapshot(TsdbQueryHandleT pHandle) {
-  STsdbQueryHandle* pSecQueryHandle = (STsdbQueryHandle*) pHandle; 
-  SQInfo *pQInfo = (SQInfo *)(pSecQueryHandle->qinfo);
 
-  if (--pQInfo->memRef.ref == 0) {
-    tsdbUnTakeMemSnapShot(pSecQueryHandle->pTsdb, pSecQueryHandle->mem, pSecQueryHandle->imem);
+static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
+  assert(pQueryHandle != NULL && pQueryHandle->pMemRef != NULL);
+
+  SMemRef* pMemRef = pQueryHandle->pMemRef;
+  if (--pMemRef->ref == 0) {
+    tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pMemRef->mem, pMemRef->imem);
+    pMemRef->mem = NULL;
+    pMemRef->imem = NULL;
   }
+
+  pQueryHandle->pMemRef = NULL;
 }
 static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta) {
   size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
@@ -270,7 +270,7 @@ static SArray* createCheckInfoFromCheckInfo(SArray* pTableCheckInfo, TSKEY skey)
   return pNew;
 }
 
-static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, void* qinfo) {
+static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, void* qinfo, SMemRef* pMemRef) {
   STsdbQueryHandle* pQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
   if (pQueryHandle == NULL) {
     goto out_of_memory;
@@ -288,13 +288,14 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* 
   pQueryHandle->outputCapacity = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
   pQueryHandle->allocSize   = 0;
   pQueryHandle->locateStart = false;
+  pQueryHandle->pMemRef     = pMemRef;
 
   if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
     goto out_of_memory;
   }
 
   tsdbMayTakeMemSnapshot(pQueryHandle);
-  assert(pCond != NULL && pCond->numOfCols > 0);
+  assert(pCond != NULL && pCond->numOfCols > 0 && pMemRef != NULL);
 
   if (ASCENDING_TRAVERSE(pCond->order)) {
     assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
@@ -348,8 +349,8 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* 
   return NULL;
 }
 
-TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, void* qinfo) {
-  STsdbQueryHandle* pQueryHandle = tsdbQueryTablesImpl(tsdb, pCond, qinfo);
+TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, void* qinfo, SMemRef* pRef) {
+  STsdbQueryHandle* pQueryHandle = tsdbQueryTablesImpl(tsdb, pCond, qinfo, pRef);
 
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
@@ -366,7 +367,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
   return (TsdbQueryHandleT) pQueryHandle;
 }
 
-TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo) {
+TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pMemRef) {
   pCond->twindow = changeTableGroupByLastrow(groupList);
 
   // no qualified table
@@ -374,7 +375,7 @@ TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STab
     return NULL;
   }
 
-  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo, pMemRef);
 
   assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
   return pQueryHandle;
@@ -396,8 +397,8 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle) {
   return res;
 }
 
-TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, void* qinfo) {
-  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo);
+TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pRef) {
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo, pRef);
   if (pQueryHandle != NULL) {
     pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
     changeQueryHandleForInterpQuery(pQueryHandle);
@@ -417,7 +418,7 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   int32_t order = pHandle->order;
 
   // no data in buffer, abort
-  if (pHandle->mem == NULL && pHandle->imem == NULL) {
+  if (pHandle->pMemRef->mem == NULL && pHandle->pMemRef->imem == NULL) {
     return false;
   }
 
@@ -426,16 +427,19 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   STableData* pMem = NULL;
   STableData* pIMem = NULL;
 
-  if (pHandle->mem && pCheckInfo->tableId.tid < pHandle->mem->maxTables) {
-    pMem = pHandle->mem->tData[pCheckInfo->tableId.tid];
+  SMemTable* pMemT = pHandle->pMemRef->mem;
+  SMemTable* pIMemT = pHandle->pMemRef->imem;
+
+  if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
+    pMem = pMemT->tData[pCheckInfo->tableId.tid];
     if (pMem != NULL && pMem->uid == pCheckInfo->tableId.uid) { // check uid
       pCheckInfo->iter =
           tSkipListCreateIterFromVal(pMem->pData, (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
     }
   }
 
-  if (pHandle->imem && pCheckInfo->tableId.tid < pHandle->imem->maxTables) {
-    pIMem = pHandle->imem->tData[pCheckInfo->tableId.tid];
+  if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
+    pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
     if (pIMem != NULL && pIMem->uid == pCheckInfo->tableId.uid) { // check uid
       pCheckInfo->iiter =
           tSkipListCreateIterFromVal(pIMem->pData, (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
@@ -2000,7 +2004,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
         memcpy(&cond.colList[i], &pColInfoData->info, sizeof(SColumnInfo));
       }
 
-      STsdbQueryHandle* pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qinfo);
+      STsdbQueryHandle* pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qinfo, pQueryHandle->pMemRef);
 
       taosTFree(cond.colList);
 
