@@ -63,7 +63,7 @@ int32_t walWrite(twalh, SWalHead *);
 void    walFsync(twalh, bool forceFsync);
 int32_t walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int32_t walGetWalFile(twalh, char *fileName, int64_t *fileId);
-int64_t walGetVersion(twalh);
+uint64_t walGetVersion(twalh);
 
 #ifdef __cplusplus
 }

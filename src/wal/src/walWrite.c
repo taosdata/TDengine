@@ -310,7 +310,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   return code;
 }
 
-int64_t walGetVersion(twalh param) {
+uint64_t walGetVersion(twalh param) {
   SWal *pWal = param;
   if (pWal == 0) return 0;
 
