@@ -71,7 +71,7 @@ typedef struct _SSdbTable {
 typedef struct {
   ESyncRole  role;
   ESdbStatus status;
-  int64_t    version;
+  uint64_t   version;
   int64_t    sync;
   void *     wal;
   SSyncCfg   cfg;
