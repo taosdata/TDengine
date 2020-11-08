@@ -95,7 +95,7 @@ void simFreeScript(SScript *script) {
       SScript *bgScript = script->bgScripts[i];
       simInfo("script:%s, set stop flag", script->fileName);
       bgScript->killed = true;
-      if (bgScript->bgPid) {
+      if (taosCheckPthreadValid(bgScript->bgPid)) {
         pthread_join(bgScript->bgPid, NULL);
       }
     }
