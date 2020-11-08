@@ -24,7 +24,7 @@ extern "C" {
 typedef int32_t (*FCqWrite)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
 typedef struct {
-  int32_t vgId;
+  int32_t  vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_DB_NAME_LEN];
