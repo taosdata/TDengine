@@ -37,11 +37,11 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 
-static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
+static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
 
 static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();
-static void    dnodeSetRunStatus(SDnodeRunStatus status);
+static void    dnodeSetRunStatus(SRunStatus status);
 static void    dnodeCheckDataDirOpenned(char *dir);
 static int32_t dnodeInitComponents();
 static void    dnodeCleanupComponents(int32_t stepId);
@@ -63,9 +63,9 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVRead,      dnodeCleanupVRead},
   {"vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
-  {"mread",     dnodeInitMnodeRead,  dnodeCleanupMnodeRead},
-  {"mwrite",    dnodeInitMnodeWrite, dnodeCleanupMnodeWrite},
-  {"mpeer",     dnodeInitMnodePeer,  dnodeCleanupMnodePeer},  
+  {"mread",     dnodeInitMRead,      dnodeCleanupMRead},
+  {"mwrite",    dnodeInitMWrite,     dnodeCleanupMWrite},
+  {"mpeer",     dnodeInitMPeer,      dnodeCleanupMPeer},  
   {"client",    dnodeInitClient,     dnodeCleanupClient},
   {"server",    dnodeInitServer,     dnodeCleanupServer},
   {"mgmt",      dnodeInitMgmt,       dnodeCleanupMgmt},
@@ -104,7 +104,7 @@ static int32_t dnodeInitComponents() {
 }
 
 int32_t dnodeInitSystem() {
-  dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
+  dnodeSetRunStatus(TSDB_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
   taosBlockSIGPIPE();
   taosResolveCRC();
@@ -137,7 +137,7 @@ int32_t dnodeInitSystem() {
   }
 
   dnodeStartModules();
-  dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
+  dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
 
   dInfo("TDengine is initialized successfully");
 
@@ -145,20 +145,20 @@ int32_t dnodeInitSystem() {
 }
 
 void dnodeCleanUpSystem() {
-  if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_STOPPED) {
-    dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
+  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
+    dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
     dnodeCleanupComponents(sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]) - 1);
     taos_cleanup();
     taosCloseLog();
   }
 }
 
-SDnodeRunStatus dnodeGetRunStatus() {
-  return tsDnodeRunStatus;
+SRunStatus dnodeGetRunStatus() {
+  return tsRunStatus;
 }
 
-static void dnodeSetRunStatus(SDnodeRunStatus status) {
-  tsDnodeRunStatus = status;
+static void dnodeSetRunStatus(SRunStatus status) {
+  tsRunStatus = status;
 }
 
 static void dnodeCheckDataDirOpenned(char *dir) {

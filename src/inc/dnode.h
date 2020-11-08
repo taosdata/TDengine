@@ -27,16 +27,16 @@ typedef struct {
   int32_t queryReqNum;
   int32_t submitReqNum;
   int32_t httpReqNum;
-} SDnodeStatisInfo;
+} SStatisInfo;
 
 typedef enum {
-  TSDB_DNODE_RUN_STATUS_INITIALIZE,
-  TSDB_DNODE_RUN_STATUS_RUNING,
-  TSDB_DNODE_RUN_STATUS_STOPPED
-} SDnodeRunStatus;
+  TSDB_RUN_STATUS_INITIALIZE,
+  TSDB_RUN_STATUS_RUNING,
+  TSDB_RUN_STATUS_STOPPED
+} SRunStatus;
 
-SDnodeRunStatus dnodeGetRunStatus();
-SDnodeStatisInfo dnodeGetStatisInfo();
+SRunStatus  dnodeGetRunStatus();
+SStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
 bool    dnodeIsMasterEp(char *ep);
@@ -59,15 +59,15 @@ void  dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code);
 void *dnodeAllocVReadQueue(void *pVnode);
 void  dnodeFreeVReadQueue(void *rqueue);
 
-int32_t dnodeAllocateMnodePqueue();
-void    dnodeFreeMnodePqueue();
-int32_t dnodeAllocateMnodeRqueue();
-void    dnodeFreeMnodeRqueue();
-int32_t dnodeAllocateMnodeWqueue();
-void    dnodeFreeMnodeWqueue();
-void    dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code);
-void    dnodeReprocessMnodeWriteMsg(void *pMsg);
-void    dnodeDelayReprocessMnodeWriteMsg(void *pMsg);
+int32_t dnodeAllocateMPeerQueue();
+void    dnodeFreeMPeerQueue();
+int32_t dnodeAllocMReadQueue();
+void    dnodeFreeMReadQueue();
+int32_t dnodeAllocMWritequeue();
+void    dnodeFreeMWritequeue();
+void    dnodeSendRpcMWriteRsp(void *pMsg, int32_t code);
+void    dnodeReprocessMWriteMsg(void *pMsg);
+void    dnodeDelayReprocessMWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
 

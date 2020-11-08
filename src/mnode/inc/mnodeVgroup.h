@@ -43,8 +43,8 @@ void    mnodeDropVgroup(SVgObj *pVgroup, void *ahandle);
 void    mnodeAlterVgroup(SVgObj *pVgroup, void *ahandle);
 int32_t mnodeGetAvailableVgroup(struct SMnodeMsg *pMsg, SVgObj **pVgroup, int32_t *sid);
 
-void    mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
-void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
+void    mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable);
+void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable);
 void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);

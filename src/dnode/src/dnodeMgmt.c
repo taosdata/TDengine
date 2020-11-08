@@ -47,6 +47,11 @@ typedef struct {
   int32_t * vnodeList;
 } SOpenVnodeThread;
 
+typedef struct {
+  SRpcMsg rpcMsg;
+  char    pCont[];
+} SMgmtMsg;
+
 void *            tsDnodeTmr = NULL;
 static void *     tsStatusTimer = NULL;
 static uint32_t   tsRebootTime;
@@ -172,38 +177,46 @@ void dnodeCleanupMgmt() {
   vnodeCleanupResources();
 }
 
-void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
-  void *item;
-
-  item = taosAllocateQitem(sizeof(SRpcMsg));
-  if (item) {
-    memcpy(item, pMsg, sizeof(SRpcMsg));
-    taosWriteQitem(tsMgmtQueue, 1, item);
-  } else {
-    SRpcMsg rsp = {
-      .handle = pMsg->handle,
-      .pCont  = NULL,
-      .code   = TSDB_CODE_DND_OUT_OF_MEMORY
-    };
-    
-    rpcSendResponse(&rsp);
-    rpcFreeCont(pMsg->pCont);
+static int32_t dnodeWriteToMgmtQueue(SRpcMsg *pMsg) {
+  int32_t   size = sizeof(SMgmtMsg) + pMsg->contLen;
+  SMgmtMsg *pMgmt = taosAllocateQitem(size);
+  if (pMgmt == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
   }
+
+  pMgmt->rpcMsg = *pMsg;
+  pMgmt->rpcMsg.pCont = pMgmt->pCont;
+  memcpy(pMgmt->pCont, pMsg->pCont, pMsg->contLen);
+  taosWriteQitem(tsMgmtQueue, TAOS_QTYPE_RPC, pMgmt);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
+  int32_t code = dnodeWriteToMgmtQueue(pMsg);
+  if (code != TSDB_CODE_SUCCESS) {
+    SRpcMsg rsp = {.handle = pMsg->handle, .code = code};
+    rpcSendResponse(&rsp);
+  }
+
+  rpcFreeCont(pMsg->pCont);
 }
 
 static void *dnodeProcessMgmtQueue(void *param) {
-  SRpcMsg *pMsg;
-  SRpcMsg  rsp = {0};
-  int      type;
-  void *   handle;
+  SMgmtMsg *pMgmt;
+  SRpcMsg * pMsg;
+  SRpcMsg   rsp = {0};
+  int32_t   qtype;
+  void *    handle;
 
   while (1) {
-    if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
+    if (taosReadQitemFromQset(tsMgmtQset, &qtype, (void **)&pMgmt, &handle) == 0) {
       dDebug("qset:%p, dnode mgmt got no message from qset, exit", tsMgmtQset);
       break;
     }
 
-    dDebug("%p, msg:%s will be processed", pMsg->ahandle, taosMsg[pMsg->msgType]);    
+    pMsg = &pMgmt->rpcMsg;
+    dDebug("%p, msg:%p:%s will be processed", pMsg->ahandle, pMgmt, taosMsg[pMsg->msgType]);
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {
@@ -211,10 +224,9 @@ static void *dnodeProcessMgmtQueue(void *param) {
     }
 
     rsp.handle = pMsg->handle;
-    rsp.pCont  = NULL;
+    rsp.pCont = NULL;
     rpcSendResponse(&rsp);
 
-    rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
 
