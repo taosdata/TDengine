@@ -164,6 +164,12 @@ typedef struct STsdbQueryCond {
   SColumnInfo *colList;
 } STsdbQueryCond;
 
+typedef struct SMemRef {
+  int32_t  ref;
+  void    *mem;
+  void    *imem;
+} SMemRef;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rows;
@@ -193,7 +199,7 @@ typedef struct {
  * @param qinfo      query info handle from query processor
  * @return
  */
-TsdbQueryHandleT *tsdbQueryTables(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, void *qinfo);
+TsdbQueryHandleT *tsdbQueryTables(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, void *qinfo, SMemRef* pRef);
 
 /**
  * Get the last row of the given query time window for all the tables in STableGroupInfo object.
@@ -205,7 +211,7 @@ TsdbQueryHandleT *tsdbQueryTables(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STab
  * @param tableInfo  table list.
  * @return
  */
-TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfo, void *qinfo);
+TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfo, void *qinfo, SMemRef* pRef);
 
 /**
  * get the queried table object list
@@ -223,7 +229,7 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle);
  * @return
  */
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList,
-                                               void *qinfo);
+                                               void *qinfo, SMemRef* pRef);
 
 /**
  * move to next block if exists

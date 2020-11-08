@@ -2043,6 +2043,7 @@ class ThreadStacks: # stack info for all threads
                 print("[{sf}] File {filename}, line {lineno}, in {name}".format(
                     sf=stackFrame, filename=frame.filename, lineno=frame.lineno, name=frame.name))
                 print("    {}".format(frame.line))
+                stackFrame += 1
             print("-----> End of Thread Info ----->\n")
 
 class ClientManager:

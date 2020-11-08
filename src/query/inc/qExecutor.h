@@ -200,12 +200,6 @@ enum {
   QUERY_RESULT_READY     = 2,
 };
 
-typedef struct SMemRef {
-  int32_t ref; 
-  void *mem;
-  void *imem;
-} SMemRef;
-
 typedef struct SQInfo {
   void*            signature;
   int32_t          code;   // error code to returned to client

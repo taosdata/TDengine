@@ -1718,8 +1718,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   pTableMetaInfo->pTableMeta = (STableMeta *) taosCachePut(tscMetaCache, pTableMetaInfo->name,
       strlen(pTableMetaInfo->name), pTableMeta, size, tsTableMetaKeepTimer * 1000);
-  
-  // todo handle out of memory case
+
   if (pTableMetaInfo->pTableMeta == NULL) {
     free(pTableMeta);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
