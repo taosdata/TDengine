@@ -128,7 +128,7 @@ void walClose(void *handle) {
 
   taosClose(pWal->fd);
 
-  if (!pWal->keep) {
+  if (pWal->keep != TAOS_WAL_KEEP) {
     int64_t fileId = -1;
     while (walGetNextFile(pWal, &fileId) >= 0) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);

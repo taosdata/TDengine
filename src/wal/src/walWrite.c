@@ -41,7 +41,7 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is closed", pWal->vgId, pWal->name);
   }
 
-  if (pWal->keep) {
+  if (pWal->keep == TAOS_WAL_KEEP) {
     pWal->fileId = 0;
   } else {
     if (walGetNewFile(pWal, &pWal->fileId) != 0) pWal->fileId = 0;
@@ -58,7 +58,7 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is created", pWal->vgId, pWal->name);
   }
 
-  if (!pWal->keep) {
+  if (pWal->keep != TAOS_WAL_KEEP) {
     // remove the oldest wal file
     int64_t oldFileId = -1;
     if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
@@ -144,12 +144,12 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
       continue;
     }
 
-    wDebug("vgId:%d, file:%s, restore success and keep it", pWal->vgId, walName);
+    wDebug("vgId:%d, file:%s, restore success", pWal->vgId, walName);
 
     count++;
   }
 
-  if (!pWal->keep) return TSDB_CODE_SUCCESS;
+  if (pWal->keep != TAOS_WAL_KEEP) return TSDB_CODE_SUCCESS;
 
   if (count == 0) {
     wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
@@ -173,7 +173,6 @@ int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
   if (handle == NULL) return -1;
   SWal *pWal = handle;
 
-  // for keep
   if (*fileId == 0) *fileId = -1;
 
   pthread_mutex_lock(&(pWal->mutex));

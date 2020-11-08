@@ -25,6 +25,11 @@ typedef enum {
   TAOS_WAL_FSYNC = 2
 } EWalType;
 
+typedef enum {
+  TAOS_WAL_NOT_KEEP = 0,
+  TAOS_WAL_KEEP = 1
+} EWalKeep;
+
 typedef struct {
   int8_t   msgType;
   int8_t   reserved[3];
@@ -36,11 +41,10 @@ typedef struct {
 } SWalHead;
 
 typedef struct {
-  int32_t vgId;
-  int32_t fsyncPeriod;  // millisecond
-  int8_t  walLevel;     // wal level
-  int8_t  wals;         // number of WAL files;
-  int8_t  keep;         // keep the wal file when closed
+  int32_t  vgId;
+  int32_t  fsyncPeriod;  // millisecond
+  EWalType walLevel;     // wal level
+  EWalKeep keep;         // keep the wal file when closed
 } SWalCfg;
 
 typedef void *  twalh;  // WAL HANDLE

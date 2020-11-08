@@ -37,7 +37,6 @@ int writeToQueue(void *pVnode, void *data, int type, void *pMsg) {
 
 int main(int argc, char *argv[]) {
   char path[128] = "/home/jhtao/test/wal";
-  int  max = 3;
   int  level = 2;
   int  total = 5;
   int  rows = 10000;
@@ -47,8 +46,6 @@ int main(int argc, char *argv[]) {
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       tstrncpy(path, argv[++i], sizeof(path));
-    } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
-      max = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-l")==0 && i < argc-1) {
       level = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r")==0 && i < argc-1) {
@@ -66,7 +63,6 @@ int main(int argc, char *argv[]) {
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p path]: wal file path default is:%s\n", path);
-      printf("  [-m max]: max wal files, default is:%d\n", max);
       printf("  [-l level]: log level, default is:%d\n", level);
       printf("  [-t total]: total wal files, default is:%d\n", total);
       printf("  [-r rows]: rows of records per wal file, default is:%d\n", rows);
@@ -82,7 +78,6 @@ int main(int argc, char *argv[]) {
 
   SWalCfg walCfg;
   walCfg.walLevel = level;
-  walCfg.wals = max;
   walCfg.keep = keep;
 
   pWal = walOpen(path, &walCfg);
