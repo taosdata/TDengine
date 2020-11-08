@@ -4116,7 +4116,7 @@ bool queryHasRemainResForTableQuery(SQueryRuntimeEnv* pRuntimeEnv) {
      * first result row in the actual result set will fill nothing.
      */
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-      int32_t numOfTotal = (int32_t)getFilledNumOfRes(pFillInfo, pQuery->window.ekey, (int32_t)pQuery->rec.capacity);
+      int32_t numOfTotal = (int32_t)getNumOfResWithFill(pFillInfo, pQuery->window.ekey, (int32_t)pQuery->rec.capacity);
       return numOfTotal > 0;
     }
 
@@ -4174,7 +4174,7 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
   SFillInfo* pFillInfo = pRuntimeEnv->pFillInfo;
 
   while (1) {
-    int32_t ret = (int32_t)taosGenerateDataBlock(pFillInfo, (tFilePage**)pQuery->sdata, (int32_t)pQuery->rec.capacity);
+    int32_t ret = (int32_t)taosFillResultDataBlock(pFillInfo, (tFilePage**)pQuery->sdata, (int32_t)pQuery->rec.capacity);
 
     // todo apply limit output function
     /* reached the start position of according to offset value, return immediately */
@@ -4519,6 +4519,7 @@ static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
     pFillCol[i].col.bytes  = pExprInfo->bytes;
     pFillCol[i].col.type   = (int8_t)pExprInfo->type;
     pFillCol[i].col.offset = offset;
+    pFillCol[i].tagIndex   = -2;
     pFillCol[i].flag       = TSDB_COL_NORMAL;    // always be ta normal column for table query
     pFillCol[i].functionId = pExprInfo->base.functionId;
     pFillCol[i].fillVal.i = pQuery->fillVal[i];
@@ -4532,7 +4533,6 @@ static SFillColInfo* taosCreateFillColInfo(SQuery* pQuery) {
 int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bool isSTableQuery) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
-  int32_t code = TSDB_CODE_SUCCESS;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
   pRuntimeEnv->topBotQuery = isTopBottomQuery(pQuery);
@@ -4540,7 +4540,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
   setScanLimitationByResultBuffer(pQuery);
 
-  code = setupQueryHandle(tsdb, pQInfo, isSTableQuery);
+  int32_t code = setupQueryHandle(tsdb, pQInfo, isSTableQuery);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5430,7 +5430,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
       break;
     } else {
       taosFillSetStartInfo(pRuntimeEnv->pFillInfo, (int32_t)pQuery->rec.rows, pQuery->window.ekey);
-      taosFillCopyInputDataFromFilePage(pRuntimeEnv->pFillInfo, (tFilePage**) pQuery->sdata);
+      taosFillCopyInputDataFromFilePage(pRuntimeEnv->pFillInfo, (const tFilePage**) pQuery->sdata);
       numOfFilled = 0;
 
       pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata, &numOfFilled);

@@ -355,32 +355,6 @@ bool isValidDataType(int32_t type) {
   return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_NCHAR;
 }
 
-//bool isNull(const char *val, int32_t type) {
-//  switch (type) {
-//    case TSDB_DATA_TYPE_BOOL:
-//      return *(uint8_t *)val == TSDB_DATA_BOOL_NULL;
-//    case TSDB_DATA_TYPE_TINYINT:
-//      return *(uint8_t *)val == TSDB_DATA_TINYINT_NULL;
-//    case TSDB_DATA_TYPE_SMALLINT:
-//      return *(uint16_t *)val == TSDB_DATA_SMALLINT_NULL;
-//    case TSDB_DATA_TYPE_INT:
-//      return *(uint32_t *)val == TSDB_DATA_INT_NULL;
-//    case TSDB_DATA_TYPE_BIGINT:
-//    case TSDB_DATA_TYPE_TIMESTAMP:
-//      return *(uint64_t *)val == TSDB_DATA_BIGINT_NULL;
-//    case TSDB_DATA_TYPE_FLOAT:
-//      return *(uint32_t *)val == TSDB_DATA_FLOAT_NULL;
-//    case TSDB_DATA_TYPE_DOUBLE:
-//      return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
-//    case TSDB_DATA_TYPE_NCHAR:
-//      return *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
-//    case TSDB_DATA_TYPE_BINARY:
-//      return *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
-//    default:
-//      return false;
-//  };
-//}
-
 void setVardataNull(char* val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {
     varDataSetLen(val, sizeof(int8_t));
@@ -433,14 +407,10 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
         *(uint64_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_DOUBLE_NULL;
       }
       break;
-    case TSDB_DATA_TYPE_NCHAR: // todo : without length?
-      for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * bytes) = TSDB_DATA_NCHAR_NULL;
-      }
-      break;
+    case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * bytes) = TSDB_DATA_BINARY_NULL;
+        setVardataNull(val + i * bytes, type);
       }
       break;
     default: {
