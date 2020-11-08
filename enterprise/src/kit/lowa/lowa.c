@@ -150,6 +150,7 @@ typedef struct SDataBase_S {
 } SDataBase;
 
 typedef struct SDbs_S {
+  char         cfgDir[MAX_FILE_NAME_LEN];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
   char         user[MAX_DB_NAME_SIZE];
@@ -186,6 +187,7 @@ typedef struct SubQueryInfo_S {
 } SubQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
+  char         cfgDir[MAX_FILE_NAME_LEN];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
   char         user[MAX_DB_NAME_SIZE];
@@ -298,7 +300,7 @@ typedef  struct curlMemInfo_S {
   }
 #endif
 
-static bool getMetaFromJsonFile(char* file);
+static bool getInfoFromJsonFile(char* file);
 //static int generateOneRowDataForStb(SSuperTable* stbInfo);
 //static int getDataIntoMemForStb(SSuperTable* stbInfo);
 static void init_rand_data();
@@ -915,6 +917,7 @@ static int createDatabases() {
           len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "DOUBLE");
           lenOfOneRow += 42;
         } else {
+          taos_close(taos);
           exit(-1);
         }
       }
@@ -926,6 +929,7 @@ static int createDatabases() {
       g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable = (char*)calloc(len+1, 1);
       if (NULL == g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable) {
         printf("Failed when calloc, size:%d", len+1);
+        taos_close(taos);
         exit(-1);
       }
       snprintf(g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable, len, "(ts timestamp%s)", cols);
@@ -967,6 +971,7 @@ static int createDatabases() {
           len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "DOUBLE");
           lenOfTagOfOneRow += g_Dbs.db[i].supterTbls[j].tags[tagIndex].dataLen + 42;
         } else {
+          taos_close(taos);
           exit(-1);
         }
       }
@@ -1185,7 +1190,8 @@ void readSampleFromFileToMem(SSuperTable  * supterTblInfo) {
   }
 }
 
-static bool getMetaFromInsertJsonFile(char* file) {
+static bool getMetaFromInsertJsonFile(cJSON* root) {
+/*
   FILE *fp = fopen(file, "r");
   if (!fp) {
     printf("failed to read %s, reason:%s\n", file, strerror(errno));
@@ -1208,6 +1214,14 @@ static bool getMetaFromInsertJsonFile(char* file) {
   if (root == NULL) {
     printf("failed to cjson parse %s, invalid json format", file);
     goto PARSE_OVER;
+  }
+  */
+  
+  bool  ret = false;
+
+  cJSON* cfgdir = cJSON_GetObjectItem(root, "cfgdir");
+  if (cfgdir && cfgdir->type == cJSON_String && cfgdir->valuestring != NULL) {
+    strncpy(g_Dbs.cfgDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
   }
 
   cJSON* host = cJSON_GetObjectItem(root, "host");
@@ -1476,7 +1490,7 @@ static bool getMetaFromInsertJsonFile(char* file) {
         goto PARSE_OVER;
       }
 
-      cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , resetful
+      cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , restful
       if (insertMode && insertMode->type == cJSON_String && insertMode->valuestring != NULL) {
         strncpy(g_Dbs.db[i].supterTbls[j].insertMode, insertMode->valuestring, MAX_DB_NAME_SIZE);
       } else if (!insertMode) {
@@ -1644,13 +1658,14 @@ static bool getMetaFromInsertJsonFile(char* file) {
   ret = true;
 
 PARSE_OVER:
-  free(content);
-  cJSON_Delete(root);
-  fclose(fp);
+  //free(content);
+  //cJSON_Delete(root);
+  //fclose(fp);
   return ret;
 }
 
-static bool getMetaFromQueryJsonFile(char* file) {
+static bool getMetaFromQueryJsonFile(cJSON* root) {
+/*
   FILE *fp = fopen(file, "r");
   if (!fp) {
     printf("failed to read %s, reason:%s\n", file, strerror(errno));
@@ -1673,6 +1688,14 @@ static bool getMetaFromQueryJsonFile(char* file) {
   if (root == NULL) {
     printf("failed to cjson parse %s, invalid json format", file);
     goto PARSE_OVER;
+  }
+*/
+
+  bool  ret = false;
+
+  cJSON* cfgdir = cJSON_GetObjectItem(root, "cfgdir");
+  if (cfgdir && cfgdir->type == cJSON_String && cfgdir->valuestring != NULL) {
+    strncpy(g_queryInfo.cfgDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
   }
 
   cJSON* host = cJSON_GetObjectItem(root, "host");
@@ -1928,12 +1951,13 @@ static bool getMetaFromQueryJsonFile(char* file) {
   ret = true;
 
 PARSE_OVER:
-  free(content);
-  cJSON_Delete(root);
-  fclose(fp);
+  //free(content);
+  //cJSON_Delete(root);
+  //fclose(fp);
   return ret;
 }
 
+#if 0
 static bool getMetaFromJsonFile(char* file) {
   char *name = strrchr(file, '/');
   if (NULL == name) {
@@ -1956,6 +1980,70 @@ static bool getMetaFromJsonFile(char* file) {
     return false;
   }  
 }
+#endif
+
+static bool getInfoFromJsonFile(char* file) {
+  FILE *fp = fopen(file, "r");
+  if (!fp) {
+    printf("failed to read %s, reason:%s\n", file, strerror(errno));
+    return false;
+  }
+
+  bool  ret = false;
+  int   maxLen = 64000;
+  char *content = calloc(1, maxLen + 1);
+  int   len = fread(content, 1, maxLen, fp);
+  if (len <= 0) {
+    free(content);
+    fclose(fp);
+    printf("failed to read %s, content is null", file);
+    return false;
+  }
+
+  content[len] = 0;
+  cJSON* root = cJSON_Parse(content);
+  if (root == NULL) {
+    printf("failed to cjson parse %s, invalid json format", file);
+    goto PARSE_OVER;
+  }
+
+  cJSON* filetype = cJSON_GetObjectItem(root, "filetype");
+  if (filetype && filetype->type == cJSON_String && filetype->valuestring != NULL) {
+    if (0 == strcasecmp("insert", filetype->valuestring)) {
+      g_jsonType = INSERT_MODE;
+    } else if (0 == strcasecmp("query", filetype->valuestring)) {
+      g_jsonType = QUERY_MODE;
+    } else if (0 == strcasecmp("subscribe", filetype->valuestring)) {
+      g_jsonType = SUBSCRIBE_MODE;
+    } else {
+      printf("failed to read json, filetype not support\n");
+      goto PARSE_OVER;
+    }
+  } else if (!filetype) {
+    g_jsonType = INSERT_MODE;
+  } else {
+    printf("failed to read json, filetype not found\n");
+    goto PARSE_OVER;
+  }
+
+  if (INSERT_MODE == g_jsonType) {
+    ret = getMetaFromInsertJsonFile(root);
+  } else if (QUERY_MODE == g_jsonType) {
+    ret = getMetaFromQueryJsonFile(root);
+  } else if (SUBSCRIBE_MODE == g_jsonType) {
+    ret = getMetaFromQueryJsonFile(root);
+  } else {
+    printf("input json file type error! please input correct file type: insert or query or subscribe\n");
+    goto PARSE_OVER;
+  }  
+
+PARSE_OVER:
+  free(content);
+  cJSON_Delete(root);
+  fclose(fp);
+  return ret;
+}
+
 
 void prePareSampleData() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {    
@@ -1968,7 +2056,7 @@ void prePareSampleData() {
         (void)readTagFromCsvFileToMem(&g_Dbs.db[i].supterTbls[j]);
       }
 
-      if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "resetful", 8)) {
+      if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "restful", 8)) {
         curl_global_init(CURL_GLOBAL_ALL);
       }
     }
@@ -1987,7 +2075,7 @@ void postFreeResource() {
         g_Dbs.db[i].supterTbls[j].sampleDataBuf = NULL;
       }
 
-      if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "resetful", 8)) {
+      if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "restful", 8)) {
         curl_global_cleanup();
       }
     }
@@ -2437,11 +2525,21 @@ int queryTestProcess() {
     pthread_join(pids[i], NULL);
   }
 
+  for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
+    threadInfo *t_info = infos + i;
+    taos_close(t_info->taos);
+  }
+
   free(pids);
   free(infos);  
   
   for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
     pthread_join(pidsOfSub[i], NULL);
+  }
+
+  for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
+    threadInfo *t_info = infosOfSub + i;
+    taos_close(t_info->taos);
   }
 
   free(pidsOfSub);
@@ -2657,6 +2755,11 @@ int subscribeTestProcess() {
   
   for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
     pthread_join(pids[i], NULL);
+  }  
+
+  for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
+    threadInfo *t_info = infos + i;
+    taos_close(t_info->taos);
   }
 
   free(pids);
@@ -2665,6 +2768,11 @@ int subscribeTestProcess() {
   if (subscribeFlag) {    
     for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
       pthread_join(pidsOfSub[i], NULL);
+    }
+
+    for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
+      threadInfo *t_info = infosOfSub + i;
+      taos_close(t_info->taos);
     }
   
     free(pidsOfSub);
@@ -2694,24 +2802,25 @@ void initOfQueryMeta() {
    strncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
 }
 
-
-
 int main(int argc, char *argv[]) {
   parse_args(argc, argv, &g_args);
 
   initOfInsertMeta();
   initOfQueryMeta();
   
-  if (false == getMetaFromJsonFile(g_args.metaFile)) {
+  if (false == getInfoFromJsonFile(g_args.metaFile)) {
     printf("Failed to read %s\n", g_args.metaFile);
     return 1;
   }
-
+ 
   if (INSERT_MODE == g_jsonType) {
+    if (g_Dbs.cfgDir[0]) taos_options(TSDB_OPTION_CONFIGDIR, g_Dbs.cfgDir);
     (void)insertTestProcess();
   } else if (QUERY_MODE == g_jsonType) {
+    if (g_queryInfo.cfgDir[0])  taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
     (void)queryTestProcess();
   } else if (SUBSCRIBE_MODE == g_jsonType) {
+    if (g_queryInfo.cfgDir[0])  taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
     (void)subscribeTestProcess();
   }  else {
     ;
