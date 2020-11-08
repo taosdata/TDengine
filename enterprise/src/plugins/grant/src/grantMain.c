@@ -161,9 +161,9 @@ static uint32_t grantGetCulsterCreateTime() {
 static uint32_t grantGetCulsterCurSpeed() { return 0; }
 
 static uint32_t grantGetCulsterCurTimeSeries() {
-  void *          pIter = NULL;
-  SChildTableObj *pTable = NULL;
-  uint32_t        numOfPoints = 0;
+  void *      pIter = NULL;
+  SCTableObj *pTable = NULL;
+  uint32_t    numOfPoints = 0;
 
   while (1) {
     pIter = mnodeGetNextChildTable(pIter, &pTable);
