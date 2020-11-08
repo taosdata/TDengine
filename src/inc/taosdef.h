@@ -75,6 +75,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_SMALLINT_NULL         0x8000
 #define TSDB_DATA_INT_NULL              0x80000000L
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+#define TSDB_DATA_TIMESTAMP_NULL        TSDB_DATA_BIGINT_NULL
 
 #define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
@@ -362,6 +363,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MIN_WAL_LEVEL              1
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
+
+#define TSDB_MIN_DB_UPDATE              0
+#define TSDB_MAX_DB_UPDATE              1
+#define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond

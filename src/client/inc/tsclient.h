@@ -330,6 +330,7 @@ typedef struct STscObj {
   char               writeAuth : 1;
   char               superAuth : 1;
   uint32_t           connId;
+  uint64_t           rid;      // ref ID returned by taosAddRef
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
@@ -348,7 +349,7 @@ typedef struct SSqlObj {
   void            *signature;
   pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
-  void            *pRpcCtx;
+  int64_t          rpcRid;
   void            (*fp)();
   void            (*fetchFp)();
   void            *param;

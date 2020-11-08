@@ -72,7 +72,7 @@ typedef struct {
   ESyncRole  role;
   ESdbStatus status;
   int64_t    version;
-  void *     sync;
+  int64_t    sync;
   void *     wal;
   SSyncCfg   cfg;
   int32_t    numOfTables;
@@ -98,8 +98,8 @@ static taos_qall  tsSdbWriteQall;
 static taos_queue tsSdbWriteQueue;
 static SSdbWriteWorkerPool tsSdbPool;
 
-static int     sdbWrite(void *param, void *data, int type);
-static int     sdbWriteToQueue(void *param, void *data, int type);
+static int32_t sdbWrite(void *param, void *data, int32_t type, void *pMsg);
+static int32_t sdbWriteToQueue(void *param, void *data, int32_t type, void *pMsg);
 static void *  sdbWorkerFp(void *param);
 static int32_t sdbInitWriteWorker();
 static void    sdbCleanupWriteWorker();
@@ -212,7 +212,7 @@ static void sdbRestoreTables() {
 }
 
 void sdbUpdateMnodeRoles() {
-  if (tsSdbObj.sync == NULL) return;
+  if (tsSdbObj.sync <= 0) return;
 
   SNodesRole roles = {0};
   syncGetNodesRole(tsSdbObj.sync, &roles);
@@ -433,7 +433,7 @@ void sdbCleanUp() {
 
   if (tsSdbObj.sync) {
     syncStop(tsSdbObj.sync);
-    tsSdbObj.sync = NULL;
+    tsSdbObj.sync = -1;
   }
 
   if (tsSdbObj.wal) {
@@ -575,7 +575,7 @@ static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int sdbWrite(void *param, void *data, int type) {
+static int sdbWrite(void *param, void *data, int32_t type, void *pMsg) {
   SSdbOper *pOper = param;
   SWalHead *pHead = data;
   int32_t tableId = pHead->msgType / 10;
@@ -1040,13 +1040,13 @@ void sdbFreeWritequeue() {
   tsSdbWriteQueue = NULL;
 }
 
-int sdbWriteToQueue(void *param, void *data, int type) {
+int32_t sdbWriteToQueue(void *param, void *data, int32_t qtype, void *pMsg) {
   SWalHead *pHead = data;
-  int size = sizeof(SWalHead) + pHead->len;
+  int32_t   size = sizeof(SWalHead) + pHead->len;
   SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);
   memcpy(pWal, pHead, size);
 
-  taosWriteQitem(tsSdbWriteQueue, type, pWal);
+  taosWriteQitem(tsSdbWriteQueue, qtype, pWal);
   return 0;
 }
 
@@ -1081,7 +1081,7 @@ static void *sdbWorkerFp(void *param) {
         pOper = NULL;
       }
 
-      int32_t code = sdbWrite(pOper, pHead, type);
+      int32_t code = sdbWrite(pOper, pHead, type, NULL);
       if (code > 0) code = 0;
       if (pOper) {
         pOper->retCode = code;
@@ -1090,7 +1090,7 @@ static void *sdbWorkerFp(void *param) {
       }
     }
 
-    walFsync(tsSdbObj.wal);
+    walFsync(tsSdbObj.wal, true);
 
     // browse all items, and process them one by one
     taosResetQitems(tsSdbWriteQall);

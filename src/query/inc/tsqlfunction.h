@@ -149,7 +149,7 @@ typedef struct SResultRowCellInfo {
   int8_t   hasResult;       // result generated, not NULL value
   bool     initialized;     // output buffer has been initialized
   bool     complete;        // query has completed
-  uint16_t numOfRes;        // num of output result in current buffer
+  uint32_t numOfRes;        // num of output result in current buffer
 } SResultRowCellInfo;
 
 #define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowCellInfo)))

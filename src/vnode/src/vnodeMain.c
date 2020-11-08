@@ -44,12 +44,12 @@ static void     vnodeCtrlFlow(void *handle, int32_t mseconds);
 static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
 
 #ifndef _SYNC
-tsync_h syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype) { return 0; }
-void    syncStop(tsync_h shandle) {}
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg * cfg) { return 0; }
-int     syncGetNodesRole(tsync_h shandle, SNodesRole * cfg) { return 0; }
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code) {}
+int64_t syncStart(const SSyncInfo *info) { return NULL; }
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int qtype) { return 0; }
+void    syncStop(int64_t rid) {}
+int32_t syncReconfig(int64_t rid, const SSyncCfg * cfg) { return 0; }
+int     syncGetNodesRole(int64_t rid, SNodesRole * cfg) { return 0; }
+void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {}
 #endif
 
 char* vnodeStatus[] = {
@@ -140,6 +140,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.compression         = pVnodeCfg->cfg.compression;
+  tsdbCfg.update              = pVnodeCfg->cfg.update;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
@@ -266,7 +267,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   strcpy(cqCfg.pass, tsInternalPass);
   strcpy(cqCfg.db, pVnode->db);
   cqCfg.vgId = vnode;
-  cqCfg.cqWrite = vnodeWriteCqMsgToQueue;
+  cqCfg.cqWrite = vnodeWriteToWQueue;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
   if (pVnode->cq == NULL) {
     vnodeCleanUp(pVnode);
@@ -305,7 +306,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return terrno;
   }
 
-  walRestore(pVnode->wal, pVnode, vnodeWriteToQueue);
+  walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
   if (pVnode->version == 0) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
@@ -320,7 +321,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.ahandle = pVnode;
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
-  syncInfo.writeToCache = vnodeWriteToQueue;
+  syncInfo.writeToCache = vnodeWriteToWQueue;
   syncInfo.confirmForward = dnodeSendRpcVWriteRsp; 
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
@@ -330,7 +331,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 #ifndef _SYNC
   pVnode->role = TAOS_SYNC_ROLE_MASTER;
 #else
-  if (pVnode->sync == NULL) {
+  if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
     vnodeCleanUp(pVnode);
@@ -365,6 +366,7 @@ int32_t vnodeClose(int32_t vgId) {
 }
 
 void vnodeRelease(void *pVnodeRaw) {
+  if (pVnodeRaw == NULL) return;
   SVnodeObj *pVnode = pVnodeRaw;
   int32_t    vgId = pVnode->vgId;
 
@@ -467,36 +469,6 @@ void *vnodeAcquire(int32_t vgId) {
   return *ppVnode;
 }
 
-void *vnodeAcquireRqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return NULL;
-
-  int32_t code = vnodeCheckRead(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    vInfo("vgId:%d, can not provide read service, status is %s", vgId, vnodeStatus[pVnode->status]);
-    vnodeRelease(pVnode);
-    return NULL;
-  }
-
-  return pVnode->rqueue;
-}
-
-void *vnodeAcquireWqueue(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return NULL;
-
-  int32_t code = vnodeCheckWrite(pVnode);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    vInfo("vgId:%d, can not provide write service, status is %s", vgId, vnodeStatus[pVnode->status]);
-    vnodeRelease(pVnode);
-    return NULL;
-  }
-
-  return pVnode->wqueue;
-}
-
 void *vnodeGetWal(void *pVnode) {
   return ((SVnodeObj *)pVnode)->wal;
 }
@@ -589,9 +561,9 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   }
 
   // stop replication module
-  if (pVnode->sync) {
-    void *sync = pVnode->sync;
-    pVnode->sync = NULL;
+  if (pVnode->sync > 0) {
+    int64_t sync = pVnode->sync;
+    pVnode->sync = -1;
     syncStop(sync);
   }
 

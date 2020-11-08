@@ -156,8 +156,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
               win->ekey = elem1.ts;
             }
 
-            tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
-            tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
+            tsBufAppend(output1, elem1.id, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
+            tsBufAppend(output2, elem2.id, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
           } else {
             pLimit->offset -= 1;//offset apply to projection?
           }
@@ -193,8 +193,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   TSKEY et = taosGetTimestampUs();
   tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
            "intersecting, skey:%" PRId64 ", ekey:%" PRId64 ", numOfVnode:%d, elapsed time:%" PRId64 " us",
-           pSql, numOfInput1, numOfInput2, output1->numOfTotal, output1->numOfVnodes, win->skey, win->ekey,
-           tsBufGetNumOfVnodes(output1), et - st);
+           pSql, numOfInput1, numOfInput2, output1->numOfTotal, output1->numOfGroups, win->skey, win->ekey,
+           tsBufGetNumOfGroup(output1), et - st);
 
   return output1->numOfTotal;
 }
@@ -282,7 +282,7 @@ static UNUSED_FUNC bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
 static void filterVgroupTables(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
-  tsBufGetVnodeIdList(pQueryInfo->tsBuf, &num, &list);
+  tsBufGetGroupIdList(pQueryInfo->tsBuf, &num, &list);
 
   // The virtual node, of which all tables are disqualified after the timestamp intersection,
   // is removed to avoid next stage query.
@@ -314,7 +314,7 @@ static void filterVgroupTables(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
 static SArray* buildVgroupTableByResult(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
-  tsBufGetVnodeIdList(pQueryInfo->tsBuf, &num, &list);
+  tsBufGetGroupIdList(pQueryInfo->tsBuf, &num, &list);
 
   size_t numOfGroups = taosArrayGetSize(pVgroupTables);
 
@@ -523,7 +523,7 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
   assert(pSqlObj->subState.numOfRemain > 0);
 
   if (atomic_sub_fetch_32(&pSqlObj->subState.numOfRemain, 1) <= 0) {
-    tscError("%p all subquery return and query failed, global code:%d", pSqlObj, pSqlObj->res.code);
+    tscError("%p all subquery return and query failed, global code:%s", pSqlObj, tstrerror(pSqlObj->res.code));
     freeJoinSubqueryObj(pSqlObj);
   }
 }
@@ -565,7 +565,7 @@ int32_t tagValCompar(const void* p1, const void* p2) {
     return (tag1->len > tag2->len)? 1: -1;
   }
 
-  return strncmp(tag1->data, tag2->data, tag1->len);
+  return memcmp(tag1->data, tag2->data, tag1->len);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {
@@ -853,11 +853,15 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   if (taosArrayGetSize(s1) == 0 || taosArrayGetSize(s2) == 0) {  // no results,return.
+    assert(pParentSql->fp != tscJoinQueryCallback);
+
     tscDebug("%p tag intersect does not generated qualified tables for join, free all sub SqlObj and quit", pParentSql);
     freeJoinSubqueryObj(pParentSql);
 
     // set no result command
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    assert(pParentSql->fp != tscJoinQueryCallback);
+
     (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
   } else {
     // proceed to for ts_comp query
@@ -2366,7 +2370,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
 
     size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    pRes->numOfCols =  (int32_t)numOfExprs;
+    pRes->numOfCols =  (int16_t)numOfExprs;
 
     pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
     pRes->buffer = calloc(numOfExprs, POINTER_BYTES);

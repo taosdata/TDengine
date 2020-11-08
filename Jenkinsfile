@@ -27,6 +27,7 @@ pipeline {
             cd debug
             cmake .. > /dev/null
             make > /dev/null
+            make install > /dev/null
             cd ${WKC}/tests
             #./test-all.sh smoke
             ./test-all.sh pytest
@@ -89,7 +90,6 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
-                ./crash_gen.sh --valgrind -p -t 10 -s 100 -b 4
                 ./handle_crash_gen_val_log.sh
                 '''
             }

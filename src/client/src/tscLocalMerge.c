@@ -97,6 +97,9 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
       pCtx->param[2].i64Key = pQueryInfo->order.order;
       pCtx->param[2].nType  = TSDB_DATA_TYPE_BIGINT;
       pCtx->param[1].i64Key = pQueryInfo->order.orderColId;
+    } else if (functionId == TSDB_FUNC_APERCT) {
+      pCtx->param[0].i64Key = pExpr->param[0].i64Key;
+      pCtx->param[0].nType  = pExpr->param[0].nType;
     }
 
     pCtx->interBufBytes = pExpr->interBytes;

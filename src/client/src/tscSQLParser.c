@@ -2758,6 +2758,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
   const char* msg1 = "too many columns in group by clause";
   const char* msg2 = "invalid column name in group by clause";
   const char* msg3 = "columns from one table allowed as group by columns";
+  const char* msg4 = "join query does not support group by";
   const char* msg7 = "not support group by expression";
   const char* msg8 = "not allowed column type for group by";
   const char* msg9 = "tags not allowed for table query";
@@ -2776,6 +2777,10 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
   pQueryInfo->groupbyExpr.numOfGroupCols = pList->nExpr;
   if (pList->nExpr > TSDB_MAX_TAGS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
+  if (pQueryInfo->numOfTables > 1) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   STableMeta* pTableMeta = NULL;
@@ -5306,6 +5311,7 @@ static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->replications = pCreateDb->replica;
   pMsg->quorum = pCreateDb->quorum;
   pMsg->ignoreExist = pCreateDb->ignoreExists;
+  pMsg->update = pCreateDb->update;
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {

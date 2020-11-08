@@ -1609,7 +1609,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
 
   pRuntimeEnv->pCtx = (SQLFunctionCtx *)calloc(pQuery->numOfOutput, sizeof(SQLFunctionCtx));
   pRuntimeEnv->rowCellInfoOffset = calloc(pQuery->numOfOutput, sizeof(int32_t));
-  pRuntimeEnv->pResultRow = getNewResultRow(pRuntimeEnv->pool);//calloc(1, sizeof(SResultRow));
+  pRuntimeEnv->pResultRow = getNewResultRow(pRuntimeEnv->pool);
 
   if (pRuntimeEnv->pResultRow == NULL || pRuntimeEnv->pCtx == NULL || pRuntimeEnv->rowCellInfoOffset == NULL) {
     goto _clean;
@@ -1745,6 +1745,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   pRuntimeEnv->pTSBuf = tsBufDestroy(pRuntimeEnv->pTSBuf);
   taosTFree(pRuntimeEnv->keyBuf);
+  taosTFree(pRuntimeEnv->rowCellInfoOffset);
 
   taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
   pRuntimeEnv->pResultRowHashTable = NULL;
@@ -3843,7 +3844,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, &pTableQueryInfo->tag);
 
       // failed to find data with the specified tag value and vnodeId
-      if (elem.vnode < 0) {
+      if (!tsBufIsValidElem(&elem)) {
         if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
           qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
         } else {
@@ -4777,7 +4778,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
     if (pRuntimeEnv->cur.vgroupIndex == -1) {
       STSElem elem = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, pTag);
       // failed to find data with the specified tag value and vnodeId
-      if (elem.vnode < 0) {
+      if (!tsBufIsValidElem(&elem)) {
         if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
           qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
         } else {
@@ -4802,7 +4803,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
 
         STSElem elem1 = tsBufGetElemStartPos(pRuntimeEnv->pTSBuf, pQInfo->vgId, pTag);
         // failed to find data with the specified tag value and vnodeId
-        if (elem1.vnode < 0) {
+        if (!tsBufIsValidElem(&elem1)) {
           if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
             qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
           } else {

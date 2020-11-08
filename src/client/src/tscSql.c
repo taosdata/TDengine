@@ -161,7 +161,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
-  taosAddRef(tscRefId, pObj);
+  pObj->rid = taosAddRef(tscRefId, pObj);
   return pSql;
 }
 
@@ -279,9 +279,9 @@ void taos_close(TAOS *taos) {
 
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
-    if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
-      rpcCancelRequest(pHb->pRpcCtx);
-      pHb->pRpcCtx = NULL;
+    if (pHb->rpcRid > 0) {  // wait for rsp from dnode
+      rpcCancelRequest(pHb->rpcRid);
+      pHb->rpcRid = -1;
     }
 
     tscDebug("%p HB is freed", pHb);
@@ -298,7 +298,7 @@ void taos_close(TAOS *taos) {
 
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
 
-  taosRemoveRef(tscRefId, pObj);
+  taosRemoveRef(tscRefId, pObj->rid);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
@@ -748,9 +748,9 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     assert(pSubObj->self == (SSqlObj**) p);
 
     pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSubObj->pRpcCtx != NULL) {
-      rpcCancelRequest(pSubObj->pRpcCtx);
-      pSubObj->pRpcCtx = NULL;
+    if (pSubObj->rpcRid > 0) {
+      rpcCancelRequest(pSubObj->rpcRid);
+      pSubObj->rpcRid = -1;
     }
 
     tscQueueAsyncRes(pSubObj);
@@ -775,7 +775,7 @@ void taos_stop_query(TAOS_RES *res) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    assert(pSql->pRpcCtx == NULL);
+    assert(pSql->rpcRid <= 0);
     tscKillSTableQuery(pSql);
   } else {
     if (pSql->cmd.command < TSDB_SQL_LOCAL) {
@@ -784,9 +784,9 @@ void taos_stop_query(TAOS_RES *res) {
        * reset and freed in the processMsgFromServer function, and causes the invalid
        * write problem for rpcCancelRequest.
        */
-      if (pSql->pRpcCtx != NULL) {
-        rpcCancelRequest(pSql->pRpcCtx);
-        pSql->pRpcCtx = NULL;
+      if (pSql->rpcRid > 0) {
+        rpcCancelRequest(pSql->rpcRid);
+        pSql->rpcRid = -1;
       }
 
       tscQueueAsyncRes(pSql);
