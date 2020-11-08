@@ -16,6 +16,7 @@
 #define _BSD_SOURCE
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
+#define _GNU_SOURCE
 
 #include "os.h"
 #include "qAst.h"
