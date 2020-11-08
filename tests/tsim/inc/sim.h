@@ -100,7 +100,7 @@ typedef struct _cmd_t {
   int16_t cmdno;
   int16_t nlen;
   char    name[MAX_SIM_CMD_NAME_LEN];
-  bool  (*parseCmd)(char *, struct _cmd_t *, int);
+  bool  (*parseCmd)(char *, struct _cmd_t *, int32_t);
   bool  (*executeCmd)(struct _script_t *script, char *option);
   struct _cmd_t *next;
 } SCommand;
@@ -111,7 +111,7 @@ typedef struct {
   int16_t errorJump;   // sql jump flag, while '-x' exist in sql cmd, this flag
                        // will be SQL_JUMP_TRUE, otherwise is SQL_JUMP_FALSE */
   int16_t lineNum;     // correspodning line number in original file
-  int optionOffset;  // relative option offset
+  int32_t optionOffset;// relative option offset
 } SCmdLine;
 
 typedef struct _var_t {
@@ -121,59 +121,56 @@ typedef struct _var_t {
 } SVariable;
 
 typedef struct _script_t {
-  int  type;
-  bool killed;
-
-  void *taos;
-  char rows[12];  // number of rows data retrieved
-  char data[MAX_QUERY_ROW_NUM][MAX_QUERY_COL_NUM]
-           [MAX_QUERY_VALUE_LEN];  // query results
-  char system_exit_code[12];
-  char system_ret_content[MAX_SYSTEM_RESULT_LEN];
-
-  int  varLen;
-  int  linePos;     // current cmd position
-  int  numOfLines;  // number of lines in the script
-  int  bgScriptLen;
-  char fileName[MAX_FILE_NAME_LEN];  // script file name
-  char error[MAX_ERROR_LEN];
-  char *optionBuffer;
+  int32_t   type;
+  bool      killed;
+  void *    taos;
+  char      rows[12];                                                         // number of rows data retrieved
+  char      data[MAX_QUERY_ROW_NUM][MAX_QUERY_COL_NUM][MAX_QUERY_VALUE_LEN];  // query results
+  char      system_exit_code[12];
+  char      system_ret_content[MAX_SYSTEM_RESULT_LEN];
+  int32_t   varLen;
+  int32_t   linePos;     // current cmd position
+  int32_t   numOfLines;  // number of lines in the script
+  int32_t   bgScriptLen;
+  char      fileName[MAX_FILE_NAME_LEN];  // script file name
+  char      error[MAX_ERROR_LEN];
+  char *    optionBuffer;
   SCmdLine *lines;  // command list
   SVariable variables[MAX_VAR_LEN];
+  pthread_t bgPid;
+  char      auth[128];
   struct _script_t *bgScripts[MAX_BACKGROUND_SCRIPT_NUM];
-  char auth[128];
 } SScript;
 
 extern SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 extern SCommand simCmdList[];
-extern int simScriptPos;
-extern int simScriptSucced;
-extern int simDebugFlag;
-extern char tsScriptDir[];
-extern bool simAsyncQuery;
+extern int32_t  simScriptPos;
+extern int32_t  simScriptSucced;
+extern int32_t  simDebugFlag;
+extern char     tsScriptDir[];
+extern bool     simAsyncQuery;
 
 SScript *simParseScript(char *fileName);
-
 SScript *simProcessCallOver(SScript *script);
-void *simExecuteScript(void *script);
-void simInitsimCmdList();
-bool simSystemInit();
-void simSystemCleanUp();
-char *simGetVariable(SScript *script, char *varName, int varLen);
-bool simExecuteExpCmd(SScript *script, char *option);
-bool simExecuteTestCmd(SScript *script, char *option);
-bool simExecuteGotoCmd(SScript *script, char *option);
-bool simExecuteRunCmd(SScript *script, char *option);
-bool simExecuteRunBackCmd(SScript *script, char *option);
-bool simExecuteSystemCmd(SScript *script, char *option);
-bool simExecuteSystemContentCmd(SScript *script, char *option);
-bool simExecutePrintCmd(SScript *script, char *option);
-bool simExecuteSleepCmd(SScript *script, char *option);
-bool simExecuteReturnCmd(SScript *script, char *option);
-bool simExecuteSqlCmd(SScript *script, char *option);
-bool simExecuteSqlErrorCmd(SScript *script, char *rest);
-bool simExecuteSqlSlowCmd(SScript *script, char *option);
-bool simExecuteRestfulCmd(SScript *script, char *rest);
-void simVisuallizeOption(SScript *script, char *src, char *dst);
+void *   simExecuteScript(void *script);
+void     simInitsimCmdList();
+bool     simSystemInit();
+void     simSystemCleanUp();
+char *   simGetVariable(SScript *script, char *varName, int32_t varLen);
+bool     simExecuteExpCmd(SScript *script, char *option);
+bool     simExecuteTestCmd(SScript *script, char *option);
+bool     simExecuteGotoCmd(SScript *script, char *option);
+bool     simExecuteRunCmd(SScript *script, char *option);
+bool     simExecuteRunBackCmd(SScript *script, char *option);
+bool     simExecuteSystemCmd(SScript *script, char *option);
+bool     simExecuteSystemContentCmd(SScript *script, char *option);
+bool     simExecutePrintCmd(SScript *script, char *option);
+bool     simExecuteSleepCmd(SScript *script, char *option);
+bool     simExecuteReturnCmd(SScript *script, char *option);
+bool     simExecuteSqlCmd(SScript *script, char *option);
+bool     simExecuteSqlErrorCmd(SScript *script, char *rest);
+bool     simExecuteSqlSlowCmd(SScript *script, char *option);
+bool     simExecuteRestfulCmd(SScript *script, char *rest);
+void     simVisuallizeOption(SScript *script, char *src, char *dst);
 
 #endif
