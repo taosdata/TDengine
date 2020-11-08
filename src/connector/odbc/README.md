@@ -30,6 +30,7 @@ SQLSetConnectAttr
 SQLDescribeCol
 SQLNumParams
 SQLSetStmtAttr
+ConfigDSN
 `
 
 - **internationalized, you can specify different charset/code page for easy going. eg.: insert `utf-8.zh_cn` characters into database located in linux machine, while query them out in `gb2312/gb18030/...` code page in your chinese windows machine, or vice-versa. and much fun, insert `gb2312/gb18030/...` characters into database located in linux box from
@@ -61,6 +62,7 @@ rm -rf debug && cmake -B debug && cmake --build debug && cmake --install debug &
 - open your `Command Prompt` with Administrator's priviledge
 - remove previously installed TAOS ODBC driver: run `C:\TDengine\todbcinst -u -f -n TAOS`
 - install TAOS ODBC driver that was just built: run `C:\TDengine\todbcinst -i -n TAOS -p C:\TDengine\driver`
+- add a new user dsn: run `odbcconf CONFIGDSN TAOS "DSN=TAOS_DSN|Server=<fqdn>:<port>`
 
 # Test
 we highly suggest that you build both in linux(ubuntu) and windows(windows 10) platform, because currently TAOS only has it's server-side port on linux platform.
@@ -72,11 +74,15 @@ taosd -c ./debug/test/cfg
 ```
 ## create data in linux
 ```
-./debug/build/bin/tcodbc 'Driver=TAOS;UID=<uid>;PWD=<pwd>;Host=<fqdn>:6030;server_enc=UTF-8' ./src/connector/odbc/tests/create_data.stmts
+./debug/build/bin/tcodbc --dsn TAOS_DSN --uid <uid> --pwd <pwd> --sts ./src/connector/odbc/tests/create_data.stmts
+--<or with driver connection string -->
+./debug/build/bin/tcodbc --dcs 'Driver=TAOS;UID=<uid>;PWD=<pwd>;Server=<fqdn>:<port>;client_enc=UTF-8' ./src/connector/odbc/tests/create_data.stmts
 ```
 ## query data in windows
 ```
-.\debug\build\bin\tcodbc "Driver=TAOS;UID=<uid>;PWD=<pwd>;Host=<fqdn>:6030;server_enc=UTF-8" .\src\connector\odbc\tests\query_data.stmts
+.\debug\build\bin\tcodbc --dsn TAOS_DSN --uid <uid> --pwd <pwd> --sts .\src\connector\odbc\tests\query_data.stmts
+--<or with driver connection string -->
+.\debug\build\bin\tcodbc --dcs "Driver=TAOS;UID=<uid>;PWD=<pwd>;Server=<fqdn>:<port>;client_enc=UTF-8" .\src\connector\odbc\tests\query_data.stmts
 ```
 
 

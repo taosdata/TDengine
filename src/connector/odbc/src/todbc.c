@@ -2877,22 +2877,25 @@ SQLRETURN SQL_API SQLSetStmtAttr(SQLHSTMT StatementHandle,
 
 #ifdef _MSC_VER
 
-#define LOG(fmt, ...)                                \
-do {                                                 \
-  FILE *fout = fopen("C:\\test\\test.log", "ab+");   \
-  if (!fout) break;                                  \
-  fprintf(fout, "%s" fmt "\n", "", ##__VA_ARGS__);   \
-  fprintf(stderr, "%s" fmt "\n", "", ##__VA_ARGS__); \
-  fclose(fout);                                      \
+#define POST_INSTALLER_ERROR(hwndParent, code, fmt, ...)             \
+do {                                                                 \
+  char buf[4096];                                                    \
+  snprintf(buf, sizeof(buf), "%s[%d]%s():" fmt "",                   \
+           basename((char*)__FILE__), __LINE__, __func__,            \
+           ##__VA_ARGS__);                                           \
+  SQLPostInstallerError(code, buf);                                  \
+  if (hwndParent) {                                                  \
+    MessageBox(hwndParent, buf, "Error", MB_OK|MB_ICONEXCLAMATION);  \
+  }                                                                  \
 } while (0)
 
 typedef struct kv_s           kv_t;
 struct kv_s {
-  char *line;
-  int   val;
+  char    *line;
+  size_t   val;
 };
 
-static BOOL get_driver_dll_path(char *buf, size_t len)
+static BOOL get_driver_dll_path(HWND hwndParent, char *buf, size_t len)
 {
   HMODULE hm = NULL;
 
@@ -2900,13 +2903,13 @@ static BOOL get_driver_dll_path(char *buf, size_t len)
           (LPCSTR) &ConfigDSN, &hm) == 0)
   {
       int ret = GetLastError();
-      LOG("GetModuleHandle failed, error = %d\n", ret);
+      POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_REQUEST_FAILED, "GetModuleHandle failed, error = %d\n", ret);
       return FALSE;
   }
-  if (GetModuleFileName(hm, buf, len) == 0)
+  if (GetModuleFileName(hm, buf, (DWORD)len) == 0)
   {
       int ret = GetLastError();
-      LOG("GetModuleFileName failed, error = %d\n", ret);
+      POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_REQUEST_FAILED, "GetModuleFileName failed, error = %d\n", ret);
       return FALSE;
   }
   return TRUE;
@@ -2923,8 +2926,7 @@ static BOOL doDSNAdd(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
 
   do {
     char driver_dll[MAX_PATH + 1];
-    r = get_driver_dll_path(driver_dll, sizeof(driver_dll));
-    LOG("path: [%s]", driver_dll);
+    r = get_driver_dll_path(hwndParent, driver_dll, sizeof(driver_dll));
     if (!r) break;
 
     dsn.line = strdup("DSN=TAOS_DEMO");
@@ -2933,7 +2935,6 @@ static BOOL doDSNAdd(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
     const char *p = lpszAttributes;
     int ikvs = 0;
     while (p && *p) {
-      LOG("attr: [%s]", p);
       line = strdup(p);
       if (!line) { r = FALSE; break; }
       char *v = strchr(line, '=');
@@ -2974,23 +2975,17 @@ static BOOL doDSNAdd(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttributes)
     dsn.val = v - dsn.line + 1;
 
     if ((!dsn.line)) {
-      if (!r) LOG("lack of either DSN or Driver");
+      if (!r) POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_REQUEST_FAILED, "lack of either DSN or Driver");
     } else {
-      LOG("DSN/Driver[%s/%s]", dsn.line+dsn.val, lpszDriver);
       if (r) r = SQLWritePrivateProfileString("ODBC Data Sources", dsn.line+dsn.val, lpszDriver, "Odbc.ini");
-      LOG("r:%d", r);
-      LOG("DSN/Driver_dll[%s/%s]", dsn.line+dsn.val, driver_dll);
       if (r) r = SQLWritePrivateProfileString(dsn.line+dsn.val, "Driver", driver_dll, "Odbc.ini");
-      LOG("r:%d", r);
     }
 
     for (int i=0; r && i<ikvs; ++i) {
       const char *k = kvs[i].line;
       const char *v = NULL;
       if (kvs[i].val) v = kvs[i].line + kvs[i].val;
-      LOG("DSN[%s]/%s/%s", dsn.line+dsn.val, k, v);
       r = SQLWritePrivateProfileString(dsn.line+dsn.val, k, v, "Odbc.ini");
-      LOG("r:%d", r);
     }
   } while (0);
 
@@ -3004,7 +2999,6 @@ static BOOL doDSNConfig(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttribute
 {
   const char *p = lpszAttributes;
   while (p && *p) {
-    LOG("attr: [%s]", p);
     p += strlen(p) + 1;
   }
   return FALSE;
@@ -3021,7 +3015,6 @@ static BOOL doDSNRemove(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttribute
     const char *p = lpszAttributes;
     int ikvs = 0;
     while (p && *p) {
-      LOG("attr: [%s]", p);
       line = strdup(p);
       if (!line) { r = FALSE; break; }
       char *v = strchr(line, '=');
@@ -3049,26 +3042,21 @@ static BOOL doDSNRemove(HWND	hwndParent, LPCSTR	lpszDriver, LPCSTR lpszAttribute
     if (!r) break;
 
     if (!dsn.line) {
-      LOG("lack of DSN");
+      POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_REQUEST_FAILED, "lack of DSN");
       r = FALSE;
       break;
     }
 
-    LOG("delete ODBC Data Sources/[%s]", dsn.line+dsn.val);
     r = SQLWritePrivateProfileString("ODBC Data Sources", dsn.line+dsn.val, NULL, "Odbc.ini");
-    LOG("r:%d", r);
     if (!r) break;
 
     char buf[8192];
-    LOG("fetch DSN[%s]", dsn.line+dsn.val);
     r = SQLGetPrivateProfileString(dsn.line+dsn.val, NULL, "null", buf, sizeof(buf), "Odbc.ini");
-    LOG("r:%d", r);
     if (!r) break;
 
     int n = 0;
     char *s = buf;
     while (s && *s && n++<10) {
-      LOG("delete %s/[%s]", dsn.line+dsn.val, s);
       SQLWritePrivateProfileString(dsn.line+dsn.val, s, NULL, "Odbc.ini");
       s += strlen(s) + 1;
     }
@@ -3089,7 +3077,6 @@ static BOOL doConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCST
     case ODBC_REMOVE_DSN: sReq = "ODBC_REMOVE_DSN";   break;
     default:              sReq = "UNKNOWN";           break;
   }
-  LOG("req:[%s];Driver:[%s];Attr:[%s]", sReq, lpszDriver, lpszAttributes);
   switch(fRequest) {
     case ODBC_ADD_DSN: {
       r = doDSNAdd(hwndParent, lpszDriver, lpszAttributes);
@@ -3101,6 +3088,7 @@ static BOOL doConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCST
       r = doDSNRemove(hwndParent, lpszDriver, lpszAttributes);
     } break;
     default: {
+      POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_GENERAL_ERR, "not implemented yet");
       r = FALSE;
     } break;
   }
@@ -3116,12 +3104,14 @@ BOOL INSTAPI ConfigDSN(HWND	hwndParent, WORD fRequest, LPCSTR	lpszDriver, LPCSTR
 
 BOOL INSTAPI ConfigTranslator(HWND hwndParent, DWORD *pvOption)
 {
+  POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_GENERAL_ERR, "not implemented yet");
   return FALSE;
 }
 
 BOOL INSTAPI ConfigDriver(HWND hwndParent, WORD fRequest, LPCSTR lpszDriver, LPCSTR lpszArgs,
                           LPSTR lpszMsg, WORD cbMsgMax, WORD *pcbMsgOut)
 {
+  POST_INSTALLER_ERROR(hwndParent, ODBC_ERROR_GENERAL_ERR, "not implemented yet");
   return FALSE;
 }
 

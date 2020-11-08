@@ -57,7 +57,7 @@ do {                                                 \
         yyextra->pwd = strdup(yytext);               \
         break;                                       \
     }                                                \
-    if (strcasecmp(yyextra->key, "HOST")==0) {       \
+    if (strcasecmp(yyextra->key, "Server")==0) {     \
         free(yyextra->server);                       \
         yyextra->server = strdup(yytext);            \
         break;                                       \
