@@ -24,7 +24,7 @@ extern "C" {
 typedef int32_t (*FCqWrite)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
 typedef struct {
-  int      vgId;
+  int32_t vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_DB_NAME_LEN];
@@ -42,12 +42,12 @@ void  cqStart(void *handle);
 void  cqStop(void *handle);
 
 // cqCreate is called by TSDB to start an instance of CQ 
-void *cqCreate(void *handle, uint64_t uid, int sid, char *sqlStr, STSchema *pSchema);
+void *cqCreate(void *handle, uint64_t uid, int32_t sid, char *sqlStr, STSchema *pSchema);
 
 // cqDrop is called by TSDB to stop an instance of CQ, handle is the return value of cqCreate
 void  cqDrop(void *handle);
 
-extern int cqDebugFlag;
+extern int32_t cqDebugFlag;
 
 
 #ifdef __cplusplus
