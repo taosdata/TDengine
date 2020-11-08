@@ -227,6 +227,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   pVnode->vgId     = vnode;
   pVnode->status   = TAOS_VN_STATUS_INIT;
+  pVnode->fversion = 0;
   pVnode->version  = 0;  
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   pVnode->rootDir = strdup(rootDir);
@@ -288,6 +289,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
       vnodeCleanUp(pVnode);
       return terrno;
     } else {
+      pVnode->fversion = 0;
       pVnode->version = 0;
     }
   }
@@ -302,6 +304,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
 
   walRestore(pVnode->wal, pVnode, vnodeProcessWrite);
   if (pVnode->version == 0) {
+    pVnode->fversion = 0;
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
