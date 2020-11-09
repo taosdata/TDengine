@@ -99,8 +99,8 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
-    wTrace("vgId:%d, fileId:%" PRId64 " fd:%d, write wal ver:%" PRId64 ", head ver:%" PRIu64 ", len:%d ", pWal->vgId,
-           pWal->fileId, pWal->fd, pWal->version, pHead->version, pHead->len);
+    wTrace("vgId:%d, write wal, fileId:%" PRId64 " fd:%d hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+           pWal->fileId, pWal->fd, pHead->version, pWal->version, pHead->len);
     pWal->version = pHead->version;
   }
 
@@ -261,7 +261,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
-      wError("vgId:%d, file:%s, wal head cksum is messed up, ver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
+      wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
       code = walSkipCorruptedRecord(pWal, pHead, fd, &offset);
       if (code != TSDB_CODE_SUCCESS) {
@@ -297,8 +297,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId, fileId,
-           pWal->version, pHead->version, pHead->len);
+    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+           fileId, pHead->version, pWal->version, pHead->len);
 
     pWal->version = pHead->version;
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);

@@ -256,7 +256,7 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, 
   }
 
   (void)lseek(sfd, offset, SEEK_SET);
-  sDebug("%s, retrieve last wal, offset:%" PRId64 " fversion:%" PRIu64, pPeer->id, offset, fversion);
+  sDebug("%s, retrieve last wal, offset:%" PRId64 " fver:%" PRIu64, pPeer->id, offset, fversion);
 
   while (1) {
     int wsize = syncReadOneWalRecord(sfd, pHead, pEvent);
@@ -325,7 +325,7 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) {
       // if all data up to fversion is read out, it is over
       if (pPeer->sversion >= fversion && fversion > 0) {
         code = 0;
-        sDebug("%s, data up to fversion:%" PRId64 " has been read out, bytes:%d", pPeer->id, fversion, bytes);
+        sDebug("%s, data up to fver:%" PRIu64 " has been read out, bytes:%d", pPeer->id, fversion, bytes);
         break;
       }
 

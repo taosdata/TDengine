@@ -218,6 +218,8 @@ int32_t (*monitorStartSystemFp)() = NULL;
 void (*monitorStopSystemFp)() = NULL;
 void (*monitorExecuteSQLFp)(char *sql) = NULL;
 
+char *qtypeStr[] = {"rpc", "fwd", "wal", "cq", "query"};
+
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
