@@ -208,8 +208,8 @@ if __name__ == '__main__':
         'case1': {'engine':'taosd', 'table_num': 10, 'circle': 100, 'number_per_table':[10, 100], 'col_num': 5,
                   'col_type': 'INT', 'db_name': 'test', 'sql_func':  case1, 'ding_flag': True,
                   'ding_config':
-                      {'urls': [r'https://oapi.dingtalk.com/robot/send?access_token=58fe61c28ee7142a90d2b1e7b9a8b9d99f502f248739c12a7fb62579edc0cd93'],
-                       'at_mobiles':[17080138990,],}},
+                      {'urls': [r'https://oapi.dingtalk.com/robot/send?access_token=xxxxxxx0cd93'],
+                       'at_mobiles':[17000000000,],}},
         'case2': {'engine':'taosd', 'table_num': 10, 'circle': 50, 'number_per_table':[10, 100], 'col_num': 5,
                   'col_type': 'FLOAT', 'db_name': 'test', 'sql_func':  case2, 'ding_flag': False,
                   'ding_config': None
