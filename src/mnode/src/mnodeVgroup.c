@@ -529,7 +529,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
     SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
     (void)sdbUpdateRow(&desc);
 
-    dnodeReprocessMnodeWriteMsg(pMsg);
+    dnodeReprocessMWriteMsg(pMsg);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     // if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_READY) {
     //   mInfo("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
@@ -537,7 +537,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
     //   pVgroup->status = TAOS_VG_STATUS_READY;
     //   SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
     //   (void)sdbUpdateRow(&desc);
-    //   dnodeReprocessMnodeWriteMsg(pMsg);
+    //   dnodeReprocessMWriteMsg(pMsg);
     //   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     // } else {
     //   mError("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d, but vgroup is dropping", pMsg->rpcMsg.ahandle,
@@ -694,7 +694,7 @@ static bool mnodeFilterVgroups(SVgObj *pVgroup, STableObj *pTable) {
     return true;
   }
 
-  SChildTableObj *pCTable = (SChildTableObj *)pTable;
+  SCTableObj *pCTable = (SCTableObj *)pTable;
   if (pVgroup->vgId == pCTable->vgId) {
     return true;
   } else {
@@ -791,7 +791,7 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
-void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
+void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
   if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
@@ -807,7 +807,7 @@ void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   }
 }
 
-void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
+void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   if (pTable->tid >= 1) {
     taosFreeId(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables--;
@@ -970,7 +970,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pVgroup = NULL;
       mnodeDestroyVgroup(pVgroup);
-      dnodeSendRpcMnodeWriteRsp(mnodeMsg, code);
+      dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
     SSdbOper oper = {
@@ -979,7 +979,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       .pObj = pVgroup
     };
     sdbDeleteRow(&oper);
-    dnodeSendRpcMnodeWriteRsp(mnodeMsg, mnodeMsg->code);
+    dnodeSendRpcMWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }
 
@@ -1041,7 +1041,7 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
     code = TSDB_CODE_MND_SDB_ERROR;
   }
 
-  dnodeReprocessMnodeWriteMsg(mnodeMsg);
+  dnodeReprocessMWriteMsg(mnodeMsg);
 }
 
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) {

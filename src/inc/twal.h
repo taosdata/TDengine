@@ -25,9 +25,15 @@ typedef enum {
   TAOS_WAL_FSYNC = 2
 } EWalType;
 
+typedef enum {
+  TAOS_WAL_NOT_KEEP = 0,
+  TAOS_WAL_KEEP = 1
+} EWalKeep;
+
 typedef struct {
   int8_t   msgType;
-  int8_t   reserved[3];
+  int8_t   sver;
+  int8_t   reserved[2];
   int32_t  len;
   uint64_t version;
   uint32_t signature;
@@ -36,11 +42,10 @@ typedef struct {
 } SWalHead;
 
 typedef struct {
-  int32_t vgId;
-  int32_t fsyncPeriod;  // millisecond
-  int8_t  walLevel;     // wal level
-  int8_t  wals;         // number of WAL files;
-  int8_t  keep;         // keep the wal file when closed
+  int32_t  vgId;
+  int32_t  fsyncPeriod;  // millisecond
+  EWalType walLevel;     // wal level
+  EWalKeep keep;         // keep the wal file when closed
 } SWalCfg;
 
 typedef void *  twalh;  // WAL HANDLE
@@ -58,7 +63,7 @@ int32_t walWrite(twalh, SWalHead *);
 void    walFsync(twalh, bool forceFsync);
 int32_t walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int32_t walGetWalFile(twalh, char *fileName, int64_t *fileId);
-int64_t walGetVersion(twalh);
+uint64_t walGetVersion(twalh);
 
 #ifdef __cplusplus
 }

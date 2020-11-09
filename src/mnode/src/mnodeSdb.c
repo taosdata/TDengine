@@ -72,7 +72,7 @@ typedef struct {
   ESyncRole  role;
   ESdbStatus status;
   int64_t    version;
-  void *     sync;
+  int64_t    sync;
   void *     wal;
   SSyncCfg   cfg;
   int32_t    numOfTables;
@@ -175,7 +175,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.vgId = 1, .walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -212,7 +212,7 @@ static void sdbRestoreTables() {
 }
 
 void sdbUpdateMnodeRoles() {
-  if (tsSdbObj.sync == NULL) return;
+  if (tsSdbObj.sync <= 0) return;
 
   SNodesRole roles = {0};
   syncGetNodesRole(tsSdbObj.sync, &roles);
@@ -295,7 +295,7 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
   if (pOper->writeCb != NULL) {
     pOper->retCode = (*pOper->writeCb)(pMsg, pOper->retCode);
   }
-  dnodeSendRpcMnodeWriteRsp(pMsg, pOper->retCode);
+  dnodeSendRpcMWriteRsp(pMsg, pOper->retCode);
 
   // if ahandle, means this func is called by sdb write
   if (ahandle == NULL) {
@@ -433,7 +433,7 @@ void sdbCleanUp() {
 
   if (tsSdbObj.sync) {
     syncStop(tsSdbObj.sync);
-    tsSdbObj.sync = NULL;
+    tsSdbObj.sync = -1;
   }
 
   if (tsSdbObj.wal) {
@@ -1043,7 +1043,7 @@ void sdbFreeWritequeue() {
 int32_t sdbWriteToQueue(void *param, void *data, int32_t qtype, void *pMsg) {
   SWalHead *pHead = data;
   int32_t   size = sizeof(SWalHead) + pHead->len;
-  SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);
+  SWalHead *pWal = taosAllocateQitem(size);
   memcpy(pWal, pHead, size);
 
   taosWriteQitem(tsSdbWriteQueue, qtype, pWal);

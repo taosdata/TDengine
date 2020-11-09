@@ -78,7 +78,8 @@ void *walOpen(char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-  if (taosAddRef(tsWal.refId, pWal) != TSDB_CODE_SUCCESS) {
+   pWal->rid = taosAddRef(tsWal.refId, pWal);
+   if (pWal->rid < 0) {
     walFreeObj(pWal);
     return NULL;
   }
@@ -127,7 +128,7 @@ void walClose(void *handle) {
 
   taosClose(pWal->fd);
 
-  if (!pWal->keep) {
+  if (pWal->keep != TAOS_WAL_KEEP) {
     int64_t fileId = -1;
     while (walGetNextFile(pWal, &fileId) >= 0) {
       snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
@@ -143,7 +144,7 @@ void walClose(void *handle) {
   }
 
   pthread_mutex_unlock(&pWal->mutex);
-  taosRemoveRef(tsWal.refId, pWal);
+  taosRemoveRef(tsWal.refId, pWal->rid);
 }
 
 static int32_t walInitObj(SWal *pWal) {
@@ -185,7 +186,7 @@ static void walUpdateSeq() {
 }
 
 static void walFsyncAll() {
-  SWal *pWal = taosIterateRef(tsWal.refId, NULL);
+  SWal *pWal = taosIterateRef(tsWal.refId, 0);
   while (pWal) {
     if (walNeedFsync(pWal)) {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, tsWal.seq);
@@ -194,7 +195,7 @@ static void walFsyncAll() {
         wError("vgId:%d, file:%s, failed to fsync since %s", pWal->vgId, pWal->name, strerror(code));
       }
     }
-    pWal = taosIterateRef(tsWal.refId, pWal);
+    pWal = taosIterateRef(tsWal.refId, pWal->rid);
   }
 }
 

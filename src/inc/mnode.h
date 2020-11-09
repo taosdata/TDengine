@@ -35,7 +35,13 @@ typedef struct {
 } SMnodeRsp;
 
 typedef struct SMnodeMsg {
-  SRpcMsg   rpcMsg;
+  struct SAcctObj * pAcct;
+  struct SDnodeObj *pDnode;
+  struct SUserObj * pUser;
+  struct SDbObj *   pDb;
+  struct SVgObj *   pVgroup;
+  struct STableObj *pTable;
+  struct SSTableObj*pSTable;
   SMnodeRsp rpcRsp;
   int8_t    received;
   int8_t    successed;
@@ -43,16 +49,11 @@ typedef struct SMnodeMsg {
   int8_t    retry;
   int32_t   code;
   void *    pObj;
-  struct SAcctObj * pAcct;
-  struct SDnodeObj *pDnode;
-  struct SUserObj * pUser;
-  struct SDbObj *   pDb;
-  struct SVgObj *   pVgroup;
-  struct STableObj *pTable;
-  struct SSuperTableObj *pSTable;
+  SRpcMsg   rpcMsg;
+  char      pCont[];
 } SMnodeMsg;
 
-void    mnodeCreateMsg(SMnodeMsg *pMsg, SRpcMsg *rpcMsg);
+void *  mnodeCreateMsg(SRpcMsg *pRpcMsg);
 int32_t mnodeInitMsg(SMnodeMsg *pMsg);
 void    mnodeCleanupMsg(SMnodeMsg *pMsg);
 

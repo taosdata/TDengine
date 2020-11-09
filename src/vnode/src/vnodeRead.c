@@ -15,13 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #define _NON_BLOCKING_RETRIEVE  0
-
 #include "os.h"
-
 #include "tglobal.h"
 #include "taoserror.h"
 #include "taosmsg.h"
-#include "tcache.h"
 #include "query.h"
 #include "trpc.h"
 #include "tsdb.h"
@@ -29,9 +26,9 @@
 #include "vnodeInt.h"
 #include "tqueue.h"
 
-static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pReadMsg);
-static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg);
-static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg);
+static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pRead);
+static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
+static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId);
 
 void vnodeInitReadFp(void) {
@@ -44,16 +41,16 @@ void vnodeInitReadFp(void) {
 // still required, or there will be a deadlock, so we don’t do any check here, but put the check codes before the
 // request enters the queue
 //
-int32_t vnodeProcessRead(void *param, SVReadMsg *pReadMsg) {
+int32_t vnodeProcessRead(void *param, SVReadMsg *pRead) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
-  int32_t    msgType = pReadMsg->msgType;
+  int32_t    msgType = pRead->msgType;
 
   if (vnodeProcessReadMsgFp[msgType] == NULL) {
     vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[msgType]);
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
-  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pReadMsg);
+  return (*vnodeProcessReadMsgFp[msgType])(pVnode, pRead);
 }
 
 static int32_t vnodeCheckRead(void *param) {
@@ -180,27 +177,27 @@ static void vnodeBuildNoResultQueryRsp(SRspRet *pRet) {
   pRsp->completed = true;
 }
 
-static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
-  void *   pCont = pReadMsg->pCont;
-  int32_t  contLen = pReadMsg->contLen;
-  SRspRet *pRet = &pReadMsg->rspRet;
+static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
+  void *   pCont = pRead->pCont;
+  int32_t  contLen = pRead->contLen;
+  SRspRet *pRet = &pRead->rspRet;
 
   SQueryTableMsg *pQueryTableMsg = (SQueryTableMsg *)pCont;
   memset(pRet, 0, sizeof(SRspRet));
 
   // qHandle needs to be freed correctly
-  if (pReadMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-    SRetrieveTableMsg *killQueryMsg = (SRetrieveTableMsg *)pReadMsg->pCont;
+  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    SRetrieveTableMsg *killQueryMsg = (SRetrieveTableMsg *)pRead->pCont;
     killQueryMsg->free = htons(killQueryMsg->free);
     killQueryMsg->qhandle = htobe64(killQueryMsg->qhandle);
 
-    vWarn("QInfo:%p connection %p broken, kill query", (void *)killQueryMsg->qhandle, pReadMsg->rpcHandle);
-    assert(pReadMsg->contLen > 0 && killQueryMsg->free == 1);
+    vWarn("QInfo:%p connection %p broken, kill query", (void *)killQueryMsg->qhandle, pRead->rpcHandle);
+    assert(pRead->contLen > 0 && killQueryMsg->free == 1);
 
     void **qhandle = qAcquireQInfo(pVnode->qMgmt, (uint64_t)killQueryMsg->qhandle);
     if (qhandle == NULL || *qhandle == NULL) {
       vWarn("QInfo:%p invalid qhandle, no matched query handle, conn:%p", (void *)killQueryMsg->qhandle,
-            pReadMsg->rpcHandle);
+            pRead->rpcHandle);
     } else {
       assert(*qhandle == (void *)killQueryMsg->qhandle);
 
@@ -242,9 +239,9 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
       }
 
       if (handle != NULL &&
-          vnodeNotifyCurrentQhandle(pReadMsg->rpcHandle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+          vnodeNotifyCurrentQhandle(pRead->rpcHandle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
         vError("vgId:%d, QInfo:%p, query discarded since link is broken, %p", pVnode->vgId, *handle,
-               pReadMsg->rpcHandle);
+               pRead->rpcHandle);
         pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
         return pRsp->code;
@@ -255,7 +252,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
 
     if (handle != NULL) {
       vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, create qhandle and returns to app", vgId, *handle);
-      code = vnodePutItemIntoReadQueue(pVnode, handle, pReadMsg->rpcHandle);
+      code = vnodePutItemIntoReadQueue(pVnode, handle, pRead->rpcHandle);
       if (code != TSDB_CODE_SUCCESS) {
         pRsp->code = code;
         qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
@@ -264,7 +261,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
     }
   } else {
     assert(pCont != NULL);
-    void **qhandle = (void **)pReadMsg->qhandle;
+    void **qhandle = (void **)pRead->qhandle;
 
     vDebug("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
@@ -276,14 +273,14 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
     // build query rsp, the retrieve request has reached here already
     if (buildRes) {
       // update the connection info according to the retrieve connection
-      pReadMsg->rpcHandle = qGetResultRetrieveMsg(*qhandle);
-      assert(pReadMsg->rpcHandle != NULL);
+      pRead->rpcHandle = qGetResultRetrieveMsg(*qhandle);
+      assert(pRead->rpcHandle != NULL);
 
       vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
-             pReadMsg->rpcHandle);
+             pRead->rpcHandle);
 
       // set the real rsp error code
-      pReadMsg->code = vnodeDumpQueryResult(&pRead->rspRet, pVnode, qhandle, &freehandle, pReadMsg->rpcHandle);
+      pRead->code = vnodeDumpQueryResult(&pRead->rspRet, pVnode, qhandle, &freehandle, pRead->rpcHandle);
 
       // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
       code = TSDB_CODE_QRY_HAS_RSP;
@@ -308,16 +305,16 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
   return code;
 }
 
-static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
-  void *   pCont = pReadMsg->pCont;
-  SRspRet *pRet = &pReadMsg->rspRet;
+static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
+  void *   pCont = pRead->pCont;
+  SRspRet *pRet = &pRead->rspRet;
 
   SRetrieveTableMsg *pRetrieve = pCont;
   pRetrieve->free = htons(pRetrieve->free);
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
   vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, (void *)pRetrieve->qhandle,
-         pRetrieve->free, pReadMsg->rpcHandle);
+         pRetrieve->free, pRead->rpcHandle);
 
   memset(pRet, 0, sizeof(SRspRet));
 
@@ -348,8 +345,8 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
   }
 
   // register the qhandle to connect to quit query immediate if connection is broken
-  if (vnodeNotifyCurrentQhandle(pReadMsg->rpcHandle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, QInfo:%p, retrieve discarded since link is broken, %p", pVnode->vgId, *handle, pReadMsg->rpcHandle);
+  if (vnodeNotifyCurrentQhandle(pRead->rpcHandle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, QInfo:%p, retrieve discarded since link is broken, %p", pVnode->vgId, *handle, pRead->rpcHandle);
     code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     qKillQuery(*handle);
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
@@ -359,7 +356,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
   bool freeHandle = true;
   bool buildRes = false;
 
-  code = qRetrieveQueryResultInfo(*handle, &buildRes, pReadMsg->rpcHandle);
+  code = qRetrieveQueryResultInfo(*handle, &buildRes, pRead->rpcHandle);
   if (code != TSDB_CODE_SUCCESS) {
     // TODO handle malloc failure
     pRet->rsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -370,7 +367,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
     assert(buildRes == true);
 #if _NON_BLOCKING_RETRIEVE
     if (!buildRes) {
-      assert(pReadMsg->rpcHandle != NULL);
+      assert(pRead->rpcHandle != NULL);
 
       qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
       return TSDB_CODE_QRY_NOT_READY;
@@ -378,7 +375,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pReadMsg) {
 #endif
 
     // ahandle is the sqlObj pointer
-    code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle, pReadMsg->rpcHandle);
+    code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle, pRead->rpcHandle);
   }
 
   // If qhandle is not added into vread queue, the query should be completed already or paused with error.

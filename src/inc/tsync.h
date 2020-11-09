@@ -106,13 +106,13 @@ typedef void* tsync_h;
 int32_t syncInit();
 void    syncCleanUp();
 
-tsync_h syncStart(const SSyncInfo *);
-void    syncStop(tsync_h shandle);
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg *);
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype);
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code);
-void    syncRecover(tsync_h shandle);      // recover from other nodes:
-int     syncGetNodesRole(tsync_h shandle, SNodesRole *);
+int64_t syncStart(const SSyncInfo *);
+void    syncStop(int64_t rid);
+int32_t syncReconfig(int64_t rid, const SSyncCfg *);
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int qtype);
+void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code);
+void    syncRecover(int64_t rid);      // recover from other nodes:
+int     syncGetNodesRole(int64_t rid, SNodesRole *);
 
 extern  char *syncRole[];
 

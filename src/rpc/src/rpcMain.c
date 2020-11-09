@@ -82,6 +82,7 @@ typedef struct {
   int8_t    oldInUse;   // server EP inUse passed by app
   int8_t    redirect;   // flag to indicate redirect
   int8_t    connType;   // connection type
+  int64_t   rid;        // refId returned by taosAddRef
   SRpcMsg  *pRsp;       // for synchronous API
   tsem_t   *pSem;       // for synchronous API
   SRpcEpSet *pSet;      // for synchronous API 
@@ -220,14 +221,18 @@ static void rpcFree(void *p) {
   free(p);
 }
 
-static void rpcInit(void) {
-
+void rpcInit(void) {
   tsProgressTimer = tsRpcTimer/2; 
   tsRpcMaxRetry = tsRpcMaxTime * 1000/tsProgressTimer;
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
+}
+ 
+void rpcCleanup(void) {
+  taosCloseRef(tsRpcRefId);
+  tsRpcRefId = -1;
 }
  
 void *rpcOpen(const SRpcInit *pInit) {
@@ -374,7 +379,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
+int64_t rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -403,10 +408,11 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
   // set the handle to pContext, so app can cancel the request
   if (pMsg->handle) *((void **)pMsg->handle) = pContext;
 
-  taosAddRef(tsRpcRefId, pContext);
+  pContext->rid = taosAddRef(tsRpcRefId, pContext);
+
   rpcSendReqToServer(pRpc, pContext);
 
-  return;
+  return pContext->rid;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -551,15 +557,14 @@ int rpcReportProgress(void *handle, char *pCont, int contLen) {
   return code;
 }
 
-void rpcCancelRequest(void *handle) {
-  SRpcReqContext *pContext = handle;
+void rpcCancelRequest(int64_t rid) {
 
-  int code = taosAcquireRef(tsRpcRefId, pContext);
-  if (code < 0) return;
+  SRpcReqContext *pContext = taosAcquireRef(tsRpcRefId, rid);
+  if (pContext == NULL) return;
 
   rpcCloseConn(pContext->pConn);
 
-  taosReleaseRef(tsRpcRefId, pContext);
+  taosReleaseRef(tsRpcRefId, rid);
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -628,7 +633,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     // if there is an outgoing message, free it
     if (pConn->outType && pConn->pReqMsg) {
       if (pConn->pContext) pConn->pContext->pConn = NULL; 
-      taosRemoveRef(tsRpcRefId, pConn->pContext);
+      taosRemoveRef(tsRpcRefId, pConn->pContext->rid);
     }
   }
 
@@ -1109,7 +1114,7 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   }
 
   // free the request message
-  taosRemoveRef(tsRpcRefId, pContext); 
+  taosRemoveRef(tsRpcRefId, pContext->rid); 
 }
 
 static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqContext *pContext) {
@@ -1620,11 +1625,7 @@ static void rpcDecRef(SRpcInfo *pRpc)
     tDebug("%s rpc resources are released", pRpc->label);
     taosTFree(pRpc);
 
-    int count = atomic_sub_fetch_32(&tsRpcNum, 1);
-    if (count == 0) {
-      // taosCloseRef(tsRpcRefId);
-      // tsRpcInit = PTHREAD_ONCE_INIT;    // windows compliling error  
-    }
+    atomic_sub_fetch_32(&tsRpcNum, 1);
   }
 }
 
