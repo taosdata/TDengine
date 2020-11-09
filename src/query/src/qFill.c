@@ -26,39 +26,10 @@
 
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)
 
-SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-                            int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                            SFillColInfo* pCol) {
-  if (fillType == TSDB_FILL_NONE) {
-    return NULL;
-  }
-
-  SFillInfo* pFillInfo = calloc(1, sizeof(SFillInfo));
-
-  taosResetFillInfo(pFillInfo, skey);
-
-  pFillInfo->order = order;
-  pFillInfo->type = fillType;
-  pFillInfo->pFillCol = pCol;
-  pFillInfo->numOfTags = numOfTags;
-  pFillInfo->numOfCols = numOfCols;
-  pFillInfo->precision = precision;
-
-  pFillInfo->interval.interval = slidingTime;
-  pFillInfo->interval.intervalUnit = slidingUnit;
-  pFillInfo->interval.sliding = slidingTime;
-  pFillInfo->interval.slidingUnit = slidingUnit;
-
-  pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
-  if (numOfTags > 0) {
-    pFillInfo->pTags = calloc(pFillInfo->numOfTags, sizeof(SFillTagColInfo));
-    for (int32_t i = 0; i < numOfTags; ++i) {
-      pFillInfo->pTags[i].col.colId = -2;  // TODO
-    }
-  }
-
-  // there are no duplicated tags in the SFillTagColInfo list
+// there are no duplicated tags in the SFillTagColInfo list
+static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t capacity) {
   int32_t rowsize = 0;
+
   int32_t k = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SFillColInfo* pColInfo = &pFillInfo->pFillCol[i];
@@ -81,11 +52,49 @@ SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_
         k += 1;
       }
     }
+
     rowsize += pColInfo->col.bytes;
   }
 
-  pFillInfo->rowSize = rowsize;
-  pFillInfo->alloc = capacity;
+  assert(k < pFillInfo->numOfTags);
+  return rowsize;
+}
+
+SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+                            int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
+                            SFillColInfo* pCol, void* handle) {
+  if (fillType == TSDB_FILL_NONE) {
+    return NULL;
+  }
+
+  SFillInfo* pFillInfo = calloc(1, sizeof(SFillInfo));
+
+  taosResetFillInfo(pFillInfo, skey);
+
+  pFillInfo->order    = order;
+  pFillInfo->type     = fillType;
+  pFillInfo->pFillCol = pCol;
+  pFillInfo->numOfTags = numOfTags;
+  pFillInfo->numOfCols = numOfCols;
+  pFillInfo->precision = precision;
+  pFillInfo->alloc     = capacity;
+  pFillInfo->handle    = handle;
+
+  pFillInfo->interval.interval = slidingTime;
+  pFillInfo->interval.intervalUnit = slidingUnit;
+  pFillInfo->interval.sliding = slidingTime;
+  pFillInfo->interval.slidingUnit = slidingUnit;
+
+  pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
+  if (numOfTags > 0) {
+    pFillInfo->pTags = calloc(pFillInfo->numOfTags, sizeof(SFillTagColInfo));
+    for (int32_t i = 0; i < numOfTags; ++i) {
+      pFillInfo->pTags[i].col.colId = -2;  // TODO
+    }
+  }
+
+  pFillInfo->rowSize = setTagColumnInfo(pFillInfo, pFillInfo->numOfCols, pFillInfo->alloc);
+  assert(pFillInfo->rowSize > 0);
 
   return pFillInfo;
 }
@@ -350,7 +359,7 @@ static void initBeforeAfterDataBuf(SFillInfo* pFillInfo, char** next) {
   }
 }
 
-static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, char** srcData, int32_t numOfTags, char* buf) {
+static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, char** srcData, char* buf) {
   int32_t rowIndex = pFillInfo->index;
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
@@ -365,7 +374,6 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t ou
   char** prev = &pFillInfo->prevValues;
   char** next = &pFillInfo->nextValues;
 
-  int32_t numOfTags = pFillInfo->numOfTags;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order);
 
   if (FILL_IS_ASC_FILL(pFillInfo)) {
@@ -381,7 +389,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t ou
         (pFillInfo->currentKey > ts && !FILL_IS_ASC_FILL(pFillInfo))) {
       /* set the next value for interpolation */
       initBeforeAfterDataBuf(pFillInfo, next);
-      copyCurrentRowIntoBuf(pFillInfo, srcData, numOfTags, *next);
+      copyCurrentRowIntoBuf(pFillInfo, srcData, *next);
     }
 
     if (((pFillInfo->currentKey < ts && FILL_IS_ASC_FILL(pFillInfo)) || (pFillInfo->currentKey > ts && !FILL_IS_ASC_FILL(pFillInfo))) &&
@@ -476,15 +484,15 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_
 
   // no data existed for fill operation now, append result according to the fill strategy
   if (remain == 0) {
-    return fillExternalResults(pFillInfo, output, numOfRes);
+    fillExternalResults(pFillInfo, output, numOfRes);
+  } else {
+    fillResultImpl(pFillInfo, output, numOfRes);
+    assert(numOfRes == pFillInfo->numOfCurrent);
   }
 
-  fillResultImpl(pFillInfo, output, numOfRes);
-  assert(numOfRes == pFillInfo->numOfCurrent);
-
-  qDebug("generated fill result, src block:%d, index:%d, startKey:%"PRId64", currentKey:%"PRId64", current:%d, total:%d",
-      pFillInfo->numOfRows, pFillInfo->index, pFillInfo->start, pFillInfo->currentKey, pFillInfo->numOfCurrent,
-         pFillInfo->numOfTotal);
+  qDebug("fill:%p, generated fill result, src block:%d, index:%d, brange:%"PRId64"-%"PRId64", currentKey:%"PRId64", current:%d, total:%d, %p",
+      pFillInfo, pFillInfo->numOfRows, pFillInfo->index, pFillInfo->start, pFillInfo->end, pFillInfo->currentKey, pFillInfo->numOfCurrent,
+         pFillInfo->numOfTotal, pFillInfo->handle);
 
   return numOfRes;
 }

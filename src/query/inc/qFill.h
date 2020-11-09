@@ -70,7 +70,7 @@ typedef struct SPoint {
 
 SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                             int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                            SFillColInfo* pFillCol);
+                            SFillColInfo* pFillCol, void* handle);
 
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp);
 
