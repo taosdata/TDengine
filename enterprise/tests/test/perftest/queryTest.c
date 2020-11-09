@@ -341,8 +341,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
@@ -394,9 +394,9 @@ int main(int argc, char** argv) {
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-//    executeSQL(conn, "use test", NULL);
+    executeSQL(conn, "use m_fl_db0", NULL);
 //    createEnvironment(conn, 100000, 100000, 80, 30);
-    //    executeSQL(conn, "select * from meters1, meters2 where meters1.ts = meters2.ts and meters1.tag2 = meters2.tag2", NULL);
+        executeSQL(conn, "select tgcol,count(*),tgcol,first(c7) from m_fl_mt0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(5m) fill(value ,20) group by tgcol;", NULL);
     taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
