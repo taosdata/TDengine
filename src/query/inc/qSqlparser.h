@@ -309,9 +309,6 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *pToken);
 
 void *ParseAlloc(void *(*mallocProc)(size_t));
 
-// convert the sql filter expression into binary data
-int32_t tSQLExprToBinary(tSQLExpr* pExpr, SStringBuilder* sb);
-
 enum {
   TSQL_NODE_TYPE_EXPR  = 0x1,
   TSQL_NODE_TYPE_ID    = 0x2,

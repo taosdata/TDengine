@@ -69,7 +69,10 @@ static void getColumnName(tSQLExprItem* pItem, char* resultFieldName, int32_t na
 static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult);
 static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
                                  int8_t type, char* fieldName, SSqlExpr* pSqlExpr);
-static int32_t changeFunctionID(int32_t optr, int16_t* functionId);
+
+static int32_t convertFunctionId(int32_t optr, int16_t* functionId);
+static uint8_t convertOptr(SStrToken *pToken);
+
 static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery);
 
 static bool validateIpAddress(const char* ip, size_t size);
@@ -122,6 +125,45 @@ static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
 static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, int64_t *uid);
+
+static uint8_t convertOptr(SStrToken *pToken) {
+  switch (pToken->type) {
+    case TK_LT:
+      return TSDB_RELATION_LESS;
+    case TK_LE:
+      return TSDB_RELATION_LESS_EQUAL;
+    case TK_GT:
+      return TSDB_RELATION_GREATER;
+    case TK_GE:
+      return TSDB_RELATION_GREATER_EQUAL;
+    case TK_NE:
+      return TSDB_RELATION_NOT_EQUAL;
+    case TK_AND:
+      return TSDB_RELATION_AND;
+    case TK_OR:
+      return TSDB_RELATION_OR;
+    case TK_EQ:
+      return TSDB_RELATION_EQUAL;
+    case TK_PLUS:
+      return TSDB_BINARY_OP_ADD;
+    case TK_MINUS:
+      return TSDB_BINARY_OP_SUBTRACT;
+    case TK_STAR:
+      return TSDB_BINARY_OP_MULTIPLY;
+    case TK_SLASH:
+    case TK_DIVIDE:
+      return TSDB_BINARY_OP_DIVIDE;
+    case TK_REM:
+      return TSDB_BINARY_OP_REMAINDER;
+    case TK_LIKE:
+      return TSDB_RELATION_LIKE;
+    case TK_ISNULL:
+      return TSDB_RELATION_ISNULL;
+    case TK_NOTNULL:
+      return TSDB_RELATION_NOTNULL;
+    default: { return 0; }
+  }
+}
 
 /*
  * Used during parsing query sql. Since the query sql usually small in length, error position
@@ -1725,7 +1767,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       int16_t functionID = 0;
-      if (changeFunctionID(optr, &functionID) != TSDB_CODE_SUCCESS) {
+      if (convertFunctionId(optr, &functionID) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
@@ -1861,7 +1903,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int32_t intermediateResSize = 0;
 
       int16_t functionID = 0;
-      if (changeFunctionID(optr, &functionID) != TSDB_CODE_SUCCESS) {
+      if (convertFunctionId(optr, &functionID) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
@@ -1932,7 +1974,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       bool requireAllFields = (pItem->pNode->pParam == NULL);
 
       int16_t functionID = 0;
-      if (changeFunctionID(optr, &functionID) != TSDB_CODE_SUCCESS) {
+      if (convertFunctionId(optr, &functionID) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
@@ -2121,7 +2163,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
          * for dp = 100, it is max,
          */
         int16_t functionId = 0;
-        if (changeFunctionID(optr, &functionId) != TSDB_CODE_SUCCESS) {
+        if (convertFunctionId(optr, &functionId) != TSDB_CODE_SUCCESS) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
         tscInsertPrimaryTSSourceColumn(pQueryInfo, &index);
@@ -2138,7 +2180,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
 
         int16_t functionId = 0;
-        if (changeFunctionID(optr, &functionId) != TSDB_CODE_SUCCESS) {
+        if (convertFunctionId(optr, &functionId) != TSDB_CODE_SUCCESS) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
 
@@ -2397,7 +2439,7 @@ int32_t getColumnIndexByName(SSqlCmd* pCmd, const SStrToken* pToken, SQueryInfo*
   return doGetColumnIndexByName(pCmd, &tmpToken, pQueryInfo, pIndex);
 }
 
-int32_t changeFunctionID(int32_t optr, int16_t* functionId) {
+int32_t convertFunctionId(int32_t optr, int16_t* functionId) {
   switch (optr) {
     case TK_COUNT:
       *functionId = TSDB_FUNC_COUNT;
@@ -6535,7 +6577,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
     (*pExpr)->_node.pRight = pRight;
     
     SStrToken t = {.type = pSqlExpr->nSQLOptr};
-    (*pExpr)->_node.optr = getBinaryExprOptr(&t);
+    (*pExpr)->_node.optr = convertOptr(&t);
     
     assert((*pExpr)->_node.optr != 0);
 
