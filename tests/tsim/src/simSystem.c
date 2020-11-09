@@ -128,7 +128,7 @@ SScript *simProcessCallOver(SScript *script) {
         exit(0);
       }
 
-      return NULL;
+      return simScriptList[simScriptPos];
     }
   } else {
     simInfo("script:%s, is stopped by main script", script->fileName);
