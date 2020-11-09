@@ -151,7 +151,8 @@ class Demo:
         for each in (50, 80, 90, 95):
             _list.append(np.percentile(_data,each))
             _str += ' %d 分位数 : %.4f 秒\n' % (each , np.percentile(_data,each))
-
+           
+        print(_str)   
         if ding_flag:
             ding = Ding(values['ding_config']['urls'], values['ding_config']['at_mobiles'])
             ding.send_message(_str)
