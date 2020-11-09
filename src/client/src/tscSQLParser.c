@@ -56,11 +56,11 @@ static SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, in
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
-static bool has(tFieldList* pFieldList, int32_t startIdx, const char* name);
+static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
 static void getCurrentDBName(SSqlObj* pSql, SStrToken* pDBToken);
 static bool hasSpecifyDB(SStrToken* pTableName);
-static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd);
-static bool validateTagParams(tFieldList* pTagsList, tFieldList* pFieldList, SSqlCmd* pCmd);
+static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
+static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
 
 static int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStrToken* tableName, int32_t* len);
 
@@ -80,7 +80,7 @@ static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQuer
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery);
 static void setColumnOffsetValueInResultset(SQueryInfo* pQueryInfo);
 
-static int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd* pCmd);
+static int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd);
 
 static int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
 static int32_t parseOffsetClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
@@ -905,7 +905,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
   return TSDB_CODE_SUCCESS;
 }
 
-static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
+static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   assert(pFieldList != NULL);
 
   const char* msg = "illegal number of columns";
@@ -917,20 +917,22 @@ static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
   const char* msg6 = "invalid column name";
 
   // number of fields no less than 2
-  if (pFieldList->nField <= 1 || pFieldList->nField > TSDB_MAX_COLUMNS) {
+  size_t numOfCols = taosArrayGetSize(pFieldList);
+  if (numOfCols <= 1 || numOfCols > TSDB_MAX_COLUMNS) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
     return false;
   }
 
   // first column must be timestamp
-  if (pFieldList->p[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
+  TAOS_FIELD* pField = taosArrayGet(pFieldList, 0);
+  if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     return false;
   }
 
   int32_t nLen = 0;
-  for (int32_t i = 0; i < pFieldList->nField; ++i) {
-    TAOS_FIELD* pField = &pFieldList->p[i];
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    pField = taosArrayGet(pFieldList, i);
 
     if (pField->bytes == 0) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
@@ -954,7 +956,7 @@ static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
     }
 
     // field name must be unique
-    if (has(pFieldList, i + 1, pFieldList->p[i].name) == true) {
+    if (has(pFieldList, i + 1, pField->name) == true) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -971,7 +973,7 @@ static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
   return true;
 }
 
-static bool validateTagParams(tFieldList* pTagsList, tFieldList* pFieldList, SSqlCmd* pCmd) {
+static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd) {
   assert(pTagsList != NULL);
 
   const char* msg1 = "invalid number of tag columns";
@@ -983,18 +985,21 @@ static bool validateTagParams(tFieldList* pTagsList, tFieldList* pFieldList, SSq
   const char* msg7 = "invalid binary/nchar tag length";
 
   // number of fields at least 1
-  if (pTagsList->nField < 1 || pTagsList->nField > TSDB_MAX_TAGS) {
+  size_t numOfTags = taosArrayGetSize(pTagsList);
+  if (numOfTags < 1 || numOfTags > TSDB_MAX_TAGS) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     return false;
   }
 
   int32_t nLen = 0;
-  for (int32_t i = 0; i < pTagsList->nField; ++i) {
-    if (pTagsList->p[i].bytes == 0) {
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+    if (p->bytes == 0) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
       return false;
     }
-    nLen += pTagsList->p[i].bytes;
+
+    nLen += p->bytes;
   }
 
   // max tag row length must be less than TSDB_MAX_TAGS_LEN
@@ -1004,37 +1009,41 @@ static bool validateTagParams(tFieldList* pTagsList, tFieldList* pFieldList, SSq
   }
 
   // field name must be unique
-  for (int32_t i = 0; i < pTagsList->nField; ++i) {
-    if (has(pFieldList, 0, pTagsList->p[i].name) == true) {
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+
+    if (has(pFieldList, 0, p->name) == true) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
   }
 
   /* timestamp in tag is not allowed */
-  for (int32_t i = 0; i < pTagsList->nField; ++i) {
-    if (pTagsList->p[i].type == TSDB_DATA_TYPE_TIMESTAMP) {
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+
+    if (p->type == TSDB_DATA_TYPE_TIMESTAMP) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
       return false;
     }
 
-    if (pTagsList->p[i].type < TSDB_DATA_TYPE_BOOL || pTagsList->p[i].type > TSDB_DATA_TYPE_NCHAR) {
+    if (p->type < TSDB_DATA_TYPE_BOOL || p->type > TSDB_DATA_TYPE_NCHAR) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       return false;
     }
 
-    if ((pTagsList->p[i].type == TSDB_DATA_TYPE_BINARY && pTagsList->p[i].bytes <= 0) ||
-        (pTagsList->p[i].type == TSDB_DATA_TYPE_NCHAR && pTagsList->p[i].bytes <= 0)) {
+    if ((p->type == TSDB_DATA_TYPE_BINARY && p->bytes <= 0) ||
+        (p->type == TSDB_DATA_TYPE_NCHAR && p->bytes <= 0)) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
       return false;
     }
 
-    if (validateColumnName(pTagsList->p[i].name) != TSDB_CODE_SUCCESS) {
+    if (validateColumnName(p->name) != TSDB_CODE_SUCCESS) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       return false;
     }
 
-    if (has(pTagsList, i + 1, pTagsList->p[i].name) == true) {
+    if (has(pTagsList, i + 1, p->name) == true) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1181,9 +1190,10 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 }
 
 /* is contained in pFieldList or not */
-static bool has(tFieldList* pFieldList, int32_t startIdx, const char* name) {
-  for (int32_t j = startIdx; j < pFieldList->nField; ++j) {
-    TAOS_FIELD* field = pFieldList->p + j;
+static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
+  size_t numOfCols = taosArrayGetSize(pFieldList);
+  for (int32_t j = startIdx; j < numOfCols; ++j) {
+    TAOS_FIELD* field = taosArrayGet(pFieldList, j);
     if (strncasecmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
   }
 
@@ -2796,7 +2806,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
   return true;
 }
 
-int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd* pCmd) {
+int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd) {
   const char* msg1 = "too many columns in group by clause";
   const char* msg2 = "invalid column name in group by clause";
   const char* msg3 = "columns from one table allowed as group by columns";
@@ -2816,8 +2826,8 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
   
-  pQueryInfo->groupbyExpr.numOfGroupCols = pList->nExpr;
-  if (pList->nExpr > TSDB_MAX_TAGS) {
+  pQueryInfo->groupbyExpr.numOfGroupCols = taosArrayGetSize(pList);
+  if (pQueryInfo->groupbyExpr.numOfGroupCols > TSDB_MAX_TAGS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -2830,9 +2840,12 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
   SSchema     s = tscGetTbnameColumnSchema();
 
   int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
-  
-  for (int32_t i = 0; i < pList->nExpr; ++i) {
-    tVariant* pVar = &pList->a[i].pVar;
+
+  size_t num = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < num; ++i) {
+    tVariantListItem * pItem = taosArrayGet(pList, i);
+    tVariant* pVar = &pItem->pVar;
+
     SStrToken token = {pVar->nLen, pVar->nType, pVar->pz};
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -2893,7 +2906,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
       pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
 
-      if (i == 0 && pList->nExpr > 1) {
+      if (i == 0 && num > 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
       }
     }
@@ -4407,8 +4420,8 @@ int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 }
 
 int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
-  tVariantList*     pFillToken = pQuerySQL->fillType;
-  tVariantListItem* pItem = &pFillToken->a[0];
+  SArray*     pFillToken = pQuerySQL->fillType;
+  tVariantListItem* pItem = taosArrayGet(pFillToken, 0);
 
   const int32_t START_INTERPO_COL_IDX = 1;
 
@@ -4448,12 +4461,13 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
   } else if (strncasecmp(pItem->pVar.pz, "value", 5) == 0 && pItem->pVar.nLen == 5) {
     pQueryInfo->fillType = TSDB_FILL_SET_VALUE;
 
-    if (pFillToken->nExpr == 1) {
+    size_t num = taosArrayGetSize(pFillToken);
+    if (num == 1) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
     int32_t startPos = 1;
-    int32_t numOfFillVal = pFillToken->nExpr - 1;
+    int32_t numOfFillVal = num - 1;
 
     /* for point interpolation query, we do not have the timestamp column */
     if (tscIsPointInterpQuery(pQueryInfo)) {
@@ -4463,7 +4477,7 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
         numOfFillVal = (int32_t)size;
       }
     } else {
-      numOfFillVal = (pFillToken->nExpr >  (int32_t)size) ? (int32_t)size : pFillToken->nExpr;
+      numOfFillVal = (num >  (int32_t)size) ? (int32_t)size : num;
     }
 
     int32_t j = 1;
@@ -4476,14 +4490,15 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
         continue;
       }
 
-      int32_t ret = tVariantDump(&pFillToken->a[j].pVar, (char*)&pQueryInfo->fillVal[i], pFields->type, true);
+      tVariant* p = taosArrayGet(pFillToken, j);
+      int32_t ret = tVariantDump(p, (char*)&pQueryInfo->fillVal[i], pFields->type, true);
       if (ret != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
     }
     
-    if ((pFillToken->nExpr < size) || ((pFillToken->nExpr - 1 < size) && (tscIsPointInterpQuery(pQueryInfo)))) {
-      tVariantListItem* lastItem = &pFillToken->a[pFillToken->nExpr - 1];
+    if ((num < size) || ((num - 1 < size) && (tscIsPointInterpQuery(pQueryInfo)))) {
+      tVariantListItem* lastItem = taosArrayGetLast(pFillToken);
 
       for (int32_t i = numOfFillVal; i < size; ++i) {
         TAOS_FIELD* pFields = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
@@ -4532,7 +4547,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
     return TSDB_CODE_SUCCESS;
   }
 
-  tVariantList* pSortorder = pQuerySql->pSortOrder;
+  SArray* pSortorder = pQuerySql->pSortOrder;
 
   /*
    * for table query, there is only one or none order option is allowed, which is the
@@ -4540,18 +4555,19 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
    *
    * for super table query, the order option must be less than 3.
    */
+  size_t size = taosArrayGetSize(pSortorder);
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
-    if (pSortorder->nExpr > 1) {
+    if (size > 1) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
   } else {
-    if (pSortorder->nExpr > 2) {
+    if (size > 2) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
 
   // handle the first part of order by
-  tVariant* pVar = &pSortorder->a[0].pVar;
+  tVariant* pVar = taosArrayGet(pSortorder, 0);
 
   // e.g., order by 1 asc, return directly with out further check.
   if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
@@ -4594,10 +4610,13 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
       assert(!(orderByTags && orderByTS));
     }
 
-    if (pSortorder->nExpr == 1) {
+    size_t s = taosArrayGetSize(pSortorder);
+    if (s == 1) {
       if (orderByTags) {
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-        pQueryInfo->groupbyExpr.orderType = pQuerySql->pSortOrder->a[0].sortOrder;
+
+        tVariantListItem* p1 = taosArrayGet(pQuerySql->pSortOrder, 0);
+        pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
       } else if (isTopBottomQuery(pQueryInfo)) {
         /* order of top/bottom query in interval is not valid  */
         SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, 0);
@@ -4608,11 +4627,14 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
-        pQueryInfo->order.order = pQuerySql->pSortOrder->a[0].sortOrder;
+        tVariantListItem* p1 = taosArrayGet(pQuerySql->pSortOrder, 0);
+        pQueryInfo->order.order = p1->sortOrder;
         pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
         return TSDB_CODE_SUCCESS;
       } else {
-        pQueryInfo->order.order = pSortorder->a[0].sortOrder;
+        tVariantListItem* p1 = taosArrayGet(pQuerySql->pSortOrder, 0);
+
+        pQueryInfo->order.order = p1->sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
         // orderby ts query on super table
@@ -4622,16 +4644,18 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
       }
     }
 
-    if (pSortorder->nExpr == 2) {
+    if (s == 2) {
+      tVariantListItem *pItem = taosArrayGet(pQuerySql->pSortOrder, 0);
       if (orderByTags) {
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-        pQueryInfo->groupbyExpr.orderType = pQuerySql->pSortOrder->a[0].sortOrder;
+        pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
       } else {
-        pQueryInfo->order.order = pSortorder->a[0].sortOrder;
+        pQueryInfo->order.order = pItem->sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
       }
 
-      tVariant* pVar2 = &pSortorder->a[1].pVar;
+      pItem = taosArrayGet(pQuerySql->pSortOrder, 1);
+      tVariant* pVar2 = &pItem->pVar;
       SStrToken cname = {pVar2->nLen, pVar2->nType, pVar2->pz};
       if (getColumnIndexByName(pCmd, &cname, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -4640,7 +4664,8 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
       if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       } else {
-        pQueryInfo->order.order = pSortorder->a[1].sortOrder;
+        tVariantListItem* p1 = taosArrayGet(pSortorder, 1);
+        pQueryInfo->order.order = p1->sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
       }
     }
@@ -4664,12 +4689,14 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      pQueryInfo->order.order = pQuerySql->pSortOrder->a[0].sortOrder;
+      tVariantListItem* pItem = taosArrayGet(pQuerySql->pSortOrder, 0);
+      pQueryInfo->order.order = pItem->sortOrder;
       pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
       return TSDB_CODE_SUCCESS;
     }
 
-    pQueryInfo->order.order = pQuerySql->pSortOrder->a[0].sortOrder;
+    tVariantListItem* pItem = taosArrayGet(pQuerySql->pSortOrder, 0);
+    pQueryInfo->order.order = pItem->sortOrder;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4737,27 +4764,28 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
-    tFieldList* pFieldList = pAlterSQL->pAddColumns;
-    if (pFieldList->nField > 1) {
+    SArray* pFieldList = pAlterSQL->pAddColumns;
+    if (taosArrayGetSize(pFieldList) > 1) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
 
-    if (!validateOneTags(pCmd, &pFieldList->p[0])) {
+    TAOS_FIELD* p = taosArrayGet(pFieldList, 0);
+    if (!validateOneTags(pCmd, p)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
   
-    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pFieldList->p[0]);
+    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN) {
     if (tscGetNumOfTags(pTableMeta) == 1) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
 
     // numOfTags == 1
-    if (pAlterSQL->varList->nExpr > 1) {
+    if (taosArrayGetSize(pAlterSQL->varList) > 1) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
 
-    tVariantListItem* pItem = &pAlterSQL->varList->a[0];
+    tVariantListItem* pItem = taosArrayGet(pAlterSQL->varList, 0);
     if (pItem->pVar.nLen >= TSDB_COL_NAME_LEN) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
     }
@@ -4782,13 +4810,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    tVariantList* pVarList = pAlterSQL->varList;
-    if (pVarList->nExpr > 2) {
+    SArray* pVarList = pAlterSQL->varList;
+    if (taosArrayGetSize(pVarList) > 2) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
-    tVariantListItem* pSrcItem = &pAlterSQL->varList->a[0];
-    tVariantListItem* pDstItem = &pAlterSQL->varList->a[1];
+    tVariantListItem* pSrcItem = taosArrayGet(pAlterSQL->varList, 0);
+    tVariantListItem* pDstItem = taosArrayGet(pAlterSQL->varList, 1);
 
     if (pSrcItem->pVar.nLen >= TSDB_COL_NAME_LEN || pDstItem->pVar.nLen >= TSDB_COL_NAME_LEN) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
@@ -4811,13 +4839,17 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg19);
     }
 
+    tVariantListItem* pItem = taosArrayGet(pVarList, 0);
+
     char name[TSDB_COL_NAME_LEN] = {0};
-    strncpy(name, pVarList->a[0].pVar.pz, pVarList->a[0].pVar.nLen);
+    strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
+    pItem = taosArrayGet(pVarList, 1);
     memset(name, 0, tListLen(name));
-    strncpy(name, pVarList->a[1].pVar.pz, pVarList->a[1].pVar.nLen);
+
+    strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
     f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
@@ -4825,12 +4857,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     // the following is used to handle tags value for table created according to super table
     pCmd->command = TSDB_SQL_UPDATE_TAGS_VAL;
     
-    tVariantList* pVarList = pAlterSQL->varList;
-    tVariant*     pTagName = &pVarList->a[0].pVar;
+    SArray* pVarList = pAlterSQL->varList;
+    tVariantListItem* item = taosArrayGet(pVarList, 0);
     int16_t       numOfTags = tscGetNumOfTags(pTableMeta);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
-    SStrToken    name = {.type = TK_STRING, .z = pTagName->pz, .n = pTagName->nLen};
+    SStrToken    name = {.type = TK_STRING, .z = item->pVar.pz, .n = item->pVar.nLen};
     if (getColumnIndexByName(pCmd, &name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -4839,8 +4871,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg12);
     }
 
+    tVariantListItem* pItem = taosArrayGet(pVarList, 1);
     SSchema* pTagsSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
-    if (tVariantDump(&pVarList->a[1].pVar, pAlterSQL->tagData.data, pTagsSchema->type, true) != TSDB_CODE_SUCCESS) {
+    if (tVariantDump(&pItem->pVar, pAlterSQL->tagData.data, pTagsSchema->type, true) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg13);
     }
     
@@ -4885,7 +4918,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     // copy the tag value to msg body
-    tVariantDump(&pVarList->a[1].pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true);
+    pItem = taosArrayGet(pVarList, 1);
+    tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true);
     
     int32_t len = 0;
     if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
@@ -4900,27 +4934,29 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     pUpdateMsg->head.contLen = htonl(total);
     
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
-    tFieldList* pFieldList = pAlterSQL->pAddColumns;
-    if (pFieldList->nField > 1) {
+    SArray* pFieldList = pAlterSQL->pAddColumns;
+    if (taosArrayGetSize(pFieldList) > 1) {
       const char* msg = "only support add one column";
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
     }
 
-    if (!validateOneColumn(pCmd, &pFieldList->p[0])) {
+    TAOS_FIELD* p = taosArrayGet(pFieldList, 0);
+    if (!validateOneColumn(pCmd, p)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
   
-    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pFieldList->p[0]);
+    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
     if (tscGetNumOfColumns(pTableMeta) == TSDB_MIN_COLUMNS) {  //
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg15);
     }
 
-    if (pAlterSQL->varList->nExpr > 1) {
+    size_t size = taosArrayGetSize(pAlterSQL->varList);
+    if (size > 1) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg16);
     }
 
-    tVariantListItem* pItem = &pAlterSQL->varList->a[0];
+    tVariantListItem* pItem = taosArrayGet(pAlterSQL->varList, 0);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
@@ -5291,21 +5327,28 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo* p
   pMsg->daysToKeep1 = htonl(-1);
   pMsg->daysToKeep2 = htonl(-1);
 
-  tVariantList* pKeep = pCreateDb->keep;
+  SArray* pKeep = pCreateDb->keep;
   if (pKeep != NULL) {
-    switch (pKeep->nExpr) {
-      case 1:
-        pMsg->daysToKeep = htonl((int32_t)pKeep->a[0].pVar.i64Key);
+    size_t s = taosArrayGetSize(pKeep);
+    tVariantListItem* p0 = taosArrayGet(pKeep, 0);
+    switch (s) {
+      case 1: {
+        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64Key);
+      }
         break;
       case 2: {
-        pMsg->daysToKeep = htonl((int32_t)pKeep->a[0].pVar.i64Key);
-        pMsg->daysToKeep1 = htonl((int32_t)pKeep->a[1].pVar.i64Key);
+        tVariantListItem* p1 = taosArrayGet(pKeep, 1);
+        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64Key);
+        pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64Key);
         break;
       }
       case 3: {
-        pMsg->daysToKeep = htonl((int32_t)pKeep->a[0].pVar.i64Key);
-        pMsg->daysToKeep1 = htonl((int32_t)pKeep->a[1].pVar.i64Key);
-        pMsg->daysToKeep2 = htonl((int32_t)pKeep->a[2].pVar.i64Key);
+        tVariantListItem* p1 = taosArrayGet(pKeep, 1);
+        tVariantListItem* p2 = taosArrayGet(pKeep, 2);
+
+        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64Key);
+        pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64Key);
+        pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64Key);
         break;
       }
       default: { return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg); }
@@ -5991,8 +6034,8 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
 
   SCreateTableSQL* pCreateTable = pInfo->pCreateTableInfo;
 
-  tFieldList* pFieldList = pCreateTable->colInfo.pColumns;
-  tFieldList* pTagList = pCreateTable->colInfo.pTagColumns;
+  SArray* pFieldList = pCreateTable->colInfo.pColumns;
+  SArray* pTagList = pCreateTable->colInfo.pTagColumns;
 
   assert(pFieldList != NULL);
 
@@ -6014,18 +6057,22 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
   }
 
   int32_t col = 0;
-  for (; col < pFieldList->nField; ++col) {
-    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pFieldList->p[col]);
+  size_t numOfFields = taosArrayGetSize(pFieldList);
+
+  for (; col < numOfFields; ++col) {
+    TAOS_FIELD* p = taosArrayGet(pTagList, col);
+    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
   }
 
-  pCmd->numOfCols = (int16_t)pFieldList->nField;
+  pCmd->numOfCols = (int16_t)numOfFields;
 
   if (pTagList != NULL) {  // create super table[optional]
-    for (int32_t i = 0; i < pTagList->nField; ++i) {
-      tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &pTagList->p[i]);
+    for (int32_t i = 0; i < numOfFields; ++i) {
+      TAOS_FIELD* p = taosArrayGet(pTagList, i);
+      tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
     }
 
-    pCmd->count = pTagList->nField;
+    pCmd->count = numOfFields;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6066,14 +6113,15 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
   // get meter meta from mnode
   tstrncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, sizeof(pCreateTable->usingInfo.tagdata.name));
-  tVariantList* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
+  SArray* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
 
   code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  if (tscGetNumOfTags(pStableMeterMetaInfo->pTableMeta) != pList->nExpr) {
+  size_t size = taosArrayGetSize(pList);
+  if (tscGetNumOfTags(pStableMeterMetaInfo->pTableMeta) != size) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
@@ -6087,18 +6135,19 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   int32_t ret = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < pList->nExpr; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     SSchema* pSchema = &pTagSchema[i];
-    
+    tVariantListItem* pItem = taosArrayGet(pList, i);
+
     char tagVal[TSDB_MAX_TAGS_LEN];
     if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-      if (pList->a[i].pVar.nLen > pSchema->bytes) {
+      if (pItem->pVar.nLen > pSchema->bytes) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
 
-    ret = tVariantDump(&(pList->a[i].pVar), tagVal, pSchema->type, true);
+    ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
     // check again after the convert since it may be converted from binary to nchar.
     if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -6165,13 +6214,13 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
   
-  tVariantList* pSrcMeterName = pInfo->pCreateTableInfo->pSelect->from;
-  if (pSrcMeterName == NULL || pSrcMeterName->nExpr == 0) {
+  SArray* pSrcMeterName = pInfo->pCreateTableInfo->pSelect->from;
+  if (pSrcMeterName == NULL || taosArrayGetSize(pSrcMeterName) == 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
   
-  tVariant* pVar = &pSrcMeterName->a[0].pVar;
-  SStrToken srcToken = {.z = pVar->pz, .n = pVar->nLen, .type = TK_STRING};
+  tVariantListItem* p1 = taosArrayGet(pSrcMeterName, 0);
+  SStrToken srcToken = {.z = p1->pVar.pz, .n = p1->pVar.nLen, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
@@ -6236,7 +6285,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    tVariantListItem* pItem = &pQuerySql->fillType->a[0];
+    tVariantListItem* pItem = taosArrayGet(pQuerySql->fillType, 0);
     if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
       if (!((strncmp(pItem->pVar.pz, "none", 4) == 0 && pItem->pVar.nLen == 4) ||
             (strncmp(pItem->pVar.pz, "null", 4) == 0 && pItem->pVar.nLen == 4))) {
@@ -6251,7 +6300,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
 }
 
 int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
-  assert(pQuerySql != NULL && (pQuerySql->from == NULL || pQuerySql->from->nExpr > 0));
+  assert(pQuerySql != NULL && (pQuerySql->from == NULL || taosArrayGetSize(pQuerySql->from) > 0));
 
   const char* msg0  = "invalid table name";
   const char* msg2  = "point interpolation query needs timestamp";
@@ -6293,19 +6342,21 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return doLocalQueryProcess(pCmd, pQueryInfo, pQuerySql);
   }
 
-  if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM * 2) {
+  size_t fromSize = taosArrayGetSize(pQuerySql->from);
+  if (fromSize > TSDB_MAX_JOIN_TABLE_NUM * 2) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
 
-  if (pQuerySql->from->nExpr > 4) {
+  if (fromSize > 4) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
   }
 
   // set all query tables, which are maybe more than one.
-  for (int32_t i = 0; i < pQuerySql->from->nExpr; ) {
-    tVariant* pTableItem = &pQuerySql->from->a[i].pVar;
+  for (int32_t i = 0; i < fromSize; ) {
+    tVariantListItem* item = taosArrayGet(pQuerySql->from, i);
+    tVariant* pTableItem = &item->pVar;
 
     if (pTableItem->nType != TSDB_DATA_TYPE_BINARY) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
@@ -6330,21 +6381,21 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return code;
     }
 
-    tVariant* pTableItem1 = &pQuerySql->from->a[i + 1].pVar;
-    if (pTableItem1->nType != TSDB_DATA_TYPE_BINARY) {
+    tVariantListItem* p1 = taosArrayGet(pQuerySql->from, i);
+    if (p1->pVar.nType != TSDB_DATA_TYPE_BINARY) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
     }
 
-    SStrToken aliasName = {.z = pTableItem1->pz, .n = pTableItem1->nLen, .type = TK_STRING};
+    SStrToken aliasName = {.z = p1->pVar.pz, .n = p1->pVar.nLen, .type = TK_STRING};
     if (tscValidateName(&aliasName) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
     }
 
     // has no table alias name
-    if (memcmp(pTableItem->pz, pTableItem1->pz, pTableItem1->nLen) == 0) {
+    if (memcmp(pTableItem->pz, p1->pVar.pz, p1->pVar.nLen) == 0) {
       extractTableName(pTableMetaInfo1->name, pTableMetaInfo1->aliasName);
     } else {
-      tstrncpy(pTableMetaInfo1->aliasName, pTableItem1->pz, sizeof(pTableMetaInfo1->aliasName));
+      tstrncpy(pTableMetaInfo1->aliasName, p1->pVar.pz, sizeof(pTableMetaInfo1->aliasName));
     }
 
     code = tscGetTableMeta(pSql, pTableMetaInfo1);
@@ -6355,7 +6406,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     i += 2;
   }
 
-  assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr / 2);
+  assert(pQueryInfo->numOfTables == taosArrayGetSize(pQuerySql->from) / 2);
   bool isSTable = false;
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -6389,12 +6440,12 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
     }
   } else {  // set the time rang
-    if (pQuerySql->from->nExpr > 2) { // it is a join query, no wher clause is not allowed.
+    if (taosArrayGetSize(pQuerySql->from) > 2) { // it is a join query, no wher clause is not allowed.
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "condition missing for join query ");
     }
   }
 
-  int32_t joinQuery = (pQuerySql->from != NULL && pQuerySql->from->nExpr > 2);
+  int32_t joinQuery = (pQuerySql->from != NULL && taosArrayGetSize(pQuerySql->from) > 2);
 
   if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;

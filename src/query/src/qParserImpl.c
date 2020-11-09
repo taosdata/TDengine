@@ -15,11 +15,9 @@
 
 #include "os.h"
 #include "qSqlparser.h"
-#include "queryLog.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tcmdtype.h"
-#include "tglobal.h"
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttokendef.h"
@@ -314,130 +312,56 @@ void tSQLExprDestroy(tSQLExpr *pExpr) {
   tSQLExprNodeDestroy(pExpr);
 }
 
-static void *tVariantListExpand(tVariantList *pList) {
-  if (pList->nAlloc <= pList->nExpr) {  //
-    int32_t newSize = (pList->nAlloc << 1) + 4;
-
-    void *ptr = realloc(pList->a, newSize * sizeof(pList->a[0]));
-    if (ptr == 0) {
-      return NULL;
-    }
-
-    pList->nAlloc = newSize;
-    pList->a = ptr;
-  }
-
-  assert(pList->a != 0);
-  return pList;
-}
-
-tVariantList *tVariantListAppend(tVariantList *pList, tVariant *pVar, uint8_t sortOrder) {
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order) {
   if (pList == NULL) {
-    pList = calloc(1, sizeof(tVariantList));
-  }
-
-  if (tVariantListExpand(pList) == NULL) {
-    return pList;
-  }
-
-  if (pVar) {
-    tVariantListItem *pItem = &pList->a[pList->nExpr++];
-    /*
-     * Here we do not employ the assign function, since we need the pz attribute of structure
-     * , which is the point to char string, to free it!
-     *
-     * Otherwise, the original pointer may be lost, which causes memory leak.
-     */
-    memcpy(pItem, pVar, sizeof(tVariant));
-    pItem->sortOrder = sortOrder;
-  }
-  return pList;
-}
-
-tVariantList *tVariantListInsert(tVariantList *pList, tVariant *pVar, uint8_t sortOrder, int32_t index) {
-  if (pList == NULL || index >= pList->nExpr) {
-    return tVariantListAppend(NULL, pVar, sortOrder);
-  }
-
-  if (tVariantListExpand(pList) == NULL) {
-    return pList;
-  }
-
-  if (pVar) {
-    memmove(&pList->a[index + 1], &pList->a[index], sizeof(tVariantListItem) * (pList->nExpr - index));
-
-    tVariantListItem *pItem = &pList->a[index];
-    /*
-     * Here we do not employ the assign function, since we need the pz attribute of structure
-     * , which is the point to char string, to free it!
-     *
-     * Otherwise, the original pointer may be lost, which causes memory leak.
-     */
-    memcpy(pItem, pVar, sizeof(tVariant));
-    pItem->sortOrder = sortOrder;
-
-    pList->nExpr++;
-  }
-
-  return pList;
-}
-
-void tVariantListDestroy(tVariantList *pList) {
-  if (pList == NULL) return;
-
-  for (int32_t i = 0; i < pList->nExpr; ++i) {
-    tVariantDestroy(&pList->a[i].pVar);
-  }
-
-  free(pList->a);
-  free(pList);
-}
-
-tVariantList *tVariantListAppendToken(tVariantList *pList, SStrToken *pToken, uint8_t sortOrder) {
-  if (pList == NULL) {
-    pList = calloc(1, sizeof(tVariantList));
-  }
-
-  if (tVariantListExpand(pList) == NULL) {
-    return pList;
+    pList = taosArrayInit(4, sizeof(tVariantListItem));
   }
 
   if (pToken) {
-    tVariant t = {0};
-    tVariantCreate(&t, pToken);
+    tVariantListItem item = {0};
+    tVariantCreate(&item.pVar, pToken);
+    item.sortOrder = order;
 
-    tVariantListItem *pItem = &pList->a[pList->nExpr++];
-    memcpy(pItem, &t, sizeof(tVariant));
-    pItem->sortOrder = sortOrder;
+    taosArrayPush(pList, &item);
   }
+
   return pList;
 }
 
-tFieldList *tFieldListAppend(tFieldList *pList, TAOS_FIELD *pField) {
-  if (pList == NULL) pList = calloc(1, sizeof(tFieldList));
-
-  if (pList->nAlloc <= pList->nField) {  //
-    pList->nAlloc = (pList->nAlloc << 1) + 4;
-    pList->p = realloc(pList->p, pList->nAlloc * sizeof(pList->p[0]));
-    if (pList->p == 0) {
-      pList->nField = pList->nAlloc = 0;
-      return pList;
-    }
+SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder) {
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(tVariantListItem));
   }
-  assert(pList->p != 0);
 
-  if (pField) {
-    struct TAOS_FIELD *pItem = (struct TAOS_FIELD *)&pList->p[pList->nField++];
-    memcpy(pItem, pField, sizeof(TAOS_FIELD));
+  if (pVar == NULL) {
+    return pList;
   }
+
+  /*
+   * Here we do not employ the assign function, since we need the pz attribute of structure
+   * , which is the point to char string, to free it!
+   *
+   * Otherwise, the original pointer may be lost, which causes memory leak.
+   */
+  tVariantListItem item = {0};
+  item.pVar = *pVar;
+  item.sortOrder = sortOrder;
+
+  taosArrayPush(pList, &item);
   return pList;
 }
 
-void tFieldListDestroy(tFieldList *pList) {
-  if (pList == NULL) return;
+SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index) {
+  if (pList == NULL || pVar == NULL || index >= taosArrayGetSize(pList)) {
+    return tVariantListAppend(NULL, pVar, sortOrder);
+  }
 
-  free(pList->p);
-  free(pList);
+  tVariantListItem item = {0};
+  item.pVar = *pVar;
+  item.sortOrder = sortOrder;
+
+  taosArrayInsert(pList, index, &item);
+  return pList;
 }
 
 void setDBName(SStrToken *pCpxName, SStrToken *pDB) {
@@ -499,9 +423,9 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
-                             tVariantList *pGroupby, tVariantList *pSortOrder, SIntervalVal *pInterval,
-                             SStrToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
+SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
+                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
   assert(pSelection != NULL);
 
   SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
@@ -535,6 +459,11 @@ SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
   return pQuery;
 }
 
+void freeVariant(void *pItem) {
+  tVariantListItem* p = (tVariantListItem*) pItem;
+  tVariantDestroy(&p->pVar);
+}
+
 void doDestroyQuerySql(SQuerySQL *pQuerySql) {
   if (pQuerySql == NULL) {
     return;
@@ -547,17 +476,18 @@ void doDestroyQuerySql(SQuerySQL *pQuerySql) {
   tSQLExprDestroy(pQuerySql->pWhere);
   pQuerySql->pWhere = NULL;
   
-  tVariantListDestroy(pQuerySql->pSortOrder);
+  taosArrayDestroyEx(pQuerySql->pSortOrder, freeVariant);
   pQuerySql->pSortOrder = NULL;
-  
-  tVariantListDestroy(pQuerySql->pGroupby);
+
+  taosArrayDestroyEx(pQuerySql->pGroupby, freeVariant);
   pQuerySql->pGroupby = NULL;
-  
-  tVariantListDestroy(pQuerySql->from);
+
+  taosArrayDestroyEx(pQuerySql->from, freeVariant);
   pQuerySql->from = NULL;
-  
-  tVariantListDestroy(pQuerySql->fillType);
-  
+
+  taosArrayDestroyEx(pQuerySql->fillType, freeVariant);
+  pQuerySql->fillType = NULL;
+
   free(pQuerySql);
 }
 
@@ -574,8 +504,8 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
   taosTFree(pClause->pClause);
 }
 
-SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SStrToken *pStableName,
-                                    tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type) {
+SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SStrToken *pStableName,
+                                    SArray *pTagVals, SQuerySQL *pSelect, int32_t type) {
   SCreateTableSQL *pCreate = calloc(1, sizeof(SCreateTableSQL));
 
   switch (type) {
@@ -607,7 +537,7 @@ SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SStrTo
   return pCreate;
 }
 
-SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type) {
+SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, SArray *pCols, SArray *pVals, int32_t type) {
   SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
   
   pAlterTable->name = *pMeterName;
@@ -637,14 +567,14 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
     SCreateTableSQL *pCreateTableInfo = pInfo->pCreateTableInfo;
     doDestroyQuerySql(pCreateTableInfo->pSelect);
 
-    tFieldListDestroy(pCreateTableInfo->colInfo.pColumns);
-    tFieldListDestroy(pCreateTableInfo->colInfo.pTagColumns);
+    taosArrayDestroy(pCreateTableInfo->colInfo.pColumns);
+    taosArrayDestroy(pCreateTableInfo->colInfo.pTagColumns);
 
-    tVariantListDestroy(pCreateTableInfo->usingInfo.pTagVals);
+    taosArrayDestroyEx(pCreateTableInfo->usingInfo.pTagVals, freeVariant);
     taosTFree(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
-    tVariantListDestroy(pInfo->pAlterInfo->varList);
-    tFieldListDestroy(pInfo->pAlterInfo->pAddColumns);
+    taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
+    taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
     
     taosTFree(pInfo->pAlterInfo);
   } else {
@@ -653,7 +583,7 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
     }
 
     if (pInfo->pDCLInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
-      tVariantListDestroy(pInfo->pDCLInfo->dbOpt.keep);
+      taosArrayDestroyEx(pInfo->pDCLInfo->dbOpt.keep, freeVariant);
     }
 
     taosTFree(pInfo->pDCLInfo);

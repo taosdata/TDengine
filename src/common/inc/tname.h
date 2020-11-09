@@ -35,10 +35,6 @@ bool tscValidateTableNameLength(size_t len);
 
 SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numOfFilters);
 
-/**
- * get the schema for the "tbname" column. it is a built column
- * @return
- */
 SSchema tscGetTbnameColumnSchema();
 
 #endif  // TDENGINE_NAME_H

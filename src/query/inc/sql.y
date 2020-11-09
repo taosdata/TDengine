@@ -223,8 +223,8 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
     Y.stat    = M;
 }
 
-%type keep {tVariantList*}
-%destructor keep {tVariantListDestroy($$);}
+%type keep {SArray*}
+%destructor keep {taosArrayDestroy($$);}
 keep(Y)    ::= KEEP tagitemlist(X).           { Y = X; }
 
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
@@ -324,10 +324,10 @@ create_table_args(A) ::= AS select(S). {
 }
 
 %type column{TAOS_FIELD}
-%type columnlist{tFieldList*}
-%destructor columnlist {tFieldListDestroy($$);}
-columnlist(A) ::= columnlist(X) COMMA column(Y).  {A = tFieldListAppend(X, &Y);   }
-columnlist(A) ::= column(X).                      {A = tFieldListAppend(NULL, &X);}
+%type columnlist{SArray*}
+%destructor columnlist {taosArrayDestroy($$);}
+columnlist(A) ::= columnlist(X) COMMA column(Y).  {A = taosArrayPush(X, &Y);   }
+columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
 
 // The information used for a column is the name and type of column:
 // tinyint smallint int bigint float double bool timestamp binary(x) nchar(x)
@@ -335,8 +335,8 @@ column(A) ::= ids(X) typename(Y).          {
     tSQLSetColumnInfo(&A, &X, &Y);
 }
 
-%type tagitemlist {tVariantList*}
-%destructor tagitemlist {tVariantListDestroy($$);}
+%type tagitemlist {SArray*}
+%destructor tagitemlist {taosArrayDestroy($$);}
 
 %type tagitem {tVariant}
 tagitemlist(A) ::= tagitemlist(X) COMMA tagitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
@@ -429,11 +429,11 @@ as(X) ::= ids(Y).       { X = Y;    }
 as(X) ::= .             { X.n = 0;  }
 
 // A complete FROM clause.
-%type from {tVariantList*}
+%type from {SArray*}
 // current not support query from no-table
 from(A) ::= FROM tablelist(X).                 {A = X;}
 
-%type tablelist {tVariantList*}
+%type tablelist {SArray*}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
   toTSDBType(X.type);
   X.n += Y.n;
@@ -473,15 +473,15 @@ interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0;
 interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(O) RP.    {N.interval = E; N.offset = O;}
 interval_opt(N) ::= .                           {memset(&N, 0, sizeof(N));}
 
-%type fill_opt {tVariantList*}
-%destructor fill_opt {tVariantListDestroy($$);}
+%type fill_opt {SArray*}
+%destructor fill_opt {taosArrayDestroy($$);}
 fill_opt(N) ::= .                               {N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
     toTSDBType(Y.type);
     tVariantCreate(&A, &Y);
 
-    tVariantListInsert(X, &A, -1, 0);
+    taosArrayPush(X, &A);
     N = X;
 }
 
@@ -494,11 +494,11 @@ fill_opt(N) ::= FILL LP ID(Y) RP.               {
 sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
 sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
-%type orderby_opt {tVariantList*}
-%destructor orderby_opt {tVariantListDestroy($$);}
+%type orderby_opt {SArray*}
+%destructor orderby_opt {taosArrayDestroy($$);}
 
-%type sortlist {tVariantList*}
-%destructor sortlist {tVariantListDestroy($$);}
+%type sortlist {SArray*}
+%destructor sortlist {taosArrayDestroy($$);}
 
 %type sortitem {tVariant}
 %destructor sortitem {tVariantDestroy(&$$);}
@@ -528,10 +528,10 @@ sortorder(A) ::= DESC.          {A = TSDB_ORDER_DESC;}
 sortorder(A) ::= .              {A = TSDB_ORDER_ASC;}  //default is descend order
 
 //group by clause
-%type groupby_opt {tVariantList*}
-%destructor groupby_opt {tVariantListDestroy($$);}
-%type grouplist {tVariantList*}
-%destructor grouplist {tVariantListDestroy($$);}
+%type groupby_opt {SArray*}
+%destructor groupby_opt {taosArrayDestroy($$);}
+%type grouplist {SArray*}
+%destructor grouplist {taosArrayDestroy($$);}
 
 groupby_opt(A) ::= .                       {A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  {A = X;}
@@ -654,7 +654,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     X.n += F.n;
 
     toTSDBType(A.type);
-    tVariantList* K = tVariantListAppendToken(NULL, &A, -1);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -670,7 +670,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
 
     toTSDBType(Y.type);
-    tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -680,7 +680,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
     toTSDBType(Z.type);
     A = tVariantListAppendToken(A, &Z, -1);
@@ -693,7 +693,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
