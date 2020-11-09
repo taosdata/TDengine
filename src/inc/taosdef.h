@@ -467,6 +467,8 @@ typedef enum {
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
 
+extern char *qtypeStr[];
+
 #ifdef __cplusplus
 }
 #endif
