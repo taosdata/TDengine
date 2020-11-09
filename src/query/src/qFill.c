@@ -37,26 +37,34 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
 
     if (TSDB_COL_IS_TAG(pColInfo->flag)) {
       bool exists = false;
+      int32_t index = -1;
       for (int32_t j = 0; j < k; ++j) {
         if (pFillInfo->pTags[j].col.colId == pColInfo->col.colId) {
           exists = true;
+          index = j;
           break;
         }
       }
 
       if (!exists) {
-        pFillInfo->pTags[k].col.colId = pColInfo->col.colId;
+        SSchema* pSchema = &pFillInfo->pTags[k].col;
+        pSchema->colId = pColInfo->col.colId;
+        pSchema->type  = pColInfo->col.type;
+        pSchema->bytes = pColInfo->col.bytes;
+
         pFillInfo->pTags[k].tagVal = calloc(1, pColInfo->col.bytes);
         pColInfo->tagIndex = k;
 
         k += 1;
+      } else {
+        pColInfo->tagIndex = index;
       }
     }
 
     rowsize += pColInfo->col.bytes;
   }
 
-  assert(k < pFillInfo->numOfTags);
+  assert(k <= pFillInfo->numOfTags);
   return rowsize;
 }
 

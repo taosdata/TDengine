@@ -2365,7 +2365,7 @@ static void yy_reduce(
 }
         break;
       case 117: /* columnlist ::= columnlist COMMA column */
-{yylhsminor.yy347 = taosArrayPush(yymsp[-2].minor.yy347, &yymsp[0].minor.yy181);   }
+{taosArrayPush(yymsp[-2].minor.yy347, &yymsp[0].minor.yy181); yylhsminor.yy347 = yymsp[-2].minor.yy347;  }
   yymsp[-2].minor.yy347 = yylhsminor.yy347;
         break;
       case 118: /* columnlist ::= column */
@@ -2612,15 +2612,21 @@ static void yy_reduce(
 {yymsp[1].minor.yy188.limit = -1; yymsp[1].minor.yy188.offset = 0;}
         break;
       case 174: /* limit_opt ::= LIMIT signed */
-      case 178: /* slimit_opt ::= SLIMIT signed */ yytestcase(yyruleno==178);
-{yymsp[-1].minor.yy188.limit = yymsp[0].minor.yy271;  yymsp[-1].minor.yy188.offset = 0;}
+{printf("aa1, %d\n", yymsp[0].minor.yy271); yymsp[-1].minor.yy188.limit = yymsp[0].minor.yy271;  yymsp[-1].minor.yy188.offset = 0;}
         break;
       case 175: /* limit_opt ::= LIMIT signed OFFSET signed */
-      case 179: /* slimit_opt ::= SLIMIT signed SOFFSET signed */ yytestcase(yyruleno==179);
-{yymsp[-3].minor.yy188.limit = yymsp[-2].minor.yy271;  yymsp[-3].minor.yy188.offset = yymsp[0].minor.yy271;}
+{printf("aa2\n, %d\n", yymsp[-2].minor.yy271); yymsp[-3].minor.yy188.limit = yymsp[-2].minor.yy271;  yymsp[-3].minor.yy188.offset = yymsp[0].minor.yy271;}
         break;
       case 176: /* limit_opt ::= LIMIT signed COMMA signed */
-      case 180: /* slimit_opt ::= SLIMIT signed COMMA signed */ yytestcase(yyruleno==180);
+{printf("aa3\n, %d\n", yymsp[-2].minor.yy271); yymsp[-3].minor.yy188.limit = yymsp[0].minor.yy271;  yymsp[-3].minor.yy188.offset = yymsp[-2].minor.yy271;}
+        break;
+      case 178: /* slimit_opt ::= SLIMIT signed */
+{yymsp[-1].minor.yy188.limit = yymsp[0].minor.yy271;  yymsp[-1].minor.yy188.offset = 0;}
+        break;
+      case 179: /* slimit_opt ::= SLIMIT signed SOFFSET signed */
+{yymsp[-3].minor.yy188.limit = yymsp[-2].minor.yy271;  yymsp[-3].minor.yy188.offset = yymsp[0].minor.yy271;}
+        break;
+      case 180: /* slimit_opt ::= SLIMIT signed COMMA signed */
 {yymsp[-3].minor.yy188.limit = yymsp[0].minor.yy271;  yymsp[-3].minor.yy188.offset = yymsp[-2].minor.yy271;}
         break;
       case 183: /* expr ::= LP expr RP */

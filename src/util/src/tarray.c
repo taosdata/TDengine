@@ -194,6 +194,10 @@ void taosArrayDestroy(SArray* pArray) {
 }
 
 void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
+  if (pArray == NULL) {
+    return;
+  }
+
   if (fp == NULL) {
     return taosArrayDestroy(pArray);
   }

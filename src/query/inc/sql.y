@@ -326,7 +326,7 @@ create_table_args(A) ::= AS select(S). {
 %type column{TAOS_FIELD}
 %type columnlist{SArray*}
 %destructor columnlist {taosArrayDestroy($$);}
-columnlist(A) ::= columnlist(X) COMMA column(Y).  {A = taosArrayPush(X, &Y);   }
+columnlist(A) ::= columnlist(X) COMMA column(Y).  {taosArrayPush(X, &Y); A = X;  }
 columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
 
 // The information used for a column is the name and type of column:
@@ -481,7 +481,7 @@ fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     toTSDBType(Y.type);
     tVariantCreate(&A, &Y);
 
-    taosArrayPush(X, &A);
+    tVariantListInsert(X, &A, -1, 0);
     N = X;
 }
 
@@ -553,11 +553,11 @@ having_opt(A) ::= HAVING expr(X).   {A = X;}
 //limit-offset subclause
 %type limit_opt {SLimitVal}
 limit_opt(A) ::= .                     {A.limit = -1; A.offset = 0;}
-limit_opt(A) ::= LIMIT signed(X).      {A.limit = X;  A.offset = 0;}
+limit_opt(A) ::= LIMIT signed(X).      {printf("aa1, %d\n", X); A.limit = X;  A.offset = 0;}
 limit_opt(A) ::= LIMIT signed(X) OFFSET signed(Y).
-                                       {A.limit = X;  A.offset = Y;}
+                                       {printf("aa2\n, %d\n", X); A.limit = X;  A.offset = Y;}
 limit_opt(A) ::= LIMIT signed(X) COMMA signed(Y).
-                                       {A.limit = Y;  A.offset = X;}
+                                       {printf("aa3\n, %d\n", X); A.limit = Y;  A.offset = X;}
 
 %type slimit_opt {SLimitVal}
 slimit_opt(A) ::= .                    {A.limit = -1; A.offset = 0;}

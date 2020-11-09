@@ -6060,19 +6060,20 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
   size_t numOfFields = taosArrayGetSize(pFieldList);
 
   for (; col < numOfFields; ++col) {
-    TAOS_FIELD* p = taosArrayGet(pTagList, col);
+    TAOS_FIELD* p = taosArrayGet(pFieldList, col);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
   }
 
   pCmd->numOfCols = (int16_t)numOfFields;
 
   if (pTagList != NULL) {  // create super table[optional]
-    for (int32_t i = 0; i < numOfFields; ++i) {
+    size_t numOfTags = taosArrayGetSize(pTagList);
+    for (int32_t i = 0; i < numOfTags; ++i) {
       TAOS_FIELD* p = taosArrayGet(pTagList, i);
       tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
     }
 
-    pCmd->count = numOfFields;
+    pCmd->count = numOfTags;
   }
 
   return TSDB_CODE_SUCCESS;
