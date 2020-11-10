@@ -50,6 +50,6 @@ typedef struct {
   char     sexpLen[MAX_NUM_BLOCK];            /*switch expression length */
 } SBlock;
 
-bool simParseExpression(char *token, int lineNum);
+bool simParseExpression(char *token, int32_t lineNum);
 
 #endif

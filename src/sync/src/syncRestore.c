@@ -153,7 +153,7 @@ static int syncRestoreWal(SSyncPeer *pPeer) {
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret < 0) break;
 
-    sDebug("%s, restore a record, ver:%" PRIu64, pPeer->id, pHead->version);
+    sDebug("%s, restore a record, qtype:wal hver:%" PRIu64, pPeer->id, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL, NULL);
   }
 

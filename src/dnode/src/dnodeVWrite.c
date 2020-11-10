@@ -113,7 +113,7 @@ void dnodeDispatchToVWriteQueue(SRpcMsg *pRpcMsg) {
 void *dnodeAllocVWriteQueue(void *pVnode) {
   pthread_mutex_lock(&tsVWriteWP.mutex);
   SVWriteWorker *pWorker = tsVWriteWP.worker + tsVWriteWP.nextId;
-  void *queue = taosOpenQueue();
+  taos_queue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&tsVWriteWP.mutex);
     return NULL;
@@ -207,8 +207,8 @@ static void *dnodeProcessVWriteQueue(void *param) {
     bool forceFsync = false;
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
-      dTrace("%p, msg:%p:%s will be processed in vwrite queue, qtype:%d version:%" PRIu64, pWrite->rpcAhandle, pWrite,
-             taosMsg[pWrite->pHead->msgType], qtype, pWrite->pHead->version);
+      dTrace("%p, msg:%p:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite->rpcAhandle, pWrite,
+             taosMsg[pWrite->pHead->msgType], qtypeStr[qtype], pWrite->pHead->version);
 
       pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
       if (pWrite->code <= 0) pWrite->processedCount = 1;

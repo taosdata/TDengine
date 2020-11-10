@@ -19,7 +19,6 @@
 #include "taoserror.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "tutil.h"
 #include "tsdb.h"
 #include "twal.h"
 #include "tsync.h"
@@ -53,20 +52,24 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   SRspRet *   pRspRet = rparam;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
-    vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[pHead->msgType]);
+    vError("vgId:%d, msg:%s not processed since no handle, qtype:%s hver:%" PRIu64, pVnode->vgId,
+           taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version);
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
+  vTrace("vgId:%d, msg:%s will be processed in vnode, qtype:%s hver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId,
+         taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version, pVnode->version);
+
   if (pHead->version == 0) {  // from client or CQ
     if (pVnode->status != TAOS_VN_STATUS_READY) {
-      vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType],
-             pVnode->status);
+      vDebug("vgId:%d, msg:%s not processed since vstatus:%d, qtype:%s hver:%" PRIu64, pVnode->vgId,
+             taosMsg[pHead->msgType], pVnode->status, qtypeStr[qtype], pHead->version);
       return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
     }
 
     if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-      vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%s", pVnode->vgId, taosMsg[pHead->msgType],
-             pVnode->syncCfg.replica, syncRole[pVnode->role]);
+      vDebug("vgId:%d, msg:%s not processed since replica:%d role:%s, qtype:%s hver:%" PRIu64, pVnode->vgId,
+             taosMsg[pHead->msgType], pVnode->syncCfg.replica, syncRole[pVnode->role], qtypeStr[qtype], pHead->version);
       return TSDB_CODE_APP_NOT_READY;
     }
 
@@ -185,7 +188,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   SDropSTableMsg *pTable = pCont;
-  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t         code = TSDB_CODE_SUCCESS;
 
   vDebug("vgId:%d, stable:%s, start to drop", pVnode->vgId, pTable->tableId);
 
