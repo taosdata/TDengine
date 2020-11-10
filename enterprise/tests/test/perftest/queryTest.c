@@ -394,9 +394,9 @@ int main(int argc, char** argv) {
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-    executeSQL(conn, "use m_fl_db0", NULL);
+    executeSQL(conn, "use join_m_db0", NULL);
 //    createEnvironment(conn, 100000, 100000, 80, 30);
-        executeSQL(conn, "select tgcol,count(*),tgcol,first(c7) from m_fl_mt0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(5m) fill(value ,20) group by tgcol;", NULL);
+    executeSQL(conn, "select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc limit 20 offset 19;", NULL);
     taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
