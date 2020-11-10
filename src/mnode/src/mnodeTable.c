@@ -47,7 +47,7 @@
 
 #define ALTER_CTABLE_RETRY_TIMES  3
 #define CREATE_CTABLE_RETRY_TIMES 10
-#define CREATE_CTABLE_RETRY_SEC   10
+#define CREATE_CTABLE_RETRY_SEC   14
 
 static void *  tsChildTableSdb;
 static void *  tsSuperTableSdb;
