@@ -47,6 +47,7 @@ typedef struct SMnodeMsg {
   int8_t    successed;
   int8_t    expected;
   int8_t    retry;
+  int32_t   incomingTs;
   int32_t   code;
   void *    pObj;
   SRpcMsg   rpcMsg;

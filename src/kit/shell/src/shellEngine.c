@@ -296,7 +296,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   TAOS_RES* pSql = taos_query_h(con, command, &result);
   if (taos_errno(pSql)) {
-    taos_error(pSql);
+    taos_error(pSql, st);
     return;
   }
 
@@ -807,9 +807,10 @@ void write_history() {
   fclose(f);
 }
 
-void taos_error(TAOS_RES *tres) {
+void taos_error(TAOS_RES *tres, int64_t st) {
+  int64_t et = taosGetTimestampUs();
   atomic_store_ptr(&result, 0);
-  fprintf(stderr, "\nDB error: %s\n", taos_errstr(tres));
+  fprintf(stderr, "\nDB error: %s (%.6fs)\n", taos_errstr(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 

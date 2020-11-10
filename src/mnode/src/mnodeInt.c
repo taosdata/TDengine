@@ -40,6 +40,7 @@ void *mnodeCreateMsg(SRpcMsg *pRpcMsg) {
 
   pMsg->rpcMsg = *pRpcMsg;
   pMsg->rpcMsg.pCont = pMsg->pCont;
+  pMsg->incomingTs = taosGetTimestampSec();
   memcpy(pMsg->pCont, pRpcMsg->pCont, pRpcMsg->contLen);
 
   return pMsg;
