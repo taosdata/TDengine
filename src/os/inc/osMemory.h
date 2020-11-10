@@ -66,6 +66,7 @@ void   taosTMemset(void *ptr, int c);
     #undef tmalloc
     #undef tcalloc
     #undef trealloc
+    #undef tfree
     #define tmalloc(size) taosMallocMem(size, __FILE__, __LINE__)
     #define tcalloc(num, size) taosCallocMem(num, size, __FILE__, __LINE__)
     #define trealloc(ptr, size) taosReallocMem(ptr, size, __FILE__, __LINE__)
