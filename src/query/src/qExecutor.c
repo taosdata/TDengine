@@ -6926,7 +6926,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   if (IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
     // here current thread hold the refcount, so it is safe to free tsdbQueryHandle.
-    doFreeQueryHandle(pQInfo);
+//    doFreeQueryHandle(pQInfo);
     *continueExec = false;
     (*pRsp)->completed = 1;  // notify no more result to client
   } else {
