@@ -217,6 +217,11 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
     if (code != TSDB_CODE_SUCCESS) return code;
   }
 
+  if (pHead->len > TSDB_MAX_WAL_SIZE) {
+    vError("vgId:%d, wal len:%d exceeds limit, hver:%" PRIu64, pVnode->vgId, pHead->len, pHead->version);
+    return TSDB_CODE_WAL_SIZE_LIMIT;
+  }
+
   int32_t size = sizeof(SVWriteMsg) + sizeof(SWalHead) + pHead->len;
   SVWriteMsg *pWrite = taosAllocateQitem(size);
   if (pWrite == NULL) {

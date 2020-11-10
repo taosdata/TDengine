@@ -79,7 +79,7 @@ int32_t syncInit() {
   info.numOfThreads = tsSyncTcpThreads;
   info.serverIp = 0;
   info.port = tsSyncPort;
-  info.bufferSize = 640000;
+  info.bufferSize = SYNC_MAX_SIZE;
   info.processBrokenLink = syncProcessBrokenLink;
   info.processIncomingMsg = syncProcessPeerMsg;
   info.processIncomingConn = syncProcessIncommingConnection;
@@ -850,7 +850,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SWalHead * pHead = (SWalHead *)cont;
 
-  sDebug("%s, forward is received, ver:%" PRIu64, pPeer->id, pHead->version);
+  sDebug("%s, forward is received, hver:%" PRIu64 ", len:%d", pPeer->id, pHead->version, pHead->len);
 
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     // nodeVersion = pHead->version;
@@ -859,7 +859,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       syncSaveIntoBuffer(pPeer, pHead);
     } else {
-      sError("%s, forward discarded, ver:%" PRIu64, pPeer->id, pHead->version);
+      sError("%s, forward discarded, hver:%" PRIu64, pPeer->id, pHead->version);
     }
   }
 }
@@ -890,7 +890,7 @@ static int32_t syncReadPeerMsg(SSyncPeer *pPeer, SSyncHead *pHead, char *cont) {
 
   // head.len = htonl(head.len);
   if (pHead->len < 0) {
-    sError("%s, invalid pkt length, len:%d", pPeer->id, pHead->len);
+    sError("%s, invalid pkt length, hlen:%d", pPeer->id, pHead->len);
     return -1;
   }
 
