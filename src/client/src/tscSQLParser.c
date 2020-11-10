@@ -2767,7 +2767,10 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
 
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
   int32_t startIdx = 0;
-  
+
+  size_t numOfExpr = tscSqlExprNumOfExprs(pQueryInfo);
+  assert(numOfExpr > 0);
+
   SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, startIdx);
   int32_t functionID = pExpr->functionId;
 

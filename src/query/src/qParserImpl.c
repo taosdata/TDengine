@@ -225,13 +225,12 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
       tSQLExprDestroy(pLeft);
       tSQLExprDestroy(pRight);
 
-    } else if ((pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE && pRight->val.nType == TSDB_DATA_TYPE_BIGINT) ||
-               (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE && pLeft->val.nType == TSDB_DATA_TYPE_BIGINT)) {
+    } else if (pLeft->nSQLOptr == TK_FLOAT || pRight->nSQLOptr == TK_FLOAT) {
       pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
-      pExpr->nSQLOptr = TK_FLOAT;
+      pExpr->nSQLOptr  = TK_FLOAT;
 
-      double left = pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE ? pLeft->val.dKey : pLeft->val.i64Key;
-      double right = pRight->val.nType == TSDB_DATA_TYPE_DOUBLE ? pRight->val.dKey : pRight->val.i64Key;
+      double left  = (pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->val.dKey : pLeft->val.i64Key;
+      double right = (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->val.dKey : pRight->val.i64Key;
 
       switch (optrType) {
         case TK_PLUS: {
