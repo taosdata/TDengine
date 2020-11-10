@@ -790,14 +790,14 @@ int main(int argc, char *argv[]) {
     printf("ASYNC Insert with %d connections:\n", threads);
   }
 
-  fprintf(fp, "|%10.d  |  %10.2f    |  %10.2f     |  %10.4f   |\n\n",
-          ntables * nrecords_per_table, ntables * nrecords_per_table / t,
-          (ntables * nrecords_per_table) / (t * nrecords_per_request),
+  fprintf(fp, "|%"PRIu64"  |  %10.2f    |  %10.2f     |  %10.4f   |\n\n",
+          (int64_t)ntables * nrecords_per_table, ntables * nrecords_per_table / t,
+          ((int64_t)ntables * nrecords_per_table) / (t * nrecords_per_request),
           t * 1000);
 
-  printf("Spent %.4f seconds to insert %d records with %d record(s) per request: %.2f records/second\n",
-         t, ntables * nrecords_per_table, nrecords_per_request,
-         ntables * nrecords_per_table / t);
+  printf("Spent %.4f seconds to insert %"PRIu64" records with %d record(s) per request: %.2f records/second\n",
+         t, (int64_t)ntables * nrecords_per_table, nrecords_per_request,
+         (int64_t)ntables * nrecords_per_table / t);
 
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
@@ -957,7 +957,7 @@ void querySqlFile(TAOS* taos, char* sqlFile)
 
   double t = getCurrentTime();
   
-  while ((read_len = taosGetline(&line, &line_len, fp)) != -1) {
+  while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
     if (read_len >= MAX_SQL_SIZE) continue;
     line[--read_len] = '\0';
 
@@ -1309,6 +1309,8 @@ void callBack(void *param, TAOS_RES *res, int code) {
   }
   if (winfo->start_table_id > winfo->end_table_id) {
     tsem_post(&winfo->lock_sem);
+    free(buffer);
+    free(data);
     taos_free_result(res);
     return;
   }
