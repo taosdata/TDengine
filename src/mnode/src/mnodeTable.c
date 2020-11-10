@@ -45,6 +45,10 @@
 #include "mnodeRead.h"
 #include "mnodePeer.h"
 
+#define ALTER_CTABLE_RETRY_TIMES  3
+#define CREATE_CTABLE_RETRY_TIMES 10
+#define CREATE_CTABLE_RETRY_SEC   14
+
 static void *  tsChildTableSdb;
 static void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
@@ -89,10 +93,10 @@ static void    mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeFindSuperTableColumnIndex(SSTableObj *pStable, char *colName);
 
 static void mnodeDestroyChildTable(SCTableObj *pTable) {
-  taosTFree(pTable->info.tableId);
-  taosTFree(pTable->schema);
-  taosTFree(pTable->sql);
-  taosTFree(pTable);
+  tfree(pTable->info.tableId);
+  tfree(pTable->schema);
+  tfree(pTable->sql);
+  tfree(pTable);
 }
 
 static int32_t mnodeChildTableActionDestroy(SSdbOper *pOper) {
@@ -421,9 +425,9 @@ static void mnodeDestroySuperTable(SSTableObj *pStable) {
     taosHashCleanup(pStable->vgHash);
     pStable->vgHash = NULL;
   }
-  taosTFree(pStable->info.tableId);
-  taosTFree(pStable->schema);
-  taosTFree(pStable);
+  tfree(pStable->info.tableId);
+  tfree(pStable->schema);
+  tfree(pStable);
 }
 
 static int32_t mnodeSuperTableActionDestroy(SSdbOper *pOper) {
@@ -2421,7 +2425,9 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
       dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
-    if (mnodeMsg->retry++ < 10) {
+    mnodeMsg->retry++;
+    int32_t sec = taosGetTimestampSec();
+    if (mnodeMsg->retry < CREATE_CTABLE_RETRY_TIMES && ABS(sec - mnodeMsg->incomingTs) < CREATE_CTABLE_RETRY_SEC) {
       mDebug("app:%p:%p, table:%s, create table rsp received, need retry, times:%d vgId:%d sid:%d uid:%" PRIu64
              " result:%s thandle:%p",
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, pTable->vgId, pTable->tid,
@@ -2429,13 +2435,18 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       dnodeDelayReprocessMWriteMsg(mnodeMsg);
     } else {
-      mError("app:%p:%p, table:%s, failed to create in dnode, vgId:%d sid:%d uid:%" PRIu64 ", result:%s thandle:%p",
+      mError("app:%p:%p, table:%s, failed to create in dnode, vgId:%d sid:%d uid:%" PRIu64
+             ", result:%s thandle:%p incomingTs:%d curTs:%d retryTimes:%d",
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid,
-             tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle);
+             tstrerror(rpcMsg->code), mnodeMsg->rpcMsg.handle, mnodeMsg->incomingTs, sec, mnodeMsg->retry);
 
       SSdbOper oper = {.type = SDB_OPER_GLOBAL, .table = tsChildTableSdb, .pObj = pTable};
       sdbDeleteRow(&oper);
 
+      if (rpcMsg->code == TSDB_CODE_APP_NOT_READY) {
+        //Avoid retry again in client
+        rpcMsg->code = TSDB_CODE_MND_VGROUP_NOT_READY;
+      }
       dnodeSendRpcMWriteRsp(mnodeMsg, rpcMsg->code);
     }
   }
@@ -2456,7 +2467,7 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
 
     dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
   } else {
-    if (mnodeMsg->retry++ < 3) {
+    if (mnodeMsg->retry++ < ALTER_CTABLE_RETRY_TIMES) {
       mDebug("app:%p:%p, table:%s, alter table rsp received, need retry, times:%d result:%s thandle:%p",
              mnodeMsg->rpcMsg.ahandle, mnodeMsg, pTable->info.tableId, mnodeMsg->retry, tstrerror(rpcMsg->code),
              mnodeMsg->rpcMsg.handle);

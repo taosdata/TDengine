@@ -124,7 +124,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   pVgroupInfo->inUse = pEpSet->inUse;
   pVgroupInfo->numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    taosTFree(pVgroupInfo->epAddr[i].fqdn);
+    tfree(pVgroupInfo->epAddr[i].fqdn);
     pVgroupInfo->epAddr[i].fqdn = strndup(pEpSet->fqdn[i], tListLen(pEpSet->fqdn[i]));
     pVgroupInfo->epAddr[i].port = pEpSet->port[i];
   }
@@ -1549,7 +1549,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     memcpy(pInfoMsg->tableIds, tmpData, pCmd->payloadLen);
   }
 
-  taosTFree(tmpData);
+  tfree(tmpData);
 
   pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiTableInfoMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
@@ -1956,7 +1956,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   tscFieldInfoUpdateOffset(pQueryInfo);
   
-  taosTFree(pTableMeta);
+  tfree(pTableMeta);
   return 0;
 }
 
@@ -1981,7 +1981,7 @@ static void createHBObj(STscObj* pObj) {
 
   pSql->cmd.command = pQueryInfo->command;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
-    taosTFree(pSql);
+    tfree(pSql);
     return;
   }
 

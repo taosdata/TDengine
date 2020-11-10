@@ -63,7 +63,7 @@ static void httpDestroyContext(void *data) {
     pContext->parser = NULL;
   }
 
-  taosTFree(pContext);
+  tfree(pContext);
 }
 
 bool httpInitContexts() {

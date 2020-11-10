@@ -1620,10 +1620,10 @@ static void rpcDecRef(SRpcInfo *pRpc)
     taosTmrCleanUp(pRpc->tmrCtrl);
     taosIdPoolCleanUp(pRpc->idPool);
 
-    taosTFree(pRpc->connList);
+    tfree(pRpc->connList);
     pthread_mutex_destroy(&pRpc->mutex);
     tDebug("%s rpc resources are released", pRpc->label);
-    taosTFree(pRpc);
+    tfree(pRpc);
 
     atomic_sub_fetch_32(&tsRpcNum, 1);
   }

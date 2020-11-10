@@ -984,7 +984,7 @@ void sdbCleanupWriteWorker() {
   }
 
   sdbFreeWritequeue();
-  taosTFree(tsSdbPool.writeWorker);
+  tfree(tsSdbPool.writeWorker);
 
   mInfo("sdb write is closed");
 }
