@@ -437,9 +437,9 @@ static void syncFreeNode(void *param) {
   SSyncNode *pNode = param;
 
   pthread_mutex_destroy(&pNode->mutex);
-  taosTFree(pNode->pRecv);
-  taosTFree(pNode->pSyncFwds);
-  taosTFree(pNode);
+  tfree(pNode->pRecv);
+  tfree(pNode->pSyncFwds);
+  tfree(pNode);
 }
 
 void syncAddPeerRef(SSyncPeer *pPeer) { atomic_add_fetch_8(&pPeer->refCount, 1); }
@@ -449,8 +449,8 @@ int syncDecPeerRef(SSyncPeer *pPeer) {
     taosReleaseRef(tsSyncRefId, pPeer->pSyncNode->rid);
 
     sDebug("%s, resource is freed", pPeer->id);
-    taosTFree(pPeer->watchFd);
-    taosTFree(pPeer);
+    tfree(pPeer->watchFd);
+    tfree(pPeer);
     return 0;
   }
 

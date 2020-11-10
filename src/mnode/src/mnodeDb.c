@@ -52,8 +52,8 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 
 static void mnodeDestroyDb(SDbObj *pDb) {
   pthread_mutex_destroy(&pDb->mutex);
-  taosTFree(pDb->vgList);
-  taosTFree(pDb);
+  tfree(pDb->vgList);
+  tfree(pDb);
 }
 
 static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
@@ -405,7 +405,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
 
   code = mnodeCheckDbCfg(&pDb->cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    taosTFree(pDb);
+    tfree(pDb);
     return code;
   }
 

@@ -131,7 +131,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp) {
   snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
   if (firstPkt.syncHead.vgId) {
     sDebug("%s, vgId in head is not zero, close the connection", pNode->id);
-    taosTFree(pNode);
+    tfree(pNode);
     taosCloseSocket(connFd);
     return;
   }
@@ -147,7 +147,7 @@ static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
   sDebug("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
-  taosTFree(pNode);
+  tfree(pNode);
 }
 
 static int arbProcessPeerMsg(void *param, void *buffer) {

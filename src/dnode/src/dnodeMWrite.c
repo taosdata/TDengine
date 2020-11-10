@@ -86,7 +86,7 @@ void dnodeCleanupMWrite() {
 
   taosCloseQset(tsMWriteQset);
   tsMWriteQset = NULL;
-  taosTFree(tsMWriteWP.worker);
+  tfree(tsMWriteWP.worker);
 }
 
 int32_t dnodeAllocMWritequeue() {

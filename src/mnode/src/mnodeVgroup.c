@@ -69,7 +69,7 @@ static void mnodeDestroyVgroup(SVgObj *pVgroup) {
     pVgroup->idPool = NULL;
   }
 
-  taosTFree(pVgroup);
+  tfree(pVgroup);
 }
 
 static int32_t mnodeVgroupActionDestroy(SSdbOper *pOper) {

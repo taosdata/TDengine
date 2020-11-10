@@ -108,7 +108,7 @@ void taosCloseTcpThreadPool(void *param) {
 
   sDebug("%p TCP pool is closed", pPool);
 
-  taosTFree(pPool->pThread);
+  tfree(pPool->pThread);
   tfree(pPool);
 }
 

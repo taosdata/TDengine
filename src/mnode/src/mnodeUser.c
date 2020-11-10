@@ -43,7 +43,7 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg);
 
 static int32_t mnodeUserActionDestroy(SSdbOper *pOper) {
-  taosTFree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -270,7 +270,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    taosTFree(pUser);
+    tfree(pUser);
   } else {
     mLInfo("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
   }

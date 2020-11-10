@@ -3957,7 +3957,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
     int32_t ret = setObjFullName(idBuf, account, &dbToken, &t, &xlen);
     if (ret != TSDB_CODE_SUCCESS) {
       taosStringBuilderDestroy(&sb1);
-      taosTFree(segments);
+      tfree(segments);
 
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       return ret;
@@ -3970,7 +3970,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
 
   taosStringBuilderDestroy(&sb1);
-  taosTFree(segments);
+  tfree(segments);
   return TSDB_CODE_SUCCESS;
 }
 

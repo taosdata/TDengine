@@ -193,7 +193,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
       history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE] == NULL ||
       strcmp(command, history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE]) != 0) {
     if (history.hist[history.hend] != NULL) {
-      taosTFree(history.hist[history.hend]);
+      tfree(history.hist[history.hend]);
     }
     history.hist[history.hend] = strdup(command);
 
@@ -770,7 +770,7 @@ void read_history() {
     return;
   }
 
-  while ((read_size = taosGetline(&line, &line_size, f)) != -1) {
+  while ((read_size = tgetline(&line, &line_size, f)) != -1) {
     line[read_size - 1] = '\0';
     history.hist[history.hend] = strdup(line);
 
@@ -800,7 +800,7 @@ void write_history() {
   for (int i = history.hstart; i != history.hend;) {
     if (history.hist[i] != NULL) {
       fprintf(f, "%s\n", history.hist[i]);
-      taosTFree(history.hist[i]);
+      tfree(history.hist[i]);
     }
     i = (i + 1) % MAX_HISTORY_SIZE;
   }
@@ -854,7 +854,7 @@ void source_file(TAOS *con, char *fptr) {
     return;
   }
 
-  while ((read_len = taosGetline(&line, &line_len, f)) != -1) {
+  while ((read_len = tgetline(&line, &line_len, f)) != -1) {
     if (read_len >= tsMaxSQLStringLen) continue;
     line[--read_len] = '\0';
 

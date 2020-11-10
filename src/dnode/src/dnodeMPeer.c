@@ -84,7 +84,7 @@ void dnodeCleanupMPeer() {
 
   taosCloseQset(tsMPeerQset);
   tsMPeerQset = NULL;
-  taosTFree(tsMPeerWP.worker);
+  tfree(tsMPeerWP.worker);
 }
 
 int32_t dnodeAllocateMPeerQueue() {

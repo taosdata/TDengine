@@ -416,7 +416,7 @@ void vnodeRelease(void *pVnodeRaw) {
     pVnode->rqueue = NULL;
   }
 
-  taosTFree(pVnode->rootDir);
+  tfree(pVnode->rootDir);
 
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};    

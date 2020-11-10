@@ -955,7 +955,7 @@ void querySqlFile(TAOS* taos, char* sqlFile)
 
   double t = getCurrentTime();
   
-  while ((read_len = taosGetline(&line, &line_len, fp)) != -1) {
+  while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
     if (read_len >= MAX_SQL_SIZE) continue;
     line[--read_len] = '\0';
 

@@ -225,10 +225,10 @@ int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
 
 static void syncCloseRecvBuffer(SSyncNode *pNode) {
   if (pNode->pRecv) {
-    taosTFree(pNode->pRecv->buffer);
+    tfree(pNode->pRecv->buffer);
   }
 
-  taosTFree(pNode->pRecv);
+  tfree(pNode->pRecv);
 }
 
 static int syncOpenRecvBuffer(SSyncNode *pNode) {

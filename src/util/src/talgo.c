@@ -153,7 +153,7 @@ static void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const
 void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn) {
   char *buf = calloc(1, size);   // prepare the swap buffer
   tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
-  taosTFree(buf);
+  tfree(buf);
 }
 
 void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t compar, int flags) {

@@ -1406,7 +1406,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     assert(taos_errno(pSql) == code);
 
     taos_free_result(pSql);
-    taosTFree(pSupporter);
+    tfree(pSupporter);
     fclose(fp);
 
     pParentSql->res.code = code;
@@ -1445,7 +1445,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
 
   char *tokenBuf = calloc(1, 4096);
 
-  while ((readLen = taosGetline(&line, &n, fp)) != -1) {
+  while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
     }
@@ -1470,7 +1470,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     }
   }
 
-  taosTFree(tokenBuf);
+  tfree(tokenBuf);
   free(line);
 
   if (count > 0) {
@@ -1483,7 +1483,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
 
   } else {
     taos_free_result(pSql);
-    taosTFree(pSupporter);
+    tfree(pSupporter);
     fclose(fp);
 
     pParentSql->fp = pParentSql->fetchFp;
@@ -1513,7 +1513,7 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
 
-    taosTFree(pSupporter)
+    tfree(pSupporter)
     tscQueueAsyncRes(pSql);
 
     return;

@@ -59,7 +59,7 @@ void doubleSkipListTest() {
     }
 
     if (size > 0) {
-      taosTFree(pNodes);
+      tfree(pNodes);
     }
   }
 
@@ -196,7 +196,7 @@ void stringKeySkiplistTest() {
     tSkipListRemoveNode(pSkipList, pres[0]);
 
     if (num > 0) {
-      taosTFree(pres);
+      tfree(pres);
     }
   }
 
@@ -276,7 +276,7 @@ void skiplistPerformanceTest() {
   assert(SL_GET_SIZE(pSkipList) == size);
 
   tSkipListDestroy(pSkipList);
-  taosTFree(total);
+  tfree(total);
 }
 
 // todo not support duplicated key yet
@@ -357,7 +357,7 @@ TEST(testCase, skiplist_test) {
           printf("-----%lf\n", pNodes[i]->key.dKey);
       }
       printf("the range query result size is: %d\n", size);
-      taosTFree(pNodes);
+      tfree(pNodes);
 
       SSkipListKey *pKeys = malloc(sizeof(SSkipListKey) * 20);
       for (int32_t i = 0; i < 8; i += 2) {
@@ -371,7 +371,7 @@ TEST(testCase, skiplist_test) {
       for (int32_t i = 0; i < r; ++i) {
   //        printf("%lf ", pNodes[i]->key.dKey);
       }
-      taosTFree(pNodes);
+      tfree(pNodes);
 
       free(pKeys);*/
 }

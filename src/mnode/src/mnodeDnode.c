@@ -88,7 +88,7 @@ static char* offlineReason[] = {
 };
 
 static int32_t mnodeDnodeActionDestroy(SSdbOper *pOper) {
-  taosTFree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -655,7 +655,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     int dnodeId = pDnode->dnodeId;
-    taosTFree(pDnode);
+    tfree(pDnode);
     mError("failed to create dnode:%d, reason:%s", dnodeId, tstrerror(code));
   } else {
     mLInfo("dnode:%d is created", pDnode->dnodeId);

@@ -93,10 +93,10 @@ static void    mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeFindSuperTableColumnIndex(SSTableObj *pStable, char *colName);
 
 static void mnodeDestroyChildTable(SCTableObj *pTable) {
-  taosTFree(pTable->info.tableId);
-  taosTFree(pTable->schema);
-  taosTFree(pTable->sql);
-  taosTFree(pTable);
+  tfree(pTable->info.tableId);
+  tfree(pTable->schema);
+  tfree(pTable->sql);
+  tfree(pTable);
 }
 
 static int32_t mnodeChildTableActionDestroy(SSdbOper *pOper) {
@@ -425,9 +425,9 @@ static void mnodeDestroySuperTable(SSTableObj *pStable) {
     taosHashCleanup(pStable->vgHash);
     pStable->vgHash = NULL;
   }
-  taosTFree(pStable->info.tableId);
-  taosTFree(pStable->schema);
-  taosTFree(pStable);
+  tfree(pStable->info.tableId);
+  tfree(pStable->schema);
+  tfree(pStable);
 }
 
 static int32_t mnodeSuperTableActionDestroy(SSdbOper *pOper) {

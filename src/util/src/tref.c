@@ -484,8 +484,8 @@ static void taosDecRsetCount(SRefSet *pSet) {
     pSet->max = 0;
     pSet->fp = NULL;
 
-    taosTFree(pSet->nodeList);
-    taosTFree(pSet->lockedBy);
+    tfree(pSet->nodeList);
+    tfree(pSet->lockedBy);
 
     tsRefSetNum--;
     uTrace("rsetId:%d is cleaned, refSetNum:%d count:%d", pSet->rsetId, tsRefSetNum, pSet->count);

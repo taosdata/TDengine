@@ -571,7 +571,7 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
     doDestroyQuerySql(pQuerySql);
   }
   
-  taosTFree(pClause->pClause);
+  tfree(pClause->pClause);
 }
 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SStrToken *pStableName,
@@ -641,12 +641,12 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
     tFieldListDestroy(pCreateTableInfo->colInfo.pTagColumns);
 
     tVariantListDestroy(pCreateTableInfo->usingInfo.pTagVals);
-    taosTFree(pInfo->pCreateTableInfo);
+    tfree(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     tVariantListDestroy(pInfo->pAlterInfo->varList);
     tFieldListDestroy(pInfo->pAlterInfo->pAddColumns);
     
-    taosTFree(pInfo->pAlterInfo);
+    tfree(pInfo->pAlterInfo);
   } else {
     if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
       free(pInfo->pDCLInfo->a);
@@ -656,7 +656,7 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
       tVariantListDestroy(pInfo->pDCLInfo->dbOpt.keep);
     }
 
-    taosTFree(pInfo->pDCLInfo);
+    tfree(pInfo->pDCLInfo);
   }
 }
 
