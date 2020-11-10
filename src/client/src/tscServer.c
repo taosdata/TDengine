@@ -365,7 +365,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         memcpy(pRes->pRsp, rpcMsg->pCont, pRes->rspLen);
       }
     } else {
-      pRes->pRsp = NULL;
+      taosTFree(pRes->pRsp);
     }
 
     /*
