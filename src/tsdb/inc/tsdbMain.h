@@ -220,8 +220,7 @@ typedef struct {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFileH*     tsdbFileH;
-  int             commit;
-  pthread_t       commitThread;
+  sem_t           readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;
 } STsdbRepo;
@@ -440,6 +439,7 @@ void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
+void* tsdbCommitData(STsdbRepo* pRepo);
 
 static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
@@ -587,6 +587,9 @@ int              tsdbScanSCompIdx(STsdbScanHandle* pScanHandle);
 int              tsdbScanSCompBlock(STsdbScanHandle* pScanHandle, int idx);
 int              tsdbCloseScanFile(STsdbScanHandle* pScanHandle);
 void             tsdbFreeScanHandle(STsdbScanHandle* pScanHandle);
+
+// ------------------ tsdbCommitQueue.c
+int tsdbScheduleCommit(STsdbRepo *pRepo);
 
 #ifdef __cplusplus
 }
