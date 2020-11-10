@@ -2314,12 +2314,13 @@ void filterPrepare(void* expr, void* param) {
 
   if (pInfo->optr == TSDB_RELATION_IN) {
     pInfo->q = (char*) pCond->arr;
-  } else {
+  } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
-    pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE);   // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+
+    pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE);  // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }
 }
