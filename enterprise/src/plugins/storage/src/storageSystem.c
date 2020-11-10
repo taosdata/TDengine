@@ -72,7 +72,7 @@ static void storageCleanupTiers() {
   taosCleanUpStrHash(tsStorageDiskTier.diskHash);
   for (int8_t tierid = 0; tierid < tsStorageDiskTier.numOfTiers; tierid++)
     for (int8_t did = 0; did < tsStorageDiskTier.tiers[tierid].numOfDisks; did++) {
-      taosTFree(tsStorageDiskTier.tiers[tierid].disks[did]);
+      tfree(tsStorageDiskTier.tiers[tierid].disks[did]);
     }
 
   pthread_mutex_destroy(&(tsStorageDiskTier.tierMutex));
@@ -100,7 +100,7 @@ static bool storageReadTiersInfo() {
   } else {
     line = NULL;
     while (!feof(fp)) {
-      taosTFree(line);
+      tfree(line);
       line = option = value = NULL;
       len = olen = vlen = 0;
 
@@ -134,7 +134,7 @@ static bool storageReadTiersInfo() {
       }
     }
 
-    taosTFree(line);
+    tfree(line);
     fclose(fp);
   }
 

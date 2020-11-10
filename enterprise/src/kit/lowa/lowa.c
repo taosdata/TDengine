@@ -1102,7 +1102,7 @@ int readTagFromCsvFileToMem(SSuperTable  * supterTblInfo) {
     return -1;
   }
   
-  while ((readLen = taosGetline(&line, &n, fp)) != -1) {
+  while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
     }
@@ -1155,7 +1155,7 @@ int readSampleFromCsvFileToMem(SSuperTable  * supterTblInfo) {
     return -1;
   }
   
-  while ((readLen = taosGetline(&line, &n, fp)) != -1) {
+  while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
     }

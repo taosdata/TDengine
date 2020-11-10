@@ -101,8 +101,8 @@ char *rsa_decrypt(const int64_t *message, const uint64_t message_size, const str
   char *decrypted = malloc(message_size / sizeof(int64_t));
   char *temp = malloc(message_size);
   if ((decrypted == NULL) || (temp == NULL)) {
-    taosTFree(decrypted);
-    taosTFree(temp);
+    tfree(decrypted);
+    tfree(temp);
     fprintf(stderr, "Error: Heap allocation failed.\n");
     return NULL;
   }
