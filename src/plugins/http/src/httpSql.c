@@ -29,9 +29,9 @@
 
 void httpProcessMultiSql(HttpContext *pContext);
 
-void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);
+void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int32_t numOfRows);
 
-void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int code, int numOfRows) {
+void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int32_t code, int32_t numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -73,12 +73,12 @@ void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int c
   }
 }
 
-void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+void httpProcessMultiSqlRetrieveCallBack(void *param, TAOS_RES *result, int32_t numOfRows) {
   int32_t code = taos_errno(result);
   httpDispatchToResultQueue(param, result, code, numOfRows, httpProcessMultiSqlRetrieveCallBackImp);
 }
 
-void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code, int affectRowsInput) {
+void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int32_t code, int32_t affectRowsInput) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -119,7 +119,7 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code, int
   bool isUpdate = tscIsUpdateQuery(result);
   if (isUpdate) {
     // not select or show commands
-    int affectRows = taos_affected_rows(result);
+    int32_t affectRows = taos_affected_rows(result);
     httpDebug("context:%p, fd:%d, user:%s, process pos:%d, affect rows:%d, sql:%s", pContext, pContext->fd,
               pContext->user, multiCmds->pos, affectRows, sql);
 
@@ -156,7 +156,7 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int code, int
   }
 }
 
-void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
+void httpProcessMultiSqlCallBack(void *param, TAOS_RES *result, int32_t unUsedCode) {
   int32_t code = taos_errno(result);
   int32_t affectRows = taos_affected_rows(result);
   httpDispatchToResultQueue(param, result, code, affectRows, httpProcessMultiSqlCallBackImp);
@@ -204,9 +204,9 @@ void httpProcessMultiSqlCmd(HttpContext *pContext) {
   httpProcessMultiSql(pContext);
 }
 
-void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows);
+void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int32_t numOfRows);
 
-void httpProcessSingleSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int code, int numOfRows) {
+void httpProcessSingleSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int32_t code, int32_t numOfRows) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -244,12 +244,12 @@ void httpProcessSingleSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int 
   }
 }
 
-void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int numOfRows) {
+void httpProcessSingleSqlRetrieveCallBack(void *param, TAOS_RES *result, int32_t numOfRows) {
   int32_t code = taos_errno(result);
   httpDispatchToResultQueue(param, result, code, numOfRows, httpProcessSingleSqlRetrieveCallBackImp);
 }
 
-void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int code, int affectRowsInput) {
+void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int32_t code, int32_t affectRowsInput) {
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
@@ -280,7 +280,7 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int code, in
   bool isUpdate = tscIsUpdateQuery(result);
   if (isUpdate) {
     // not select or show commands
-    int affectRows = taos_affected_rows(result);
+    int32_t affectRows = taos_affected_rows(result);
     assert(affectRows == affectRowsInput);
 
     httpDebug("context:%p, fd:%d, user:%s, affect rows:%d, stop query, sqlObj:%p", pContext, pContext->fd,
@@ -311,7 +311,7 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int code, in
   }
 }
 
-void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int unUsedCode) {
+void httpProcessSingleSqlCallBack(void *param, TAOS_RES *result, int32_t unUsedCode) {
   int32_t code = taos_errno(result);
   int32_t affectRows = taos_affected_rows(result);
   httpDispatchToResultQueue(param, result, code, affectRows, httpProcessSingleSqlCallBackImp);
@@ -378,7 +378,7 @@ void httpExecCmd(HttpContext *pContext) {
   }
 }
 
-void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
+void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {
   HttpContext *pContext = param;
   taos_free_result(result);
   

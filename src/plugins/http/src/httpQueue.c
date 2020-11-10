@@ -65,9 +65,9 @@ void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t code, int3
 
 static void *httpProcessResultQueue(void *param) {
   SHttpResult *pMsg;
-  int32_t type;
-  void *unUsed;
-  
+  int32_t      type;
+  void *       unUsed;
+
   while (1) {
     if (taosReadQitemFromQset(tsHttpQset, &type, (void **)&pMsg, &unUsed) == 0) {
       httpDebug("qset:%p, http queue got no message from qset, exiting", tsHttpQset);
