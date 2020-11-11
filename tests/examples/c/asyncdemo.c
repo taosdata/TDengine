@@ -68,6 +68,7 @@ static void queryDB(TAOS *taos, char *command) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
     taos_free_result(pSql);
     taos_close(taos);
+    taos_cleanup();
     exit(EXIT_FAILURE);
   }
 
@@ -176,6 +177,7 @@ void taos_error(TAOS *con)
 {
   fprintf(stderr, "TDengine error: %s\n", taos_errstr(con));
   taos_close(con);
+  taos_cleanup();
   exit(1);
 }
 
@@ -265,6 +267,8 @@ void taos_select_call_back(void *param, TAOS_RES *tres, int code)
   }
   else {
     printf("%s select failed, code:%d\n", pTable->name, code);
+    taos_free_result(tres);
+    taos_cleanup();
     exit(1);
   }
 
