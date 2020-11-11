@@ -128,7 +128,7 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   }
 
   firstPkt.fqdn[sizeof(firstPkt.fqdn) - 1] = 0;
-  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
+  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d, peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
   if (firstPkt.syncHead.vgId) {
     sDebug("%s, vgId in head is not zero, close the connection", pNode->id);
     tfree(pNode);
