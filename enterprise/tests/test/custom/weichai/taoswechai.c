@@ -547,7 +547,7 @@ void tdParseCsvFile(char *csvfile, int threadIndex) {
   int lineNum = 0;
 
   do {
-    taosTFree(line);
+    tfree(line);
     int ret = getline(&line, &len, fp);
     if (line == NULL || ret == -1 || len == 0) {
       tdPrint("file:%s read finished, totalRows:%d", csvfile, lineNum);

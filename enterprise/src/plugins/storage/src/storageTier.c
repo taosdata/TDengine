@@ -138,7 +138,7 @@ int32_t storageAddMountPoint(char *path, TIERID tierid) {
 
   if (taosGetStrHashData(tsStorageDiskTier.diskHash, disk->path) != NULL) {
     uError("failed to add path %s to tier %d since it is already there", path, tierid);
-    taosTFree(disk);
+    tfree(disk);
     uDebugFlag = old_uDebugFlag;
     return -1;
   }

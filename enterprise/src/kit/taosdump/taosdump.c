@@ -446,8 +446,8 @@ int main(int argc, char *argv[]) {
 
 void taosFreeDbInfos() {
   if (dbInfos == NULL) return;
-  for (int i = 0; i < 128; i++) taosTFree(dbInfos[i]);
-  taosTFree(dbInfos);
+  for (int i = 0; i < 128; i++) tfree(dbInfos[i]);
+  tfree(dbInfos);
 }
 
 // check table is normal table or super table
@@ -808,7 +808,7 @@ int taosDumpOut(struct arguments *arguments) {
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  taosTFree(command);
+  tfree(command);
   taosFreeDbInfos();  
   fprintf(stderr, "dump out rows: %" PRId64 "\n", totalDumpOutRows);
   return 0;
@@ -817,7 +817,7 @@ _exit_failure:
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  taosTFree(command);
+  tfree(command);
   taosFreeDbInfos();
   fprintf(stderr, "dump out rows: %" PRId64 "\n", totalDumpOutRows);
   return -1;
@@ -1786,13 +1786,13 @@ void taosLoadFileCharset(FILE *fp, char *fcharset) {
   }
   strcpy(fcharset, line + 2);
 
-  taosTFree(line);
+  tfree(line);
   return;
 
 _exit_no_charset:
   (void)fseek(fp, 0, SEEK_SET);
   *fcharset = '\0';
-  taosTFree(line);
+  tfree(line);
   return;
 }
 
@@ -1887,9 +1887,9 @@ static void taosMallocSQLFiles()
 static void taosFreeSQLFiles()
 {
   for (int i = 0; i < tsSqlFileNum; i++) {
-    taosTFree(tsDumpInSqlFiles[i]);
+    tfree(tsDumpInSqlFiles[i]);
   }
-  taosTFree(tsDumpInSqlFiles);
+  tfree(tsDumpInSqlFiles);
 }
 
 static void taosGetDirectoryFileList(char *inputDir)
@@ -2076,17 +2076,17 @@ int taosDumpInOneFile_old(TAOS     * taos, FILE* fp, char* fcharset, char* encod
   }
 
   if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  taosTFree(line);
-  taosTFree(command);
-  taosTFree(lcommand);
+  tfree(line);
+  tfree(command);
+  tfree(lcommand);
   taos_close(taos);
   fclose(fp);
   return 0;
 
 _dumpin_exit_failure:
   if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  taosTFree(command);
-  taosTFree(lcommand);
+  tfree(command);
+  tfree(lcommand);
   taos_close(taos);
   fclose(fp);
   return -1;
@@ -2133,8 +2133,8 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
     cmd_len = 0;
   }
 
-  taosTFree(cmd);
-  taosTFree(line);
+  tfree(cmd);
+  tfree(line);
   fclose(fp);
   return 0;
 }
