@@ -586,7 +586,7 @@ static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
   if (!sdbIsMaster()) return;
 
   tsBalanceTimer = NULL;
-  if (handle == NULL) tsAccessSquence++;
+  tsAccessSquence ++;
 
   balanceCheckDnodeAccess();  
   bool updateSoon = false;
