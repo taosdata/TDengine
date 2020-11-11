@@ -3,6 +3,7 @@ pipeline {
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      TAOS='/usr/local/taos/examples'
   }
 
   stages {
@@ -14,8 +15,11 @@ pipeline {
             git checkout develop
             git pull
             git submodule update 
+            git fetch
             git checkout $branch_version||git checkout -b $branch_version|git push
             cd ${WK}
+            git checkout develop
+            git pull
             git checkout $branch_version||git checkout -b $branch_version|git push
             '''
           }
@@ -27,11 +31,9 @@ pipeline {
                 steps{
                     sh '''
                     cd ${WK}
-                    git pull
                     cd ${WK}/enterprise/packaging
                     ./new_ver_release_j.sh $version $branch_version $docker $tag
-                    cd ${WKC}/alter
-                    ./release.sh -n $verson
+                    
                     '''
                 }
             }
@@ -48,37 +50,144 @@ pipeline {
                     }
                 }
             }
+            stage('arm64'){
+                agent{label 'arm64'}
+                steps{
+                    sh '''
+                    cd ${WK}
+                    git checkout develop
+                    git pull
+                    git checkout $branch_version
+                    cd ${WKC}
+                    git checkout develop
+                    git pull
+                    git submodule update 
+                    git fetch
+                    git checkout $branch_version
+                    cd ${WKC}/packaging
+
+                    ./release.sh -v cluster -c aarch64 -n $version -m 2.0.0.0
+                    ./release.sh -c aarch64 -n $version -m 2.0.0.0
+                    
+                    '''
+                }
+            }
+            stage('arm32'){
+                agent{label 'arm32'}
+                steps{
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${WK}
+                        git checkout develop
+                        git pull
+                        git checkout $branch_version
+                        cd ${WKC}
+                        git checkout develop
+                        git pull
+                        git submodule update 
+                        
+                        git checkout $branch_version
+                        cd ${WKC}/packaging
+
+                        ./release.sh -v cluster -c aarch32 -n $version -m 2.0.0.0
+                        ./release.sh -c aarch32 -n $version -m 2.0.0.0
+                        
+                        '''
+                    }
+                    
+                }
+            }
         }    
       }
       stage('install'){
-          agent{label 'release'}
-          steps{
-              sh '''
-              rmtaos||echo 'no taosd'
-              '''
+          parallel{
+              stage('linux_u'){
+                agent{label 'release'}
+                steps{
+                    sh '''
+                    rmtaos||echo 'no taosd'
+                    
+                    '''
+                    
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${WK}/enterprise/release/v$version/community
+                        echo '\n\n' | dpkg -i TDengine-server-$version-Linux-x64.deb
+                        systemctl start taosd
+                        cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
+                        python3 PythonChecker.py -h 127.0.0.1
+                        dpkg -r tdengine
+                        '''
+                    }
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${WK}/enterprise/release/v$version/community
+                        tar zxf TDengine-server-$version-Linux-x64.tar.gz
+                        cd TDengine-server-$version
+                        echo '\n\n' |./install.sh
+                        systemctl start taosd
+                        sleep 30
+                        '''
+                    }
+
+                }
+          
               
-              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WK}/enterprise/release/v$version/community
-                echo '\n\n' | dpkg -i TDengine-server-$version-Linux-x64.deb
-                systemctl start taosd
-                cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
-                python3 PythonChecker.py
-                dpkg -r tdengine
-                '''
-              }
-              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WK}/enterprise/release/v$version/community
-                tar zxf TDengine-server-$version-Linux-x64.tar.gz
-                cd TDengine-server-$version
-                echo '\n\n' |./install.sh
-                systemctl start taosd
-                '''
-              }
+              } 
+            stage('linux_c'){
+                agent{label 'centos'}
+                steps{
+                    sh '''
+                    rpm -e tdengine||echo 'no taosd'
+                    cd ${JENKINS_HOME}
+                    scp -rp root@192.168.1.200:${WK}/enterprise/release/v$version/community/TDengine-server-$version-Linux-x64.rpm .
+                    '''
+                    
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${JENKINS_HOME}
+                        echo '\n\n' | rpm -ivh TDengine-server-$version-Linux-x64.rpm
+                        systemctl start taosd
+                        cd ${TAOS}/examples/python/PYTHONConnectorChecker
+                        python3 PythonChecker.py -h 127.0.0.1
+                        rpm -e tdengine
+                        '''
+                    }
+                    
+                }
+          
               
-              
-             
+              } 
+            stage('arm64'){
+                agent{label 'arm64'}
+                steps{
+                    sh '''
+                    cd ${WKC}/release
+                    tar zxvf TDengine-server-$version-Linux-aarch64.tar.gz
+                    cd TDengine-server-$version
+                    echo '\n\n' |./install.sh
+                    systemctl start taosd
+                    sleep 30
+                    '''
+                }
+            }
+            stage('arm32'){
+                agent{label 'arm32'}
+                steps{
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${WKC}/release
+                        tar zxvf TDengine-server-$version-Linux-aarch32.tar.gz
+                        cd TDengine-server-$version
+                        echo '\n\n' |./install.sh
+                        systemctl start taosd
+                        sleep 30
+                        
+                        '''
+                    }
+                    
+                }
+            } 
               
           }
       }
@@ -96,13 +205,17 @@ pipeline {
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
-                cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
-                python3 PythonChecker.py
+                rm -rf ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                cp -rf ${WKC}/tests/examples/python/PYTHONConnectorChecker ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                python3 PythonChecker.py -h 127.0.0.1
                 '''
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
-                cd ${WKC}/tests/examples/JDBC/JDBCDemo/
+                rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                cp -rf  ${WCK}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                 mvn clean package assembly:single >/dev/null 
                 java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                 '''
@@ -115,7 +228,9 @@ pipeline {
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
-                cd ${WKC}/tests/examples/nodejs
+                rm -rf  ${WORKSPACE}/tests/examples/nodejs
+                cp -rf  ${WKC}/tests/examples/nodejs ${WORKSPACE}/tests/examples/nodejs
+                cd ${WORKSPACE}/tests/examples/nodejs
                 npm init -y 
                 npm install td2.0-connector --unsafe-perm=true
                 node nodejsChecker.js host=localhost
@@ -134,22 +249,148 @@ pipeline {
                 '''
             }
         }
+        stage('arm64'){
+                agent{label 'arm64'}
+                steps{
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${WKC}/tests/gotest
+                        bash batchtest.sh
+                        '''
+                    }
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        rm -rf ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                        cp -rf ${WKC}/tests/examples/python/PYTHONConnectorChecker ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                        cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                        python3 PythonChecker.py -h 127.0.0.1
+                        '''
+                    }
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                        cp -rf  ${WCK}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                        cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                        mvn clean package assembly:single >/dev/null 
+                        java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                        '''
+                    }
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
+                        dotnet run
+                        '''
+                    }
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        rm -rf  ${WORKSPACE}/tests/examples/nodejs
+                        cp -rf  ${WKC}/tests/examples/nodejs ${WORKSPACE}/tests/examples/nodejs
+                        cd ${WORKSPACE}/tests/examples/nodejs
+                        npm init -y 
+                        npm install td2.0-connector --unsafe-perm=true
+                        node nodejsChecker.js host=localhost
+                        '''
+                    }
+                    
+                }
+            }
+        stage('arm32'){
+            agent{label 'arm32'}
+            steps{
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    cd ${WKC}/tests/gotest
+                    bash batchtest.sh
+                    '''
+                }
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    rm -rf ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                    cp -rf ${WKC}/tests/examples/python/PYTHONConnectorChecker ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                    cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+                    python3 PythonChecker.py -h 127.0.0.1
+                    '''
+                }
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                    cp -rf  ${WCK}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                    cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                    mvn clean package assembly:single >/dev/null 
+                    java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                    '''
+                }
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
+                    dotnet run
+                    '''
+                }
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    rm -rf  ${WORKSPACE}/tests/examples/nodejs
+                    cp -rf  ${WKC}/tests/examples/nodejs ${WORKSPACE}/tests/examples/nodejs
+                    cd ${WORKSPACE}/tests/examples/nodejs
+                    npm init -y 
+                    npm install td2.0-connector --unsafe-perm=true
+                    node nodejsChecker.js host=localhost
+                    '''
+                }
+            }
+        }
         
       }
       }
       stage('publish'){
+        parallel {
+          stage('linux') {
           agent{label 'release'}
-          steps{
-              dir('/data/0-TDengine-version-release/temple'){
-                  sh 'rm -f *.exe'
-                  unstash 'win_re'
-                  sh 'cp -r /data/0-TDengine-version-release/temple /data/0-TDengine-version-release/v$version'
-              }
-              sh'''
-              cp -r ${WK}/enterprise/release/v$version/* /data/0-TDengine-version-release/v$version
-              cp ${WKC}/alter/TDengine-alert-$version-Linux-x64.tar.gz /data/0-TDengine-version-release/v$version
-              '''
+            steps{
+                dir('/data/0-TDengine-version-release/temple'){
+                    sh 'rm -f *.exe'
+                    unstash 'win_re'
+                    sh 'cp -r /data/0-TDengine-version-release/temple /data/0-TDengine-version-release/v$version'
+                }
+                sh'''
+                cp -r ${WK}/enterprise/release/v$version/* /data/0-TDengine-version-release/v$version
+                cp ${WKC}/alert/TDengine-alert-$version-Linux-x64.tar.gz /data/0-TDengine-version-release/v$version
+                '''
+            }
           }
+          stage('arm64'){
+                agent{label 'arm64'}
+                steps{
+                    sh '''
+                    mkdir -p /var/lib/jenkins/workspace/release/v$version/community
+                    mkdir -p /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-enterprise-client-$version-Linux-aarch64.tar.gz /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-enterprise-server-$version-Linux-aarch64.tar.gz /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-enterprise-arbitrator-$version-Linux-aarch64.tar.gz /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-arbitrator-$version-Linux-aarch64.tar.gz /var/lib/jenkins/workspace/release/v$version/community
+                    cp ${WKC}/release/TDengine-server-$version-Linux-aarch64.tar.gz /var/lib/jenkins/workspace/release/v$version/community
+                    cp ${WKC}/release/TDengine-client-$version-Linux-aarch64.tar.gz /var/lib/jenkins/workspace/release/v$version/community
+                    scp -rp /var/lib/jenkins/workspace/release/v$version root@192.168.1.200:/data/0-TDengine-version-release/aarch64
+                    '''
+                }
+            }
+            stage('arm32'){
+                agent{label 'arm32'}
+                steps{
+                    sh '''
+                    mkdir -p /var/lib/jenkins/workspace/release/v$version/community
+                    mkdir -p /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-enterprise-client-$version-Linux-aarch32.tar.gz /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-enterprise-server-$version-Linux-aarch32.tar.gz /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-enterprise-arbitrator-$version-Linux-aarch32.tar.gz /var/lib/jenkins/workspace/release/v$version/enterprise
+                    cp ${WKC}/release/TDengine-arbitrator-$version-Linux-aarch32.tar.gz /var/lib/jenkins/workspace/release/v$version/community
+                    cp ${WKC}/release/TDengine-server-$version-Linux-aarch32.tar.gz /var/lib/jenkins/workspace/release/v$version/community
+                    cp ${WKC}/release/TDengine-client-$version-Linux-aarch32.tar.gz /var/lib/jenkins/workspace/release/v$version/community
+                    scp -rp /var/lib/jenkins/workspace/release/v$version root@192.168.1.200:/data/0-TDengine-version-release/aarch32
+                    
+                    '''
+                }
+            }
+        }
       }
       
     }
