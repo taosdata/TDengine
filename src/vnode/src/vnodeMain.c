@@ -318,7 +318,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   tsdbSyncCommit(pVnode->tsdb);
-  walRemoveAllOldFiles(pVnode->tsdb);
+  walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
