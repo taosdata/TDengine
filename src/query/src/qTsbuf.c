@@ -142,11 +142,11 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
     return NULL;
   }
   
-  taosTFree(pTSBuf->assistBuf);
-  taosTFree(pTSBuf->tsData.rawBuf);
+  tfree(pTSBuf->assistBuf);
+  tfree(pTSBuf->tsData.rawBuf);
   
-  taosTFree(pTSBuf->pData);
-  taosTFree(pTSBuf->block.payload);
+  tfree(pTSBuf->pData);
+  tfree(pTSBuf->block.payload);
   
   fclose(pTSBuf->f);
   

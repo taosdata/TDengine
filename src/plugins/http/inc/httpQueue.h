@@ -22,9 +22,11 @@ extern "C" {
 
 #include <stdint.h>
 
+typedef void (*FHttpResultFp)(void *param, void *result, int32_t code, int32_t rows);
+
 bool httpInitResultQueue();
 void httpCleanupResultQueue();
-void httpDispatchToResultQueue();
+void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t code, int32_t rows, FHttpResultFp fp);
 
 #ifdef __cplusplus
 }

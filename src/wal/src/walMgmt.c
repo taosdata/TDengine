@@ -28,14 +28,13 @@ typedef struct {
   pthread_mutex_t mutex;
 } SWalMgmt;
 
-static SWalMgmt tsWal;
+static SWalMgmt tsWal = {0};
 static int32_t  walCreateThread();
 static void     walStopThread();
 static int32_t  walInitObj(SWal *pWal);
 static void     walFreeObj(void *pWal);
 
 int32_t walInit() {
-  tmemzero(&tsWal, sizeof(SWalMgmt));
   tsWal.refId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
   int32_t code = walCreateThread();

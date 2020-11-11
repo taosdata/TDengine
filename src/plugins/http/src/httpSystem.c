@@ -107,7 +107,7 @@ void httpCleanUpSystem() {
   httpCleanupResultQueue();
 
   pthread_mutex_destroy(&tsHttpServer.serverMutex);
-  taosTFree(tsHttpServer.pThreads);
+  tfree(tsHttpServer.pThreads);
   tsHttpServer.pThreads = NULL;
   
   tsHttpServer.status = HTTP_SERVER_CLOSED;

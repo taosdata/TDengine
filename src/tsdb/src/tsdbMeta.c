@@ -192,7 +192,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   return 0;
 
 _err:
-  taosTFree(tbname);
+  tfree(tbname);
   return -1;
 }
 
@@ -462,7 +462,7 @@ void tsdbFreeMeta(STsdbMeta *pMeta) {
   if (pMeta) {
     taosHashCleanup(pMeta->uidMap);
     tdListFree(pMeta->superList);
-    taosTFree(pMeta->tables);
+    tfree(pMeta->tables);
     pthread_rwlock_destroy(&pMeta->rwLock);
     free(pMeta);
   }
@@ -486,11 +486,11 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
   }
 
   tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
-  taosTFree(fname);
+  tfree(fname);
   return 0;
 
 _err:
-  taosTFree(fname);
+  tfree(fname);
   return -1;
 }
 
@@ -761,7 +761,7 @@ static void tsdbFreeTable(STable *pTable) {
     if (pTable->name != NULL)
       tsdbTrace("table %s tid %d uid %" PRIu64 " is freed", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
                 TABLE_UID(pTable));
-    taosTFree(TABLE_NAME(pTable));
+    tfree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
         tdFreeSchema(pTable->schema[i]);
@@ -775,7 +775,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
-    taosTFree(pTable->sql);
+    tfree(pTable->sql);
     free(pTable);
   }
 }
@@ -1066,9 +1066,9 @@ void tsdbClearTableCfg(STableCfg *config) {
     if (config->schema) tdFreeSchema(config->schema);
     if (config->tagSchema) tdFreeSchema(config->tagSchema);
     if (config->tagValues) kvRowFree(config->tagValues);
-    taosTFree(config->name);
-    taosTFree(config->sname);
-    taosTFree(config->sql);
+    tfree(config->name);
+    tfree(config->sname);
+    tfree(config->sql);
     free(config);
   }
 }
@@ -1290,7 +1290,7 @@ static int tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid) {
 
   STable **tTables = pMeta->tables;
   pMeta->tables = tables;
-  taosTFree(tTables);
+  tfree(tTables);
   tsdbDebug("vgId:%d tsdb meta maxTables is adjusted as %d", REPO_ID(pRepo), maxTables);
 
   return 0;

@@ -33,7 +33,7 @@ static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
 static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static int32_t mnodeClusterActionDestroy(SSdbOper *pOper) {
-  taosTFree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -59,7 +59,7 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
 #endif
 
 static int32_t mnodeMnodeActionDestroy(SSdbOper *pOper) {
-  taosTFree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -342,14 +342,14 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    taosTFree(pMnode);
+    tfree(pMnode);
     return;
   }
 
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to create mnode, ep:%s reason:%s", dnodeId, dnodeEp, tstrerror(code));
-    taosTFree(pMnode);
+    tfree(pMnode);
   }
 }
 

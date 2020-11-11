@@ -228,7 +228,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   int   prefixLen = (int)strlen(prefix);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    taosTFree(sdup);
+    tfree(sdup);
     int fid = (*index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
@@ -260,8 +260,8 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     fname = malloc(prefixLen + strlen(name) + 2);
     sprintf(fname, "%s/%s", prefix, name);
     if (access(fname, F_OK) != 0) {
-      taosFree(fname);
-      taosFree(sdup);
+      tfree(fname);
+      tfree(sdup);
       return 0;
     }
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
@@ -269,20 +269,20 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     } else {
       tsdbGetFileInfoImpl(fname, &magic, size);
     }
-    taosFree(fname);
-    taosFree(sdup);
+    tfree(fname);
+    tfree(sdup);
     return magic;
   }
 
   if (stat(fname, &fState) < 0) {
-    taosTFree(fname);
+    tfree(fname);
     return 0;
   }
 
   *size = fState.st_size;
   // magic = *size;
 
-  taosTFree(fname);
+  tfree(fname);
   return magic;
 }
 
@@ -600,7 +600,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
   return 0;
 
 _err:
-  taosTFree(fname);
+  tfree(fname);
   if (fd >= 0) close(fd);
   return -1;
 }
@@ -637,13 +637,13 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
 
   tsdbDecodeCfg(buf, pCfg);
 
-  taosTFree(fname);
+  tfree(fname);
   close(fd);
 
   return 0;
 
 _err:
-  taosTFree(fname);
+  tfree(fname);
   if (fd >= 0) close(fd);
   return -1;
 }
@@ -724,7 +724,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
-    taosTFree(pRepo->rootDir);
+    tfree(pRepo->rootDir);
     sem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);

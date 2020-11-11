@@ -228,7 +228,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
             pCacheObj->freeFp(p->data);
           }
 
-          taosTFree(p);
+          tfree(p);
         } else {
           taosAddToTrashcan(pCacheObj, p);
           uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, p->data);
@@ -614,7 +614,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
   __cache_lock_destroy(pCacheObj);
   
-  taosTFree(pCacheObj->name);
+  tfree(pCacheObj->name);
   memset(pCacheObj, 0, sizeof(SCacheObj));
   free(pCacheObj);
 }

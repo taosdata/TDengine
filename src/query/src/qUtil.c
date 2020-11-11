@@ -57,7 +57,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     return;
   }
   
-  taosTFree(pWindowResInfo->pResult);
+  tfree(pWindowResInfo->pResult);
 }
 
 void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo) {
@@ -358,11 +358,11 @@ void* destroyResultRowPool(SResultRowPool* p) {
   size_t size = taosArrayGetSize(p->pData);
   for(int32_t i = 0; i < size; ++i) {
     void** ptr = taosArrayGet(p->pData, i);
-    taosTFree(*ptr);
+    tfree(*ptr);
   }
 
   taosArrayDestroy(p->pData);
 
-  taosTFree(p);
+  tfree(p);
   return NULL;
 }
