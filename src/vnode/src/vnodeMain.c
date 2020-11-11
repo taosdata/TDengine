@@ -28,6 +28,8 @@
 #include "vnodeCfg.h"
 #include "vnodeVersion.h"
 
+#define DEFAULT_COMMIT_THREADS 1
+
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
@@ -67,10 +69,17 @@ int32_t vnodeInitResources() {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
+  if (tsdbInitCommitQueue(DEFAULT_COMMIT_THREADS) < 0) {
+    vError("failed to init vnode commit queue");
+    return terrno;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 void vnodeCleanupResources() {
+  tsdbDestroyCommitQueue();
+
   if (tsVnodesHash != NULL) {
     vDebug("vnode list is cleanup");
     taosHashCleanup(tsVnodesHash);
