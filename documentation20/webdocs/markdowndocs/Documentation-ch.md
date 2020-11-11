@@ -34,7 +34,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 - [SQL写入](https://www.taosdata.com/cn/documentation20/insert/#SQL写入)：使用SQL insert命令向一张或多张表写入单条或多条记录
 - [Telegraf写入](https://www.taosdata.com/cn/documentation20/insert/#Telegraf直接写入)：配置Telegraf, 不用任何代码，将采集数据直接写入
 - [Prometheus写入](https://www.taosdata.com/cn/documentation20/insert/#Prometheus直接写入)：配置Prometheus, 不用任何代码，将数据直接写入
-- [EMQ X Broker](https://www.taosdata.com/cn/documentation20/insert/#EMQ-X-Broker直接写入)：配置EMQ X，不用任何代码，就可将MQTT数据直接写入
+- [EMQ X Broker](https://www.taosdata.com/cn/documentation20/insert/#EMQ-X-Broker)：配置EMQ X，不用任何代码，就可将 MQTT 数据直接写入
+- [HiveMQ Broker](https://www.taosdata.com/cn/documentation20/insert/#HiveMQ-Broker)：通过 HiveMQ Extension，不用任何代码，就可将 MQTT 数据直接写入
 
 ## [高效查询数据](https://www.taosdata.com/cn/documentation20/queries)
 
