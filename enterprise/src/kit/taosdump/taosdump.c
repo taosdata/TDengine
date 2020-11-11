@@ -906,6 +906,13 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       return -1;
     }
 
+    if (row[0] == NULL) {
+      sprintf(tableDes->cols[i].note, "%s", "NULL");
+      taos_free_result(tmpResult);
+      tmpResult = NULL;
+      continue;
+    }
+
     //int32_t* length = taos_fetch_lengths(tmpResult);
     switch (fields[0].type) {
       case TSDB_DATA_TYPE_BOOL:
