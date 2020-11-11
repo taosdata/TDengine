@@ -879,6 +879,7 @@ int main(int argc, char *argv[]) {
     taos_close(rInfo->taos);
   }
 
+  taos_cleanup();
   return 0;
 }
 
@@ -1325,6 +1326,8 @@ void callBack(void *param, TAOS_RES *res, int code) {
 
   if (code < 0) {
     fprintf(stderr, "failed to insert data %d:reason; %s\n", code, taos_errstr(res));
+    taos_free_result(res);
+    taos_cleanup();
     exit(EXIT_FAILURE);
   }
 
@@ -1334,6 +1337,7 @@ void callBack(void *param, TAOS_RES *res, int code) {
     (*(tb_info->notFinished))--;
     if (*(tb_info->notFinished) == 0) tsem_post(tb_info->lock_sem);
     tsem_post(tb_info->mutex_sem);
+    taos_free_result(res);
     return;
   }
 
@@ -1359,7 +1363,8 @@ void callBack(void *param, TAOS_RES *res, int code) {
       break;
     }
   }
-   tb_info->timestamp = tmp_time;
+  
+  tb_info->timestamp = tmp_time;
 
   taos_query_a(tb_info->taos, buffer, callBack, tb_info);
 
