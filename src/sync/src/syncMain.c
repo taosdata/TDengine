@@ -894,6 +894,7 @@ static int32_t syncReadPeerMsg(SSyncPeer *pPeer, SSyncHead *pHead, char *cont) {
     return -1;
   }
 
+  assert(pHead->len <= TSDB_MAX_WAL_SIZE);
   int32_t bytes = taosReadMsg(pPeer->peerFd, cont, pHead->len);
   if (bytes != pHead->len) {
     sError("%s, failed to read, bytes:%d len:%d", pPeer->id, bytes, pHead->len);
