@@ -52,8 +52,8 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 
 static void mnodeDestroyDb(SDbObj *pDb) {
   pthread_mutex_destroy(&pDb->mutex);
-  taosTFree(pDb->vgList);
-  taosTFree(pDb);
+  tfree(pDb->vgList);
+  tfree(pDb);
 }
 
 static int32_t mnodeDbActionDestroy(SSdbOper *pOper) {
@@ -319,6 +319,11 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
   }
 #endif
 
+  if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) {
+    mError("invalid db option update:%d valid range: [%d, %d]", pCfg->update, TSDB_MIN_DB_UPDATE, TSDB_MAX_DB_UPDATE);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -339,6 +344,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->walLevel < 0) pCfg->walLevel = tsWAL;
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
   if (pCfg->quorum < 0) pCfg->quorum = tsQuorum;
+  if (pCfg->update < 0) pCfg->update = tsUpdate;
 }
 
 static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
@@ -391,14 +397,15 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
     .compression         = pCreate->compression,
     .walLevel            = pCreate->walLevel,
     .replications        = pCreate->replications,
-    .quorum              = pCreate->quorum
+    .quorum              = pCreate->quorum,
+    .update              = pCreate->update
   };
 
   mnodeSetDefaultDbCfg(&pDb->cfg);
 
   code = mnodeCheckDbCfg(&pDb->cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    taosTFree(pDb);
+    tfree(pDb);
     return code;
   }
 
@@ -610,6 +617,12 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 1;
+  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
+  strcpy(pSchema[cols].name, "update");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
@@ -750,6 +763,10 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int8_t *)pWrite = pDb->cfg.update;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pDb->status == TSDB_DB_STATUS_READY) {
       const char *src = "ready";
       STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
@@ -848,6 +865,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   int8_t  replications   = pAlter->replications;
   int8_t  quorum         = pAlter->quorum;
   int8_t  precision      = pAlter->precision;
+  int8_t  update         = pAlter->update;
   
   terrno = TSDB_CODE_SUCCESS;
 
@@ -948,6 +966,16 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   if (quorum >= 0 && quorum != pDb->cfg.quorum) {
     mDebug("db:%s, quorum:%d change to %d", pDb->name, pDb->cfg.quorum, quorum);
     newCfg.quorum = quorum;
+  }
+
+  if (update >= 0 && update != pDb->cfg.update) {
+#if 0
+    mDebug("db:%s, update:%d change to %d", pDb->name, pDb->cfg.update, update);
+    newCfg.update = update;
+#else
+    mError("db:%s, can't alter update option", pDb->name);
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+#endif
   }
 
   return newCfg;

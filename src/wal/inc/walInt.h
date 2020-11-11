@@ -34,7 +34,7 @@ extern int32_t wDebugFlag;
 #define WAL_PREFIX     "wal"
 #define WAL_PREFIX_LEN 3
 #define WAL_REFRESH_MS 1000
-#define WAL_MAX_SIZE   (1024 * 1024)
+#define WAL_MAX_SIZE   (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
 #define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
 #define WAL_PATH_LEN   (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN   (TSDB_FILENAME_LEN + 32)
@@ -43,6 +43,7 @@ extern int32_t wDebugFlag;
 typedef struct {
   uint64_t version;
   int64_t  fileId;
+  int64_t  rid;
   int32_t  vgId;
   int32_t  fd;
   int32_t  keep;

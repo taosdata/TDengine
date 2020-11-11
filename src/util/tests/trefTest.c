@@ -11,106 +11,119 @@
 #include "tulog.h"
 
 typedef struct {
-  int  refNum;
-  int  steps;
-  int  refId;
-  void **p;
+  int     refNum;
+  int     steps;
+  int     rsetId;
+  int64_t rid;
+  void  **p;
 } SRefSpace;
 
-void iterateRefs(int refId) {
+void iterateRefs(int rsetId) {
   int  count = 0;
 
-  void *p = taosIterateRef(refId, NULL);
+  void *p = taosIterateRef(rsetId, NULL);
   while (p) {
     // process P
     count++;
-    p = taosIterateRef(refId, p);
+    p = taosIterateRef(rsetId, p);
   }    
 
   printf(" %d ", count); 
 }
 
-void *takeRefActions(void *param) {
+void *addRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
-  int code, id;
+  int id;
+  int64_t rid;
 
   for (int i=0; i < pSpace->steps; ++i) {
-    printf("s");
+    printf("a");
     id = random() % pSpace->refNum; 
-    code = taosAddRef(pSpace->refId, pSpace->p[id]);
-    usleep(1);
-    
-    id = random() % pSpace->refNum; 
-    code = taosAcquireRef(pSpace->refId, pSpace->p[id]);
-    if (code >= 0) {
-      usleep(id % 5 + 1);
-      taosReleaseRef(pSpace->refId, pSpace->p[id]);
+    if (pSpace->rid[id] <= 0) {
+      pSpace->p[id] = malloc(128);
+      pSpace->rid[id] = taosAddRef(pSpace->rsetId, pSpace->p[id]);
     }
-
-    id = random() % pSpace->refNum; 
-    taosRemoveRef(pSpace->refId, pSpace->p[id]);
-    usleep(id %5 + 1);
-
-    id = random() % pSpace->refNum; 
-    code = taosAcquireRef(pSpace->refId, pSpace->p[id]);
-    if (code >= 0) {
-      usleep(id % 5 + 1);
-      taosReleaseRef(pSpace->refId, pSpace->p[id]);
-    }
-
-    id = random() % pSpace->refNum; 
-    iterateRefs(id);
+    usleep(100);
   }  
 
-  for (int i=0; i < pSpace->refNum; ++i) {
-    taosRemoveRef(pSpace->refId, pSpace->p[i]);
-  }
-  
-  //uInfo("refId:%d thread exits", pSpace->refId);
+  return NULL;
+}
+       
+void *removeRef(void *param) {
+  SRefSpace *pSpace = (SRefSpace *)param;
+  int id;
+  int64_t rid;
+
+  for (int i=0; i < pSpace->steps; ++i) {
+    printf("d");
+    id = random() % pSpace->refNum; 
+    if (pSpace->rid[id] > 0) {
+      code = taosRemoveRef(pSpace->rsetId, pSpace->rid[id]);
+      if (code == 0) pSpace->rid[id] = 0;
+    }
+
+    usleep(100);
+  }  
+
+  return NULL;
+}
+       
+void *acquireRelease(void *param) {
+  SRefSpace *pSpace = (SRefSpace *)param;
+  int id;
+  int64_t rid;
+
+  for (int i=0; i < pSpace->steps; ++i) {
+    printf("a");
+    
+    id = random() % pSpace->refNum; 
+    code = taosAcquireRef(pSpace->rsetId, pSpace->p[id]);
+    if (code >= 0) {
+      usleep(id % 5 + 1);
+      taosReleaseRef(pSpace->rsetId, pSpace->p[id]);
+    }
+  }  
 
   return NULL;
 }
        
 void myfree(void *p) {
-  return;
+  free(p);
 }
 
 void *openRefSpace(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
 
   printf("c");
-  pSpace->refId = taosOpenRef(50, myfree);
+  pSpace->rsetId = taosOpenRef(50, myfree);
 
-  if (pSpace->refId < 0) {
-    printf("failed to open ref, reson:%s\n", tstrerror(pSpace->refId));
+  if (pSpace->rsetId < 0) {
+    printf("failed to open ref, reson:%s\n", tstrerror(pSpace->rsetId));
     return NULL;
   } 
 
   pSpace->p = (void **) calloc(sizeof(void *), pSpace->refNum);
-  for (int i=0; i<pSpace->refNum; ++i) {
-    pSpace->p[i] = (void *) malloc(128);
-  }
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
   pthread_t thread1, thread2, thread3;
-  pthread_create(&(thread1), &thattr, takeRefActions, (void *)(pSpace));
-  pthread_create(&(thread2), &thattr, takeRefActions, (void *)(pSpace));
-  pthread_create(&(thread3), &thattr, takeRefActions, (void *)(pSpace));
+  pthread_create(&(thread1), &thattr, addRef, (void *)(pSpace));
+  pthread_create(&(thread2), &thattr, removeRef, (void *)(pSpace));
+  pthread_create(&(thread3), &thattr, acquireRelease, (void *)(pSpace));
 
   pthread_join(thread1, NULL);
   pthread_join(thread2, NULL);
   pthread_join(thread3, NULL);
 
-  taosCloseRef(pSpace->refId);
-
   for (int i=0; i<pSpace->refNum; ++i) {
-    free(pSpace->p[i]);
+    taosRemoveRef(pSpace->rsetId, pSpace->rid[i]);
   }
 
-  uInfo("refId:%d main thread exit", pSpace->refId);
+  taosCloseRef(pSpace->rsetId);
+
+  uInfo("rsetId:%d main thread exit", pSpace->rsetId);
   free(pSpace->p);
   pSpace->p = NULL;
 
@@ -140,7 +153,7 @@ int main(int argc, char *argv[]) {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-n]: number of references, default: %d\n", refNum);
       printf("  [-s]: steps to run for each reference, default: %d\n", steps);
-      printf("  [-t]: number of refIds running in parallel, default: %d\n", threads);
+      printf("  [-t]: number of rsetIds running in parallel, default: %d\n", threads);
       printf("  [-l]: number of loops, default: %d\n", loops);
       printf("  [-d]: debugFlag, default: %d\n", uDebugFlag);
       exit(0);

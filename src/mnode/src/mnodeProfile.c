@@ -131,8 +131,8 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
 
 static void mnodeFreeConn(void *data) {
   SConnObj *pConn = data;
-  taosTFree(pConn->pQueries);
-  taosTFree(pConn->pStreams);
+  tfree(pConn->pQueries);
+  tfree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
 }

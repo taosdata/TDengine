@@ -415,7 +415,7 @@ static void mnodeFreeShowObj(void *data) {
   sdbFreeIter(pShow->pIter);
 
   mDebug("%p, show is destroyed, data:%p index:%d", pShow, data, pShow->index);
-  taosTFree(pShow);
+  tfree(pShow);
 }
 
 static void mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove) {

@@ -61,10 +61,10 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
     vError("vgId:%d, failed to read %s, version not found", pVnode->vgId, file);
     goto PARSE_VER_ERROR;
   }
-  pVnode->version = ver->valueint;
+  pVnode->version = (uint64_t)ver->valueint;
 
   terrno = TSDB_CODE_SUCCESS;
-  vInfo("vgId:%d, read %s successfully, version:%" PRId64, pVnode->vgId, file, pVnode->version);
+  vInfo("vgId:%d, read %s successfully, fver:%" PRIu64, pVnode->vgId, file, pVnode->version);
 
 PARSE_VER_ERROR:
   if (content != NULL) free(content);
@@ -89,7 +89,7 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRId64 "\n", pVnode->fversion);
+  len += snprintf(content + len, maxLen - len, "  \"version\": %" PRIu64 "\n", pVnode->fversion);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
@@ -98,6 +98,6 @@ int32_t vnodeSaveVersion(SVnodeObj *pVnode) {
   free(content);
   terrno = 0;
 
-  vInfo("vgId:%d, successed to write %s, version:%" PRId64, pVnode->vgId, file, pVnode->fversion);
+  vInfo("vgId:%d, successed to write %s, fver:%" PRIu64, pVnode->vgId, file, pVnode->fversion);
   return TSDB_CODE_SUCCESS;
 }

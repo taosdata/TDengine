@@ -121,18 +121,18 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
     return NULL;
   }
 
-  taosTFree(pFillInfo->prevValues);
-  taosTFree(pFillInfo->nextValues);
-  taosTFree(pFillInfo->pTags);
+  tfree(pFillInfo->prevValues);
+  tfree(pFillInfo->nextValues);
+  tfree(pFillInfo->pTags);
   
   for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    taosTFree(pFillInfo->pData[i]);
+    tfree(pFillInfo->pData[i]);
   }
   
-  taosTFree(pFillInfo->pData);
-  taosTFree(pFillInfo->pFillCol);
+  tfree(pFillInfo->pData);
+  tfree(pFillInfo->pFillCol);
   
-  taosTFree(pFillInfo);
+  tfree(pFillInfo);
   return NULL;
 }
 
@@ -305,7 +305,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, tFilePage** data, char** sr
         if (TSDB_COL_IS_TAG(pCol->flag)) {
           continue;
         }
-        
+
         char* output = elePtrAt(data[i]->data, pCol->col.bytes, index);
         assignVal(output, p + pCol->col.offset, pCol->col.bytes, pCol->col.type);
       }
@@ -402,7 +402,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t ou
 
     if (((pFillInfo->currentKey < ts && FILL_IS_ASC_FILL(pFillInfo)) || (pFillInfo->currentKey > ts && !FILL_IS_ASC_FILL(pFillInfo))) &&
         pFillInfo->numOfCurrent < outputRows) {
-      
+
       // fill the gap between two actual input rows
       while (((pFillInfo->currentKey < ts && FILL_IS_ASC_FILL(pFillInfo)) ||
               (pFillInfo->currentKey > ts && !FILL_IS_ASC_FILL(pFillInfo))) &&
@@ -457,7 +457,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t ou
     if (pFillInfo->index >= pFillInfo->numOfRows || pFillInfo->numOfCurrent >= outputRows) {
       /* the raw data block is exhausted, next value does not exists */
       if (pFillInfo->index >= pFillInfo->numOfRows) {
-        taosTFree(*next);
+        tfree(*next);
       }
 
       pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
@@ -479,7 +479,7 @@ static int64_t fillExternalResults(SFillInfo* pFillInfo, tFilePage** output, int
   }
 
   pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
-  
+
   assert(pFillInfo->numOfCurrent == resultCapacity);
   return resultCapacity;
 }

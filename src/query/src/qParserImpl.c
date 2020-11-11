@@ -500,7 +500,7 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
     doDestroyQuerySql(pQuerySql);
   }
   
-  taosTFree(pClause->pClause);
+  tfree(pClause->pClause);
 }
 
 SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SStrToken *pStableName,
@@ -570,12 +570,12 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
     taosArrayDestroy(pCreateTableInfo->colInfo.pTagColumns);
 
     taosArrayDestroyEx(pCreateTableInfo->usingInfo.pTagVals, freeVariant);
-    taosTFree(pInfo->pCreateTableInfo);
+    tfree(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
     taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
     
-    taosTFree(pInfo->pAlterInfo);
+    tfree(pInfo->pAlterInfo);
   } else {
     if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
       free(pInfo->pDCLInfo->a);
@@ -585,7 +585,7 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
       taosArrayDestroyEx(pInfo->pDCLInfo->dbOpt.keep, freeVariant);
     }
 
-    taosTFree(pInfo->pDCLInfo);
+    tfree(pInfo->pDCLInfo);
   }
 }
 
@@ -801,5 +801,6 @@ void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
   pDBInfo->quorum = -1;
   pDBInfo->keep = NULL;
 
+  pDBInfo->update = -1;
   memset(&pDBInfo->precision, 0, sizeof(SStrToken));
 }

@@ -85,6 +85,7 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_SMALLINT_NULL         0x8000
 #define TSDB_DATA_INT_NULL              0x80000000L
 #define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+#define TSDB_DATA_TIMESTAMP_NULL        TSDB_DATA_BIGINT_NULL
 
 #define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
@@ -361,6 +362,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
+#define TSDB_MIN_DB_UPDATE              0
+#define TSDB_MAX_DB_UPDATE              1
+#define TSDB_DEFAULT_DB_UPDATE_OPTION   0
+
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
@@ -423,41 +428,51 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_SYNC                  10
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
+#define TSDB_PORT_DNODESHELL 0
+#define TSDB_PORT_DNODEDNODE 5
+#define TSDB_PORT_SYNC       10
+#define TSDB_PORT_HTTP       11
+#define TSDB_PORT_ARBITRATOR 12
 
-#define TAOS_QTYPE_RPC                  0
-#define TAOS_QTYPE_FWD                  1
-#define TAOS_QTYPE_WAL                  2
-#define TAOS_QTYPE_CQ                   3
-#define TAOS_QTYPE_QUERY                4
+#define TSDB_MAX_WAL_SIZE    (1024*1024)
 
 typedef enum {
-  TSDB_SUPER_TABLE        = 0,  // super table
-  TSDB_CHILD_TABLE        = 1,  // table created from super table
-  TSDB_NORMAL_TABLE       = 2,  // ordinary table
-  TSDB_STREAM_TABLE       = 3,  // table created from stream computing
-  TSDB_TABLE_MAX          = 4
+  TAOS_QTYPE_RPC   = 0,
+  TAOS_QTYPE_FWD   = 1,
+  TAOS_QTYPE_WAL   = 2,
+  TAOS_QTYPE_CQ    = 3,
+  TAOS_QTYPE_QUERY = 4
+} EQType;
+
+typedef enum {
+  TSDB_SUPER_TABLE  = 0,   // super table
+  TSDB_CHILD_TABLE  = 1,   // table created from super table
+  TSDB_NORMAL_TABLE = 2,  // ordinary table
+  TSDB_STREAM_TABLE = 3,  // table created from stream computing
+  TSDB_TABLE_MAX    = 4
 } ETableType;
 
 typedef enum {
-  TSDB_MOD_MNODE,
-  TSDB_MOD_HTTP,
-  TSDB_MOD_MONITOR,
-  TSDB_MOD_MQTT,
-  TSDB_MOD_MAX
+  TSDB_MOD_MNODE   = 0,
+  TSDB_MOD_HTTP    = 1,
+  TSDB_MOD_MONITOR = 2,
+  TSDB_MOD_MQTT    = 3,
+  TSDB_MOD_MAX     = 4
 } EModuleType;
 
-  typedef enum {
-    TSDB_CHECK_ITEM_NETWORK,
-    TSDB_CHECK_ITEM_MEM,
-    TSDB_CHECK_ITEM_CPU,
-    TSDB_CHECK_ITEM_DISK,
-    TSDB_CHECK_ITEM_OS,    
-    TSDB_CHECK_ITEM_ACCESS,    
-    TSDB_CHECK_ITEM_VERSION,
-    TSDB_CHECK_ITEM_DATAFILE,
-    TSDB_CHECK_ITEM_MAX
-  } ECheckItemType;
+typedef enum {
+  TSDB_CHECK_ITEM_NETWORK,
+  TSDB_CHECK_ITEM_MEM,
+  TSDB_CHECK_ITEM_CPU,
+  TSDB_CHECK_ITEM_DISK,
+  TSDB_CHECK_ITEM_OS,
+  TSDB_CHECK_ITEM_ACCESS,
+  TSDB_CHECK_ITEM_VERSION,
+  TSDB_CHECK_ITEM_DATAFILE,
+  TSDB_CHECK_ITEM_MAX
+} ECheckItemType;
 
+extern char *qtypeStr[];
 
 #ifdef __cplusplus
 }

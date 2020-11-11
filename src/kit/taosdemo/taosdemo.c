@@ -793,9 +793,9 @@ int main(int argc, char *argv[]) {
           (ntables * nrecords_per_table) / (t * nrecords_per_request),
           t * 1000);
 
-  printf("Spent %.4f seconds to insert %d records with %d record(s) per request: %.2f records/second\n",
-         t, ntables * nrecords_per_table, nrecords_per_request,
-         ntables * nrecords_per_table / t);
+  printf("Spent %.4f seconds to insert %lld records with %d record(s) per request: %.2f records/second\n",
+         t, (long long int)ntables * nrecords_per_table, nrecords_per_request,
+         ((long long int)ntables * nrecords_per_table) / t);
 
   for (int i = 0; i < threads; i++) {
     info *t_info = infos + i;
@@ -955,7 +955,7 @@ void querySqlFile(TAOS* taos, char* sqlFile)
 
   double t = getCurrentTime();
   
-  while ((read_len = taosGetline(&line, &line_len, fp)) != -1) {
+  while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
     if (read_len >= MAX_SQL_SIZE) continue;
     line[--read_len] = '\0';
 

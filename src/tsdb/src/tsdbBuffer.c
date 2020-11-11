@@ -157,4 +157,4 @@ _err:
   return NULL;
 }
 
-static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { taosTFree(pBufBlock); }
+static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }

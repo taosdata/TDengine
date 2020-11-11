@@ -51,9 +51,9 @@ typedef struct {
 } SSyncCfg;
 
 typedef struct {
-  int       selfIndex;
-  uint32_t  nodeId[TAOS_SYNC_MAX_REPLICA];
-  int       role[TAOS_SYNC_MAX_REPLICA];  
+  int32_t  selfIndex;
+  uint32_t nodeId[TAOS_SYNC_MAX_REPLICA];
+  int32_t  role[TAOS_SYNC_MAX_REPLICA];
 } SNodesRole;
 
 /* 
@@ -83,48 +83,47 @@ typedef void     (*FNotifyRole)(void *ahandle, int8_t role);
 typedef void     (*FNotifyFlowCtrl)(void *ahandle, int32_t mseconds);
 
 // when data file is synced successfully, notity app
-typedef int      (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
+typedef int32_t  (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
 
 typedef struct {
-  int32_t    vgId;      // vgroup ID
-  uint64_t   version;   // initial version
-  SSyncCfg   syncCfg;   // configuration from mgmt
-  char       path[128]; // path to the file
- 
-  void      *ahandle;   // handle provided by APP 
-  FGetFileInfo    getFileInfo;
-  FGetWalInfo     getWalInfo;
-  FWriteToCache   writeToCache;
-  FConfirmForward confirmForward;
-  FNotifyRole     notifyRole;
-  FNotifyFlowCtrl notifyFlowCtrl;
+  int32_t  vgId;       // vgroup ID
+  uint64_t version;    // initial version
+  SSyncCfg syncCfg;    // configuration from mgmt
+  char     path[128];  // path to the file
+  void *   ahandle;    // handle provided by APP
+  FGetFileInfo      getFileInfo;
+  FGetWalInfo       getWalInfo;
+  FWriteToCache     writeToCache;
+  FConfirmForward   confirmForward;
+  FNotifyRole       notifyRole;
+  FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
 } SSyncInfo;
 
-typedef void* tsync_h;
+typedef void *tsync_h;
 
 int32_t syncInit();
 void    syncCleanUp();
 
-tsync_h syncStart(const SSyncInfo *);
-void    syncStop(tsync_h shandle);
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg *);
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype);
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code);
-void    syncRecover(tsync_h shandle);      // recover from other nodes:
-int     syncGetNodesRole(tsync_h shandle, SNodesRole *);
+int64_t syncStart(const SSyncInfo *);
+void    syncStop(int64_t rid);
+int32_t syncReconfig(int64_t rid, const SSyncCfg *);
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype);
+void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code);
+void    syncRecover(int64_t rid);  // recover from other nodes:
+int32_t syncGetNodesRole(int64_t rid, SNodesRole *);
 
-extern  char *syncRole[];
+extern char *syncRole[];
 
 //global configurable parameters
-extern  int   tsMaxSyncNum;
-extern  int   tsSyncTcpThreads;
-extern  int   tsMaxWatchFiles;
-extern  int   tsSyncTimer;
-extern  int   tsMaxFwdInfo; 
-extern  int   sDebugFlag;
-extern  char  tsArbitrator[];
-extern  uint16_t tsSyncPort;
+extern int32_t  tsMaxSyncNum;
+extern int32_t  tsSyncTcpThreads;
+extern int32_t  tsMaxWatchFiles;
+extern int32_t  tsSyncTimer;
+extern int32_t  tsMaxFwdInfo;
+extern int32_t  sDebugFlag;
+extern char     tsArbitrator[];
+extern uint16_t tsSyncPort;
 
 #ifdef __cplusplus
 }

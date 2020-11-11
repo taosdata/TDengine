@@ -16,6 +16,7 @@
 #define _BSD_SOURCE
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
+#define _GNU_SOURCE
 
 #include "os.h"
 #include "qAst.h"
@@ -2089,7 +2090,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             SColumnIndex index = {.tableIndex = j, .columnIndex = i};
 
             char name[TSDB_COL_NAME_LEN] = {0};
-            SStrToken t = {.z = pSchema->name, .n = (uint32_t)strnlen(pSchema->name, TSDB_COL_NAME_LEN)};
+            SStrToken t = {.z = pSchema[i].name, .n = (uint32_t)strnlen(pSchema[i].name, TSDB_COL_NAME_LEN)};
             setResultColName(name, pItem, cvtFunc.originFuncId, &t);
 
             if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[index.columnIndex], cvtFunc, name, colIndex, &index, finalResult) != 0) {
@@ -4014,7 +4015,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
     int32_t ret = setObjFullName(idBuf, account, &dbToken, &t, &xlen);
     if (ret != TSDB_CODE_SUCCESS) {
       taosStringBuilderDestroy(&sb1);
-      taosTFree(segments);
+      tfree(segments);
 
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       return ret;
@@ -4027,7 +4028,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
 
   taosStringBuilderDestroy(&sb1);
-  taosTFree(segments);
+  tfree(segments);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5399,6 +5400,7 @@ static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->replications = pCreateDb->replica;
   pMsg->quorum = pCreateDb->quorum;
   pMsg->ignoreExist = pCreateDb->ignoreExists;
+  pMsg->update = pCreateDb->update;
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {

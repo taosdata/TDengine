@@ -28,22 +28,22 @@
 #include "syncInt.h"
 
 static void     arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
-static void     arbProcessIncommingConnection(int connFd, uint32_t sourceIp);
+static void     arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
 static void     arbProcessBrokenLink(void *param);
-static int      arbProcessPeerMsg(void *param, void *buffer);
+static int32_t  arbProcessPeerMsg(void *param, void *buffer);
 static tsem_t   tsArbSem;
 static ttpool_h tsArbTcpPool;
 
 typedef struct {
-  char  id[TSDB_EP_LEN + 24];
-  int   nodeFd;
-  void *pConn;
+  char    id[TSDB_EP_LEN + 24];
+  int32_t nodeFd;
+  void *  pConn;
 } SNodeConn;
 
-int main(int argc, char *argv[]) {
+int32_t main(int32_t argc, char *argv[]) {
   char arbLogPath[TSDB_FILENAME_LEN + 16] = {0};
 
-  for (int i = 1; i < argc; ++i) {
+  for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
       tsArbitratorPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0 && i < argc - 1) {
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
   info.numOfThreads = 1;
   info.serverIp = 0;
   info.port = tsArbitratorPort;
-  info.bufferSize = 640000;
+  info.bufferSize = SYNC_MAX_SIZE;
   info.processBrokenLink = arbProcessBrokenLink;
   info.processIncomingMsg = arbProcessPeerMsg;
   info.processIncomingConn = arbProcessIncommingConnection;
@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp) {
+static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   char ipstr[24];
   tinet_ntoa(ipstr, sourceIp);
   sDebug("peer TCP connection from ip:%s", ipstr);
@@ -131,7 +131,7 @@ static void arbProcessIncommingConnection(int connFd, uint32_t sourceIp) {
   snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
   if (firstPkt.syncHead.vgId) {
     sDebug("%s, vgId in head is not zero, close the connection", pNode->id);
-    taosTFree(pNode);
+    tfree(pNode);
     taosCloseSocket(connFd);
     return;
   }
@@ -147,16 +147,16 @@ static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
   sDebug("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
-  taosTFree(pNode);
+  tfree(pNode);
 }
 
-static int arbProcessPeerMsg(void *param, void *buffer) {
+static int32_t arbProcessPeerMsg(void *param, void *buffer) {
   SNodeConn *pNode = param;
   SSyncHead  head;
-  int        bytes = 0;
+  int32_t    bytes = 0;
   char *     cont = (char *)buffer;
 
-  int hlen = taosReadMsg(pNode->nodeFd, &head, sizeof(head));
+  int32_t hlen = taosReadMsg(pNode->nodeFd, &head, sizeof(head));
   if (hlen != sizeof(head)) {
     sDebug("%s, failed to read msg, hlen:%d", pNode->id, hlen);
     return -1;

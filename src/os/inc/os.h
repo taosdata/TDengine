@@ -53,7 +53,6 @@ extern "C" {
 #endif
 
 #include "osDef.h"
-#include "osAlloc.h"
 #include "osAtomic.h"
 #include "osCommon.h"
 #include "osDir.h"

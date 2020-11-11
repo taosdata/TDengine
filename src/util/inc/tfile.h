@@ -13,31 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_ALLOC_H
-#define TDENGINE_OS_ALLOC_H
+#ifndef TDENGINE_TFILE_H
+#define TDENGINE_TFILE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef TAOS_OS_FUNC_ALLOC
-  #define tmalloc(size) malloc(size)
-  #define tcalloc(nmemb, size) calloc(nmemb, size)
-  #define trealloc(p, size) realloc(p, size)
-  #define tmemalign(alignment, size) malloc(size)
-  #define tfree(p) free(p)
-  #define tmemzero(p, size) memset(p, 0, size)
-#else
-  void *tmalloc(int32_t size);
-  void *tcalloc(int32_t nmemb, int32_t size);
-  void *trealloc(void *p, int32_t size);
-  void *tmemalign(int32_t alignment, int32_t size);
-  void  tfree(void *p);
-  void  tmemzero(void *p, int32_t size);
-#endif
+#include <unistd.h>
+
+// init taos file module
+int32_t tfinit();
+
+// clean up taos file module
+void tfcleanup();
+
+// the same syntax as UNIX standard open/close/read/write
+// but FD is int64_t and will never be reused
+int64_t tfopen(const char *pathname, int32_t flags);
+int64_t tfclose(int64_t tfd);
+int64_t tfwrite(int64_t tfd, void *buf, int64_t count);
+int64_t tfread(int64_t tfd, void *buf, int64_t count);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // TDENGINE_TREF_H
