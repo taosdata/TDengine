@@ -86,7 +86,7 @@ int32_t main(int32_t argc, char *argv[]) {
   info.numOfThreads = 1;
   info.serverIp = 0;
   info.port = tsArbitratorPort;
-  info.bufferSize = 640000;
+  info.bufferSize = SYNC_MAX_SIZE;
   info.processBrokenLink = arbProcessBrokenLink;
   info.processIncomingMsg = arbProcessPeerMsg;
   info.processIncomingConn = arbProcessIncommingConnection;
