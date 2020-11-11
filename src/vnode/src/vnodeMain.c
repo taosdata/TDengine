@@ -318,6 +318,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   tsdbSyncCommit(pVnode->tsdb);
+  walRemoveAllOldFiles(pVnode->tsdb);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
@@ -593,7 +594,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    walRemoveOldFiles(pVnode->wal);
+    walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
 

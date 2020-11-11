@@ -54,16 +54,17 @@ typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg)
 int32_t walInit();
 void    walCleanUp();
 
-twalh   walOpen(char *path, SWalCfg *pCfg);
-int32_t walAlter(twalh pWal, SWalCfg *pCfg);
-void    walStop(twalh);
-void    walClose(twalh);
-int32_t walRenew(twalh);
-void    walRemoveOldFiles(twalh);
-int32_t walWrite(twalh, SWalHead *);
-void    walFsync(twalh, bool forceFsync);
-int32_t walRestore(twalh, void *pVnode, FWalWrite writeFp);
-int32_t walGetWalFile(twalh, char *fileName, int64_t *fileId);
+twalh    walOpen(char *path, SWalCfg *pCfg);
+int32_t  walAlter(twalh pWal, SWalCfg *pCfg);
+void     walStop(twalh);
+void     walClose(twalh);
+int32_t  walRenew(twalh);
+void     walRemoveOneOldFile(twalh);
+void     walRemoveAllOldFiles(twalh);
+int32_t  walWrite(twalh, SWalHead *);
+void     walFsync(twalh, bool forceFsync);
+int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
+int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
 uint64_t walGetVersion(twalh);
 
 #ifdef __cplusplus
