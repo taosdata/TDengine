@@ -592,6 +592,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
+    walRemoveOldFiles(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
 

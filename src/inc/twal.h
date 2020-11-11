@@ -59,6 +59,7 @@ int32_t walAlter(twalh pWal, SWalCfg *pCfg);
 void    walStop(twalh);
 void    walClose(twalh);
 int32_t walRenew(twalh);
+void    walRemoveOldFiles(twalh);
 int32_t walWrite(twalh, SWalHead *);
 void    walFsync(twalh, bool forceFsync);
 int32_t walRestore(twalh, void *pVnode, FWalWrite writeFp);

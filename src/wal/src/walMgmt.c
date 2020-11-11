@@ -135,7 +135,7 @@ void walClose(void *handle) {
       if (remove(pWal->name) < 0) {
         wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
       } else {
-        wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
+        wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
       }
     }
   } else {
