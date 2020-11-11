@@ -211,6 +211,8 @@ void taos_insert_call_back(void *param, TAOS_RES *tres, int code)
       printf("%lld mseconds to insert %d data points\n", (et - st) / 1000, points*numOfTables);
     }
   }
+  
+  taos_free_result(tres);
 }
 
 void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
@@ -222,7 +224,7 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
 
     for (int i = 0; i<numOfRows; ++i) {
       // synchronous API to retrieve a row from batch of records
-      /*TAOS_ROW row = */taos_fetch_row(tres);
+      /*TAOS_ROW row = */(void)taos_fetch_row(tres);
       // process row
     }
 
@@ -236,7 +238,7 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
     if (numOfRows < 0)
       printf("%s retrieve failed, code:%d\n", pTable->name, numOfRows);
 
-    taos_free_result(tres);
+    //taos_free_result(tres);
     printf("%d rows data retrieved from %s\n", pTable->rowsRetrieved, pTable->name);
 
     tablesProcessed++;
@@ -246,6 +248,8 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
       printf("%lld mseconds to query %d data rows\n", (et - st) / 1000, points * numOfTables);
     }
   }
+
+  taos_free_result(tres);
 }
 
 void taos_select_call_back(void *param, TAOS_RES *tres, int code)
@@ -263,4 +267,6 @@ void taos_select_call_back(void *param, TAOS_RES *tres, int code)
     printf("%s select failed, code:%d\n", pTable->name, code);
     exit(1);
   }
+
+  taos_free_result(tres);
 }
