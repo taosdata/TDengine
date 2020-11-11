@@ -1,6 +1,7 @@
 package com.taosdata.demo;
 
 import com.taosdata.demo.common.InsertTask;
+import com.taosdata.demo.pool.C3p0Builder;
 import com.taosdata.demo.pool.DbcpBuilder;
 import com.taosdata.demo.pool.DruidPoolBuilder;
 import com.taosdata.demo.pool.HikariCpBuilder;
@@ -17,17 +18,18 @@ import java.util.concurrent.TimeUnit;
 public class ConnectionPoolDemo {
 
     private static Logger logger = Logger.getLogger(DruidPoolBuilder.class);
+    private static final String dbName = "pool_test";
 
     private static int batchSize = 10;
     private static int sleep = 1000;
     private static int poolSize = 50;
     private static int tableSize = 1000;
     private static int threadCount = 50;
-    private static final String dbName = "pool_test";
+    private static String poolType = "hikari";
+
 
     public static void main(String[] args) throws InterruptedException {
         String host = null;
-
         for (int i = 0; i < args.length; i++) {
             if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 host = args[++i];
@@ -44,6 +46,9 @@ public class ConnectionPoolDemo {
             if ("-tableSize".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 tableSize = Integer.parseInt(args[++i]);
             }
+            if ("-poolType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                poolType = args[++i];
+            }
         }
         if (host == null) {
             System.out.println("Usage: java -jar XXX.jar " +
@@ -51,13 +56,29 @@ public class ConnectionPoolDemo {
                     "-batchSize <batchSize> " +
                     "-sleep <sleep> " +
                     "-poolSize <poolSize> " +
-                    "-tableSize <tableSize>");
+                    "-tableSize <tableSize>" +
+                    "-poolType <c3p0| dbcp| druid| hikari>");
             return;
         }
 
-//        DataSource dataSource = DbcpBuilder.getDataSource(host, poolSize);
-//        DataSource dataSource = DruidPoolBuilder.getDataSource(host, poolSize);
-        DataSource dataSource = HikariCpBuilder.getDataSource(host, poolSize);
+        DataSource dataSource;
+        switch (poolType) {
+            case "c3p0":
+                dataSource = C3p0Builder.getDataSource(host, poolSize);
+                break;
+            case "dbcp":
+                dataSource = DbcpBuilder.getDataSource(host, poolSize);
+                break;
+            case "druid":
+                dataSource = DruidPoolBuilder.getDataSource(host, poolSize);
+                break;
+            case "hikari":
+            default:
+                dataSource = HikariCpBuilder.getDataSource(host, poolSize);
+                poolType = "hikari";
+        }
+
+        logger.info(">>>>>>>>>>>>>> connection pool Type: " + poolType);
 
         init(dataSource);
 
@@ -78,7 +99,7 @@ public class ConnectionPoolDemo {
             for (int tb_ind = 1; tb_ind <= tableSize; tb_ind++) {
                 execute(conn, "create table t_" + tb_ind + " using weather tags('beijing'," + (tb_ind + 1) + ")");
             }
-            System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>> init finished.");
+            logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>> init finished.");
         } catch (SQLException e) {
             e.printStackTrace();
         }

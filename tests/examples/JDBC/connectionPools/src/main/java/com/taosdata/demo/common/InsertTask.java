@@ -10,7 +10,7 @@ import java.util.Random;
 
 public class InsertTask implements Runnable {
     private final Random random = new Random(System.currentTimeMillis());
-    private static Logger logger = Logger.getLogger(InsertTask.class);
+    private static final Logger logger = Logger.getLogger(InsertTask.class);
 
     private final DataSource ds;
     private final int batchSize;
@@ -37,14 +37,23 @@ public class InsertTask implements Runnable {
 
             for (int tb_index = 1; tb_index <= tableSize; tb_index++) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("insert into " + dbName + ".t_" + tb_index + "(ts, temperature, humidity) values ");
+                sb.append("insert into ");
+                sb.append(dbName);
+                sb.append(".t_");
+                sb.append(tb_index);
+                sb.append("(ts, temperature, humidity) values ");
                 for (int i = 0; i < batchSize; i++) {
-                    sb.append("(" + (start + i) + ", " + (random.nextFloat() * 30) + ", " + (random.nextInt(70)) + ") ");
+                    sb.append("(");
+                    sb.append(start + i);
+                    sb.append(", ");
+                    sb.append(random.nextFloat() * 30);
+                    sb.append(", ");
+                    sb.append(random.nextInt(70));
+                    sb.append(") ");
                 }
                 logger.info("SQL >>> " + sb.toString());
                 affectedRows += stmt.executeUpdate(sb.toString());
             }
-
         } catch (SQLException e) {
             e.printStackTrace();
         } finally {
@@ -52,6 +61,7 @@ public class InsertTask implements Runnable {
                 try {
                     stmt.close();
                 } catch (SQLException e) {
+                    e.printStackTrace();
                 }
             }
             if (conn != null) {
