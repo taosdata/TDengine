@@ -89,7 +89,6 @@ cd ../../../debug; make
 ./test.sh -f general/http/telegraf.sim
 ./test.sh -f general/http/grafana_bug.sim
 ./test.sh -f general/http/grafana.sim
-./test.sh -f general/http/sync.sim
 
 ./test.sh -f general/import/basic.sim
 ./test.sh -f general/import/commit.sim
@@ -236,6 +235,9 @@ cd ../../../debug; make
 ./test.sh -f general/vector/table_mix.sim
 ./test.sh -f general/vector/table_query.sim
 ./test.sh -f general/vector/table_time.sim
+
+./test.sh -f general/wal/sync.sim
+./test.sh -f general/wal/kill.sim
 
 ./test.sh -f unique/account/account_create.sim
 ./test.sh -f unique/account/account_delete.sim
