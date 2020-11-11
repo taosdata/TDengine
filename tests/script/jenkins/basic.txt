@@ -238,6 +238,7 @@ cd ../../../debug; make
 
 ./test.sh -f general/wal/sync.sim
 ./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim
 
 ./test.sh -f unique/account/account_create.sim
 ./test.sh -f unique/account/account_delete.sim

@@ -28,8 +28,6 @@
 #include "vnodeCfg.h"
 #include "vnodeVersion.h"
 
-#define DEFAULT_COMMIT_THREADS 1
-
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
 static int      vnodeProcessTsdbStatus(void *arg, int status);
@@ -69,7 +67,7 @@ int32_t vnodeInitResources() {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  if (tsdbInitCommitQueue(DEFAULT_COMMIT_THREADS) < 0) {
+  if (tsdbInitCommitQueue(tsNumOfCommitThreads) < 0) {
     vError("failed to init vnode commit queue");
     return terrno;
   }
@@ -317,6 +315,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
+  tsdbSyncCommit(pVnode->tsdb);
+  walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
@@ -592,7 +592,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    walRemoveOldFiles(pVnode->wal);
+    walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
 
