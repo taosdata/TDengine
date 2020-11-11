@@ -317,6 +317,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
+  tsdbSyncCommit(pVnode->tsdb);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
