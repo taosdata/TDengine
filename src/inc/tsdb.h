@@ -323,6 +323,7 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
 
 int  tsdbInitCommitQueue(int nthreads);
 void tsdbDestroyCommitQueue();
+int  tsdbSyncCommit(TSDB_REPO_T *repo);
 
 #ifdef __cplusplus
 }

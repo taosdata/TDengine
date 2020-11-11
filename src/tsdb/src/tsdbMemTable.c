@@ -278,6 +278,14 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
+int tsdbSyncCommit(TSDB_REPO_T *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  tsdbAsyncCommit(pRepo);
+  sem_wait(&(pRepo->readyToCommit));
+  sem_post(&(pRepo->readyToCommit));
+  return 0;
+}
+
 /**
  * This is an important function to load data or try to load data from memory skiplist iterator.
  * 
