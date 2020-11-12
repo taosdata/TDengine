@@ -170,8 +170,6 @@ static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
   tw->ekey -= 1;
 }
 
-#define GET_NEXT_TIMEWINDOW(_q, tw) getNextTimeWindow((_q), (tw))
-
 #define SET_STABLE_QUERY_OVER(_q) ((_q)->tableIndex = (int32_t)((_q)->tableqinfoGroupInfo.numOfTables))
 #define IS_STASBLE_QUERY_OVER(_q) ((_q)->tableIndex >= (int32_t)((_q)->tableqinfoGroupInfo.numOfTables))
 
@@ -827,7 +825,7 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
     TSKEY *primaryKeys, __block_search_fn_t searchFn, int32_t prevPosition) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  GET_NEXT_TIMEWINDOW(pQuery, pNext);
+  getNextTimeWindow(pQuery, pNext);
 
   // next time window is not in current block
   if ((pNext->skey > pDataBlockInfo->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
@@ -1342,9 +1340,9 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       int32_t     index = pWindowResInfo->curIndex;
 
       while (1) {
-        GET_NEXT_TIMEWINDOW(pQuery, &nextWin);
+        getNextTimeWindow(pQuery, &nextWin);
         if ((nextWin.skey > pQuery->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-            (nextWin.skey < pQuery->window.ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+            (nextWin.ekey < pQuery->window.ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
           break;
         }
 
@@ -2202,7 +2200,7 @@ static bool overlapWithTimeWindow(SQuery* pQuery, SDataBlockInfo* pBlockInfo) {
     }
 
     while(1) {
-      GET_NEXT_TIMEWINDOW(pQuery, &w);
+      getNextTimeWindow(pQuery, &w);
       if (w.skey > pBlockInfo->window.ekey) {
         break;
       }
@@ -2221,7 +2219,7 @@ static bool overlapWithTimeWindow(SQuery* pQuery, SDataBlockInfo* pBlockInfo) {
     }
 
     while(1) {
-      GET_NEXT_TIMEWINDOW(pQuery, &w);
+      getNextTimeWindow(pQuery, &w);
       if (w.ekey < pBlockInfo->window.skey) {
         break;
       }
@@ -2536,7 +2534,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     setQueryStatus(pQuery, QUERY_COMPLETED);
   }
 
-  if (QUERY_IS_INTERVAL_QUERY(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) && (IS_MASTER_SCAN(pRuntimeEnv)|| pRuntimeEnv->scanFlag == REPEAT_SCAN)) {
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
       pRuntimeEnv->windowResInfo.curIndex = pRuntimeEnv->windowResInfo.size - 1;  // point to the last time window
@@ -4354,14 +4352,17 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
     STimeWindow win = getActiveTimeWindow(pWindowResInfo, pWindowResInfo->prevSKey, pQuery);
 
     while (pQuery->limit.offset > 0) {
+      STimeWindow tw = win;
+
       if ((win.ekey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
           (win.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
         pQuery->limit.offset -= 1;
         pWindowResInfo->prevSKey = win.skey;
-      }
 
-      STimeWindow tw = win;
-      GET_NEXT_TIMEWINDOW(pQuery, &tw);
+        getNextTimeWindow(pQuery, &tw);
+      } else { // current window does not ended in current data block, try next data block
+        getNextTimeWindow(pQuery, &tw);
+      }
 
       if (pQuery->limit.offset == 0) {
         if ((tw.skey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
@@ -4414,16 +4415,60 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
         SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
         SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
 
-        tw = win;
-        int32_t startPos =
-            getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
-        assert(startPos >= 0);
+        if ((win.ekey > blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+            (win.ekey < blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+          pQuery->limit.offset -= 1;
+        }
 
-        // set the abort info
-        pQuery->pos = startPos;
-        pTableQueryInfo->lastKey = ((TSKEY *)pColInfoData->pData)[startPos];
-        pWindowResInfo->prevSKey = tw.skey;
-        win = tw;
+        if (pQuery->limit.offset == 0) {
+          if ((tw.skey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+              (tw.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+            // load the data block and check data remaining in current data block
+            // TODO optimize performance
+            SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
+            SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
+
+            tw = win;
+            int32_t startPos =
+                getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
+            assert(startPos >= 0);
+
+            // set the abort info
+            pQuery->pos = startPos;
+
+            // reset the query start timestamp
+            pTableQueryInfo->win.skey = ((TSKEY *)pColInfoData->pData)[startPos];
+            pQuery->window.skey = pTableQueryInfo->win.skey;
+            *start = pTableQueryInfo->win.skey;
+
+            pWindowResInfo->prevSKey = tw.skey;
+            int32_t index = pRuntimeEnv->windowResInfo.curIndex;
+
+            int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, NULL, binarySearchForKey, pDataBlock);
+            pRuntimeEnv->windowResInfo.curIndex = index;  // restore the window index
+
+            qDebug("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64,
+                   GET_QINFO_ADDR(pRuntimeEnv), blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes, pQuery->current->lastKey);
+
+            return true;
+          } else { // do nothing
+            *start = tw.skey;
+            pQuery->window.skey = tw.skey;
+            pWindowResInfo->prevSKey = tw.skey;
+            return true;
+          }
+        } else {
+          tw = win;
+          int32_t startPos =
+              getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
+          assert(startPos >= 0);
+
+          // set the abort info
+          pQuery->pos = startPos;
+          pTableQueryInfo->lastKey = ((TSKEY *)pColInfoData->pData)[startPos];
+          pWindowResInfo->prevSKey = tw.skey;
+          win = tw;
+        }
       } else {
         break;  // offset is not 0, and next time window begins or ends in the next block.
       }
@@ -6926,7 +6971,6 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   if (IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
     // here current thread hold the refcount, so it is safe to free tsdbQueryHandle.
-//    doFreeQueryHandle(pQInfo);
     *continueExec = false;
     (*pRsp)->completed = 1;  // notify no more result to client
   } else {

@@ -2628,13 +2628,13 @@ static void yy_reduce(
 {yymsp[1].minor.yy216.limit = -1; yymsp[1].minor.yy216.offset = 0;}
         break;
       case 177: /* limit_opt ::= LIMIT signed */
-{printf("aa1, %d\n", yymsp[0].minor.yy207); yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}
+{yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}
         break;
       case 178: /* limit_opt ::= LIMIT signed OFFSET signed */
-{printf("aa2\n, %d\n", yymsp[-2].minor.yy207); yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
+{yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
         break;
       case 179: /* limit_opt ::= LIMIT signed COMMA signed */
-{printf("aa3\n, %d\n", yymsp[-2].minor.yy207); yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
+{yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
         break;
       case 181: /* slimit_opt ::= SLIMIT signed */
 {yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}

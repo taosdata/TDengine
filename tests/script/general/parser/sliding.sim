@@ -4,6 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c debugFlag -v 135
 system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 sleep 1000
 sql connect
@@ -28,7 +29,7 @@ $mt = $mtPrefix . $i
 
 sql drop database if exists $db -x step1
 step1:
-sql create database if not exists $db maxtables 4 keep 36500
+sql create database if not exists $db  keep 36500
 sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
 
@@ -169,19 +170,20 @@ if $data94 != 90 then
 endi
 
 sql select count(c2),last(c4) from sliding_tb0 interval(30s) sliding(10s) order by ts asc;
-if $row != 30 then
+if $row != 32 then
   return -1
 endi
 
-if $data00 != @00-01-01 00:00:00.000@ then
+if $data00 != @99-12-31 23:59:40.000@ then
+  print expect 12-31 23:59:40.000, actual: $data00
   return -1
 endi
 
-if $data01 != 1000 then
+if $data01 != 334 then
   return -1
 endi
 
-if $data02 != 99 then
+if $data02 != 33 then
   return -1
 endi
 
@@ -304,11 +306,11 @@ if $data13 != 9.810708435 then
 endi
 
 sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 1;
-if $row != 14 then
+if $row != 15 then
  return -1
 endi
 
-if $data00 != @00-01-01 00:00:20.000@ then
+if $data00 != @00-01-01 00:00:00.000@ then
  return -1
 endi
 
@@ -316,7 +318,7 @@ if $data01 != 1000 then
  return -1
 endi
 
-if $data02 != 66 then
+if $data02 != 99 then
  return -1
 endi
 
@@ -324,7 +326,7 @@ if $data03 != 28.866070048 then
  return -1
 endi
 
-if $data90 != @00-01-01 00:03:20.000@ then
+if $data90 != @00-01-01 00:03:00.000@ then
  return -1
 endi
 
@@ -332,12 +334,67 @@ if $data91 != 1000 then
  return -1
 endi
 
-if $data92 != 66 then
+if $data92 != 99 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 5;
+if $row != 11 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 6;
+if $row != 10 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 7;
+if $row != 9 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 8;
+if $row != 8 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 9;
+if $row != 7 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 10;
+if $row != 6 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 11;
+if $row != 5 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 12;
+if $row != 4 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 13;
+if $row != 3 then
  return -1
 endi
 
 sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 14;
+if $row != 2 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 15;
 if $row != 1 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by ts asc limit 100 offset 16;
+if $row != 0 then
  return -1
 endi
 
@@ -364,16 +421,26 @@ if $data03 != 0.000000000 then
 endi
 
 sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(30s) sliding(20s) order by ts desc limit 1 offset 15;
+if $row != 1 then
+ return -1
+endi
+
+sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(30s) sliding(20s) order by ts desc limit 1 offset 16;
 if $row != 0 then
  return -1
 endi
 
-sql select count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10a) order by ts asc limit 1000;
-if $row != 100 then
+sql select count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) order by ts desc limit 10 offset 2;
+if $data00 != @00-01-01 00:04:59.910@ then
+  return -1
+endi
+
+sql select count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by ts asc limit 1000;
+if $row != 3 then
  return -1
 endi
 
-if $data00 != @00-01-01 00:00:00.000@ then
+if $data00 != @99-12-31 23:59:40.000@ then
  return -1
 endi
 
@@ -385,7 +452,7 @@ if $data05 != 33 then
  return -1
 endi
 
-if $data10 != @00-01-01 00:00:00.010@ then
+if $data10 != @99-12-31 23:59:50.000@ then
  return -1
 endi
 
@@ -397,48 +464,28 @@ if $data15 != 33 then
  return -1
 endi
 
-if $data95 != 33 then
+if $data25 != 33 then
  return -1
 endi
 
-sql select count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10a) order by ts desc limit 1000;
-if $row != 100 then
+sql select count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by ts desc limit 1000;
+if $row != 1 then
  return -1
 endi
 
-if $data00 != @00-01-01 00:00:00.990@ then
+if $data00 != @99-12-31 23:59:40.000@ then
  return -1
 endi
 
-if $data01 != 1 then
+if $data01 != 33 then
  return -1
 endi
 
-if $data02 != 0.000000000 then
+if $data02 != 9.521904571 then
  return -1
 endi
 
-if $data03 != 1 then
- return -1
-endi
-
-if $data90 != @00-01-01 00:00:00.900@ then
- return -1
-endi
-
-if $data91 != 4 then
- return -1
-endi
-
-if $data92 != 1.118033989 then
- return -1
-endi
-
-if $data93 != 4 then
- return -1
-endi
-
-if $data94 != 30.00000 then
+if $data03 != 33 then
  return -1
 endi
 
@@ -457,5 +504,7 @@ sql_error select sum(c1) from sliding_tb0 interval(0)  sliding(0);
 sql_error select sum(c1) from sliding_tb0 interval(0m)  sliding(0m);
 sql_error select sum(c1) from sliding_tb0 interval(m)  sliding(m);
 sql_error select sum(c1) from sliding_tb0 sliding(4m);
+sql_error select count(*) from sliding_tb0 interval(1s) sliding(10s);
+sql_error select count(*) from sliding_tb0 interval(10s) sliding(10a);
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

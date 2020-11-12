@@ -820,7 +820,7 @@ int32_t parseSlidingClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQu
   const char* msg1 = "sliding value no larger than the interval value";
   const char* msg2 = "sliding value can not less than 1% of interval value";
   const char* msg3 = "does not support sliding when interval is natural month/year";
-  const char* msg4 = "sliding not support yet in ordinary query";
+//  const char* msg4 = "sliding not support yet in ordinary query";
 
   const static int32_t INTERVAL_SLIDING_FACTOR = 100;
   SSqlCmd* pCmd = &pSql->cmd;
@@ -856,9 +856,9 @@ int32_t parseSlidingClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQu
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  if (pQueryInfo->interval.sliding != pQueryInfo->interval.interval && pSql->pStream == NULL) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
-  }
+//  if (pQueryInfo->interval.sliding != pQueryInfo->interval.interval && pSql->pStream == NULL) {
+//    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+//  }
 
   return TSDB_CODE_SUCCESS;
 }
