@@ -67,10 +67,17 @@ int32_t vnodeInitResources() {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
+  if (tsdbInitCommitQueue(tsNumOfCommitThreads) < 0) {
+    vError("failed to init vnode commit queue");
+    return terrno;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 void vnodeCleanupResources() {
+  tsdbDestroyCommitQueue();
+
   if (tsVnodesHash != NULL) {
     vDebug("vnode list is cleanup");
     taosHashCleanup(tsVnodesHash);
@@ -308,6 +315,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
+  tsdbSyncCommit(pVnode->tsdb);
+  walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
@@ -583,6 +592,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
+    walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
 

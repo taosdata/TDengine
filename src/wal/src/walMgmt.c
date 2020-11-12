@@ -128,16 +128,7 @@ void walClose(void *handle) {
   taosClose(pWal->fd);
 
   if (pWal->keep != TAOS_WAL_KEEP) {
-    int64_t fileId = -1;
-    while (walGetNextFile(pWal, &fileId) >= 0) {
-      snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
-
-      if (remove(pWal->name) < 0) {
-        wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
-      } else {
-        wDebug("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
-      }
-    }
+    walRemoveAllOldFiles(pWal);
   } else {
     wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
   }

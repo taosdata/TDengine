@@ -35,6 +35,8 @@ extern "C" {
 #define TAOS_SMSG_SYNC_MUST    6
 #define TAOS_SMSG_STATUS       7
 
+#define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
+
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
 #define nodeSStatus pNode->peerInfo[pNode->selfIndex]->sstatus

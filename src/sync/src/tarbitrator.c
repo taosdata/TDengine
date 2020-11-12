@@ -86,7 +86,7 @@ int32_t main(int32_t argc, char *argv[]) {
   info.numOfThreads = 1;
   info.serverIp = 0;
   info.port = tsArbitratorPort;
-  info.bufferSize = 640000;
+  info.bufferSize = SYNC_MAX_SIZE;
   info.processBrokenLink = arbProcessBrokenLink;
   info.processIncomingMsg = arbProcessPeerMsg;
   info.processIncomingConn = arbProcessIncommingConnection;
@@ -128,7 +128,7 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   }
 
   firstPkt.fqdn[sizeof(firstPkt.fqdn) - 1] = 0;
-  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
+  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d, peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
   if (firstPkt.syncHead.vgId) {
     sDebug("%s, vgId in head is not zero, close the connection", pNode->id);
     tfree(pNode);

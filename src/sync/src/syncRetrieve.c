@@ -244,7 +244,7 @@ static int32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent) {
 }
 
 static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, int64_t offset, uint32_t *pEvent) {
-  SWalHead *pHead = malloc(640000);
+  SWalHead *pHead = malloc(SYNC_MAX_SIZE);
   int32_t   code = -1;
   int32_t   bytes = 0;
   int32_t   sfd;
