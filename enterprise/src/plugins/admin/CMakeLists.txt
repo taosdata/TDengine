@@ -12,4 +12,9 @@ AUX_SOURCE_DIRECTORY(src SRC)
 IF (TD_LINUX)
   ADD_LIBRARY(admin ${SRC})
   TARGET_LINK_LIBRARIES(admin z)
+
+  AUX_SOURCE_DIRECTORY(src/backup SRC)
+  ADD_EXECUTABLE(httpMain ${SRC})
+  TARGET_LINK_LIBRARIES(httpMain mnode monitor http tsdb twal vnode cJson lz4)
+
 ENDIF ()

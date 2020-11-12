@@ -315,16 +315,16 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     tscLocalDoReduce(pObj);
     tColModelDisplay(model, pRes->data, pRes->numOfRows, pRes->numOfRows);
 
-    taosTFree(pData);
-    taosTFree(inputBuffer);
-    taosTFree(pCmd->pGroupbyExpr);
+    tfree(pData);
+    tfree(inputBuffer);
+    tfree(pCmd->pGroupbyExpr);
 
 //    destoryExtMemBuffer(pMemoryBuf);
-    taosTFree(*pMemoryBuf);
+    tfree(*pMemoryBuf);
 
     tOrderDescDestroy(pOrderDesc);
 
-    taosTFree(pObj);
+    tfree(pObj);
 }
 
 int32_t main(int argc, char **argv) {
