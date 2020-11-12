@@ -881,6 +881,7 @@ int main(int argc, char *argv[]) {
     taos_close(rInfo->taos);
   }
 
+  taos_cleanup();
   return 0;
 }
 
