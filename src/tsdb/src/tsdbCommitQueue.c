@@ -15,6 +15,7 @@
 
 #include "os.h"
 #include "tlist.h"
+#include "tref.h"
 #include "tsdbMain.h"
 
 typedef struct {
@@ -22,6 +23,7 @@ typedef struct {
   pthread_mutex_t lock;
   pthread_cond_t  queueNotEmpty;
   int             nthreads;
+  int             refCount;
   SList *         queue;
   pthread_t *     threads;
 } SCommitQueue;
@@ -123,7 +125,7 @@ static void *tsdbLoopCommit(void *arg) {
     while (true) {
       pNode = tdListPopHead(pQueue->queue);
       if (pNode == NULL) {
-        if (pQueue->stop) {
+        if (pQueue->stop && pQueue->refCount == 0) {
           pthread_mutex_unlock(&(pQueue->lock));
           goto _exit;
         } else {
@@ -144,4 +146,14 @@ static void *tsdbLoopCommit(void *arg) {
 
 _exit:
   return NULL;
+}
+
+int tsdbIncCommitRef(int vgId) {
+  int refCount = atomic_add_fetch_32(&tsCommitQueue.refCount, 1);
+  tsdbDebug("vgId:%d, inc commit queue ref to %d", refCount);
+}
+
+void tsdbDecCommitRef(int vgId) {
+  int refCount = atomic_sub_fetch_32(&tsCommitQueue.refCount, 1);
+  tsdbDebug("vgId:%d, dec commit queue ref to %d", refCount);
 }
