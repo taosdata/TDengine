@@ -148,12 +148,12 @@ _exit:
   return NULL;
 }
 
-int tsdbIncCommitRef(int vgId) {
+void tsdbIncCommitRef(int vgId) {
   int refCount = atomic_add_fetch_32(&tsCommitQueue.refCount, 1);
-  tsdbDebug("vgId:%d, inc commit queue ref to %d", refCount);
+  tsdbDebug("vgId:%d, inc commit queue ref to %d", vgId, refCount);
 }
 
 void tsdbDecCommitRef(int vgId) {
   int refCount = atomic_sub_fetch_32(&tsCommitQueue.refCount, 1);
-  tsdbDebug("vgId:%d, dec commit queue ref to %d", refCount);
+  tsdbDebug("vgId:%d, dec commit queue ref to %d", vgId, refCount);
 }
