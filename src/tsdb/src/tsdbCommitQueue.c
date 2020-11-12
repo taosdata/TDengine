@@ -105,7 +105,7 @@ int tsdbScheduleCommit(STsdbRepo *pRepo) {
 
   pthread_mutex_lock(&(pQueue->lock));
 
-  ASSERT(!pQueue->stop);
+  // ASSERT(pQueue->stop);
 
   tdListAppendNode(pQueue->queue, pNode);
   pthread_cond_signal(&(pQueue->queueNotEmpty));
