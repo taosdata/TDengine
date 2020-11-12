@@ -637,9 +637,8 @@ static int vnodeResetTsdb(SVnodeObj *pVnode) {
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
 
-  if (atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_READY, TAOS_VN_STATUS_RESET) !=
-      TAOS_VN_STATUS_READY) {
-    return -1;
+  if (pVnode->status != TAOS_VN_STATUS_CLOSING && pVnode->status != TAOS_VN_STATUS_INIT) {
+    pVnode->status = TAOS_VN_STATUS_RESET;
   }
 
   void *tsdb = pVnode->tsdb;
