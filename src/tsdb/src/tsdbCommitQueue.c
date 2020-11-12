@@ -125,7 +125,7 @@ static void *tsdbLoopCommit(void *arg) {
     while (true) {
       pNode = tdListPopHead(pQueue->queue);
       if (pNode == NULL) {
-        if (pQueue->stop && pQueue->refCount == 0) {
+        if (pQueue->stop && pQueue->refCount <= 0) {
           pthread_mutex_unlock(&(pQueue->lock));
           goto _exit;
         } else {
