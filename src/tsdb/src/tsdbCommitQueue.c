@@ -155,5 +155,6 @@ void tsdbIncCommitRef(int vgId) {
 
 void tsdbDecCommitRef(int vgId) {
   int refCount = atomic_sub_fetch_32(&tsCommitQueue.refCount, 1);
+  pthread_cond_broadcast(&(tsCommitQueue.queueNotEmpty));
   tsdbDebug("vgId:%d, dec commit queue ref to %d", vgId, refCount);
 }
