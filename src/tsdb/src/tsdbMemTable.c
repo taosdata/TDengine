@@ -24,7 +24,6 @@ static void        tsdbFreeMemTable(SMemTable *pMemTable);
 static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
 static void        tsdbFreeTableData(STableData *pTableData);
 static char *      tsdbGetTsTupleKey(const void *data);
-static void *      tsdbCommitData(void *arg);
 static int         tsdbCommitMeta(STsdbRepo *pRepo);
 static void        tsdbEndCommit(STsdbRepo *pRepo);
 static int         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
@@ -262,40 +261,28 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
   SMemTable *pIMem = pRepo->imem;
-  int        code = 0;
 
-  if (pIMem != NULL) {
-    ASSERT(pRepo->commit);
-    tsdbDebug("vgId:%d waiting for the commit thread", REPO_ID(pRepo));
-    code = pthread_join(pRepo->commitThread, NULL);
-    tsdbDebug("vgId:%d commit thread is finished", REPO_ID(pRepo));
-    if (code != 0) {
-      tsdbError("vgId:%d failed to thread join since %s", REPO_ID(pRepo), strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
-    }
-    pRepo->commit = 0;
-  }
-
-  ASSERT(pRepo->commit == 0);
   if (pRepo->mem != NULL) {
+    sem_wait(&(pRepo->readyToCommit));
+
     if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
     if (tsdbLockRepo(pRepo) < 0) return -1;
     pRepo->imem = pRepo->mem;
     pRepo->mem = NULL;
-    pRepo->commit = 1;
-    code = pthread_create(&pRepo->commitThread, NULL, tsdbCommitData, (void *)pRepo);
-    if (code != 0) {
-      tsdbError("vgId:%d failed to create commit thread since %s", REPO_ID(pRepo), strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(code);
-      tsdbUnlockRepo(pRepo);
-      return -1;
-    }
+    tsdbScheduleCommit(pRepo);
     if (tsdbUnlockRepo(pRepo) < 0) return -1;
   }
 
-  if (pIMem && tsdbUnRefMemTable(pRepo, pIMem) < 0) return -1;
+  if (tsdbUnRefMemTable(pRepo, pIMem) < 0) return -1;
 
+  return 0;
+}
+
+int tsdbSyncCommit(TSDB_REPO_T *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  tsdbAsyncCommit(pRepo);
+  sem_wait(&(pRepo->readyToCommit));
+  sem_post(&(pRepo->readyToCommit));
   return 0;
 }
 
@@ -419,6 +406,68 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   return 0;
 }
 
+void *tsdbCommitData(STsdbRepo *pRepo) {
+  SMemTable *  pMem = pRepo->imem;
+  STsdbCfg *   pCfg = &pRepo->config;
+  SDataCols *  pDataCols = NULL;
+  STsdbMeta *  pMeta = pRepo->tsdbMeta;
+  SCommitIter *iters = NULL;
+  SRWHelper    whelper = {0};
+  ASSERT(pMem != NULL);
+
+  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
+            pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
+
+  // Create the iterator to read from cache
+  if (pMem->numOfRows > 0) {
+    iters = tsdbCreateCommitIters(pRepo);
+    if (iters == NULL) {
+      tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
+      goto _exit;
+    }
+
+    if (tsdbInitWriteHelper(&whelper, pRepo) < 0) {
+      tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
+      goto _exit;
+    }
+
+    if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
+                REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+      goto _exit;
+    }
+
+    int sfid = (int)(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision));
+    int efid = (int)(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision));
+
+    // Loop to commit to each file
+    for (int fid = sfid; fid <= efid; fid++) {
+      if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
+        tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+        goto _exit;
+      }
+    }
+  }
+
+  // Commit to update meta file
+  if (tsdbCommitMeta(pRepo) < 0) {
+    tsdbError("vgId:%d failed to commit data while committing meta data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _exit;
+  }
+
+  tsdbFitRetention(pRepo);
+
+_exit:
+  tdFreeDataCols(pDataCols);
+  tsdbDestroyCommitIters(iters, pMem->maxTables);
+  tsdbDestroyHelper(&whelper);
+  tsdbEndCommit(pRepo);
+  tsdbInfo("vgId:%d commit over", pRepo->config.tsdbId);
+
+  return NULL;
+}
+
 // ---------------- LOCAL FUNCTIONS ----------------
 static void tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes) {
   ASSERT(pRepo->mem != NULL);
@@ -529,69 +578,6 @@ static void tsdbFreeTableData(STableData *pTableData) {
 
 static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple((SDataRow)data); }
 
-static void *tsdbCommitData(void *arg) {
-  STsdbRepo *  pRepo = (STsdbRepo *)arg;
-  SMemTable *  pMem = pRepo->imem;
-  STsdbCfg *   pCfg = &pRepo->config;
-  SDataCols *  pDataCols = NULL;
-  STsdbMeta *  pMeta = pRepo->tsdbMeta;
-  SCommitIter *iters = NULL;
-  SRWHelper    whelper = {0};
-  ASSERT(pRepo->commit == 1);
-  ASSERT(pMem != NULL);
-
-  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64, REPO_ID(pRepo),
-            pMem->keyFirst, pMem->keyLast, pMem->numOfRows);
-
-  // Create the iterator to read from cache
-  if (pMem->numOfRows > 0) {
-    iters = tsdbCreateCommitIters(pRepo);
-    if (iters == NULL) {
-      tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
-      goto _exit;
-    }
-
-    if (tsdbInitWriteHelper(&whelper, pRepo) < 0) {
-      tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
-      goto _exit;
-    }
-
-    if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
-                REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
-      goto _exit;
-    }
-
-    int sfid = (int)(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision));
-    int efid = (int)(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision));
-
-    // Loop to commit to each file
-    for (int fid = sfid; fid <= efid; fid++) {
-      if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
-        tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
-        goto _exit;
-      }
-    }
-  }
-
-  // Commit to update meta file
-  if (tsdbCommitMeta(pRepo) < 0) {
-    tsdbError("vgId:%d failed to commit data while committing meta data since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _exit;
-  }
-
-  tsdbFitRetention(pRepo);
-
-_exit:
-  tdFreeDataCols(pDataCols);
-  tsdbDestroyCommitIters(iters, pMem->maxTables);
-  tsdbDestroyHelper(&whelper);
-  tsdbEndCommit(pRepo);
-  tsdbInfo("vgId:%d commit over", pRepo->config.tsdbId);
-
-  return NULL;
-}
 
 static int tsdbCommitMeta(STsdbRepo *pRepo) {
   SMemTable *pMem = pRepo->imem;
@@ -642,8 +628,8 @@ _err:
 }
 
 static void tsdbEndCommit(STsdbRepo *pRepo) {
-  ASSERT(pRepo->commit == 1);
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER);
+  sem_post(&(pRepo->readyToCommit));
 }
 
 static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {

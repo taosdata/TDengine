@@ -584,7 +584,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }
 
-    mDebug("dnode:%d, from offline to online", pDnode->dnodeId);
+    mInfo("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     pDnode->offlineReason = TAOS_DN_OFF_ONLINE;
     balanceSyncNotify();
