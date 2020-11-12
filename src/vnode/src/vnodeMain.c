@@ -355,6 +355,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
 
+  tsdbIncCommitRef(pVnode->vgId);
   taosHashPut(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
 
   return TSDB_CODE_SUCCESS;
@@ -446,6 +447,7 @@ void vnodeRelease(void *pVnodeRaw) {
 
   tsem_destroy(&pVnode->sem);
   free(pVnode);
+  tsdbDecCommitRef(vgId);
 
   int32_t count = taosHashGetSize(tsVnodesHash);
   vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);

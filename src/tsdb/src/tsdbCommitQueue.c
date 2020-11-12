@@ -15,6 +15,7 @@
 
 #include "os.h"
 #include "tlist.h"
+#include "tref.h"
 #include "tsdbMain.h"
 
 typedef struct {
@@ -22,6 +23,7 @@ typedef struct {
   pthread_mutex_t lock;
   pthread_cond_t  queueNotEmpty;
   int             nthreads;
+  int             refCount;
   SList *         queue;
   pthread_t *     threads;
 } SCommitQueue;
@@ -103,7 +105,7 @@ int tsdbScheduleCommit(STsdbRepo *pRepo) {
 
   pthread_mutex_lock(&(pQueue->lock));
 
-  ASSERT(!pQueue->stop);
+  // ASSERT(pQueue->stop);
 
   tdListAppendNode(pQueue->queue, pNode);
   pthread_cond_signal(&(pQueue->queueNotEmpty));
@@ -123,7 +125,7 @@ static void *tsdbLoopCommit(void *arg) {
     while (true) {
       pNode = tdListPopHead(pQueue->queue);
       if (pNode == NULL) {
-        if (pQueue->stop) {
+        if (pQueue->stop && pQueue->refCount <= 0) {
           pthread_mutex_unlock(&(pQueue->lock));
           goto _exit;
         } else {
@@ -144,4 +146,15 @@ static void *tsdbLoopCommit(void *arg) {
 
 _exit:
   return NULL;
+}
+
+void tsdbIncCommitRef(int vgId) {
+  int refCount = atomic_add_fetch_32(&tsCommitQueue.refCount, 1);
+  tsdbDebug("vgId:%d, inc commit queue ref to %d", vgId, refCount);
+}
+
+void tsdbDecCommitRef(int vgId) {
+  int refCount = atomic_sub_fetch_32(&tsCommitQueue.refCount, 1);
+  pthread_cond_broadcast(&(tsCommitQueue.queueNotEmpty));
+  tsdbDebug("vgId:%d, dec commit queue ref to %d", vgId, refCount);
 }
