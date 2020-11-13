@@ -342,7 +342,7 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder) {
    *
    * Otherwise, the original pointer may be lost, which causes memory leak.
    */
-  tVariantListItem item = {0};
+  tVariantListItem item;
   item.pVar = *pVar;
   item.sortOrder = sortOrder;
 
