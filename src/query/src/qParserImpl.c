@@ -388,8 +388,6 @@ void tSQLSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
 void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   pField->type = -1;
 
-  int32_t LENGTH_SIZE_OF_STR = 2;  // in case of nchar and binary, there two bytes to keep the length of binary|nchar.
-  
   for (int8_t i = 0; i < tListLen(tDataTypeDesc); ++i) {
     if ((strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0) &&
         (type->n == tDataTypeDesc[i].nameLen)) {
@@ -405,14 +403,14 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
         if (type->type == 0) {
           pField->bytes = 0;
         } else {
-          pField->bytes = -(int32_t)type->type * TSDB_NCHAR_SIZE + LENGTH_SIZE_OF_STR;
+          pField->bytes = (int16_t)(-(int32_t)type->type * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         }
       } else if (i == TSDB_DATA_TYPE_BINARY) {
         /* for binary, the TOKENTYPE is the length of binary */
         if (type->type == 0) {
           pField->bytes = 0;
         } else {
-          pField->bytes = -(int32_t) type->type + LENGTH_SIZE_OF_STR;
+          pField->bytes = (int16_t) (-(int32_t) type->type + VARSTR_HEADER_SIZE);
         } 
       }
       break;
