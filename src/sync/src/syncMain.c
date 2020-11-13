@@ -580,6 +580,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
         pPeer = pNode->peerInfo[i];
         if (pPeer->version == nodeVersion) {
           pPeer->role = TAOS_SYNC_ROLE_SLAVE;
+          pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
           sInfo("%s, it shall work as slave", pPeer->id);
         }
       }
