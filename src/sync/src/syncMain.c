@@ -1219,13 +1219,17 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   int32_t    fwdLen;
   int32_t    code = 0;
 
-  if (nodeRole == TAOS_SYNC_ROLE_SLAVE && pWalHead->version > nodeVersion + 1) {
-    sError("vgId:%d, received ver:%" PRIu64 ", inconsistent with last ver:%" PRIu64 ", restart connection", pNode->vgId,
-           pWalHead->version, nodeVersion);
-    for (int32_t i = 0; i < pNode->replica; ++i) {
-      pPeer = pNode->peerInfo[i];
-      syncRestartConnection(pPeer);
+
+  if (pWalHead->version > nodeVersion + 1) {
+    sError("vgId:%d, hver:%" PRIu64 ", inconsistent with ver:%" PRIu64, pNode->vgId, pWalHead->version, nodeVersion);
+    if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
+      sInfo("vgId:%d, restart connection", pNode->vgId);
+      for (int32_t i = 0; i < pNode->replica; ++i) {
+        pPeer = pNode->peerInfo[i];
+        syncRestartConnection(pPeer);
+      }
     }
+
     return TSDB_CODE_SYN_INVALID_VERSION;
   }
 
