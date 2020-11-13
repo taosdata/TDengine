@@ -494,7 +494,7 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_
   if (remain == 0) {
     fillExternalResults(pFillInfo, output, numOfRes);
   } else {
-    fillResultImpl(pFillInfo, output, numOfRes);
+    fillResultImpl(pFillInfo, output, (int32_t) numOfRes);
     assert(numOfRes == pFillInfo->numOfCurrent);
   }
 
