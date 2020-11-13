@@ -90,7 +90,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     ALTER DATABASE db_name REPLICA 2;
     ```
-    REPLICA参数是指修改数据库副本数，取值范围[1, 3]。在集群中使用，副本数必须小于dnode的数目。
+    REPLICA参数是指修改数据库副本数，取值范围[1, 3]。在集群中使用，副本数必须小于或等于dnode的数目。
 
     ```mysql
     ALTER DATABASE db_name KEEP 365;
