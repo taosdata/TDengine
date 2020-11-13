@@ -199,7 +199,8 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
   }
 
   if (fp == NULL) {
-    return taosArrayDestroy(pArray);
+    taosArrayDestroy(pArray);
+    return;
   }
 
   for(int32_t i = 0; i < pArray->size; ++i) {
