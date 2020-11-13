@@ -2830,7 +2830,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd)
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
   
-  pQueryInfo->groupbyExpr.numOfGroupCols = taosArrayGetSize(pList);
+  pQueryInfo->groupbyExpr.numOfGroupCols = (int16_t)taosArrayGetSize(pList);
   if (pQueryInfo->groupbyExpr.numOfGroupCols > TSDB_MAX_TAGS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
@@ -4471,7 +4471,7 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
     }
 
     int32_t startPos = 1;
-    int32_t numOfFillVal = num - 1;
+    int32_t numOfFillVal = (int32_t)(num - 1);
 
     /* for point interpolation query, we do not have the timestamp column */
     if (tscIsPointInterpQuery(pQueryInfo)) {
@@ -4481,7 +4481,7 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
         numOfFillVal = (int32_t)size;
       }
     } else {
-      numOfFillVal = (num >  (int32_t)size) ? (int32_t)size : num;
+      numOfFillVal = (int16_t)((num >  (int32_t)size) ? (int32_t)size : num);
     }
 
     int32_t j = 1;
@@ -6078,7 +6078,7 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
       tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
     }
 
-    pCmd->count = numOfTags;
+    pCmd->count =(int32_t) numOfTags;
   }
 
   return TSDB_CODE_SUCCESS;
