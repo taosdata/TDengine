@@ -317,7 +317,7 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order)
   }
 
   if (pToken) {
-    tVariantListItem item = {0};
+    tVariantListItem item;
     tVariantCreate(&item.pVar, pToken);
     item.sortOrder = order;
 
