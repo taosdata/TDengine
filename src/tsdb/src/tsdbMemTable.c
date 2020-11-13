@@ -462,8 +462,8 @@ _exit:
   tdFreeDataCols(pDataCols);
   tsdbDestroyCommitIters(iters, pMem->maxTables);
   tsdbDestroyHelper(&whelper);
-  tsdbEndCommit(pRepo);
   tsdbInfo("vgId:%d commit over", pRepo->config.tsdbId);
+  tsdbEndCommit(pRepo);
 
   return NULL;
 }
