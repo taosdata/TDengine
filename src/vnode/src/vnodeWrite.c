@@ -103,18 +103,18 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 static int32_t vnodeCheckWrite(void *param) {
   SVnodeObj *pVnode = param;
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
-    vDebug("vgId:%d, no write auth, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    vDebug("vgId:%d, no write auth, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_VND_NO_WRITE_AUTH;
   }
 
   // tsdb may be in reset state
   if (pVnode->tsdb == NULL) {
-    vDebug("vgId:%d, tsdb is null, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    vDebug("vgId:%d, tsdb is null, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
   if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
-    vDebug("vgId:%d, vnode status is %s, recCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
+    vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }

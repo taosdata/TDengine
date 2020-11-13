@@ -56,19 +56,19 @@ int32_t vnodeProcessRead(void *param, SVReadMsg *pRead) {
 static int32_t vnodeCheckRead(void *param) {
   SVnodeObj *pVnode = param;
   if (pVnode->status != TAOS_VN_STATUS_READY) {
-    vDebug("vgId:%d, vnode status is %s, recCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
+    vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
   // tsdb may be in reset state
   if (pVnode->tsdb == NULL) {
-    vDebug("vgId:%d, tsdb is null, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    vDebug("vgId:%d, tsdb is null, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
   if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-    vDebug("vgId:%d, replica:%d role:%s, recCount:%d pVnode:%p", pVnode->vgId, pVnode->syncCfg.replica,
+    vDebug("vgId:%d, replica:%d role:%s, refCount:%d pVnode:%p", pVnode->vgId, pVnode->syncCfg.replica,
            syncRole[pVnode->role], pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }

@@ -352,7 +352,7 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {
     int32_t retLen = write(pPeer->peerFd, msg, msgLen);
 
     if (retLen == msgLen) {
-      sDebug("%s, forward-rsp is sent, ver:%" PRIu64, pPeer->id, version);
+      sDebug("%s, forward-rsp is sent, code:%x hver:%" PRIu64, pPeer->id, code, version);
     } else {
       sDebug("%s, failed to send forward ack, restart", pPeer->id);
       syncRestartConnection(pPeer);
@@ -831,7 +831,7 @@ static void syncProcessFwdResponse(char *cont, SSyncPeer *pPeer) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   SFwdInfo * pFwdInfo;
 
-  sDebug("%s, forward-rsp is received, ver:%" PRIu64, pPeer->id, pFwdRsp->version);
+  sDebug("%s, forward-rsp is received, code:%x ver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
   if (pFirst->version <= pFwdRsp->version && pSyncFwds->fwds > 0) {
@@ -1125,10 +1125,9 @@ static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
   }
 
   SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + pSyncFwds->last;
+  memset(pFwdInfo, 0, sizeof(SFwdInfo));
   pFwdInfo->version = version;
   pFwdInfo->mhandle = mhandle;
-  pFwdInfo->acks = 0;
-  pFwdInfo->confirmed = 0;
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
