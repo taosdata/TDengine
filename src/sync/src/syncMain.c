@@ -576,6 +576,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
       sInfo("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
 
+#if 0
       for (int32_t i = 0; i < pNode->replica; ++i) {
         pPeer = pNode->peerInfo[i];
         if (pPeer->version == nodeVersion) {
@@ -584,7 +585,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
           sInfo("%s, it shall work as slave", pPeer->id);
         }
       }
-
+#endif
       syncResetFlowCtrl(pNode);
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
     } else {
