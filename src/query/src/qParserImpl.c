@@ -355,7 +355,8 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
     return tVariantListAppend(NULL, pVar, sortOrder);
   }
 
-  tVariantListItem item = {0};
+  tVariantListItem item;
+
   item.pVar = *pVar;
   item.sortOrder = sortOrder;
 
