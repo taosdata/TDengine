@@ -229,7 +229,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
       if (handle == NULL) {  // failed to register qhandle
         pRsp->code = terrno;
         terrno = 0;
-        vError("vgId:%d QInfo:%p register qhandle failed, return to app, code:%s", pVnode->vgId, (void *)pQInfo,
+        vError("vgId:%d, QInfo:%p register qhandle failed, return to app, code:%s", pVnode->vgId, (void *)pQInfo,
                tstrerror(pRsp->code));
         qDestroyQueryInfo(pQInfo);  // destroy it directly
         return pRsp->code;

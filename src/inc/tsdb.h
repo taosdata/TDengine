@@ -321,6 +321,12 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle);
  */
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage);
 
+int  tsdbInitCommitQueue(int nthreads);
+void tsdbDestroyCommitQueue();
+int  tsdbSyncCommit(TSDB_REPO_T *repo);
+void tsdbIncCommitRef(int vgId);
+void tsdbDecCommitRef(int vgId);
+
 #ifdef __cplusplus
 }
 #endif

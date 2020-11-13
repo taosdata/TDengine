@@ -7277,7 +7277,7 @@ void qCleanupQueryMgmt(void* pQMgmt) {
   pthread_mutex_destroy(&pQueryMgmt->lock);
   tfree(pQueryMgmt);
 
-  qDebug("vgId:%d queryMgmt cleanup completed", vgId);
+  qDebug("vgId:%d, queryMgmt cleanup completed", vgId);
 }
 
 void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {

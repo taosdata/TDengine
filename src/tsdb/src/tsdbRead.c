@@ -2366,8 +2366,8 @@ void filterPrepare(void* expr, void* param) {
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
-
-    pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE);  // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+    // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+    pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }
 }

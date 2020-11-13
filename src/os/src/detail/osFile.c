@@ -132,7 +132,7 @@ int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size) {
     // if (leftbytes > 1000000000) leftbytes = 1000000000;
     sentbytes = sendfile(dfd, sfd, offset, leftbytes);
     if (sentbytes == -1) {
-      if (errno == EINTR) {
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
       } else {
         return -1;

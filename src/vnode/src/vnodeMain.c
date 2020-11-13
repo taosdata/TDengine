@@ -67,10 +67,17 @@ int32_t vnodeInitResources() {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
+  if (tsdbInitCommitQueue(tsNumOfCommitThreads) < 0) {
+    vError("failed to init vnode commit queue");
+    return terrno;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 void vnodeCleanupResources() {
+  tsdbDestroyCommitQueue();
+
   if (tsVnodesHash != NULL) {
     vDebug("vnode list is cleanup");
     taosHashCleanup(tsVnodesHash);
@@ -308,6 +315,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
+  tsdbSyncCommit(pVnode->tsdb);
+  walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
@@ -346,6 +355,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
 
+  tsdbIncCommitRef(pVnode->vgId);
   taosHashPut(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
 
   return TSDB_CODE_SUCCESS;
@@ -437,6 +447,7 @@ void vnodeRelease(void *pVnodeRaw) {
 
   tsem_destroy(&pVnode->sem);
   free(pVnode);
+  tsdbDecCommitRef(vgId);
 
   int32_t count = taosHashGetSize(tsVnodesHash);
   vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);
@@ -583,7 +594,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    walRemoveOldFiles(pVnode->wal);
+    walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
 

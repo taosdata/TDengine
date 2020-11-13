@@ -1235,8 +1235,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SStrToken* pToken) {
-  strdequote(pToken->z);
-  pToken->n = (uint32_t)strtrim(pToken->z);
+  tscDequoteAndTrimToken(pToken);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1251,8 +1250,6 @@ static int32_t validateQuoteToken(SStrToken* pToken) {
 }
 
 void tscDequoteAndTrimToken(SStrToken* pToken) {
-  assert(pToken->type == TK_STRING);
-
   uint32_t first = 0, last = pToken->n;
 
   // trim leading spaces
@@ -1364,7 +1361,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     } else {
       pStr[firstPartLen] = TS_PATH_DELIMITER[0];
       memmove(&pStr[firstPartLen + 1], pToken->z, pToken->n);
-      pStr[firstPartLen + sizeof(TS_PATH_DELIMITER[0]) + pToken->n] = 0;
+      uint32_t offset = (uint32_t)(pToken->z - (pStr + firstPartLen + 1));
+      memset(pToken->z + pToken->n - offset, ' ', offset);
     }
     pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
     pToken->z = pStr;
