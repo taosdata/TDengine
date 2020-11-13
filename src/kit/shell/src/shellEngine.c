@@ -193,7 +193,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
       history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE] == NULL ||
       strcmp(command, history.hist[(history.hend + MAX_HISTORY_SIZE - 1) % MAX_HISTORY_SIZE]) != 0) {
     if (history.hist[history.hend] != NULL) {
-      taosTFree(history.hist[history.hend]);
+      tfree(history.hist[history.hend]);
     }
     history.hist[history.hend] = strdup(command);
 
@@ -296,7 +296,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   TAOS_RES* pSql = taos_query_h(con, command, &result);
   if (taos_errno(pSql)) {
-    taos_error(pSql);
+    taos_error(pSql, st);
     return;
   }
 
@@ -770,7 +770,7 @@ void read_history() {
     return;
   }
 
-  while ((read_size = taosGetline(&line, &line_size, f)) != -1) {
+  while ((read_size = tgetline(&line, &line_size, f)) != -1) {
     line[read_size - 1] = '\0';
     history.hist[history.hend] = strdup(line);
 
@@ -800,16 +800,17 @@ void write_history() {
   for (int i = history.hstart; i != history.hend;) {
     if (history.hist[i] != NULL) {
       fprintf(f, "%s\n", history.hist[i]);
-      taosTFree(history.hist[i]);
+      tfree(history.hist[i]);
     }
     i = (i + 1) % MAX_HISTORY_SIZE;
   }
   fclose(f);
 }
 
-void taos_error(TAOS_RES *tres) {
+void taos_error(TAOS_RES *tres, int64_t st) {
+  int64_t et = taosGetTimestampUs();
   atomic_store_ptr(&result, 0);
-  fprintf(stderr, "\nDB error: %s\n", taos_errstr(tres));
+  fprintf(stderr, "\nDB error: %s (%.6fs)\n", taos_errstr(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -853,7 +854,7 @@ void source_file(TAOS *con, char *fptr) {
     return;
   }
 
-  while ((read_len = taosGetline(&line, &line_len, f)) != -1) {
+  while ((read_len = tgetline(&line, &line_len, f)) != -1) {
     if (read_len >= tsMaxSQLStringLen) continue;
     line[--read_len] = '\0';
 

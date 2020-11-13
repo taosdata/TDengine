@@ -28,7 +28,7 @@ static FILE* fpAllocLog = NULL;
 extern int32_t taosGetTimestampSec();
 static int32_t startTime = INT32_MAX;
 
-static bool random_alloc_fail(size_t size, const char* file, uint32_t line) {
+static bool taosRandomAllocFail(size_t size, const char* file, uint32_t line) {
   if (taosGetTimestampSec() < startTime) {
     return false;
   }
@@ -48,33 +48,33 @@ static bool random_alloc_fail(size_t size, const char* file, uint32_t line) {
   return true;
 }
 
-static void* malloc_random(size_t size, const char* file, uint32_t line) {
-  return random_alloc_fail(size, file, line) ? NULL : malloc(size);
+static void* taosRandmoMalloc(size_t size, const char* file, uint32_t line) {
+  return taosRandomAllocFail(size, file, line) ? NULL : malloc(size);
 }
 
-static void* calloc_random(size_t num, size_t size, const char* file, uint32_t line) {
-  return random_alloc_fail(num * size, file, line) ? NULL : calloc(num, size);
+static void* taosRandomCalloc(size_t num, size_t size, const char* file, uint32_t line) {
+  return taosRandomAllocFail(num * size, file, line) ? NULL : calloc(num, size);
 }
 
-static void* realloc_random(void* ptr, size_t size, const char* file, uint32_t line) {
-  return random_alloc_fail(size, file, line) ? NULL : realloc(ptr, size);
+static void* taosRandomRealloc(void* ptr, size_t size, const char* file, uint32_t line) {
+  return taosRandomAllocFail(size, file, line) ? NULL : realloc(ptr, size);
 }
 
-static char* strdup_random(const char* str, const char* file, uint32_t line) {
+static char* taosRandomStrdup(const char* str, const char* file, uint32_t line) {
   size_t len = strlen(str);
-  return random_alloc_fail(len + 1, file, line) ? NULL : taosStrdupImp(str);
+  return taosRandomAllocFail(len + 1, file, line) ? NULL : taosStrdupImp(str);
 }
 
-static char* strndup_random(const char* str, size_t size, const char* file, uint32_t line) {
+static char* taosRandomStrndup(const char* str, size_t size, const char* file, uint32_t line) {
   size_t len = strlen(str);
   if (len > size) {
     len = size;
   }
-  return random_alloc_fail(len + 1, file, line) ? NULL : taosStrndupImp(str, len);
+  return taosRandomAllocFail(len + 1, file, line) ? NULL : taosStrndupImp(str, len);
 }
 
-static ssize_t getline_random(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
-  return random_alloc_fail(*n, file, line) ? -1 : taosGetlineImp(lineptr, n, stream);
+static ssize_t taosRandomGetline(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
+  return taosRandomAllocFail(*n, file, line) ? -1 : taosGetlineImp(lineptr, n, stream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +96,7 @@ typedef struct SMemBlock {
 static SMemBlock *blocks = NULL;
 static uintptr_t lock = 0;
 
-static void add_mem_block(SMemBlock* blk) {
+static void taosAddMemBlock(SMemBlock* blk) {
   blk->prev = NULL;
   while (atomic_val_compare_exchange_ptr(&lock, 0, 1) != 0);
   blk->next = blocks;
@@ -107,7 +107,7 @@ static void add_mem_block(SMemBlock* blk) {
   atomic_store_ptr(&lock, 0);
 }
 
-static void remove_mem_block(SMemBlock* blk) {
+static void taosRemoveMemBlock(SMemBlock* blk) {
   while (atomic_val_compare_exchange_ptr(&lock, 0, 1) != 0);
 
   if (blocks == blk) {
@@ -126,7 +126,7 @@ static void remove_mem_block(SMemBlock* blk) {
   blk->next = NULL;
 }
 
-static void free_detect_leak(void* ptr, const char* file, uint32_t line) {
+static void taosFreeDetectLeak(void* ptr, const char* file, uint32_t line) {
   if (ptr == NULL) {
     return;
   }
@@ -140,11 +140,11 @@ static void free_detect_leak(void* ptr, const char* file, uint32_t line) {
     return;
   }
 
-  remove_mem_block(blk);
+  taosRemoveMemBlock(blk);
   free(blk);
 }
 
-static void* malloc_detect_leak(size_t size, const char* file, uint32_t line) {
+static void* taosMallocDetectLeak(size_t size, const char* file, uint32_t line) {
   if (size == 0) {
     return NULL;
   }
@@ -166,28 +166,28 @@ static void* malloc_detect_leak(size_t size, const char* file, uint32_t line) {
   blk->line = (uint16_t)line;
   blk->magic = MEMBLK_MAGIC;
   blk->size = size;
-  add_mem_block(blk);
+  taosAddMemBlock(blk);
 
   return blk->data;
 }
 
-static void* calloc_detect_leak(size_t num, size_t size, const char* file, uint32_t line) {
+static void* taosCallocDetectLeak(size_t num, size_t size, const char* file, uint32_t line) {
   size *= num;
-  void* p = malloc_detect_leak(size, file, line);
+  void* p = taosMallocDetectLeak(size, file, line);
   if (p != NULL) {
     memset(p, 0, size);
   }
   return p;
 }
 
-static void* realloc_detect_leak(void* ptr, size_t size, const char* file, uint32_t line) {
+static void* taosReallocDetectLeak(void* ptr, size_t size, const char* file, uint32_t line) {
   if (size == 0) {
-    free_detect_leak(ptr, file, line);
+    taosFreeDetectLeak(ptr, file, line);
     return NULL;
   }
 
   if (ptr == NULL) {
-    return malloc_detect_leak(size, file, line);
+    return taosMallocDetectLeak(size, file, line);
   }
 
   SMemBlock* blk = (SMemBlock *)((char*)ptr) - sizeof(SMemBlock);
@@ -198,11 +198,11 @@ static void* realloc_detect_leak(void* ptr, size_t size, const char* file, uint3
     return realloc(ptr, size);
   }
 
-  remove_mem_block(blk);
+  taosRemoveMemBlock(blk);
 
   void* p = realloc(blk, size + sizeof(SMemBlock));
   if (p == NULL) {
-    add_mem_block(blk);
+    taosAddMemBlock(blk);
     return NULL;
   }
 
@@ -212,13 +212,13 @@ static void* realloc_detect_leak(void* ptr, size_t size, const char* file, uint3
 
   blk = (SMemBlock*)p;
   blk->size = size;
-  add_mem_block(blk);
+  taosAddMemBlock(blk);
   return blk->data;
 }
 
-static char* strdup_detect_leak(const char* str, const char* file, uint32_t line) {
+static char* taosStrdupDetectLeak(const char* str, const char* file, uint32_t line) {
   size_t len = strlen(str);
-  char *p = malloc_detect_leak(len + 1, file, line);
+  char *p = taosMallocDetectLeak(len + 1, file, line);
   if (p != NULL) {
     memcpy(p, str, len);
     p[len] = 0;
@@ -226,12 +226,12 @@ static char* strdup_detect_leak(const char* str, const char* file, uint32_t line
   return p;
 }
 
-static char* strndup_detect_leak(const char* str, size_t size, const char* file, uint32_t line) {
+static char* taosStrndupDetectLeak(const char* str, size_t size, const char* file, uint32_t line) {
   size_t len = strlen(str);
   if (len > size) {
     len = size;
   }
-  char *p = malloc_detect_leak(len + 1, file, line);
+  char *p = taosMallocDetectLeak(len + 1, file, line);
   if (p != NULL) {
     memcpy(p, str, len);
     p[len] = 0;
@@ -239,13 +239,13 @@ static char* strndup_detect_leak(const char* str, size_t size, const char* file,
   return p;
 }
 
-static ssize_t getline_detect_leak(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
+static ssize_t taosGetlineDetectLeak(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
   char* buf = NULL;
   size_t bufSize = 0;
   ssize_t size = taosGetlineImp(&buf, &bufSize, stream);
   if (size != -1) {
     if (*n < size + 1) {
-      void* p = realloc_detect_leak(*lineptr, size + 1, file, line);
+      void* p = taosReallocDetectLeak(*lineptr, size + 1, file, line);
       if (p == NULL) {
         free(buf);
         return -1;
@@ -260,7 +260,7 @@ static ssize_t getline_detect_leak(char **lineptr, size_t *n, FILE *stream, cons
   return size;
 }
 
-static void dump_memory_leak() {
+static void taosDumpMemoryLeakImp() {
   const char* hex = "0123456789ABCDEF";
   const char* fmt = ":%d: addr=%p, size=%d, content(first 16 bytes)=";
   size_t numOfBlk = 0, totalSize = 0;
@@ -299,7 +299,7 @@ static void dump_memory_leak() {
   fflush(fpAllocLog);
 }
 
-static void dump_memory_leak_on_sig(int sig) {
+static void taosDumpMemoryLeakOnSig(int sig) {
   fprintf(fpAllocLog, "signal %d received.\n", sig);
 
   // restore default signal handler
@@ -307,55 +307,55 @@ static void dump_memory_leak_on_sig(int sig) {
   act.sa_handler = SIG_DFL;
   sigaction(sig, &act, NULL);
 
-  dump_memory_leak();
+  taosDumpMemoryLeakImp();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // interface functions
 
-void* taos_malloc(size_t size, const char* file, uint32_t line) {
+void* taosMallocMem(size_t size, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return malloc(size);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
-      return malloc_random(size, file, line);
+      return taosRandmoMalloc(size, file, line);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return malloc_detect_leak(size, file, line);
+      return taosMallocDetectLeak(size, file, line);
   }
   return malloc(size);
 }
 
-void* taos_calloc(size_t num, size_t size, const char* file, uint32_t line) {
+void* taosCallocMem(size_t num, size_t size, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return calloc(num, size);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
-      return calloc_random(num, size, file, line);
+      return taosRandomCalloc(num, size, file, line);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return calloc_detect_leak(num, size, file, line);
+      return taosCallocDetectLeak(num, size, file, line);
   }
   return calloc(num, size);
 }
 
-void* taos_realloc(void* ptr, size_t size, const char* file, uint32_t line) {
+void* taosReallocMem(void* ptr, size_t size, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return realloc(ptr, size);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
-      return realloc_random(ptr, size, file, line);
+      return taosRandomRealloc(ptr, size, file, line);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return realloc_detect_leak(ptr, size, file, line);
+      return taosReallocDetectLeak(ptr, size, file, line);
   }
   return realloc(ptr, size);
 }
 
-void  taos_free(void* ptr, const char* file, uint32_t line) {
+void  taosFreeMem(void* ptr, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return free(ptr);
@@ -364,54 +364,54 @@ void  taos_free(void* ptr, const char* file, uint32_t line) {
       return free(ptr);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return free_detect_leak(ptr, file, line);
+      return taosFreeDetectLeak(ptr, file, line);
   }
   return free(ptr);
 }
 
-char* taos_strdup(const char* str, const char* file, uint32_t line) {
+char* taosStrdupMem(const char* str, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return taosStrdupImp(str);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
-      return strdup_random(str, file, line);
+      return taosRandomStrdup(str, file, line);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return strdup_detect_leak(str, file, line);
+      return taosStrdupDetectLeak(str, file, line);
   }
   return taosStrdupImp(str);
 }
 
-char* taos_strndup(const char* str, size_t size, const char* file, uint32_t line) {
+char* taosStrndupMem(const char* str, size_t size, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return taosStrndupImp(str, size);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
-      return strndup_random(str, size, file, line);
+      return taosRandomStrndup(str, size, file, line);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return strndup_detect_leak(str, size, file, line);
+      return taosStrndupDetectLeak(str, size, file, line);
   }
   return taosStrndupImp(str, size);
 }
 
-ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
+ssize_t taosGetlineMem(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
       return taosGetlineImp(lineptr, n, stream);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
-      return getline_random(lineptr, n, stream, file, line);
+      return taosRandomGetline(lineptr, n, stream, file, line);
 
     case TAOS_ALLOC_MODE_DETECT_LEAK:
-      return getline_detect_leak(lineptr, n, stream, file, line);
+      return taosGetlineDetectLeak(lineptr, n, stream, file, line);
   }
   return taosGetlineImp(lineptr, n, stream);
 }
 
-static void close_alloc_log() {
+static void taosCloseAllocLog() {
   if (fpAllocLog != NULL) {
     if (fpAllocLog != stdout) {
       fclose(fpAllocLog);
@@ -432,7 +432,7 @@ void taosSetAllocMode(int mode, const char* path, bool autoDump) {
   if (path == NULL || path[0] == 0) {
     fpAllocLog = stdout;
   } else if ((fpAllocLog = fopen(path, "w")) != NULL) {
-    atexit(close_alloc_log);
+    atexit(taosCloseAllocLog);
   } else {
     printf("failed to open memory allocation log file '%s', errno=%d\n", path, errno);
     return;
@@ -446,10 +446,10 @@ void taosSetAllocMode(int mode, const char* path, bool autoDump) {
   }
 
   if (autoDump && mode == TAOS_ALLOC_MODE_DETECT_LEAK) {
-    atexit(dump_memory_leak);
+    atexit(taosDumpMemoryLeakImp);
 
     struct sigaction act = {0};
-    act.sa_handler = dump_memory_leak_on_sig;
+    act.sa_handler = taosDumpMemoryLeakOnSig;
     sigaction(SIGFPE, &act, NULL);
     sigaction(SIGSEGV, &act, NULL);
     sigaction(SIGILL, &act, NULL);
@@ -457,8 +457,8 @@ void taosSetAllocMode(int mode, const char* path, bool autoDump) {
 }
 
 void taosDumpMemoryLeak() {
-  dump_memory_leak();
-  close_alloc_log();
+  taosDumpMemoryLeakImp();
+  taosCloseAllocLog();
 }
 
 #else // 'TAOS_MEM_CHECK' not defined

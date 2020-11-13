@@ -58,24 +58,48 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is created", pWal->vgId, pWal->name);
   }
 
-  if (pWal->keep != TAOS_WAL_KEEP) {
-    // remove the oldest wal file
-    int64_t oldFileId = -1;
-    if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
-      char walName[WAL_FILE_LEN] = {0};
-      snprintf(walName, sizeof(walName), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, oldFileId);
+  pthread_mutex_unlock(&pWal->mutex);
 
-      if (remove(walName) < 0) {
-        wError("vgId:%d, file:%s, failed to remove since %s", pWal->vgId, walName, strerror(errno));
-      } else {
-        wDebug("vgId:%d, file:%s, it is removed", pWal->vgId, walName);
-      }
+  return code;
+}
+
+void walRemoveOneOldFile(void *handle) {
+  SWal *pWal = handle;
+  if (pWal == NULL) return;
+  if (pWal->keep == TAOS_WAL_KEEP) return;
+
+  pthread_mutex_lock(&pWal->mutex);
+
+  // remove the oldest wal file
+  int64_t oldFileId = -1;
+  if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
+    char walName[WAL_FILE_LEN] = {0};
+    snprintf(walName, sizeof(walName), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, oldFileId);
+
+    if (remove(walName) < 0) {
+      wError("vgId:%d, file:%s, failed to remove since %s", pWal->vgId, walName, strerror(errno));
+    } else {
+      wInfo("vgId:%d, file:%s, it is removed", pWal->vgId, walName);
     }
   }
 
   pthread_mutex_unlock(&pWal->mutex);
+}
 
-  return code;
+void walRemoveAllOldFiles(void *handle) {
+  if (handle == NULL) return;
+
+  SWal *  pWal = handle;
+  int64_t fileId = -1;
+  while (walGetNextFile(pWal, &fileId) >= 0) {
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
+
+    if (remove(pWal->name) < 0) {
+      wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
+    } else {
+      wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
+    }
+  }
 }
 
 int32_t walWrite(void *handle, SWalHead *pHead) {
@@ -99,8 +123,8 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to write since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
-    wTrace("vgId:%d, fileId:%" PRId64 " fd:%d, write wal ver:%" PRId64 ", head ver:%" PRIu64 ", len:%d ", pWal->vgId,
-           pWal->fileId, pWal->fd, pWal->version, pHead->version, pHead->len);
+    wTrace("vgId:%d, write wal, fileId:%" PRId64 " fd:%d hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+           pWal->fileId, pWal->fd, pHead->version, pWal->version, pHead->len);
     pWal->version = pHead->version;
   }
 
@@ -261,7 +285,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
-      wError("vgId:%d, file:%s, wal head cksum is messed up, ver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
+      wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
       code = walSkipCorruptedRecord(pWal, pHead, fd, &offset);
       if (code != TSDB_CODE_SUCCESS) {
@@ -297,8 +321,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wTrace("vgId:%d, fileId:%" PRId64 ", restore wal ver:%" PRIu64 ", head ver:%" PRIu64 " len:%d", pWal->vgId, fileId,
-           pWal->version, pHead->version, pHead->len);
+    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+           fileId, pHead->version, pWal->version, pHead->len);
 
     pWal->version = pHead->version;
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);

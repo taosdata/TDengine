@@ -245,7 +245,7 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
   }
 
   pQueryInfo->fillType = TSDB_FILL_NONE;
-  taosTFree(pQueryInfo->fillVal);
+  tfree(pQueryInfo->fillVal);
 }
 
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
@@ -259,7 +259,7 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
     // not enough memory
     if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
-      taosTFree(pRes->tsrow);
+      tfree(pRes->tsrow);
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return pRes->code;
     }
@@ -271,24 +271,24 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   if (pRes->buffer != NULL) { // free all buffers containing the multibyte string
     for (int i = 0; i < pRes->numOfCols; i++) {
-      taosTFree(pRes->buffer[i]);
+      tfree(pRes->buffer[i]);
     }
     
     pRes->numOfCols = 0;
   }
   
-  taosTFree(pRes->pRsp);
+  tfree(pRes->pRsp);
 
-  taosTFree(pRes->tsrow);
-  taosTFree(pRes->length);
-  taosTFree(pRes->buffer);
+  tfree(pRes->tsrow);
+  tfree(pRes->length);
+  tfree(pRes->buffer);
 
-  taosTFree(pRes->pGroupRec);
-  taosTFree(pRes->pColumnIndex);
+  tfree(pRes->pGroupRec);
+  tfree(pRes->pColumnIndex);
 
   if (pRes->pArithSup != NULL) {
-    taosTFree(pRes->pArithSup->data);
-    taosTFree(pRes->pArithSup);
+    tfree(pRes->pArithSup->data);
+    tfree(pRes->pArithSup);
   }
   
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
@@ -305,11 +305,11 @@ static void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeFromCache) {
     
     freeQueryInfoImpl(pQueryInfo);
     clearAllTableMetaInfo(pQueryInfo, (const char*)addr, removeFromCache);
-    taosTFree(pQueryInfo);
+    tfree(pQueryInfo);
   }
   
   pCmd->numOfClause = 0;
-  taosTFree(pCmd->pQueryInfo);
+  tfree(pCmd->pQueryInfo);
 }
 
 void tscResetSqlCmdObj(SSqlCmd* pCmd, bool removeFromCache) {
@@ -387,14 +387,14 @@ void tscFreeTableMetaHelper(void *pTableMeta) {
   assert(numOfEps >= 0 && numOfEps <= TSDB_MAX_REPLICA);
 
   for(int32_t i = 0; i < numOfEps; ++i) {
-    taosTFree(p->vgroupInfo.epAddr[i].fqdn);
+    tfree(p->vgroupInfo.epAddr[i].fqdn);
   }
 
   int32_t numOfEps1 = p->corVgroupInfo.numOfEps;
   assert(numOfEps1 >= 0 && numOfEps1 <= TSDB_MAX_REPLICA);
 
   for(int32_t i = 0; i < numOfEps1; ++i) {
-    taosTFree(p->corVgroupInfo.epAddr[i].fqdn);
+    tfree(p->corVgroupInfo.epAddr[i].fqdn);
   }
 }
 
@@ -418,9 +418,9 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   pSql->signature = NULL;
   pSql->fp = NULL;
-  taosTFree(pSql->sqlstr);
+  tfree(pSql->sqlstr);
 
-  taosTFree(pSql->pSubs);
+  tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
   pSql->self = 0;
 
@@ -428,7 +428,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscResetSqlCmdObj(pCmd, false);
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
-  taosTFree(pCmd->payload);
+  tfree(pCmd->payload);
   pCmd->allocSize = 0;
   
   tsem_destroy(&pSql->rspSem);
@@ -440,15 +440,15 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
     return;
   }
 
-  taosTFree(pDataBlock->pData);
-  taosTFree(pDataBlock->params);
+  tfree(pDataBlock->pData);
+  tfree(pDataBlock->params);
 
   // free the refcount for metermeta
   if (pDataBlock->pTableMeta != NULL) {
     taosCacheRelease(tscMetaCache, (void**)&(pDataBlock->pTableMeta), false);
   }
 
-  taosTFree(pDataBlock);
+  tfree(pDataBlock);
 }
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
@@ -723,7 +723,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 
         taosHashCleanup(pVnodeDataBlockHashList);
         tscDestroyBlockArrayList(pVnodeDataBlockList);
-        taosTFree(dataBuf->pData);
+        tfree(dataBuf->pData);
 
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
@@ -783,7 +783,7 @@ void tscCloseTscObj(void *param) {
   pthread_mutex_destroy(&pObj->mutex);
 
   tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, p);
-  taosTFree(pObj);
+  tfree(pObj);
 }
 
 bool tscIsInsertData(char* sqlstr) {
@@ -947,12 +947,12 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     
     if (pInfo->pArithExprInfo != NULL) {
       tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
-      taosTFree(pInfo->pArithExprInfo);
+      tfree(pInfo->pArithExprInfo);
     }
   }
   
   taosArrayDestroy(pFieldInfo->internalField);
-  taosTFree(pFieldInfo->final);
+  tfree(pFieldInfo->final);
 
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
@@ -1068,7 +1068,7 @@ void* sqlExprDestroy(SSqlExpr* pExpr) {
     tVariantDestroy(&pExpr->param[i]);
   }
   
-  taosTFree(pExpr);
+  tfree(pExpr);
   
   return NULL;
 }
@@ -1168,11 +1168,11 @@ SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
 static void destroyFilterInfo(SColumnFilterInfo* pFilterInfo, int32_t numOfFilters) {
   for(int32_t i = 0; i < numOfFilters; ++i) {
     if (pFilterInfo[i].filterstr) {
-      taosTFree(pFilterInfo[i].pz);
+      tfree(pFilterInfo[i].pz);
     }
   }
   
-  taosTFree(pFilterInfo);
+  tfree(pFilterInfo);
 }
 
 SColumn* tscColumnClone(const SColumn* src) {
@@ -1238,8 +1238,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SStrToken* pToken) {
-  strdequote(pToken->z);
-  pToken->n = (uint32_t)strtrim(pToken->z);
+  tscDequoteAndTrimToken(pToken);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
 
@@ -1254,8 +1253,6 @@ static int32_t validateQuoteToken(SStrToken* pToken) {
 }
 
 void tscDequoteAndTrimToken(SStrToken* pToken) {
-  assert(pToken->type == TK_STRING);
-
   uint32_t first = 0, last = pToken->n;
 
   // trim leading spaces
@@ -1367,7 +1364,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     } else {
       pStr[firstPartLen] = TS_PATH_DELIMITER[0];
       memmove(&pStr[firstPartLen + 1], pToken->z, pToken->n);
-      pStr[firstPartLen + sizeof(TS_PATH_DELIMITER[0]) + pToken->n] = 0;
+      uint32_t offset = (uint32_t)(pToken->z - (pStr + firstPartLen + 1));
+      memset(pToken->z + pToken->n - offset, ' ', offset);
     }
     pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
     pToken->z = pStr;
@@ -1460,7 +1458,7 @@ void tscTagCondRelease(STagCond* pTagCond) {
     size_t s = taosArrayGetSize(pTagCond->pCond);
     for (int32_t i = 0; i < s; ++i) {
       SCond* p = taosArrayGet(pTagCond->pCond, i);
-      taosTFree(p->cond);
+      tfree(p->cond);
     }
   
     taosArrayDestroy(pTagCond->pCond);
@@ -1652,7 +1650,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
-  taosTFree(pQueryInfo->fillVal);
+  tfree(pQueryInfo->fillVal);
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -1672,7 +1670,7 @@ void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
     SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTables, i);
 
     for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-      taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
+      tfree(pInfo->vgInfo.epAddr[j].fqdn);
     }
 
     taosArrayDestroy(pInfo->itemList);
@@ -1689,7 +1687,7 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
 
   SVgroupTableInfo* pInfo = taosArrayGet(pVgroupTable, index);
   for(int32_t j = 0; j < pInfo->vgInfo.numOfEps; ++j) {
-    taosTFree(pInfo->vgInfo.epAddr[j].fqdn);
+    tfree(pInfo->vgInfo.epAddr[j].fqdn);
   }
 
   taosArrayDestroy(pInfo->itemList);
@@ -1737,7 +1735,7 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool rem
     free(pTableMetaInfo);
   }
   
-  taosTFree(pQueryInfo->pTableMetaInfo);
+  tfree(pQueryInfo->pTableMetaInfo);
 }
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
@@ -2336,7 +2334,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   
   pRes->numOfTotal = num;
   
-  taosTFree(pSql->pSubs);
+  tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
   pSql->fp = fp;
 
@@ -2461,11 +2459,11 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
     SVgroupInfo* pVgroupInfo = &vgroupList->vgroups[i];
 
     for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
-      taosTFree(pVgroupInfo->epAddr[j].fqdn);
+      tfree(pVgroupInfo->epAddr[j].fqdn);
     }
   }
 
-  taosTFree(vgroupList);
+  tfree(vgroupList);
   return NULL;
 }
 
@@ -2473,7 +2471,7 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
   dst->vgId = src->vgId;
   dst->numOfEps = src->numOfEps;
   for(int32_t i = 0; i < dst->numOfEps; ++i) {
-    taosTFree(dst->epAddr[i].fqdn);
+    tfree(dst->epAddr[i].fqdn);
     dst->epAddr[i].port = src->epAddr[i].port;
     dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
   }

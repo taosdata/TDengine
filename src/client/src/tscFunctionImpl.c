@@ -2117,7 +2117,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
     }
   }
   
-  taosTFree(pData);
+  tfree(pData);
 }
 
 /*

@@ -51,6 +51,7 @@ int32_t tsMaxShellConns  = 5000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
+int32_t tsNumOfCommitThreads = 1;
 float   tsRatioOfQueryThreads = 0.5f;
 int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
@@ -217,6 +218,8 @@ int32_t cqDebugFlag = 135;
 int32_t (*monitorStartSystemFp)() = NULL;
 void (*monitorStopSystemFp)() = NULL;
 void (*monitorExecuteSQLFp)(char *sql) = NULL;
+
+char *qtypeStr[] = {"rpc", "fwd", "wal", "cq", "query"};
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
@@ -420,6 +423,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 10;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "numOfCommitThreads";
+  cfg.ptr = &tsNumOfCommitThreads;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 1;
+  cfg.maxValue = 100;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

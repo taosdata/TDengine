@@ -334,7 +334,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
-#define TSDB_DEFAULT_DAYS_PER_FILE      2 
+#define TSDB_DEFAULT_DAYS_PER_FILE      10
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
 #define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
@@ -431,6 +431,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_HTTP       11 
 #define TSDB_PORT_ARBITRATOR 12
 
+#define TSDB_MAX_WAL_SIZE    (1024*1024)
+
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
   TAOS_QTYPE_FWD   = 1,
@@ -466,6 +468,8 @@ typedef enum {
   TSDB_CHECK_ITEM_DATAFILE,
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
+
+extern char *qtypeStr[];
 
 #ifdef __cplusplus
 }

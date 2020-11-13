@@ -103,9 +103,9 @@ void simFreeScript(SScript *script) {
 
   simDebug("script:%s, is freed", script->fileName);
   taos_close(script->taos);
-  taosTFree(script->lines);
-  taosTFree(script->optionBuffer);
-  taosTFree(script);
+  tfree(script->lines);
+  tfree(script->optionBuffer);
+  tfree(script);
 }
 
 SScript *simProcessCallOver(SScript *script) {
@@ -128,7 +128,7 @@ SScript *simProcessCallOver(SScript *script) {
         exit(0);
       }
 
-      return NULL;
+      return simScriptList[simScriptPos];
     }
   } else {
     simInfo("script:%s, is stopped by main script", script->fileName);

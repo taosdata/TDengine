@@ -566,7 +566,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pRes->rspType = 0;
 
     pSql->subState.numOfSub = 0;
-    taosTFree(pSql->pSubs);
+    tfree(pSql->pSubs);
 
     assert(pSql->fp == NULL);
 
@@ -894,7 +894,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    taosTFree(pSql);
+    tfree(pSql);
     return pRes->code;
   }
 
@@ -903,7 +903,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
-    taosTFree(pSql);
+    tfree(pSql);
     return pRes->code;
   }
 

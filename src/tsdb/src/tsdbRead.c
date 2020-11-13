@@ -1544,15 +1544,15 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
 }
 
 static void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTables) {
-  taosTFree(pSupporter->numOfBlocksPerTable);
-  taosTFree(pSupporter->blockIndexArray);
+  tfree(pSupporter->numOfBlocksPerTable);
+  tfree(pSupporter->blockIndexArray);
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableBlockInfo* pBlockInfo = pSupporter->pDataBlockInfo[i];
-    taosTFree(pBlockInfo);
+    tfree(pBlockInfo);
   }
 
-  taosTFree(pSupporter->pDataBlockInfo);
+  tfree(pSupporter->pDataBlockInfo);
 }
 
 static int32_t dataBlockOrderCompar(const void* pLeft, const void* pRight, void* param) {
@@ -1970,7 +1970,7 @@ static void destroyHelper(void* param) {
 
   tQueryInfo* pInfo = (tQueryInfo*)param;
   if (pInfo->optr != TSDB_RELATION_IN) {
-    taosTFree(pInfo->q);
+    tfree(pInfo->q);
   }
 
   free(param);
@@ -2035,7 +2035,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
 
       STsdbQueryHandle* pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qinfo, pQueryHandle->pMemRef);
 
-      taosTFree(cond.colList);
+      tfree(cond.colList);
 
       pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pQueryHandle->pTableCheckInfo, pSecQueryHandle->window.skey);
       if (pSecQueryHandle->pTableCheckInfo == NULL) {
@@ -2348,7 +2348,8 @@ void filterPrepare(void* expr, void* param) {
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
-    pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE);   // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+    // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
+    pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
   }
 }
@@ -2750,7 +2751,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
       STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
       destroyTableMemIterator(pTableCheckInfo);
 
-      taosTFree(pTableCheckInfo->pCompInfo);
+      tfree(pTableCheckInfo->pCompInfo);
     }
     taosArrayDestroy(pQueryHandle->pTableCheckInfo);
   }
@@ -2759,14 +2760,14 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
     size_t cols = taosArrayGetSize(pQueryHandle->pColumns);
     for (int32_t i = 0; i < cols; ++i) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-      taosTFree(pColInfo->pData);
+      tfree(pColInfo->pData);
     }
     taosArrayDestroy(pQueryHandle->pColumns);
   }
 
   taosArrayDestroy(pQueryHandle->defaultLoadColumn);
-  taosTFree(pQueryHandle->pDataBlockInfo);
-  taosTFree(pQueryHandle->statis);
+  tfree(pQueryHandle->pDataBlockInfo);
+  tfree(pQueryHandle->statis);
 
   // todo check error
   tsdbMayUnTakeMemSnapshot(pQueryHandle);
@@ -2780,7 +2781,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   tsdbDebug("%p :io-cost summary: statis-info:%"PRId64" us, datablock:%" PRId64" us, check data:%"PRId64" us, %p",
       pQueryHandle, pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qinfo);
 
-  taosTFree(pQueryHandle);
+  tfree(pQueryHandle);
 }
 
 void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {

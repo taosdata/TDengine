@@ -67,10 +67,17 @@ int32_t vnodeInitResources() {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
+  if (tsdbInitCommitQueue(tsNumOfCommitThreads) < 0) {
+    vError("failed to init vnode commit queue");
+    return terrno;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 void vnodeCleanupResources() {
+  tsdbDestroyCommitQueue();
+
   if (tsVnodesHash != NULL) {
     vDebug("vnode list is cleanup");
     taosHashCleanup(tsVnodesHash);
@@ -308,6 +315,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
+  tsdbSyncCommit(pVnode->tsdb);
+  walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
   SSyncInfo syncInfo;
@@ -346,6 +355,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->status = TAOS_VN_STATUS_READY;
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
 
+  tsdbIncCommitRef(pVnode->vgId);
   taosHashPut(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
 
   return TSDB_CODE_SUCCESS;
@@ -416,7 +426,7 @@ void vnodeRelease(void *pVnodeRaw) {
     pVnode->rqueue = NULL;
   }
 
-  taosTFree(pVnode->rootDir);
+  tfree(pVnode->rootDir);
 
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};    
@@ -437,6 +447,7 @@ void vnodeRelease(void *pVnodeRaw) {
 
   tsem_destroy(&pVnode->sem);
   free(pVnode);
+  tsdbDecCommitRef(vgId);
 
   int32_t count = taosHashGetSize(tsVnodesHash);
   vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);
@@ -577,10 +588,13 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->fversion = pVnode->version;
+    vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     return walRenew(pVnode->wal);
   }
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
+    vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
+    walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
 
@@ -623,9 +637,8 @@ static int vnodeResetTsdb(SVnodeObj *pVnode) {
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
 
-  if (atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_READY, TAOS_VN_STATUS_RESET) !=
-      TAOS_VN_STATUS_READY) {
-    return -1;
+  if (pVnode->status != TAOS_VN_STATUS_CLOSING && pVnode->status != TAOS_VN_STATUS_INIT) {
+    pVnode->status = TAOS_VN_STATUS_RESET;
   }
 
   void *tsdb = pVnode->tsdb;
@@ -656,11 +669,12 @@ static int vnodeResetTsdb(SVnodeObj *pVnode) {
 
 static int vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
   SVnodeObj *pVnode = ahandle;
-  vDebug("vgId:%d, data file is synced, fversion:%" PRId64, pVnode->vgId, fversion);
 
   pVnode->fversion = fversion;
   pVnode->version = fversion;
   vnodeSaveVersion(pVnode);
 
+  vDebug("vgId:%d, data file is synced, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion,
+         pVnode->version);
   return vnodeResetTsdb(pVnode);
 }

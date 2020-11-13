@@ -52,20 +52,24 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   SRspRet *   pRspRet = rparam;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
-    vDebug("vgId:%d, msgType:%s not processed, no handle", pVnode->vgId, taosMsg[pHead->msgType]);
+    vError("vgId:%d, msg:%s not processed since no handle, qtype:%s hver:%" PRIu64, pVnode->vgId,
+           taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version);
     return TSDB_CODE_VND_MSG_NOT_PROCESSED;
   }
 
+  vTrace("vgId:%d, msg:%s will be processed in vnode, qtype:%s hver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId,
+         taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version, pVnode->version);
+
   if (pHead->version == 0) {  // from client or CQ
     if (pVnode->status != TAOS_VN_STATUS_READY) {
-      vDebug("vgId:%d, msgType:%s not processed, vnode status is %d", pVnode->vgId, taosMsg[pHead->msgType],
-             pVnode->status);
+      vDebug("vgId:%d, msg:%s not processed since vstatus:%d, qtype:%s hver:%" PRIu64, pVnode->vgId,
+             taosMsg[pHead->msgType], pVnode->status, qtypeStr[qtype], pHead->version);
       return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
     }
 
     if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-      vDebug("vgId:%d, msgType:%s not processed, replica:%d role:%s", pVnode->vgId, taosMsg[pHead->msgType],
-             pVnode->syncCfg.replica, syncRole[pVnode->role]);
+      vDebug("vgId:%d, msg:%s not processed since replica:%d role:%s, qtype:%s hver:%" PRIu64, pVnode->vgId,
+             taosMsg[pHead->msgType], pVnode->syncCfg.replica, syncRole[pVnode->role], qtypeStr[qtype], pHead->version);
       return TSDB_CODE_APP_NOT_READY;
     }
 
@@ -99,18 +103,18 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 static int32_t vnodeCheckWrite(void *param) {
   SVnodeObj *pVnode = param;
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
-    vDebug("vgId:%d, no write auth, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    vDebug("vgId:%d, no write auth, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_VND_NO_WRITE_AUTH;
   }
 
   // tsdb may be in reset state
   if (pVnode->tsdb == NULL) {
-    vDebug("vgId:%d, tsdb is null, recCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    vDebug("vgId:%d, tsdb is null, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
   if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
-    vDebug("vgId:%d, vnode status is %s, recCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
+    vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
@@ -211,6 +215,11 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
   if (qtype == TAOS_QTYPE_RPC) {
     int32_t code = vnodeCheckWrite(pVnode);
     if (code != TSDB_CODE_SUCCESS) return code;
+  }
+
+  if (pHead->len > TSDB_MAX_WAL_SIZE) {
+    vError("vgId:%d, wal len:%d exceeds limit, hver:%" PRIu64, pVnode->vgId, pHead->len, pHead->version);
+    return TSDB_CODE_WAL_SIZE_LIMIT;
   }
 
   int32_t size = sizeof(SVWriteMsg) + sizeof(SWalHead) + pHead->len;
