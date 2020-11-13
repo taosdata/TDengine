@@ -658,7 +658,12 @@ void* taosCacheTimedRefresh(void *handle) {
 
   int64_t count = 0;
   while(1) {
+#if defined LINUX
     usleep(500*1000);
+#else
+    taosMsleep(500);
+#endif
+
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {
       uDebug("%s refresh threads quit", pCacheObj->name);
