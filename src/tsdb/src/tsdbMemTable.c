@@ -32,8 +32,55 @@ static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
 static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SDataRow row);
+static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
+static SDataRow     tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+
+static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
+                                          TSKEY now);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
+int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
+  STsdbMeta *    pMeta = pRepo->tsdbMeta;
+  int64_t        points = 0;
+  STable *       pTable = NULL;
+  SSubmitBlkIter blkIter = {0};
+  SDataRow       row = NULL;
+  TSKEY          minKey = 0;
+  TSKEY          maxKey = 0;
+  void **        pData = NULL;
+  // int            rowCounter = 0;
+
+  ASSERT(pBlock->tid < pMeta->maxTables);
+  pTable = pMeta->tables[pBlock->tid];
+  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
+
+  minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
+  maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
+
+  pData = (void **)calloc(pBlock->numOfRows, sizeof(void *));
+  if (pData == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tsdbInitSubmitBlkIter(pBlock, &blkIter);
+
+  while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+    if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) return -1;
+
+    if (tsdbUpdateRowInMem(pRepo, row, pTable) < 0) return -1;
+
+    (*affectedrows)++;
+    points++;
+  }
+
+  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
+  pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
+  pRepo->stat.totalStorage += points * schemaVLen(pSchema);
+
+  return 0;
+}
+
 int tsdbUpdateRowInMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
   STsdbCfg *  pCfg = &pRepo->config;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
@@ -845,6 +892,42 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
     }
 
     tdAppendDataRowToDataCol(row, *ppSchema, pCols);
+  }
+
+  return 0;
+}
+
+static int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+  if (pBlock->dataLen <= 0) return -1;
+  pIter->totalLen = pBlock->dataLen;
+  pIter->len = 0;
+  pIter->row = (SDataRow)(pBlock->data+pBlock->schemaLen);
+  return 0;
+}
+
+static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+  SDataRow row = pIter->row;
+  if (row == NULL) return NULL;
+
+  pIter->len += dataRowLen(row);
+  if (pIter->len >= pIter->totalLen) {
+    pIter->row = NULL;
+  } else {
+    pIter->row = (char *)row + dataRowLen(row);
+  }
+
+  return row;
+}
+
+static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
+                                          TSKEY now) {
+  if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
+    tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
+              " maxKey %" PRId64 " row key %" PRId64,
+              REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey,
+              dataRowKey(row));
+    terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
+    return -1;
   }
 
   return 0;

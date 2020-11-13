@@ -209,6 +209,18 @@ typedef struct {
 
 // ------------------ tsdbMain.c
 typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  void *  pMsg;
+} SSubmitMsgIter;
+
+typedef struct {
   int8_t state;
 
   char*           rootDir;
@@ -430,6 +442,7 @@ void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
+int   tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, TSKEY now, int32_t* affectedrows);
 int   tsdbUpdateRowInMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);

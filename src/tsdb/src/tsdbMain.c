@@ -32,18 +32,6 @@
 #define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
-typedef struct {
-  int32_t  totalLen;
-  int32_t  len;
-  SDataRow row;
-} SSubmitBlkIter;
-
-typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  void *  pMsg;
-} SSubmitMsgIter;
-
 static int32_t     tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t     tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg);
 static int32_t     tsdbUnsetRepoEnv(char *rootDir);
@@ -53,11 +41,8 @@ static char *      tsdbGetCfgFname(char *rootDir);
 static STsdbRepo * tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg);
 static void        tsdbFreeRepo(STsdbRepo *pRepo);
 static int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
-static int32_t     tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows);
 static int         tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
-static SDataRow    tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 static int         tsdbRestoreInfo(STsdbRepo *pRepo);
-static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
 static int         tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
 static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
@@ -748,43 +733,6 @@ static int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
   return 0;
 }
 
-static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-  int64_t    points = 0;
-
-  ASSERT(pBlock->tid < pMeta->maxTables);
-  STable *pTable = pMeta->tables[pBlock->tid];
-  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
-
-  SSubmitBlkIter blkIter = {0};
-  SDataRow       row = NULL;
-
-  TSKEY minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
-  TSKEY maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-
-  tsdbInitSubmitBlkIter(pBlock, &blkIter);
-  while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-    if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
-      tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
-                " maxKey %" PRId64,
-                REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey);
-      terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-      return -1;
-    }
-
-    if (tsdbUpdateRowInMem(pRepo, row, pTable) < 0) return -1;
-
-    (*affectedrows)++;
-    points++;
-  }
-
-  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
-  pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
-  pRepo->stat.totalStorage += points * schemaVLen(pSchema);
-
-  return 0;
-}
-
 static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   if (pIter->len == 0) {
     pIter->len += TSDB_SUBMIT_MSG_HEAD_SIZE;
@@ -802,20 +750,6 @@ static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
 
   return 0;
-}
-
-static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
-  SDataRow row = pIter->row;
-  if (row == NULL) return NULL;
-
-  pIter->len += dataRowLen(row);
-  if (pIter->len >= pIter->totalLen) {
-    pIter->row = NULL;
-  } else {
-    pIter->row = (char *)row + dataRowLen(row);
-  }
-
-  return row;
 }
 
 static int tsdbRestoreInfo(STsdbRepo *pRepo) {
@@ -849,14 +783,6 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
 _err:
   tsdbDestroyHelper(&rhelper);
   return -1;
-}
-
-static int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
-  if (pBlock->dataLen <= 0) return -1;
-  pIter->totalLen = pBlock->dataLen;
-  pIter->len = 0;
-  pIter->row = (SDataRow)(pBlock->data+pBlock->schemaLen);
-  return 0;
 }
 
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
