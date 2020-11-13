@@ -3,7 +3,7 @@ spring:
     driver-class-name: com.taosdata.jdbc.TSDBDriver
     url: jdbc:TAOS://master:6030/mp_test
     user: root
-    password: 123456
+    password: taosdata
 
 #    driver-class-name: com.mysql.jdbc.Driver
 #    url:  jdbc:mysql://master:3306/test?useSSL=false
