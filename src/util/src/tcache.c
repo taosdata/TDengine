@@ -658,8 +658,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
   int64_t count = 0;
   while(1) {
-    taosMsleep(500);
-
+    usleep(500*1000);
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {
       uDebug("%s refresh threads quit", pCacheObj->name);
@@ -677,6 +676,7 @@ void* taosCacheTimedRefresh(void *handle) {
       continue;
     }
 
+    uDebug("%s refresh thread timed scan", pCacheObj->name);
     pCacheObj->statistics.refreshCount++;
 
     // refresh data in hash table
