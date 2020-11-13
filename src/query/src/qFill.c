@@ -237,8 +237,8 @@ int32_t taosGetLinearInterpolationVal(int32_t type, SPoint* point1, SPoint* poin
   double v1 = -1;
   double v2 = -1;
 
-  GET_TYPED_DATA(v1, type, point1->val);
-  GET_TYPED_DATA(v2, type, point2->val);
+  GET_TYPED_DATA(v1, double, type, point1->val);
+  GET_TYPED_DATA(v2, double, type, point2->val);
 
   double r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
 

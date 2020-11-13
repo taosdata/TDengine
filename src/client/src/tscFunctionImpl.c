@@ -2481,7 +2481,7 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
         }
 
         double v = 0;
-        GET_TYPED_DATA(v, pCtx->inputType, data);
+        GET_TYPED_DATA(v, double, pCtx->inputType, data);
 
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
@@ -2525,7 +2525,7 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pInfo->stage == 0) {
 
     double v = 0;
-    GET_TYPED_DATA(v, pCtx->inputType, pData);
+    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
     if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
       SET_DOUBLE_VAL(&pInfo->minval, v);
@@ -2616,7 +2616,7 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
     notNullElems += 1;
 
     double v = 0;
-    GET_TYPED_DATA(v, pCtx->inputType, data);
+    GET_TYPED_DATA(v, double, pCtx->inputType, data);
     tHistogramAdd(&pInfo->pHisto, v);
   }
   
@@ -2641,7 +2641,7 @@ static void apercentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
   
   double v = 0;
-  GET_TYPED_DATA(v, pCtx->inputType, pData);
+  GET_TYPED_DATA(v, double, pCtx->inputType, pData);
   
   tHistogramAdd(&pInfo->pHisto, v);
   
@@ -4064,7 +4064,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     notNullElems++;
     
     int64_t v = 0;
-    GET_TYPED_DATA(v, pCtx->inputType, pData);
+    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
     
     if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
       pRateInfo->firstValue = v;
@@ -4114,7 +4114,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY       *primaryKey = pCtx->ptsList;
   
   int64_t v = 0;
-  GET_TYPED_DATA(v, pCtx->inputType, pData);
+  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
   
   if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
     pRateInfo->firstValue = v;
@@ -4241,7 +4241,7 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     notNullElems++;
     
     int64_t v = 0;
-    GET_TYPED_DATA(v, pCtx->inputType, pData);
+    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
     
     // TODO: calc once if only call this function once ????
     if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->lastValue)) {
@@ -4286,7 +4286,7 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY        *primaryKey = pCtx->ptsList;
   
   int64_t v = 0;
-  GET_TYPED_DATA(v, pCtx->inputType, pData);
+  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
 
   pRateInfo->firstKey   = pRateInfo->lastKey;
   pRateInfo->firstValue = pRateInfo->lastValue;
