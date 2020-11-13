@@ -77,8 +77,8 @@ void *acquireRelease(void *param) {
     printf("a");
     
     id = random() % pSpace->refNum; 
-    code = taosAcquireRef(pSpace->rsetId, pSpace->p[id]);
-    if (code >= 0) {
+    void *p = taosAcquireRef(pSpace->rsetId, pSpace->p[id]);
+    if (p) {
       usleep(id % 5 + 1);
       taosReleaseRef(pSpace->rsetId, pSpace->p[id]);
     }
