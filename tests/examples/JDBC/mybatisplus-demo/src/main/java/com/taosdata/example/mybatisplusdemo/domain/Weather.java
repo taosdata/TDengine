@@ -10,5 +10,6 @@ public class Weather {
     private Timestamp ts;
     private float temperature;
     private int humidity;
+    private String location;
 
 }

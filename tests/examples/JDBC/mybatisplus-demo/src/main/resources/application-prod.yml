@@ -9,3 +9,12 @@ spring:
 #    url:  jdbc:mysql://master:3306/test?useSSL=false
 #    username: root
 #    password: 123456
+
+logging:
+  level:
+    com:
+      taosdata:
+        example:
+          mybatisplusdemo:
+            mapper: debug
+
