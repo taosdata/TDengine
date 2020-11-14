@@ -892,7 +892,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
-  tscDebug("%p msg built success,len:%d bytes", pSql, msgLen);
+  tscDebug("%p msg built success, len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
   
