@@ -34,23 +34,23 @@ public class WeatherMapperTest {
     @Test
     public void testInsert() {
         Weather weather = new Weather();
-        weather.setTs(new Timestamp(System.currentTimeMillis()));
+        weather.setTs(new Timestamp(1605024000000l));
         weather.setTemperature(random.nextFloat() * 50);
         weather.setHumidity(random.nextInt(100));
-        weather.setLocation("望京");
+        weather.setLocation("wangjing");
         int affectRows = mapper.insert(weather);
         Assert.assertEquals(1, affectRows);
     }
 
     @Test
     public void testDelete() {
-        mapper.delete(new QueryWrapper<Weather>().eq("location", "望京"));
+        mapper.delete(new QueryWrapper<Weather>().eq("location", "wangjing"));
     }
 
     @Test
     public void testDeleteByMap() {
         Map<String, Object> map = new HashMap<>();
-        map.put("location", "望京");
+        map.put("location", "wangjing");
         int affectRows = mapper.deleteByMap(map);
 //        Assert.assertEquals(0, affectRows);
     }
