@@ -442,8 +442,6 @@ void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
-int   tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, TSKEY now, int32_t* affectedrows);
-int   tsdbUpdateRowInMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);

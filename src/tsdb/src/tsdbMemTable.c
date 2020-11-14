@@ -34,148 +34,46 @@ static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
 static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SDataRow row);
 static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static SDataRow     tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
+static int          tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows);
+static int          tsdbCopyRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable, void **ppRow);
+static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
+static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
+static int          tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **rows, int rowCounter);
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
+int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+  STsdbRepo *    pRepo = (STsdbRepo *)repo;
+  SSubmitMsgIter msgIter = {0};
+  SSubmitBlk *   pBlock = NULL;
+  int32_t        affectedrows = 0;
+
+  if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
+    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    }
+    return -1;
+  }
+
+  tsdbInitSubmitMsgIter(pMsg, &msgIter);
+  while (true) {
+    tsdbGetSubmitMsgNext(&msgIter, &pBlock);
+    if (pBlock == NULL) break;
+    if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
+      return -1;
+    }
+  }
+
+  if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
+
+  if (tsdbCheckCommit(pRepo) < 0) return -1;
+  return 0;
+}
+
 // ---------------- INTERNAL FUNCTIONS ----------------
-int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
-  STsdbMeta *    pMeta = pRepo->tsdbMeta;
-  int64_t        points = 0;
-  STable *       pTable = NULL;
-  SSubmitBlkIter blkIter = {0};
-  SDataRow       row = NULL;
-  TSKEY          minKey = 0;
-  TSKEY          maxKey = 0;
-  void **        pData = NULL;
-  // int            rowCounter = 0;
-
-  ASSERT(pBlock->tid < pMeta->maxTables);
-  pTable = pMeta->tables[pBlock->tid];
-  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
-
-  minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
-  maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-
-  pData = (void **)calloc(pBlock->numOfRows, sizeof(void *));
-  if (pData == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tsdbInitSubmitBlkIter(pBlock, &blkIter);
-
-  while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-    if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) return -1;
-
-    if (tsdbUpdateRowInMem(pRepo, row, pTable) < 0) return -1;
-
-    (*affectedrows)++;
-    points++;
-  }
-
-  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
-  pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
-  pRepo->stat.totalStorage += points * schemaVLen(pSchema);
-
-  return 0;
-}
-
-int tsdbUpdateRowInMem(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
-  STsdbCfg *  pCfg = &pRepo->config;
-  STsdbMeta * pMeta = pRepo->tsdbMeta;
-  TKEY        tkey = dataRowTKey(row);
-  TSKEY       key = dataRowKey(row);
-  SMemTable * pMemTable = pRepo->mem;
-  STableData *pTableData = NULL;
-  bool        isRowDelete = TKEY_IS_DELETED(tkey);
-
-  if (isRowDelete) {
-    if (!pCfg->update) {
-      tsdbWarn("vgId:%d vnode is not allowed to update but try to delete a data row", REPO_ID(pRepo));
-      terrno = TSDB_CODE_TDB_INVALID_ACTION;
-      return -1;
-    }
-
-    if (key > TABLE_LASTKEY(pTable)) {
-      tsdbTrace("vgId:%d skip to delete row key %" PRId64 " which is larger than table lastKey %" PRId64,
-                REPO_ID(pRepo), key, TABLE_LASTKEY(pTable));
-      return 0;
-    }
-  }
-
-  void *pRow = tsdbAllocBytes(pRepo, dataRowLen(row));
-  if (pRow == NULL) {
-    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
-              REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), dataRowLen(row), tstrerror(terrno));
-    return -1;
-  }
-
-  dataRowCpy(pRow, row);
-
-  // Operations above may change pRepo->mem, retake those values
-  ASSERT(pRepo->mem != NULL);
-  pMemTable = pRepo->mem;
-
-  if (TABLE_TID(pTable) >= pMemTable->maxTables) {
-    if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) {
-      tsdbFreeBytes(pRepo, pRow, dataRowLen(row));
-      return -1;
-    }
-  }
-  pTableData = pMemTable->tData[TABLE_TID(pTable)];
-
-  if (pTableData == NULL || pTableData->uid != TABLE_UID(pTable)) {
-    if (pTableData != NULL) {
-      taosWLockLatch(&(pMemTable->latch));
-      pMemTable->tData[TABLE_TID(pTable)] = NULL;
-      tsdbFreeTableData(pTableData);
-      taosWUnLockLatch(&(pMemTable->latch));
-    }
-
-    pTableData = tsdbNewTableData(pCfg, pTable);
-    if (pTableData == NULL) {
-      tsdbError("vgId:%d failed to insert row with key %" PRId64
-                " to table %s while create new table data object since %s",
-                REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), tstrerror(terrno));
-      tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
-      return -1;
-    }
-
-    pRepo->mem->tData[TABLE_TID(pTable)] = pTableData;
-  }
-
-  ASSERT((pTableData != NULL) && pTableData->uid == TABLE_UID(pTable));
-
-  int64_t oldSize = SL_SIZE(pTableData->pData);
-  if (tSkipListPut(pTableData->pData, pRow) == NULL) {
-    tsdbFreeBytes(pRepo, (void *)pRow, dataRowLen(row));
-  } else {
-    int64_t deltaSize = SL_SIZE(pTableData->pData) - oldSize;
-    if (isRowDelete) {
-      if (TABLE_LASTKEY(pTable) == key) {
-        // TODO: need to update table last key here (may from file)
-      }
-    } else {
-      if (TABLE_LASTKEY(pTable) < key) TABLE_LASTKEY(pTable) = key;
-    }
-
-    if (pMemTable->keyFirst > key) pMemTable->keyFirst = key;
-    if (pMemTable->keyLast < key) pMemTable->keyLast = key;
-    pMemTable->numOfRows += deltaSize;
-
-    if (pTableData->keyFirst > key) pTableData->keyFirst = key;
-    if (pTableData->keyLast < key) pTableData->keyLast = key;
-    pTableData->numOfRows += deltaSize;
-  }
-
-  tsdbTrace("vgId:%d a row is %s table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
-            isRowDelete ? "deleted from" : "updated in", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
-            key);
-
-  return 0;
-}
-
 int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   if (pMemTable == NULL) return 0;
   int ref = T_REF_INC(pMemTable);
@@ -929,6 +827,328 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDat
     terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
     return -1;
   }
+
+  return 0;
+}
+
+static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
+  ASSERT(pMsg != NULL);
+  STsdbMeta *    pMeta = pRepo->tsdbMeta;
+  SSubmitMsgIter msgIter = {0};
+  SSubmitBlk *   pBlock = NULL;
+  SSubmitBlkIter blkIter = {0};
+  SDataRow       row = NULL;
+  TSKEY          now = taosGetTimestamp(pRepo->config.precision);
+  TSKEY          minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
+  TSKEY          maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
+
+  terrno = TSDB_CODE_SUCCESS;
+  pMsg->length = htonl(pMsg->length);
+  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+
+  if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  while (true) {
+    if (tsdbGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (pBlock == NULL) break;
+
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->tid = htonl(pBlock->tid);
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->dataLen = htonl(pBlock->dataLen);
+    pBlock->schemaLen = htonl(pBlock->schemaLen);
+    pBlock->numOfRows = htons(pBlock->numOfRows);
+
+    if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
+                pBlock->tid);
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      return -1;
+    }
+
+    STable *pTable = pMeta->tables[pBlock->tid];
+    if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
+                pBlock->tid);
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      return -1;
+    }
+
+    if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
+      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
+      terrno = TSDB_CODE_TDB_INVALID_ACTION;
+      return -1;
+    }
+
+    // Check schema version and update schema if needed
+    if (tsdbCheckTableSchema(pRepo, pBlock, pTable) < 0) {
+      if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+        continue;
+      } else {
+        return -1;
+      }
+    }
+
+    tsdbInitSubmitBlkIter(pBlock, &blkIter);
+    while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+      if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) {
+        return -1;
+      }
+    }
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) return -1;
+  return 0;
+}
+
+static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows) {
+  STsdbMeta *    pMeta = pRepo->tsdbMeta;
+  int64_t        points = 0;
+  STable *       pTable = NULL;
+  SSubmitBlkIter blkIter = {0};
+  SDataRow       row = NULL;
+  void **        rows = NULL;
+  int            rowCounter = 0;
+
+  ASSERT(pBlock->tid < pMeta->maxTables);
+  pTable = pMeta->tables[pBlock->tid];
+  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
+
+  rows = (void **)calloc(pBlock->numOfRows, sizeof(void *));
+  if (rows == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tsdbInitSubmitBlkIter(pBlock, &blkIter);
+  while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+    if (tsdbCopyRowToMem(pRepo, row, pTable, &(rows[rowCounter])) < 0) {
+      free(rows);
+      return -1;
+    }
+
+    (*affectedrows)++;
+    points++;
+
+    if (rows[rowCounter] != NULL) {
+      rowCounter++;
+    }
+  }
+
+  if (tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
+    free(rows);
+    return -1;
+  }
+
+  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
+  pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
+  pRepo->stat.totalStorage += points * schemaVLen(pSchema);
+
+  free(rows);
+  return 0;
+}
+
+static int tsdbCopyRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable, void **ppRow) {
+  STsdbCfg *  pCfg = &pRepo->config;
+  TKEY        tkey = dataRowTKey(row);
+  TSKEY       key = dataRowKey(row);
+  bool        isRowDelete = TKEY_IS_DELETED(tkey);
+
+  if (isRowDelete) {
+    if (!pCfg->update) {
+      tsdbWarn("vgId:%d vnode is not allowed to update but try to delete a data row", REPO_ID(pRepo));
+      terrno = TSDB_CODE_TDB_INVALID_ACTION;
+      return -1;
+    }
+
+    if (key > TABLE_LASTKEY(pTable)) {
+      tsdbTrace("vgId:%d skip to delete row key %" PRId64 " which is larger than table lastKey %" PRId64,
+                REPO_ID(pRepo), key, TABLE_LASTKEY(pTable));
+      return 0;
+    }
+  }
+
+  void *pRow = tsdbAllocBytes(pRepo, dataRowLen(row));
+  if (pRow == NULL) {
+    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
+              REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), dataRowLen(row), tstrerror(terrno));
+    return -1;
+  }
+
+  dataRowCpy(pRow, row);
+  ppRow[0] = pRow;
+
+  tsdbTrace("vgId:%d a row is %s table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
+            isRowDelete ? "deleted from" : "updated in", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
+            key);
+
+  return 0;
+}
+
+static int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
+  if (pMsg == NULL) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    return -1;
+  }
+
+  pIter->totalLen = pMsg->length;
+  pIter->len = 0;
+  pIter->pMsg = pMsg;
+  if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+  if (pIter->len == 0) {
+    pIter->len += TSDB_SUBMIT_MSG_HEAD_SIZE;
+  } else {
+    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
+  }
+
+  if (pIter->len > pIter->totalLen) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    *pPBlock = NULL;
+    return -1;
+  }
+
+  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+
+  return 0;
+}
+
+static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable) {
+  ASSERT(pTable != NULL);
+
+  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  int       sversion = schemaVersion(pSchema);
+
+  if (pBlock->sversion == sversion) {
+    return 0;
+  } else {
+    if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) {  // stream table is not allowed to change schema
+      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      return -1;
+    }
+  }
+
+  if (pBlock->sversion > sversion) {  // may need to update table schema
+    if (pBlock->schemaLen > 0) {
+      tsdbDebug(
+          "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, update...",
+          REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), sversion, pBlock->sversion);
+      ASSERT(pBlock->schemaLen % sizeof(STColumn) == 0);
+      int       numOfCols = pBlock->schemaLen / sizeof(STColumn);
+      STColumn *pTCol = (STColumn *)pBlock->data;
+
+      STSchemaBuilder schemaBuilder = {0};
+      if (tdInitTSchemaBuilder(&schemaBuilder, pBlock->sversion) < 0) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbError("vgId:%d failed to update schema of table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                  tstrerror(terrno));
+        return -1;
+      }
+
+      for (int i = 0; i < numOfCols; i++) {
+        if (tdAddColToSchema(&schemaBuilder, pTCol[i].type, htons(pTCol[i].colId), htons(pTCol[i].bytes)) < 0) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbError("vgId:%d failed to update schema of table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+                    tstrerror(terrno));
+          tdDestroyTSchemaBuilder(&schemaBuilder);
+          return -1;
+        }
+      }
+
+      STSchema *pNSchema = tdGetSchemaFromBuilder(&schemaBuilder);
+      if (pNSchema == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tdDestroyTSchemaBuilder(&schemaBuilder);
+        return -1;
+      }
+
+      tdDestroyTSchemaBuilder(&schemaBuilder);
+      tsdbUpdateTableSchema(pRepo, pTable, pNSchema, true);
+    } else {
+      tsdbDebug(
+          "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, reconfigure...",
+          REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), sversion, pBlock->sversion);
+      terrno = TSDB_CODE_TDB_TABLE_RECONFIGURE;
+      return -1;
+    }
+  } else {
+    ASSERT(pBlock->sversion >= 0);
+    if (tsdbGetTableSchemaImpl(pTable, false, false, pBlock->sversion) == NULL) {
+      tsdbError("vgId:%d invalid submit schema version %d to table %s tid %d from client", REPO_ID(pRepo),
+                pBlock->sversion, TABLE_CHAR_NAME(pTable), TABLE_TID(pTable));
+    }
+    terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **rows, int rowCounter) {
+  if (rowCounter < 1) return 0;
+
+  SMemTable * pMemTable = NULL;
+  STableData *pTableData = NULL;
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbCfg *  pCfg = &(pRepo->config);
+
+  ASSERT(pRepo->mem != NULL);
+  pMemTable = pRepo->mem;
+
+  if (TABLE_TID(pTable) >= pMemTable->maxTables) {
+    if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) {
+      for (int i = rowCounter - 1; i >= 0; i--) {
+        tsdbFreeBytes(pRepo, rows[i], dataRowLen(rows[i]));
+      }
+      return -1;
+    }
+  }
+  pTableData = pMemTable->tData[TABLE_TID(pTable)];
+
+  if (pTableData == NULL || pTableData->uid != TABLE_UID(pTable)) {
+    if (pTableData != NULL) {
+      taosWLockLatch(&(pMemTable->latch));
+      pMemTable->tData[TABLE_TID(pTable)] = NULL;
+      tsdbFreeTableData(pTableData);
+      taosWUnLockLatch(&(pMemTable->latch));
+    }
+
+    pTableData = tsdbNewTableData(pCfg, pTable);
+    if (pTableData == NULL) {
+      tsdbError("vgId:%d failed to insert data to table %s uid %" PRId64 " tid %d since %s", REPO_ID(pRepo),
+                TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), tstrerror(terrno));
+      for (int i = rowCounter - 1; i >= 0; i--) {
+        tsdbFreeBytes(pRepo, rows[i], dataRowLen(rows[i]));
+      }
+      return -1;
+    }
+
+    pRepo->mem->tData[TABLE_TID(pTable)] = pTableData;
+  }
+
+  ASSERT((pTableData != NULL) && pTableData->uid == TABLE_UID(pTable));
+
+  int64_t osize = SL_SIZE(pTableData->pData);
+  tSkipListPutBatch(pTableData->pData, rows, rowCounter);
+  int64_t dsize = SL_SIZE(pTableData->pData) - osize;
+
+  if (pMemTable->keyFirst > dataRowKey(rows[0])) pMemTable->keyFirst = dataRowKey(rows[0]);
+  if (pMemTable->keyLast < dataRowKey(rows[rowCounter - 1])) pMemTable->keyLast = dataRowKey(rows[rowCounter - 1]);
+  pMemTable->numOfRows += dsize;
+
+  if (pTableData->keyFirst > dataRowKey(rows[0])) pTableData->keyFirst = dataRowKey(rows[0]);
+  if (pTableData->keyLast < dataRowKey(rows[rowCounter - 1])) pTableData->keyLast = dataRowKey(rows[rowCounter - 1]);
+  pTableData->numOfRows += dsize;
+
+  // TODO: impl delete row thing
+  if (TABLE_LASTKEY(pTable) < dataRowKey(rows[rowCounter-1])) TABLE_LASTKEY(pTable) = dataRowKey(rows[rowCounter-1]);
 
   return 0;
 }
