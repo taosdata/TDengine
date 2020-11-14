@@ -37,7 +37,7 @@ extern "C" {
 #endif
 
 #ifndef TAOS_OS_DEF_EPOLL
-  #define TAOS_EPOLL_WAIT_TIME -1
+  #define TAOS_EPOLL_WAIT_TIME  500 
 #endif  
 
 #define taosClose(x) taosCloseSocket(x)
