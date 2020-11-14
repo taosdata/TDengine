@@ -120,8 +120,6 @@ typedef struct STsdbQueryHandle {
   SDataCols     *pDataCols;        // in order to hold current file data block
   int32_t        allocSize;        // allocated data block size
   SMemRef       *pMemRef;
-//  SMemTable     *mem;              // mem-table
-//  SMemTable     *imem;             // imem-table, acquired from snapshot
   SArray        *defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
   SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
@@ -194,9 +192,12 @@ static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
 }
 
 static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
-  assert(pQueryHandle != NULL && pQueryHandle->pMemRef != NULL);
-
+  assert(pQueryHandle != NULL);
   SMemRef* pMemRef = pQueryHandle->pMemRef;
+  if (pMemRef == NULL) { // it has been freed
+    return;
+  }
+
   if (--pMemRef->ref == 0) {
     tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pMemRef->mem, pMemRef->imem);
     pMemRef->mem = NULL;
@@ -205,6 +206,7 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
 
   pQueryHandle->pMemRef = NULL;
 }
+
 static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta) {
   size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
   assert(sizeOfGroup >= 1 && pMeta != NULL);
@@ -1849,6 +1851,8 @@ static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
     pQueryHandle->activeIndex += 1;
   }
 
+  // no data in memtable or imemtable, decrease the memory reference.
+  tsdbMayUnTakeMemSnapshot(pQueryHandle);
   return false;
 }
 
@@ -1976,6 +1980,111 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
+static bool getNeighborRows(STsdbQueryHandle* pQueryHandle) {
+  assert (pQueryHandle->type == TSDB_QUERY_TYPE_EXTERNAL);
+
+  SDataBlockInfo blockInfo = {{0}, 0};
+
+  pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
+  pQueryHandle->order = TSDB_ORDER_DESC;
+
+  if (!tsdbNextDataBlock((void*) pQueryHandle)) {
+    return false;
+  }
+
+  tsdbRetrieveDataBlockInfo((void*) pQueryHandle, &blockInfo);
+  /*SArray *pDataBlock = */tsdbRetrieveDataBlock((void*) pQueryHandle, pQueryHandle->defaultLoadColumn);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  if (pQueryHandle->cur.win.ekey == pQueryHandle->window.skey) {
+    // data already retrieve, discard other data rows and return
+    int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
+      memcpy((char*)pCol->pData, (char*)pCol->pData + pCol->info.bytes * (pQueryHandle->cur.rows - 1), pCol->info.bytes);
+    }
+
+    pQueryHandle->cur.win  = (STimeWindow){pQueryHandle->window.skey, pQueryHandle->window.skey};
+    pQueryHandle->window   = pQueryHandle->cur.win;
+    pQueryHandle->cur.rows = 1;
+    pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
+    return true;
+  } else {
+    STimeWindow win = (STimeWindow) {pQueryHandle->window.skey, INT64_MAX};
+    STsdbQueryCond cond = {
+        .order = TSDB_ORDER_ASC,
+        .numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle))
+    };
+    cond.twindow = win;
+
+    cond.colList = calloc(cond.numOfCols, sizeof(SColumnInfo));
+    if (cond.colList == NULL) {
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return false;
+    }
+
+    for(int32_t i = 0; i < cond.numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pQueryHandle->pColumns, i);
+      memcpy(&cond.colList[i], &pColInfoData->info, sizeof(SColumnInfo));
+    }
+
+      STsdbQueryHandle* pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qinfo, pQueryHandle->pMemRef);
+
+      tfree(cond.colList);
+
+    pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pQueryHandle->pTableCheckInfo, pSecQueryHandle->window.skey);
+    if (pSecQueryHandle->pTableCheckInfo == NULL) {
+      tsdbCleanupQueryHandle(pSecQueryHandle);
+      return false;
+    }
+
+    if (!tsdbNextDataBlock((void*) pSecQueryHandle)) {
+      tsdbCleanupQueryHandle(pSecQueryHandle);
+      return false;
+    }
+
+    tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
+    tsdbRetrieveDataBlock((void*) pSecQueryHandle, pSecQueryHandle->defaultLoadColumn);
+
+    int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pSecQueryHandle));
+    size_t si = taosArrayGetSize(pSecQueryHandle->pTableCheckInfo);
+
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
+      memcpy((char*)pCol->pData, (char*)pCol->pData + pCol->info.bytes * (pQueryHandle->cur.rows - 1), pCol->info.bytes);
+
+      SColumnInfoData* pCol1 = taosArrayGet(pSecQueryHandle->pColumns, i);
+      assert(pCol->info.colId == pCol1->info.colId);
+
+      memcpy((char*)pCol->pData + pCol->info.bytes, pCol1->pData, pCol1->info.bytes);
+    }
+
+    SColumnInfoData* pTSCol = taosArrayGet(pQueryHandle->pColumns, 0);
+
+    // it is ascending order
+    pQueryHandle->order    = TSDB_ORDER_DESC;
+    pQueryHandle->window   = pQueryHandle->cur.win;
+    pQueryHandle->cur.win  = (STimeWindow){((TSKEY*)pTSCol->pData)[0], ((TSKEY*)pTSCol->pData)[1]};
+    pQueryHandle->cur.rows = 2;
+    pQueryHandle->cur.mixBlock = true;
+
+    int32_t step = -1;// one step for ascending order traverse
+    for (int32_t j = 0; j < si; ++j) {
+      STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, j);
+      pCheckInfo->lastKey = pQueryHandle->cur.win.ekey + step;
+    }
+
+    tsdbCleanupQueryHandle(pSecQueryHandle);
+  }
+
+  //disable it after retrieve data
+  pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
+  pQueryHandle->checkFiles = false;
+  return true;
+}
+
 // handle data in cache situation
 bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
@@ -1986,106 +2095,15 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
 
-  SDataBlockInfo blockInfo = {{0}, 0};
   if (pQueryHandle->type == TSDB_QUERY_TYPE_EXTERNAL) {
-    pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
-    pQueryHandle->order = TSDB_ORDER_DESC;
+    SMemRef* pMemRef = pQueryHandle->pMemRef;
+    tsdbMayTakeMemSnapshot(pQueryHandle);
+    bool ret = getNeighborRows(pQueryHandle);
+    tsdbMayUnTakeMemSnapshot(pQueryHandle);
 
-    if (!tsdbNextDataBlock(pHandle)) {
-      return false;
-    }
-
-    tsdbRetrieveDataBlockInfo(pHandle, &blockInfo);
-    /*SArray *pDataBlock = */tsdbRetrieveDataBlock(pHandle, pQueryHandle->defaultLoadColumn);
-    if (terrno != TSDB_CODE_SUCCESS) {
-      return false;
-    }
-
-    if (pQueryHandle->cur.win.ekey == pQueryHandle->window.skey) {
-      // data already retrieve, discard other data rows and return
-      int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
-      for (int32_t i = 0; i < numOfCols; ++i) {
-        SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
-        memcpy((char*)pCol->pData, (char*)pCol->pData + pCol->info.bytes * (pQueryHandle->cur.rows - 1), pCol->info.bytes);
-      }
-
-      pQueryHandle->cur.win  = (STimeWindow){pQueryHandle->window.skey, pQueryHandle->window.skey};
-      pQueryHandle->window   = pQueryHandle->cur.win;
-      pQueryHandle->cur.rows = 1;
-      pQueryHandle->type = TSDB_QUERY_TYPE_ALL;
-      return true;
-    } else {
-      STimeWindow win = (STimeWindow) {pQueryHandle->window.skey, INT64_MAX};
-      STsdbQueryCond cond = {
-          .order = TSDB_ORDER_ASC,
-          .numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle))
-        };
-      cond.twindow = win;
-
-      cond.colList = calloc(cond.numOfCols, sizeof(SColumnInfo));
-      if (cond.colList == NULL) {
-        terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-        return false;
-      }
-
-      for(int32_t i = 0; i < cond.numOfCols; ++i) {
-        SColumnInfoData* pColInfoData = taosArrayGet(pQueryHandle->pColumns, i);
-        memcpy(&cond.colList[i], &pColInfoData->info, sizeof(SColumnInfo));
-      }
-
-      STsdbQueryHandle* pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qinfo, pQueryHandle->pMemRef);
-
-      tfree(cond.colList);
-
-      pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pQueryHandle->pTableCheckInfo, pSecQueryHandle->window.skey);
-      if (pSecQueryHandle->pTableCheckInfo == NULL) {
-        tsdbCleanupQueryHandle(pSecQueryHandle);
-        return false;
-      }
-
-      if (!tsdbNextDataBlock((void*) pSecQueryHandle)) {
-        tsdbCleanupQueryHandle(pSecQueryHandle);
-        return false;
-      }
-
-      tsdbRetrieveDataBlockInfo((void*) pSecQueryHandle, &blockInfo);
-      tsdbRetrieveDataBlock((void*) pSecQueryHandle, pSecQueryHandle->defaultLoadColumn);
-
-      int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pSecQueryHandle));
-      size_t si = taosArrayGetSize(pSecQueryHandle->pTableCheckInfo);
-
-      for (int32_t i = 0; i < numOfCols; ++i) {
-        SColumnInfoData* pCol = taosArrayGet(pQueryHandle->pColumns, i);
-        memcpy((char*)pCol->pData, (char*)pCol->pData + pCol->info.bytes * (pQueryHandle->cur.rows - 1), pCol->info.bytes);
-
-        SColumnInfoData* pCol1 = taosArrayGet(pSecQueryHandle->pColumns, i);
-        assert(pCol->info.colId == pCol1->info.colId);
-
-        memcpy((char*)pCol->pData + pCol->info.bytes, pCol1->pData, pCol1->info.bytes);
-      }
-
-      SColumnInfoData* pTSCol = taosArrayGet(pQueryHandle->pColumns, 0);
-
-      // it is ascending order
-      pQueryHandle->order    = TSDB_ORDER_DESC;
-      pQueryHandle->window   = pQueryHandle->cur.win;
-      pQueryHandle->cur.win  = (STimeWindow){((TSKEY*)pTSCol->pData)[0], ((TSKEY*)pTSCol->pData)[1]};
-      pQueryHandle->cur.rows = 2;
-      pQueryHandle->cur.mixBlock = true;
-
-      int32_t step = -1;// one step for ascending order traverse
-      for (int32_t j = 0; j < si; ++j) {
-        STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, j);
-        pCheckInfo->lastKey = pQueryHandle->cur.win.ekey + step;
-      }
-
-      tsdbCleanupQueryHandle(pSecQueryHandle);
-    }
-
-    //disable it after retrieve data
-    pQueryHandle->type = TSDB_QUERY_TYPE_EXTERNAL;
-    pQueryHandle->checkFiles = false;
-    return true;
+    // restore the pMemRef
+    pQueryHandle->pMemRef = pMemRef;
+    return ret;
   }
 
   if (pQueryHandle->checkFiles) {
@@ -2343,7 +2361,7 @@ void filterPrepare(void* expr, void* param) {
 
   if (pInfo->optr == TSDB_RELATION_IN) {
     pInfo->q = (char*) pCond->arr;
-  } else {
+  } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;

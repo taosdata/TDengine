@@ -130,16 +130,6 @@ SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   return NULL;
 }
 
-struct SSchema tscGetTbnameColumnSchema() {
-  struct SSchema s = {
-      .colId = TSDB_TBNAME_COLUMN_INDEX,
-      .type  = TSDB_DATA_TYPE_BINARY,
-      .bytes = TSDB_TABLE_NAME_LEN
-  };
-  
-  strcpy(s.name, TSQL_TBNAME_L);
-  return s;
-}
 static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupInfo *vgroupInfo) {
   corVgroupInfo->version = 0;
   corVgroupInfo->inUse = 0;

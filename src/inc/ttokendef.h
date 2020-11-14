@@ -16,7 +16,6 @@
 #ifndef TDENGINE_TTOKENDEF_H
 #define TDENGINE_TTOKENDEF_H
 
-
 #define TK_ID                               1
 #define TK_BOOL                             2
 #define TK_TINYINT                          3
@@ -223,6 +222,7 @@
 #define TK_INSERT                         204
 #define TK_INTO                           205
 #define TK_VALUES                         206
+
 
 #define TK_SPACE                          300
 #define TK_COMMENT                        301

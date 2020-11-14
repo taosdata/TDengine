@@ -361,7 +361,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         memcpy(pRes->pRsp, rpcMsg->pCont, pRes->rspLen);
       }
     } else {
-      pRes->pRsp = NULL;
+      tfree(pRes->pRsp);
     }
 
     /*
@@ -892,7 +892,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
-  tscDebug("%p msg built success,len:%d bytes", pSql, msgLen);
+  tscDebug("%p msg built success, len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
   

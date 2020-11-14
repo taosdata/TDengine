@@ -481,15 +481,15 @@ typedef struct {
   int64_t     limit;
   int64_t     offset;
   uint32_t    queryType;        // denote another query process
-  int16_t     numOfOutput;  // final output columns numbers
+  int16_t     numOfOutput;      // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
-  int16_t     fillType;      // interpolate type
-  uint64_t    fillVal;       // default value array list
-  int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
-  int32_t     tsLen;          // total length of ts comp block
-  int32_t     tsNumOfBlocks;  // ts comp block numbers
-  int32_t     tsOrder;        // ts comp block order
-  int32_t     numOfTags;      // number of tags columns involved
+  int16_t     fillType;         // interpolate type
+  uint64_t    fillVal;          // default value array list
+  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
+  int32_t     tsLen;            // total length of ts comp block
+  int32_t     tsNumOfBlocks;    // ts comp block numbers
+  int32_t     tsOrder;          // ts comp block order
+  int32_t     numOfTags;        // number of tags columns involved
   SColumnInfo colList[];
 } SQueryTableMsg;
 

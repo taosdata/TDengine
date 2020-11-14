@@ -124,15 +124,7 @@ void walClose(void *handle) {
 
   SWal *pWal = handle;
   pthread_mutex_lock(&pWal->mutex);
-
   taosClose(pWal->fd);
-
-  if (pWal->keep != TAOS_WAL_KEEP) {
-    walRemoveAllOldFiles(pWal);
-  } else {
-    wDebug("vgId:%d, wal:%p file:%s, it is closed and kept", pWal->vgId, pWal, pWal->name);
-  }
-
   pthread_mutex_unlock(&pWal->mutex);
   taosRemoveRef(tsWal.refId, pWal->rid);
 }
