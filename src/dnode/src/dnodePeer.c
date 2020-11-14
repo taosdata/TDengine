@@ -169,7 +169,7 @@ void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 }
 
 void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
-  rpcSendRequest(tsClientRpc, epSet, rpcMsg);
+  rpcSendRequest(tsClientRpc, epSet, rpcMsg, NULL);
 }
 
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
