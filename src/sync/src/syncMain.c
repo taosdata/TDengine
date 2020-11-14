@@ -352,7 +352,7 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {
     int32_t retLen = write(pPeer->peerFd, msg, msgLen);
 
     if (retLen == msgLen) {
-      sDebug("%s, forward-rsp is sent, ver:%" PRIu64, pPeer->id, version);
+      sDebug("%s, forward-rsp is sent, code:%x hver:%" PRIu64, pPeer->id, code, version);
     } else {
       sDebug("%s, failed to send forward ack, restart", pPeer->id);
       syncRestartConnection(pPeer);
@@ -498,7 +498,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
-    if (pNode->vgId > 1) checkMs = tsStatusInterval * 2000 + checkMs;
+    if (pNode->vgId > 1) checkMs = tsStatusInterval * 1000 + checkMs;
     sDebug("%s, start to check peer connection after %d ms", pPeer->id, checkMs);
     taosTmrReset(syncCheckPeerConnection, checkMs, pPeer, tsSyncTmrCtrl, &pPeer->timer);
   }
@@ -575,6 +575,17 @@ static void syncChooseMaster(SSyncNode *pNode) {
     if (index == pNode->selfIndex) {
       sInfo("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
+
+#if 0
+      for (int32_t i = 0; i < pNode->replica; ++i) {
+        pPeer = pNode->peerInfo[i];
+        if (pPeer->version == nodeVersion) {
+          pPeer->role = TAOS_SYNC_ROLE_SLAVE;
+          pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
+          sInfo("%s, it shall work as slave", pPeer->id);
+        }
+      }
+#endif
       syncResetFlowCtrl(pNode);
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
     } else {
@@ -831,7 +842,7 @@ static void syncProcessFwdResponse(char *cont, SSyncPeer *pPeer) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   SFwdInfo * pFwdInfo;
 
-  sDebug("%s, forward-rsp is received, ver:%" PRIu64, pPeer->id, pFwdRsp->version);
+  sDebug("%s, forward-rsp is received, code:%x ver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
   if (pFirst->version <= pFwdRsp->version && pSyncFwds->fwds > 0) {
@@ -1097,7 +1108,7 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  if (taosAcquireRef(tsSyncRefId, pNode->rid) < 0) return;
+  if (taosAcquireRef(tsSyncRefId, pNode->rid) == NULL) return;
   pthread_mutex_lock(&(pNode->mutex));
 
   sDebug("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
@@ -1125,10 +1136,9 @@ static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
   }
 
   SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + pSyncFwds->last;
+  memset(pFwdInfo, 0, sizeof(SFwdInfo));
   pFwdInfo->version = version;
   pFwdInfo->mhandle = mhandle;
-  pFwdInfo->acks = 0;
-  pFwdInfo->confirmed = 0;
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
@@ -1210,13 +1220,17 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   int32_t    fwdLen;
   int32_t    code = 0;
 
-  if (nodeRole == TAOS_SYNC_ROLE_SLAVE && pWalHead->version != nodeVersion + 1) {
-    sError("vgId:%d, received ver:%" PRIu64 ", inconsistent with last ver:%" PRIu64 ", restart connection", pNode->vgId,
-           pWalHead->version, nodeVersion);
-    for (int32_t i = 0; i < pNode->replica; ++i) {
-      pPeer = pNode->peerInfo[i];
-      syncRestartConnection(pPeer);
+
+  if (pWalHead->version > nodeVersion + 1) {
+    sError("vgId:%d, hver:%" PRIu64 ", inconsistent with ver:%" PRIu64, pNode->vgId, pWalHead->version, nodeVersion);
+    if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
+      sInfo("vgId:%d, restart connection", pNode->vgId);
+      for (int32_t i = 0; i < pNode->replica; ++i) {
+        pPeer = pNode->peerInfo[i];
+        syncRestartConnection(pPeer);
+      }
     }
+
     return TSDB_CODE_SYN_INVALID_VERSION;
   }
 

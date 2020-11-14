@@ -294,6 +294,7 @@ STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo) {
 int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
   // TODO: think about multithread cases
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbCfg   config = pRepo->config;
   STsdbCfg * pRCfg = &pRepo->config;
 
   if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
@@ -308,22 +309,25 @@ int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
   bool configChanged = false;
   if (pRCfg->compression != pCfg->compression) {
     tsdbAlterCompression(pRepo, pCfg->compression);
+    config.compression = pCfg->compression;
     configChanged = true;
   }
   if (pRCfg->keep != pCfg->keep) {
     if (tsdbAlterKeep(pRepo, pCfg->keep) < 0) {
       tsdbError("vgId:%d failed to configure repo when alter keep since %s", REPO_ID(pRepo), tstrerror(terrno));
+      config.keep = pCfg->keep;
       return -1;
     }
     configChanged = true;
   }
   if (pRCfg->totalBlocks != pCfg->totalBlocks) {
     tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
+    config.totalBlocks = pCfg->totalBlocks;
     configChanged = true;
   }
 
   if (configChanged) {
-    if (tsdbSaveConfig(pRepo->rootDir, &pRepo->config) < 0) {
+    if (tsdbSaveConfig(pRepo->rootDir, &config) < 0) {
       tsdbError("vgId:%d failed to configure repository while save config since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
