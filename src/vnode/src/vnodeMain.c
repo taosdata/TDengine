@@ -315,7 +315,13 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
-  tsdbSyncCommit(pVnode->tsdb);
+  code = tsdbSyncCommit(pVnode->tsdb);
+  if (code != 0) {
+    vError("vgId:%d, failed to commit after restore from wal since %s", pVnode->vgId, tstrerror(code));
+    vnodeCleanUp(pVnode);
+    return code;
+  }
+
   walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
@@ -412,6 +418,7 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->wal) {
+    walRemoveAllOldFiles(pVnode->wal);
     walClose(pVnode->wal);
     pVnode->wal = NULL;
   }
@@ -589,7 +596,11 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->fversion = pVnode->version;
     vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    return walRenew(pVnode->wal);
+    if (pVnode->status == TAOS_VN_STATUS_INIT) {
+      return 0;
+    } else {
+      return walRenew(pVnode->wal);
+    }
   }
 
   if (status == TSDB_STATUS_COMMIT_OVER) {

@@ -107,6 +107,7 @@ typedef union {
   tSQLExpr* yy64;
   tVariant yy134;
   SCreateAcctSQL yy149;
+  SArray* yy165;
   int64_t yy207;
   SLimitVal yy216;
   TAOS_FIELD yy223;
@@ -115,8 +116,6 @@ typedef union {
   tSQLExprList* yy290;
   SQuerySQL* yy414;
   SCreateTableSQL* yy470;
-  tVariantList* yy498;
-  tFieldList* yy523;
   SIntervalVal yy532;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
@@ -1368,18 +1367,14 @@ static void yy_destructor(
 /********* Begin destructor definitions ***************************************/
     case 227: /* keep */
     case 228: /* tagitemlist */
+    case 245: /* columnlist */
     case 253: /* fill_opt */
     case 255: /* groupby_opt */
     case 256: /* orderby_opt */
     case 266: /* sortlist */
     case 270: /* grouplist */
 {
-tVariantListDestroy((yypminor->yy498));
-}
-      break;
-    case 245: /* columnlist */
-{
-tFieldListDestroy((yypminor->yy523));
+taosArrayDestroy((yypminor->yy165));
 }
       break;
     case 246: /* select */
@@ -2238,7 +2233,7 @@ static void yy_reduce(
   yymsp[-8].minor.yy149 = yylhsminor.yy149;
         break;
       case 72: /* keep ::= KEEP tagitemlist */
-{ yymsp[-1].minor.yy498 = yymsp[0].minor.yy498; }
+{ yymsp[-1].minor.yy165 = yymsp[0].minor.yy165; }
         break;
       case 73: /* cache ::= CACHE INTEGER */
       case 74: /* replica ::= REPLICA INTEGER */ yytestcase(yyruleno==74);
@@ -2314,7 +2309,7 @@ static void yy_reduce(
         break;
       case 99: /* db_optr ::= db_optr keep */
       case 104: /* alter_db_optr ::= alter_db_optr keep */ yytestcase(yyruleno==104);
-{ yylhsminor.yy268 = yymsp[-1].minor.yy268; yylhsminor.yy268.keep = yymsp[0].minor.yy498; }
+{ yylhsminor.yy268 = yymsp[-1].minor.yy268; yylhsminor.yy268.keep = yymsp[0].minor.yy165; }
   yymsp[-1].minor.yy268 = yylhsminor.yy268;
         break;
       case 100: /* db_optr ::= db_optr update */
@@ -2362,20 +2357,20 @@ static void yy_reduce(
         break;
       case 116: /* create_table_args ::= LP columnlist RP */
 {
-    yymsp[-2].minor.yy470 = tSetCreateSQLElems(yymsp[-1].minor.yy523, NULL, NULL, NULL, NULL, TSQL_CREATE_TABLE);
+    yymsp[-2].minor.yy470 = tSetCreateSQLElems(yymsp[-1].minor.yy165, NULL, NULL, NULL, NULL, TSQL_CREATE_TABLE);
     setSQLInfo(pInfo, yymsp[-2].minor.yy470, NULL, TSDB_SQL_CREATE_TABLE);
 }
         break;
       case 117: /* create_table_args ::= LP columnlist RP TAGS LP columnlist RP */
 {
-    yymsp[-6].minor.yy470 = tSetCreateSQLElems(yymsp[-5].minor.yy523, yymsp[-1].minor.yy523, NULL, NULL, NULL, TSQL_CREATE_STABLE);
+    yymsp[-6].minor.yy470 = tSetCreateSQLElems(yymsp[-5].minor.yy165, yymsp[-1].minor.yy165, NULL, NULL, NULL, TSQL_CREATE_STABLE);
     setSQLInfo(pInfo, yymsp[-6].minor.yy470, NULL, TSDB_SQL_CREATE_TABLE);
 }
         break;
       case 118: /* create_table_args ::= USING ids cpxName TAGS LP tagitemlist RP */
 {
     yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
-    yymsp[-6].minor.yy470 = tSetCreateSQLElems(NULL, NULL, &yymsp[-5].minor.yy0, yymsp[-1].minor.yy498, NULL, TSQL_CREATE_TABLE_FROM_STABLE);
+    yymsp[-6].minor.yy470 = tSetCreateSQLElems(NULL, NULL, &yymsp[-5].minor.yy0, yymsp[-1].minor.yy165, NULL, TSQL_CREATE_TABLE_FROM_STABLE);
     setSQLInfo(pInfo, yymsp[-6].minor.yy470, NULL, TSDB_SQL_CREATE_TABLE);
 }
         break;
@@ -2386,12 +2381,12 @@ static void yy_reduce(
 }
         break;
       case 120: /* columnlist ::= columnlist COMMA column */
-{yylhsminor.yy523 = tFieldListAppend(yymsp[-2].minor.yy523, &yymsp[0].minor.yy223);   }
-  yymsp[-2].minor.yy523 = yylhsminor.yy523;
+{taosArrayPush(yymsp[-2].minor.yy165, &yymsp[0].minor.yy223); yylhsminor.yy165 = yymsp[-2].minor.yy165;  }
+  yymsp[-2].minor.yy165 = yylhsminor.yy165;
         break;
       case 121: /* columnlist ::= column */
-{yylhsminor.yy523 = tFieldListAppend(NULL, &yymsp[0].minor.yy223);}
-  yymsp[0].minor.yy523 = yylhsminor.yy523;
+{yylhsminor.yy165 = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(yylhsminor.yy165, &yymsp[0].minor.yy223);}
+  yymsp[0].minor.yy165 = yylhsminor.yy165;
         break;
       case 122: /* column ::= ids typename */
 {
@@ -2400,12 +2395,12 @@ static void yy_reduce(
   yymsp[-1].minor.yy223 = yylhsminor.yy223;
         break;
       case 123: /* tagitemlist ::= tagitemlist COMMA tagitem */
-{ yylhsminor.yy498 = tVariantListAppend(yymsp[-2].minor.yy498, &yymsp[0].minor.yy134, -1);    }
-  yymsp[-2].minor.yy498 = yylhsminor.yy498;
+{ yylhsminor.yy165 = tVariantListAppend(yymsp[-2].minor.yy165, &yymsp[0].minor.yy134, -1);    }
+  yymsp[-2].minor.yy165 = yylhsminor.yy165;
         break;
       case 124: /* tagitemlist ::= tagitem */
-{ yylhsminor.yy498 = tVariantListAppend(NULL, &yymsp[0].minor.yy134, -1); }
-  yymsp[0].minor.yy498 = yylhsminor.yy498;
+{ yylhsminor.yy165 = tVariantListAppend(NULL, &yymsp[0].minor.yy134, -1); }
+  yymsp[0].minor.yy165 = yylhsminor.yy165;
         break;
       case 125: /* tagitem ::= INTEGER */
       case 126: /* tagitem ::= FLOAT */ yytestcase(yyruleno==126);
@@ -2432,7 +2427,7 @@ static void yy_reduce(
         break;
       case 134: /* select ::= SELECT selcollist from where_opt interval_opt fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt */
 {
-  yylhsminor.yy414 = tSetQuerySQLElems(&yymsp[-11].minor.yy0, yymsp[-10].minor.yy290, yymsp[-9].minor.yy498, yymsp[-8].minor.yy64, yymsp[-4].minor.yy498, yymsp[-3].minor.yy498, &yymsp[-7].minor.yy532, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy498, &yymsp[0].minor.yy216, &yymsp[-1].minor.yy216);
+  yylhsminor.yy414 = tSetQuerySQLElems(&yymsp[-11].minor.yy0, yymsp[-10].minor.yy290, yymsp[-9].minor.yy165, yymsp[-8].minor.yy64, yymsp[-4].minor.yy165, yymsp[-3].minor.yy165, &yymsp[-7].minor.yy532, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy165, &yymsp[0].minor.yy216, &yymsp[-1].minor.yy216);
 }
   yymsp[-11].minor.yy414 = yylhsminor.yy414;
         break;
@@ -2491,45 +2486,45 @@ static void yy_reduce(
 { yymsp[1].minor.yy0.n = 0;  }
         break;
       case 148: /* from ::= FROM tablelist */
-{yymsp[-1].minor.yy498 = yymsp[0].minor.yy498;}
+{yymsp[-1].minor.yy165 = yymsp[0].minor.yy165;}
         break;
       case 149: /* tablelist ::= ids cpxName */
 {
   toTSDBType(yymsp[-1].minor.yy0.type);
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
-  yylhsminor.yy498 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
-  yylhsminor.yy498 = tVariantListAppendToken(yylhsminor.yy498, &yymsp[-1].minor.yy0, -1);  // table alias name
+  yylhsminor.yy165 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
+  yylhsminor.yy165 = tVariantListAppendToken(yylhsminor.yy165, &yymsp[-1].minor.yy0, -1);  // table alias name
 }
-  yymsp[-1].minor.yy498 = yylhsminor.yy498;
+  yymsp[-1].minor.yy165 = yylhsminor.yy165;
         break;
       case 150: /* tablelist ::= ids cpxName ids */
 {
    toTSDBType(yymsp[-2].minor.yy0.type);
    toTSDBType(yymsp[0].minor.yy0.type);
    yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
-   yylhsminor.yy498 = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1);
-   yylhsminor.yy498 = tVariantListAppendToken(yylhsminor.yy498, &yymsp[0].minor.yy0, -1);
+   yylhsminor.yy165 = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1);
+   yylhsminor.yy165 = tVariantListAppendToken(yylhsminor.yy165, &yymsp[0].minor.yy0, -1);
 }
-  yymsp[-2].minor.yy498 = yylhsminor.yy498;
+  yymsp[-2].minor.yy165 = yylhsminor.yy165;
         break;
       case 151: /* tablelist ::= tablelist COMMA ids cpxName */
 {
   toTSDBType(yymsp[-1].minor.yy0.type);
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
-  yylhsminor.yy498 = tVariantListAppendToken(yymsp[-3].minor.yy498, &yymsp[-1].minor.yy0, -1);
-  yylhsminor.yy498 = tVariantListAppendToken(yylhsminor.yy498, &yymsp[-1].minor.yy0, -1);
+  yylhsminor.yy165 = tVariantListAppendToken(yymsp[-3].minor.yy165, &yymsp[-1].minor.yy0, -1);
+  yylhsminor.yy165 = tVariantListAppendToken(yylhsminor.yy165, &yymsp[-1].minor.yy0, -1);
 }
-  yymsp[-3].minor.yy498 = yylhsminor.yy498;
+  yymsp[-3].minor.yy165 = yylhsminor.yy165;
         break;
       case 152: /* tablelist ::= tablelist COMMA ids cpxName ids */
 {
    toTSDBType(yymsp[-2].minor.yy0.type);
    toTSDBType(yymsp[0].minor.yy0.type);
    yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
-   yylhsminor.yy498 = tVariantListAppendToken(yymsp[-4].minor.yy498, &yymsp[-2].minor.yy0, -1);
-   yylhsminor.yy498 = tVariantListAppendToken(yylhsminor.yy498, &yymsp[0].minor.yy0, -1);
+   yylhsminor.yy165 = tVariantListAppendToken(yymsp[-4].minor.yy165, &yymsp[-2].minor.yy0, -1);
+   yylhsminor.yy165 = tVariantListAppendToken(yylhsminor.yy165, &yymsp[0].minor.yy0, -1);
 }
-  yymsp[-4].minor.yy498 = yylhsminor.yy498;
+  yymsp[-4].minor.yy165 = yylhsminor.yy165;
         break;
       case 153: /* tmvar ::= VARIABLE */
 {yylhsminor.yy0 = yymsp[0].minor.yy0;}
@@ -2545,7 +2540,7 @@ static void yy_reduce(
 {memset(&yymsp[1].minor.yy532, 0, sizeof(yymsp[1].minor.yy532));}
         break;
       case 157: /* fill_opt ::= */
-{yymsp[1].minor.yy498 = 0;     }
+{yymsp[1].minor.yy165 = 0;     }
         break;
       case 158: /* fill_opt ::= FILL LP ID COMMA tagitemlist RP */
 {
@@ -2553,14 +2548,14 @@ static void yy_reduce(
     toTSDBType(yymsp[-3].minor.yy0.type);
     tVariantCreate(&A, &yymsp[-3].minor.yy0);
 
-    tVariantListInsert(yymsp[-1].minor.yy498, &A, -1, 0);
-    yymsp[-5].minor.yy498 = yymsp[-1].minor.yy498;
+    tVariantListInsert(yymsp[-1].minor.yy165, &A, -1, 0);
+    yymsp[-5].minor.yy165 = yymsp[-1].minor.yy165;
 }
         break;
       case 159: /* fill_opt ::= FILL LP ID RP */
 {
     toTSDBType(yymsp[-1].minor.yy0.type);
-    yymsp[-3].minor.yy498 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
+    yymsp[-3].minor.yy165 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
 }
         break;
       case 160: /* sliding_opt ::= SLIDING LP tmvar RP */
@@ -2571,23 +2566,23 @@ static void yy_reduce(
         break;
       case 162: /* orderby_opt ::= */
       case 170: /* groupby_opt ::= */ yytestcase(yyruleno==170);
-{yymsp[1].minor.yy498 = 0;}
+{yymsp[1].minor.yy165 = 0;}
         break;
       case 163: /* orderby_opt ::= ORDER BY sortlist */
       case 171: /* groupby_opt ::= GROUP BY grouplist */ yytestcase(yyruleno==171);
-{yymsp[-2].minor.yy498 = yymsp[0].minor.yy498;}
+{yymsp[-2].minor.yy165 = yymsp[0].minor.yy165;}
         break;
       case 164: /* sortlist ::= sortlist COMMA item sortorder */
 {
-    yylhsminor.yy498 = tVariantListAppend(yymsp[-3].minor.yy498, &yymsp[-1].minor.yy134, yymsp[0].minor.yy46);
+    yylhsminor.yy165 = tVariantListAppend(yymsp[-3].minor.yy165, &yymsp[-1].minor.yy134, yymsp[0].minor.yy46);
 }
-  yymsp[-3].minor.yy498 = yylhsminor.yy498;
+  yymsp[-3].minor.yy165 = yylhsminor.yy165;
         break;
       case 165: /* sortlist ::= item sortorder */
 {
-  yylhsminor.yy498 = tVariantListAppend(NULL, &yymsp[-1].minor.yy134, yymsp[0].minor.yy46);
+  yylhsminor.yy165 = tVariantListAppend(NULL, &yymsp[-1].minor.yy134, yymsp[0].minor.yy46);
 }
-  yymsp[-1].minor.yy498 = yylhsminor.yy498;
+  yymsp[-1].minor.yy165 = yylhsminor.yy165;
         break;
       case 166: /* item ::= ids cpxName */
 {
@@ -2609,15 +2604,15 @@ static void yy_reduce(
         break;
       case 172: /* grouplist ::= grouplist COMMA item */
 {
-  yylhsminor.yy498 = tVariantListAppend(yymsp[-2].minor.yy498, &yymsp[0].minor.yy134, -1);
+  yylhsminor.yy165 = tVariantListAppend(yymsp[-2].minor.yy165, &yymsp[0].minor.yy134, -1);
 }
-  yymsp[-2].minor.yy498 = yylhsminor.yy498;
+  yymsp[-2].minor.yy165 = yylhsminor.yy165;
         break;
       case 173: /* grouplist ::= item */
 {
-  yylhsminor.yy498 = tVariantListAppend(NULL, &yymsp[0].minor.yy134, -1);
+  yylhsminor.yy165 = tVariantListAppend(NULL, &yymsp[0].minor.yy134, -1);
 }
-  yymsp[0].minor.yy498 = yylhsminor.yy498;
+  yymsp[0].minor.yy165 = yylhsminor.yy165;
         break;
       case 174: /* having_opt ::= */
       case 184: /* where_opt ::= */ yytestcase(yyruleno==184);
@@ -2633,15 +2628,21 @@ static void yy_reduce(
 {yymsp[1].minor.yy216.limit = -1; yymsp[1].minor.yy216.offset = 0;}
         break;
       case 177: /* limit_opt ::= LIMIT signed */
-      case 181: /* slimit_opt ::= SLIMIT signed */ yytestcase(yyruleno==181);
 {yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}
         break;
       case 178: /* limit_opt ::= LIMIT signed OFFSET signed */
-      case 182: /* slimit_opt ::= SLIMIT signed SOFFSET signed */ yytestcase(yyruleno==182);
 {yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
         break;
       case 179: /* limit_opt ::= LIMIT signed COMMA signed */
-      case 183: /* slimit_opt ::= SLIMIT signed COMMA signed */ yytestcase(yyruleno==183);
+{yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
+        break;
+      case 181: /* slimit_opt ::= SLIMIT signed */
+{yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}
+        break;
+      case 182: /* slimit_opt ::= SLIMIT signed SOFFSET signed */
+{yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
+        break;
+      case 183: /* slimit_opt ::= SLIMIT signed COMMA signed */
 {yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
         break;
       case 186: /* expr ::= LP expr RP */
@@ -2787,7 +2788,7 @@ static void yy_reduce(
       case 224: /* cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy523, NULL, TSDB_ALTER_TABLE_ADD_COLUMN);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_ADD_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2796,7 +2797,7 @@ static void yy_reduce(
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
     toTSDBType(yymsp[0].minor.yy0.type);
-    tVariantList* K = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1);
+    SArray* K = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -2805,7 +2806,7 @@ static void yy_reduce(
       case 226: /* cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy523, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN);
+    SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2814,7 +2815,7 @@ static void yy_reduce(
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
     toTSDBType(yymsp[0].minor.yy0.type);
-    tVariantList* A = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1);
+    SArray* A = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -2825,7 +2826,7 @@ static void yy_reduce(
     yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
 
     toTSDBType(yymsp[-1].minor.yy0.type);
-    tVariantList* A = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
+    SArray* A = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
 
     toTSDBType(yymsp[0].minor.yy0.type);
     A = tVariantListAppendToken(A, &yymsp[0].minor.yy0, -1);
@@ -2839,7 +2840,7 @@ static void yy_reduce(
     yymsp[-6].minor.yy0.n += yymsp[-5].minor.yy0.n;
 
     toTSDBType(yymsp[-2].minor.yy0.type);
-    tVariantList* A = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1);
+    SArray* A = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1);
     A = tVariantListAppend(A, &yymsp[0].minor.yy134, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-6].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL);

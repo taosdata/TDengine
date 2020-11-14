@@ -373,7 +373,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
     pReducer->pFillInfo = taosInitFillInfo(pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
                                            4096, (int32_t)numOfCols, pQueryInfo->interval.sliding, pQueryInfo->interval.slidingUnit,
-                                           tinfo.precision, pQueryInfo->fillType, pFillCol);
+                                           tinfo.precision, pQueryInfo->fillType, pFillCol, pSql);
   }
 }
 
@@ -916,7 +916,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
   }
 
   while (1) {
-    int64_t newRows = taosGenerateDataBlock(pFillInfo, pResPages, pLocalReducer->resColModel->capacity);
+    int64_t newRows = taosFillResultDataBlock(pFillInfo, pResPages, pLocalReducer->resColModel->capacity);
 
     if (pQueryInfo->limit.offset < newRows) {
       newRows -= pQueryInfo->limit.offset;
@@ -945,7 +945,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
         }
 
         // all output in current group are completed
-        int32_t totalRemainRows = (int32_t)getFilledNumOfRes(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
+        int32_t totalRemainRows = (int32_t)getNumOfResWithFill(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
         if (totalRemainRows <= 0) {
           break;
         }
@@ -1294,7 +1294,7 @@ static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
     int64_t etime = *(int64_t *)(pFinalDataBuf->data + TSDB_KEYSIZE * (pFillInfo->numOfRows - 1));
 
     // the first column must be the timestamp column
-    int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+    int32_t rows = (int32_t) getNumOfResWithFill(pFillInfo, etime, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do fill gap
       doFillResult(pSql, pLocalReducer, false);
     }
@@ -1323,7 +1323,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       ((pRes->numOfRowsGroup < pQueryInfo->limit.limit && pQueryInfo->limit.limit > 0) || (pQueryInfo->limit.limit < 0))) {
       int64_t etime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
-      int32_t rows = (int32_t)getFilledNumOfRes(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+      int32_t rows = (int32_t)getNumOfResWithFill(pFillInfo, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {
         doFillResult(pSql, pLocalReducer, true);
       }

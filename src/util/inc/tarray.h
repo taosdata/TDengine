@@ -71,6 +71,13 @@ void* taosArrayGet(const SArray* pArray, size_t index);
 void* taosArrayGetP(const SArray* pArray, size_t index);
 
 /**
+ * get the last element in the array list
+ * @param pArray
+ * @return
+ */
+void* taosArrayGetLast(const SArray* pArray);
+
+/**
  * return the size of array
  * @param pArray
  * @return
@@ -116,6 +123,13 @@ void taosArrayClear(SArray* pArray);
  * @param pArray
  */
 void taosArrayDestroy(SArray* pArray);
+
+/**
+ *
+ * @param pArray
+ * @param fp
+ */
+void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
 
 /**
  * sort the array

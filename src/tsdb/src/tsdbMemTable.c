@@ -143,7 +143,7 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) 
     tsdbUnRefMemTable(pRepo, pIMem);
   }
 
-  tsdbDebug("vgId:%d utake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
+  tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
 }
 
 void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {

@@ -28,6 +28,7 @@
 #include "tscompression.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
+#include "ttype.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_CHAR_INDEX(x, y) (GET_INPUT_CHAR(x) + (y) * (x)->inputBytes)
@@ -2479,28 +2480,8 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        // TODO extract functions
         double v = 0;
-        switch (pCtx->inputType) {
-          case TSDB_DATA_TYPE_TINYINT:
-            v = GET_INT8_VAL(data);
-            break;
-          case TSDB_DATA_TYPE_SMALLINT:
-            v = GET_INT16_VAL(data);
-            break;
-          case TSDB_DATA_TYPE_BIGINT:
-            v = (double)(GET_INT64_VAL(data));
-            break;
-          case TSDB_DATA_TYPE_FLOAT:
-            v = GET_FLOAT_VAL(data);
-            break;
-          case TSDB_DATA_TYPE_DOUBLE:
-            v = GET_DOUBLE_VAL(data);
-            break;
-          default:
-            v = GET_INT32_VAL(data);
-            break;
-        }
+        GET_TYPED_DATA(v, double, pCtx->inputType, data);
 
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
@@ -2541,30 +2522,10 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   SPercentileInfo *pInfo = (SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-
   if (pInfo->stage == 0) {
-    // TODO extract functions
+
     double v = 0;
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        v = GET_INT8_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        v = GET_INT16_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        v = (double)(GET_INT64_VAL(pData));
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        v = GET_FLOAT_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        v = GET_DOUBLE_VAL(pData);
-        break;
-      default:
-        v = GET_INT32_VAL(pData);
-        break;
-    }
+    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
     if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
       SET_DOUBLE_VAL(&pInfo->minval, v);
@@ -2653,29 +2614,9 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
     }
     
     notNullElems += 1;
+
     double v = 0;
-    
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        v = GET_INT8_VAL(data);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        v = GET_INT16_VAL(data);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        v = (double)(GET_INT64_VAL(data));
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        v = GET_FLOAT_VAL(data);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        v = GET_DOUBLE_VAL(data);
-        break;
-      default:
-        v = GET_INT32_VAL(data);
-        break;
-    }
-    
+    GET_TYPED_DATA(v, double, pCtx->inputType, data);
     tHistogramAdd(&pInfo->pHisto, v);
   }
   
@@ -2700,26 +2641,7 @@ static void apercentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
   
   double v = 0;
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_TINYINT:
-      v = GET_INT8_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      v = GET_INT16_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      v = (double)(GET_INT64_VAL(pData));
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      v = GET_FLOAT_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      v = GET_DOUBLE_VAL(pData);
-      break;
-    default:
-      v = GET_INT32_VAL(pData);
-      break;
-  }
+  GET_TYPED_DATA(v, double, pCtx->inputType, pData);
   
   tHistogramAdd(&pInfo->pHisto, v);
   
@@ -4142,22 +4064,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     notNullElems++;
     
     int64_t v = 0;
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        v = (int64_t)GET_INT8_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        v = (int64_t)GET_INT16_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_INT:
-        v = (int64_t)GET_INT32_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        v = (int64_t)GET_INT64_VAL(pData);
-        break;
-      default:
-        assert(0);
-    }
+    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
     
     if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
       pRateInfo->firstValue = v;
@@ -4207,22 +4114,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY       *primaryKey = pCtx->ptsList;
   
   int64_t v = 0;
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_TINYINT:
-      v = (int64_t)GET_INT8_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      v = (int64_t)GET_INT16_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      v = (int64_t)GET_INT32_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      v = (int64_t)GET_INT64_VAL(pData);
-      break;
-    default:
-      assert(0);
-  }
+  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
   
   if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
     pRateInfo->firstValue = v;
@@ -4349,22 +4241,7 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     notNullElems++;
     
     int64_t v = 0;
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        v = (int64_t)GET_INT8_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        v = (int64_t)GET_INT16_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_INT:
-        v = (int64_t)GET_INT32_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        v = (int64_t)GET_INT64_VAL(pData);
-        break;
-      default:
-        assert(0);
-    }
+    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
     
     // TODO: calc once if only call this function once ????
     if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->lastValue)) {
@@ -4409,23 +4286,8 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY        *primaryKey = pCtx->ptsList;
   
   int64_t v = 0;
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_TINYINT:
-      v = (int64_t)GET_INT8_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      v = (int64_t)GET_INT16_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      v = (int64_t)GET_INT32_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      v = (int64_t)GET_INT64_VAL(pData);
-      break;
-    default:
-      assert(0);
-  }
-  
+  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+
   pRateInfo->firstKey   = pRateInfo->lastKey;
   pRateInfo->firstValue = pRateInfo->lastValue;
   
