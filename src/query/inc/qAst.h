@@ -74,20 +74,18 @@ typedef struct tExprNode {
   };
 } tExprNode;
 
-void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
-
 void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param);
 
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, const char*, int32_t));
 
-uint8_t getBinaryExprOptr(SStrToken *pToken);
-
-void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
-void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
-
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
+
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
+
+void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *));
+void tExprTreeDestroy(tExprNode **pExprs, void (*fp)(void*));
 
 #ifdef __cplusplus
 }

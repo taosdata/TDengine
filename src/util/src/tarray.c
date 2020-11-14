@@ -99,6 +99,10 @@ void* taosArrayGetP(const SArray* pArray, size_t index) {
   return *(void**)d;
 }
 
+void* taosArrayGetLast(const SArray* pArray) {
+  return TARRAY_GET_ELEM(pArray, pArray->size - 1);
+}
+
 size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }
 
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
@@ -187,6 +191,23 @@ void taosArrayDestroy(SArray* pArray) {
 
   free(pArray->pData);
   free(pArray);
+}
+
+void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
+  if (pArray == NULL) {
+    return;
+  }
+
+  if (fp == NULL) {
+    taosArrayDestroy(pArray);
+    return;
+  }
+
+  for(int32_t i = 0; i < pArray->size; ++i) {
+    fp(TARRAY_GET_ELEM(pArray, i));
+  }
+
+  taosArrayDestroy(pArray);
 }
 
 void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*)) {

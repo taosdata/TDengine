@@ -373,8 +373,8 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
     tDebug("%s %p TCP connection to 0x%x:%hu is created, localPort:%hu FD:%p numOfFds:%d", 
             pThreadObj->label, thandle, ip, port, localPort, pFdObj, pThreadObj->numOfFds);
   } else {
-    taosCloseSocket(fd);
     tError("%s failed to malloc client FdObj(%s)", pThreadObj->label, strerror(errno));
+    taosCloseSocket(fd);
   }
 
   return pFdObj;
