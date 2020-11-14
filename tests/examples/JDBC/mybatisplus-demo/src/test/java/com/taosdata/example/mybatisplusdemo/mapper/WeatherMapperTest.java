@@ -1,6 +1,7 @@
 package com.taosdata.example.mybatisplusdemo.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.taosdata.example.mybatisplusdemo.domain.Weather;
 import org.junit.Assert;
 import org.junit.Test;
@@ -37,22 +38,9 @@ public class WeatherMapperTest {
         weather.setTs(new Timestamp(1605024000000l));
         weather.setTemperature(random.nextFloat() * 50);
         weather.setHumidity(random.nextInt(100));
-        weather.setLocation("wangjing");
+        weather.setLocation("望京");
         int affectRows = mapper.insert(weather);
         Assert.assertEquals(1, affectRows);
-    }
-
-    @Test
-    public void testDelete() {
-        mapper.delete(new QueryWrapper<Weather>().eq("location", "wangjing"));
-    }
-
-    @Test
-    public void testDeleteByMap() {
-        Map<String, Object> map = new HashMap<>();
-        map.put("location", "wangjing");
-        int affectRows = mapper.deleteByMap(map);
-//        Assert.assertEquals(0, affectRows);
     }
 
     @Test
@@ -85,6 +73,17 @@ public class WeatherMapperTest {
     public void testSelectCount() {
         int count = mapper.selectCount(null);
         Assert.assertEquals(5, count);
+    }
+
+    @Test
+    public void testSelectPage() {
+        Page<Weather> page = new Page<>(1, 2);
+        Page<Weather> weatherPage = mapper.selectPage(page, null);
+        System.out.println("total : " + weatherPage.getTotal());
+        System.out.println("pages : " + weatherPage.getPages());
+        for (Weather weather : weatherPage.getRecords()) {
+            System.out.println(weather);
+        }
     }
 
 
