@@ -67,6 +67,7 @@ void walRemoveOneOldFile(void *handle) {
   SWal *pWal = handle;
   if (pWal == NULL) return;
   if (pWal->keep == TAOS_WAL_KEEP) return;
+  if (pWal->fd <= 0) return;
 
   pthread_mutex_lock(&pWal->mutex);
 
@@ -91,6 +92,8 @@ void walRemoveAllOldFiles(void *handle) {
 
   SWal *  pWal = handle;
   int64_t fileId = -1;
+
+  pthread_mutex_lock(&pWal->mutex);
   while (walGetNextFile(pWal, &fileId) >= 0) {
     snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
@@ -100,6 +103,7 @@ void walRemoveAllOldFiles(void *handle) {
       wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
     }
   }
+  pthread_mutex_unlock(&pWal->mutex);
 }
 
 int32_t walWrite(void *handle, SWalHead *pHead) {
