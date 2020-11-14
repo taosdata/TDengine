@@ -138,7 +138,7 @@ void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
   hasDup = tSkipListGetPosToPut(pSkipList, backward, ppData[0]);
   tSkipListPutImpl(pSkipList, ppData[0], backward, false, hasDup);
 
-  for (int level = 0; level < pSkipList->maxLevel - 1; level++) {
+  for (int level = 0; level < pSkipList->maxLevel; level++) {
     forward[level] = SL_NODE_GET_BACKWARD_POINTER(backward[level], level);
   }
 
