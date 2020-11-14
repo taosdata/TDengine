@@ -212,7 +212,7 @@ static void *dnodeProcessVWriteQueue(void *param) {
 
       pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
       if (pWrite->code <= 0) pWrite->processedCount = 1;
-      if (pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
+      if (pWrite->code == 0 && pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 
       dTrace("msg:%p is processed in vwrite queue, result:%s", pWrite, tstrerror(pWrite->code));
     }
@@ -225,11 +225,13 @@ static void *dnodeProcessVWriteQueue(void *param) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
       if (qtype == TAOS_QTYPE_RPC) {
         dnodeSendRpcVWriteRsp(pVnode, pWrite, pWrite->code);
-      } else if (qtype == TAOS_QTYPE_FWD) {
-        vnodeConfirmForward(pVnode, pWrite->pHead->version, 0);
-        taosFreeQitem(pWrite);
-        vnodeRelease(pVnode);
       } else {
+        if (qtype == TAOS_QTYPE_FWD) {
+          vnodeConfirmForward(pVnode, pWrite->pHead->version, 0);
+        }
+        if (pWrite->rspRet.rsp) {
+          rpcFreeCont(pWrite->rspRet.rsp);
+        }
         taosFreeQitem(pWrite);
         vnodeRelease(pVnode);
       }

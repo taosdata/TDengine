@@ -498,7 +498,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
-    if (pNode->vgId > 1) checkMs = tsStatusInterval * 2000 + checkMs;
+    if (pNode->vgId > 1) checkMs = tsStatusInterval * 1000 + checkMs;
     sDebug("%s, start to check peer connection after %d ms", pPeer->id, checkMs);
     taosTmrReset(syncCheckPeerConnection, checkMs, pPeer, tsSyncTmrCtrl, &pPeer->timer);
   }
@@ -575,6 +575,17 @@ static void syncChooseMaster(SSyncNode *pNode) {
     if (index == pNode->selfIndex) {
       sInfo("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
+
+#if 0
+      for (int32_t i = 0; i < pNode->replica; ++i) {
+        pPeer = pNode->peerInfo[i];
+        if (pPeer->version == nodeVersion) {
+          pPeer->role = TAOS_SYNC_ROLE_SLAVE;
+          pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
+          sInfo("%s, it shall work as slave", pPeer->id);
+        }
+      }
+#endif
       syncResetFlowCtrl(pNode);
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
     } else {
@@ -1097,7 +1108,7 @@ static void syncProcessBrokenLink(void *param) {
   SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  if (taosAcquireRef(tsSyncRefId, pNode->rid) < 0) return;
+  if (taosAcquireRef(tsSyncRefId, pNode->rid) == NULL) return;
   pthread_mutex_lock(&(pNode->mutex));
 
   sDebug("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
@@ -1209,13 +1220,17 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   int32_t    fwdLen;
   int32_t    code = 0;
 
-  if (nodeRole == TAOS_SYNC_ROLE_SLAVE && pWalHead->version != nodeVersion + 1) {
-    sError("vgId:%d, received ver:%" PRIu64 ", inconsistent with last ver:%" PRIu64 ", restart connection", pNode->vgId,
-           pWalHead->version, nodeVersion);
-    for (int32_t i = 0; i < pNode->replica; ++i) {
-      pPeer = pNode->peerInfo[i];
-      syncRestartConnection(pPeer);
+
+  if (pWalHead->version > nodeVersion + 1) {
+    sError("vgId:%d, hver:%" PRIu64 ", inconsistent with ver:%" PRIu64, pNode->vgId, pWalHead->version, nodeVersion);
+    if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
+      sInfo("vgId:%d, restart connection", pNode->vgId);
+      for (int32_t i = 0; i < pNode->replica; ++i) {
+        pPeer = pNode->peerInfo[i];
+        syncRestartConnection(pPeer);
+      }
     }
+
     return TSDB_CODE_SYN_INVALID_VERSION;
   }
 
