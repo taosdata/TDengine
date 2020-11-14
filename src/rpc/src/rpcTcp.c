@@ -173,11 +173,11 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
 static void taosStopTcpThread(SThreadObj* pThreadObj) {
   // save thread into local variable and signal thread to stop 
   pthread_t thread = pThreadObj->thread; 
+  pThreadObj->stop = true;
   if (taosComparePthread(thread, pthread_self())) {
     pthread_detach(pthread_self());
     return;
   }
-  pThreadObj->stop = true;
   pthread_join(thread, NULL);
 }
 

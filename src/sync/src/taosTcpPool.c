@@ -302,10 +302,10 @@ static SThreadObj *taosGetTcpThread(SPoolObj *pPool) {
 
 static void taosStopPoolThread(SThreadObj *pThread) {
   pthread_t thread = pThread->thread;
+  pThread->stop = true;
   if (taosComparePthread(thread, pthread_self())) {
     pthread_detach(pthread_self());
     return;
   }
-  pThread->stop = true;
   pthread_join(thread, NULL);
 }
