@@ -57,7 +57,7 @@ static void *sendRequest(void *param) {
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
     tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
-    rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg);
+    rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if ( pInfo->num % 20000 == 0 ) 
       tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     tsem_wait(&pInfo->rspSem);
