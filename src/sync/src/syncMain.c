@@ -578,6 +578,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
 
 #if 0
       for (int32_t i = 0; i < pNode->replica; ++i) {
+        if (i == index) continue;
         pPeer = pNode->peerInfo[i];
         if (pPeer->version == nodeVersion) {
           pPeer->role = TAOS_SYNC_ROLE_SLAVE;

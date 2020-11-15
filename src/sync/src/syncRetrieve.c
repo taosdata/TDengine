@@ -182,6 +182,8 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead, uint32_t *pEve
     return 0;
   }
 
+  assert(pHead->len <= TSDB_MAX_WAL_SIZE);
+
   ret = read(sfd, pHead->cont, pHead->len);
   if (ret < 0) return -1;
 
