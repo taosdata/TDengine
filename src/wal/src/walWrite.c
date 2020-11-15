@@ -58,24 +58,48 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is created", pWal->vgId, pWal->name);
   }
 
-  if (pWal->keep != TAOS_WAL_KEEP) {
-    // remove the oldest wal file
-    int64_t oldFileId = -1;
-    if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
-      char walName[WAL_FILE_LEN] = {0};
-      snprintf(walName, sizeof(walName), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, oldFileId);
+  pthread_mutex_unlock(&pWal->mutex);
 
-      if (remove(walName) < 0) {
-        wError("vgId:%d, file:%s, failed to remove since %s", pWal->vgId, walName, strerror(errno));
-      } else {
-        wDebug("vgId:%d, file:%s, it is removed", pWal->vgId, walName);
-      }
+  return code;
+}
+
+void walRemoveOneOldFile(void *handle) {
+  SWal *pWal = handle;
+  if (pWal == NULL) return;
+  if (pWal->keep == TAOS_WAL_KEEP) return;
+
+  pthread_mutex_lock(&pWal->mutex);
+
+  // remove the oldest wal file
+  int64_t oldFileId = -1;
+  if (walGetOldFile(pWal, pWal->fileId, WAL_FILE_NUM, &oldFileId) == 0) {
+    char walName[WAL_FILE_LEN] = {0};
+    snprintf(walName, sizeof(walName), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, oldFileId);
+
+    if (remove(walName) < 0) {
+      wError("vgId:%d, file:%s, failed to remove since %s", pWal->vgId, walName, strerror(errno));
+    } else {
+      wInfo("vgId:%d, file:%s, it is removed", pWal->vgId, walName);
     }
   }
 
   pthread_mutex_unlock(&pWal->mutex);
+}
 
-  return code;
+void walRemoveAllOldFiles(void *handle) {
+  if (handle == NULL) return;
+
+  SWal *  pWal = handle;
+  int64_t fileId = -1;
+  while (walGetNextFile(pWal, &fileId) >= 0) {
+    snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
+
+    if (remove(pWal->name) < 0) {
+      wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
+    } else {
+      wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
+    }
+  }
 }
 
 int32_t walWrite(void *handle, SWalHead *pHead) {

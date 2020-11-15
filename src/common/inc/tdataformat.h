@@ -80,7 +80,7 @@ typedef struct {
 #define schemaFLen(s) ((s)->flen)
 #define schemaVLen(s) ((s)->vlen)
 #define schemaColAt(s, i) ((s)->columns + i)
-#define tdFreeSchema(s) taosTFree((s))
+#define tdFreeSchema(s) tfree((s))
 
 STSchema *tdDupSchema(STSchema *pSchema);
 int       tdEncodeSchema(void **buf, STSchema *pSchema);
@@ -308,7 +308,7 @@ typedef struct {
 #define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
-#define kvRowFree(r) taosTFree(r)
+#define kvRowFree(r) tfree(r)
 #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 
 SKVRow tdKVRowDup(SKVRow row);

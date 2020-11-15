@@ -77,15 +77,15 @@ void dnodeUpdateMInfos(SMnodeInfos *minfos) {
 
 void dnodeUpdateEpSetForPeer(SRpcEpSet *ep) {
   if (ep->numOfEps <= 0) {
-    dError("mnode EP list for peer is changed, but content is invalid, discard it");
+    dError("minfos is changed, but content is invalid, discard it");
     return;
   }
 
   pthread_mutex_lock(&tsMInfosMutex);
-  dInfo("mnode EP list for peer is changed, numOfEps:%d inUse:%d", ep->numOfEps, ep->inUse);
+  dInfo("minfos is changed, numOfEps:%d inUse:%d", ep->numOfEps, ep->inUse);
   for (int i = 0; i < ep->numOfEps; ++i) {
     ep->port[i] -= TSDB_PORT_DNODEDNODE;
-    dInfo("mnode index:%d %s:%u", i, ep->fqdn[i], ep->port[i]);
+    dInfo("minfo:%d %s:%u", i, ep->fqdn[i], ep->port[i]);
   }
   tsMEpSet = *ep;
   pthread_mutex_unlock(&tsMInfosMutex);

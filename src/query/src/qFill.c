@@ -96,18 +96,18 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
     return NULL;
   }
 
-  taosTFree(pFillInfo->prevValues);
-  taosTFree(pFillInfo->nextValues);
-  taosTFree(pFillInfo->pTags);
+  tfree(pFillInfo->prevValues);
+  tfree(pFillInfo->nextValues);
+  tfree(pFillInfo->pTags);
   
   for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    taosTFree(pFillInfo->pData[i]);
+    tfree(pFillInfo->pData[i]);
   }
   
-  taosTFree(pFillInfo->pData);
-  taosTFree(pFillInfo->pFillCol);
+  tfree(pFillInfo->pData);
+  tfree(pFillInfo->pFillCol);
   
-  taosTFree(pFillInfo);
+  tfree(pFillInfo);
   return NULL;
 }
 
@@ -496,7 +496,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
           pFillInfo->numOfRows = 0;
 
           /* the raw data block is exhausted, next value does not exists */
-          taosTFree(*nextValues);
+          tfree(*nextValues);
         }
 
         pFillInfo->numOfTotal += pFillInfo->numOfCurrent;

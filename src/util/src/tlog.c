@@ -512,8 +512,8 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   return tLogBuff;
 
 _err:
-  taosTFree(LOG_BUF_BUFFER(tLogBuff));
-  taosTFree(tLogBuff);
+  tfree(LOG_BUF_BUFFER(tLogBuff));
+  tfree(tLogBuff);
   return NULL;
 }
 
@@ -522,7 +522,7 @@ static void taosLogBuffDestroy(SLogBuff *tLogBuff) {
   tsem_destroy(&(tLogBuff->buffNotEmpty));
   pthread_mutex_destroy(&(tLogBuff->buffMutex));
   free(tLogBuff->buffer);
-  taosTFree(tLogBuff);
+  tfree(tLogBuff);
 }
 #endif
 

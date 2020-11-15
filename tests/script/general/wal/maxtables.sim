@@ -1,0 +1,46 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 100
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
+system sh/cfg.sh -n dnode1 -c tableIncStepPerVnode -v 2
+
+
+print ============== deploy
+system sh/exec.sh -n dnode1 -s start 
+sleep 3001
+sql connect
+
+sql create database d1
+sql use d1
+sql create table st (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < 100
+  $tb = t . $i
+  sql create table $tb using st tags( $i )
+  sql insert into $tb values (now , $i ) 
+  $i = $i + 1
+endw 
+
+sql_error sql create table tt (ts timestamp, i int) 
+
+print ===============  step3
+sql select * from st;
+if $rows != 100 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+sleep 3000
+
+print ===============  step4
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+
+sql select * from st;
+if $rows != 100 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

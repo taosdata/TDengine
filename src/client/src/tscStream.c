@@ -273,7 +273,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
     taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), false);
     tscFreeSqlResult(pSql);
-    taosTFree(pSql->pSubs);
+    tfree(pSql->pSubs);
     pSql->subState.numOfSub = 0;
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
@@ -617,6 +617,6 @@ void taos_close_stream(TAOS_STREAM *handle) {
     pStream->pSql = NULL;
 
     taos_free_result(pSql);
-    taosTFree(pStream);
+    tfree(pStream);
   }
 }

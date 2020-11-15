@@ -88,7 +88,7 @@ static char* offlineReason[] = {
 };
 
 static int32_t mnodeDnodeActionDestroy(SSdbOper *pOper) {
-  taosTFree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -584,7 +584,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT;
     }
 
-    mDebug("dnode:%d, from offline to online", pDnode->dnodeId);
+    mInfo("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     pDnode->offlineReason = TAOS_DN_OFF_ONLINE;
     balanceSyncNotify();
@@ -655,7 +655,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     int dnodeId = pDnode->dnodeId;
-    taosTFree(pDnode);
+    tfree(pDnode);
     mError("failed to create dnode:%d, reason:%s", dnodeId, tstrerror(code));
   } else {
     mLInfo("dnode:%d is created", pDnode->dnodeId);
