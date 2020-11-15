@@ -236,8 +236,8 @@ void taosCleanUpTcpServer(void *handle) {
 
   tDebug("%s TCP server is cleaned up", pServerObj->label);
 
-  taosTFree(pServerObj->pThreadObj);
-  taosTFree(pServerObj);
+  tfree(pServerObj->pThreadObj);
+  tfree(pServerObj);
 }
 
 static void *taosAcceptTcpConnection(void *arg) {
@@ -437,12 +437,13 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
   }
 
   msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
-  buffer = malloc(msgLen + tsRpcOverhead);
+  int32_t size = msgLen + tsRpcOverhead;
+  buffer = malloc(size);
   if (NULL == buffer) {
     tError("%s %p TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);
     return -1;
   } else {
-    tTrace("TCP malloc mem: %p", buffer);
+    tTrace("TCP malloc mem:%p size:%d", buffer, size);
   }
 
   msg = buffer + tsRpcOverhead;
@@ -534,7 +535,7 @@ static void *taosProcessTcpData(void *param) {
 
   pthread_mutex_destroy(&(pThreadObj->mutex));
   tDebug("%s TCP thread exits ...", pThreadObj->label);
-  taosTFree(pThreadObj);
+  tfree(pThreadObj);
 
   return NULL;
 }
@@ -555,7 +556,7 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, SOCKET fd) {
   event.events = EPOLLIN | EPOLLRDHUP;
   event.data.ptr = pFdObj;
   if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-    taosTFree(pFdObj);
+    tfree(pFdObj);
     terrno = TAOS_SYSTEM_ERROR(errno); 
     return NULL;
   }
@@ -608,5 +609,5 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
   tDebug("%s %p TCP connection is closed, FD:%p numOfFds:%d", 
           pThreadObj->label, pFdObj->thandle, pFdObj, pThreadObj->numOfFds);
 
-  taosTFree(pFdObj);
+  tfree(pFdObj);
 }

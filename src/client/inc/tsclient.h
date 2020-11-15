@@ -30,6 +30,7 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 #include "tcache.h"
+#include "tref.h"
 
 #include "qExecutor.h"
 #include "qSqlparser.h"
@@ -89,12 +90,12 @@ typedef struct STableComInfo {
   int32_t rowSize;
 } STableComInfo;
 
-typedef struct SCMCorVgroupInfo {
-  int32_t    version;
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddr1   epAddr[TSDB_MAX_REPLICA];
-} SCMCorVgroupInfo;
+typedef struct SCorVgroupInfo {
+  int32_t  version;
+  int8_t   inUse;
+  int8_t   numOfEps;
+  SEpAddr1 epAddr[TSDB_MAX_REPLICA];
+} SCorVgroupInfo;
 
 typedef struct STableMeta {
   STableComInfo  tableInfo;
@@ -102,8 +103,8 @@ typedef struct STableMeta {
   int16_t        sversion;
   int16_t        tversion;
   char           sTableId[TSDB_TABLE_FNAME_LEN];
-  SCMVgroupInfo  vgroupInfo;
-  SCMCorVgroupInfo  corVgroupInfo;
+  SVgroupInfo    vgroupInfo;
+  SCorVgroupInfo corVgroupInfo;
   STableId       id;
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
@@ -127,7 +128,7 @@ typedef struct STableMetaInfo {
 typedef struct SSqlExpr {
   char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
   SColIndex colInfo;
-  int64_t   uid;            // refactor use the pointer
+  uint64_t  uid;            // refactor use the pointer
   int16_t   functionId;     // function id in aAgg array
   int16_t   resType;        // return value type
   int16_t   resBytes;       // length of return value
@@ -329,6 +330,7 @@ typedef struct STscObj {
   char               writeAuth : 1;
   char               superAuth : 1;
   uint32_t           connId;
+  uint64_t           rid;      // ref ID returned by taosAddRef
   struct SSqlObj *   pHb;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
@@ -338,16 +340,16 @@ typedef struct STscObj {
 } STscObj;
 
 typedef struct SSubqueryState {
-  int32_t          numOfRemain;         // the number of remain unfinished subquery
-  int32_t          numOfSub;            // the number of total sub-queries
-  uint64_t         numOfRetrievedRows;  // total number of points in this query
+  int32_t  numOfRemain;         // the number of remain unfinished subquery
+  int32_t  numOfSub;            // the number of total sub-queries
+  uint64_t numOfRetrievedRows;  // total number of points in this query
 } SSubqueryState;
 
 typedef struct SSqlObj {
   void            *signature;
   pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
-  void            *pRpcCtx;
+  int64_t          rpcRid;
   void            (*fp)();
   void            (*fetchFp)();
   void            *param;
@@ -431,14 +433,6 @@ void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 void tscFreeSqlResult(SSqlObj *pSql);
 
 /**
- * only free part of resources allocated during query.
- * TODO remove it later
- * Note: this function is multi-thread safe.
- * @param pObj
- */
-void tscPartiallyFreeSqlObj(SSqlObj *pSql);
-
-/**
  * free sql object, release allocated resource
  * @param pObj
  */
@@ -446,7 +440,7 @@ void tscFreeSqlObj(SSqlObj *pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
 void tscFreeTableMetaHelper(void *pTableMeta);
 
-void tscCloseTscObj(STscObj *pObj);
+void tscCloseTscObj(void *pObj);
 
 // todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
@@ -516,12 +510,12 @@ extern void *    tscQhandle;
 extern int       tscKeepConn[];
 extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
+extern int       tscRefId;
   
 extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
-int32_t tscCompareTidTags(const void* p1, const void* p2);
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
 
 #ifdef __cplusplus

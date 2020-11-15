@@ -110,7 +110,7 @@ static char *mnodeGetShowType(int32_t showType) {
 }
 
 static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
-  SCMShowMsg *pShowMsg = pMsg->rpcMsg.pCont;
+  SShowMsg *pShowMsg = pMsg->rpcMsg.pCont;
   if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
     return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
@@ -132,8 +132,8 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
-  SCMShowRsp *pShowRsp = rpcMallocCont(size);
+  int32_t size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
+  SShowRsp *pShowRsp = rpcMallocCont(size);
   if (pShowRsp == NULL) {
     mnodeReleaseShowObj(pShow, true);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -146,7 +146,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
 
   if (code == TSDB_CODE_SUCCESS) {
     pMsg->rpcRsp.rsp = pShowRsp;
-    pMsg->rpcRsp.len = sizeof(SCMShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
+    pMsg->rpcRsp.len = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
     mnodeReleaseShowObj(pShow, false);
     return TSDB_CODE_SUCCESS;
   } else {
@@ -232,12 +232,17 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
-  SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
-  if (pHBRsp == NULL) {
+  SHeartBeatRsp *pRsp = (SHeartBeatRsp *)rpcMallocCont(sizeof(SHeartBeatRsp));
+  if (pRsp == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  SCMHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
+  SHeartBeatMsg *pHBMsg = pMsg->rpcMsg.pCont;
+  if (taosCheckVersion(pHBMsg->clientVer, version, 3) != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pRsp);
+    return TSDB_CODE_TSC_INVALID_VERSION;  // todo change the error code
+  }
+
   SRpcConnInfo connInfo = {0};
   rpcGetConnInfo(pMsg->rpcMsg.handle, &connInfo);
     
@@ -251,40 +256,40 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   if (pConn == NULL) {
     // do not close existing links, otherwise
     // mError("failed to create connId, close connect");
-    // pHBRsp->killConnection = 1;
+    // pRsp->killConnection = 1;
   } else {
-    pHBRsp->connId = htonl(pConn->connId);
+    pRsp->connId = htonl(pConn->connId);
     mnodeSaveQueryStreamList(pConn, pHBMsg);
     
     if (pConn->killed != 0) {
-      pHBRsp->killConnection = 1;
+      pRsp->killConnection = 1;
     }
 
     if (pConn->streamId != 0) {
-      pHBRsp->streamId = htonl(pConn->streamId);
+      pRsp->streamId = htonl(pConn->streamId);
       pConn->streamId = 0;
     }
 
     if (pConn->queryId != 0) {
-      pHBRsp->queryId = htonl(pConn->queryId);
+      pRsp->queryId = htonl(pConn->queryId);
       pConn->queryId = 0;
     }
   }
 
-  pHBRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
-  pHBRsp->totalDnodes = htonl(mnodeGetDnodesNum());
-  mnodeGetMnodeEpSetForShell(&pHBRsp->epSet);
+  pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
+  pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
+  mnodeGetMnodeEpSetForShell(&pRsp->epSet);
 
-  pMsg->rpcRsp.rsp = pHBRsp;
-  pMsg->rpcRsp.len = sizeof(SCMHeartBeatRsp);
-  
+  pMsg->rpcRsp.rsp = pRsp;
+  pMsg->rpcRsp.len = sizeof(SHeartBeatRsp);
+
   mnodeReleaseConn(pConn);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
-  SCMConnectMsg *pConnectMsg = pMsg->rpcMsg.pCont;
-  SCMConnectRsp *pConnectRsp = NULL;
+  SConnectMsg *pConnectMsg = pMsg->rpcMsg.pCont;
+  SConnectRsp *pConnectRsp = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
   SRpcConnInfo connInfo = {0};
@@ -320,7 +325,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
     mnodeDecDbRef(pDb);
   }
 
-  pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
+  pConnectRsp = rpcMallocCont(sizeof(SConnectRsp));
   if (pConnectRsp == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto connect_over;
@@ -349,14 +354,14 @@ connect_over:
   } else {
     mLInfo("user:%s login from %s, result:%s", connInfo.user, taosIpStr(connInfo.clientIp), tstrerror(code));
     pMsg->rpcRsp.rsp = pConnectRsp;
-    pMsg->rpcRsp.len = sizeof(SCMConnectRsp);
+    pMsg->rpcRsp.len = sizeof(SConnectRsp);
   }
 
   return code;
 }
 
 static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
-  SCMUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
+  SUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pUseDbMsg->db);
@@ -410,7 +415,7 @@ static void mnodeFreeShowObj(void *data) {
   sdbFreeIter(pShow->pIter);
 
   mDebug("%p, show is destroyed, data:%p index:%d", pShow, data, pShow->index);
-  taosTFree(pShow);
+  tfree(pShow);
 }
 
 static void mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove) {

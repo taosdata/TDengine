@@ -41,13 +41,13 @@ typedef struct {
   int8_t       status; 
   int8_t       role;   
   int8_t       accessState;
-  int64_t      version;   // current version 
-  int64_t      fversion;  // version on saved data file
+  uint64_t     version;   // current version 
+  uint64_t     fversion;  // version on saved data file
   void        *wqueue;
   void        *rqueue;
   void        *wal;
   void        *tsdb;
-  void        *sync;
+  int64_t      sync;
   void        *events;
   void        *cq;  // continuous query
   int32_t      cfgVersion;
@@ -61,8 +61,6 @@ typedef struct {
   char         db[TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
-int  vnodeWriteToQueue(void *param, void *pHead, int type);
-int  vnodeWriteCqMsgToQueue(void *param, void *pHead, int type);
 void vnodeInitWriteFp(void);
 void vnodeInitReadFp(void);
 

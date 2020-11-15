@@ -91,23 +91,23 @@ void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->numOfTotal   = 0;
 }
 
-void* taosDestoryFillInfo(SFillInfo* pFillInfo) {
+void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   if (pFillInfo == NULL) {
     return NULL;
   }
 
-  taosTFree(pFillInfo->prevValues);
-  taosTFree(pFillInfo->nextValues);
-  taosTFree(pFillInfo->pTags);
+  tfree(pFillInfo->prevValues);
+  tfree(pFillInfo->nextValues);
+  tfree(pFillInfo->pTags);
   
   for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    taosTFree(pFillInfo->pData[i]);
+    tfree(pFillInfo->pData[i]);
   }
   
-  taosTFree(pFillInfo->pData);
-  taosTFree(pFillInfo->pFillCol);
+  tfree(pFillInfo->pData);
+  tfree(pFillInfo->pFillCol);
   
-  taosTFree(pFillInfo);
+  tfree(pFillInfo);
   return NULL;
 }
 
@@ -170,7 +170,7 @@ int64_t getFilledNumOfRes(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows
   int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
 
   TSKEY ekey1 = ekey;
-  if (pFillInfo->order != TSDB_ORDER_ASC) {
+  if (!FILL_IS_ASC_FILL(pFillInfo)) {
     pFillInfo->endKey = taosTimeTruncate(ekey, &pFillInfo->interval, pFillInfo->precision);
   }
 
@@ -215,7 +215,7 @@ static double linearInterpolationImpl(double v1, double v2, double k1, double k2
   return v1 + (v2 - v1) * (k - k1) / (k2 - k1);
 }
 
-int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoint* point) {
+int32_t taosGetLinearInterpolationVal(int32_t type, SPoint* point1, SPoint* point2, SPoint* point) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       *(int32_t*)point->val = (int32_t)linearInterpolationImpl(*(int32_t*)point1->val, *(int32_t*)point2->val, (double)point1->key,
@@ -343,7 +343,7 @@ static void doFillResultImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t* nu
         point1 = (SPoint){.key = *(TSKEY*)(prevValues), .val = prevValues + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->rowIdx * bytes};
         point  = (SPoint){.key = pFillInfo->start, .val = val1};
-        taosDoLinearInterpolation(type, &point1, &point2, &point);
+        taosGetLinearInterpolationVal(type, &point1, &point2, &point);
       }
 
       setTagsValue(pFillInfo, data, *num);
@@ -496,7 +496,7 @@ int32_t generateDataBlockImpl(SFillInfo* pFillInfo, tFilePage** data, int32_t nu
           pFillInfo->numOfRows = 0;
 
           /* the raw data block is exhausted, next value does not exists */
-          taosTFree(*nextValues);
+          tfree(*nextValues);
         }
 
         pFillInfo->numOfTotal += pFillInfo->numOfCurrent;

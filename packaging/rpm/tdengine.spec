@@ -2,7 +2,7 @@
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
 
-Name:		TDengine
+Name:		tdengine
 Version:	%{_version}
 Release:	3%{?dist}
 Summary:	tdengine from taosdata
@@ -58,6 +58,7 @@ cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/scri
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
+#cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
@@ -65,7 +66,7 @@ cp -r %{_compiledir}/../src/connector/grafanaplugin %{buildroot}%{homepath}/conn
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
-cp %{_compiledir}/build/lib/taos-jdbcdriver*dist.*  %{buildroot}%{homepath}/connector
+cp %{_compiledir}/build/lib/taos-jdbcdriver*dist.*  %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
 
 #Scripts executed before installation
@@ -134,6 +135,7 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${bin_link_dir}/taos       || :
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
+    #${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h     || :

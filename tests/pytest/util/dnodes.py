@@ -15,6 +15,7 @@ import sys
 import os
 import os.path
 import subprocess
+from time import sleep
 from util.log import *
 
 
@@ -210,6 +211,7 @@ class TDDnode:
             (self.index, self.cfgPath))
 
     def getBuildPath(self):
+        buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -256,6 +258,35 @@ class TDDnode:
 
         tdLog.debug("wait 5 seconds for the dnode:%d to start." % (self.index))
         time.sleep(5)
+    
+    def startWithoutSleep(self):
+        buildPath = self.getBuildPath()
+
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+
+        binPath = buildPath + "/build/bin/taosd"
+
+        if self.deployed == 0:
+            tdLog.exit("dnode:%d is not deployed" % (self.index))
+
+        if self.valgrind == 0:
+            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                binPath, self.cfgDir)
+        else:
+            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+
+            cmd = "nohup %s %s -c %s 2>&1 & " % (
+                valgrindCmdline, binPath, self.cfgDir)
+
+            print(cmd)
+
+        if os.system(cmd) != 0:
+            tdLog.exit(cmd)
+        self.running = 1
+        tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
         if self.valgrind == 0:
@@ -425,6 +456,10 @@ class TDDnodes:
     def start(self, index):
         self.check(index)
         self.dnodes[index - 1].start()
+    
+    def startWithoutSleep(self, index):
+        self.check(index)
+        self.dnodes[index - 1].startWithoutSleep()
 
     def stop(self, index):
         self.check(index)

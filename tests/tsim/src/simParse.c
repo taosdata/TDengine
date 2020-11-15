@@ -57,6 +57,7 @@
  *
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "sim.h"
 #include "simParse.h"
@@ -64,16 +65,16 @@
 #undef TAOS_MEM_CHECK
 
 static SCommand *cmdHashList[MAX_NUM_CMD];
-static SCmdLine cmdLine[MAX_CMD_LINES];
-static char parseErr[MAX_ERROR_LEN];
-static char optionBuffer[MAX_OPTION_BUFFER];
-static int numOfLines, optionOffset;
-static SLabel label, dest;
-static SBlock block;
+static SCmdLine  cmdLine[MAX_CMD_LINES];
+static char      parseErr[MAX_ERROR_LEN];
+static char      optionBuffer[MAX_OPTION_BUFFER];
+static int32_t   numOfLines, optionOffset;
+static SLabel    label, dest;
+static SBlock    block;
 
-int simHashCmd(char *token, int tokenLen) {
-  int i;
-  int hash = 0;
+int32_t simHashCmd(char *token, int32_t tokenLen) {
+  int32_t i;
+  int32_t hash = 0;
 
   for (i = 0; i < tokenLen; ++i) hash += token[i];
 
@@ -82,8 +83,8 @@ int simHashCmd(char *token, int tokenLen) {
   return hash;
 }
 
-SCommand *simCheckCmd(char *token, int tokenLen) {
-  int hash;
+SCommand *simCheckCmd(char *token, int32_t tokenLen) {
+  int32_t   hash;
   SCommand *node;
 
   hash = simHashCmd(token, tokenLen);
@@ -102,10 +103,10 @@ SCommand *simCheckCmd(char *token, int tokenLen) {
 }
 
 void simAddCmdIntoHash(SCommand *pCmd) {
-  int hash;
+  int32_t   hash;
   SCommand *node;
 
-  hash = simHashCmd(pCmd->name, (int)strlen(pCmd->name));
+  hash = simHashCmd(pCmd->name, (int32_t)strlen(pCmd->name));
   node = cmdHashList[hash];
   pCmd->next = node;
   cmdHashList[hash] = pCmd;
@@ -122,7 +123,7 @@ void simResetParser() {
 }
 
 SScript *simBuildScriptObj(char *fileName) {
-  int i, destPos;
+  int32_t i, destPos;
 
   /* process labels */
 
@@ -176,11 +177,11 @@ SScript *simBuildScriptObj(char *fileName) {
 }
 
 SScript *simParseScript(char *fileName) {
-  FILE *fd;
-  int tokenLen, lineNum = 0;
-  char buffer[MAX_LINE_LEN], name[128], *token, *rest;
+  FILE *    fd;
+  int32_t   tokenLen, lineNum = 0;
+  char      buffer[MAX_LINE_LEN], name[128], *token, *rest;
   SCommand *pCmd;
-  SScript *script;
+  SScript * script;
 
   if ((fileName[0] == '.') || (fileName[0] == '/')) {
     strcpy(name, fileName);
@@ -199,12 +200,13 @@ SScript *simParseScript(char *fileName) {
     if (fgets(buffer, sizeof(buffer), fd) == NULL) continue;
 
     lineNum++;
-    int cmdlen = (int)strlen(buffer);
-    if (buffer[cmdlen - 1] == '\r' || buffer[cmdlen - 1] == '\n')
+    int32_t cmdlen = (int32_t)strlen(buffer);
+    if (buffer[cmdlen - 1] == '\r' || buffer[cmdlen - 1] == '\n') {
       buffer[cmdlen - 1] = 0;
+    }
     rest = buffer;
 
-    for (int i = 0; i < cmdlen; ++i) {
+    for (int32_t i = 0; i < cmdlen; ++i) {
       if (buffer[i] == '\r' || buffer[i] == '\n') {
         buffer[i] = ' ';
       }
@@ -249,9 +251,9 @@ SScript *simParseScript(char *fileName) {
   return script;
 }
 
-int simCheckExpression(char *exp) {
-  char *op1, *op2, *op, *rest;
-  int op1Len, op2Len, opLen;
+int32_t simCheckExpression(char *exp) {
+  char *  op1, *op2, *op, *rest;
+  int32_t op1Len, op2Len, opLen;
 
   rest = paGetToken(exp, &op1, &op1Len);
   if (op1Len == 0) {
@@ -282,8 +284,7 @@ int simCheckExpression(char *exp) {
       return -1;
     }
   } else if (opLen == 2) {
-    if (op[1] != '=' ||
-        (op[0] != '=' && op[0] != '<' && op[0] != '>' && op[0] != '!')) {
+    if (op[1] != '=' || (op[0] != '=' && op[0] != '<' && op[0] != '>' && op[0] != '!')) {
       sprintf(parseErr, "left side of assignment must be variable");
       return -1;
     }
@@ -294,10 +295,10 @@ int simCheckExpression(char *exp) {
 
   rest = paGetToken(rest, &op, &opLen);
 
-  if (opLen == 0) return (int)(rest - exp);
+  if (opLen == 0) return (int32_t)(rest - exp);
 
   /* if it is key word "then" */
-  if (strncmp(op, "then", 4) == 0) return (int)(op - exp);
+  if (strncmp(op, "then", 4) == 0) return (int32_t)(op - exp);
 
   rest = paGetToken(rest, &op2, &op2Len);
   if (op2Len == 0) {
@@ -310,16 +311,15 @@ int simCheckExpression(char *exp) {
     return -1;
   }
 
-  if (op[0] == '+' || op[0] == '-' || op[0] == '*' || op[0] == '/' ||
-      op[0] == '.') {
-    return (int)(rest - exp);
+  if (op[0] == '+' || op[0] == '-' || op[0] == '*' || op[0] == '/' || op[0] == '.') {
+    return (int32_t)(rest - exp);
   }
 
   return -1;
 }
 
-bool simParseExpression(char *token, int lineNum) {
-  int expLen;
+bool simParseExpression(char *token, int32_t lineNum) {
+  int32_t expLen;
 
   expLen = simCheckExpression(token);
   if (expLen <= 0) return -1;
@@ -335,9 +335,9 @@ bool simParseExpression(char *token, int lineNum) {
   return true;
 }
 
-bool simParseIfCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *ret;
-  int expLen;
+bool simParseIfCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  ret;
+  int32_t expLen;
 
   expLen = simCheckExpression(rest);
 
@@ -364,8 +364,8 @@ bool simParseIfCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseElifCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int expLen;
+bool simParseElifCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t expLen;
 
   expLen = simCheckExpression(rest);
 
@@ -382,8 +382,7 @@ bool simParseElifCmd(char *rest, SCommand *pCmd, int lineNum) {
   }
 
   cmdLine[numOfLines].cmdno = SIM_CMD_GOTO;
-  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] =
-      &(cmdLine[numOfLines].jump);
+  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] = &(cmdLine[numOfLines].jump);
   block.numJump[block.top - 1]++;
 
   numOfLines++;
@@ -402,7 +401,7 @@ bool simParseElifCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseElseCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseElseCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   if (block.top < 1) {
     sprintf(parseErr, "no matching if");
     return false;
@@ -414,8 +413,7 @@ bool simParseElseCmd(char *rest, SCommand *pCmd, int lineNum) {
   }
 
   cmdLine[numOfLines].cmdno = SIM_CMD_GOTO;
-  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] =
-      &(cmdLine[numOfLines].jump);
+  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] = &(cmdLine[numOfLines].jump);
   block.numJump[block.top - 1]++;
 
   numOfLines++;
@@ -426,8 +424,8 @@ bool simParseElseCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseEndiCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int i;
+bool simParseEndiCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t i;
 
   if (block.top < 1) {
     sprintf(parseErr, "no matching if");
@@ -441,8 +439,9 @@ bool simParseEndiCmd(char *rest, SCommand *pCmd, int lineNum) {
 
   if (block.pos[block.top - 1]) *(block.pos[block.top - 1]) = numOfLines;
 
-  for (i = 0; i < block.numJump[block.top - 1]; ++i)
+  for (i = 0; i < block.numJump[block.top - 1]; ++i) {
     *(block.jump[block.top - 1][i]) = numOfLines;
+  }
 
   block.numJump[block.top - 1] = 0;
   block.top--;
@@ -450,8 +449,8 @@ bool simParseEndiCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseWhileCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int expLen;
+bool simParseWhileCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t expLen;
 
   expLen = simCheckExpression(rest);
 
@@ -473,8 +472,8 @@ bool simParseWhileCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseEndwCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int i;
+bool simParseEndwCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t i;
 
   if (block.top < 1) {
     sprintf(parseErr, "no matching while");
@@ -493,17 +492,18 @@ bool simParseEndwCmd(char *rest, SCommand *pCmd, int lineNum) {
 
   *(block.pos[block.top - 1]) = numOfLines;
 
-  for (i = 0; i < block.numJump[block.top - 1]; ++i)
+  for (i = 0; i < block.numJump[block.top - 1]; ++i) {
     *(block.jump[block.top - 1][i]) = numOfLines;
+  }
 
   block.top--;
 
   return true;
 }
 
-bool simParseSwitchCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *token;
-  int tokenLen;
+bool simParseSwitchCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  token;
+  int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
   if (tokenLen == 0) {
@@ -524,9 +524,9 @@ bool simParseSwitchCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseCaseCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *token;
-  int tokenLen;
+bool simParseCaseCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  token;
+  int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
   if (tokenLen == 0) {
@@ -544,16 +544,16 @@ bool simParseCaseCmd(char *rest, SCommand *pCmd, int lineNum) {
     return false;
   }
 
-  if (block.pos[block.top - 1] != NULL)
+  if (block.pos[block.top - 1] != NULL) {
     *(block.pos[block.top - 1]) = numOfLines;
+  }
 
   block.pos[block.top - 1] = &(cmdLine[numOfLines].jump);
 
   cmdLine[numOfLines].cmdno = SIM_CMD_TEST;
   cmdLine[numOfLines].lineNum = lineNum;
   cmdLine[numOfLines].optionOffset = optionOffset;
-  memcpy(optionBuffer + optionOffset, block.sexp[block.top - 1],
-         block.sexpLen[block.top - 1]);
+  memcpy(optionBuffer + optionOffset, block.sexp[block.top - 1], block.sexpLen[block.top - 1]);
   optionOffset += block.sexpLen[block.top - 1];
   *(optionBuffer + optionOffset++) = ' ';
   *(optionBuffer + optionOffset++) = '=';
@@ -567,20 +567,18 @@ bool simParseCaseCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseBreakCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseBreakCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   if (block.top < 1) {
     sprintf(parseErr, "no blcok exists");
     return false;
   }
 
-  if (block.type[block.top - 1] != BLOCK_SWITCH &&
-      block.type[block.top - 1] != BLOCK_WHILE) {
+  if (block.type[block.top - 1] != BLOCK_SWITCH && block.type[block.top - 1] != BLOCK_WHILE) {
     sprintf(parseErr, "not in switch or while block");
     return false;
   }
 
-  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] =
-      &(cmdLine[numOfLines].jump);
+  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] = &(cmdLine[numOfLines].jump);
   block.numJump[block.top - 1]++;
 
   cmdLine[numOfLines].cmdno = SIM_CMD_GOTO;
@@ -590,7 +588,7 @@ bool simParseBreakCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseDefaultCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseDefaultCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   if (block.top < 1) {
     sprintf(parseErr, "no matching switch");
     return false;
@@ -601,14 +599,15 @@ bool simParseDefaultCmd(char *rest, SCommand *pCmd, int lineNum) {
     return false;
   }
 
-  if (block.pos[block.top - 1] != NULL)
+  if (block.pos[block.top - 1] != NULL) {
     *(block.pos[block.top - 1]) = numOfLines;
+  }
 
   return true;
 }
 
-bool simParseEndsCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int i;
+bool simParseEndsCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t i;
 
   if (block.top < 1) {
     sprintf(parseErr, "no matching switch");
@@ -620,8 +619,9 @@ bool simParseEndsCmd(char *rest, SCommand *pCmd, int lineNum) {
     return false;
   }
 
-  for (i = 0; i < block.numJump[block.top - 1]; ++i)
+  for (i = 0; i < block.numJump[block.top - 1]; ++i) {
     *(block.jump[block.top - 1][i]) = numOfLines;
+  }
 
   block.numJump[block.top - 1] = 0;
   block.top--;
@@ -629,7 +629,7 @@ bool simParseEndsCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseContinueCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseContinueCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   if (block.top < 1) {
     sprintf(parseErr, "no matching while");
     return false;
@@ -648,14 +648,14 @@ bool simParseContinueCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParsePrintCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int expLen;
+bool simParsePrintCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t expLen;
 
   rest++;
   cmdLine[numOfLines].cmdno = SIM_CMD_PRINT;
   cmdLine[numOfLines].lineNum = lineNum;
   cmdLine[numOfLines].optionOffset = optionOffset;
-  expLen = (int)strlen(rest);
+  expLen = (int32_t)strlen(rest);
   memcpy(optionBuffer + optionOffset, rest, expLen);
   optionOffset += expLen + 1;
   *(optionBuffer + optionOffset - 1) = 0;
@@ -665,8 +665,8 @@ bool simParsePrintCmd(char *rest, SCommand *pCmd, int lineNum) {
 }
 
 void simCheckSqlOption(char *rest) {
-  int valueLen;
-  char *value, *xpos;
+  int32_t valueLen;
+  char *  value, *xpos;
 
   xpos = strstr(rest, " -x");  // need a blank
   if (xpos) {
@@ -682,15 +682,15 @@ void simCheckSqlOption(char *rest) {
   }
 }
 
-bool simParseSqlCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int expLen;
+bool simParseSqlCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t expLen;
 
   rest++;
   simCheckSqlOption(rest);
   cmdLine[numOfLines].cmdno = SIM_CMD_SQL;
   cmdLine[numOfLines].lineNum = lineNum;
   cmdLine[numOfLines].optionOffset = optionOffset;
-  expLen = (int)strlen(rest);
+  expLen = (int32_t)strlen(rest);
   memcpy(optionBuffer + optionOffset, rest, expLen);
   optionOffset += expLen + 1;
   *(optionBuffer + optionOffset - 1) = 0;
@@ -699,14 +699,14 @@ bool simParseSqlCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseSqlErrorCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int expLen;
+bool simParseSqlErrorCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t expLen;
 
   rest++;
   cmdLine[numOfLines].cmdno = SIM_CMD_SQL_ERROR;
   cmdLine[numOfLines].lineNum = lineNum;
   cmdLine[numOfLines].optionOffset = optionOffset;
-  expLen = (int)strlen(rest);
+  expLen = (int32_t)strlen(rest);
   memcpy(optionBuffer + optionOffset, rest, expLen);
   optionOffset += expLen + 1;
   *(optionBuffer + optionOffset - 1) = 0;
@@ -715,26 +715,26 @@ bool simParseSqlErrorCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseSqlSlowCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseSqlSlowCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   simParseSqlCmd(rest, pCmd, lineNum);
   cmdLine[numOfLines - 1].cmdno = SIM_CMD_SQL_SLOW;
   return true;
 }
 
-bool simParseRestfulCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseRestfulCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   simParseSqlCmd(rest, pCmd, lineNum);
   cmdLine[numOfLines - 1].cmdno = SIM_CMD_RESTFUL;
   return true;
 }
 
-bool simParseSystemCmd(char *rest, SCommand *pCmd, int lineNum) {
-  int expLen;
+bool simParseSystemCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  int32_t expLen;
 
   rest++;
   cmdLine[numOfLines].cmdno = SIM_CMD_SYSTEM;
   cmdLine[numOfLines].lineNum = lineNum;
   cmdLine[numOfLines].optionOffset = optionOffset;
-  expLen = (int)strlen(rest);
+  expLen = (int32_t)strlen(rest);
   memcpy(optionBuffer + optionOffset, rest, expLen);
   optionOffset += expLen + 1;
   *(optionBuffer + optionOffset - 1) = 0;
@@ -743,15 +743,15 @@ bool simParseSystemCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseSystemContentCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseSystemContentCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   simParseSystemCmd(rest, pCmd, lineNum);
   cmdLine[numOfLines - 1].cmdno = SIM_CMD_SYSTEM_CONTENT;
   return true;
 }
 
-bool simParseSleepCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *token;
-  int tokenLen;
+bool simParseSleepCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  token;
+  int32_t tokenLen;
 
   cmdLine[numOfLines].cmdno = SIM_CMD_SLEEP;
   cmdLine[numOfLines].lineNum = lineNum;
@@ -768,9 +768,9 @@ bool simParseSleepCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseReturnCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *token;
-  int tokenLen;
+bool simParseReturnCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  token;
+  int32_t tokenLen;
 
   cmdLine[numOfLines].cmdno = SIM_CMD_RETURN;
   cmdLine[numOfLines].lineNum = lineNum;
@@ -787,9 +787,9 @@ bool simParseReturnCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseGotoCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *token;
-  int tokenLen;
+bool simParseGotoCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  token;
+  int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
 
@@ -810,9 +810,9 @@ bool simParseGotoCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseRunCmd(char *rest, SCommand *pCmd, int lineNum) {
-  char *token;
-  int tokenLen;
+bool simParseRunCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char *  token;
+  int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
 
@@ -832,14 +832,14 @@ bool simParseRunCmd(char *rest, SCommand *pCmd, int lineNum) {
   return true;
 }
 
-bool simParseRunBackCmd(char *rest, SCommand *pCmd, int lineNum) {
+bool simParseRunBackCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   simParseRunCmd(rest, pCmd, lineNum);
   cmdLine[numOfLines - 1].cmdno = SIM_CMD_RUN_BACK;
   return true;
 }
 
 void simInitsimCmdList() {
-  int cmdno;
+  int32_t cmdno;
   memset(simCmdList, 0, SIM_CMD_END * sizeof(SCommand));
 
   /* internal command */

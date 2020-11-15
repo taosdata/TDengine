@@ -163,7 +163,7 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
-    if (pRepo->commit) pthread_join(pRepo->commitThread, NULL);
+    sem_wait(&(pRepo->readyToCommit));
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);
@@ -228,7 +228,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   int   prefixLen = (int)strlen(prefix);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    taosTFree(sdup);
+    tfree(sdup);
     int fid = (*index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
@@ -260,8 +260,8 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     fname = malloc(prefixLen + strlen(name) + 2);
     sprintf(fname, "%s/%s", prefix, name);
     if (access(fname, F_OK) != 0) {
-      taosFree(fname);
-      taosFree(sdup);
+      tfree(fname);
+      tfree(sdup);
       return 0;
     }
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
@@ -269,20 +269,20 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
     } else {
       tsdbGetFileInfoImpl(fname, &magic, size);
     }
-    taosFree(fname);
-    taosFree(sdup);
+    tfree(fname);
+    tfree(sdup);
     return magic;
   }
 
   if (stat(fname, &fState) < 0) {
-    taosTFree(fname);
+    tfree(fname);
     return 0;
   }
 
   *size = fState.st_size;
   // magic = *size;
 
-  taosTFree(fname);
+  tfree(fname);
   return magic;
 }
 
@@ -512,6 +512,9 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
     }
   }
 
+  // update check
+  if (pCfg->update != 0) pCfg->update = 1;
+
   return 0;
 
 _err:
@@ -579,7 +582,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
 
-  if (taosTWrite(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosWrite(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", pCfg->tsdbId, TSDB_FILE_HEAD_SIZE, fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -597,7 +600,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
   return 0;
 
 _err:
-  taosTFree(fname);
+  tfree(fname);
   if (fd >= 0) close(fd);
   return -1;
 }
@@ -620,7 +623,7 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  if (taosTRead(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosRead(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to read %d bytes from file %s since %s", TSDB_FILE_HEAD_SIZE, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -634,13 +637,13 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
 
   tsdbDecodeCfg(buf, pCfg);
 
-  taosTFree(fname);
+  tfree(fname);
   close(fd);
 
   return 0;
 
 _err:
-  taosTFree(fname);
+  tfree(fname);
   if (fd >= 0) close(fd);
   return -1;
 }
@@ -667,6 +670,12 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
   pRepo->state = TSDB_STATE_OK;
 
   int code = pthread_mutex_init(&pRepo->mutex, NULL);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
+
+  code = sem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
@@ -715,7 +724,8 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
-    taosTFree(pRepo->rootDir);
+    tfree(pRepo->rootDir);
+    sem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
   }
@@ -762,7 +772,7 @@ static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY
       return -1;
     }
 
-    if (tsdbInsertRowToMem(pRepo, row, pTable) < 0) return -1;
+    if (tsdbUpdateRowInMem(pRepo, row, pTable) < 0) return -1;
 
     (*affectedrows)++;
     points++;
@@ -923,6 +933,7 @@ static int tsdbEncodeCfg(void **buf, STsdbCfg *pCfg) {
   tlen += taosEncodeVariantI32(buf, pCfg->maxRowsPerFileBlock);
   tlen += taosEncodeFixedI8(buf, pCfg->precision);
   tlen += taosEncodeFixedI8(buf, pCfg->compression);
+  tlen += taosEncodeFixedI8(buf, pCfg->update);
 
   return tlen;
 }
@@ -939,6 +950,7 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
   buf = taosDecodeVariantI32(buf, &(pCfg->maxRowsPerFileBlock));
   buf = taosDecodeFixedI8(buf, &(pCfg->precision));
   buf = taosDecodeFixedI8(buf, &(pCfg->compression));
+  buf = taosDecodeFixedI8(buf, &(pCfg->update));
 
   return buf;
 }

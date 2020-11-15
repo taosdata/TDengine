@@ -15,11 +15,16 @@
 
 #include "os.h"
 #include "taosdef.h"
+#include "taosmsg.h"
 #include "taoserror.h"
 #include "tulog.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tsocket.h"
+#include "trpc.h"
+#include "rpcHead.h"
+#include "tutil.h"
+#include "tnettest.h"
 
 #define    MAX_PKG_LEN          (64*1000)
 #define    BUFFER_SIZE          (MAX_PKG_LEN + 1024)
@@ -30,9 +35,15 @@ typedef struct {
   uint16_t pktLen;
 } info_s;
 
-static char serverFqdn[TSDB_FQDN_LEN];
+extern int tsRpcMaxUdpSize;
+
+static char g_user[TSDB_USER_LEN+1]     = {0};
+static char g_pass[TSDB_PASSWORD_LEN+1] = {0};
+static char g_serverFqdn[TSDB_FQDN_LEN] = {0};
 static uint16_t g_startPort = 0;
 static uint16_t g_endPort   = 6042;
+static uint32_t g_pktLen    = 0;
+
 
 static void *bindUdpPort(void *sarg) {
   info_s *pinfo = (info_s *)sarg;
@@ -321,19 +332,145 @@ static void checkPort(uint32_t hostIp, uint16_t startPort, uint16_t maxPort, uin
   return ;
 }
 
-static void taosNetTestClient(const char* serverFqdn, uint16_t startPort, uint16_t endPort, int pktLen) {
-  uint32_t serverIp = taosGetIpFromFqdn(serverFqdn);
+void* tnetInitRpc(char* secretEncrypt, char spi) {
+  SRpcInit rpcInit;
+  void* pRpcConn = NULL;
+
+  taosEncryptPass((uint8_t *)g_pass, strlen(g_pass), secretEncrypt);
+      
+  memset(&rpcInit, 0, sizeof(rpcInit));
+  rpcInit.localPort = 0;
+  rpcInit.label = "NET-TEST";
+  rpcInit.numOfThreads = 1;  // every DB connection has only one thread
+  rpcInit.cfp = NULL;
+  rpcInit.sessions = 16;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.user = g_user;
+  rpcInit.idleTime = 2000;
+  rpcInit.ckey = "key";
+  rpcInit.spi = spi;
+  rpcInit.secret = secretEncrypt;
+
+  pRpcConn = rpcOpen(&rpcInit);
+  return pRpcConn;
+}
+
+static int rpcCheckPortImpl(const char* serverFqdn, uint16_t port, uint16_t pktLen, char spi) {  
+  SRpcEpSet epSet;
+  SRpcMsg   reqMsg;
+  SRpcMsg   rspMsg;
+  void*     pRpcConn;
+
+  char secretEncrypt[32] = {0};
+
+  pRpcConn = tnetInitRpc(secretEncrypt, spi);
+  if (NULL == pRpcConn) {
+    return -1;
+  }
+
+  memset(&epSet, 0, sizeof(SRpcEpSet));
+  epSet.inUse = 0;
+  epSet.numOfEps = 1;
+  epSet.port[0] = port;
+  strcpy(epSet.fqdn[0], serverFqdn);
+  
+  reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
+  reqMsg.pCont = rpcMallocCont(pktLen);
+  reqMsg.contLen = pktLen;
+  reqMsg.code = 0;
+  reqMsg.handle = NULL;   // rpc handle returned to app
+  reqMsg.ahandle = NULL;   // app handle set by client
+
+  rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
+
+  // handle response
+  if ((rspMsg.code != 0) || (rspMsg.msgType != TSDB_MSG_TYPE_NETWORK_TEST + 1)) {
+    //printf("code:%d[%s]\n", rspMsg.code, tstrerror(rspMsg.code));
+    return -1;
+  }
+  
+  rpcFreeCont(rspMsg.pCont);
+
+  rpcClose(pRpcConn);
+
+  return 0;
+}
+
+static void rpcCheckPort(uint32_t hostIp) {
+  int ret;
+  char spi;
+
+  for (uint16_t port = g_startPort; port <= g_endPort; port++) {
+    //printf("test: %s:%d\n", info.host, port);
+    printf("\n");
+
+    //================ check tcp port ================ 
+    int32_t pktLen;
+    if (g_pktLen <= tsRpcMaxUdpSize) {
+      pktLen = tsRpcMaxUdpSize + 1000;
+    } else {
+      pktLen = g_pktLen;
+    }
+
+    spi = 1;
+    ret = rpcCheckPortImpl(g_serverFqdn, port, pktLen, spi);
+    if (ret != 0) {
+      spi = 0;
+      ret = rpcCheckPortImpl(g_serverFqdn, port, pktLen, spi);
+      if (ret != 0) {        
+        printf("TCP port:%d test fail.\t\t", port);
+      } else {
+        //printf("tcp port:%d test ok.\t\t", port);
+        printf("TCP port:\033[32m%d test OK\033[0m\t\t", port);
+      }      
+    } else {
+      //printf("tcp port:%d test ok.\t\t", port);
+      printf("TCP port:\033[32m%d test OK\033[0m\t\t", port);
+    }
+
+    //================ check udp port ================ 
+    if (g_pktLen >= tsRpcMaxUdpSize) {
+      pktLen = tsRpcMaxUdpSize - 1000;
+    } else {
+      pktLen = g_pktLen;
+    }
+    
+    spi = 0;
+    ret = rpcCheckPortImpl(g_serverFqdn, port, pktLen, spi);
+    if (ret != 0) {
+      spi = 1;
+      ret = rpcCheckPortImpl(g_serverFqdn, port, pktLen, spi);
+      if (ret != 0) {        
+        printf("udp port:%d test fail.\t\n", port);
+      } else {
+        //printf("udp port:%d test ok.\t\n", port);
+        printf("UDP port:\033[32m%d test OK\033[0m\t\n", port);
+      }      
+    } else {
+      //printf("udp port:%d test ok.\t\n", port);
+      printf("UDP port:\033[32m%d test OK\033[0m\t\n", port);
+    }
+  }
+  
+  printf("\n");
+  return ;
+}
+
+static void taosNetTestClient(int flag) {
+  uint32_t serverIp = taosGetIpFromFqdn(g_serverFqdn);
   if (serverIp == 0xFFFFFFFF) {
-    printf("Failed to resolve FQDN:%s", serverFqdn); 
+    printf("Failed to resolve FQDN:%s", g_serverFqdn); 
     exit(-1);
   }
 
-  checkPort(serverIp, startPort, endPort, pktLen);
-
+  if (0 == flag) {
+    checkPort(serverIp, g_startPort, g_endPort, g_pktLen);
+  } else {
+    rpcCheckPort(serverIp);
+  }
+  
   return;
 }
-
-
 
 static void taosNetTestServer(uint16_t startPort, uint16_t endPort, int pktLen) {
 
@@ -375,49 +512,66 @@ static void taosNetTestServer(uint16_t startPort, uint16_t endPort, int pktLen) 
 }
 
 
-void taosNetTest(const char* host, uint16_t port, uint16_t endPort, int pktLen, const char* netTestRole) {
-  if (pktLen > MAX_PKG_LEN) {
-    printf("test packet len overflow: %d, max len not greater than %d bytes\n", pktLen, MAX_PKG_LEN);
-    exit(-1);
+void taosNetTest(CmdArguments *args) {
+  if (0 == args->pktLen) {
+    g_pktLen = 1000;
+  } else {
+    g_pktLen = args->pktLen;
   }
   
-  if (port && endPort) {
-    if (port > endPort) {
-      printf("endPort[%d] must not lesss port[%d]\n", endPort, port);
+  if (args->port && args->endPort) {
+    if (args->port > args->endPort) {
+      printf("endPort[%d] must not lesss port[%d]\n", args->endPort, args->port);
       exit(-1);
     }
   }  
  
-  if (host && host[0] != 0) {
-    if (strlen(host) >= TSDB_EP_LEN) {
-      printf("host invalid: %s\n", host);
+  if (args->host && args->host[0] != 0) {
+    if (strlen(args->host) >= TSDB_EP_LEN) {
+      printf("host invalid: %s\n", args->host);
       exit(-1);
     }
 
-    taosGetFqdnPortFromEp(host, serverFqdn, &g_startPort);
+    taosGetFqdnPortFromEp(args->host, g_serverFqdn, &g_startPort);
   } else {
-    tstrncpy(serverFqdn, "127.0.0.1", TSDB_IPv4ADDR_LEN);    
+    tstrncpy(g_serverFqdn, "127.0.0.1", TSDB_IPv4ADDR_LEN);    
     g_startPort = tsServerPort;
   }
   
-  if (port) {
-    g_startPort = port;
+  if (args->port) {
+    g_startPort = args->port;
   }
   
-  if (endPort) {
-    g_endPort = endPort;
+  if (args->endPort) {
+    g_endPort = args->endPort;
   }
   
-  if (port > endPort) {
+  if (g_startPort > g_endPort) {
     printf("endPort[%d] must not lesss port[%d]\n", g_endPort, g_startPort);
     exit(-1);
   }
+
   
-  if (0 == strcmp("client", netTestRole)) {
-    printf("host: %s\tstart port: %d\tend port: %d\tpacket len: %d\n", serverFqdn, g_startPort, g_endPort, pktLen);
-    taosNetTestClient(serverFqdn, g_startPort, g_endPort, pktLen);
-  } else if (0 == strcmp("server", netTestRole)) {
-    taosNetTestServer(g_startPort, g_endPort, pktLen);
+  if (args->is_use_passwd) {
+    if (args->password == NULL) args->password = getpass("Enter password: ");
+  } else {
+    args->password = TSDB_DEFAULT_PASS;
+  }
+  tstrncpy(g_pass, args->password, TSDB_PASSWORD_LEN);
+
+  if (args->user == NULL) {
+    args->user = TSDB_DEFAULT_USER;
+  }
+  tstrncpy(g_user, args->user, TSDB_USER_LEN);
+  
+  if (0 == strcmp("client", args->netTestRole)) {
+    printf("host: %s\tstart port: %d\tend port: %d\tpacket len: %d\n", g_serverFqdn, g_startPort, g_endPort, g_pktLen);
+    taosNetTestClient(0);
+  } else if (0 == strcmp("clients", args->netTestRole)) {
+    printf("host: %s\tstart port: %d\tend port: %d\tpacket len: %d\n", g_serverFqdn, g_startPort, g_endPort, g_pktLen);
+    taosNetTestClient(1);
+  } else if (0 == strcmp("server", args->netTestRole)) {
+    taosNetTestServer(g_startPort, g_endPort, g_pktLen);
   }
 }
 

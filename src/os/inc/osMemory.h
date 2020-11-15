@@ -31,6 +31,7 @@ typedef enum {
 void   taosSetAllocMode(int mode, const char *path, bool autoDump);
 void   taosDumpMemoryLeak();
 
+// used in tsdb module
 void * taosTMalloc(size_t size);
 void * taosTCalloc(size_t nmemb, size_t size);
 void * taosTRealloc(void *ptr, size_t size);
@@ -38,7 +39,14 @@ void   taosTZfree(void *ptr);
 size_t taosTSizeof(void *ptr);
 void   taosTMemset(void *ptr, int c);
 
-#define taosTFree(x)     \
+// used in other module
+#define tmalloc(size) malloc(size)
+#define tcalloc(num, size) calloc(num, size)
+#define trealloc(ptr, size) realloc(ptr, size)
+#define tstrdup(str) taosStrdupImp(str)
+#define tstrndup(str, size) taosStrndupImp(str, size)
+#define tgetline(lineptr, n, stream) taosGetlineImp(lineptr, n, stream)
+#define tfree(x)         \
   do {                   \
     if (x) {             \
       free((void *)(x)); \
@@ -46,37 +54,30 @@ void   taosTMemset(void *ptr, int c);
     }                    \
   } while (0);
 
-#define taosMalloc(size) malloc(size)
-#define taosCalloc(num, size) calloc(num, size)
-#define taosRealloc(ptr, size) realloc(ptr, size)
-#define taosFree(ptr) free(ptr)
-#define taosStrdup(str) taosStrdupImp(str)
-#define taosStrndup(str, size) taosStrndupImp(str, size)
-#define taosGetline(lineptr, n, stream) taosGetlineImp(lineptr, n, stream)
-
 #ifdef TAOS_MEM_CHECK
   #ifdef TAOS_MEM_CHECK_TEST
-    void *  taos_malloc(size_t size, const char *file, uint32_t line);
-    void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
-    void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
-    void    taos_free(void *ptr, const char *file, uint32_t line);
-    char *  taos_strdup(const char *str, const char *file, uint32_t line);
-    char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
-    ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
-    #undef taosMalloc
-    #undef taosCalloc
-    #undef taosRealloc
-    #undef taosFree
-    #undef taosStrdup
-    #undef taosStrndup
-    #undef taosGetline
-    #define taosMalloc(size) taos_malloc(size, __FILE__, __LINE__)
-    #define taosCalloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
-    #define taosRealloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
-    #define taosFree(ptr) taos_free(ptr, __FILE__, __LINE__)
-    //#define taosStrdup(str) taos_strdup(str, __FILE__, __LINE__)
-    //#define taosStrndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
-    //#define taosGetline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
+    void *  taosMallocMem(size_t size, const char *file, uint32_t line);
+    void *  taosCallocMem(size_t num, size_t size, const char *file, uint32_t line);
+    void *  taosReallocMem(void *ptr, size_t size, const char *file, uint32_t line);
+    void    taosFreeMem(void *ptr, const char *file, uint32_t line);
+    char *  taosStrdupMem(const char *str, const char *file, uint32_t line);
+    char *  taosStrndupMem(const char *str, size_t size, const char *file, uint32_t line);
+    ssize_t taosGetlineMem(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
+    #undef tmalloc
+    #undef tcalloc
+    #undef trealloc
+    #undef tfree
+    #define tmalloc(size) taosMallocMem(size, __FILE__, __LINE__)
+    #define tcalloc(num, size) taosCallocMem(num, size, __FILE__, __LINE__)
+    #define trealloc(ptr, size) taosReallocMem(ptr, size, __FILE__, __LINE__)
+    #define tfree(ptr) taosFreeMem(ptr, __FILE__, __LINE__) 
+    
+    // #undef tstrdup
+    // #undef tstrndup
+    // #undef tgetline
+    // #define taosStrdup(str) taos_strdup(str, __FILE__, __LINE__)
+    // #define taosStrndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
+    // #define tgetline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
   #endif  
 #endif 
 

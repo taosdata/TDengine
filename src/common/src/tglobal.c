@@ -45,19 +45,21 @@ int32_t  tsEnableTelemetryReporting = 1;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 
 // common
-int32_t tsRpcTimer = 1000;
-int32_t tsRpcMaxTime = 600;  // seconds;
-int32_t tsMaxShellConns = 5000;
+int32_t tsRpcTimer       = 1000;
+int32_t tsRpcMaxTime     = 600;  // seconds;
+int32_t tsMaxShellConns  = 5000;
 int32_t tsMaxConnections = 5000;
-int32_t tsShellActivityTimer = 3;  // second
-float   tsNumOfThreadsPerCore = 1.0;
-float   tsRatioOfQueryThreads = 0.5;
-int8_t  tsDaylight = 0;
+int32_t tsShellActivityTimer  = 3;  // second
+float   tsNumOfThreadsPerCore = 1.0f;
+int32_t tsNumOfCommitThreads = 1;
+float   tsRatioOfQueryThreads = 0.5f;
+int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int32_t tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+char    tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -99,6 +101,12 @@ float tsStreamComputDelayRatio = 0.1f;
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
+// the maximum allowed query buffer size during query processing for each data node.
+// -1 no limit (default)
+// 0  no query allowed, queries are disabled
+// positive value (in MB)
+int32_t tsQueryBufferSize = -1;
+
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
 int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
@@ -113,6 +121,7 @@ int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
+int32_t tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
@@ -209,6 +218,8 @@ int32_t cqDebugFlag = 135;
 int32_t (*monitorStartSystemFp)() = NULL;
 void (*monitorStopSystemFp)() = NULL;
 void (*monitorExecuteSQLFp)(char *sql) = NULL;
+
+char *qtypeStr[] = {"rpc", "fwd", "wal", "cq", "query"};
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
@@ -412,6 +423,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 10;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "numOfCommitThreads";
+  cfg.ptr = &tsNumOfCommitThreads;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 1;
+  cfg.maxValue = 100;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -676,7 +697,7 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = TSDB_MIN_CACHE_BLOCK_SIZE;
   cfg.maxValue = TSDB_MAX_CACHE_BLOCK_SIZE;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_Mb;
+  cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
 
   cfg.option = "blocks";
@@ -779,6 +800,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "update";
+  cfg.ptr = &tsUpdate;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_UPDATE;
+  cfg.maxValue = TSDB_MAX_DB_UPDATE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "mqttHostName";
   cfg.ptr = tsMqttHostName;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
@@ -837,6 +868,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "queryBufferSize";
+  cfg.ptr = &tsQueryBufferSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -1;
+  cfg.maxValue = 500000000000.0f;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
   // locale & charset
@@ -1294,13 +1335,23 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+  cfg.option = "tempDir";
+  cfg.ptr = tsTempDir;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsTempDir);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
 }
 
 void taosInitGlobalCfg() {
   pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig);
 }
 
-bool taosCheckGlobalCfg() {
+int32_t taosCheckGlobalCfg() {
   char fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
@@ -1359,7 +1410,9 @@ bool taosCheckGlobalCfg() {
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
-  return true;
+  taosPrintGlobalCfg();
+
+  return 0;
 }
 
 int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {

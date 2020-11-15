@@ -326,6 +326,7 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
   return 0;
 }
 
+// TODO move to comm module
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
   if (versionStr == NULL || versionNubmer == NULL) {
     return false;
@@ -376,7 +377,8 @@ int taosCheckVersion(char *input_client_version, char *input_server_version, int
 
   for(int32_t i = 0; i < comparedSegments; ++i) {
     if (clientVersionNumber[i] != serverVersionNumber[i]) {
-      uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version, version);
+      uError("the %d-th number of server version:%s not matched with client version:%s", i, server_version,
+             client_version);
       return TSDB_CODE_TSC_INVALID_VERSION;
     }
   }

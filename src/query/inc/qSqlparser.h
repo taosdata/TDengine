@@ -129,6 +129,7 @@ typedef struct SCreateDBInfo {
   int32_t   compressionLevel;
   SStrToken precision;
   bool      ignoreExists;
+  int8_t    update; 
   
   tVariantList *keep;
 } SCreateDBInfo;
@@ -222,13 +223,6 @@ typedef struct tSQLExprList {
   int32_t       nAlloc; /* Number of entries allocated below */
   tSQLExprItem *a;      /* One entry for each expression */
 } tSQLExprList;
-
-typedef struct tSQLExprListList {
-  int32_t        nList;  /* Number of expressions on the list */
-  int32_t        nAlloc; /* Number of entries allocated below */
-  tSQLExprList **a;      /* one entry for each row */
-} tSQLExprListList;
-
 
 /**
  *

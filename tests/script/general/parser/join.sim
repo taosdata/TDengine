@@ -24,7 +24,7 @@ $mt = $mtPrefix . $i
 
 $tstart = 100000
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db keep 36500
 sql use $db
@@ -443,6 +443,9 @@ $val = 100
 if $rows != $val then
   return -1
 endi
+
+#===============================================================
+sql select first(join_tb0.c8),first(join_tb0.c9) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true
 
 #====================group by=========================================
 

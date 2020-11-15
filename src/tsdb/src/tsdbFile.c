@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #define _DEFAULT_SOURCE
-#include <regex.h>
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
+#include <regex.h>
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
@@ -67,7 +65,7 @@ _err:
 void tsdbFreeFileH(STsdbFileH *pFileH) {
   if (pFileH) {
     pthread_rwlock_destroy(&pFileH->fhlock);
-    taosTFree(pFileH->pFGroup);
+    tfree(pFileH->pFGroup);
     free(pFileH);
   }
 }
@@ -79,7 +77,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   DIR *   dir = NULL;
   int     fid = 0;
   int     vid = 0;
-  regex_t regex1, regex2;
+  regex_t regex1 = {0}, regex2 = {0};
   int     code = 0;
   char    fname[TSDB_FILENAME_LEN] = "\0";
 
@@ -95,9 +93,27 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
 
   dir = opendir(tDataDir);
   if (dir == NULL) {
-    tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
+    if (errno == ENOENT) {
+      tsdbError("vgId:%d directory %s not exist", REPO_ID(pRepo), tDataDir);
+      terrno = TAOS_SYSTEM_ERROR(errno);
+
+      if (taosMkDir(tDataDir, 0755) < 0) {
+        tsdbError("vgId:%d failed to create directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        goto _err;
+      }
+
+      dir = opendir(tDataDir);
+      if (dir == NULL) {
+        tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        goto _err;
+      }
+    } else {
+      tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), tDataDir, strerror(errno));
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
   }
 
   code = regcomp(&regex1, "^v[0-9]+f[0-9]+\\.(head|data|last|stat)$", REG_EXTENDED);
@@ -183,7 +199,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
 
   regfree(&regex1);
   regfree(&regex2);
-  taosTFree(tDataDir);
+  tfree(tDataDir);
   closedir(dir);
   return 0;
 
@@ -193,7 +209,7 @@ _err:
   regfree(&regex1);
   regfree(&regex2);
 
-  taosTFree(tDataDir);
+  tfree(tDataDir);
   if (dir != NULL) closedir(dir);
   tsdbCloseFileH(pRepo);
   return -1;
@@ -410,7 +426,7 @@ int tsdbUpdateFileHeader(SFile *pFile) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-  if (taosTWrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosWrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -475,7 +491,7 @@ int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
     return -1;
   }
 
-  if (taosTRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     tsdbError("failed to read file %s header part with %d bytes, reason:%s", pFile->fname, TSDB_FILE_HEAD_SIZE,
               strerror(errno));
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;

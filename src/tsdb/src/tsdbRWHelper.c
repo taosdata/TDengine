@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #define TAOS_RANDOM_FILE_FAIL_TEST
-
 #include "os.h"
 #include "talgo.h"
 #include "tchecksum.h"
@@ -27,6 +25,7 @@
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 #define TSDB_KEY_COL_OFFSET 0
 #define TSDB_GET_COMPBLOCK_IDX(h, b) (POINTER_DISTANCE(b, (h)->pCompInfo->blocks)/sizeof(SCompBlock))
+#define TSDB_IS_LAST_BLOCK(pb) ((pb)->last)
 
 static bool tsdbShouldCreateNewLast(SRWHelper *pHelper);
 static int  tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDataCols, SCompBlock *pCompBlock,
@@ -34,7 +33,7 @@ static int  tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pD
 static int  compareKeyBlock(const void *arg1, const void *arg2);
 static int  tsdbAdjustInfoSizeIfNeeded(SRWHelper *pHelper, size_t esize);
 static int  tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
-static int  tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded);
+static int  tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, SMergeInfo *pMergeInfo);
 static int  tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx);
 static void tsdbResetHelperFileImpl(SRWHelper *pHelper);
 static int  tsdbInitHelperFile(SRWHelper *pHelper);
@@ -61,8 +60,10 @@ static int   tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pComp
 static int   tsdbWriteBlockToProperFile(SRWHelper *pHelper, SDataCols *pDataCols, SCompBlock *pCompBlock);
 static int   tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols *pDataCols, TSKEY maxKey,
                                     int *blkIdx);
-static int   tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
-                                       TSKEY maxKey, int maxRows);
+static void  tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
+                                       TSKEY maxKey, int maxRows, int8_t update);
+static bool  tsdbCheckAddSubBlockCond(SRWHelper *pHelper, SCompBlock *pCompBlock, SMergeInfo *pMergeInfo, int maxOps);
+static int   tsdbDeleteSuperBlock(SRWHelper *pHelper, int blkIdx);
 
 // ---------------------- INTERNAL FUNCTIONS ----------------------
 int tsdbInitReadHelper(SRWHelper *pHelper, STsdbRepo *pRepo) {
@@ -279,7 +280,7 @@ int tsdbCommitTableData(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols 
   while (true) {
     ASSERT(blkIdx <= (int)pIdx->numOfBlocks);
     TSKEY keyFirst = tsdbNextIterKey(pCommitIter->pIter);
-    if (keyFirst < 0 || keyFirst > maxKey) break;  // iter over
+    if (keyFirst == TSDB_DATA_TIMESTAMP_NULL || keyFirst > maxKey) break;  // iter over
 
     if (pIdx->len <= 0 || keyFirst > pIdx->maxKey) {
       if (tsdbProcessAppendCommit(pHelper, pCommitIter, pDataCols, maxKey) < 0) return -1;
@@ -335,7 +336,7 @@ int tsdbMoveLastBlockIfNeccessary(SRWHelper *pHelper) {
         return -1;
       }
 
-      if (taosTSendFile(helperNewLastF(pHelper)->fd, helperLastF(pHelper)->fd, NULL, pCompBlock->len) < pCompBlock->len) {
+      if (taosSendFile(helperNewLastF(pHelper)->fd, helperLastF(pHelper)->fd, NULL, pCompBlock->len) < pCompBlock->len) {
         tsdbError("vgId:%d failed to sendfile from file %s to file %s since %s", REPO_ID(pHelper->pRepo),
                   helperLastF(pHelper)->fname, helperNewLastF(pHelper)->fname, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -380,7 +381,7 @@ int tsdbWriteCompInfo(SRWHelper *pHelper) {
     pIdx->tid = pHelper->tableInfo.tid;
     ASSERT(pIdx->offset >= TSDB_FILE_HEAD_SIZE);
 
-    if (taosTWrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < (int)pIdx->len) {
+    if (taosWrite(pFile->fd, (void *)(pHelper->pCompInfo), pIdx->len) < (int)pIdx->len) {
       tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pIdx->len,
                 pFile->fname, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -432,7 +433,7 @@ int tsdbWriteCompIdx(SRWHelper *pHelper) {
 
   ASSERT(offset == pFile->info.size);
 
-  if (taosTWrite(pFile->fd, (void *)pHelper->pWIdx, pFile->info.len) < (int)pFile->info.len) {
+  if (taosWrite(pFile->fd, (void *)pHelper->pWIdx, pFile->info.len) < (int)pFile->info.len) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(pHelper->pRepo), pFile->info.len,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -454,7 +455,7 @@ int tsdbLoadCompIdxImpl(SFile *pFile, uint32_t offset, uint32_t len, void *buffe
     return -1;
   }
 
-  if (taosTRead(pFile->fd, buffer, len) < len) {
+  if (taosRead(pFile->fd, buffer, len) < len) {
     tsdbError("%s: read file %s offset %u len %u failed since %s", prefixMsg, pFile->fname, offset, len,
               strerror(errno));
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
@@ -551,7 +552,7 @@ int tsdbLoadCompInfoImpl(SFile *pFile, SCompIdx *pIdx, SCompInfo **ppCompInfo) {
     return -1;
   }
 
-  if (taosTRead(pFile->fd, (void *)(*ppCompInfo), pIdx->len) < (int)pIdx->len) {
+  if (taosRead(pFile->fd, (void *)(*ppCompInfo), pIdx->len) < (int)pIdx->len) {
     tsdbError("%s: read file %s offset %u len %u failed since %s", prefixMsg, pFile->fname, pIdx->offset, pIdx->len,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -608,7 +609,7 @@ int tsdbLoadCompData(SRWHelper *pHelper, SCompBlock *pCompBlock, void *target) {
     return -1;
   }
 
-  if (taosTRead(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
+  if (taosRead(pFile->fd, (void *)pHelper->pCompData, tsize) < tsize) {
     tsdbError("vgId:%d failed to read %" PRIzu " bytes from file %s since %s", REPO_ID(pHelper->pRepo), tsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -823,7 +824,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
                                        sizeof(TSCKSUM));
 
   // Write the whole block to file
-  if (taosTWrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
+  if (taosWrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
     tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(helperRepo(pHelper)), lsize, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -925,7 +926,7 @@ _err:
   return -1;
 }
 
-static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, int rowsAdded) {
+static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkIdx, SMergeInfo *pMergeInfo) {
   ASSERT(pCompBlock->numOfSubBlocks == 0);
 
   SCompIdx *pIdx = &(pHelper->curCompIdx);
@@ -958,9 +959,9 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     pSCompBlock->numOfSubBlocks++;
     ASSERT(pSCompBlock->numOfSubBlocks <= TSDB_MAX_SUBBLOCKS);
     pSCompBlock->len += sizeof(SCompBlock);
-    pSCompBlock->numOfRows += rowsAdded;
-    pSCompBlock->keyFirst = MIN(pSCompBlock->keyFirst, pCompBlock->keyFirst);
-    pSCompBlock->keyLast = MAX(pSCompBlock->keyLast, pCompBlock->keyLast);
+    pSCompBlock->numOfRows = pSCompBlock->numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed;
+    pSCompBlock->keyFirst = pMergeInfo->keyFirst;
+    pSCompBlock->keyLast = pMergeInfo->keyLast;
     pIdx->len += sizeof(SCompBlock);
   } else {  // Need to create two sub-blocks
     void *ptr = NULL;
@@ -989,11 +990,11 @@ static int tsdbAddSubBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int blkId
     ((SCompBlock *)ptr)[1] = *pCompBlock;
 
     pSCompBlock->numOfSubBlocks = 2;
-    pSCompBlock->numOfRows += rowsAdded;
+    pSCompBlock->numOfRows = pSCompBlock->numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed;
     pSCompBlock->offset = ((char *)ptr) - ((char *)pHelper->pCompInfo);
     pSCompBlock->len = sizeof(SCompBlock) * 2;
-    pSCompBlock->keyFirst = MIN(((SCompBlock *)ptr)[0].keyFirst, ((SCompBlock *)ptr)[1].keyFirst);
-    pSCompBlock->keyLast = MAX(((SCompBlock *)ptr)[0].keyLast, ((SCompBlock *)ptr)[1].keyLast);
+    pSCompBlock->keyFirst = pMergeInfo->keyFirst;
+    pSCompBlock->keyLast = pMergeInfo->keyLast;
 
     pIdx->len += (sizeof(SCompBlock) * 2);
   }
@@ -1043,6 +1044,45 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   tsdbDebug("vgId:%d tid:%d a super block is updated at index %d", REPO_ID(pHelper->pRepo), pHelper->tableInfo.tid,
             blkIdx);
+
+  return 0;
+}
+
+static int tsdbDeleteSuperBlock(SRWHelper *pHelper, int blkIdx) {
+  SCompIdx *pCompIdx = &(pHelper->curCompIdx);
+
+  ASSERT(pCompIdx->numOfBlocks > 0 && blkIdx < pCompIdx->numOfBlocks);
+
+  SCompBlock *pCompBlock= blockAtIdx(pHelper, blkIdx);
+  SCompBlock  compBlock = *pCompBlock;
+  ASSERT(pCompBlock->numOfSubBlocks > 0 && pCompBlock->numOfSubBlocks <= TSDB_MAX_SUBBLOCKS);
+
+  if (pCompIdx->numOfBlocks == 1) {
+    memset(pCompIdx, 0, sizeof(*pCompIdx));
+  } else {
+    int tsize = 0;
+
+    if (compBlock.numOfSubBlocks > 1) {
+      tsize = (int)(pCompIdx->len - (compBlock.offset + sizeof(SCompBlock) * compBlock.numOfSubBlocks));
+
+      ASSERT(tsize > 0);
+      memmove(POINTER_SHIFT(pHelper->pCompInfo, compBlock.offset),
+              POINTER_SHIFT(pHelper->pCompInfo, compBlock.offset + sizeof(SCompBlock) * compBlock.numOfSubBlocks),
+              tsize);
+
+      pCompIdx->len = pCompIdx->len - sizeof(SCompBlock) * compBlock.numOfSubBlocks;
+    }
+
+    tsize = (int)(pCompIdx->len - POINTER_DISTANCE(blockAtIdx(pHelper, blkIdx + 1), pHelper->pCompInfo));
+    ASSERT(tsize > 0);
+    memmove((void *)blockAtIdx(pHelper, blkIdx), (void *)blockAtIdx(pHelper, blkIdx + 1), tsize);
+
+    pCompIdx->len -= sizeof(SCompBlock);
+
+    pCompIdx->numOfBlocks--;
+    pCompIdx->hasLast = (uint32_t)(blockAtIdx(pHelper, pCompIdx->numOfBlocks - 1)->last);
+    pCompIdx->maxKey = blockAtIdx(pHelper, pCompIdx->numOfBlocks - 1)->keyLast;
+  }
 
   return 0;
 }
@@ -1210,7 +1250,7 @@ static int tsdbLoadColData(SRWHelper *pHelper, SFile *pFile, SCompBlock *pCompBl
     return -1;
   }
 
-  if (taosTRead(pFile->fd, pHelper->pBuffer, pCompCol->len) < pCompCol->len) {
+  if (taosRead(pFile->fd, pHelper->pBuffer, pCompCol->len) < pCompCol->len) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pCompCol->len, pFile->fname,
               strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1325,7 +1365,7 @@ static int tsdbLoadBlockDataImpl(SRWHelper *pHelper, SCompBlock *pCompBlock, SDa
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  if (taosTRead(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) {
+  if (taosRead(fd, (void *)pCompData, pCompBlock->len) < pCompBlock->len) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pHelper->pRepo), pCompBlock->len,
               pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1439,51 +1479,62 @@ static void *tsdbDecodeSCompIdx(void *buf, SCompIdx *pIdx) {
 }
 
 static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols *pDataCols, TSKEY maxKey) {
-  STsdbCfg * pCfg = &(pHelper->pRepo->config);
-  STable *   pTable = pCommitIter->pTable;
-  SCompIdx * pIdx = &(pHelper->curCompIdx);
-  TSKEY      keyFirst = tsdbNextIterKey(pCommitIter->pIter);
-  int        defaultRowsInBlock = pCfg->maxRowsPerFileBlock * 4 / 5;
-  SCompBlock compBlock = {0};
+  STsdbCfg *  pCfg = &(pHelper->pRepo->config);
+  STable *    pTable = pCommitIter->pTable;
+  SCompIdx *  pIdx = &(pHelper->curCompIdx);
+  TSKEY       keyFirst = tsdbNextIterKey(pCommitIter->pIter);
+  int         defaultRowsInBlock = pCfg->maxRowsPerFileBlock * 4 / 5;
+  SCompBlock  compBlock = {0};
+  SMergeInfo  mergeInfo = {0};
+  SMergeInfo *pMergeInfo = &mergeInfo;
 
   ASSERT(pIdx->len <= 0 || keyFirst > pIdx->maxKey);
   if (pIdx->hasLast) {  // append to with last block
     ASSERT(pIdx->len > 0);
     SCompBlock *pCompBlock = blockAtIdx(pHelper, pIdx->numOfBlocks - 1);
     ASSERT(pCompBlock->last && pCompBlock->numOfRows < pCfg->minRowsPerFileBlock);
-    tdResetDataCols(pDataCols);
-    int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, defaultRowsInBlock - pCompBlock->numOfRows,
-                                         pDataCols, NULL, 0);
-    ASSERT(rowsRead > 0 && rowsRead == pDataCols->numOfRows);
-    if (rowsRead + pCompBlock->numOfRows < pCfg->minRowsPerFileBlock &&
-        pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && !TSDB_NLAST_FILE_OPENED(pHelper)) {
-      if (tsdbWriteBlockToFile(pHelper, helperLastF(pHelper), pDataCols, &compBlock, true, false) < 0) return -1;
-      if (tsdbAddSubBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1, rowsRead) < 0) return -1;
-    } else {
-      if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
-      ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows);
+    tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, defaultRowsInBlock - pCompBlock->numOfRows, pDataCols,
+                          NULL, 0, pCfg->update, pMergeInfo);
 
-      if (tdMergeDataCols(pHelper->pDataCols[0], pDataCols, pDataCols->numOfRows) < 0) return -1;
-      ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows + pDataCols->numOfRows);
+    ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);
 
-      if (tsdbWriteBlockToProperFile(pHelper, pHelper->pDataCols[0], &compBlock) < 0) return -1;
-      if (tsdbUpdateSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1) < 0) return -1;
+    if (pDataCols->numOfRows > 0) {
+      ASSERT((pMergeInfo->keyFirst == dataColsKeyFirst(pDataCols)) && (pMergeInfo->keyLast == dataColsKeyLast(pDataCols)));
+
+      if (pDataCols->numOfRows + pCompBlock->numOfRows < pCfg->minRowsPerFileBlock &&
+          pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && !TSDB_NLAST_FILE_OPENED(pHelper)) {
+        if (tsdbWriteBlockToFile(pHelper, helperLastF(pHelper), pDataCols, &compBlock, true, false) < 0) return -1;
+        pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, pCompBlock->keyFirst);
+        pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, pCompBlock->keyLast);
+        if (tsdbAddSubBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1, pMergeInfo) < 0) return -1;
+      } else {
+        if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
+        ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows);
+
+        if (tdMergeDataCols(pHelper->pDataCols[0], pDataCols, pDataCols->numOfRows) < 0) return -1;
+        ASSERT(pHelper->pDataCols[0]->numOfRows == pCompBlock->numOfRows + pDataCols->numOfRows);
+
+        if (tsdbWriteBlockToProperFile(pHelper, pHelper->pDataCols[0], &compBlock) < 0) return -1;
+        if (tsdbUpdateSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks - 1) < 0) return -1;
+      }
+
+      if (pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
     }
-
-    if (pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
   } else {
     ASSERT(!pHelper->hasOldLastBlock);
-    tdResetDataCols(pDataCols);
-    int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, defaultRowsInBlock, pDataCols, NULL, 0);
-    ASSERT(rowsRead > 0 && rowsRead == pDataCols->numOfRows);
+    tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, defaultRowsInBlock, pDataCols, NULL, 0, pCfg->update, pMergeInfo);
+    ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);
 
-    if (tsdbWriteBlockToProperFile(pHelper, pDataCols, &compBlock) < 0) return -1;
-    if (tsdbInsertSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks) < 0) return -1;
+    if (pDataCols->numOfRows > 0) {
+      ASSERT((pMergeInfo->keyFirst == dataColsKeyFirst(pDataCols)) && (pMergeInfo->keyLast == dataColsKeyLast(pDataCols)));
+      if (tsdbWriteBlockToProperFile(pHelper, pDataCols, &compBlock) < 0) return -1;
+      if (tsdbInsertSuperBlock(pHelper, &compBlock, pIdx->numOfBlocks) < 0) return -1;
+    }
   }
 
 #ifndef NDEBUG
   TSKEY keyNext = tsdbNextIterKey(pCommitIter->pIter);
-  ASSERT(keyNext < 0 || keyNext > pIdx->maxKey);
+  ASSERT(keyNext == TSDB_DATA_TIMESTAMP_NULL || keyNext > pIdx->maxKey);
 #endif
 
   return 0;
@@ -1491,13 +1542,16 @@ static int tsdbProcessAppendCommit(SRWHelper *pHelper, SCommitIter *pCommitIter,
 
 static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, SDataCols *pDataCols, TSKEY maxKey,
                                   int *blkIdx) {
-  STsdbCfg * pCfg = &(pHelper->pRepo->config);
-  STable *   pTable = pCommitIter->pTable;
-  SCompIdx * pIdx = &(pHelper->curCompIdx);
-  SCompBlock compBlock = {0};
-  TSKEY      keyFirst = tsdbNextIterKey(pCommitIter->pIter);
-  int        defaultRowsInBlock = pCfg->maxRowsPerFileBlock * 4 / 5;
-  SDataCols *pDataCols0 = pHelper->pDataCols[0];
+  STsdbCfg *  pCfg = &(pHelper->pRepo->config);
+  STable *    pTable = pCommitIter->pTable;
+  SCompIdx *  pIdx = &(pHelper->curCompIdx);
+  SCompBlock  compBlock = {0};
+  TSKEY       keyFirst = tsdbNextIterKey(pCommitIter->pIter);
+  int         defaultRowsInBlock = pCfg->maxRowsPerFileBlock * 4 / 5;
+  SDataCols * pDataCols0 = pHelper->pDataCols[0];
+  SMergeInfo  mergeInfo = {0};
+  SMergeInfo *pMergeInfo = &mergeInfo;
+  SCompBlock  oBlock = {0};
 
   SSkipListIterator slIter = {0};
 
@@ -1507,123 +1561,82 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
                                        pIdx->numOfBlocks - *blkIdx, sizeof(SCompBlock), compareKeyBlock, TD_GE);
   ASSERT(pCompBlock != NULL);
   int tblkIdx = (int32_t)(TSDB_GET_COMPBLOCK_IDX(pHelper, pCompBlock));
+  oBlock = *pCompBlock;
 
-  if (pCompBlock->last) {
-    ASSERT(pCompBlock->numOfRows < pCfg->minRowsPerFileBlock && tblkIdx == pIdx->numOfBlocks - 1);
-    int16_t colId = 0;
-    slIter = *(pCommitIter->pIter);
-    if (tsdbLoadBlockDataCols(pHelper, pCompBlock, NULL, &colId, 1) < 0) return -1;
-    ASSERT(pDataCols0->numOfRows == pCompBlock->numOfRows);
+  ASSERT((!TSDB_IS_LAST_BLOCK(&oBlock)) || (tblkIdx == pIdx->numOfBlocks - 1));
 
-    int rows1 = defaultRowsInBlock - pCompBlock->numOfRows;
-    int rows2 =
-        tsdbLoadDataFromCache(pTable, &slIter, maxKey, rows1, NULL, pDataCols0->cols[0].pData, pDataCols0->numOfRows);
-    if (rows2 == 0) {  // all data filtered out
-      *(pCommitIter->pIter) = slIter;
-    } else {
-      if (pCompBlock->numOfRows + rows2 < pCfg->minRowsPerFileBlock &&
-          pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && !TSDB_NLAST_FILE_OPENED(pHelper)) {
-        tdResetDataCols(pDataCols);
-        int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, maxKey, rows1, pDataCols,
-                                             pDataCols0->cols[0].pData, pDataCols0->numOfRows);
-        ASSERT(rowsRead == rows2 && rowsRead == pDataCols->numOfRows);
-        if (tsdbWriteBlockToFile(pHelper, helperLastF(pHelper), pDataCols, &compBlock, true, false) < 0) return -1;
-        if (tsdbAddSubBlock(pHelper, &compBlock, tblkIdx, rowsRead) < 0) return -1;
-        tblkIdx++;
-      } else {
-        if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
-        int round = 0;
-        int dIter = 0;
-        while (true) {
-          tdResetDataCols(pDataCols);
-          int rowsRead =
-              tsdbLoadAndMergeFromCache(pDataCols0, &dIter, pCommitIter, pDataCols, maxKey, defaultRowsInBlock);
-          if (rowsRead == 0) break;
+  if ((!TSDB_IS_LAST_BLOCK(&oBlock)) && keyFirst < pCompBlock->keyFirst) {
+    while (true) {
+      tsdbLoadDataFromCache(pTable, pCommitIter->pIter, oBlock.keyFirst-1, defaultRowsInBlock, pDataCols, NULL, 0,
+                            pCfg->update, pMergeInfo);
+      ASSERT(pMergeInfo->rowsInserted == pMergeInfo->nOperations && pMergeInfo->nOperations == pDataCols->numOfRows);
+      if (pDataCols->numOfRows == 0) break;
 
-          if (tsdbWriteBlockToProperFile(pHelper, pDataCols, &compBlock) < 0) return -1;
-          if (round == 0) {
-            if (tsdbUpdateSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
-          } else {
-            if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
-          }
-
-          tblkIdx++;
-          round++;
-        }
-      }
-      if (pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
+      if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, true) < 0) return -1;
+      if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
+      tblkIdx++;
     }
+    ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) == TSDB_DATA_TIMESTAMP_NULL ||
+                            tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
   } else {
-    TSKEY keyLimit = (tblkIdx == pIdx->numOfBlocks - 1) ? maxKey : (pCompBlock[1].keyFirst - 1);
-    TSKEY blkKeyFirst = pCompBlock->keyFirst;
-    TSKEY blkKeyLast = pCompBlock->keyLast;
+    int16_t colId = 0;
+    if (tsdbLoadBlockDataCols(pHelper, &oBlock, NULL, &colId, 1) < 0) return -1;
 
-    if (keyFirst < blkKeyFirst) {
-      while (true) {
-        tdResetDataCols(pDataCols);
-        int rowsRead =
-            tsdbLoadDataFromCache(pTable, pCommitIter->pIter, blkKeyFirst - 1, defaultRowsInBlock, pDataCols, NULL, 0);
-        if (rowsRead == 0) break;
+    TSKEY keyLimit = (tblkIdx == pIdx->numOfBlocks - 1) ? maxKey : (blockAtIdx(pHelper, tblkIdx + 1)->keyFirst - 1);
 
-        ASSERT(rowsRead == pDataCols->numOfRows);
-        if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, true) < 0) return -1;
-        if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
-        tblkIdx++;
+    slIter = *(pCommitIter->pIter);
+    tsdbLoadDataFromCache(pTable, &slIter, keyLimit, INT_MAX, NULL, pDataCols0->cols[0].pData, pDataCols0->numOfRows,
+                          pCfg->update, pMergeInfo);
+
+    if (pMergeInfo->nOperations == 0) {
+      // Do nothing
+      ASSERT(pMergeInfo->rowsDeleteFailed >= 0);
+      *(pCommitIter->pIter) = slIter;
+      tblkIdx++;
+    } else if (oBlock.numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed == 0) {
+      // Delete the block and do some stuff
+      ASSERT(pMergeInfo->keyFirst == INT64_MAX && pMergeInfo->keyFirst == INT64_MIN);
+      if (tsdbDeleteSuperBlock(pHelper, tblkIdx) < 0) return -1;
+      *pCommitIter->pIter = slIter;
+      if (oBlock.last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
+    } else if (tsdbCheckAddSubBlockCond(pHelper, &oBlock, pMergeInfo, pDataCols->maxPoints)) {
+      // Append as a sub-block of the searched block
+      tsdbLoadDataFromCache(pTable, pCommitIter->pIter, keyLimit, INT_MAX, pDataCols, pDataCols0->cols[0].pData,
+                            pDataCols0->numOfRows, pCfg->update, pMergeInfo);
+      ASSERT(memcmp(pCommitIter->pIter, &slIter, sizeof(slIter)) == 0);
+      if (tsdbWriteBlockToFile(pHelper, oBlock.last ? helperLastF(pHelper) : helperDataF(pHelper), pDataCols,
+                               &compBlock, oBlock.last, false) < 0) {
+        return -1;
       }
-      ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
-                              tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
+      if (tsdbAddSubBlock(pHelper, &compBlock, tblkIdx, pMergeInfo) < 0) {
+        return -1;
+      }
+      tblkIdx++;
     } else {
-      ASSERT(keyFirst <= blkKeyLast);
-      int16_t colId = 0;
-      if (tsdbLoadBlockDataCols(pHelper, pCompBlock, NULL, &colId, 1) < 0) return -1;
+      // load the block data, merge with the memory data
+      if (tsdbLoadBlockData(pHelper, &oBlock, NULL) < 0) return -1;
+      int round = 0;
+      int dIter = 0;
+      while (true) {
+        tsdbLoadAndMergeFromCache(pDataCols0, &dIter, pCommitIter, pDataCols, keyLimit, defaultRowsInBlock,
+                                  pCfg->update);
 
-      slIter = *(pCommitIter->pIter);
-      int rows1 = (pCfg->maxRowsPerFileBlock - pCompBlock->numOfRows);
-      int rows2 = tsdbLoadDataFromCache(pTable, &slIter, blkKeyLast, INT_MAX, NULL, pDataCols0->cols[0].pData,
-                                        pDataCols0->numOfRows);
-
-      if (rows2 == 0) {  // all filtered out
-        *(pCommitIter->pIter) = slIter;
-        ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
-                                tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
-      } else {
-        int rows3 = tsdbLoadDataFromCache(pTable, &slIter, keyLimit, INT_MAX, NULL, NULL, 0) + rows2;
-
-        if (pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && rows1 >= rows2) {
-          int rows = (rows1 >= rows3) ? rows3 : rows2;
-          tdResetDataCols(pDataCols);
-          int rowsRead = tsdbLoadDataFromCache(pTable, pCommitIter->pIter, keyLimit, rows, pDataCols,
-                                               pDataCols0->cols[0].pData, pDataCols0->numOfRows);
-          ASSERT(rowsRead == rows && rowsRead == pDataCols->numOfRows);
-          if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, false) < 0)
-            return -1;
-          if (tsdbAddSubBlock(pHelper, &compBlock, tblkIdx, rowsRead) < 0) return -1;
-          tblkIdx++;
-          ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
-                                  tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
+        if (pDataCols->numOfRows == 0) break;
+        if (tblkIdx == pIdx->numOfBlocks - 1) {
+          if (tsdbWriteBlockToProperFile(pHelper, pDataCols, &compBlock) < 0) return -1;
         } else {
-          if (tsdbLoadBlockData(pHelper, pCompBlock, NULL) < 0) return -1;
-          int round = 0;
-          int dIter = 0;
-          while (true) {
-            int rowsRead =
-                tsdbLoadAndMergeFromCache(pDataCols0, &dIter, pCommitIter, pDataCols, keyLimit, defaultRowsInBlock);
-            if (rowsRead == 0) break;
-
-            if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, true) < 0)
-              return -1;
-            if (round == 0) {
-              if (tsdbUpdateSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
-            } else {
-              if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
-            }
-
-            round++;
-            tblkIdx++;
-          }
-          ASSERT(tblkIdx == 0 || (tsdbNextIterKey(pCommitIter->pIter) < 0 ||
-                                  tsdbNextIterKey(pCommitIter->pIter) > blockAtIdx(pHelper, tblkIdx - 1)->keyLast));
+          if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, true) < 0) return -1;
         }
+
+        if (round == 0) {
+          if (oBlock.last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
+          if (tsdbUpdateSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
+        } else {
+          if (tsdbInsertSuperBlock(pHelper, &compBlock, tblkIdx) < 0) return -1;
+        }
+
+        round++;
+        tblkIdx++;
       }
     }
   }
@@ -1632,9 +1645,8 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
   return 0;
 }
 
-static int tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
-                                     TSKEY maxKey, int maxRows) {
-  int       numOfRows = 0;
+static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
+                                     TSKEY maxKey, int maxRows, int8_t update) {
   TSKEY     key1 = INT64_MAX;
   TSKEY     key2 = INT64_MAX;
   STSchema *pSchema = NULL;
@@ -1644,35 +1656,62 @@ static int tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIte
 
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
+    bool isRowDel = false;
     SDataRow row = tsdbNextIterRow(pCommitIter->pIter);
-    key2 = (row == NULL || dataRowKey(row) > maxKey) ? INT64_MAX : dataRowKey(row);
+    if (row == NULL || dataRowKey(row) > maxKey) {
+      key2 = INT64_MAX;
+    } else {
+      key2 = dataRowKey(row);
+      isRowDel = dataRowDeleted(row);
+    }
 
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
 
-    if (key1 <= key2) {
+    if (key1 < key2) {
       for (int i = 0; i < pDataCols->numOfCols; i++) {
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                          pTarget->maxPoints);
       }
+
       pTarget->numOfRows++;
       (*iter)++;
-      if (key1 == key2) tSkipListIterNext(pCommitIter->pIter);
-    } else {
-      if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
-        ASSERT(pSchema != NULL);
+    } else if (key1 > key2) {
+      if (!isRowDel) {
+        if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
+          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
+          ASSERT(pSchema != NULL);
+        }
+
+        tdAppendDataRowToDataCol(row, pSchema, pTarget);
       }
 
-      tdAppendDataRowToDataCol(row, pSchema, pTarget);
+      tSkipListIterNext(pCommitIter->pIter);
+    } else {
+      if (update) {
+        if (!isRowDel) {
+          if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
+            pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
+            ASSERT(pSchema != NULL);
+          }
+
+          tdAppendDataRowToDataCol(row, pSchema, pTarget);
+        }
+      } else {
+        ASSERT(!isRowDel);
+
+        for (int i = 0; i < pDataCols->numOfCols; i++) {
+          dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
+                           pTarget->maxPoints);
+        }
+
+        pTarget->numOfRows++;
+      }
+      (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);
     }
 
-    numOfRows++;
-    if (numOfRows >= maxRows) break;
-    ASSERT(numOfRows == pTarget->numOfRows && numOfRows <= pTarget->maxPoints);
+    if (pTarget->numOfRows >= maxRows) break;
   }
-
-  return numOfRows;
 }
 
 static int tsdbWriteBlockToProperFile(SRWHelper *pHelper, SDataCols *pDataCols, SCompBlock *pCompBlock) {
@@ -1694,4 +1733,21 @@ static int tsdbWriteBlockToProperFile(SRWHelper *pHelper, SDataCols *pDataCols, 
   if (tsdbWriteBlockToFile(pHelper, pFile, pDataCols, pCompBlock, isLast, true) < 0) return -1;
 
   return 0;
+}
+
+static bool tsdbCheckAddSubBlockCond(SRWHelper *pHelper, SCompBlock *pCompBlock, SMergeInfo *pMergeInfo, int maxOps) {
+  STsdbCfg *pCfg = &(pHelper->pRepo->config);
+  int       mergeRows = pCompBlock->numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed;
+
+  ASSERT(mergeRows > 0);
+
+  if (pCompBlock->numOfSubBlocks < TSDB_MAX_SUBBLOCKS && pMergeInfo->nOperations <= maxOps) {
+    if (pCompBlock->last) {
+      if (!TSDB_NLAST_FILE_OPENED(pHelper) && mergeRows < pCfg->minRowsPerFileBlock) return true;
+    } else {
+      if (mergeRows < pCfg->maxRowsPerFileBlock) return true;
+    }
+  }
+
+  return false;
 }

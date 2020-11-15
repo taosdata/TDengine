@@ -80,7 +80,7 @@ static int insertData(SInsertInfo *pInfo) {
     pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
     if (tsdbInsertData(pInfo->pRepo, pMsg, NULL) < 0) {
-      taosTFree(pMsg);
+      tfree(pMsg);
       return -1;
     }
   }
@@ -88,7 +88,7 @@ static int insertData(SInsertInfo *pInfo) {
   double etime = getCurTime();
 
   printf("Spent %f seconds to write %d records\n", etime - stime, pInfo->totalRows);
-  taosTFree(pMsg);
+  tfree(pMsg);
   return 0;
 }
 

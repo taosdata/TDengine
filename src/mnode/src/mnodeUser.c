@@ -43,7 +43,7 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg);
 
 static int32_t mnodeUserActionDestroy(SSdbOper *pOper) {
-  taosTFree(pOper->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -270,7 +270,7 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    taosTFree(pUser);
+    tfree(pUser);
   } else {
     mLInfo("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
   }
@@ -414,7 +414,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   SUserObj *pOperUser = pMsg->pUser;
   
   if (pOperUser->superAuth) {
-    SCMCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
+    SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
     return mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass, pMsg);
   } else {
     mError("user:%s, no rights to create user", pOperUser->user);
@@ -426,7 +426,7 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
   
-  SCMAlterUserMsg *pAlter = pMsg->rpcMsg.pCont;
+  SAlterUserMsg *pAlter = pMsg->rpcMsg.pCont;
   SUserObj *pUser = mnodeGetUser(pAlter->user);
   if (pUser == NULL) {
     return TSDB_CODE_MND_INVALID_USER;
@@ -514,7 +514,7 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
 
-  SCMDropUserMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropUserMsg *pDrop = pMsg->rpcMsg.pCont;
   SUserObj *pUser = mnodeGetUser(pDrop->user);
   if (pUser == NULL) {
     return TSDB_CODE_MND_INVALID_USER;
@@ -604,11 +604,11 @@ int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, cha
 }
 
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg) {
-  SDMAuthMsg *pAuthMsg = pMsg->rpcMsg.pCont;
-  SDMAuthRsp *pAuthRsp = rpcMallocCont(sizeof(SDMAuthRsp));
+  SAuthMsg *pAuthMsg = pMsg->rpcMsg.pCont;
+  SAuthRsp *pAuthRsp = rpcMallocCont(sizeof(SAuthRsp));
   
   pMsg->rpcRsp.rsp = pAuthRsp;
-  pMsg->rpcRsp.len = sizeof(SDMAuthRsp);
+  pMsg->rpcRsp.len = sizeof(SAuthRsp);
   
   return mnodeRetriveAuth(pAuthMsg->user, &pAuthRsp->spi, &pAuthRsp->encrypt, pAuthRsp->secret, pAuthRsp->ckey);
 }

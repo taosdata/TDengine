@@ -87,6 +87,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求。
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
 - logDir：日志文件目录，客户端和服务器的运行日志文件将写入该目录。默认值：/var/log/taos。
+- tempDir：临时文件目录，客户端和服务器的临时文件（主要是查询时用于保存中间结果的问题）将写入该目录。 默认值：Linux下为 /tmp/，Windows下为环境变量 tmp 或 temp 指向的目录。
 - arbitrator：系统中裁决器的end point, 缺省值为空。
 - role：dnode的可选角色。0-any; 既可作为mnode，也可分配vnode；1-mgmt;只能作为mnode，不能分配vnode；2-dnode;不能作为mnode，只能分配vnode
 - debugFlag：运行日志开关。131（输出错误和警告日志），135（ 输出错误、警告和调试日志），143（ 输出错误、警告、调试和跟踪日志）。默认值：131或135（不同模块有不同的默认值）。

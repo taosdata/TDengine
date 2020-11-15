@@ -64,9 +64,8 @@ typedef struct SLocalReducer {
   SColumnModel *         resColModel;
   tExtMemBuffer **       pExtMemBuffer;      // disk-based buffer
   SFillInfo*             pFillInfo;          // interpolation support structure
-  char *                 pFinalRes;          // result data after interpo
-  tFilePage *            discardData;
-  SResultInfo *          pResInfo;
+  char*                  pFinalRes;          // result data after interpo
+  tFilePage*             discardData;
   bool                   discard;
   int32_t                offset;             // limit offset value
   bool                   orderPrjOnSTable;   // projection query on stable

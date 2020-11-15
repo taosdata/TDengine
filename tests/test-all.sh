@@ -9,7 +9,7 @@ NC='\033[0m'
 
 function runSimCaseOneByOne {
   while read -r line; do
-    if [[ $line =~ ^./test.sh* ]]; then
+    if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
       start_time=`date +%s`
@@ -26,7 +26,12 @@ function runPyCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^python.* ]]; then
       if [[ $line != *sleep* ]]; then
-        case=`echo $line|awk '{print $NF}'`
+        
+        if [[ $line =~ '-r' ]];then
+          case=`echo $line|awk '{print $4}'`
+        else
+          case=`echo $line|awk '{print $NF}'`
+        fi
         start_time=`date +%s`
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN}$case success${NC}" | tee -a pytest-out.log || \
