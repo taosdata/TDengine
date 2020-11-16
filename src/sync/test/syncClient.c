@@ -57,7 +57,7 @@ void *sendRequest(void *param) {
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
     uDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
-    rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg);
+    rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) {
       uInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     }
