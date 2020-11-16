@@ -11,6 +11,7 @@ spring:
     #    url: jdbc:mysql://master:3306/test?useSSL=false
     #    username: root
     #    password: 123456
+
     driver-class-name: com.taosdata.jdbc.TSDBDriver
     url: jdbc:TAOS://localhost:6030/mp_test
     user: root
