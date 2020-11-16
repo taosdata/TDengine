@@ -505,7 +505,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     pLocalReducer->pFillInfo = taosDestroyFillInfo(pLocalReducer->pFillInfo);
 
     if (pLocalReducer->pCtx != NULL) {
-      int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+      int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
       for (int32_t i = 0; i < numOfExprs; ++i) {
         SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[i];
 
