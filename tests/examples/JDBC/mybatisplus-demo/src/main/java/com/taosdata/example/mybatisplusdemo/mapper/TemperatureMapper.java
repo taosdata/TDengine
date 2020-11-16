@@ -17,6 +17,7 @@ public interface TemperatureMapper extends BaseMapper<Temperature> {
     @Update("drop table if exists temperature")
     void dropSuperTable();
 
-    @Insert("insert into t${tbIndex}(ts, temperature) values(ts, temperature)")
+    @Insert("insert into t${tbIndex}(ts, temperature) values(#{ts}, #{temperature})")
     int insertOne(Temperature one);
+
 }

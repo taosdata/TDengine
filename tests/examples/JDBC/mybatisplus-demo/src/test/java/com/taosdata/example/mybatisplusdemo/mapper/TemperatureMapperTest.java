@@ -33,7 +33,7 @@ public class TemperatureMapperTest {
         mapper.createSuperTable();
         // create table t_X using temperature
         for (int i = 0; i < 10; i++) {
-            mapper.createTable("t_" + i, locations[random.nextInt(locations.length)], i);
+            mapper.createTable("t" + i, locations[random.nextInt(locations.length)], i);
         }
         // insert into table
         int affectRows = 0;
@@ -60,12 +60,18 @@ public class TemperatureMapperTest {
     @Autowired
     private TemperatureMapper mapper;
 
+    /***
+     * test SelectList
+     * **/
     @Test
     public void testSelectList() {
         List<Temperature> temperatureList = mapper.selectList(null);
         temperatureList.forEach(System.out::println);
     }
 
+    /***
+     * test InsertOne which is a custom metheod
+     * ***/
     @Test
     public void testInsert() {
         Temperature one = new Temperature();
@@ -76,16 +82,21 @@ public class TemperatureMapperTest {
         Assert.assertEquals(1, affectRows);
     }
 
+    /***
+     * test SelectOne
+     * **/
     @Test
     public void testSelectOne() {
         QueryWrapper<Temperature> wrapper = new QueryWrapper<>();
         wrapper.eq("location", "beijing");
         Temperature one = mapper.selectOne(wrapper);
         System.out.println(one);
-        Assert.assertEquals(12.22f, one.getTemperature(), 0.00f);
-        Assert.assertEquals("beijing", one.getLocation());
+        Assert.assertNotNull(one);
     }
 
+    /***
+     * test  select By map
+     * ***/
     @Test
     public void testSelectByMap() {
         Map<String, Object> map = new HashMap<>();
@@ -94,18 +105,27 @@ public class TemperatureMapperTest {
         Assert.assertEquals(1, temperatures.size());
     }
 
+    /***
+     * test selectObjs
+     * **/
     @Test
     public void testSelectObjs() {
         List<Object> ts = mapper.selectObjs(null);
         System.out.println(ts);
     }
 
+    /**
+     * test selectC ount
+     * **/
     @Test
     public void testSelectCount() {
         int count = mapper.selectCount(null);
         Assert.assertEquals(5, count);
     }
 
+    /****
+     * 分页
+     */
     @Test
     public void testSelectPage() {
         IPage page = new Page(1, 2);

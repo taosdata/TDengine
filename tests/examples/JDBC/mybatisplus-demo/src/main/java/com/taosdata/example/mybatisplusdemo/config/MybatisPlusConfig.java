@@ -25,8 +25,8 @@ public class MybatisPlusConfig {
     public PaginationInterceptor paginationInterceptor() {
 //        return new PaginationInterceptor();
         PaginationInterceptor paginationInterceptor = new PaginationInterceptor();
-        //TODO: mybatis-plus do not support TDengine, use mysql Dialect
-        paginationInterceptor.setDialectType("mysql");
+        //TODO: mybatis-plus do not support TDengine, use postgresql Dialect
+        paginationInterceptor.setDialectType("postgresql");
 
         return paginationInterceptor;
     }

@@ -20,6 +20,10 @@ spring:
     locale: en_US.UTF-8
     timezone: UTC-8
 
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+
 logging:
   level:
     com:
