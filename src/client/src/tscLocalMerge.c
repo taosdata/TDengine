@@ -570,7 +570,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   if (numOfGroupByCols > 0) {
 
     if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
-      int32_t numOfInternalOutput = tscSqlExprNumOfExprs(pQueryInfo);
+      int32_t numOfInternalOutput = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
       int32_t startCols = numOfInternalOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
       // the last "pQueryInfo->groupbyExpr.numOfGroupCols" columns are order-by columns
