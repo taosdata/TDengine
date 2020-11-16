@@ -40,19 +40,22 @@ typedef struct {
 enum _show_db_index {
   TSDB_SHOW_DB_NAME_INDEX,
   TSDB_SHOW_DB_CREATED_TIME_INDEX,
-  TSDB_SHOW_DB_VGROUPS_INDEX,
   TSDB_SHOW_DB_NTABLES_INDEX,
+  TSDB_SHOW_DB_VGROUPS_INDEX,
   TSDB_SHOW_DB_REPLICA_INDEX,
+  TSDB_SHOW_DB_QUORUM_INDEX,  
   TSDB_SHOW_DB_DAYS_INDEX,
   TSDB_SHOW_DB_KEEP_INDEX,
-  TSDB_SHOW_DB_TABLES_INDEX,
-  TSDB_SHOW_DB_ROWS_INDEX,
   TSDB_SHOW_DB_CACHE_INDEX,
-  TSDB_SHOW_DB_ABLOCKS_INDEX,
-  TSDB_SHOW_DB_TBLOCKS_INDEX,
-  TSDB_SHOW_DB_CTIME_INDEX,
-  TSDB_SHOW_DB_CLOG_INDEX,
+  TSDB_SHOW_DB_BLOCKS_INDEX,
+  TSDB_SHOW_DB_MINROWS_INDEX,
+  TSDB_SHOW_DB_MAXROWS_INDEX,
+  TSDB_SHOW_DB_WALLEVEL_INDEX,
+  TSDB_SHOW_DB_FSYNC_INDEX,
   TSDB_SHOW_DB_COMP_INDEX,
+  TSDB_SHOW_DB_PRECISION_INDEX,  
+  TSDB_SHOW_DB_UPDATE_INDEX,
+  TSDB_SHOW_DB_STATUS_INDEX,
   TSDB_MAX_SHOW_DB
 };
 
@@ -90,17 +93,23 @@ extern char version[];
 
 typedef struct {
   char name[TSDB_DB_NAME_LEN + 1];
-  int32_t replica;
-  int32_t days;
-  int32_t keep;
-  int32_t tables;
-  int32_t rows;
-  int32_t cache;
-  int32_t ablocks;
-  int32_t tblocks;
-  int32_t ctime;
-  int32_t clog;
-  int32_t comp;
+  int32_t  tables;
+  int32_t  vgroups;  
+  int16_t  replications;
+  int16_t  quorum;
+  int16_t  daysPerFile;  
+  int16_t  daysToKeep;
+  int16_t  daysToKeep1;
+  int16_t  daysToKeep2;
+  int32_t  cacheBlockSize; //MB
+  int32_t  totalBlocks;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int8_t   walLevel;
+  int32_t  fsyncPeriod;
+  int8_t   compression;
+  int8_t   precision;   // time resolution
+  int8_t   update;
 } SDbInfo;
 
 typedef struct {
@@ -416,6 +425,7 @@ int main(int argc, char *argv[]) {
     printf("end_time: %" PRId64 "\n", tsArguments.end_time);
     printf("data_batch: %d\n", tsArguments.data_batch);
     printf("table_batch: %d\n", tsArguments.table_batch);
+    printf("thread_num: %d\n", tsArguments.thread_num);    
     printf("allow_sys: %d\n", tsArguments.allow_sys);
     printf("abort: %d\n", tsArguments.abort);
     printf("isDumpIn: %d\n", tsArguments.isDumpIn);
@@ -682,8 +692,8 @@ int taosDumpOut(struct arguments *arguments) {
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
   while ((row = taos_fetch_row(result)) != NULL) {
-    // sys database name : 'monitor', but subsequent version changed to 'log'
-    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "monitor", fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0 &&
+    // sys database name : 'log', but subsequent version changed to 'log'
+    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log", fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0 &&
         (!arguments->allow_sys))
       continue;
 
@@ -711,20 +721,27 @@ int taosDumpOut(struct arguments *arguments) {
     }
 
     strncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX], fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
- #if 0   
-    dbInfos[count]->replica = (int)(*((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]));
-    dbInfos[count]->days = (int)(*((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]));
-    dbInfos[count]->keep = *((int *)row[TSDB_SHOW_DB_KEEP_INDEX]);
-    dbInfos[count]->tables = *((int *)row[TSDB_SHOW_DB_TABLES_INDEX]);
-    dbInfos[count]->rows = *((int *)row[TSDB_SHOW_DB_ROWS_INDEX]);
-    dbInfos[count]->cache = *((int *)row[TSDB_SHOW_DB_CACHE_INDEX]);
-    dbInfos[count]->ablocks = *((int *)row[TSDB_SHOW_DB_ABLOCKS_INDEX]);
-    dbInfos[count]->tblocks = (int)(*((int16_t *)row[TSDB_SHOW_DB_TBLOCKS_INDEX]));
-    dbInfos[count]->ctime = *((int *)row[TSDB_SHOW_DB_CTIME_INDEX]);
-    dbInfos[count]->clog = (int)(*((int8_t *)row[TSDB_SHOW_DB_CLOG_INDEX]));
-    dbInfos[count]->comp = (int)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+#if 0
+    if (arguments->with_property) {
+      dbInfos[count]->tables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+      dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);  
+      dbInfos[count]->replications = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
+      dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
+      dbInfos[count]->daysPerFile = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);  
+      dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
+      dbInfos[count]->daysToKeep1;
+      dbInfos[count]->daysToKeep2;
+      dbInfos[count]->cacheBlockSize = *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
+      dbInfos[count]->totalBlocks = *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
+      dbInfos[count]->minRowsPerFileBlock = *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
+      dbInfos[count]->maxRowsPerFileBlock = *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
+      dbInfos[count]->walLevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
+      dbInfos[count]->fsyncPeriod = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
+      dbInfos[count]->compression = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+      dbInfos[count]->precision = *((int8_t *)row[TSDB_SHOW_DB_PRECISION_INDEX]);
+      dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
+    }
 #endif
-
     count++;
 
     if (arguments->databases) {
@@ -1037,10 +1054,13 @@ void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty, FILE *fp) {
 
   pstr += sprintf(pstr, "CREATE DATABASE IF NOT EXISTS %s", dbInfo->name);
   if (isDumpProperty) {
+    #if 0
     pstr += sprintf(pstr,
-        " REPLICA %d DAYS %d KEEP %d TABLES %d ROWS %d CACHE %d ABLOCKS %d TBLOCKS %d CTIME %d CLOG %d COMP %d",
-        dbInfo->replica, dbInfo->days, dbInfo->keep, dbInfo->tables, dbInfo->rows, dbInfo->cache,
-        dbInfo->ablocks, dbInfo->tblocks, dbInfo->ctime, dbInfo->clog, dbInfo->comp);
+        "TABLES %d vgroups %d REPLICA %d quorum %d DAYS %d KEEP %d CACHE %d BLOCKS %d MINROWS %d MAXROWS %d WALLEVEL %d FYNC %d COMP %d PRECISION %s UPDATE %d",
+        dbInfo->tables, dbInfo->vgroups, dbInfo->replications, dbInfo->quorum, dbInfo->daysPerFile, dbInfo->daysToKeep, dbInfo->cacheBlockSize,
+        dbInfo->totalBlocks, dbInfo->minRowsPerFileBlock, dbInfo->maxRowsPerFileBlock,  dbInfo->walLevel, dbInfo->fsyncPeriod, dbInfo->compression, 
+        dbInfo->precision, dbInfo->update);
+    #endif
   }
 
   pstr += sprintf(pstr, ";");
