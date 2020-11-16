@@ -4322,6 +4322,56 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 }
 
+static TSKEY doSkipIntervalProcess(SQueryRuntimeEnv* pRuntimeEnv, STimeWindow* win, SDataBlockInfo* pBlockInfo, STableQueryInfo* pTableQueryInfo) {
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+  SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+
+  assert(pQuery->limit.offset == 0);
+  STimeWindow tw = *win;
+  getNextTimeWindow(pQuery, &tw);
+
+  if ((tw.skey <= pBlockInfo->window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+      (tw.ekey >= pBlockInfo->window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+
+    // load the data block and check data remaining in current data block
+    // TODO optimize performance
+    SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
+    SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
+
+    tw = *win;
+    int32_t startPos =
+        getNextQualifiedWindow(pRuntimeEnv, &tw, pBlockInfo, pColInfoData->pData, binarySearchForKey, -1);
+    assert(startPos >= 0);
+
+    // set the abort info
+    pQuery->pos = startPos;
+
+    // reset the query start timestamp
+    pTableQueryInfo->win.skey = ((TSKEY *)pColInfoData->pData)[startPos];
+    pQuery->window.skey = pTableQueryInfo->win.skey;
+    TSKEY key = pTableQueryInfo->win.skey;
+
+    pWindowResInfo->prevSKey = tw.skey;
+    int32_t index = pRuntimeEnv->windowResInfo.curIndex;
+
+    int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, NULL, binarySearchForKey, pDataBlock);
+    pRuntimeEnv->windowResInfo.curIndex = index;  // restore the window index
+
+    qDebug("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%" PRId64,
+           GET_QINFO_ADDR(pRuntimeEnv), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes,
+           pQuery->current->lastKey);
+
+    return key;
+  } else {  // do nothing
+    pQuery->window.skey = tw.skey;
+    pWindowResInfo->prevSKey = tw.skey;
+
+    return tw.skey;
+  }
+
+  return true;
+}
+
 static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   *start = pQuery->current->lastKey;
@@ -4370,49 +4420,13 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
           (win.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
         pQuery->limit.offset -= 1;
         pWindowResInfo->prevSKey = win.skey;
-
-        getNextTimeWindow(pQuery, &tw);
-      } else { // current window does not ended in current data block, try next data block
-        getNextTimeWindow(pQuery, &tw);
       }
 
+      // current window does not ended in current data block, try next data block
+      getNextTimeWindow(pQuery, &tw);
       if (pQuery->limit.offset == 0) {
-        if ((tw.skey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-            (tw.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
-          // load the data block and check data remaining in current data block
-          // TODO optimize performance
-          SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
-          SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
-
-          tw = win;
-          int32_t startPos =
-              getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
-          assert(startPos >= 0);
-
-          // set the abort info
-          pQuery->pos = startPos;
-
-          // reset the query start timestamp
-          pTableQueryInfo->win.skey = ((TSKEY *)pColInfoData->pData)[startPos];
-          pQuery->window.skey = pTableQueryInfo->win.skey;
-          *start = pTableQueryInfo->win.skey;
-
-          pWindowResInfo->prevSKey = tw.skey;
-          int32_t index = pRuntimeEnv->windowResInfo.curIndex;
-
-          int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, NULL, binarySearchForKey, pDataBlock);
-          pRuntimeEnv->windowResInfo.curIndex = index;  // restore the window index
-
-          qDebug("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64,
-                 GET_QINFO_ADDR(pRuntimeEnv), blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes, pQuery->current->lastKey);
-
-          return true;
-        } else { // do nothing
-          *start = tw.skey;
-          pQuery->window.skey = tw.skey;
-          pWindowResInfo->prevSKey = tw.skey;
-          return true;
-        }
+        *start = doSkipIntervalProcess(pRuntimeEnv, &win, &blockInfo, pTableQueryInfo);
+        return true;
       }
 
       /*
@@ -4433,42 +4447,8 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
         }
 
         if (pQuery->limit.offset == 0) {
-          if ((tw.skey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-              (tw.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
-            // load the data block and check data remaining in current data block
-            // TODO optimize performance
-            SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
-            SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
-
-            tw = win;
-            int32_t startPos =
-                getNextQualifiedWindow(pRuntimeEnv, &tw, &blockInfo, pColInfoData->pData, binarySearchForKey, -1);
-            assert(startPos >= 0);
-
-            // set the abort info
-            pQuery->pos = startPos;
-
-            // reset the query start timestamp
-            pTableQueryInfo->win.skey = ((TSKEY *)pColInfoData->pData)[startPos];
-            pQuery->window.skey = pTableQueryInfo->win.skey;
-            *start = pTableQueryInfo->win.skey;
-
-            pWindowResInfo->prevSKey = tw.skey;
-            int32_t index = pRuntimeEnv->windowResInfo.curIndex;
-
-            int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, NULL, binarySearchForKey, pDataBlock);
-            pRuntimeEnv->windowResInfo.curIndex = index;  // restore the window index
-
-            qDebug("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64,
-                   GET_QINFO_ADDR(pRuntimeEnv), blockInfo.window.skey, blockInfo.window.ekey, blockInfo.rows, numOfRes, pQuery->current->lastKey);
-
-            return true;
-          } else { // do nothing
-            *start = tw.skey;
-            pQuery->window.skey = tw.skey;
-            pWindowResInfo->prevSKey = tw.skey;
-            return true;
-          }
+          *start = doSkipIntervalProcess(pRuntimeEnv, &win, &blockInfo, pTableQueryInfo);
+          return true;
         } else {
           tw = win;
           int32_t startPos =
