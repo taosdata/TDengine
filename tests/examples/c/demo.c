@@ -50,10 +50,10 @@ static void queryDB(TAOS *taos, char *command) {
   taos_free_result(pSql);
 }
 
+void Test(char *qstr, const char *input, int i);
+
 int main(int argc, char *argv[]) {
-  TAOS *    taos;
   char      qstr[1024];
-  TAOS_RES *result;
 
   // connect to server
   if (argc < 2) {
@@ -63,41 +63,26 @@ int main(int argc, char *argv[]) {
 
   // init TAOS
   taos_init();
-
-  taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  for (int i = 0; i < 4000000; i++) {
+    Test(qstr, argv[1], i);
+  }
+  taos_cleanup();
+}
+void Test(char *qstr,  const char *input, int index)  {
+  TAOS *taos = taos_connect(input, "root", "taosdata", NULL, 0);
+  printf("==================test at %d\n================================", index);
+  queryDB(taos, "drop database if exists demo");
+  queryDB(taos, "create database demo");
+  TAOS_RES *result;
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
     exit(1);
   }
-  printf("success to connect to server\n");
-
-
-  //taos_query(taos, "drop database demo");
-  queryDB(taos, "drop database if exists demo");
-
-  //result = taos_query(taos, "create database demo");
-  //if (result == NULL) {
-  //  printf("failed to create database, reason:%s\n", "null result"/*taos_errstr(taos)*/);
-  //  exit(1);
-  //}
-  queryDB(taos, "create database demo");
-  printf("success to create database\n");
-
-  //taos_query(taos, "use demo");
   queryDB(taos, "use demo");
 
-  // create table
-  //if (taos_query(taos, "create table m1 (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10))") == 0) {
-  //  printf("failed to create table, reason:%s\n", taos_errstr(result));
-  //  exit(1);
-  //}
   queryDB(taos, "create table m1 (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10))");
   printf("success to create table\n");
 
-  // sleep for one second to make sure table is created on data node
-  // taosMsleep(1000);
-
-  // insert 10 records
   int i = 0;
   for (i = 0; i < 10; ++i) {
     sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", 1546300800000 + i * 1000, i, i, i, i*10000000, i*1.0, i*2.0, "hello");
@@ -117,7 +102,6 @@ int main(int argc, char *argv[]) {
     }
     taos_free_result(result);
 
-    //sleep(1);
   }
   printf("success to insert rows, total %d rows\n", i);
 
@@ -147,5 +131,6 @@ int main(int argc, char *argv[]) {
 
   taos_free_result(result);
   printf("====demo end====\n\n");
-  return getchar();
+  taos_close(taos);
 }
+
