@@ -1,16 +1,24 @@
 spring:
   datasource:
-    #    driver-class-name: com.taosdata.jdbc.TSDBDriver
-    #    url: jdbc:TAOS://localhost:6030/mp_test
-    #    user: root
-    #    password: taosdata
-    #    charset: UTF-8
-    #    locale: en_US.UTF-8
-    #    timezone: UTC-8
+    #    driver-class-name: org.h2.Driver
+    #    schema: classpath:db/schema-mysql.sql
+    #    data: classpath:db/data-mysql.sql
+    #    url: jdbc:h2:mem:test
+    #    username: root
+    #    password: test
+
     driver-class-name: com.mysql.jdbc.Driver
-    url:  jdbc:mysql://master:3306/test?useSSL=false
+    url: jdbc:mysql://master:3306/test?useSSL=false
     username: root
     password: 123456
+
+#    driver-class-name: com.taosdata.jdbc.TSDBDriver
+#    url: jdbc:TAOS://localhost:6030/mp_test
+#    user: root
+#    password: taosdata
+#    charset: UTF-8
+#    locale: en_US.UTF-8
+#    timezone: UTC-8
 
 logging:
   level:

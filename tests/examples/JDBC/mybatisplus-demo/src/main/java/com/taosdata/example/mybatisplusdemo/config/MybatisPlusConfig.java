@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class MybatisPlusConfig {
 
+
+    /** mybatis 3.4.1 pagination config start ***/
 //    @Bean
 //    public MybatisPlusInterceptor mybatisPlusInterceptor() {
 //        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
@@ -21,7 +23,12 @@ public class MybatisPlusConfig {
 
     @Bean
     public PaginationInterceptor paginationInterceptor() {
-        return new PaginationInterceptor();
+//        return new PaginationInterceptor();
+        PaginationInterceptor paginationInterceptor = new PaginationInterceptor();
+        //TODO: mybatis-plus do not support TDengine, use mysql Dialect
+        paginationInterceptor.setDialectType("mysql");
+
+        return paginationInterceptor;
     }
 
 }

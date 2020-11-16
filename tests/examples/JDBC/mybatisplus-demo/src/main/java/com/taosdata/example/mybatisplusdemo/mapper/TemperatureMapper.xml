@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.taosdata.example.mybatisplusdemo.mapper.TemperatureMapper">
+
+    <update id="createSuperTable">
+        CREATE TABLE if not exists temperature(ts timestamp, temperature float) tags(location nchar(64), tbIndex int);
+    </update>
+
+    <update id="createTable" parameterType="java.lang.String">
+        create table #{tbname} using temperature tags( #{location} );
+    </update>
+
+    <update id="dropSuperTable">
+        drop table if exists temperature
+    </update>
+
+    <insert id="insertOne" parameterType="com.taosdata.example.mybatisplusdemo.domain.Temperature">
+        insert into t${tbIndex}(ts, temperature) values(ts, temperature)
+    </insert>
+
+</mapper>

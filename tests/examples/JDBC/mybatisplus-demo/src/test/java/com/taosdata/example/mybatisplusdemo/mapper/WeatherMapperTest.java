@@ -28,19 +28,18 @@ public class WeatherMapperTest {
 
     @Test
     public void testSelectList() {
-        List<Weather> weatherList = mapper.selectList(null);
-//        Assert.assertEquals(5, weatherList.size());
-        weatherList.forEach(System.out::println);
+        List<Weather> weathers = mapper.selectList(null);
+        weathers.forEach(System.out::println);
     }
 
     @Test
     public void testInsert() {
-        Weather weather = new Weather();
-        weather.setTs(new Timestamp(1605024000000l));
-        weather.setTemperature(random.nextFloat() * 50);
-        weather.setHumidity(random.nextInt(100));
-        weather.setLocation("望京");
-        int affectRows = mapper.insert(weather);
+        Weather one = new Weather();
+        one.setTs(new Timestamp(1605024000000l));
+        one.setTemperature(random.nextFloat() * 50);
+        one.setHumidity(random.nextInt(100));
+        one.setLocation("望京");
+        int affectRows = mapper.insert(one);
         Assert.assertEquals(1, affectRows);
     }
 
@@ -48,11 +47,10 @@ public class WeatherMapperTest {
     public void testSelectOne() {
         QueryWrapper<Weather> wrapper = new QueryWrapper<>();
         wrapper.eq("location", "beijing");
-        Weather weather = mapper.selectOne(wrapper);
-        System.out.println(weather);
-        Assert.assertEquals(12.22f, weather.getTemperature(), 0.00f);
-        Assert.assertEquals(45, weather.getHumidity());
-        Assert.assertEquals("beijing", weather.getLocation());
+        Weather one = mapper.selectOne(wrapper);
+        System.out.println(one);
+        Assert.assertEquals(12.22f, one.getTemperature(), 0.00f);
+        Assert.assertEquals("beijing", one.getLocation());
     }
 
     @Test
@@ -67,30 +65,24 @@ public class WeatherMapperTest {
     public void testSelectObjs() {
         List<Object> ts = mapper.selectObjs(null);
         System.out.println(ts);
-//        Assert.assertEquals(5, ts.size());
     }
 
     @Test
     public void testSelectCount() {
         int count = mapper.selectCount(null);
-        Assert.assertEquals(5, count);
+//        Assert.assertEquals(5, count);
+        System.out.println(count);
     }
 
     @Test
     public void testSelectPage() {
-//        Page<Weather> page = new Page<>(1, 2);
-
         IPage page = new Page(1, 2);
-
-        IPage<Weather> weatherPage = mapper.selectPage(page, null);
-//        Page<Weather> weatherPage = mapper.selectPage(page, null);
-
-        System.out.println("total : " + weatherPage.getTotal());
-        System.out.println("pages : " + weatherPage.getPages());
-        for (Weather weather : weatherPage.getRecords()) {
+        IPage<Weather> weatherIPage = mapper.selectPage(page, null);
+        System.out.println("total : " + weatherIPage.getTotal());
+        System.out.println("pages : " + weatherIPage.getPages());
+        for (Weather weather : weatherIPage.getRecords()) {
             System.out.println(weather);
         }
     }
-
 
 }
