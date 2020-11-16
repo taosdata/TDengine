@@ -83,7 +83,7 @@ STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo);
 int          tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg);
 int32_t      tsdbDropRepo(char *rootDir);
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
-void         tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);
+int          tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);
 int32_t      tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg);
 int          tsdbGetState(TSDB_REPO_T *repo);
 

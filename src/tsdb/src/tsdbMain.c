@@ -134,17 +134,20 @@ _err:
 }
 
 // Note: all working thread and query thread must stopped when calling this function
-void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
+int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   if (repo == NULL) return;
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   int        vgId = REPO_ID(pRepo);
+
+  terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
     sem_wait(&(pRepo->readyToCommit));
+    terrno = pRepo->code;
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);
@@ -156,6 +159,12 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
   tsdbDebug("vgId:%d repository is closed", vgId);
+
+  if (terrno != TSDB_CODE_SUCCESS) {
+    return -1;
+  } else {
+    return 0;
+  }
 }
 
 uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
@@ -619,6 +628,7 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
   }
 
   pRepo->state = TSDB_STATE_OK;
+  pRepo->code = TSDB_CODE_SUCCESS;
 
   int code = pthread_mutex_init(&pRepo->mutex, NULL);
   if (code != 0) {
