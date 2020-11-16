@@ -241,11 +241,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .code    = 0
   };
 
-  // NOTE: the rpc context should be acquired before sending data to server.
-  // Otherwise, the pSql object may have been released already during the response function, which is
-  // processMsgFromServer function. In the meanwhile, the assignment of the rpc context to sql object will absolutely
-  // cause crash.
-  pSql->rpcRid = rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg);
+  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -361,7 +357,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         memcpy(pRes->pRsp, rpcMsg->pCont, pRes->rspLen);
       }
     } else {
-      pRes->pRsp = NULL;
+      tfree(pRes->pRsp);
     }
 
     /*
@@ -892,7 +888,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
-  tscDebug("%p msg built success,len:%d bytes", pSql, msgLen);
+  tscDebug("%p msg built success, len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
   

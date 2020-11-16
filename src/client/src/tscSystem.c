@@ -105,6 +105,7 @@ void taos_init_imp(void) {
     taosReadGlobalCfg();
     taosCheckGlobalCfg();
 
+    rpcInit();
     tscDebug("starting to initialize TAOS client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
@@ -179,6 +180,7 @@ void taos_cleanup(void) {
   taosCloseRef(tscRefId);
   taosCleanupKeywordsTable();
   taosCloseLog();
+  if (tscEmbedded == 0) rpcCleanup();
 
   m = tscTmr;
   if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {

@@ -30,7 +30,7 @@
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int      vnodeProcessTsdbStatus(void *arg, int status);
+static int      vnodeProcessTsdbStatus(void *arg, int status, int eno);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *fileName, int64_t *fileId);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
@@ -315,7 +315,13 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
-  tsdbSyncCommit(pVnode->tsdb);
+  code = tsdbSyncCommit(pVnode->tsdb);
+  if (code != 0) {
+    vError("vgId:%d, failed to commit after restore from wal since %s", pVnode->vgId, tstrerror(code));
+    vnodeCleanUp(pVnode);
+    return code;
+  }
+
   walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
@@ -412,6 +418,7 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->wal) {
+    walRemoveAllOldFiles(pVnode->wal);
     walClose(pVnode->wal);
     pVnode->wal = NULL;
   }
@@ -583,13 +590,21 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeProcessTsdbStatus(void *arg, int status) {
+static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
   SVnodeObj *pVnode = arg;
+
+  if (eno != TSDB_CODE_SUCCESS) {
+    // TODO: deal with the error here
+  }
 
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->fversion = pVnode->version;
     vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    return walRenew(pVnode->wal);
+    if (pVnode->status == TAOS_VN_STATUS_INIT) {
+      return 0;
+    } else {
+      return walRenew(pVnode->wal);
+    }
   }
 
   if (status == TSDB_STATUS_COMMIT_OVER) {

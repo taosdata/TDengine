@@ -46,7 +46,7 @@ extern "C" {
 typedef struct {
   void *appH;
   void *cqH;
-  int (*notifyStatus)(void *, int status);
+  int (*notifyStatus)(void *, int status, int eno);
   int (*eventCallBack)(void *);
   void *(*cqCreateFunc)(void *handle, uint64_t uid, int sid, char *sqlStr, STSchema *pSchema);
   void (*cqDropFunc)(void *handle);
@@ -126,7 +126,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
   STsdbCfg tsdbCfg;
-  int64_t  version;            // version of the repository
+  uint64_t version;            // version of the repository
   int64_t  tsdbTotalDataSize;  // the original inserted data size
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
   // TODO: Other informations to add
@@ -136,7 +136,7 @@ STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo);
 // the meter information report structure
 typedef struct {
   STableCfg tableCfg;
-  int64_t   version;
+  uint64_t  version;
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;

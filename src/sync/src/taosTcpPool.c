@@ -327,5 +327,5 @@ static void taosStopPoolThread(SThreadObj *pThread) {
   }
 
   pthread_join(thread, NULL);
-  if (fd >= 0) taosClose(fd);
+  taosClose(fd);
 }

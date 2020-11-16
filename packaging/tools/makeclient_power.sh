@@ -76,8 +76,10 @@ if [ "$osType" != "Darwin" ]; then
   else 
     cp ${build_dir}/bin/taos          ${install_dir}/bin/power
     cp ${script_dir}/remove_power.sh  ${install_dir}/bin
-    cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo   
+    cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo 
+    cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump  
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
+    cp ${script_dir}/get_client.sh    ${install_dir}/bin
   fi
 else
   cp ${bin_files} ${install_dir}/bin
