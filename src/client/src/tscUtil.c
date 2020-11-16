@@ -945,6 +945,14 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     
     if (pInfo->pArithExprInfo != NULL) {
       tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
+
+      SSqlFuncMsg* pFuncMsg = &pInfo->pArithExprInfo->base;
+      for(int32_t j = 0; j < pFuncMsg->numOfParams; ++j) {
+        if (pFuncMsg->arg[j].argType == TSDB_DATA_TYPE_BINARY) {
+          tfree(pFuncMsg->arg[j].argValue.pz);
+        }
+      }
+
       tfree(pInfo->pArithExprInfo);
     }
   }

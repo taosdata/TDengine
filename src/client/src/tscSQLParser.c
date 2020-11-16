@@ -1410,10 +1410,12 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       // TODO: other error handling
     } END_TRY
 
-    pInfo->pArithExprInfo->base.arg[0].argBytes = (int16_t) tbufTell(&bw);
-    pInfo->pArithExprInfo->base.arg[0].argValue.pz = tbufGetData(&bw, true);
-    pInfo->pArithExprInfo->base.arg[0].argType = TSDB_DATA_TYPE_BINARY;
-    tbufCloseWriter(&bw);
+    SSqlFuncMsg* pFuncMsg = &pInfo->pArithExprInfo->base;
+    pFuncMsg->arg[0].argBytes = (int16_t) tbufTell(&bw);
+    pFuncMsg->arg[0].argValue.pz = tbufGetData(&bw, true);
+    pFuncMsg->arg[0].argType = TSDB_DATA_TYPE_BINARY;
+
+//    tbufCloseWriter(&bw); // TODO there is a memory leak
   }
 
   return TSDB_CODE_SUCCESS;

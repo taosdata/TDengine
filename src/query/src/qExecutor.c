@@ -5336,7 +5336,7 @@ static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) 
 }
 
 static void doSecondaryArithmeticProcess(SQuery* pQuery) {
-  SArithmeticSupport *pArithSup = (SArithmeticSupport *)calloc(1, sizeof(SArithmeticSupport));
+  SArithmeticSupport arithSup = {0};
 
   tFilePage **data = calloc(pQuery->numOfExpr2, POINTER_BYTES);
   for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
@@ -5344,13 +5344,13 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
     data[i] = (tFilePage *)malloc(bytes * pQuery->rec.rows + sizeof(tFilePage));
   }
 
-  pArithSup->offset = 0;
-  pArithSup->numOfCols = (int32_t)pQuery->numOfOutput;
-  pArithSup->exprList = pQuery->pExpr1;
-  pArithSup->data = calloc(pArithSup->numOfCols, POINTER_BYTES);
+  arithSup.offset = 0;
+  arithSup.numOfCols = (int32_t)pQuery->numOfOutput;
+  arithSup.exprList  = pQuery->pExpr1;
+  arithSup.data      = calloc(arithSup.numOfCols, POINTER_BYTES);
 
-  for (int32_t k = 0; k < pArithSup->numOfCols; ++k) {
-    pArithSup->data[k] = pQuery->sdata[k]->data;
+  for (int32_t k = 0; k < arithSup.numOfCols; ++k) {
+    arithSup.data[k] = pQuery->sdata[k]->data;
   }
 
   for (int i = 0; i < pQuery->numOfExpr2; ++i) {
@@ -5368,8 +5368,8 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
         }
       }
     } else {
-      pArithSup->pArithExpr = pExpr;
-      tExprTreeCalcTraverse(pArithSup->pArithExpr->pExpr, (int32_t)pQuery->rec.rows, data[i]->data, pArithSup, TSDB_ORDER_ASC,
+      arithSup.pArithExpr = pExpr;
+      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t)pQuery->rec.rows, data[i]->data, &arithSup, TSDB_ORDER_ASC,
                             getArithemicInputSrc);
     }
   }
@@ -5378,7 +5378,12 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
     memcpy(pQuery->sdata[i]->data, data[i]->data, pQuery->pExpr2[i].bytes * pQuery->rec.rows);
   }
 
-  tfree(pArithSup);
+  for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
+    tfree(data[i]);
+  }
+
+  tfree(data);
+  tfree(arithSup.data);
 }
 
 /*

@@ -1644,7 +1644,6 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   tExtMemBuffer **  pMemoryBuf = NULL;
   tOrderDescriptor *pDesc  = NULL;
   SColumnModel     *pModel = NULL;
-  SColumnModel     *pFFModel = NULL;
 
   pRes->qhandle = 0x1;  // hack the qhandle check
   
@@ -1663,7 +1662,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   assert(pState->numOfSub > 0);
   
-  int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, &pFFModel, nBufferSize);
+  int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
   if (ret != 0) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscQueueAsyncRes(pSql);
@@ -1708,8 +1707,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->subqueryIndex  = i;
     trs->pParentSql     = pSql;
     trs->pFinalColModel = pModel;
-    trs->pFFColModel = pFFModel;
-    
+
     SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL);
     if (pNew == NULL) {
       tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
@@ -1764,10 +1762,6 @@ static void tscFreeRetrieveSup(SSqlObj *pSql) {
   }
 
   tscDebug("%p start to free subquery supp obj:%p", pSql, trsupport);
-//  int32_t  index = trsupport->subqueryIndex;
-//  SSqlObj *pParentSql = trsupport->pParentSql;
-
-//  assert(pSql == pParentSql->pSubs[index]);
   tfree(trsupport->localBuffer);
   tfree(trsupport);
 }
@@ -1958,7 +1952,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pParentSql->cmd, 0);
   tscClearInterpInfo(pPQueryInfo);
   
-  tscCreateLocalReducer(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, trsupport->pFinalColModel, pParentSql);
+  tscCreateLocalReducer(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, trsupport->pFinalColModel, trsupport->pFFColModel, pParentSql);
   tscDebug("%p build loser tree completed", pParentSql);
   
   pParentSql->res.precision = pSql->res.precision;
@@ -2467,33 +2461,6 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
     if (pRes->tsrow[i] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
       transferNcharData(pSql, i, pField);
     }
-
-    // calculate the result from several other columns
-//    if (pSup->pArithExprInfo != NULL) {
-//      if (pRes->pArithSup == NULL) {
-//        pRes->pArithSup = (SArithmeticSupport*)calloc(1, sizeof(SArithmeticSupport));
-//      }
-//
-//      pRes->pArithSup->offset     = 0;
-//      pRes->pArithSup->pArithExpr = pSup->pArithExprInfo;
-//      pRes->pArithSup->numOfCols  = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
-//      pRes->pArithSup->exprList   = pQueryInfo->exprList;
-//      pRes->pArithSup->data       = calloc(pRes->pArithSup->numOfCols, POINTER_BYTES);
-//
-//      if (pRes->buffer[i] == NULL) {
-//        TAOS_FIELD* field = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-//        pRes->buffer[i] = malloc(field->bytes);
-//      }
-//
-//      for(int32_t k = 0; k < pRes->pArithSup->numOfCols; ++k) {
-//        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
-//        pRes->pArithSup->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
-//      }
-//
-//      tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
-//          TSDB_ORDER_ASC, getArithemicInputSrc);
-//      pRes->tsrow[i] = (unsigned char*)pRes->buffer[i];
-//    }
   }
 
   pRes->row++;  // index increase one-step
