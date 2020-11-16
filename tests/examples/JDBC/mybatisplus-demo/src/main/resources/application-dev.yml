@@ -1,8 +1,0 @@
-spring:
-  datasource:
-    driver-class-name: org.h2.Driver
-    schema: classpath:db/schema-taos.sql
-    data: classpath:db/data-taos.sql
-    url:  jdbc:h2:mem:test
-    user: root
-    password: test

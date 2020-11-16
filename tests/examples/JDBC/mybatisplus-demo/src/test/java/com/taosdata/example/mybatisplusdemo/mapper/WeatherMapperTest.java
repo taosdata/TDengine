@@ -1,6 +1,7 @@
 package com.taosdata.example.mybatisplusdemo.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.taosdata.example.mybatisplusdemo.domain.Weather;
 import org.junit.Assert;
@@ -77,8 +78,13 @@ public class WeatherMapperTest {
 
     @Test
     public void testSelectPage() {
-        Page<Weather> page = new Page<>(1, 2);
-        Page<Weather> weatherPage = mapper.selectPage(page, null);
+//        Page<Weather> page = new Page<>(1, 2);
+
+        IPage page = new Page(1, 2);
+
+        IPage<Weather> weatherPage = mapper.selectPage(page, null);
+//        Page<Weather> weatherPage = mapper.selectPage(page, null);
+
         System.out.println("total : " + weatherPage.getTotal());
         System.out.println("pages : " + weatherPage.getPages());
         for (Weather weather : weatherPage.getRecords()) {
