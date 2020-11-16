@@ -6072,7 +6072,7 @@ static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTable
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createQFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo, SSqlFuncMsg **pExprMsg,
+static int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo, SSqlFuncMsg **pExprMsg,
     SColumnInfo* pTagCols) {
   *pExprInfo = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -6371,7 +6371,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   pQuery->limit.offset    = pQueryMsg->offset;
   pQuery->order.order     = pQueryMsg->order;
   pQuery->order.orderColId = pQueryMsg->orderColId;
-  pQuery->pExpr1     = pExprs;
+  pQuery->pExpr1          = pExprs;
   pQuery->pExpr2          = pSecExprs;
   pQuery->numOfExpr2      = pQueryMsg->secondStageOutput;
   pQuery->pGroupbyExpr    = pGroupbyExpr;
@@ -6634,6 +6634,22 @@ static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
   pTableqinfoGroupInfo->numOfTables = 0;
 }
 
+static void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
+  if (pExprInfo == NULL) {
+    assert(numOfExpr == 0);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < numOfExpr; ++i) {
+    if (pExprInfo[i].pExpr != NULL) {
+      tExprNodeDestroy(pExprInfo[i].pExpr, NULL);
+    }
+  }
+
+  tfree(pExprInfo);
+  return NULL;
+}
+
 static void freeQInfo(SQInfo *pQInfo) {
   if (!isValidQInfo(pQInfo)) {
     return;
@@ -6665,22 +6681,8 @@ static void freeQInfo(SQInfo *pQInfo) {
       }
     }
 
-    if (pQuery->pExpr1 != NULL) {
-      for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-        SExprInfo *pExprInfo = &pQuery->pExpr1[i];
-
-        if (pExprInfo->pExpr != NULL) {
-          tExprTreeDestroy(&pExprInfo->pExpr, NULL);
-        }
-      }
-
-      tfree(pQuery->pExpr1);
-    }
-
-    if (pQuery->pGroupbyExpr != NULL) {
-      taosArrayDestroy(pQuery->pGroupbyExpr->columnInfo);
-      tfree(pQuery->pGroupbyExpr);
-    }
+    pQuery->pExpr1 = destroyQueryFuncExpr(pQuery->pExpr1, pQuery->numOfOutput);
+    pQuery->pExpr2 = destroyQueryFuncExpr(pQuery->pExpr2, pQuery->numOfExpr2);
 
     tfree(pQuery->tagColList);
     tfree(pQuery->pFilterInfo);
@@ -6691,6 +6693,11 @@ static void freeQInfo(SQInfo *pQInfo) {
         freeColumnFilterInfo(column->filters, column->numOfFilters);
       }
       tfree(pQuery->colList);
+    }
+
+    if (pQuery->pGroupbyExpr != NULL) {
+      taosArrayDestroy(pQuery->pGroupbyExpr->columnInfo);
+      tfree(pQuery->pGroupbyExpr);
     }
 
     tfree(pQuery);
@@ -6824,12 +6831,12 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  if ((code = createQFunctionExprFromMsg(pQueryMsg, pQueryMsg->numOfOutput, &pExprs, pExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
+  if ((code = createQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->numOfOutput, &pExprs, pExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
     goto _over;
   }
 
   if (pSecExprMsg != NULL) {
-    if ((code = createQFunctionExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &pSecExprs, pSecExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
+    if ((code = createQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &pSecExprs, pSecExprMsg, pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
       goto _over;
     }
   }
@@ -6892,7 +6899,9 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   }
 
   (*pQInfo) = createQInfoImpl(pQueryMsg, pGroupbyExpr, pExprs, pSecExprs, &tableGroupInfo, pTagColumnInfo, isSTableQuery);
+
   pExprs = NULL;
+  pSecExprs = NULL;
   pGroupbyExpr = NULL;
   pTagColumnInfo = NULL;
 
@@ -6907,13 +6916,19 @@ _over:
   free(tagCond);
   free(tbnameCond);
   free(pGroupColIndex);
+
   if (pGroupbyExpr != NULL) {
     taosArrayDestroy(pGroupbyExpr->columnInfo);
     free(pGroupbyExpr);
   }
+
   free(pTagColumnInfo);
   free(pExprs);
+  free(pSecExprs);
+
   free(pExprMsg);
+  free(pSecExprMsg);
+
   taosArrayDestroy(pTableIdList);
 
   for (int32_t i = 0; i < pQueryMsg->numOfCols; i++) {
