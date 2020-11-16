@@ -43,6 +43,8 @@ typedef struct SHistogramInfo {
   int32_t numOfElems;
   int32_t numOfEntries;
   int32_t maxEntries;
+  double min;
+  double max;
 
   double min;
   double max;
