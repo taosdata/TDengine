@@ -282,6 +282,7 @@ static void taosCacheFreeNode(void *param) {
   int count = atomic_sub_fetch_32(&pCacheObj->count, 1);
   if (pCacheObj->deleting && count == 0) {
     // clean pCacheObj
+    taosCloseRef(pCacheObj->rsetId);
     free (pCacheObj);
   }
 }
