@@ -1251,7 +1251,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   if (tscIsSecondStageQuery(pQueryInfo)) {
     char* pbuf = calloc(1,pResBuf->num * pModel->rowSize);
 
-    doArithmeticCalculate(pQueryInfo, pbuf, pResBuf->data, pResBuf->num);
+    doArithmeticCalculate(pQueryInfo, pbuf, pResBuf->data, (int32_t)pResBuf->num);
     memcpy(pResBuf->data, pbuf, pResBuf->num * pModel->rowSize);
     free(pbuf);
   }

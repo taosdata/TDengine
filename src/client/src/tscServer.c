@@ -789,7 +789,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if(tscIsSecondStageQuery(pQueryInfo)) {
     size_t output = tscNumOfFields(pQueryInfo);
-    pQueryMsg->secondStageOutput = htonl(output);
+    pQueryMsg->secondStageOutput = htonl((int32_t) output);
 
     SSqlFuncMsg *pSqlFuncExpr1 = (SSqlFuncMsg *)pMsg;
 
