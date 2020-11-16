@@ -1595,7 +1595,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
       tblkIdx++;
     } else if (oBlock.numOfRows + pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed == 0) {
       // Delete the block and do some stuff
-      ASSERT(pMergeInfo->keyFirst == INT64_MAX && pMergeInfo->keyFirst == INT64_MIN);
+      // ASSERT(pMergeInfo->keyFirst == INT64_MAX && pMergeInfo->keyFirst == INT64_MIN);
       if (tsdbDeleteSuperBlock(pHelper, tblkIdx) < 0) return -1;
       *pCommitIter->pIter = slIter;
       if (oBlock.last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;

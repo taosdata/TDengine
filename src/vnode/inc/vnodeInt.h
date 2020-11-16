@@ -58,7 +58,7 @@ typedef struct {
   char        *rootDir;
   tsem_t       sem;
   int8_t       dropped;
-  char         db[TSDB_DB_NAME_LEN];
+  char         db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
 void vnodeInitWriteFp(void);

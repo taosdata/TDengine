@@ -25,7 +25,7 @@
 #include "vnodeCfg.h"
 
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
-  strcpy(pVnode->db, vnodeMsg->db);
+  tstrncpy(pVnode->db, vnodeMsg->db, sizeof(pVnode->db));
   pVnode->cfgVersion = vnodeMsg->cfg.cfgVersion;
   pVnode->tsdbCfg.cacheBlockSize = vnodeMsg->cfg.cacheBlockSize;
   pVnode->tsdbCfg.totalBlocks = vnodeMsg->cfg.totalBlocks;
@@ -97,7 +97,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     vError("vgId:%d, failed to read %s, db not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  strcpy(vnodeMsg.db, db->valuestring);
+  tstrncpy(vnodeMsg.db, db->valuestring, sizeof(vnodeMsg.db));
 
   cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
   if (!cfgVersion || cfgVersion->type != cJSON_Number) {
