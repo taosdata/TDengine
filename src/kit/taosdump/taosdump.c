@@ -182,6 +182,7 @@ static struct argp_option options[] = {
   {"start-time",    'S', "START_TIME",  0,  "Start time to dump.",                                         3},
   {"end-time",      'E', "END_TIME",    0,  "End time to dump.",                                           3},
   {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",    3},
+  {"max-sql-len",   'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",                    3},
   {"table-batch",   't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.", 3},
   {"thread_num",    'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.",            3},  
   {"allow-sys",     'a', 0,             0,  "Allow to dump sys database",                                  3},
@@ -209,6 +210,7 @@ struct arguments {
   int64_t  start_time;
   int64_t  end_time;
   int32_t  data_batch;
+  int32_t  max_sql_len;
   int32_t  table_batch; // num of table which will be dump into one output file.
   bool     allow_sys;
   // other options
@@ -307,6 +309,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'N':
       arguments->data_batch = atoi(arg);
       break;
+    case 'L': 
+    {
+      int32_t len = atoi(arg);
+      if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
+        len = TSDB_MAX_ALLOWED_SQL_LEN;
+      } else if (len < TSDB_MAX_SQL_LEN) {
+        len = TSDB_MAX_SQL_LEN;
+      } 
+      arguments->max_sql_len = len;
+      break;
+    }  
     case 't':
       arguments->table_batch = atoi(arg);
       break;
@@ -369,6 +382,7 @@ struct arguments tsArguments = {
   0, 
   INT64_MAX, 
   1,
+  TSDB_MAX_SQL_LEN,
   1,
   false,
   // other options
@@ -424,6 +438,7 @@ int main(int argc, char *argv[]) {
     printf("start_time: %" PRId64 "\n", tsArguments.start_time);
     printf("end_time: %" PRId64 "\n", tsArguments.end_time);
     printf("data_batch: %d\n", tsArguments.data_batch);
+    printf("max_sql_len: %d\n", tsArguments.max_sql_len);
     printf("table_batch: %d\n", tsArguments.table_batch);
     printf("thread_num: %d\n", tsArguments.thread_num);    
     printf("allow_sys: %d\n", tsArguments.allow_sys);
@@ -1479,7 +1494,8 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
     return -1;
   }
 
-  char* tmpBuffer = (char *)calloc(1, COMMAND_SIZE);
+  int32_t  sql_buf_len = arguments->max_sql_len;
+  char* tmpBuffer = (char *)calloc(1, sql_buf_len + 128);
   if (tmpBuffer == NULL) {
     fprintf(stderr, "failed to allocate memory\n");
     free(tmpCommand);
@@ -1522,85 +1538,83 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
     return -1;
   }
 
-  char sqlStr[8] = "\0";
-  if (arguments->mysqlFlag) {
-    sprintf(sqlStr, "INSERT");
-  } else {
-    sprintf(sqlStr, "IMPORT");
-  }
-
   int rowFlag = 0;
+  int32_t  curr_sqlstr_len = 0;
+  int32_t  total_sqlstr_len = 0;
   count = 0;
   while ((row = taos_fetch_row(tmpResult)) != NULL) {
     pstr = tmpBuffer;
+    curr_sqlstr_len = 0;
     
     int32_t* length = taos_fetch_lengths(tmpResult);   // act len
 
     if (count == 0) {
-      pstr += sprintf(pstr, "%s INTO %s VALUES (", sqlStr, tbname);
-    } else {      
+      total_sqlstr_len = 0;
+      curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "INSERT INTO %s VALUES (", tbname);
+    } else {
       if (arguments->mysqlFlag) {
         if (0 == rowFlag) {
-          pstr += sprintf(pstr, "(");
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "(");
           rowFlag++;
         } else {
-          pstr += sprintf(pstr, ", (");
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, ", (");
         }
       } else {
-        pstr += sprintf(pstr, "(");
+        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "(");
       }
     }
 
     for (int col = 0; col < numFields; col++) {
-      if (col != 0) pstr += sprintf(pstr, ", ");
+      if (col != 0) curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, ", ");
 
       if (row[col] == NULL) {
-        pstr += sprintf(pstr, "NULL");
+        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "NULL");
         continue;
       }
 
       switch (fields[col].type) {
         case TSDB_DATA_TYPE_BOOL:
-          pstr += sprintf(pstr, "%d", ((((int32_t)(*((char *)row[col]))) == 1) ? 1 : 0));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", ((((int32_t)(*((char *)row[col]))) == 1) ? 1 : 0));
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          pstr += sprintf(pstr, "%d", *((int8_t *)row[col]));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((int8_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          pstr += sprintf(pstr, "%d", *((int16_t *)row[col]));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((int16_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_INT:
-          pstr += sprintf(pstr, "%d", *((int32_t *)row[col]));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%d", *((int32_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRId64 "", *((int64_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          pstr += sprintf(pstr, "%f", GET_FLOAT_VAL(row[col]));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f", GET_FLOAT_VAL(row[col]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          pstr += sprintf(pstr, "%f", GET_DOUBLE_VAL(row[col]));
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f", GET_DOUBLE_VAL(row[col]));
           break;
         case TSDB_DATA_TYPE_BINARY:
-          *(pstr++) = '\'';
+          //*(pstr++) = '\'';
           converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
-          pstr = stpcpy(pstr, tbuf);
-          *(pstr++) = '\'';
+          //pstr = stpcpy(pstr, tbuf);
+          //*(pstr++) = '\'';
+          pstr += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);          
           break;
         case TSDB_DATA_TYPE_NCHAR:
           convertNCharToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
-          pstr += sprintf(pstr, "\'%s\'", tbuf);
+          pstr += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (!arguments->mysqlFlag) {
-            pstr += sprintf(pstr, "%" PRId64 "", *(int64_t *)row[col]);
+            curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRId64 "", *(int64_t *)row[col]);
           } else {
             char buf[64] = "\0";
             int64_t ts = *((int64_t *)row[col]);
             time_t tt = (time_t)(ts / 1000);
             struct tm *ptm = localtime(&tt);
             strftime(buf, 64, "%y-%m-%d %H:%M:%S", ptm);
-            pstr += sprintf(pstr, "\'%s.%03d\'", buf, (int)(ts % 1000));
+            curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s.%03d\'", buf, (int)(ts % 1000));
           }
           break;
         default:
@@ -1608,13 +1622,15 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
       }
     }
 
-    pstr += sprintf(pstr, ") ");
+    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, ") ");
 
     totalRows++;
     count++;
     fprintf(fp, "%s", tmpBuffer);
 
-    if (count >= arguments->data_batch) {
+    total_sqlstr_len += curr_sqlstr_len;
+
+    if ((count >= arguments->data_batch) || (sql_buf_len - total_sqlstr_len < TSDB_MAX_BYTES_PER_ROW)) {
       fprintf(fp, ";\n");
       count = 0;
     } //else {
