@@ -46,7 +46,7 @@ extern "C" {
 typedef struct {
   void *appH;
   void *cqH;
-  int (*notifyStatus)(void *, int status);
+  int (*notifyStatus)(void *, int status, int eno);
   int (*eventCallBack)(void *);
   void *(*cqCreateFunc)(void *handle, uint64_t uid, int sid, char *sqlStr, STSchema *pSchema);
   void (*cqDropFunc)(void *handle);

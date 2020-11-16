@@ -236,6 +236,7 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
   rInfo.offset = lseek(pStore->fd, 0, SEEK_CUR);
   if (rInfo.offset < 0) {
     uError("failed to lseek file %s since %s", pStore->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
@@ -254,6 +255,7 @@ int tdUpdateKVStoreRecord(SKVStore *pStore, uint64_t uid, void *cont, int contLe
 
   if (taosWrite(pStore->fd, cont, contLen) < contLen) {
     uError("failed to write %d bytes to file %s since %s", contLen, pStore->fname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 

@@ -30,7 +30,7 @@
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int      vnodeProcessTsdbStatus(void *arg, int status);
+static int      vnodeProcessTsdbStatus(void *arg, int status, int eno);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *fileName, int64_t *fileId);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
@@ -590,8 +590,12 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeProcessTsdbStatus(void *arg, int status) {
+static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
   SVnodeObj *pVnode = arg;
+
+  if (eno != TSDB_CODE_SUCCESS) {
+    // TODO: deal with the error here
+  }
 
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->fversion = pVnode->version;
