@@ -28,11 +28,12 @@ public class TemperatureMapperTest {
 
     @Before
     public void before() {
+        mapper.dropSuperTable();
         // create table temperature
         mapper.createSuperTable();
         // create table t_X using temperature
         for (int i = 0; i < 10; i++) {
-            mapper.createTable("t_" + i, locations[random.nextInt(locations.length)]);
+            mapper.createTable("t_" + i, locations[random.nextInt(locations.length)], i);
         }
         // insert into table
         int affectRows = 0;
