@@ -18,7 +18,6 @@
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 
-static void        tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes);
 static SMemTable * tsdbNewMemTable(STsdbRepo *pRepo);
 static void        tsdbFreeMemTable(SMemTable *pMemTable);
 static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
@@ -41,6 +40,7 @@ static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIte
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **rows, int rowCounter);
+static void         tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter);
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
@@ -97,7 +97,7 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     }
     int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
     if (code != 0) {
-      tsdbUnlockRepo(pRepo);
+      if (tsdbUnlockRepo(pRepo) < 0) return -1;
       tsdbError("vgId:%d failed to signal pool not empty since %s", REPO_ID(pRepo), strerror(code));
       terrno = TAOS_SYSTEM_ERROR(code);
       return -1;
@@ -134,6 +134,8 @@ int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
 }
 
 void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) {
+  tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
+
   if (pMem != NULL) {
     taosRUnLockLatch(&(pMem->latch));
     tsdbUnRefMemTable(pRepo, pMem);
@@ -142,8 +144,6 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) 
   if (pIMem != NULL) {
     tsdbUnRefMemTable(pRepo, pIMem);
   }
-
-  tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
 }
 
 void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
@@ -175,6 +175,10 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
     ASSERT(pRepo->mem->extraBuffList != NULL);
     SListNode *pNode = (SListNode *)malloc(sizeof(SListNode) + bytes);
     if (pNode == NULL) {
+      if (listNEles(pRepo->mem->extraBuffList) == 0) {
+        tdListFree(pRepo->mem->extraBuffList);
+        pRepo->mem->extraBuffList = NULL;
+      }
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       return NULL;
     }
@@ -205,18 +209,18 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 }
 
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
+  if (pRepo->mem == NULL) return 0;
+
   SMemTable *pIMem = pRepo->imem;
 
-  if (pRepo->mem != NULL) {
-    sem_wait(&(pRepo->readyToCommit));
+  sem_wait(&(pRepo->readyToCommit));
 
-    if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
-    if (tsdbLockRepo(pRepo) < 0) return -1;
-    pRepo->imem = pRepo->mem;
-    pRepo->mem = NULL;
-    tsdbScheduleCommit(pRepo);
-    if (tsdbUnlockRepo(pRepo) < 0) return -1;
-  }
+  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START);
+  if (tsdbLockRepo(pRepo) < 0) return -1;
+  pRepo->imem = pRepo->mem;
+  pRepo->mem = NULL;
+  tsdbScheduleCommit(pRepo);
+  if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   if (tsdbUnRefMemTable(pRepo, pIMem) < 0) return -1;
 
@@ -414,25 +418,6 @@ _exit:
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------
-static void tsdbFreeBytes(STsdbRepo *pRepo, void *ptr, int bytes) {
-  ASSERT(pRepo->mem != NULL);
-  if (pRepo->mem->extraBuffList == NULL) {
-    STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
-    ASSERT(pBufBlock != NULL);
-    pBufBlock->offset -= bytes;
-    pBufBlock->remain += bytes;
-    ASSERT(ptr == POINTER_SHIFT(pBufBlock->data, pBufBlock->offset));
-    tsdbTrace("vgId:%d free %d bytes to TSDB buffer pool, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
-              listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
-  } else {
-    SListNode *pNode = (SListNode *)POINTER_SHIFT(ptr, -(int)(sizeof(SListNode)));
-    ASSERT(listTail(pRepo->mem->extraBuffList) == pNode);
-    tdListPopNode(pRepo->mem->extraBuffList, pNode);
-    free(pNode);
-    tsdbTrace("vgId:%d free %d bytes to SYSTEM buffer pool", REPO_ID(pRepo), bytes);
-  }
-}
-
 static SMemTable* tsdbNewMemTable(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
@@ -922,8 +907,8 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
     if (tsdbCopyRowToMem(pRepo, row, pTable, &(rows[rowCounter])) < 0) {
-      free(rows);
-      return -1;
+      tsdbFreeRows(pRepo, rows, rowCounter);
+      goto _err;
     }
 
     (*affectedrows)++;
@@ -935,8 +920,7 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
   }
 
   if (tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
-    free(rows);
-    return -1;
+    goto _err;
   }
 
   STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
@@ -945,6 +929,10 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
 
   free(rows);
   return 0;
+
+_err:
+  free(rows);
+  return -1;
 }
 
 static int tsdbCopyRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable, void **ppRow) {
@@ -1104,9 +1092,7 @@ static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **ro
 
   if (TABLE_TID(pTable) >= pMemTable->maxTables) {
     if (tsdbAdjustMemMaxTables(pMemTable, pMeta->maxTables) < 0) {
-      for (int i = rowCounter - 1; i >= 0; i--) {
-        tsdbFreeBytes(pRepo, rows[i], dataRowLen(rows[i]));
-      }
+      tsdbFreeRows(pRepo, rows, rowCounter);
       return -1;
     }
   }
@@ -1124,9 +1110,7 @@ static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **ro
     if (pTableData == NULL) {
       tsdbError("vgId:%d failed to insert data to table %s uid %" PRId64 " tid %d since %s", REPO_ID(pRepo),
                 TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), tstrerror(terrno));
-      for (int i = rowCounter - 1; i >= 0; i--) {
-        tsdbFreeBytes(pRepo, rows[i], dataRowLen(rows[i]));
-      }
+      tsdbFreeRows(pRepo, rows, rowCounter);
       return -1;
     }
 
@@ -1151,4 +1135,43 @@ static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **ro
   if (TABLE_LASTKEY(pTable) < dataRowKey(rows[rowCounter-1])) TABLE_LASTKEY(pTable) = dataRowKey(rows[rowCounter-1]);
 
   return 0;
+}
+
+static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
+  ASSERT(pRepo->mem != NULL);
+  STsdbBufPool *pBufPool = pRepo->pPool;
+
+  for (int i = rowCounter - 1; i >= 0; --i) {
+    SDataRow row = (SDataRow)rows[i];
+    int      bytes = (int)dataRowLen(row);
+
+    if (pRepo->mem->extraBuffList == NULL) {
+      STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+      ASSERT(pBufBlock != NULL && pBufBlock->offset >= bytes);
+
+      pBufBlock->offset -= bytes;
+      pBufBlock->remain += bytes;
+      ASSERT(row == POINTER_SHIFT(pBufBlock->data, pBufBlock->offset));
+      tsdbTrace("vgId:%d free %d bytes to TSDB buffer pool, nBlocks %d offset %d remain %d", REPO_ID(pRepo), bytes,
+                listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
+
+      if (pBufBlock->offset == 0) {  // return the block to buffer pool
+        tsdbLockRepo(pRepo);
+        SListNode *pNode = tdListPopTail(pRepo->mem->bufBlockList);
+        tdListPrependNode(pBufPool->bufBlockList, pNode);
+        tsdbUnlockRepo(pRepo);
+      }
+    } else {
+      ASSERT(listNEles(pRepo->mem->extraBuffList) > 0);
+      SListNode *pNode = tdListPopTail(pRepo->mem->extraBuffList);
+      ASSERT(row == pNode->data);
+      free(pNode);
+      tsdbTrace("vgId:%d free %d bytes to SYSTEM buffer pool", REPO_ID(pRepo), bytes);
+
+      if (listNEles(pRepo->mem->extraBuffList) == 0) {
+        tdListFree(pRepo->mem->extraBuffList);
+        pRepo->mem->extraBuffList = NULL;
+      }
+    }
+  }
 }
