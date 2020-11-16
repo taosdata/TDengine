@@ -912,6 +912,8 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       tmpResult = NULL;
       continue;
     }
+    
+    int32_t* length = taos_fetch_lengths(tmpResult);
 
     //int32_t* length = taos_fetch_lengths(tmpResult);
     switch (fields[0].type) {
@@ -939,13 +941,13 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       case TSDB_DATA_TYPE_BINARY:
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
-        converStringToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
+        converStringToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
       case TSDB_DATA_TYPE_NCHAR:
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
-        convertNCharToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
+        convertNCharToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
@@ -1511,6 +1513,8 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
   count = 0;
   while ((row = taos_fetch_row(tmpResult)) != NULL) {
     pstr = tmpBuffer;
+    
+    int32_t* length = taos_fetch_lengths(tmpResult);   // act len
 
     if (count == 0) {
       pstr += sprintf(pstr, "%s INTO %s VALUES (", sqlStr, tbname);
@@ -1559,12 +1563,12 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
           break;
         case TSDB_DATA_TYPE_BINARY:
           *(pstr++) = '\'';
-          converStringToReadable((char *)row[col], fields[col].bytes, tbuf, COMMAND_SIZE);
+          converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           pstr = stpcpy(pstr, tbuf);
           *(pstr++) = '\'';
           break;
         case TSDB_DATA_TYPE_NCHAR:
-          convertNCharToReadable((char *)row[col], fields[col].bytes, tbuf, COMMAND_SIZE);
+          convertNCharToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           pstr += sprintf(pstr, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
