@@ -151,6 +151,12 @@ void dnodeCleanupClient() {
 }
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
+    rpcFreeCont(pMsg->pCont);
+    dDebug("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
+    return;
+  }
+
   if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
     dnodeUpdateEpSetForPeer(pEpSet);
   }
