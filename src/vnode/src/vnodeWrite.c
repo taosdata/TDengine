@@ -119,6 +119,11 @@ static int32_t vnodeCheckWrite(void *param) {
     return TSDB_CODE_APP_NOT_READY;
   }
 
+  if (pVnode->isFull) {
+    vDebug("vgId:%d, vnode is full, refCount:%d", pVnode->vgId, pVnode->refCount);
+    return TSDB_CODE_VND_IS_FULL;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
