@@ -1022,6 +1022,29 @@ if $data14 != 89 then
   return -1
 endi
 
+print ==================> td-2115
+sql select count(*), min(c3)-max(c3) from m_fl_mt0 group by tgcol
+if $rows != 10 then
+  return -1
+endi
+
+if $data00 != 5 then
+  return -1
+endi
+
+if $data01 != -4.000000000 then
+  return -1
+endi
+
+if $data02 != 0 then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+
 print =============== clear
 #sql drop database $db
 #sql show databases
