@@ -516,7 +516,7 @@ void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) {
   SFile         file;
   SFile *       pFile = &file;
 
-  strncpy(pFile->fname, fname, TSDB_FILENAME_LEN);
+  strncpy(pFile->fname, fname, TSDB_FILENAME_LEN - 1);
   pFile->fd = -1;
 
   if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;
