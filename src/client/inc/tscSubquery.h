@@ -41,6 +41,8 @@ int32_t tscHandleInsertRetry(SSqlObj* pSql);
 void tscBuildResFromSubqueries(SSqlObj *pSql);
 TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult);
 
+char *getArithemicInputSrc(void *param, const char *name, int32_t colId);
+
 #ifdef __cplusplus
 }
 #endif

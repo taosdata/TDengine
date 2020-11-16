@@ -62,6 +62,7 @@ typedef struct SLocalReducer {
   bool                   hasUnprocessedRow;
   tOrderDescriptor *     pDesc;
   SColumnModel *         resColModel;
+  SColumnModel*          finalModel;
   tExtMemBuffer **       pExtMemBuffer;      // disk-based buffer
   SFillInfo*             pFillInfo;          // interpolation support structure
   char*                  pFinalRes;          // result data after interpo
@@ -74,7 +75,8 @@ typedef struct SLocalReducer {
 typedef struct SRetrieveSupport {
   tExtMemBuffer **  pExtMemBuffer;     // for build loser tree
   tOrderDescriptor *pOrderDescriptor;
-  SColumnModel *    pFinalColModel;    // colModel for final result
+  SColumnModel*     pFinalColModel;    // colModel for final result
+  SColumnModel*     pFFColModel;
   int32_t           subqueryIndex;     // index of current vnode in vnode list
   SSqlObj *         pParentSql;
   tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to
@@ -82,7 +84,7 @@ typedef struct SRetrieveSupport {
 } SRetrieveSupport;
 
 int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOrderDescriptor **pDesc,
-                                 SColumnModel **pFinalModel, uint32_t nBufferSize);
+                                 SColumnModel **pFinalModel, SColumnModel** pFFModel, uint32_t nBufferSize);
 
 void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, SColumnModel *pFinalModel,
                                int32_t numOfVnodes);

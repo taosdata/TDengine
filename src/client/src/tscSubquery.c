@@ -1642,9 +1642,10 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   }
   
   tExtMemBuffer **  pMemoryBuf = NULL;
-  tOrderDescriptor *pDesc = NULL;
-  SColumnModel *    pModel = NULL;
-  
+  tOrderDescriptor *pDesc  = NULL;
+  SColumnModel     *pModel = NULL;
+  SColumnModel     *pFFModel = NULL;
+
   pRes->qhandle = 0x1;  // hack the qhandle check
   
   const uint32_t nBufferSize = (1u << 16);  // 64KB
@@ -1662,7 +1663,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   assert(pState->numOfSub > 0);
   
-  int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
+  int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, &pFFModel, nBufferSize);
   if (ret != 0) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscQueueAsyncRes(pSql);
@@ -1707,6 +1708,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->subqueryIndex  = i;
     trs->pParentSql     = pSql;
     trs->pFinalColModel = pModel;
+    trs->pFFColModel = pFFModel;
     
     SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL);
     if (pNew == NULL) {
@@ -2418,7 +2420,7 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
   }
 }
 
-static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
+char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
 
   int32_t index = -1;
@@ -2449,48 +2451,49 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   size_t size = tscNumOfFields(pQueryInfo);
+  int32_t offset = 0;
+
   for (int i = 0; i < size; ++i) {
-    SInternalField* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
-    if (pSup->pSqlExpr != NULL) {
-      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
-    }
+    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, offset);
+    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+
+    offset += pField->bytes;
 
     // primary key column cannot be null in interval query, no need to check
     if (i == 0 && pQueryInfo->interval.interval > 0) {
       continue;
     }
 
-    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     if (pRes->tsrow[i] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
       transferNcharData(pSql, i, pField);
     }
 
     // calculate the result from several other columns
-    if (pSup->pArithExprInfo != NULL) {
-      if (pRes->pArithSup == NULL) {
-        pRes->pArithSup = (SArithmeticSupport*)calloc(1, sizeof(SArithmeticSupport));
-      }
-
-      pRes->pArithSup->offset     = 0;
-      pRes->pArithSup->pArithExpr = pSup->pArithExprInfo;
-      pRes->pArithSup->numOfCols  = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
-      pRes->pArithSup->exprList   = pQueryInfo->exprList;
-      pRes->pArithSup->data       = calloc(pRes->pArithSup->numOfCols, POINTER_BYTES);
-
-      if (pRes->buffer[i] == NULL) {
-        TAOS_FIELD* field = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-        pRes->buffer[i] = malloc(field->bytes);
-      }
-
-      for(int32_t k = 0; k < pRes->pArithSup->numOfCols; ++k) {
-        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
-        pRes->pArithSup->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
-      }
-
-      tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
-          TSDB_ORDER_ASC, getArithemicInputSrc);
-      pRes->tsrow[i] = (unsigned char*)pRes->buffer[i];
-    }
+//    if (pSup->pArithExprInfo != NULL) {
+//      if (pRes->pArithSup == NULL) {
+//        pRes->pArithSup = (SArithmeticSupport*)calloc(1, sizeof(SArithmeticSupport));
+//      }
+//
+//      pRes->pArithSup->offset     = 0;
+//      pRes->pArithSup->pArithExpr = pSup->pArithExprInfo;
+//      pRes->pArithSup->numOfCols  = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
+//      pRes->pArithSup->exprList   = pQueryInfo->exprList;
+//      pRes->pArithSup->data       = calloc(pRes->pArithSup->numOfCols, POINTER_BYTES);
+//
+//      if (pRes->buffer[i] == NULL) {
+//        TAOS_FIELD* field = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
+//        pRes->buffer[i] = malloc(field->bytes);
+//      }
+//
+//      for(int32_t k = 0; k < pRes->pArithSup->numOfCols; ++k) {
+//        SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
+//        pRes->pArithSup->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
+//      }
+//
+//      tExprTreeCalcTraverse(pRes->pArithSup->pArithExpr->pExpr, 1, pRes->buffer[i], pRes->pArithSup,
+//          TSDB_ORDER_ASC, getArithemicInputSrc);
+//      pRes->tsrow[i] = (unsigned char*)pRes->buffer[i];
+//    }
   }
 
   pRes->row++;  // index increase one-step

@@ -219,6 +219,24 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
+  size_t numOfOutput = tscNumOfFields(pQueryInfo);
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+
+  if (numOfOutput == numOfExprs) {
+    return false;
+  }
+
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SExprInfo* pExprInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pArithExprInfo;
+    if (pExprInfo != NULL) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -855,28 +873,11 @@ void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo) {
   
   SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
   pExpr->offset = 0;
-  
-  for (int32_t i = 1; i < numOfExprs; ++i) {
-    SSqlExpr* prev = taosArrayGetP(pQueryInfo->exprList, i - 1);
-    SSqlExpr* p = taosArrayGetP(pQueryInfo->exprList, i);
-  
-    p->offset = prev->offset + prev->resBytes;
-  }
-}
 
-void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo) {
-  if (tscSqlExprNumOfExprs(pQueryInfo) == 0) {
-    return;
-  }
-  
-  SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
-  pExpr->offset = 0;
-  
-  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t i = 1; i < numOfExprs; ++i) {
     SSqlExpr* prev = taosArrayGetP(pQueryInfo->exprList, i - 1);
     SSqlExpr* p = taosArrayGetP(pQueryInfo->exprList, i);
-    
+
     p->offset = prev->offset + prev->resBytes;
   }
 }
@@ -955,7 +956,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
 }
 
 static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t interSize, int32_t colType) {
+    int16_t size, int16_t resColId, int16_t interSize, int32_t colType) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   
   SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
@@ -988,8 +989,9 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
 
   pExpr->resType       = type;
   pExpr->resBytes      = size;
+  pExpr->resColId      = resColId;
   pExpr->interBytes    = interSize;
-  
+
   if (pTableMetaInfo->pTableMeta) {
     pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
   }
@@ -998,20 +1000,20 @@ static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCol
 }
 
 SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t interSize, bool isTagCol) {
+                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
   int32_t num = (int32_t)taosArrayGetSize(pQueryInfo->exprList);
   if (index == num) {
-    return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
+    return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   }
   
-  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
+  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayInsert(pQueryInfo->exprList, index, &pExpr);
   return pExpr;
 }
 
 SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t interSize, bool isTagCol) {
-  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, interSize, isTagCol);
+    int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
+  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprList, &pExpr);
   return pExpr;
 }
@@ -1039,16 +1041,14 @@ size_t tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
   return taosArrayGetSize(pQueryInfo->exprList);
 }
 
-void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex) {
-  if (pExpr == NULL || argument == NULL || bytes == 0) {
-    return;
-  }
+void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes) {
+  assert (pExpr != NULL || argument != NULL || bytes != 0);
 
   // set parameter value
   // transfer to tVariant from byte data/no ascii data
   tVariantCreateFromBinary(&pExpr->param[pExpr->numOfParams], argument, bytes, type);
-
   pExpr->numOfParams += 1;
+
   assert(pExpr->numOfParams <= 3);
 }
 
@@ -1601,6 +1601,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->exprList   = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->colList    = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
+  pQueryInfo->resColumnId= -1000;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
