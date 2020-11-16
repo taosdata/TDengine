@@ -81,6 +81,13 @@ extern char configDir[];
 
 #define   MAX_LINE_COUNT_IN_MEM  10000
 
+typedef enum CREATE_SUB_TALBE_MOD_EN {
+  PRE_CREATE_SUBTBL,
+  AUTO_CREATE_SUBTBL,
+  NO_CREATE_SUBTBL
+} CREATE_SUB_TALBE_MOD_EN;
+
+
 /* Used by main to communicate with parse_opt. */
 typedef struct SArguments_S {
   char *   metaFile;
@@ -95,7 +102,7 @@ typedef struct SColumn_S {
 typedef struct SSuperTable_S {
   char         sTblName[MAX_TB_NAME_SIZE];
   int          childTblCount;
-  bool         autoCreateTable;
+  int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table, 2: not create sub table, already exists
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];  // taosc, restful
@@ -526,7 +533,16 @@ static void printfInsertMeta() {
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       printf("  super table[\033[33m%d\033[0m]:\n", j);
     
-      printf("      stbName:           \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].sTblName);      
+      printf("      stbName:           \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].sTblName);   
+
+      if (PRE_CREATE_SUBTBL == g_Dbs.db[i].supterTbls[j].autoCreateTable) {
+        printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
+      } else if (AUTO_CREATE_SUBTBL == g_Dbs.db[i].supterTbls[j].autoCreateTable) {
+        printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "yes");
+      } else if (NO_CREATE_SUBTBL == g_Dbs.db[i].supterTbls[j].autoCreateTable) {
+        printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "null");
+      }
+      
       printf("      childTblCount:     \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].childTblCount);      
       printf("      childTblPrefix:    \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].childTblPrefix);      
       printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].dataSource);      
@@ -1075,7 +1091,7 @@ void startMultiThreadCreateChildTable(char* cols, int threads, int ntables, char
 static void createChildTables() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {    
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      if (g_Dbs.db[i].supterTbls[j].autoCreateTable) {
+      if ((AUTO_CREATE_SUBTBL == g_Dbs.db[i].supterTbls[j].autoCreateTable) || (NO_CREATE_SUBTBL == g_Dbs.db[i].supterTbls[j].autoCreateTable)) {
         continue;
       }
       startMultiThreadCreateChildTable(g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable, g_Dbs.threadCount, g_Dbs.db[i].supterTbls[j].childTblCount, g_Dbs.db[i].dbName, &(g_Dbs.db[i].supterTbls[j]));
@@ -1470,14 +1486,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
       if (autoCreateTbl && autoCreateTbl->type == cJSON_String && autoCreateTbl->valuestring != NULL) {
         if (0 == strncasecmp(autoCreateTbl->valuestring, "yes", 3)) {
-          g_Dbs.db[i].supterTbls[j].autoCreateTable = 1;
-        } else {
-          g_Dbs.db[i].supterTbls[j].autoCreateTable = 0;
+          g_Dbs.db[i].supterTbls[j].autoCreateTable = AUTO_CREATE_SUBTBL;
+        } else if (0 == strncasecmp(autoCreateTbl->valuestring, "null", 4)) {
+          g_Dbs.db[i].supterTbls[j].autoCreateTable = NO_CREATE_SUBTBL;
+        }else {
+          g_Dbs.db[i].supterTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
         }
       } else if (!autoCreateTbl) {
-        g_Dbs.db[i].supterTbls[j].autoCreateTable = 0;
+        g_Dbs.db[i].supterTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
       } else {
-        printf("failed to read json, childtable_prefix not found");
+        printf("failed to read json, auto_create_table not found");
         goto PARSE_OVER;
       }
       
@@ -2180,7 +2198,7 @@ void *syncWrite(void *sarg) {
   char* buffer = calloc(TSDB_MAX_SQL_LEN, 1);
 
   int nrecords_per_request = 0;
-  if (superTblInfo->autoCreateTable) {
+  if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
     nrecords_per_request = (TSDB_MAX_SQL_LEN - 1280 - superTblInfo->lenOfTagOfOneRow) / superTblInfo->lenOfOneRow;
   } else {
     nrecords_per_request = (TSDB_MAX_SQL_LEN - 1280) / superTblInfo->lenOfOneRow;
@@ -2233,7 +2251,7 @@ void *syncWrite(void *sarg) {
         memset(buffer, 0, TSDB_MAX_SQL_LEN);
         char *pstr = buffer;
 
-        if (superTblInfo->autoCreateTable) {
+        if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
           char* tagsValBuf = NULL;
           if (0 == superTblInfo->tagSource) {
             tagsValBuf = generateTagVaulesForStb(superTblInfo);
