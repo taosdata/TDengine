@@ -28,6 +28,8 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
   tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
            REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
 
+  pRepo->code = TSDB_CODE_SUCCESS;
+
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
     tsdbError("vgId:%d error occurs while committing META data since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -49,6 +51,7 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
 
 _err:
   ASSERT(terrno != TSDB_CODE_SUCCESS);
+  pRepo->code = terrno;
   tsdbInfo("vgId:%d commit over, failed", REPO_ID(pRepo));
   tsdbEndCommit(pRepo, terrno);
 

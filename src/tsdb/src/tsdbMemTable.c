@@ -209,6 +209,10 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 
   sem_wait(&(pRepo->readyToCommit));
 
+  if (pRepo->code != TSDB_CODE_SUCCESS) {
+    tsdbWarn("vgId:%d try to commit when TSDB not in good state: %s", REPO_ID(pRepo), tstrerror(terrno));
+  }
+
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START, TSDB_CODE_SUCCESS);
   if (tsdbLockRepo(pRepo) < 0) return -1;
   pRepo->imem = pRepo->mem;
@@ -223,10 +227,18 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 
 int tsdbSyncCommit(TSDB_REPO_T *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
+
   tsdbAsyncCommit(pRepo);
   sem_wait(&(pRepo->readyToCommit));
   sem_post(&(pRepo->readyToCommit));
-  return 0;
+
+  if (pRepo->code != TSDB_CODE_SUCCESS) {
+    terrno = pRepo->code;
+    return -1;
+  } else {
+    terrno = TSDB_CODE_SUCCESS;
+    return 0;
+  }
 }
 
 /**
