@@ -43,21 +43,26 @@ class ConcurrentInquiry:
         self.subtb_stru_list=[]
         self.stb_tag_list=[]
         self.subtb_tag_list=[]
+
     def SetThreadsNum(self,num):
         self.numOfTherads=num
+
     def ret_fcol(self,cl,sql):                     #返回结果的第一列
         cl.execute(sql)
         fcol_list=[]
         for data in cl:
             fcol_list.append(data[0])
         return fcol_list
-    def r_stb_list(self,cl):
+
+    def r_stb_list(self,cl):                    #返回超级表列表
         sql='show '+self.dbname+'.stables'
         self.stb_list=self.ret_fcol(cl,sql)
-    def r_subtb_list(self,cl,stablename):
+
+    def r_subtb_list(self,cl,stablename):       #每个超级表返回2个子表
         sql='select tbname from '+self.dbname+'.'+stablename+' limit 2;'
         self.subtb_list+=self.ret_fcol(cl,sql)
-    def cal_struct(self,cl,tbname):
+
+    def cal_struct(self,cl,tbname):             #查看表结构
         tb=[]
         tag=[]
         sql='describe '+self.dbname+'.'+tbname+';'
@@ -68,17 +73,20 @@ class ConcurrentInquiry:
             else:
                 tb.append(data[0])
         return tb,tag
-    def r_stb_stru(self,cl):
+
+    def r_stb_stru(self,cl):                    #获取所有超级表的表结构
         for i in self.stb_list:
             tb,tag=self.cal_struct(cl,i)
             self.stb_stru_list.append(tb)
             self.stb_tag_list.append(tag)
-    def r_subtb_stru(self,cl):
+
+    def r_subtb_stru(self,cl):                  #返回所有子表的表结构
         for i in self.subtb_list:
             tb,tag=self.cal_struct(cl,i)
             self.subtb_stru_list.append(tb)
             self.subtb_tag_list.append(tag)
-    def get_full(self):
+
+    def get_full(self):                         #获取所有的表、表结构
         host = "127.0.0.1"
         user = "root"
         password = "taosdata"
@@ -93,10 +101,11 @@ class ConcurrentInquiry:
             self.r_subtb_list(cl,i)
         self.r_stb_stru(cl)
         self.r_subtb_stru(cl)
-        #print(self.stb_list,self.subtb_list,self.stb_stru_list,self.stb_tag_list,self.subtb_stru_list,self.subtb_tag_list)
         cl.close()
-        conn.close()   
-    def con_where(self,tlist):
+        conn.close()  
+        
+    #query condition
+    def con_where(self,tlist):                               
         l=[]
         for i in range(random.randint(0,len(tlist))):
             c = random.choice(where_list)
@@ -105,18 +114,24 @@ class ConcurrentInquiry:
             else:
                 l.append(random.choice(tlist)+c)
         return 'where '+random.choice([' and ',' or ']).join(l)
-    def con_interval(self,tlist):
+
+    def con_interval(self,tlist):               
         return random.choice(['interval(10s)','interval(10d)','interval(1n)'])
+
     def con_limit(self,tlist):
         return random.choice(['limit 10','limit 10 offset 10','slimit 10','slimit 10 offset 10','limit 10 slimit 10','limit 10 offset 5 slimit 5 soffset 10'])
+    
     def con_fill(self,tlist):
         return random.choice(['fill(null)','fill(prev)','fill(none)','fill(LINEAR)'])
+    
     def con_group(self,tlist):
         return 'group by '+random.choice(tlist)
+    
     def con_order(self,tlist):
         return 'order by '+random.choice(tlist)
-    def gen_query_sql(self):
-        tbi=random.randint(0,len(self.subtb_list)+len(self.stb_list))
+    
+    def gen_query_sql(self):                        #生成查询语句
+        tbi=random.randint(0,len(self.subtb_list)+len(self.stb_list))  #随机决定查询哪张表
         tbname=''
         col_list=[]
         tag_list=[]
@@ -142,7 +157,7 @@ class ConcurrentInquiry:
         random.shuffle(func_list)
         sel_col_list=[]
         col_rand=random.randint(0,len(col_list))
-        for i,j in zip(col_list[0:col_rand],func_list):
+        for i,j in zip(col_list[0:col_rand],func_list):         #决定每个被查询col的函数
             if j == 'leastsquares':
                 sel_col_list.append(j+'('+i+',1,1)')
             elif j == 'top' or j == 'bottom' or j == 'percentile' or j == 'apercentile':
@@ -154,11 +169,12 @@ class ConcurrentInquiry:
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
         for i in sel_con:
-            sel_con_list.append(i(tlist))
+            sel_con_list.append(i(tlist))                                  #获取对应的条件函数
         sql+=' '.join(sel_con_list)                                       # condition
         print(sql)
         return sql
-    def rest_query(self,sql):
+
+    def rest_query(self,sql):                                       #rest 接口
         host = "127.0.0.1"
         user = "root"
         password = "taosdata"
@@ -192,9 +208,9 @@ class ConcurrentInquiry:
                     rj['status']))
 
         nRows = rj['rows'] if ('rows' in rj) else 0
-        
         return nRows
-    def query_thread_n(self,threadID):
+
+    def query_thread_n(self,threadID):                      #使用原生python接口查询
         host = "127.0.0.1"
         user = "root"
         password = "taosdata"
@@ -227,7 +243,7 @@ class ConcurrentInquiry:
                 
         print("Thread %d: finishing" % threadID)
           
-    def query_thread_r(self,threadID):
+    def query_thread_r(self,threadID):                      #使用rest接口查询
         print("Thread %d: starting" % threadID)
         while True:
                 try:
