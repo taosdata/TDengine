@@ -256,7 +256,8 @@ SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
     pFileH->pFGroup[pFileH->nFGroups++] = fGroup;
     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), compFGroup);
     pthread_rwlock_unlock(&pFileH->fhlock);
-    return tsdbSearchFGroup(pFileH, fid, TD_EQ);
+    pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
+    ASSERT(pGroup != NULL);
   }
 
   return pGroup;
