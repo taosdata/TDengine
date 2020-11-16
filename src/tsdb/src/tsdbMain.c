@@ -135,7 +135,7 @@ _err:
 
 // Note: all working thread and query thread must stopped when calling this function
 int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
-  if (repo == NULL) return;
+  if (repo == NULL) return 0;
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   int        vgId = REPO_ID(pRepo);
