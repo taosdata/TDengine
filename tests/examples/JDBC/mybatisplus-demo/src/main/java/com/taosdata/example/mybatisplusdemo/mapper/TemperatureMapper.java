@@ -11,8 +11,8 @@ public interface TemperatureMapper extends BaseMapper<Temperature> {
     @Update("CREATE TABLE if not exists temperature(ts timestamp, temperature float) tags(location nchar(64), tbIndex int)")
     int createSuperTable();
 
-    @Update("create table #{tbName} using temperature tags( #{location}, #{tbIndex})")
-    int createTable(@Param("tbName") String tbName, @Param("location") String location, @Param("tbIndex") int tbIndex);
+    @Update("create table #{tbName} using temperature tags( #{location}, #{tbindex})")
+    int createTable(@Param("tbName") String tbName, @Param("location") String location, @Param("tbindex") int tbindex);
 
     @Update("drop table if exists temperature")
     void dropSuperTable();
