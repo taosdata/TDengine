@@ -5369,7 +5369,7 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
       }
     } else {
       pArithSup->pArithExpr = pExpr;
-      tExprTreeCalcTraverse(pArithSup->pArithExpr->pExpr, pQuery->rec.rows, data[i]->data, pArithSup, TSDB_ORDER_ASC,
+      tExprTreeCalcTraverse(pArithSup->pArithExpr->pExpr, (int32_t)pQuery->rec.rows, data[i]->data, pArithSup, TSDB_ORDER_ASC,
                             getArithemicInputSrc);
     }
   }
