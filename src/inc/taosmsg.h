@@ -392,6 +392,7 @@ typedef struct SColIndex {
 typedef struct SSqlFuncMsg {
   int16_t functionId;
   int16_t numOfParams;
+  int16_t resColId;      // result column id, id of the current output column
 
   SColIndex colInfo;
   struct ArgElem {
@@ -461,11 +462,6 @@ typedef struct STimeWindow {
   TSKEY ekey;
 } STimeWindow;
 
-/*
- * the outputCols is equalled to or larger than numOfCols
- * e.g., select min(colName), max(colName), avg(colName) from table
- * the outputCols will be 3 while the numOfCols is 1.
- */
 typedef struct {
   SMsgHead    head;
   STimeWindow window;
@@ -483,13 +479,14 @@ typedef struct {
   uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
-  int16_t     fillType;         // interpolate type
-  uint64_t    fillVal;          // default value array list
-  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
-  int32_t     tsLen;            // total length of ts comp block
-  int32_t     tsNumOfBlocks;    // ts comp block numbers
-  int32_t     tsOrder;          // ts comp block order
-  int32_t     numOfTags;        // number of tags columns involved
+  int16_t     fillType;      // interpolate type
+  uint64_t    fillVal;       // default value array list
+  int32_t     secondStageOutput;
+  int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
+  int32_t     tsLen;          // total length of ts comp block
+  int32_t     tsNumOfBlocks;  // ts comp block numbers
+  int32_t     tsOrder;        // ts comp block order
+  int32_t     numOfTags;      // number of tags columns involved
   SColumnInfo colList[];
 } SQueryTableMsg;
 

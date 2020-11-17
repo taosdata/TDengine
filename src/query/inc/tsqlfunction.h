@@ -128,7 +128,7 @@ typedef struct SArithmeticSupport {
   SExprInfo   *pArithExpr;
   int32_t      numOfCols;
   SColumnInfo *colList;
-  SArray*      exprList;   // client side used
+  void        *exprList;   // client side used
   int32_t      offset;
   char**       data;
 } SArithmeticSupport;

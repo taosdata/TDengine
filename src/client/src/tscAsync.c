@@ -351,7 +351,7 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
     SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
 
     if (pSup->pSqlExpr != NULL) {
-      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
+      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, 0);
     } else {
 //      todo add
     }

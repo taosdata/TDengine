@@ -125,6 +125,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SArray* pDataBlockList, int64_t
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
@@ -158,7 +159,7 @@ SInternalField* tscFieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t ind
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
 
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
-void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
+void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
 void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
@@ -167,15 +168,15 @@ static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQue
 
 int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2);
 
-void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex);
+void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
 int32_t   tscGetResRowLength(SArray* pExprList);
 
 SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t interSize, bool isTagCol);
+    int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
 SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t interSize, bool isTagCol);
+                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
