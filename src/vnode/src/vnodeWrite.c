@@ -28,13 +28,15 @@
 #include "syncInt.h"
 #include "tcq.h"
 
-static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *, SRspRet *);
-static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pMsg, SRspRet *);
-static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet);
+#define MAX_QUEUED_MSG_NUM 10000
+
+static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, SRspRet *);
+static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
+static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
+static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
+static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
+static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
+static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 
 void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -100,8 +102,8 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   return syncCode;
 }
 
-static int32_t vnodeCheckWrite(void *param) {
-  SVnodeObj *pVnode = param;
+static int32_t vnodeCheckWrite(void *vparam) {
+  SVnodeObj *pVnode = vparam;
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
     vDebug("vgId:%d, no write auth, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_VND_NO_WRITE_AUTH;
@@ -127,8 +129,8 @@ static int32_t vnodeCheckWrite(void *param) {
   return TSDB_CODE_SUCCESS;
 }
 
-void vnodeConfirmForward(void *param, uint64_t version, int32_t code) {
-  SVnodeObj *pVnode = (SVnodeObj *)param;
+void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code) {
+  SVnodeObj *pVnode = vparam;
   syncConfirmForward(pVnode->sync, version, code);
 }
 
@@ -242,8 +244,25 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
   memcpy(pWrite->pHead, pHead, sizeof(SWalHead) + pHead->len);
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, get vnode wqueue, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+
+  int32_t queued = atomic_add_fetch_32(&pVnode->queuedMsg, 1);
+  if (queued > MAX_QUEUED_MSG_NUM) {
+    vDebug("vgId:%d, too many msg:%d in vwqueue, flow control", pVnode->vgId, queued);
+    taosMsleep(1);
+  }
+
+  vTrace("vgId:%d, write into vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedMsg);
 
   taosWriteQitem(pVnode->wqueue, qtype, pWrite);
   return TSDB_CODE_SUCCESS;
+}
+
+void vnodeFreeFromWQueue(void *vparam, SVWriteMsg *pWrite) {
+  SVnodeObj *pVnode = vparam;
+
+  atomic_sub_fetch_32(&pVnode->queuedMsg, 1);
+  vTrace("vgId:%d, free from vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedMsg);
+
+  taosFreeQitem(pWrite);
+  vnodeRelease(pVnode);
 }
