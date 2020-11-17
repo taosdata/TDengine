@@ -80,6 +80,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               0, 0x0107, "Ref ID is 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               0, 0x0108, "Invalid Ref ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            0, 0x0109, "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                0, 0x010A, "Ref is not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_CACHE_TOO_MANY,               0, 0x010B, "Too many cache objs")
+TAOS_DEFINE_ERROR(TSDB_CODE_CACHE_INVALID_ID,             0, 0x010C, "Invalid cache ID")
+TAOS_DEFINE_ERROR(TSDB_CODE_CACHE_NOT_EXIST,              0, 0x010D, "Cache obj is not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_CACHE_KEY_NOT_THERE,          0, 0x010E, "Key is not there")
+
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_SQL,              0, 0x0200, "Invalid SQL statement")
