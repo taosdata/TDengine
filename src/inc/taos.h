@@ -17,6 +17,7 @@
 #define TDENGINE_TAOS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
