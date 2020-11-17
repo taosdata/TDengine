@@ -33,14 +33,14 @@ extern "C" {
 #endif
 
 
-int  taosCacheInit(int64_t refreshTimeInSeconds, bool extendLifespan, const char *cacheName);
+int  taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, const char *cacheName);
 void taosCacheCleanup(int cacheId);
 
 void *taosCachePut(int cacheId, const void *key, size_t keyLen, const void *pData, size_t dataSize, int durationMS);
 void *taosCacheAcquireByKey(int cacheId, const void *key, size_t keyLen);
 void *taosCacheAcquireByData(void *data);
 void taosCacheRelease(void **data);
-
+void *taosCacheTransfer(void **data);
 
 #ifdef __cplusplus
 }
