@@ -559,6 +559,8 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     return 0;
   }
 
+  tscResetForNextRetrieve(pRes);
+
   // set the sql object owner
   tscSetSqlOwner(pSql);
 
