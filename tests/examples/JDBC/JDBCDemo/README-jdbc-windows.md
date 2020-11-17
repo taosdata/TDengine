@@ -132,7 +132,7 @@ https://www.taosdata.com/cn/all-downloads/
 配置完成后，在命令行内使用taos shell连接server端
 
 ```shell
-C:\TDengine>taos
+C:\TDengine>taos -h td01
 Welcome to the TDengine shell from Linux, Client Version:2.0.1.1
 Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.
 
