@@ -179,6 +179,13 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   for (int32_t i = 0; i < pCfg->replica; ++i) {
     const SNodeInfo *pNodeInfo = pCfg->nodeInfo + i;
     pNode->peerInfo[i] = syncAddPeer(pNode, pNodeInfo);
+    if (pNode->peerInfo[i] == NULL) {
+      sError("vgId:%d, node:%d fqdn:%s port:%u is not configured, stop taosd", pNode->vgId, pNodeInfo->nodeId, pNodeInfo->nodeFqdn,
+             pNodeInfo->nodePort);
+      syncStop(pNode->rid);
+      exit(1);
+    }
+
     if ((strcmp(pNodeInfo->nodeFqdn, tsNodeFqdn) == 0) && (pNodeInfo->nodePort == tsSyncPort)) {
       pNode->selfIndex = i;
     }
@@ -476,7 +483,11 @@ static void syncRemovePeer(SSyncPeer *pPeer) {
 
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   uint32_t ip = taosGetIpFromFqdn(pInfo->nodeFqdn);
-  if (ip == -1) return NULL;
+  if (ip == 0xFFFFFFFF) {
+    sError("failed to add peer, can resolve fqdn:%s since %s", pInfo->nodeFqdn, strerror(errno));
+    terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    return NULL;
+  }
 
   SSyncPeer *pPeer = calloc(1, sizeof(SSyncPeer));
   if (pPeer == NULL) return NULL;
