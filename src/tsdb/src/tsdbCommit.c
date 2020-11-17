@@ -282,7 +282,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
 _err:
   tfree(dataDir);
-  tsdbCloseHelperFile(pHelper, 1, NULL);
+  tsdbCloseHelperFile(pHelper, 1, pGroup);
   return -1;
 }
 
