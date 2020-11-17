@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 1000
 sql connect
 
 sql drop database if exists ecdb
