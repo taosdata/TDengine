@@ -225,7 +225,7 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
       tSQLExprDestroy(pLeft);
       tSQLExprDestroy(pRight);
 
-    } else if (pLeft->nSQLOptr == TK_FLOAT || pRight->nSQLOptr == TK_FLOAT) {
+    } else if ((pLeft->nSQLOptr == TK_FLOAT && pRight->nSQLOptr == TK_INTEGER) || (pLeft->nSQLOptr == TK_INTEGER && pRight->nSQLOptr == TK_FLOAT)) {
       pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->nSQLOptr  = TK_FLOAT;
 

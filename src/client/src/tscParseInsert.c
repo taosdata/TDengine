@@ -1148,6 +1148,10 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
       index = 0;
       sToken = tStrGetToken(str, &index, false, 0, NULL);
+      if (sToken.type != TK_STRING && sToken.type != TK_ID) {
+        code = tscInvalidSQLErrMsg(pCmd->payload, "file path is required following keyword FILE", sToken.z);
+        goto _error;
+      }
       str += index;
       if (sToken.n == 0) {
         code = tscInvalidSQLErrMsg(pCmd->payload, "file path is required following keyword FILE", sToken.z);
