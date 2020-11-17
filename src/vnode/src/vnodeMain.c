@@ -381,6 +381,7 @@ int32_t vnodeClose(int32_t vgId) {
 void vnodeRelease(void *pVnodeRaw) {
   if (pVnodeRaw == NULL) return;
   SVnodeObj *pVnode = pVnodeRaw;
+  int32_t    code = 0;
   int32_t    vgId = pVnode->vgId;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
@@ -406,7 +407,7 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->tsdb) {
-    tsdbCloseRepo(pVnode->tsdb, 1);
+    code = tsdbCloseRepo(pVnode->tsdb, 1);
     pVnode->tsdb = NULL;
   }
 
@@ -418,7 +419,7 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->wal) {
-    walRemoveAllOldFiles(pVnode->wal);
+    if (code == 0) walRemoveAllOldFiles(pVnode->wal);
     walClose(pVnode->wal);
     pVnode->wal = NULL;
   }
@@ -594,7 +595,10 @@ static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
   SVnodeObj *pVnode = arg;
 
   if (eno != TSDB_CODE_SUCCESS) {
-    // TODO: deal with the error here
+    vError("vgId:%d, failed to commit since %s, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, tstrerror(eno),
+           pVnode->fversion, pVnode->version);
+    pVnode->isFull = 1;
+    return 0;
   }
 
   if (status == TSDB_STATUS_COMMIT_START) {
@@ -609,6 +613,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
+    pVnode->isFull = 0;
     walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
