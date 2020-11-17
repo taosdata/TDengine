@@ -2312,10 +2312,10 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     return;
   }
 
-  int32_t totalSize = tscGetResRowLength(pQueryInfo->exprList);
+  int32_t rowSize = tscGetResRowLength(pQueryInfo->exprList);
 
-  assert(numOfRes * totalSize > 0);
-  char* tmp = realloc(pRes->pRsp, numOfRes * totalSize);
+  assert(numOfRes * rowSize > 0);
+  char* tmp = realloc(pRes->pRsp, numOfRes * rowSize + sizeof(tFilePage));
   if (tmp == NULL) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
@@ -2323,9 +2323,12 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     pRes->pRsp = tmp;
   }
 
-  pRes->data = pRes->pRsp;
+  tFilePage* pFilePage = (tFilePage*) pRes->pRsp;
+  pFilePage->num = numOfRes;
 
+  pRes->data = pFilePage->data;
   char* data = pRes->data;
+
   int16_t bytes = 0;
 
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
@@ -2352,6 +2355,17 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
 
   pRes->numOfRows = numOfRes;
   pRes->numOfClauseTotal += numOfRes;
+
+  int32_t finalRowSize = 0;
+  for(int32_t i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
+    TAOS_FIELD* pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
+    finalRowSize += pField->bytes;
+  }
+
+  doArithmeticCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
+
+  pRes->data = pFilePage->data;
+  tscSetResRawPtr(pRes, pQueryInfo);
 }
 
 void tscBuildResFromSubqueries(SSqlObj *pSql) {
@@ -2364,13 +2378,12 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 
   if (pRes->tsrow == NULL) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+    pRes->numOfCols = (int16_t) tscSqlExprNumOfExprs(pQueryInfo);
 
-    size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    pRes->numOfCols =  (int16_t)numOfExprs;
-
-    pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
-    pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
-    pRes->length = calloc(numOfExprs, sizeof(int32_t));
+    pRes->tsrow  = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->urow   = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->buffer = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->length = calloc(pRes->numOfCols, sizeof(int32_t));
 
     if (pRes->tsrow == NULL || pRes->buffer == NULL || pRes->length == NULL) {
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2414,7 +2427,7 @@ static UNUSED_FUNC void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TA
   }
 }
 
-char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
+char *getArithmeticInputSrc(void *param, const char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
 
   int32_t index = -1;
