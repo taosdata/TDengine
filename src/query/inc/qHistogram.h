@@ -45,7 +45,6 @@ typedef struct SHistogramInfo {
   int32_t maxEntries;
   double min;
   double max;
-
 #if defined(USE_ARRAYLIST)
   SHistBin* elems;
 #else
