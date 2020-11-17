@@ -313,6 +313,7 @@ typedef struct {
   SResRec *             pGroupRec;
   char *                data;
   TAOS_ROW              tsrow;
+  TAOS_ROW              urow;
   int32_t*              length;  // length for each field for current row
   char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex *        pColumnIndex;
@@ -425,6 +426,7 @@ int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
+void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
 void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
 
@@ -471,8 +473,9 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   int32_t bytes = pInfo->field.bytes;
 
   char* pData = pRes->data + (int32_t)(offset * pRes->numOfRows + bytes * pRes->row);
+  UNUSED(pData);
 
-  // user defined constant value output columns
+//   user defined constant value output columns
   if (pInfo->pSqlExpr != NULL && TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
       pData = pInfo->pSqlExpr->param[1].pz;

@@ -1437,19 +1437,6 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int tscSetResultPointer(SQueryInfo *pQueryInfo, SSqlRes *pRes) {
-  if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
-    return pRes->code;
-  }
-
-  for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    int16_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
-    pRes->tsrow[i] = (unsigned char*)((char*) pRes->data + offset * pRes->numOfRows);
-  }
-
-  return 0;
-}
-
 /*
  * this function can only be called once.
  * by using pRes->rspType to denote its status
@@ -1460,15 +1447,18 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
   pRes->code = TSDB_CODE_SUCCESS;
   if (pRes->rspType == 0) {
     pRes->numOfRows = numOfRes;
     pRes->row = 0;
     pRes->rspType = 1;
 
-    tscSetResultPointer(pQueryInfo, pRes);
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+    if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
+      return pRes->code;
+    }
+
+    tscSetResRawPtr(pRes, pQueryInfo);
   } else {
     tscResetForNextRetrieve(pRes);
   }
@@ -1512,10 +1502,11 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   pRes->code = tscDoLocalMerge(pSql);
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     tscCreateResPointerInfo(pRes, pQueryInfo);
+    tscSetResRawPtr(pRes, pQueryInfo);
   }
 
   pRes->row = 0;
@@ -2195,7 +2186,12 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return pRes->code;
   }
-  
+
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) || tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) || pCmd->command == TSDB_SQL_RETRIEVE) {
+    tscSetResRawPtr(pRes, pQueryInfo);
+  }
+
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     
