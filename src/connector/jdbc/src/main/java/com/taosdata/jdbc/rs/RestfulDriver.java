@@ -86,6 +86,7 @@ public class RestfulDriver extends AbstractTaosDriver {
 
     @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return null;
+        //TODO SQLFeatureNotSupportedException
+        throw new SQLFeatureNotSupportedException();
     }
 }
