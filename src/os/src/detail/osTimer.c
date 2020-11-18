@@ -111,6 +111,9 @@ void taosUninitTimer() {
   pthread_sigmask(SIG_BLOCK, &set, NULL);
 */
 void taosMsleep(int mseconds) {
+#if 1
+  usleep(mseconds * 1000);
+#else
   struct timeval timeout;
   int            seconds, useconds;
 
@@ -126,7 +129,8 @@ void taosMsleep(int mseconds) {
 
   select(0, NULL, NULL, NULL, &timeout);
 
-  /* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
+/* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
+#endif
 }
 
 #endif

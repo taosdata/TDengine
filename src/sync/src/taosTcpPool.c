@@ -301,31 +301,14 @@ static SThreadObj *taosGetTcpThread(SPoolObj *pPool) {
 }
 
 static void taosStopPoolThread(SThreadObj *pThread) {
+  pthread_t thread = pThread->thread;
+  if (!taosCheckPthreadValid(thread)) {
+    return;
+  }
   pThread->stop = true;
-
-  if (pThread->thread == pthread_self()) {
+  if (taosComparePthread(thread, pthread_self())) {
     pthread_detach(pthread_self());
     return;
   }
-
-  // save thread ID into a local variable, since pThread is freed when the thread exits
-  pthread_t thread = pThread->thread;
-
-  // signal the thread to stop, try graceful method first,
-  // and use pthread_cancel when failed
-  struct epoll_event event = {.events = EPOLLIN};
-  eventfd_t fd = eventfd(1, 0);
-  if (fd == -1) {
-    // failed to create eventfd, call pthread_cancel instead, which may result in data corruption
-    sError("failed to create eventfd since %s", strerror(errno));
-    pthread_cancel(pThread->thread);
-    pThread->stop = true;
-  } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-    // failed to call epoll_ctl, call pthread_cancel instead, which may result in data corruption
-    sError("failed to call epoll_ctl since %s", strerror(errno));
-    pthread_cancel(pThread->thread);
-  }
-
   pthread_join(thread, NULL);
-  if (fd >= 0) taosClose(fd);
 }

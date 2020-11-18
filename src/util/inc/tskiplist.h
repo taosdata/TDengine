@@ -131,6 +131,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
                            __sl_key_fn_t fn);
 void       tSkipListDestroy(SSkipList *pSkipList);
 SSkipListNode *    tSkipListPut(SSkipList *pSkipList, void *pData);
+void               tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata);
 SArray *           tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
 void               tSkipListPrint(SSkipList *pSkipList, int16_t nlevel);
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList);

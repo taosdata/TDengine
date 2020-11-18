@@ -77,8 +77,10 @@ else
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo   
+  cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump  
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
+  cp ${script_dir}/get_client.sh    ${install_dir}/bin
 fi
 chmod a+x ${install_dir}/bin/* || :
 

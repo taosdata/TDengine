@@ -38,11 +38,11 @@ typedef struct {
 } SVWriteWorkerPool;
 
 static SVWriteWorkerPool tsVWriteWP;
-static void *dnodeProcessVWriteQueue(void *param);
+static void *dnodeProcessVWriteQueue(void *pWorker);
 
 int32_t dnodeInitVWrite() {
   tsVWriteWP.max = tsNumOfCores;
-  tsVWriteWP.worker = (SVWriteWorker *)tcalloc(sizeof(SVWriteWorker), tsVWriteWP.max);
+  tsVWriteWP.worker = tcalloc(sizeof(SVWriteWorker), tsVWriteWP.max);
   if (tsVWriteWP.worker == NULL) return -1;
   pthread_mutex_init(&tsVWriteWP.mutex, NULL);
 
@@ -162,13 +162,13 @@ void *dnodeAllocVWriteQueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeVWriteQueue(void *wqueue) {
-  taosCloseQueue(wqueue);
+void dnodeFreeVWriteQueue(void *pWqueue) {
+  taosCloseQueue(pWqueue);
 }
 
-void dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code) {
-  if (param == NULL) return;
-  SVWriteMsg *pWrite = param;
+void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
+  if (wparam == NULL) return;
+  SVWriteMsg *pWrite = wparam;
 
   if (code < 0) pWrite->code = code;
   int32_t count = atomic_add_fetch_32(&pWrite->processedCount, 1);
@@ -183,13 +183,11 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code) {
   };
 
   rpcSendResponse(&rpcRsp);
-  taosFreeQitem(pWrite);
-
-  vnodeRelease(pVnode);
+  vnodeFreeFromWQueue(pVnode, pWrite);
 }
 
-static void *dnodeProcessVWriteQueue(void *param) {
-  SVWriteWorker *pWorker = param;
+static void *dnodeProcessVWriteQueue(void *wparam) {
+  SVWriteWorker *pWorker = wparam;
   SVWriteMsg *   pWrite;
   void *         pVnode;
   int32_t        numOfMsgs;
@@ -232,8 +230,7 @@ static void *dnodeProcessVWriteQueue(void *param) {
         if (pWrite->rspRet.rsp) {
           rpcFreeCont(pWrite->rspRet.rsp);
         }
-        taosFreeQitem(pWrite);
-        vnodeRelease(pVnode);
+        vnodeFreeFromWQueue(pVnode, pWrite);
       }
     }
   }

@@ -32,18 +32,6 @@
 #define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
-typedef struct {
-  int32_t  totalLen;
-  int32_t  len;
-  SDataRow row;
-} SSubmitBlkIter;
-
-typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  void *  pMsg;
-} SSubmitMsgIter;
-
 static int32_t     tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t     tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg);
 static int32_t     tsdbUnsetRepoEnv(char *rootDir);
@@ -52,20 +40,13 @@ static int         tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg);
 static char *      tsdbGetCfgFname(char *rootDir);
 static STsdbRepo * tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg);
 static void        tsdbFreeRepo(STsdbRepo *pRepo);
-static int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
-static int32_t     tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows);
-static int         tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
-static SDataRow    tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 static int         tsdbRestoreInfo(STsdbRepo *pRepo);
-static int         tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
 static int         tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
 static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
 static int         keyFGroupCompFunc(const void *key, const void *fgroup);
 static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
 static void *      tsdbDecodeCfg(void *buf, STsdbCfg *pCfg);
-static int         tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
-static int         tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
 static void        tsdbStartStream(STsdbRepo *pRepo);
 static void        tsdbStopStream(STsdbRepo *pRepo);
 
@@ -153,17 +134,20 @@ _err:
 }
 
 // Note: all working thread and query thread must stopped when calling this function
-void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
-  if (repo == NULL) return;
+int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
+  if (repo == NULL) return 0;
 
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   int        vgId = REPO_ID(pRepo);
+
+  terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
     sem_wait(&(pRepo->readyToCommit));
+    terrno = pRepo->code;
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);
@@ -175,40 +159,12 @@ void tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
   tsdbDebug("vgId:%d repository is closed", vgId);
-}
 
-int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
-  STsdbRepo *    pRepo = (STsdbRepo *)repo;
-  SSubmitMsgIter msgIter = {0};
-
-  if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
-    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
-    }
+  if (terrno != TSDB_CODE_SUCCESS) {
     return -1;
+  } else {
+    return 0;
   }
-
-  if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) {
-    tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
-    return -1;
-  }
-
-  SSubmitBlk *pBlock = NULL;
-  int32_t     affectedrows = 0;
-
-  TSKEY now = taosGetTimestamp(pRepo->config.precision);
-  while (true) {
-    tsdbGetSubmitMsgNext(&msgIter, &pBlock);
-    if (pBlock == NULL) break;
-    if (tsdbInsertDataToTable(pRepo, pBlock, now, &affectedrows) < 0) {
-      return -1;
-    }
-  }
-
-  if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
-
-  if (tsdbCheckCommit(pRepo) < 0) return -1;
-  return 0;
 }
 
 uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
@@ -672,6 +628,7 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
   }
 
   pRepo->state = TSDB_STATE_OK;
+  pRepo->code = TSDB_CODE_SUCCESS;
 
   int code = pthread_mutex_init(&pRepo->mutex, NULL);
   if (code != 0) {
@@ -735,93 +692,6 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
   }
 }
 
-static int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    return -1;
-  }
-
-  pIter->totalLen = pMsg->length;
-  pIter->len = 0;
-  pIter->pMsg = pMsg;
-  if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    return -1;
-  }
-
-  return 0;
-}
-
-static int32_t tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, TSKEY now, int32_t *affectedrows) {
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-  int64_t    points = 0;
-
-  ASSERT(pBlock->tid < pMeta->maxTables);
-  STable *pTable = pMeta->tables[pBlock->tid];
-  ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
-
-  SSubmitBlkIter blkIter = {0};
-  SDataRow       row = NULL;
-
-  TSKEY minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
-  TSKEY maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-
-  tsdbInitSubmitBlkIter(pBlock, &blkIter);
-  while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-    if (dataRowKey(row) < minKey || dataRowKey(row) > maxKey) {
-      tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
-                " maxKey %" PRId64,
-                REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), now, minKey, maxKey);
-      terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-      return -1;
-    }
-
-    if (tsdbUpdateRowInMem(pRepo, row, pTable) < 0) return -1;
-
-    (*affectedrows)++;
-    points++;
-  }
-
-  STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
-  pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
-  pRepo->stat.totalStorage += points * schemaVLen(pSchema);
-
-  return 0;
-}
-
-static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
-  if (pIter->len == 0) {
-    pIter->len += TSDB_SUBMIT_MSG_HEAD_SIZE;
-  } else {
-    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
-    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
-  }
-
-  if (pIter->len > pIter->totalLen) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    *pPBlock = NULL;
-    return -1;
-  }
-
-  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
-
-  return 0;
-}
-
-static SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
-  SDataRow row = pIter->row;
-  if (row == NULL) return NULL;
-
-  pIter->len += dataRowLen(row);
-  if (pIter->len >= pIter->totalLen) {
-    pIter->row = NULL;
-  } else {
-    pIter->row = (char *)row + dataRowLen(row);
-  }
-
-  return row;
-}
-
 static int tsdbRestoreInfo(STsdbRepo *pRepo) {
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
@@ -853,14 +723,6 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
 _err:
   tsdbDestroyHelper(&rhelper);
   return -1;
-}
-
-static int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
-  if (pBlock->dataLen <= 0) return -1;
-  pIter->totalLen = pBlock->dataLen;
-  pIter->len = 0;
-  pIter->row = (SDataRow)(pBlock->data+pBlock->schemaLen);
-  return 0;
 }
 
 static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
@@ -957,134 +819,6 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
   buf = taosDecodeFixedI8(buf, &(pCfg->update));
 
   return buf;
-}
-
-static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable) {
-  ASSERT(pTable != NULL);
-
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
-  int       sversion = schemaVersion(pSchema);
-
-  if (pBlock->sversion == sversion) {
-    return 0;
-  } else {
-    if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE) {  // stream table is not allowed to change schema
-      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-      return -1;
-    }
-  }
-
-  if (pBlock->sversion > sversion) {  // may need to update table schema
-    if (pBlock->schemaLen > 0) {
-      tsdbDebug(
-          "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, update...",
-          REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), sversion, pBlock->sversion);
-      ASSERT(pBlock->schemaLen % sizeof(STColumn) == 0);
-      int       numOfCols = pBlock->schemaLen / sizeof(STColumn);
-      STColumn *pTCol = (STColumn *)pBlock->data;
-
-      STSchemaBuilder schemaBuilder = {0};
-      if (tdInitTSchemaBuilder(&schemaBuilder, pBlock->sversion) < 0) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        tsdbError("vgId:%d failed to update schema of table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                  tstrerror(terrno));
-        return -1;
-      }
-
-      for (int i = 0; i < numOfCols; i++) {
-        if (tdAddColToSchema(&schemaBuilder, pTCol[i].type, htons(pTCol[i].colId), htons(pTCol[i].bytes)) < 0) {
-          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-          tsdbError("vgId:%d failed to update schema of table %s since %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
-                    tstrerror(terrno));
-          tdDestroyTSchemaBuilder(&schemaBuilder);
-          return -1;
-        }
-      }
-
-      STSchema *pNSchema = tdGetSchemaFromBuilder(&schemaBuilder);
-      if (pNSchema == NULL) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        tdDestroyTSchemaBuilder(&schemaBuilder);
-        return -1;
-      }
-
-      tdDestroyTSchemaBuilder(&schemaBuilder);
-      tsdbUpdateTableSchema(pRepo, pTable, pNSchema, true);
-    } else {
-      tsdbDebug(
-          "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, reconfigure...",
-          REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable), sversion, pBlock->sversion);
-      terrno = TSDB_CODE_TDB_TABLE_RECONFIGURE;
-      return -1;
-    }
-  } else {
-    ASSERT(pBlock->sversion >= 0);
-    if (tsdbGetTableSchemaImpl(pTable, false, false, pBlock->sversion) == NULL) {
-      tsdbError("vgId:%d invalid submit schema version %d to table %s tid %d from client", REPO_ID(pRepo),
-                pBlock->sversion, TABLE_CHAR_NAME(pTable), TABLE_TID(pTable));
-    }
-    terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-    return -1;
-  }
-
-  return 0;
-}
-
-static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
-  ASSERT(pMsg != NULL);
-  STsdbMeta *    pMeta = pRepo->tsdbMeta;
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk *   pBlock = NULL;
-
-  terrno = TSDB_CODE_SUCCESS;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-
-  if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
-  while (true) {
-    if (tsdbGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
-    if (pBlock == NULL) break;
-
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->tid = htonl(pBlock->tid);
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->dataLen = htonl(pBlock->dataLen);
-    pBlock->schemaLen = htonl(pBlock->schemaLen);
-    pBlock->numOfRows = htons(pBlock->numOfRows);
-
-    if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
-                pBlock->tid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    STable *pTable = pMeta->tables[pBlock->tid];
-    if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
-                pBlock->tid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
-      terrno = TSDB_CODE_TDB_INVALID_ACTION;
-      return -1;
-    }
-
-    // Check schema version and update schema if needed
-    if (tsdbCheckTableSchema(pRepo, pBlock, pTable) < 0) {
-      if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-        continue;
-      } else {
-        return -1;
-      }
-    }
-  }
-
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
-  return 0;
 }
 
 static int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {

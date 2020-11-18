@@ -24,8 +24,8 @@ int32_t dnodeInitVWrite();
 void    dnodeCleanupVWrite();
 void    dnodeDispatchToVWriteQueue(SRpcMsg *pMsg);
 void *  dnodeAllocVWriteQueue(void *pVnode);
-void    dnodeFreeVWriteQueue(void *wqueue);
-void    dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code);
+void    dnodeFreeVWriteQueue(void *pWqueue);
+void    dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
 
 #ifdef __cplusplus
 }

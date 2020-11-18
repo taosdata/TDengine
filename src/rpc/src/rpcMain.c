@@ -135,7 +135,7 @@ int tsRpcOverhead;
 
 static int     tsRpcRefId = -1;
 static int32_t tsRpcNum = 0;
-static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
+//static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
 
 // server:0 client:1  tcp:2 udp:0
 #define RPC_CONN_UDPS   0
@@ -221,13 +221,15 @@ static void rpcFree(void *p) {
   free(p);
 }
 
-void rpcInit(void) {
+int32_t rpcInit(void) {
   tsProgressTimer = tsRpcTimer/2; 
   tsRpcMaxRetry = tsRpcMaxTime * 1000/tsProgressTimer;
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
+
+  return 0;
 }
  
 void rpcCleanup(void) {
@@ -238,7 +240,7 @@ void rpcCleanup(void) {
 void *rpcOpen(const SRpcInit *pInit) {
   SRpcInfo *pRpc;
 
-  pthread_once(&tsRpcInit, rpcInit);
+  //pthread_once(&tsRpcInit, rpcInit);
 
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
@@ -379,7 +381,7 @@ void *rpcReallocCont(void *ptr, int contLen) {
   return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
-int64_t rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
+void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
   SRpcInfo       *pRpc = (SRpcInfo *)shandle;
   SRpcReqContext *pContext;
 
@@ -405,14 +407,10 @@ int64_t rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg) {
     || type == TSDB_MSG_TYPE_CM_SHOW )
     pContext->connType = RPC_CONN_TCPC;
   
-  // set the handle to pContext, so app can cancel the request
-  if (pMsg->handle) *((void **)pMsg->handle) = pContext;
-
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
+  if (pRid) *pRid = pContext->rid;
 
   rpcSendReqToServer(pRpc, pContext);
-
-  return pContext->rid;
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
@@ -528,7 +526,7 @@ void rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
   pContext->pRsp = pRsp;
   pContext->pSet = pEpSet;
 
-  rpcSendRequest(shandle, pEpSet, pMsg);
+  rpcSendRequest(shandle, pEpSet, pMsg, NULL);
 
   tsem_wait(&sem);
   tsem_destroy(&sem);

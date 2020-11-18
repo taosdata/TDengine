@@ -2695,17 +2695,18 @@ static void apercentile_func_second_merge(SQLFunctionCtx *pCtx) {
   }
   
   SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
-  SHistogramInfo *  pHisto = pOutput->pHisto;
+  SHistogramInfo  *pHisto = pOutput->pHisto;
   
   if (pHisto->numOfElems <= 0) {
     memcpy(pHisto, pInput->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
     pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
   } else {
+    //TODO(dengyihao): avoid memcpy   
     pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
-    
     SHistogramInfo *pRes = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN);
-    tHistogramDestroy(&pOutput->pHisto);
-    pOutput->pHisto = pRes;
+    memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
+    pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+    tHistogramDestroy(&pRes);
   }
   
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);

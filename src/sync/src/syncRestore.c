@@ -136,7 +136,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    ret, code = -1;
 
-  void *buffer = calloc(1024000, 1);  // size for one record
+  void *buffer = calloc(SYNC_MAX_SIZE, 1);  // size for one record
   if (buffer == NULL) return -1;
 
   SWalHead *pHead = (SWalHead *)buffer;
@@ -237,7 +237,7 @@ static int32_t syncOpenRecvBuffer(SSyncNode *pNode) {
   SRecvBuffer *pRecv = calloc(sizeof(SRecvBuffer), 1);
   if (pRecv == NULL) return -1;
 
-  pRecv->bufferSize = 5000000;
+  pRecv->bufferSize = SYNC_RECV_BUFFER_SIZE;
   pRecv->buffer = malloc(pRecv->bufferSize);
   if (pRecv->buffer == NULL) {
     free(pRecv);
