@@ -131,6 +131,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    fetchBlockImp
+ * Signature: (JJLcom/taosdata/jdbc/TSDBResultSetBlockData;)I
+ */
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp
+  (JNIEnv *, jobject, jlong, jlong, jobject);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    closeConnectionImp
  * Signature: (J)I
  */

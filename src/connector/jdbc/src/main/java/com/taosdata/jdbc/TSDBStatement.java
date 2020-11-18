@@ -81,7 +81,9 @@ public class TSDBStatement implements Statement {
         }
 
         if (!this.connecter.isUpdateQuery(pSql)) {
-            return new TSDBResultSet(this.connecter, resultSetPointer);
+        	TSDBResultSet res = new TSDBResultSet(this.connecter, resultSetPointer);
+            res.setBlockWiseFetch(true);
+            return res;
         } else {
             this.connecter.freeResultSet(pSql);
             return null;
@@ -136,7 +138,7 @@ public class TSDBStatement implements Statement {
     }
 
     public void setMaxRows(int max) throws SQLException {
-        // always set maxRows to zero, meaning unlimitted rows in a resultSet
+        // always set maxRows to zero, meaning unlimited rows in a resultSet
     }
 
     public void setEscapeProcessing(boolean enable) throws SQLException {

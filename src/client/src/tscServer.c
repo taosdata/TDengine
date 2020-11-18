@@ -2196,16 +2196,6 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
 
-//  if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
-//
-//  }
-//
-//  if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY) ||
-//     ((!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) || pCmd->command == TSDB_SQL_RETRIEVE) &&
-//      !(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)))) {
-//    tscSetResRawPtr(pRes, pQueryInfo);
-//  }
-
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     
