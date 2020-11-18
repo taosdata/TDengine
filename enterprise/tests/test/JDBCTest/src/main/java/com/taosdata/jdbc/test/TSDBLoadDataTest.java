@@ -1,9 +1,9 @@
 package com.taosdata.jdbc.test;
 
-import com.taosdata.jdbc.TSDBDriver;
-
 import java.sql.*;
 import java.util.Properties;
+
+import com.taosdata.jdbc.TSDBDriver;
 
 public class TSDBLoadDataTest {
 	private String host = "localhost";
@@ -178,12 +178,10 @@ public class TSDBLoadDataTest {
 		ResultSet reSet = null;
 		try {
 			stmt = (Statement) conn.createStatement();
-			reSet = stmt.executeQuery("use test");
-			
-			reSet = stmt.executeQuery("select * from tm1");
+			reSet = stmt.executeQuery("select t from test.t2m1 limit 2");
 			
 			while(reSet.next()) {
-				System.out.println(reSet.getString(1));
+				System.out.println(reSet.getInt(1));
 			}
 
 		} catch (SQLException e) {
@@ -204,7 +202,7 @@ public class TSDBLoadDataTest {
 				e.printStackTrace();
 			}
 		}
-		System.out.println("insert table finished");
+		System.out.println("finished");
 		try {
 			this.conn.close();
 		} catch (SQLException e) {
