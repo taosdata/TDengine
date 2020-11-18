@@ -321,7 +321,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES
   
   if (sqlLen > (uint32_t)tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
-    terrno = TSDB_CODE_TSC_INVALID_SQL;
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }
 
@@ -892,18 +892,16 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   int32_t sqlLen = (int32_t)strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
-    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
     tfree(pSql);
-    return pRes->code;
+    return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
     tfree(pSql);
-    return pRes->code;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strtolower(pSql->sqlstr, sql);

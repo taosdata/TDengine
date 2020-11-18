@@ -165,7 +165,7 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 
 static char* flushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   int32_t ret = TSDB_CODE_SUCCESS;
-  assert(pResultBuf->numOfPages * pResultBuf->pageSize == pResultBuf->totalBufSize && pResultBuf->numOfPages >= pResultBuf->inMemPages);
+  assert((int64_t)pResultBuf->numOfPages * pResultBuf->pageSize == pResultBuf->totalBufSize && pResultBuf->numOfPages >= pResultBuf->inMemPages);
 
   if (pResultBuf->file == NULL) {
     if ((ret = createDiskFile(pResultBuf)) != TSDB_CODE_SUCCESS) {
