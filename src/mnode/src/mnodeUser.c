@@ -42,13 +42,13 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg);
 
-static int32_t mnodeUserActionDestroy(SSWriteMsg *pOper) {
-  tfree(pOper->pObj);
+static int32_t mnodeUserActionDestroy(SSWriteMsg *pWMsg) {
+  tfree(pWMsg->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeUserActionInsert(SSWriteMsg *pOper) {
-  SUserObj *pUser = pOper->pObj;
+static int32_t mnodeUserActionInsert(SSWriteMsg *pWMsg) {
+  SUserObj *pUser = pWMsg->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
@@ -62,8 +62,8 @@ static int32_t mnodeUserActionInsert(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeUserActionDelete(SSWriteMsg *pOper) {
-  SUserObj *pUser = pOper->pObj;
+static int32_t mnodeUserActionDelete(SSWriteMsg *pWMsg) {
+  SUserObj *pUser = pWMsg->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
@@ -74,8 +74,8 @@ static int32_t mnodeUserActionDelete(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeUserActionUpdate(SSWriteMsg *pOper) {
-  SUserObj *pUser = pOper->pObj;
+static int32_t mnodeUserActionUpdate(SSWriteMsg *pWMsg) {
+  SUserObj *pUser = pWMsg->pObj;
   SUserObj *pSaved = mnodeGetUser(pUser->user);
   if (pUser != pSaved) {
     memcpy(pSaved, pUser, tsUserUpdateSize);
@@ -85,19 +85,19 @@ static int32_t mnodeUserActionUpdate(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeUserActionEncode(SSWriteMsg *pOper) {
-  SUserObj *pUser = pOper->pObj;
-  memcpy(pOper->rowData, pUser, tsUserUpdateSize);
-  pOper->rowSize = tsUserUpdateSize;
+static int32_t mnodeUserActionEncode(SSWriteMsg *pWMsg) {
+  SUserObj *pUser = pWMsg->pObj;
+  memcpy(pWMsg->rowData, pUser, tsUserUpdateSize);
+  pWMsg->rowSize = tsUserUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeUserActionDecode(SSWriteMsg *pOper) {
+static int32_t mnodeUserActionDecode(SSWriteMsg *pWMsg) {
   SUserObj *pUser = (SUserObj *)calloc(1, sizeof(SUserObj));
   if (pUser == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pUser, pOper->rowData, tsUserUpdateSize);
-  pOper->pObj = pUser;
+  memcpy(pUser, pWMsg->rowData, tsUserUpdateSize);
+  pWMsg->pObj = pUser;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -205,14 +205,14 @@ void mnodeDecUserRef(SUserObj *pUser) {
 }
 
 static int32_t mnodeUpdateUser(SUserObj *pUser, void *pMsg) {
-  SSWriteMsg oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsUserSdb,
-    .pObj  = pUser,
-    .pMsg  = pMsg
+  SSWriteMsg wmsg = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsUserSdb,
+    .pObj   = pUser,
+    .pMsg   = pMsg
   };
 
-  int32_t code = sdbUpdateRow(&oper);
+  int32_t code = sdbUpdateRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   } else {
@@ -259,15 +259,15 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
     pUser->superAuth = 1;
   }
 
-  SSWriteMsg oper = {
-    .type    = SDB_OPER_GLOBAL,
-    .table   = tsUserSdb,
-    .pObj    = pUser,
-    .rowSize = sizeof(SUserObj),
-    .pMsg    = pMsg
+  SSWriteMsg wmsg = {
+    .type     = SDB_OPER_GLOBAL,
+    .pTable   = tsUserSdb,
+    .pObj     = pUser,
+    .rowSize  = sizeof(SUserObj),
+    .pMsg     = pMsg
   };
 
-  code = sdbInsertRow(&oper);
+  code = sdbInsertRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
     tfree(pUser);
@@ -279,14 +279,14 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
 }
 
 static int32_t mnodeDropUser(SUserObj *pUser, void *pMsg) {
-  SSWriteMsg oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsUserSdb,
-    .pObj  = pUser,
-    .pMsg  = pMsg
+  SSWriteMsg wmsg = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsUserSdb,
+    .pObj   = pUser,
+    .pMsg   = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&oper);
+  int32_t code = sdbDeleteRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to drop by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   } else {
@@ -562,12 +562,12 @@ void mnodeDropAllUsers(SAcctObj *pAcct)  {
     if (pUser == NULL) break;
 
     if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
-      SSWriteMsg oper = {
-        .type = SDB_OPER_LOCAL,
-        .table = tsUserSdb,
-        .pObj = pUser,
+      SSWriteMsg wmsg = {
+        .type   = SDB_OPER_LOCAL,
+        .pTable = tsUserSdb,
+        .pObj   = pUser,
       };
-      sdbDeleteRow(&oper);
+      sdbDeleteRow(&wmsg);
       numOfUsers++;
     }
 

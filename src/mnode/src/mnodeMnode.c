@@ -58,13 +58,13 @@ static int32_t mnodeRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, vo
   #define mnodeMnodeDestroyLock() pthread_mutex_destroy(&tsMnodeLock)
 #endif
 
-static int32_t mnodeMnodeActionDestroy(SSWriteMsg *pOper) {
-  tfree(pOper->pObj);
+static int32_t mnodeMnodeActionDestroy(SSWriteMsg *pWMsg) {
+  tfree(pWMsg->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeMnodeActionInsert(SSWriteMsg *pOper) {
-  SMnodeObj *pMnode = pOper->pObj;
+static int32_t mnodeMnodeActionInsert(SSWriteMsg *pWMsg) {
+  SMnodeObj *pMnode = pWMsg->pObj;
   SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_MND_DNODE_NOT_EXIST;
 
@@ -76,8 +76,8 @@ static int32_t mnodeMnodeActionInsert(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeMnodeActionDelete(SSWriteMsg *pOper) {
-  SMnodeObj *pMnode = pOper->pObj;
+static int32_t mnodeMnodeActionDelete(SSWriteMsg *pWMsg) {
+  SMnodeObj *pMnode = pWMsg->pObj;
 
   SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
   if (pDnode == NULL) return TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -88,30 +88,30 @@ static int32_t mnodeMnodeActionDelete(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeMnodeActionUpdate(SSWriteMsg *pOper) {
-  SMnodeObj *pMnode = pOper->pObj;
+static int32_t mnodeMnodeActionUpdate(SSWriteMsg *pWMsg) {
+  SMnodeObj *pMnode = pWMsg->pObj;
   SMnodeObj *pSaved = mnodeGetMnode(pMnode->mnodeId);
   if (pMnode != pSaved) {
-    memcpy(pSaved, pMnode, pOper->rowSize);
+    memcpy(pSaved, pMnode, pWMsg->rowSize);
     free(pMnode);
   }
   mnodeDecMnodeRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeMnodeActionEncode(SSWriteMsg *pOper) {
-  SMnodeObj *pMnode = pOper->pObj;
-  memcpy(pOper->rowData, pMnode, tsMnodeUpdateSize);
-  pOper->rowSize = tsMnodeUpdateSize;
+static int32_t mnodeMnodeActionEncode(SSWriteMsg *pWMsg) {
+  SMnodeObj *pMnode = pWMsg->pObj;
+  memcpy(pWMsg->rowData, pMnode, tsMnodeUpdateSize);
+  pWMsg->rowSize = tsMnodeUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeMnodeActionDecode(SSWriteMsg *pOper) {
+static int32_t mnodeMnodeActionDecode(SSWriteMsg *pWMsg) {
   SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
   if (pMnode == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pMnode, pOper->rowData, tsMnodeUpdateSize);
-  pOper->pObj = pMnode;
+  memcpy(pMnode, pWMsg->rowData, tsMnodeUpdateSize);
+  pWMsg->pObj = pMnode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -329,11 +329,11 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
   pMnode->mnodeId = dnodeId;
   pMnode->createdTime = taosGetTimestampMs();
 
-  SSWriteMsg oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsMnodeSdb,
-    .pObj  = pMnode,
-    .writeCb = mnodeCreateMnodeCb
+  SSWriteMsg wmsg = {
+    .type    = SDB_OPER_GLOBAL,
+    .pTable  = tsMnodeSdb,
+    .pObj    = pMnode,
+    .fpWrite = mnodeCreateMnodeCb
   };
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -346,7 +346,7 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
     return;
   }
 
-  code = sdbInsertRow(&oper);
+  code = sdbInsertRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to create mnode, ep:%s reason:%s", dnodeId, dnodeEp, tstrerror(code));
     tfree(pMnode);
@@ -356,8 +356,8 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
 void mnodeDropMnodeLocal(int32_t dnodeId) {
   SMnodeObj *pMnode = mnodeGetMnode(dnodeId);
   if (pMnode != NULL) {
-    SSWriteMsg oper = {.type = SDB_OPER_LOCAL, .table = tsMnodeSdb, .pObj = pMnode};
-    sdbDeleteRow(&oper);
+    SSWriteMsg wmsg = {.type = SDB_OPER_LOCAL, .pTable = tsMnodeSdb, .pObj = pMnode};
+    sdbDeleteRow(&wmsg);
     mnodeDecMnodeRef(pMnode);
   }
 
@@ -371,13 +371,13 @@ int32_t mnodeDropMnode(int32_t dnodeId) {
     return TSDB_CODE_MND_DNODE_NOT_EXIST;
   }
   
-  SSWriteMsg oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsMnodeSdb,
-    .pObj = pMnode
+  SSWriteMsg wmsg = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsMnodeSdb,
+    .pObj   = pMnode
   };
 
-  int32_t code = sdbDeleteRow(&oper);
+  int32_t code = sdbDeleteRow(&wmsg);
 
   sdbDecRef(tsMnodeSdb, pMnode);
 

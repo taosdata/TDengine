@@ -32,36 +32,36 @@ static int32_t mnodeCreateCluster();
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int32_t mnodeClusterActionDestroy(SSWriteMsg *pOper) {
-  tfree(pOper->pObj);
+static int32_t mnodeClusterActionDestroy(SSWriteMsg *pWMsg) {
+  tfree(pWMsg->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionInsert(SSWriteMsg *pOper) {
+static int32_t mnodeClusterActionInsert(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDelete(SSWriteMsg *pOper) {
+static int32_t mnodeClusterActionDelete(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionUpdate(SSWriteMsg *pOper) {
+static int32_t mnodeClusterActionUpdate(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionEncode(SSWriteMsg *pOper) {
-  SClusterObj *pCluster = pOper->pObj;
-  memcpy(pOper->rowData, pCluster, tsClusterUpdateSize);
-  pOper->rowSize = tsClusterUpdateSize;
+static int32_t mnodeClusterActionEncode(SSWriteMsg *pWMsg) {
+  SClusterObj *pCluster = pWMsg->pObj;
+  memcpy(pWMsg->rowData, pCluster, tsClusterUpdateSize);
+  pWMsg->rowSize = tsClusterUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDecode(SSWriteMsg *pOper) {
+static int32_t mnodeClusterActionDecode(SSWriteMsg *pWMsg) {
   SClusterObj *pCluster = (SClusterObj *) calloc(1, sizeof(SClusterObj));
   if (pCluster == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pCluster, pOper->rowData, tsClusterUpdateSize);
-  pOper->pObj = pCluster;
+  memcpy(pCluster, pWMsg->rowData, tsClusterUpdateSize);
+  pWMsg->pObj = pCluster;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -145,13 +145,13 @@ static int32_t mnodeCreateCluster() {
     mDebug("uid is %s", pCluster->uid);
   }
 
-  SSWriteMsg oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsClusterSdb,
-    .pObj = pCluster,
+  SSWriteMsg wmsg = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsClusterSdb,
+    .pObj   = pCluster,
   };
 
-  return sdbInsertRow(&oper);
+  return sdbInsertRow(&wmsg);
 }
 
 const char* mnodeGetClusterId() {

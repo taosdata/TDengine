@@ -56,8 +56,8 @@ static void mnodeDestroyDb(SDbObj *pDb) {
   tfree(pDb);
 }
 
-static int32_t mnodeDbActionDestroy(SSWriteMsg *pOper) {
-  mnodeDestroyDb(pOper->pObj);
+static int32_t mnodeDbActionDestroy(SSWriteMsg *pWMsg) {
+  mnodeDestroyDb(pWMsg->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -65,8 +65,8 @@ int64_t mnodeGetDbNum() {
   return sdbGetNumOfRows(tsDbSdb);
 }
 
-static int32_t mnodeDbActionInsert(SSWriteMsg *pOper) {
-  SDbObj *pDb = pOper->pObj;
+static int32_t mnodeDbActionInsert(SSWriteMsg *pWMsg) {
+  SDbObj *pDb = pWMsg->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   pthread_mutex_init(&pDb->mutex, NULL);
@@ -91,8 +91,8 @@ static int32_t mnodeDbActionInsert(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionDelete(SSWriteMsg *pOper) {
-  SDbObj *pDb = pOper->pObj;
+static int32_t mnodeDbActionDelete(SSWriteMsg *pWMsg) {
+  SDbObj *pDb = pWMsg->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   mnodeDropAllChildTables(pDb);
@@ -107,11 +107,11 @@ static int32_t mnodeDbActionDelete(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionUpdate(SSWriteMsg *pOper) {
-  SDbObj *pNew = pOper->pObj;
+static int32_t mnodeDbActionUpdate(SSWriteMsg *pWMsg) {
+  SDbObj *pNew = pWMsg->pObj;
   SDbObj *pDb = mnodeGetDb(pNew->name);
   if (pDb != NULL && pNew != pDb) {
-    memcpy(pDb, pNew, pOper->rowSize);
+    memcpy(pDb, pNew, pWMsg->rowSize);
     free(pNew->vgList);
     free(pNew);
   }
@@ -120,19 +120,19 @@ static int32_t mnodeDbActionUpdate(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionEncode(SSWriteMsg *pOper) {
-  SDbObj *pDb = pOper->pObj;
-  memcpy(pOper->rowData, pDb, tsDbUpdateSize);
-  pOper->rowSize = tsDbUpdateSize;
+static int32_t mnodeDbActionEncode(SSWriteMsg *pWMsg) {
+  SDbObj *pDb = pWMsg->pObj;
+  memcpy(pWMsg->rowData, pDb, tsDbUpdateSize);
+  pWMsg->rowSize = tsDbUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionDecode(SSWriteMsg *pOper) {
+static int32_t mnodeDbActionDecode(SSWriteMsg *pWMsg) {
   SDbObj *pDb = (SDbObj *) calloc(1, sizeof(SDbObj));
   if (pDb == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
   
-  memcpy(pDb, pOper->rowData, tsDbUpdateSize);
-  pOper->pObj = pDb;
+  memcpy(pDb, pWMsg->rowData, tsDbUpdateSize);
+  pWMsg->pObj = pDb;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -412,16 +412,16 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
   pMsg->pDb = pDb;
   mnodeIncDbRef(pDb);
 
-  SSWriteMsg oper = {
-    .type    = SDB_OPER_GLOBAL,
-    .table   = tsDbSdb,
-    .pObj    = pDb,
-    .rowSize = sizeof(SDbObj),
-    .pMsg    = pMsg,
-    .writeCb = mnodeCreateDbCb
+  SSWriteMsg wmsg = {
+    .type     = SDB_OPER_GLOBAL,
+    .pTable   = tsDbSdb,
+    .pObj     = pDb,
+    .rowSize  = sizeof(SDbObj),
+    .pMsg     = pMsg,
+    .fpWrite  = mnodeCreateDbCb
   };
 
-  code = sdbInsertRow(&oper);
+  code = sdbInsertRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     pMsg->pDb = NULL;
@@ -440,8 +440,8 @@ bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
 }
 
 #if 0
-void mnodePrintVgroups(SDbObj *pDb, char *oper) {
-  mInfo("db:%s, vgroup link from head, oper:%s", pDb->name, oper);  
+void mnodePrintVgroups(SDbObj *pDb, char *wmsg) {
+  mInfo("db:%s, vgroup link from head, wmsg:%s", pDb->name, wmsg);  
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
     mInfo("vgId:%d", pVgroup->vgId);
@@ -807,13 +807,13 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
   if (pDb->status) return TSDB_CODE_SUCCESS;
 
   pDb->status = true;
-  SSWriteMsg oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsDbSdb,
-    .pObj = pDb
+  SSWriteMsg wmsg = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsDbSdb,
+    .pObj   = pDb
   };
 
-  int32_t code = sdbUpdateRow(&oper);
+  int32_t code = sdbUpdateRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to set dropping state, reason:%s", pDb->name, tstrerror(code));
   }
@@ -1019,15 +1019,15 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
     pDb->cfgVersion++;
-    SSWriteMsg oper = {
-      .type  = SDB_OPER_GLOBAL,
-      .table = tsDbSdb,
-      .pObj  = pDb,
-      .pMsg  = pMsg,
-      .writeCb = mnodeAlterDbCb
+    SSWriteMsg wmsg = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDbSdb,
+      .pObj    = pDb,
+      .pMsg    = pMsg,
+      .fpWrite = mnodeAlterDbCb
     };
 
-    code = sdbUpdateRow(&oper);
+    code = sdbUpdateRow(&wmsg);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
@@ -1071,15 +1071,15 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
   mInfo("db:%s, drop db from sdb", pDb->name);
 
-  SSWriteMsg oper = {
-    .type   = SDB_OPER_GLOBAL,
-    .table  = tsDbSdb,
-    .pObj   = pDb,
-    .pMsg   = pMsg,
-    .writeCb = mnodeDropDbCb
+  SSWriteMsg wmsg = {
+    .type    = SDB_OPER_GLOBAL,
+    .pTable  = tsDbSdb,
+    .pObj    = pDb,
+    .pMsg    = pMsg,
+    .fpWrite = mnodeDropDbCb
   };
 
-  int32_t code = sdbDeleteRow(&oper);
+  int32_t code = sdbDeleteRow(&wmsg);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop, reason:%s", pDb->name, tstrerror(code));
   }
@@ -1134,13 +1134,13 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
 
     if (pDb->pAcct == pAcct) {
       mInfo("db:%s, drop db from sdb for acct:%s is dropped", pDb->name, pAcct->user);
-      SSWriteMsg oper = {
-        .type = SDB_OPER_LOCAL,
-        .table = tsDbSdb,
-        .pObj = pDb
+      SSWriteMsg wmsg = {
+        .type   = SDB_OPER_LOCAL,
+        .pTable = tsDbSdb,
+        .pObj   = pDb
       };
       
-      sdbDeleteRow(&oper);
+      sdbDeleteRow(&wmsg);
       numOfDbs++;
     }
     mnodeDecDbRef(pDb);
