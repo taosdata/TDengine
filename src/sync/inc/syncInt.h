@@ -36,6 +36,7 @@ extern "C" {
 #define TAOS_SMSG_STATUS       7
 
 #define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
+#define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
@@ -105,7 +106,7 @@ typedef struct {
   int8_t    nacks;
   int8_t    confirmed;
   int32_t   code;
-  uint64_t  time;
+  int64_t   time;
 } SFwdInfo;
 
 typedef struct {

@@ -24,7 +24,7 @@ int32_t dnodeInitVRead();
 void    dnodeCleanupVRead();
 void    dnodeDispatchToVReadQueue(SRpcMsg *pMsg);
 void *  dnodeAllocVReadQueue(void *pVnode);
-void    dnodeFreeVReadQueue(void *rqueue);
+void    dnodeFreeVReadQueue(void *pRqueue);
 
 #ifdef __cplusplus
 }

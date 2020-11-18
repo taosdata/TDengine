@@ -30,7 +30,7 @@
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int      vnodeProcessTsdbStatus(void *arg, int status);
+static int      vnodeProcessTsdbStatus(void *arg, int status, int eno);
 static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
 static int      vnodeGetWalInfo(void *ahandle, char *fileName, int64_t *fileId);
 static void     vnodeNotifyRole(void *ahandle, int8_t role);
@@ -378,9 +378,10 @@ int32_t vnodeClose(int32_t vgId) {
   return 0;
 }
 
-void vnodeRelease(void *pVnodeRaw) {
-  if (pVnodeRaw == NULL) return;
-  SVnodeObj *pVnode = pVnodeRaw;
+void vnodeRelease(void *vparam) {
+  if (vparam == NULL) return;
+  SVnodeObj *pVnode = vparam;
+  int32_t    code = 0;
   int32_t    vgId = pVnode->vgId;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
@@ -406,7 +407,7 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->tsdb) {
-    tsdbCloseRepo(pVnode->tsdb, 1);
+    code = tsdbCloseRepo(pVnode->tsdb, 1);
     pVnode->tsdb = NULL;
   }
 
@@ -418,7 +419,11 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->wal) {
-    walRemoveAllOldFiles(pVnode->wal);
+    if (code != 0) {
+      vError("vgId:%d, failed to commit while close tsdb repo, keep wal", pVnode->vgId);
+    } else {
+      walRemoveAllOldFiles(pVnode->wal);
+    }
     walClose(pVnode->wal);
     pVnode->wal = NULL;
   }
@@ -590,8 +595,15 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeProcessTsdbStatus(void *arg, int status) {
+static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
   SVnodeObj *pVnode = arg;
+
+  if (eno != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to commit since %s, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, tstrerror(eno),
+           pVnode->fversion, pVnode->version);
+    pVnode->isFull = 1;
+    return 0;
+  }
 
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->fversion = pVnode->version;
@@ -605,6 +617,7 @@ static int vnodeProcessTsdbStatus(void *arg, int status) {
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
+    pVnode->isFull = 0;
     walRemoveOneOldFile(pVnode->wal);
     return vnodeSaveVersion(pVnode);
   }
@@ -630,18 +643,19 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
   pVnode->role = role;
   dnodeSendStatusMsgToMnode();
 
-  if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) {
     cqStart(pVnode->cq);
-  else
+  } else {
     cqStop(pVnode->cq);
+  }
 }
 
 static void vnodeCtrlFlow(void *ahandle, int32_t mseconds) {
   SVnodeObj *pVnode = ahandle;
-  if (pVnode->delay != mseconds) {
-    vInfo("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
+  if (pVnode->delayMs != mseconds) {
+    pVnode->delayMs = mseconds;
+    vDebug("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
   }
-  pVnode->delay = mseconds;
 }
 
 static int vnodeResetTsdb(SVnodeObj *pVnode) {

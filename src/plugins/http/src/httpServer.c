@@ -85,7 +85,7 @@ static void httpProcessHttpData(void *param) {
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];
     //-1 means uncertainty, 0-nowait, 1-wait 1 ms, set it from -1 to 1
-    fdNum = epoll_wait(pThread->pollFd, events, HTTP_MAX_EVENTS, 1);
+    fdNum = epoll_wait(pThread->pollFd, events, HTTP_MAX_EVENTS, TAOS_EPOLL_WAIT_TIME);
     if (pThread->stop) {
       httpDebug("%p, http thread get stop event, exiting...", pThread);
       break;
