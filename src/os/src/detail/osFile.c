@@ -132,13 +132,13 @@ ssize_t taosTCopy(char *from, char *to) {
   if (fidto < 0) goto _err;
 
   while (true) {
-    bytes = taosTRead(fidfrom, buffer, sizeof(buffer));
+    bytes = taosRead(fidfrom, buffer, sizeof(buffer));
     if (bytes < 0) goto _err;
     if (bytes == 0) break;
 
     size += bytes;
 
-    if (taosTWrite(fidto, (void *)buffer, bytes) < bytes) goto _err;
+    if (taosWrite(fidto, (void *)buffer, bytes) < bytes) goto _err;
     if (bytes < sizeof(buffer)) break;
   }
 
