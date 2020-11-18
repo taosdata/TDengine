@@ -5,21 +5,18 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 
 public class FailOverTest {
 
     private Connection conn;
-    private static final String host = "localhost";
 
     @Before
     public void before() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
-            conn = TSDBCommon.getConn(host);
+            final String url = "jdbc:TAOS://:/?user=root&password=taosdata";
+            conn = DriverManager.getConnection(url);
             TSDBCommon.createDatabase(conn, "failover_test");
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
