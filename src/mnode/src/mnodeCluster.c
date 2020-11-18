@@ -32,31 +32,31 @@ static int32_t mnodeCreateCluster();
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int32_t mnodeClusterActionDestroy(SSdbOper *pOper) {
+static int32_t mnodeClusterActionDestroy(SSWriteMsg *pOper) {
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionInsert(SSdbOper *pOper) {
+static int32_t mnodeClusterActionInsert(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDelete(SSdbOper *pOper) {
+static int32_t mnodeClusterActionDelete(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionUpdate(SSdbOper *pOper) {
+static int32_t mnodeClusterActionUpdate(SSWriteMsg *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionEncode(SSdbOper *pOper) {
+static int32_t mnodeClusterActionEncode(SSWriteMsg *pOper) {
   SClusterObj *pCluster = pOper->pObj;
   memcpy(pOper->rowData, pCluster, tsClusterUpdateSize);
   pOper->rowSize = tsClusterUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDecode(SSdbOper *pOper) {
+static int32_t mnodeClusterActionDecode(SSWriteMsg *pOper) {
   SClusterObj *pCluster = (SClusterObj *) calloc(1, sizeof(SClusterObj));
   if (pCluster == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
@@ -91,13 +91,13 @@ int32_t mnodeInitCluster() {
     .maxRowSize   = tsClusterUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
-    .insertFp     = mnodeClusterActionInsert,
-    .deleteFp     = mnodeClusterActionDelete,
-    .updateFp     = mnodeClusterActionUpdate,
-    .encodeFp     = mnodeClusterActionEncode,
-    .decodeFp     = mnodeClusterActionDecode,
-    .destroyFp    = mnodeClusterActionDestroy,
-    .restoredFp   = mnodeClusterActionRestored
+    .fpInsert     = mnodeClusterActionInsert,
+    .fpDelete     = mnodeClusterActionDelete,
+    .fpUpdate     = mnodeClusterActionUpdate,
+    .fpEncode     = mnodeClusterActionEncode,
+    .fpDecode     = mnodeClusterActionDecode,
+    .fpDestroy    = mnodeClusterActionDestroy,
+    .fpDestored   = mnodeClusterActionRestored
   };
 
   tsClusterSdb = sdbOpenTable(&tableDesc);
@@ -145,7 +145,7 @@ static int32_t mnodeCreateCluster() {
     mDebug("uid is %s", pCluster->uid);
   }
 
-  SSdbOper oper = {
+  SSWriteMsg oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsClusterSdb,
     .pObj = pCluster,

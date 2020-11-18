@@ -47,7 +47,7 @@ typedef enum {
   SDB_OPER_LOCAL
 } ESdbOper;
 
-typedef struct SSdbOper {
+typedef struct SSWriteMsg {
   ESdbOper type;
   int32_t  rowSize;
   int32_t  retCode; // for callback in sdb queue
@@ -58,7 +58,7 @@ typedef struct SSdbOper {
   void *   pObj;
   void *   rowData;
   struct SMnodeMsg *pMsg;
-} SSdbOper;
+} SSWriteMsg;
 
 typedef struct {
   char   *tableName;
@@ -67,13 +67,13 @@ typedef struct {
   int32_t refCountPos;
   ESdbTable tableId;
   ESdbKey   keyType;
-  int32_t (*insertFp)(SSdbOper *pOper);
-  int32_t (*deleteFp)(SSdbOper *pOper);
-  int32_t (*updateFp)(SSdbOper *pOper);
-  int32_t (*encodeFp)(SSdbOper *pOper);
-  int32_t (*decodeFp)(SSdbOper *pDesc);  
-  int32_t (*destroyFp)(SSdbOper *pDesc);
-  int32_t (*restoredFp)();
+  int32_t (*fpInsert)(SSWriteMsg *pWrite);
+  int32_t (*fpDelete)(SSWriteMsg *pWrite);
+  int32_t (*fpUpdate)(SSWriteMsg *pWrite);
+  int32_t (*fpEncode)(SSWriteMsg *pWrite);
+  int32_t (*fpDecode)(SSWriteMsg *pWrite);  
+  int32_t (*fpDestroy)(SSWriteMsg *pWrite);
+  int32_t (*fpDestored)();
 } SSdbTableDesc;
 
 int32_t sdbInit();
@@ -84,10 +84,10 @@ bool    sdbIsMaster();
 bool    sdbIsServing();
 void    sdbUpdateMnodeRoles();
 
-int32_t sdbInsertRow(SSdbOper *pOper);
-int32_t sdbDeleteRow(SSdbOper *pOper);
-int32_t sdbUpdateRow(SSdbOper *pOper);
-int32_t sdbInsertRowImp(SSdbOper *pOper);
+int32_t sdbInsertRow(SSWriteMsg *pWrite);
+int32_t sdbDeleteRow(SSWriteMsg *pWrite);
+int32_t sdbUpdateRow(SSWriteMsg *pWrite);
+int32_t sdbInsertRowImp(SSWriteMsg *pWrite);
 
 void    *sdbGetRow(void *handle, void *key);
 void    *sdbFetchRow(void *handle, void *pIter, void **ppRow);

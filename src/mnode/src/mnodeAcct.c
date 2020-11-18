@@ -31,14 +31,14 @@ void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;
 static int32_t mnodeCreateRootAcct();
 
-static int32_t mnodeAcctActionDestroy(SSdbOper *pOper) {
+static int32_t mnodeAcctActionDestroy(SSWriteMsg *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   pthread_mutex_destroy(&pAcct->mutex);
   tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionInsert(SSdbOper *pOper) {
+static int32_t mnodeAcctActionInsert(SSWriteMsg *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
   pAcct->acctInfo.accessState = TSDB_VN_ALL_ACCCESS;
@@ -46,14 +46,14 @@ static int32_t mnodeAcctActionInsert(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionDelete(SSdbOper *pOper) {
+static int32_t mnodeAcctActionDelete(SSWriteMsg *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   mnodeDropAllUsers(pAcct);
   mnodeDropAllDbs(pAcct);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionUpdate(SSdbOper *pOper) {
+static int32_t mnodeAcctActionUpdate(SSWriteMsg *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   SAcctObj *pSaved = mnodeGetAcct(pAcct->user);
   if (pAcct != pSaved) {
@@ -64,14 +64,14 @@ static int32_t mnodeAcctActionUpdate(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionEncode(SSdbOper *pOper) {
+static int32_t mnodeAcctActionEncode(SSWriteMsg *pOper) {
   SAcctObj *pAcct = pOper->pObj;
   memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
   pOper->rowSize = tsAcctUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionDecode(SSdbOper *pOper) {
+static int32_t mnodeAcctActionDecode(SSWriteMsg *pOper) {
   SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
   if (pAcct == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
@@ -106,13 +106,13 @@ int32_t mnodeInitAccts() {
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
-    .insertFp     = mnodeAcctActionInsert,
-    .deleteFp     = mnodeAcctActionDelete,
-    .updateFp     = mnodeAcctActionUpdate,
-    .encodeFp     = mnodeAcctActionEncode,
-    .decodeFp     = mnodeAcctActionDecode,
-    .destroyFp    = mnodeAcctActionDestroy,
-    .restoredFp   = mnodeAcctActionRestored
+    .fpInsert     = mnodeAcctActionInsert,
+    .fpDelete     = mnodeAcctActionDelete,
+    .fpUpdate     = mnodeAcctActionUpdate,
+    .fpEncode     = mnodeAcctActionEncode,
+    .fpDecode     = mnodeAcctActionDecode,
+    .fpDestroy    = mnodeAcctActionDestroy,
+    .fpDestored   = mnodeAcctActionRestored
   };
 
   tsAcctSdb = sdbOpenTable(&tableDesc);
@@ -226,7 +226,7 @@ static int32_t mnodeCreateRootAcct() {
   pAcct->acctId = sdbGetId(tsAcctSdb);
   pAcct->createdTime = taosGetTimestampMs();
 
-  SSdbOper oper = {
+  SSWriteMsg oper = {
     .type = SDB_OPER_GLOBAL,
     .table = tsAcctSdb,
     .pObj = pAcct,
