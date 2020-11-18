@@ -119,11 +119,11 @@ int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence) {
   return (int64_t)tlseek(fd, (long)offset, whence);
 }
 
-ssize_t taosTCopy(char *from, char *to) {
+int64_t taosCopy(char *from, char *to) {
   char    buffer[4096];
   int     fidto = -1, fidfrom = -1;
-  ssize_t size = 0;
-  ssize_t bytes;
+  int64_t size = 0;
+  int64_t bytes;
 
   fidfrom = open(from, O_RDONLY);
   if (fidfrom < 0) goto _err;

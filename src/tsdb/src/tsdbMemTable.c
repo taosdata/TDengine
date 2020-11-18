@@ -262,6 +262,9 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   bool      isRowDel = false;
   int       filterIter = 0;
   SDataRow  row = NULL;
+  SMergeInfo mInfo;
+
+  if (pMergeInfo == NULL) pMergeInfo = &mInfo;
 
   memset(pMergeInfo, 0, sizeof(*pMergeInfo));
   pMergeInfo->keyFirst = INT64_MAX;

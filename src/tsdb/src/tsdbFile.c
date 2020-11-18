@@ -476,7 +476,7 @@ int tsdbApplyRetention(STsdbRepo *pRepo, SFidGroup *pFidGroup) {
       }
 
       for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-        if (taosTCopy(oFileGroup.files[type].fname, nFileGroup.files[type].fname) < 0) return -1;
+        if (taosCopy(oFileGroup.files[type].fname, nFileGroup.files[type].fname) < 0) return -1;
       }
 
       pthread_rwlock_wrlock(&(pFileH->fhlock)); 

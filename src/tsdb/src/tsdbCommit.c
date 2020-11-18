@@ -21,6 +21,7 @@ static int  tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TS
 static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
+static void         tsdbSeekCommitIter(SCommitIter *pIters, int nIters, TSKEY key);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
   SMemTable *  pMem = pRepo->imem;
@@ -41,8 +42,6 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
     tsdbError("vgId:%d error occurs while committing TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
-
-  tsdbFitRetention(pRepo);
 
   tsdbInfo("vgId:%d commit over, succeed", REPO_ID(pRepo));
   tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS);
@@ -65,8 +64,15 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
   SCommitIter *iters = NULL;
   SRWHelper    whelper = {0};
   STsdbCfg *   pCfg = &(pRepo->config);
+  SFidGroup    fidGroup = {0};
+  TSKEY        minKey = 0;
+  TSKEY        maxKey = 0;
 
   if (pMem->numOfRows <= 0) return 0;
+
+  tsdbGetFidGroup(pCfg, &fidGroup);
+  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fidGroup.minFid, &minKey, &maxKey);
+  tsdbRemoveFilesBeyondRetention(pRepo, &fidGroup);
 
   iters = tsdbCreateCommitIters(pRepo);
   if (iters == NULL) {
@@ -89,13 +95,19 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
   int sfid = (int)(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision));
   int efid = (int)(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision));
 
+  tsdbSeekCommitIter(iters, pMem->maxTables, minKey);
+
   // Loop to commit to each file
   for (int fid = sfid; fid <= efid; fid++) {
+    if (fid < fidGroup.minFid) continue;
+
     if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
       tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
       goto _err;
     }
   }
+
+  tsdbApplyRetention(pRepo, &fidGroup);
 
   tdFreeDataCols(pDataCols);
   tsdbDestroyCommitIters(iters, pMem->maxTables);
@@ -173,7 +185,6 @@ static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSK
 }
 
 static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols) {
-  char *      dataDir = NULL;
   STsdbCfg *  pCfg = &pRepo->config;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pGroup = NULL;
@@ -190,15 +201,17 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     return 0;
   }
 
-  // Create and open files for commit
-  dataDir = tsdbGetDataDirName(pRepo->rootDir);
-  if (dataDir == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
+  if ((pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ)) == NULL) {
+    pGroup = tsdbCreateFGroup(pRepo, fid);
+    if (pGroup == NULL) {
+      tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+      return -1;
+    }
   }
 
-  if ((pGroup = tsdbCreateFGroupIfNeed(pRepo, dataDir, fid)) == NULL) {
-    tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+  // Open files for write/read
+  if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) {
+    tsdbError("vgId:%d failed to set helper file since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
@@ -259,7 +272,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
-  tfree(dataDir);
   tsdbCloseHelperFile(pHelper, 0, pGroup);
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
@@ -281,7 +293,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   return 0;
 
 _err:
-  tfree(dataDir);
   tsdbCloseHelperFile(pHelper, 1, pGroup);
   return -1;
 }
@@ -337,4 +348,14 @@ static void tsdbDestroyCommitIters(SCommitIter *iters, int maxTables) {
   }
 
   free(iters);
+}
+
+static void tsdbSeekCommitIter(SCommitIter *pIters, int nIters, TSKEY key) {
+  for (int i = 0; i < nIters; i++) {
+    SCommitIter *pIter = pIters + i;
+    if (pIter->pTable == NULL) continue;
+    if (pIter->pIter == NULL) continue;
+
+    tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, key-1, INT32_MAX, NULL, NULL, 0, true, NULL);
+  }
 }

@@ -35,6 +35,7 @@ int64_t taosReadImp(int32_t fd, void *buf, int64_t count);
 int64_t taosWriteImp(int32_t fd, void *buf, int64_t count);
 int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence);
 int32_t taosRenameFile(char *fullPath, char *suffix, char delimiter, char **dstPath);
+int64_t taosCopy(char *from, char *to);
 
 #define taosRead(fd, buf, count) taosReadImp(fd, buf, count)
 #define taosWrite(fd, buf, count) taosWriteImp(fd, buf, count)
