@@ -32,14 +32,14 @@ static int32_t tsAcctUpdateSize;
 static int32_t mnodeCreateRootAcct();
 
 static int32_t mnodeAcctActionDestroy(SSWriteMsg *pWMsg) {
-  SAcctObj *pAcct = pWMsg->pObj;
+  SAcctObj *pAcct = pWMsg->pRow;
   pthread_mutex_destroy(&pAcct->mutex);
-  tfree(pWMsg->pObj);
+  tfree(pWMsg->pRow);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeAcctActionInsert(SSWriteMsg *pWMsg) {
-  SAcctObj *pAcct = pWMsg->pObj;
+  SAcctObj *pAcct = pWMsg->pRow;
   memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
   pAcct->acctInfo.accessState = TSDB_VN_ALL_ACCCESS;
   pthread_mutex_init(&pAcct->mutex, NULL);
@@ -47,14 +47,14 @@ static int32_t mnodeAcctActionInsert(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeAcctActionDelete(SSWriteMsg *pWMsg) {
-  SAcctObj *pAcct = pWMsg->pObj;
+  SAcctObj *pAcct = pWMsg->pRow;
   mnodeDropAllUsers(pAcct);
   mnodeDropAllDbs(pAcct);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeAcctActionUpdate(SSWriteMsg *pWMsg) {
-  SAcctObj *pAcct = pWMsg->pObj;
+  SAcctObj *pAcct = pWMsg->pRow;
   SAcctObj *pSaved = mnodeGetAcct(pAcct->user);
   if (pAcct != pSaved) {
     memcpy(pSaved, pAcct, tsAcctUpdateSize);
@@ -65,7 +65,7 @@ static int32_t mnodeAcctActionUpdate(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeAcctActionEncode(SSWriteMsg *pWMsg) {
-  SAcctObj *pAcct = pWMsg->pObj;
+  SAcctObj *pAcct = pWMsg->pRow;
   memcpy(pWMsg->rowData, pAcct, tsAcctUpdateSize);
   pWMsg->rowSize = tsAcctUpdateSize;
   return TSDB_CODE_SUCCESS;
@@ -76,7 +76,7 @@ static int32_t mnodeAcctActionDecode(SSWriteMsg *pWMsg) {
   if (pAcct == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   memcpy(pAcct, pWMsg->rowData, tsAcctUpdateSize);
-  pWMsg->pObj = pAcct;
+  pWMsg->pRow = pAcct;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -112,7 +112,7 @@ int32_t mnodeInitAccts() {
     .fpEncode     = mnodeAcctActionEncode,
     .fpDecode     = mnodeAcctActionDecode,
     .fpDestroy    = mnodeAcctActionDestroy,
-    .fpDestored   = mnodeAcctActionRestored
+    .fpRestored   = mnodeAcctActionRestored
   };
 
   tsAcctSdb = sdbOpenTable(&tableDesc);
@@ -229,7 +229,7 @@ static int32_t mnodeCreateRootAcct() {
   SSWriteMsg wmsg = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsAcctSdb,
-    .pObj   = pAcct,
+    .pRow   = pAcct,
   };
 
   return sdbInsertRow(&wmsg);

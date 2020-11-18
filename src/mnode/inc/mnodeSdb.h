@@ -57,7 +57,7 @@ typedef struct SSWriteMsg {
   void *   rowData;
   int32_t  (*fpReq)(SMnodeMsg *pMsg);
   int32_t  (*fpWrite)(SMnodeMsg *pMsg, int32_t code);
-  void *   pObj;
+  void *   pRow;
   SMnodeMsg *pMsg;
   struct SSdbTable *pTable;
 } SSWriteMsg;
@@ -75,7 +75,7 @@ typedef struct {
   int32_t (*fpEncode)(SSWriteMsg *pWrite);
   int32_t (*fpDecode)(SSWriteMsg *pWrite);  
   int32_t (*fpDestroy)(SSWriteMsg *pWrite);
-  int32_t (*fpDestored)();
+  int32_t (*fpRestored)();
 } SSdbTableDesc;
 
 int32_t sdbInit();

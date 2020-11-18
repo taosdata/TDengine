@@ -57,7 +57,7 @@ static void mnodeDestroyDb(SDbObj *pDb) {
 }
 
 static int32_t mnodeDbActionDestroy(SSWriteMsg *pWMsg) {
-  mnodeDestroyDb(pWMsg->pObj);
+  mnodeDestroyDb(pWMsg->pRow);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -66,7 +66,7 @@ int64_t mnodeGetDbNum() {
 }
 
 static int32_t mnodeDbActionInsert(SSWriteMsg *pWMsg) {
-  SDbObj *pDb = pWMsg->pObj;
+  SDbObj *pDb = pWMsg->pRow;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   pthread_mutex_init(&pDb->mutex, NULL);
@@ -92,7 +92,7 @@ static int32_t mnodeDbActionInsert(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeDbActionDelete(SSWriteMsg *pWMsg) {
-  SDbObj *pDb = pWMsg->pObj;
+  SDbObj *pDb = pWMsg->pRow;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   mnodeDropAllChildTables(pDb);
@@ -108,7 +108,7 @@ static int32_t mnodeDbActionDelete(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeDbActionUpdate(SSWriteMsg *pWMsg) {
-  SDbObj *pNew = pWMsg->pObj;
+  SDbObj *pNew = pWMsg->pRow;
   SDbObj *pDb = mnodeGetDb(pNew->name);
   if (pDb != NULL && pNew != pDb) {
     memcpy(pDb, pNew, pWMsg->rowSize);
@@ -121,7 +121,7 @@ static int32_t mnodeDbActionUpdate(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeDbActionEncode(SSWriteMsg *pWMsg) {
-  SDbObj *pDb = pWMsg->pObj;
+  SDbObj *pDb = pWMsg->pRow;
   memcpy(pWMsg->rowData, pDb, tsDbUpdateSize);
   pWMsg->rowSize = tsDbUpdateSize;
   return TSDB_CODE_SUCCESS;
@@ -132,7 +132,7 @@ static int32_t mnodeDbActionDecode(SSWriteMsg *pWMsg) {
   if (pDb == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
   
   memcpy(pDb, pWMsg->rowData, tsDbUpdateSize);
-  pWMsg->pObj = pDb;
+  pWMsg->pRow = pDb;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -157,7 +157,7 @@ int32_t mnodeInitDbs() {
     .fpEncode     = mnodeDbActionEncode,
     .fpDecode     = mnodeDbActionDecode,
     .fpDestroy    = mnodeDbActionDestroy,
-    .fpDestored   = mnodeDbActionRestored
+    .fpRestored   = mnodeDbActionRestored
   };
 
   tsDbSdb = sdbOpenTable(&tableDesc);
@@ -415,7 +415,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
   SSWriteMsg wmsg = {
     .type     = SDB_OPER_GLOBAL,
     .pTable   = tsDbSdb,
-    .pObj     = pDb,
+    .pRow     = pDb,
     .rowSize  = sizeof(SDbObj),
     .pMsg     = pMsg,
     .fpWrite  = mnodeCreateDbCb
@@ -810,7 +810,7 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
   SSWriteMsg wmsg = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsDbSdb,
-    .pObj   = pDb
+    .pRow   = pDb
   };
 
   int32_t code = sdbUpdateRow(&wmsg);
@@ -1022,7 +1022,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
     SSWriteMsg wmsg = {
       .type    = SDB_OPER_GLOBAL,
       .pTable  = tsDbSdb,
-      .pObj    = pDb,
+      .pRow    = pDb,
       .pMsg    = pMsg,
       .fpWrite = mnodeAlterDbCb
     };
@@ -1074,7 +1074,7 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   SSWriteMsg wmsg = {
     .type    = SDB_OPER_GLOBAL,
     .pTable  = tsDbSdb,
-    .pObj    = pDb,
+    .pRow    = pDb,
     .pMsg    = pMsg,
     .fpWrite = mnodeDropDbCb
   };
@@ -1137,7 +1137,7 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
       SSWriteMsg wmsg = {
         .type   = SDB_OPER_LOCAL,
         .pTable = tsDbSdb,
-        .pObj   = pDb
+        .pRow   = pDb
       };
       
       sdbDeleteRow(&wmsg);

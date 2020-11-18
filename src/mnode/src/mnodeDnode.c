@@ -88,12 +88,12 @@ static char* offlineReason[] = {
 };
 
 static int32_t mnodeDnodeActionDestroy(SSWriteMsg *pWMsg) {
-  tfree(pWMsg->pObj);
+  tfree(pWMsg->pRow);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeDnodeActionInsert(SSWriteMsg *pWMsg) {
-  SDnodeObj *pDnode = pWMsg->pObj;
+  SDnodeObj *pDnode = pWMsg->pRow;
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
     pDnode->lastAccess = tsAccessSquence;
@@ -108,7 +108,7 @@ static int32_t mnodeDnodeActionInsert(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeDnodeActionDelete(SSWriteMsg *pWMsg) {
-  SDnodeObj *pDnode = pWMsg->pObj;
+  SDnodeObj *pDnode = pWMsg->pRow;
  
 #ifndef _SYNC 
   mnodeDropAllDnodeVgroups(pDnode);
@@ -122,7 +122,7 @@ static int32_t mnodeDnodeActionDelete(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeDnodeActionUpdate(SSWriteMsg *pWMsg) {
-  SDnodeObj *pNew = pWMsg->pObj;
+  SDnodeObj *pNew = pWMsg->pRow;
   SDnodeObj *pDnode = mnodeGetDnode(pNew->dnodeId);
   if (pDnode != NULL && pNew != pDnode) {
     memcpy(pDnode, pNew, pWMsg->rowSize);
@@ -135,7 +135,7 @@ static int32_t mnodeDnodeActionUpdate(SSWriteMsg *pWMsg) {
 }
 
 static int32_t mnodeDnodeActionEncode(SSWriteMsg *pWMsg) {
-  SDnodeObj *pDnode = pWMsg->pObj;
+  SDnodeObj *pDnode = pWMsg->pRow;
   memcpy(pWMsg->rowData, pDnode, tsDnodeUpdateSize);
   pWMsg->rowSize = tsDnodeUpdateSize;
   return TSDB_CODE_SUCCESS;
@@ -146,7 +146,7 @@ static int32_t mnodeDnodeActionDecode(SSWriteMsg *pWMsg) {
   if (pDnode == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
   memcpy(pDnode, pWMsg->rowData, tsDnodeUpdateSize);
-  pWMsg->pObj = pDnode;
+  pWMsg->pRow = pDnode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -184,7 +184,7 @@ int32_t mnodeInitDnodes() {
     .fpEncode     = mnodeDnodeActionEncode,
     .fpDecode     = mnodeDnodeActionDecode,
     .fpDestroy    = mnodeDnodeActionDestroy,
-    .fpDestored   = mnodeDnodeActionRestored
+    .fpRestored   = mnodeDnodeActionRestored
   };
 
   tsDnodeSdb = sdbOpenTable(&tableDesc);
@@ -299,7 +299,7 @@ void mnodeUpdateDnode(SDnodeObj *pDnode) {
   SSWriteMsg wmsg = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsDnodeSdb,
-    .pObj   = pDnode
+    .pRow   = pDnode
   };
 
   int32_t code = sdbUpdateRow(&wmsg);
@@ -647,7 +647,7 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   SSWriteMsg wmsg = {
     .type    = SDB_OPER_GLOBAL,
     .pTable  = tsDnodeSdb,
-    .pObj    = pDnode,
+    .pRow    = pDnode,
     .rowSize = sizeof(SDnodeObj),
     .pMsg    = pMsg
   };
@@ -668,7 +668,7 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
   SSWriteMsg wmsg = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsDnodeSdb,
-    .pObj   = pDnode,
+    .pRow   = pDnode,
     .pMsg   = pMsg
   };
 
@@ -1141,7 +1141,7 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           cols++;
 
           pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-          strcpy(pWrite, mnodeGetMnodeRoleStr(pVgid->role));
+          strcpy(pWrite, syncRole[pVgid->role]);
           cols++;
         }
       }
