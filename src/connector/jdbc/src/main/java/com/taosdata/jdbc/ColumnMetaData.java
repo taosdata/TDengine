@@ -16,10 +16,10 @@ package com.taosdata.jdbc;
 
 public class ColumnMetaData {
 
-	int colType = 0;
-	String colName = null;
-	int colSize = -1;
-	int colIndex = 0;
+	private int colType = 0;
+	private String colName = null;
+	private int colSize = -1;
+	private int colIndex = 0;
 
 	public int getColSize() {
 		return colSize;
