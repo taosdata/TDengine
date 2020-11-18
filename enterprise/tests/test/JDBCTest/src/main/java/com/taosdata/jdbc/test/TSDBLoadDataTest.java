@@ -24,7 +24,7 @@ public class TSDBLoadDataTest {
 	public void MakeJdbcUrl() {
 		String JDBC_PROTOCAL = "jdbc:TSDB://";
 		int port = 0;
-		this.jdbcUrl = JDBC_PROTOCAL + host + ":" + port + "/" + dbName + "?user=" + user + "&password=" + password;
+		this.jdbcUrl = JDBC_PROTOCAL + host + ":" + port + "/" + dbName + "? user = " + user + " & password=" + password + " & batch = false";
 		System.out.println(this.jdbcUrl);
 	}
 
@@ -175,19 +175,25 @@ public class TSDBLoadDataTest {
 		this.ConnectTbase();
 		
 		Statement stmt = null;
-		ResultSet reSet = null;
+		ResultSet rset = null;
 		try {
+			long start = System.currentTimeMillis();
 			stmt = (Statement) conn.createStatement();
-			reSet = stmt.executeQuery("select * from test.t1");
+			rset = stmt.executeQuery("select * from test.t1");
+			
+			ResultSetMetaData meta = rset.getMetaData();
+			int numOfCols = meta.getColumnCount();
 			
 			int row = 0;
-			while(reSet.next()) {
-//				System.out.println(reSet.getObject(1));
-				System.out.println(reSet.getString(2));
+			while(rset.next()) {
+				for(int i = 0; i < numOfCols; ++i) {
+					System.out.println(rset.getString(i + 1));
+				}
 				row += 1;
 			}
 
-			System.out.println("total rows:" + row);
+			long end = System.currentTimeMillis();
+			System.out.println("total rows:" + row + ", elapsed time:" + (end - start) + " ms");
 		} catch (SQLException e) {
 			e.printStackTrace();
 			System.out.println("insert failed");
@@ -198,8 +204,8 @@ public class TSDBLoadDataTest {
 			System.exit(4);
 		} finally {
 			try {
-				if (reSet != null)
-					reSet.close();
+				if (rset != null)
+					rset.close();
 				if (stmt != null)
 					stmt.close();
 			} catch (SQLException e) {
