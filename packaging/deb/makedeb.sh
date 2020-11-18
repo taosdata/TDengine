@@ -48,6 +48,7 @@ cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver 
@@ -58,7 +59,7 @@ cp -r ${top_dir}/src/connector/grafanaplugin        ${pkg_dir}${install_home_pat
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector
-cp ${compile_dir}/build/lib/taos-jdbcdriver*dist.*  ${pkg_dir}${install_home_path}/connector
+cp ${compile_dir}/build/lib/taos-jdbcdriver*dist.*  ${pkg_dir}${install_home_path}/connector ||:
 
 cp -r ${compile_dir}/../packaging/deb/DEBIAN        ${pkg_dir}/
 chmod 755 ${pkg_dir}/DEBIAN/*

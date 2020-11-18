@@ -20,47 +20,52 @@
 extern "C" {
 #endif
 
-ssize_t taosTReadImp(int fd, void *buf, size_t count);
-ssize_t taosTWriteImp(int fd, void *buf, size_t count);
+#define tread(fd, buf, count) read(fd, buf, count)
+#define twrite(fd, buf, count) write(fd, buf, count)
+#define tlseek(fd, offset, whence) lseek(fd, offset, whence)
+#define tclose(fd)    \
+  {                       \
+    if (FD_VALID(fd)) {    \
+      close(fd);           \
+      fd = FD_INITIALIZER; \
+    }                     \
+  }
 
-ssize_t taosTSendFileImp(int dfd, int sfd, off_t *offset, size_t size);
-int     taosFSendFileImp(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
+int64_t taosReadImp(int32_t fd, void *buf, int64_t count);
+int64_t taosWriteImp(int32_t fd, void *buf, int64_t count);
+int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence);
+int32_t taosRenameFile(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
-#ifndef TAOS_OS_FUNC_FILE_SENDIFLE
-  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
-  #define taosFSendFile(outfile, infile, offset, count) taosTSendFileImp(fileno(outfile), fileno(infile), offset, size)
-#endif
+#define taosRead(fd, buf, count) taosReadImp(fd, buf, count)
+#define taosWrite(fd, buf, count) taosWriteImp(fd, buf, count)
+#define taosLSeek(fd, offset, whence) taosLSeekImp(fd, offset, whence)
+#define taosClose(x) tclose(x)
 
-#define taosTRead(fd, buf, count) taosTReadImp(fd, buf, count)
-#define taosTWrite(fd, buf, count) taosTWriteImp(fd, buf, count)
-#define taosLSeek(fd, offset, whence) lseek(fd, offset, whence)
-ssize_t taosTCopy(char *from, char *to);
+// TAOS_OS_FUNC_FILE_SENDIFLE
+int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size);
+int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size);
 
 #ifdef TAOS_RANDOM_FILE_FAIL
-  void taosSetRandomFileFailFactor(int factor);
+  void taosSetRandomFileFailFactor(int32_t factor);
   void taosSetRandomFileFailOutput(const char *path);
   #ifdef TAOS_RANDOM_FILE_FAIL_TEST
-    ssize_t taosReadFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
-    ssize_t taosWriteFileRandomFail(int fd, void *buf, size_t count, const char *file, uint32_t line);
-    off_t taosLSeekRandomFail(int fd, off_t offset, int whence, const char *file, uint32_t line);
-    #undef taosTRead
-    #undef taosTWrite
+    int64_t taosReadFileRandomFail(int32_t fd, void *buf, int32_t count, const char *file, uint32_t line);
+    int64_t taosWriteFileRandomFail(int32_t fd, void *buf, int32_t count, const char *file, uint32_t line);
+    int64_t taosLSeekRandomFail(int32_t fd, int64_t offset, int32_t whence, const char *file, uint32_t line);
+    #undef taosRead
+    #undef taosWrite
     #undef taosLSeek
-    #define taosTRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
-    #define taosTWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+    #define taosRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+    #define taosWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
     #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
   #endif  
 #endif 
 
-int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
-
 // TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath);
 
-#ifndef TAOS_OS_FUNC_FILE_FTRUNCATE
-  #define taosFtruncate ftruncate
-#endif
-
+// TAOS_OS_FUNC_FILE_FTRUNCATE
+int32_t taosFtruncate(int32_t fd, int64_t length);
 #ifdef __cplusplus
 }
 #endif

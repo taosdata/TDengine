@@ -35,6 +35,9 @@ extern "C" {
 #define TAOS_SMSG_SYNC_MUST    6
 #define TAOS_SMSG_STATUS       7
 
+#define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
+#define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
+
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
 #define nodeSStatus pNode->peerInfo[pNode->selfIndex]->sstatus
@@ -89,11 +92,11 @@ typedef struct {
 #pragma pack(pop)
 
 typedef struct {
-  char  *buffer;
-  int    bufferSize;
-  char  *offset;
-  int    forwards;
-  int    code;
+  char *  buffer;
+  int32_t bufferSize;
+  char *  offset;
+  int32_t forwards;
+  int32_t code;
 } SRecvBuffer;
 
 typedef struct {
@@ -107,10 +110,10 @@ typedef struct {
 } SFwdInfo;
 
 typedef struct {
-  int       first;
-  int       last;
-  int       fwds;  // number of forwards
-  SFwdInfo  fwdInfo[];
+  int32_t  first;
+  int32_t  last;
+  int32_t  fwds;  // number of forwards
+  SFwdInfo fwdInfo[];
 } SSyncFwds;
 
 typedef struct SsyncPeer {
@@ -123,15 +126,15 @@ typedef struct SsyncPeer {
   int8_t   sstatus;   // sync status
   uint64_t version;
   uint64_t sversion;  // track the peer version in retrieve process
-  int      syncFd;
-  int      peerFd;          // forward FD
-  int      numOfRetrieves;  // number of retrieves tried
-  int      fileChanged;     // a flag to indicate file is changed during retrieving process
+  int32_t  syncFd;
+  int32_t  peerFd;          // forward FD
+  int32_t  numOfRetrieves;  // number of retrieves tried
+  int32_t  fileChanged;     // a flag to indicate file is changed during retrieving process
   void *   timer;
   void *   pConn;
-  int      notifyFd;
-  int      watchNum;
-  int *    watchFd;
+  int32_t  notifyFd;
+  int32_t  watchNum;
+  int32_t *watchFd;
   int8_t   refCount;  // reference count
   struct   SSyncNode *pSyncNode;
 } SSyncPeer;
@@ -141,6 +144,7 @@ typedef struct SSyncNode {
   int8_t       replica;
   int8_t       quorum;
   uint32_t     vgId;
+  int64_t      rid;
   void        *ahandle;
   int8_t       selfIndex;
   SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA+1];  // extra one for arbitrator
@@ -160,16 +164,16 @@ typedef struct SSyncNode {
 } SSyncNode;
 
 // sync module global
-extern int  tsSyncNum;
-extern char tsNodeFqdn[TSDB_FQDN_LEN];
+extern int32_t tsSyncNum;
+extern char    tsNodeFqdn[TSDB_FQDN_LEN];
 
 void *syncRetrieveData(void *param);
 void *syncRestoreData(void *param);
-int   syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
-void  syncRestartConnection(SSyncPeer *pPeer);
-void  syncBroadcastStatus(SSyncNode *pNode);
-void  syncAddPeerRef(SSyncPeer *pPeer);
-int   syncDecPeerRef(SSyncPeer *pPeer);
+int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
+void    syncRestartConnection(SSyncPeer *pPeer);
+void    syncBroadcastStatus(SSyncNode *pNode);
+void    syncAddPeerRef(SSyncPeer *pPeer);
+int32_t syncDecPeerRef(SSyncPeer *pPeer);
 
 #ifdef __cplusplus
 }

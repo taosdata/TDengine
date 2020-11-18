@@ -23,7 +23,7 @@
 int64_t  ver = 0;
 void    *pWal = NULL;
 
-int writeToQueue(void *pVnode, void *data, int type) {
+int writeToQueue(void *pVnode, void *data, int type, void *pMsg) {
   // do nothing
   SWalHead *pHead = data;
 
@@ -37,7 +37,6 @@ int writeToQueue(void *pVnode, void *data, int type) {
 
 int main(int argc, char *argv[]) {
   char path[128] = "/home/jhtao/test/wal";
-  int  max = 3;
   int  level = 2;
   int  total = 5;
   int  rows = 10000;
@@ -47,8 +46,6 @@ int main(int argc, char *argv[]) {
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       tstrncpy(path, argv[++i], sizeof(path));
-    } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
-      max = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-l")==0 && i < argc-1) {
       level = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r")==0 && i < argc-1) {
@@ -66,7 +63,6 @@ int main(int argc, char *argv[]) {
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-p path]: wal file path default is:%s\n", path);
-      printf("  [-m max]: max wal files, default is:%d\n", max);
       printf("  [-l level]: log level, default is:%d\n", level);
       printf("  [-t total]: total wal files, default is:%d\n", total);
       printf("  [-r rows]: rows of records per wal file, default is:%d\n", rows);
@@ -82,7 +78,6 @@ int main(int argc, char *argv[]) {
 
   SWalCfg walCfg;
   walCfg.walLevel = level;
-  walCfg.wals = max;
   walCfg.keep = keep;
 
   pWal = walOpen(path, &walCfg);
@@ -115,17 +110,17 @@ int main(int argc, char *argv[]) {
 
   printf("%d wal files are written\n", total);
 
-  uint32_t index = 0;
-  char     name[256];
+  int64_t index = 0;
+  char    name[256];
 
   while (1) {
     int code = walGetWalFile(pWal, name, &index);
     if (code == -1) {
-      printf("failed to get wal file, index:%d\n", index);
+      printf("failed to get wal file, index:%" PRId64 "\n", index);
       break;
     }
 
-    printf("index:%d wal:%s\n", index, name);
+    printf("index:%" PRId64 " wal:%s\n", index, name);
     if (code == 0) break;
 
     index++;

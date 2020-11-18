@@ -25,29 +25,31 @@ extern "C" {
 #include "hash.h"
 #include "taoserror.h"
 #include "trpc.h"
+#include "taosmsg.h"
 
 typedef struct {
   int32_t queryReqNum;
   int32_t submitReqNum;
   int32_t httpReqNum;
-} SDnodeStatisInfo;
+} SStatisInfo;
 
 typedef enum {
-  TSDB_DNODE_RUN_STATUS_INITIALIZE,
-  TSDB_DNODE_RUN_STATUS_RUNING,
-  TSDB_DNODE_RUN_STATUS_STOPPED
-} SDnodeRunStatus;
+  TSDB_RUN_STATUS_INITIALIZE,
+  TSDB_RUN_STATUS_RUNING,
+  TSDB_RUN_STATUS_STOPPED
+} SRunStatus;
 
-SDnodeRunStatus dnodeGetRunStatus();
-SDnodeStatisInfo dnodeGetStatisInfo();
+SRunStatus  dnodeGetRunStatus();
+SStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
-char *  dnodeGetMnodeMasterEp();
-void    dnodeGetMnodeEpSetForPeer(void *epSet);
-void    dnodeGetMnodeEpSetForShell(void *epSet);
-void *  dnodeGetMnodeInfos();
+bool    dnodeIsMasterEp(char *ep);
+void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
+void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 int32_t dnodeGetDnodeId();
-bool    dnodeStartMnode(void *pModes);
+void    dnodeUpdateEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
+bool    dnodeCheckEpChanged(int32_t dnodeId, char *epstr);
+bool    dnodeStartMnode(SMnodeInfos *minfos);
 
 void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
@@ -55,21 +57,21 @@ void  dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp);
 void  dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet);
 void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid);
 
-void *dnodeAllocateVnodeWqueue(void *pVnode);
-void  dnodeFreeVnodeWqueue(void *queue);
-void *dnodeAllocateVnodeRqueue(void *pVnode);
-void  dnodeFreeVnodeRqueue(void *rqueue);
-void  dnodeSendRpcVnodeWriteRsp(void *pVnode, void *param, int32_t code);
+void *dnodeAllocVWriteQueue(void *pVnode);
+void  dnodeFreeVWriteQueue(void *pWqueue);
+void  dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
+void *dnodeAllocVReadQueue(void *pVnode);
+void  dnodeFreeVReadQueue(void *rqueue);
 
-int32_t dnodeAllocateMnodePqueue();
-void    dnodeFreeMnodePqueue();
-int32_t dnodeAllocateMnodeRqueue();
-void    dnodeFreeMnodeRqueue();
-int32_t dnodeAllocateMnodeWqueue();
-void    dnodeFreeMnodeWqueue();
-void    dnodeSendRpcMnodeWriteRsp(void *pMsg, int32_t code);
-void    dnodeReprocessMnodeWriteMsg(void *pMsg);
-void    dnodeDelayReprocessMnodeWriteMsg(void *pMsg);
+int32_t dnodeAllocateMPeerQueue();
+void    dnodeFreeMPeerQueue();
+int32_t dnodeAllocMReadQueue();
+void    dnodeFreeMReadQueue();
+int32_t dnodeAllocMWritequeue();
+void    dnodeFreeMWritequeue();
+void    dnodeSendRpcMWriteRsp(void *pMsg, int32_t code);
+void    dnodeReprocessMWriteMsg(void *pMsg);
+void    dnodeDelayReprocessMWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
 

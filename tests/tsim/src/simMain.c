@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
 #include "sim.h"
@@ -20,15 +21,15 @@
 
 bool simAsyncQuery = false;
 
-void simHandleSignal(int signo) {
+void simHandleSignal(int32_t signo) {
   simSystemCleanUp();
   exit(1);
 }
 
-int main(int argc, char *argv[]) {
+int32_t main(int32_t argc, char *argv[]) {
   char scriptFile[MAX_FILE_NAME_LEN] = "sim_main_test.sim";
 
-  for (int i = 1; i < argc; ++i) {
+  for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0 && i < argc - 1) {
       tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
@@ -37,8 +38,7 @@ int main(int argc, char *argv[]) {
       simAsyncQuery = true;
     } else {
       printf("usage: %s [options] \n", argv[0]);
-      printf("       [-c config]: config directory, default is: %s\n",
-             configDir);
+      printf("       [-c config]: config directory, default is: %s\n", configDir);
       printf("       [-f script]: script filename\n");
       exit(0);
     }

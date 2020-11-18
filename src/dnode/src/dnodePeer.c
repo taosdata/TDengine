@@ -19,6 +19,7 @@
  * to dnode. All theses messages are handled from here
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
 #include "tglobal.h"
@@ -28,20 +29,20 @@
 #include "dnodeMgmt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMPeer.h"
+#include "dnodeMInfos.h"
 
-extern void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet);
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *);
 static void (*dnodeProcessRspMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *rpcMsg);
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet);
-static void *tsDnodeServerRpc = NULL;
-static void *tsDnodeClientRpc = NULL;
+static void *tsServerRpc = NULL;
+static void *tsClientRpc = NULL;
 
 int32_t dnodeInitServer() {
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeDispatchToVnodeWriteQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeDispatchToVnodeWriteQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeDispatchToVnodeWriteQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeDispatchToVnodeWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeDispatchToVWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeDispatchToVWriteQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeDispatchToVWriteQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeDispatchToVWriteQueue;
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToMgmtQueue; 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeDispatchToMgmtQueue; 
@@ -50,11 +51,11 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToMgmtQueue;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMnodePeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMnodePeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMnodePeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMnodePeerQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMnodePeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMPeerQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMPeerQueue;
   
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -66,20 +67,20 @@ int32_t dnodeInitServer() {
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
 
-  tsDnodeServerRpc = rpcOpen(&rpcInit);
-  if (tsDnodeServerRpc == NULL) {
+  tsServerRpc = rpcOpen(&rpcInit);
+  if (tsServerRpc == NULL) {
     dError("failed to init inter-dnodes RPC server");
     return -1;
   }
 
-  dInfo("inter-dnodes RPC server is opened");
+  dInfo("dnode inter-dnodes RPC server is initialized");
   return 0;
 }
 
 void dnodeCleanupServer() {
-  if (tsDnodeServerRpc) {
-    rpcClose(tsDnodeServerRpc);
-    tsDnodeServerRpc = NULL;
+  if (tsServerRpc) {
+    rpcClose(tsServerRpc);
+    tsServerRpc = NULL;
     dInfo("inter-dnodes RPC server is closed");
   }
 }
@@ -93,7 +94,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   
   if (pMsg->pCont == NULL) return;
 
-  if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
+  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
@@ -131,27 +132,34 @@ int32_t dnodeInitClient() {
   rpcInit.ckey         = "key";
   rpcInit.secret       = secret;
 
-  tsDnodeClientRpc = rpcOpen(&rpcInit);
-  if (tsDnodeClientRpc == NULL) {
+  tsClientRpc = rpcOpen(&rpcInit);
+  if (tsClientRpc == NULL) {
     dError("failed to init mnode rpc client");
     return -1;
   }
 
-  dInfo("inter-dnodes rpc client is opened");
+  dInfo("dnode inter-dnodes rpc client is initialized");
   return 0;
 }
 
 void dnodeCleanupClient() {
-  if (tsDnodeClientRpc) {
-    rpcClose(tsDnodeClientRpc);
-    tsDnodeClientRpc = NULL;
-    dInfo("inter-dnodes rpc client is closed");
+  if (tsClientRpc) {
+    rpcClose(tsClientRpc);
+    tsClientRpc = NULL;
+    dInfo("dnode inter-dnodes rpc client is closed");
   }
 }
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
+  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
+    if (pMsg == NULL || pMsg->pCont == NULL) return;
+    dDebug("msg:%p is ignored since dnode not running", pMsg);
+    rpcFreeCont(pMsg->pCont);
+    return;
+  }
+
   if (pMsg->msgType == TSDB_MSG_TYPE_DM_STATUS_RSP && pEpSet) {
-    dnodeUpdateMnodeEpSetForPeer(pEpSet);
+    dnodeUpdateEpSetForPeer(pEpSet);
   }
 
   if (dnodeProcessRspMsgFp[pMsg->msgType]) {    
@@ -168,15 +176,15 @@ void dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 }
 
 void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
-  rpcSendRequest(tsDnodeClientRpc, epSet, rpcMsg);
+  rpcSendRequest(tsClientRpc, epSet, rpcMsg, NULL);
 }
 
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcEpSet epSet = {0};
-  dnodeGetMnodeEpSetForPeer(&epSet);
-  rpcSendRecv(tsDnodeClientRpc, &epSet, rpcMsg, rpcRsp);
+  dnodeGetEpSetForPeer(&epSet);
+  rpcSendRecv(tsClientRpc, &epSet, rpcMsg, rpcRsp);
 }
 
 void dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet) {
-  rpcSendRecv(tsDnodeClientRpc, epSet, rpcMsg, rpcRsp);
+  rpcSendRecv(tsClientRpc, epSet, rpcMsg, rpcRsp);
 }

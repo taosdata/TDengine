@@ -70,10 +70,12 @@ if [[ $1 == '--valgrind' ]]; then
     $CRASH_GEN_EXEC $@ > $VALGRIND_OUT 2> $VALGRIND_ERR 
 elif [[ $1 == '--helgrind' ]]; then
   shift
+  HELGRIND_OUT=helgrind.out 
+  HELGRIND_ERR=helgrind.err
   valgrind  \
     --tool=helgrind \
     $PYTHON_EXEC \
-    $CRASH_GEN_EXEC $@
+    $CRASH_GEN_EXEC $@ > $HELGRIND_OUT 2> $HELGRIND_ERR
 else
   $PYTHON_EXEC $CRASH_GEN_EXEC $@
 fi

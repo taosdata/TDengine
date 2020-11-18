@@ -71,8 +71,8 @@ typedef struct _SSdbTable {
 typedef struct {
   ESyncRole  role;
   ESdbStatus status;
-  int64_t    version;
-  void *     sync;
+  uint64_t   version;
+  int64_t    sync;
   void *     wal;
   SSyncCfg   cfg;
   int32_t    numOfTables;
@@ -98,8 +98,8 @@ static taos_qall  tsSdbWriteQall;
 static taos_queue tsSdbWriteQueue;
 static SSdbWriteWorkerPool tsSdbPool;
 
-static int     sdbWrite(void *param, void *data, int type);
-static int     sdbWriteToQueue(void *param, void *data, int type);
+static int32_t sdbWrite(void *param, void *data, int32_t type, void *pMsg);
+static int32_t sdbWriteToQueue(void *param, void *data, int32_t type, void *pMsg);
 static void *  sdbWorkerFp(void *param);
 static int32_t sdbInitWriteWorker();
 static void    sdbCleanupWriteWorker();
@@ -175,7 +175,7 @@ static void *sdbGetTableFromId(int32_t tableId) {
 }
 
 static int32_t sdbInitWal() {
-  SWalCfg walCfg = {.walLevel = 2, .wals = 2, .keep = 1, .fsyncPeriod = 0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/wal", tsMnodeDir);
   tsSdbObj.wal = walOpen(temp, &walCfg);
@@ -212,7 +212,7 @@ static void sdbRestoreTables() {
 }
 
 void sdbUpdateMnodeRoles() {
-  if (tsSdbObj.sync == NULL) return;
+  if (tsSdbObj.sync <= 0) return;
 
   SNodesRole roles = {0};
   syncGetNodesRole(tsSdbObj.sync, &roles);
@@ -237,8 +237,8 @@ static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint3
   return 0;
 }
 
-static int sdbGetWalInfo(void *ahandle, char *name, uint32_t *index) {
-  return walGetWalFile(tsSdbObj.wal, name, index);
+static int32_t sdbGetWalInfo(void *ahandle, char *fileName, int64_t *fileId) {
+  return walGetWalFile(tsSdbObj.wal, fileName, fileId);
 }
 
 static void sdbNotifyRole(void *ahandle, int8_t role) {
@@ -281,14 +281,21 @@ static void sdbConfirmForward(void *ahandle, void *param, int32_t code) {
              ((SSdbTable *)pOper->table)->tableName, pOper->pObj, sdbGetKeyStr(pOper->table, pHead->cont),
              pHead->version, action, tstrerror(pOper->retCode));
     if (action == SDB_ACTION_INSERT) {
-      sdbDeleteHash(pOper->table, pOper);
+      // It's better to create a table in two stages, create it first and then set it success
+      //sdbDeleteHash(pOper->table, pOper);
+      SSdbOper oper = {
+        .type  = SDB_OPER_GLOBAL,
+        .table = pOper->table,
+        .pObj  = pOper->pObj
+      };
+      sdbDeleteRow(&oper);
     }
   }
 
   if (pOper->writeCb != NULL) {
     pOper->retCode = (*pOper->writeCb)(pMsg, pOper->retCode);
   }
-  dnodeSendRpcMnodeWriteRsp(pMsg, pOper->retCode);
+  dnodeSendRpcMWriteRsp(pMsg, pOper->retCode);
 
   // if ahandle, means this func is called by sdb write
   if (ahandle == NULL) {
@@ -305,7 +312,7 @@ void sdbUpdateAsync() {
 }
 
 void sdbUpdateSync(void *pMnodes) {
-  SDMMnodeInfos *mnodes = pMnodes;
+  SMnodeInfos *mnodes = pMnodes;
   if (!mnodeIsRunning()) {
     mDebug("mnode not start yet, update sync config later");
     return;
@@ -339,10 +346,10 @@ void sdbUpdateSync(void *pMnodes) {
     syncCfg.replica = index;
     mDebug("mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
   } else {
-    for (index = 0; index < mnodes->nodeNum; ++index) {
-      SDMMnodeInfo *node = &mnodes->nodeInfos[index];
-      syncCfg.nodeInfo[index].nodeId = node->nodeId;
-      taosGetFqdnPortFromEp(node->nodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
+    for (index = 0; index < mnodes->mnodeNum; ++index) {
+      SMnodeInfo *node = &mnodes->mnodeInfos[index];
+      syncCfg.nodeInfo[index].nodeId = node->mnodeId;
+      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
       syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
     }
     syncCfg.replica = index;
@@ -426,7 +433,7 @@ void sdbCleanUp() {
 
   if (tsSdbObj.sync) {
     syncStop(tsSdbObj.sync);
-    tsSdbObj.sync = NULL;
+    tsSdbObj.sync = -1;
   }
 
   if (tsSdbObj.wal) {
@@ -568,7 +575,7 @@ static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int sdbWrite(void *param, void *data, int type) {
+static int sdbWrite(void *param, void *data, int32_t type, void *pMsg) {
   SSdbOper *pOper = param;
   SWalHead *pHead = data;
   int32_t tableId = pHead->msgType / 10;
@@ -977,7 +984,7 @@ void sdbCleanupWriteWorker() {
   }
 
   sdbFreeWritequeue();
-  taosTFree(tsSdbPool.writeWorker);
+  tfree(tsSdbPool.writeWorker);
 
   mInfo("sdb write is closed");
 }
@@ -1033,13 +1040,13 @@ void sdbFreeWritequeue() {
   tsSdbWriteQueue = NULL;
 }
 
-int sdbWriteToQueue(void *param, void *data, int type) {
+int32_t sdbWriteToQueue(void *param, void *data, int32_t qtype, void *pMsg) {
   SWalHead *pHead = data;
-  int size = sizeof(SWalHead) + pHead->len;
-  SWalHead *pWal = (SWalHead *)taosAllocateQitem(size);
+  int32_t   size = sizeof(SWalHead) + pHead->len;
+  SWalHead *pWal = taosAllocateQitem(size);
   memcpy(pWal, pHead, size);
 
-  taosWriteQitem(tsSdbWriteQueue, type, pWal);
+  taosWriteQitem(tsSdbWriteQueue, qtype, pWal);
   return 0;
 }
 
@@ -1074,7 +1081,7 @@ static void *sdbWorkerFp(void *param) {
         pOper = NULL;
       }
 
-      int32_t code = sdbWrite(pOper, pHead, type);
+      int32_t code = sdbWrite(pOper, pHead, type, NULL);
       if (code > 0) code = 0;
       if (pOper) {
         pOper->retCode = code;
@@ -1083,7 +1090,7 @@ static void *sdbWorkerFp(void *param) {
       }
     }
 
-    walFsync(tsSdbObj.wal);
+    walFsync(tsSdbObj.wal, true);
 
     // browse all items, and process them one by one
     taosResetQitems(tsSdbWriteQall);

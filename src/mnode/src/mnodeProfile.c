@@ -131,8 +131,8 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
 
 static void mnodeFreeConn(void *data) {
   SConnObj *pConn = data;
-  taosTFree(pConn->pQueries);
-  taosTFree(pConn->pStreams);
+  tfree(pConn->pQueries);
+  tfree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
 }
@@ -280,7 +280,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 }
 
 // not thread safe, need optimized
-int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
+int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pHBMsg) {
   pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
   if (pConn->numOfQueries > 0) {
     if (pConn->pQueries == NULL) {
@@ -561,7 +561,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mInfo("kill query msg is received, queryId:%s", pKill->queryId);
 
   const char delim = ':';
@@ -592,7 +592,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mInfo("kill stream msg is received, streamId:%s", pKill->queryId);
 
   const char delim = ':';
@@ -623,7 +623,7 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  SCMKillConnMsg *pKill = pMsg->rpcMsg.pCont;
+  SKillConnMsg *pKill = pMsg->rpcMsg.pCont;
   int32_t connId = atoi(pKill->queryId);
   SConnObj *pConn = taosCacheAcquireByKey(tsMnodeConnCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {

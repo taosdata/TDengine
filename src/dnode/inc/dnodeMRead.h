@@ -20,11 +20,11 @@
 extern "C" {
 #endif
 
-int32_t dnodeInitMnodeRead();
-void    dnodeCleanupMnodeRead();
-int32_t dnodeAllocateMnodeRqueue();
-void    dnodeFreeMnodeRqueue();
-void    dnodeDispatchToMnodeReadQueue(SRpcMsg *rpcMsg);
+int32_t dnodeInitMRead();
+void    dnodeCleanupMRead();
+int32_t dnodeAllocMReadQueue();
+void    dnodeFreeMReadQueue();
+void    dnodeDispatchToMReadQueue(SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

@@ -62,7 +62,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   size_t len;
   char * line = NULL;
   while (!feof(fp)) {
-    taosTFree(line);
+    tfree(line);
     len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
@@ -84,7 +84,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   sscanf(line, "%s %" PRId64, tmp, &memKB);
   *memoryUsedMB = (float)((double)memKB / 1024);
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
   return true;
 }
@@ -108,7 +108,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   char cpu[10] = {0};
   sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
   return true;
 }
@@ -137,7 +137,7 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     }
   }
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
   return true;
 }
@@ -351,7 +351,7 @@ static bool taosGetCardInfo(int64_t *bytes) {
     *bytes += (rbytes + tbytes);
   }
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
 
   return true;
@@ -406,7 +406,7 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   int    readIndex = 0;
 
   while (!feof(fp)) {
-    taosTFree(line);
+    tfree(line);
     len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
@@ -424,7 +424,7 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
     if (readIndex >= 2) break;
   }
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
 
   if (readIndex < 2) {

@@ -62,11 +62,8 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_ISDIR
 #define TAOS_OS_FUNC_FILE_ISLNK
 #define TAOS_OS_FUNC_FILE_SENDIFLE
-  #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
-  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
-#define TAOS_OS_FUNC_FILE_FTRUNCATE
-  extern int taosFtruncate(int fd, int64_t length); 
+#define TAOS_OS_FUNC_FILE_FTRUNCATE 
 
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
@@ -139,7 +136,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define in_addr_t unsigned long
 #define socklen_t int
 #define htobe64 htonll
-#define twrite write
 #define getpid _getpid
 
 struct tm *localtime_r(const time_t *timep, struct tm *result);

@@ -156,9 +156,15 @@ build_time=$(date +"%F %R")
 
 # get commint id from git
 gitinfo=$(git rev-parse --verify HEAD)
-enterprise_dir="${top_dir}/../enterprise"
-cd ${enterprise_dir}
-gitinfoOfInternal=$(git rev-parse --verify HEAD)
+
+if [[ "$verMode" == "cluster" ]]; then
+  enterprise_dir="${top_dir}/../enterprise"
+  cd ${enterprise_dir}
+  gitinfoOfInternal=$(git rev-parse --verify HEAD)
+else
+  gitinfoOfInternal=NULL
+fi
+  
 cd ${curr_dir}
 
 # 2. cmake executable file
@@ -193,23 +199,35 @@ cd ${curr_dir}
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
   if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
-    echo "====do deb package for the ubuntu system===="
-    output_dir="${top_dir}/debs"
-    if [ -d ${output_dir} ]; then
-      ${csudo} rm -rf ${output_dir}
+    ret='0'    
+    command -v dpkg >/dev/null 2>&1 || { ret='1'; }
+    if [ "$ret" -eq 0 ]; then  
+      echo "====do deb package for the ubuntu system===="
+      output_dir="${top_dir}/debs"
+      if [ -d ${output_dir} ]; then
+        ${csudo} rm -rf ${output_dir}
+      fi
+      ${csudo} mkdir -p ${output_dir}
+      cd ${script_dir}/deb
+      ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+    else
+      echo "==========dpkg command not exist, so not release deb package!!!"
     fi
-    ${csudo} mkdir -p ${output_dir}
-    cd ${script_dir}/deb
-    ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
-    echo "====do rpm package for the centos system===="
-    output_dir="${top_dir}/rpms"
-    if [ -d ${output_dir} ]; then
-      ${csudo} rm -rf ${output_dir}
+    ret='0'    
+    command -v rpmbuild >/dev/null 2>&1 || { ret='1'; }
+    if [ "$ret" -eq 0 ]; then  
+      echo "====do rpm package for the centos system===="
+      output_dir="${top_dir}/rpms"
+      if [ -d ${output_dir} ]; then
+        ${csudo} rm -rf ${output_dir}
+      fi
+      ${csudo} mkdir -p ${output_dir}
+      cd ${script_dir}/rpm
+      ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+    else
+      echo "==========rpmbuild command not exist, so not release rpm package!!!"
     fi
-    ${csudo} mkdir -p ${output_dir}
-    cd ${script_dir}/rpm
-    ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
   fi
 	
   echo "====do tar.gz package for all systems===="

@@ -31,13 +31,15 @@ extern "C" {
 typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
-  char             *key;
-//  struct SHashNode *prev;
+//  char             *key;
   struct SHashNode *next;
-  uint32_t          hashVal;  // the hash value of key, if hashVal == HASH_VALUE_IN_TRASH, this node is moved to trash
+  uint32_t          hashVal;  // the hash value of key
   uint32_t          keyLen;   // length of the key
-  char             *data;
+//  char             *data;
 } SHashNode;
+
+#define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode))
+#define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode) + (_n)->keyLen)
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
@@ -174,6 +176,8 @@ void* taosHashDestroyIter(SHashMutableIterator* iter);
  * @return
  */
 int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
+
+size_t taosHashGetMemSize(const SHashObj *pHashObj);
 
 #ifdef __cplusplus
 }

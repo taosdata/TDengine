@@ -81,8 +81,10 @@ function install_lib() {
     ${csudo} ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
-    ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
-    ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
+      ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
+      ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
+    fi
 }
 
 function install_bin() {
@@ -121,8 +123,11 @@ function install_config() {
     echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
     echo
     echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
-    read firstEp
-    while true; do
+    #read firstEp
+    if exec < /dev/tty; then
+    	read firstEp;
+	fi
+	while true; do
         if [ ! -z "$firstEp" ]; then
             # check the format of the firstEp
             #if [[ $firstEp == $FQDN_PATTERN ]]; then

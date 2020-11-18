@@ -28,7 +28,6 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
-#include "ttimer.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -161,6 +160,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
+  pObj->rid = taosAddRef(tscRefId, pObj);
   return pSql;
 }
 
@@ -278,9 +278,9 @@ void taos_close(TAOS *taos) {
 
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
-    if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
-      rpcCancelRequest(pHb->pRpcCtx);
-      pHb->pRpcCtx = NULL;
+    if (pHb->rpcRid > 0) {  // wait for rsp from dnode
+      rpcCancelRequest(pHb->rpcRid);
+      pHb->rpcRid = -1;
     }
 
     tscDebug("%p HB is freed", pHb);
@@ -296,7 +296,8 @@ void taos_close(TAOS *taos) {
   }
 
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
-  tscCloseTscObj(pObj);
+
+  taosRemoveRef(tscRefId, pObj->rid);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
@@ -480,7 +481,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   assert(0);
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
+    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, 0);
   }
 
   *rows = pRes->tsrow;
@@ -564,7 +565,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pRes->rspType = 0;
 
     pSql->subState.numOfSub = 0;
-    taosTFree(pSql->pSubs);
+    tfree(pSql->pSubs);
 
     assert(pSql->fp == NULL);
 
@@ -746,9 +747,9 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     assert(pSubObj->self == (SSqlObj**) p);
 
     pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSubObj->pRpcCtx != NULL) {
-      rpcCancelRequest(pSubObj->pRpcCtx);
-      pSubObj->pRpcCtx = NULL;
+    if (pSubObj->rpcRid > 0) {
+      rpcCancelRequest(pSubObj->rpcRid);
+      pSubObj->rpcRid = -1;
     }
 
     tscQueueAsyncRes(pSubObj);
@@ -773,7 +774,7 @@ void taos_stop_query(TAOS_RES *res) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    assert(pSql->pRpcCtx == NULL);
+    assert(pSql->rpcRid <= 0);
     tscKillSTableQuery(pSql);
   } else {
     if (pSql->cmd.command < TSDB_SQL_LOCAL) {
@@ -782,9 +783,9 @@ void taos_stop_query(TAOS_RES *res) {
        * reset and freed in the processMsgFromServer function, and causes the invalid
        * write problem for rpcCancelRequest.
        */
-      if (pSql->pRpcCtx != NULL) {
-        rpcCancelRequest(pSql->pRpcCtx);
-        pSql->pRpcCtx = NULL;
+      if (pSql->rpcRid > 0) {
+        rpcCancelRequest(pSql->rpcRid);
+        pSql->rpcRid = -1;
       }
 
       tscQueueAsyncRes(pSql);
@@ -892,7 +893,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    taosTFree(pSql);
+    tfree(pSql);
     return pRes->code;
   }
 
@@ -901,7 +902,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
-    taosTFree(pSql);
+    tfree(pSql);
     return pRes->code;
   }
 

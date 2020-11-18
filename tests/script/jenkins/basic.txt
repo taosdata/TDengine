@@ -64,6 +64,7 @@ cd ../../../debug; make
 ./test.sh -f general/db/repeat.sim
 ./test.sh -f general/db/tables.sim
 ./test.sh -f general/db/vnodes.sim
+./test.sh -f general/db/nosuchfile.sim
 
 ./test.sh -f general/field/2.sim
 ./test.sh -f general/field/3.sim
@@ -235,6 +236,10 @@ cd ../../../debug; make
 ./test.sh -f general/vector/table_query.sim
 ./test.sh -f general/vector/table_time.sim
 
+./test.sh -f general/wal/sync.sim
+./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim
+
 ./test.sh -f unique/account/account_create.sim
 ./test.sh -f unique/account/account_delete.sim
 ./test.sh -f unique/account/account_len.sim
@@ -277,6 +282,7 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/balance2.sim
 ./test.sh -f unique/dnode/balance3.sim
 ./test.sh -f unique/dnode/balancex.sim
+./test.sh -f unique/dnode/data1.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
 ./test.sh -f unique/dnode/reason.sim

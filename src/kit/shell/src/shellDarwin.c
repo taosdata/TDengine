@@ -229,8 +229,8 @@ void shellReadCommand(TAOS *con, char *command) {
           printf("\n");
           if (isReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
-            taosTFree(cmd.buffer);
-            taosTFree(cmd.command);
+            tfree(cmd.buffer);
+            tfree(cmd.command);
             return;
           } else {
             updateBuffer(&cmd);

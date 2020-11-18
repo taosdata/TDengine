@@ -33,16 +33,25 @@ struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
-typedef struct SPosInfo {
-  int32_t pageId:20;
-  int32_t rowId:12;
-} SPosInfo;
-
 typedef struct SGroupResInfo {
   int32_t  groupId;
   int32_t  numOfDataPages;
-  SPosInfo pos;
+  int32_t  pageId;
+  int32_t  rowId;
 } SGroupResInfo;
+
+typedef struct SResultRowPool {
+  int32_t elemSize;
+  int32_t blockSize;
+  int32_t numOfElemPerBlock;
+
+  struct {
+    int32_t blockIndex;
+    int32_t pos;
+  } position;
+
+  SArray* pData;    // SArray<void*>
+} SResultRowPool;
 
 typedef struct SSqlGroupbyExpr {
   int16_t tableIndex;
@@ -52,13 +61,14 @@ typedef struct SSqlGroupbyExpr {
   int16_t orderType;   // order by type: asc/desc
 } SSqlGroupbyExpr;
 
-typedef struct SWindowResult {
-  SPosInfo      pos;         // Position of current result in disk-based output buffer
+typedef struct SResultRow {
+  int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
+  int32_t       rowId:15;
+  bool          closed:1;    // this result status: closed or opened
   uint16_t      numOfRows;   // number of rows of current time window
-  bool          closed;      // this result status: closed or opened
-  SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
+  SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   union {STimeWindow win; char* key;};  // start key of current time window
-} SWindowResult;
+} SResultRow;
 
 /**
  * If the number of generated results is greater than this value,
@@ -72,16 +82,14 @@ typedef struct SResultRec {
 } SResultRec;
 
 typedef struct SWindowResInfo {
-  SWindowResult* pResult;    // result list
-  SHashObj*      hashList;   // hash list for quick access
-  int16_t        type;       // data type for hash key
+  SResultRow**   pResult;    // result list
+  int16_t        type:8;     // data type for hash key
+  int32_t        size:24;    // number of result set
+  int32_t        threshold;  // threshold to halt query and return the generated results.
   int32_t        capacity;   // max capacity
   int32_t        curIndex;   // current start active index
-  int32_t        size;       // number of result set
   int64_t        startTime;  // start time of the first time window for sliding query
   int64_t        prevSKey;   // previous (not completed) sliding window start key
-  int64_t        threshold;  // threshold to halt query and return the generated results.
-  int64_t        interval;   // time window interval
 } SWindowResInfo;
 
 typedef struct SColumnFilterElem {
@@ -97,7 +105,7 @@ typedef struct SSingleColumnFilterInfo {
   SColumnFilterElem* pFilters;
 } SSingleColumnFilterInfo;
 
-typedef struct STableQueryInfo {  // todo merge with the STableQueryInfo struct
+typedef struct STableQueryInfo {
   TSKEY       lastKey;
   int32_t     groupIndex;     // group id in table list
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
@@ -125,7 +133,9 @@ typedef struct SQueryCostInfo {
   uint32_t discardBlocks;
   uint64_t elapsedTime;
   uint64_t firstStageMergeTime;
-  uint64_t internalSupSize;
+  uint64_t winInfoSize;
+  uint64_t tableInfoSize;
+  uint64_t hashSize;
   uint64_t numOfTimeWindows;
 } SQueryCostInfo;
 
@@ -142,7 +152,10 @@ typedef struct SQuery {
   SLimitVal        limit;
   int32_t          rowSize;
   SSqlGroupbyExpr* pGroupbyExpr;
-  SExprInfo*       pSelectExpr;
+  SExprInfo*       pExpr1;
+  SExprInfo*       pExpr2;
+  int32_t          numOfExpr2;
+
   SColumnInfo*     colList;
   SColumnInfo*     tagColList;
   int32_t          numOfFilterCols;
@@ -158,11 +171,11 @@ typedef struct SQuery {
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
-  SResultInfo*         resultInfo;       // todo refactor to merge with SWindowResInfo
+  SResultRow*          pResultRow;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
   int32_t              numOfRowsPerPage;
-  int16_t              offset[TSDB_MAX_COLUMNS];
+  uint16_t             offset[TSDB_MAX_COLUMNS];
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   SWindowResInfo       windowResInfo;
@@ -178,18 +191,17 @@ typedef struct SQueryRuntimeEnv {
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
+  SHashObj*            pResultRowHashTable; // quick locate the window object for each result
+  char*                keyBuf;           // window key buffer
+  SResultRowPool*      pool;             // window result object pool
+
+  int32_t*             rowCellInfoOffset;// offset value for each row result cell info
 } SQueryRuntimeEnv;
 
 enum {
   QUERY_RESULT_NOT_READY = 1,
   QUERY_RESULT_READY     = 2,
 };
-
-typedef struct SMemRef {
-  int32_t ref; 
-  void *mem;
-  void *imem;
-} SMemRef;
 
 typedef struct SQInfo {
   void*            signature;

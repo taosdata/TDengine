@@ -4,16 +4,99 @@
 ### 物联网典型场景
 在典型的物联网、车联网、运维监测场景中，往往有多种不同类型的数据采集设备，采集一个到多个不同的物理量。而同一种采集设备类型，往往又有多个具体的采集设备分布在不同的地点。大数据处理系统就是要将各种采集的数据汇总，然后进行计算和分析。对于同一类设备，其采集的数据都是很规则的。以智能电表为例，假设每个智能电表采集电流、电压、相位三个量，其采集的数据类似如下的表格：
 
-| Device ID |  Time Stamp   | current | voltage | phase |     location     | groupId |
-| :-------: | :-----------: | :-----: | :-----: | :---: | :--------------: | :-----: |
-|   d1001   | 1538548685000 |  10.3   |   219   | 0.31  | Beijing.Chaoyang |    2    |
-|   d1002   | 1538548684000 |  10.2   |   220   | 0.23  | Beijing.Chaoyang |    3    |
-|   d1003   | 1538548686500 |  11.5   |   221   | 0.35  | Beijing.Haidian  |    3    |
-|   d1004   | 1538548685500 |  13.4   |   223   | 0.29  | Beijing.Haidian  |    2    |
-|   d1001   | 1538548695000 |  12.6   |   218   | 0.33  | Beijing.Chaoyang |    2    |
-|   d1004   | 1538548696600 |  11.8   |   221   | 0.28  | Beijing.Haidian  |    2    |
-|   d1002   | 1538548696650 |  10.3   |   218   | 0.25  | Beijing.Chaoyang |    3    |
-|   d1001   | 1538548696800 |  12.3   |   221   | 0.31  | Beijing.Chaoyang |    2    |
+<figure><table>
+<thead><tr>
+    <th style="text-align:center;">设备ID</th>
+    <th style="text-align:center;">时间戳</th>
+    <th style="text-align:center;" colspan="3">采集量</th>
+    <th style="text-align:center;" colspan="2">标签</th>
+    </tr>
+
+<tr>
+<th style="text-align:center;">Device ID</th>
+<th style="text-align:center;">Time Stamp</th>
+<th style="text-align:center;">current</th>
+<th style="text-align:center;">voltage</th>
+<th style="text-align:center;">phase</th>
+<th style="text-align:center;">location</th>
+<th style="text-align:center;">groupId</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">d1001</td>
+<td style="text-align:center;">1538548685000</td>
+<td style="text-align:center;">10.3</td>
+<td style="text-align:center;">219</td>
+<td style="text-align:center;">0.31</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1002</td>
+<td style="text-align:center;">1538548684000</td>
+<td style="text-align:center;">10.2</td>
+<td style="text-align:center;">220</td>
+<td style="text-align:center;">0.23</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">3</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1003</td>
+<td style="text-align:center;">1538548686500</td>
+<td style="text-align:center;">11.5</td>
+<td style="text-align:center;">221</td>
+<td style="text-align:center;">0.35</td>
+<td style="text-align:center;">Beijing.Haidian</td>
+<td style="text-align:center;">3</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1004</td>
+<td style="text-align:center;">1538548685500</td>
+<td style="text-align:center;">13.4</td>
+<td style="text-align:center;">223</td>
+<td style="text-align:center;">0.29</td>
+<td style="text-align:center;">Beijing.Haidian</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1001</td>
+<td style="text-align:center;">1538548695000</td>
+<td style="text-align:center;">12.6</td>
+<td style="text-align:center;">218</td>
+<td style="text-align:center;">0.33</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1004</td>
+<td style="text-align:center;">1538548696600</td>
+<td style="text-align:center;">11.8</td>
+<td style="text-align:center;">221</td>
+<td style="text-align:center;">0.28</td>
+<td style="text-align:center;">Beijing.Haidian</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1002</td>
+<td style="text-align:center;">1538548696650</td>
+<td style="text-align:center;">10.3</td>
+<td style="text-align:center;">218</td>
+<td style="text-align:center;">0.25</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">3</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1001</td>
+<td style="text-align:center;">1538548696800</td>
+<td style="text-align:center;">12.3</td>
+<td style="text-align:center;">221</td>
+<td style="text-align:center;">0.31</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">2</td>
+</tr>
+</tbody>
+</table></figure>
 
 <center> 表1：智能电表数据示例</center>
 
@@ -221,7 +304,7 @@ TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），�
 
 TDengine通过查询函数向用户提供毫秒级的数据获取能力。直接将最近到达的数据保存在缓存中，可以更加快速地响应用户针对最近一条或一批数据的查询分析，整体上提供更快的数据库查询响应能力。从这个意义上来说，**可通过设置合适的配置参数将TDengine作为数据缓存来使用，而不需要再部署Redis或其他额外的缓存系统**，可有效地简化系统架构，降低运维的成本。需要注意的是，TDengine重启以后系统的缓存将被清空，之前缓存的数据均会被批量写入磁盘，缓存的数据将不会像专门的Key-value缓存系统再将之前缓存的数据重新加载到缓存中。
 
-每个vnode有自己独立的内存，而且由多个固定大小的内存块组成，不同vnode之间完全隔离。数据写入时，类似于日志的写法，数据被顺序追加写入内存，但每个vnode维护有自己的skip list，便于迅速查找。当一半以上的内存块写满时，启动落盘操作，而且后续写的操作在新的内存块进行。这样，一个vnode里有一半内存块是保留有最近的数据的，以达到缓存、快速查找的目的。一个vnode的内存块的个数由配置参数blocks决定，内存块的大小由配置参数cache决定。
+每个vnode有自己独立的内存，而且由多个固定大小的内存块组成，不同vnode之间完全隔离。数据写入时，类似于日志的写法，数据被顺序追加写入内存，但每个vnode维护有自己的skip list，便于迅速查找。当三分之一以上的内存块写满时，启动落盘操作，而且后续写的操作在新的内存块进行。这样，一个vnode里有三分之一内存块是保留有最近的数据的，以达到缓存、快速查找的目的。一个vnode的内存块的个数由配置参数blocks决定，内存块的大小由配置参数cache决定。
 
 ### 持久化存储
 TDengine采用数据驱动的方式让缓存中的数据写入硬盘进行持久化存储。当vnode中缓存的数据达到一定规模时，为了不阻塞后续数据的写入，TDengine也会拉起落盘线程将缓存的数据写入持久化存储。TDengine在数据落盘时会打开新的数据库日志文件，在落盘成功后则会删除老的数据库日志文件，避免日志文件无限制的增长。

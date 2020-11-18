@@ -118,7 +118,7 @@ SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t colIndex)
 }
 
 // TODO for large number of columns, employ the binary search method
-SSchema* tscGetTableColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
+SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
 
   for(int32_t i = 0; i < tinfo.numOfColumns + tinfo.numOfTags; ++i) {
@@ -130,17 +130,7 @@ SSchema* tscGetTableColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   return NULL;
 }
 
-struct SSchema tscGetTbnameColumnSchema() {
-  struct SSchema s = {
-      .colId = TSDB_TBNAME_COLUMN_INDEX,
-      .type  = TSDB_DATA_TYPE_BINARY,
-      .bytes = TSDB_TABLE_NAME_LEN
-  };
-  
-  strcpy(s.name, TSQL_TBNAME_L);
-  return s;
-}
-static void tscInitCorVgroupInfo(SCMCorVgroupInfo *corVgroupInfo, SCMVgroupInfo *vgroupInfo) {
+static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupInfo *vgroupInfo) {
   corVgroupInfo->version = 0;
   corVgroupInfo->inUse = 0;
   corVgroupInfo->numOfEps = vgroupInfo->numOfEps;
@@ -166,7 +156,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
 
-  SCMVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;
+  SVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;
   pVgroupInfo->numOfEps = pTableMetaMsg->vgroup.numOfEps;
   pVgroupInfo->vgId = pTableMetaMsg->vgroup.vgId;
 
@@ -195,28 +185,6 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   }
   
   return pTableMeta;
-}
-
-/**
- * the TableMeta data format in memory is as follows:
- *
- * +--------------------+
- * |STableMeta Body data|  sizeof(STableMeta)
- * +--------------------+
- * |Schema data         |  numOfTotalColumns * sizeof(SSchema)
- * +--------------------+
- * |Tags data           |  tag_col_1.bytes + tag_col_2.bytes + ....
- * +--------------------+
- *
- * @param pTableMeta
- * @return
- */
-char* tsGetTagsValue(STableMeta* pTableMeta) {
-  int32_t offset = 0;
-//  int32_t  numOfTotalCols = pTableMeta->numOfColumns + pTableMeta->numOfTags;
-//  uint32_t offset = sizeof(STableMeta) + numOfTotalCols * sizeof(SSchema);
-
-  return ((char*)pTableMeta + offset);
 }
 
 // todo refactor

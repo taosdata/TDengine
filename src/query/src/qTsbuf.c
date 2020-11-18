@@ -4,7 +4,7 @@
 #include "tutil.h"
 
 static int32_t getDataStartOffset();
-static void TSBufUpdateVnodeInfo(STSBuf* pTSBuf, int32_t index, STSVnodeBlockInfo* pBlockInfo);
+static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);
 static STSBuf* allocResForTSBuf(STSBuf* pTSBuf);
 static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
 
@@ -32,7 +32,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   }
   
   // update the header info
-  STSBufFileHeader header = {.magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = TSDB_ORDER_ASC};
+  STSBufFileHeader header = {.magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = TSDB_ORDER_ASC};
   STSBufUpdateHeader(pTSBuf, &header);
   
   tsBufResetPos(pTSBuf);
@@ -75,9 +75,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL;
   }
   
-  if (header.numOfVnode > pTSBuf->numOfAlloc) {
-    pTSBuf->numOfAlloc = header.numOfVnode;
-    STSVnodeBlockInfoEx* tmp = realloc(pTSBuf->pData, sizeof(STSVnodeBlockInfoEx) * pTSBuf->numOfAlloc);
+  if (header.numOfGroup > pTSBuf->numOfAlloc) {
+    pTSBuf->numOfAlloc = header.numOfGroup;
+    STSGroupBlockInfoEx* tmp = realloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * pTSBuf->numOfAlloc);
     if (tmp == NULL) {
       tsBufDestroy(pTSBuf);
       return NULL;
@@ -86,7 +86,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     pTSBuf->pData = tmp;
   }
   
-  pTSBuf->numOfVnodes = header.numOfVnode;
+  pTSBuf->numOfGroups = header.numOfGroup;
   
   // check the ts order
   pTSBuf->tsOrder = header.tsOrder;
@@ -96,9 +96,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL;
   }
   
-  size_t infoSize = sizeof(STSVnodeBlockInfo) * pTSBuf->numOfVnodes;
+  size_t infoSize = sizeof(STSGroupBlockInfo) * pTSBuf->numOfGroups;
   
-  STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
+  STSGroupBlockInfo* buf = (STSGroupBlockInfo*)calloc(1, infoSize);
   if (buf == NULL) {
     tsBufDestroy(pTSBuf);
     return NULL; 
@@ -109,9 +109,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   UNUSED(sz);
   
   // the length value for each vnode is not kept in file, so does not set the length value
-  for (int32_t i = 0; i < pTSBuf->numOfVnodes; ++i) {
-    STSVnodeBlockInfoEx* pBlockList = &pTSBuf->pData[i];
-    memcpy(&pBlockList->info, &buf[i], sizeof(STSVnodeBlockInfo));
+  for (int32_t i = 0; i < pTSBuf->numOfGroups; ++i) {
+    STSGroupBlockInfoEx* pBlockList = &pTSBuf->pData[i];
+    memcpy(&pBlockList->info, &buf[i], sizeof(STSGroupBlockInfo));
   }
   free(buf);
   
@@ -131,8 +131,8 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   pTSBuf->cur.order = TSDB_ORDER_ASC;
   pTSBuf->autoDelete = autoDelete;
   
-//  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfVnode:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
-//           pTSBuf->fileSize, pTSBuf->numOfVnodes, pTSBuf->autoDelete);
+//  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfGroups:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
+//           pTSBuf->fileSize, pTSBuf->numOfGroups, pTSBuf->autoDelete);
   
   return pTSBuf;
 }
@@ -142,11 +142,11 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
     return NULL;
   }
   
-  taosTFree(pTSBuf->assistBuf);
-  taosTFree(pTSBuf->tsData.rawBuf);
+  tfree(pTSBuf->assistBuf);
+  tfree(pTSBuf->tsData.rawBuf);
   
-  taosTFree(pTSBuf->pData);
-  taosTFree(pTSBuf->block.payload);
+  tfree(pTSBuf->pData);
+  tfree(pTSBuf->block.payload);
   
   fclose(pTSBuf->f);
   
@@ -156,58 +156,59 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
   } else {
 //    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
-  
+
+  tVariantDestroy(&pTSBuf->block.tag);
   free(pTSBuf);
   return NULL;
 }
 
-static STSVnodeBlockInfoEx* tsBufGetLastVnodeInfo(STSBuf* pTSBuf) {
-  int32_t last = pTSBuf->numOfVnodes - 1;
+static STSGroupBlockInfoEx* tsBufGetLastGroupInfo(STSBuf* pTSBuf) {
+  int32_t last = pTSBuf->numOfGroups - 1;
   
   assert(last >= 0);
   return &pTSBuf->pData[last];
 }
 
-static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
-  if (pTSBuf->numOfAlloc <= pTSBuf->numOfVnodes) {
+static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
+  if (pTSBuf->numOfAlloc <= pTSBuf->numOfGroups) {
     uint32_t newSize = (uint32_t)(pTSBuf->numOfAlloc * 1.5);
     assert((int32_t)newSize > pTSBuf->numOfAlloc);
     
-    STSVnodeBlockInfoEx* tmp = (STSVnodeBlockInfoEx*)realloc(pTSBuf->pData, sizeof(STSVnodeBlockInfoEx) * newSize);
+    STSGroupBlockInfoEx* tmp = (STSGroupBlockInfoEx*)realloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
     if (tmp == NULL) {
       return NULL;
     }
     
     pTSBuf->pData = tmp;
     pTSBuf->numOfAlloc = newSize;
-    memset(&pTSBuf->pData[pTSBuf->numOfVnodes], 0, sizeof(STSVnodeBlockInfoEx) * (newSize - pTSBuf->numOfVnodes));
+    memset(&pTSBuf->pData[pTSBuf->numOfGroups], 0, sizeof(STSGroupBlockInfoEx) * (newSize - pTSBuf->numOfGroups));
   }
   
-  if (pTSBuf->numOfVnodes > 0) {
-    STSVnodeBlockInfoEx* pPrevBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
+  if (pTSBuf->numOfGroups > 0) {
+    STSGroupBlockInfoEx* pPrevBlockInfoEx = tsBufGetLastGroupInfo(pTSBuf);
     
     // update prev vnode length info in file
-    TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, &pPrevBlockInfoEx->info);
+    TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups - 1, &pPrevBlockInfoEx->info);
   }
   
   // set initial value for vnode block
-  STSVnodeBlockInfo* pBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes].info;
-  pBlockInfo->vnode = vnodeId;
+  STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pTSBuf->numOfGroups].info;
+  pBlockInfo->id = id;
   pBlockInfo->offset = pTSBuf->fileSize;
   assert(pBlockInfo->offset >= getDataStartOffset());
   
   // update vnode info in file
-  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes, pBlockInfo);
+  TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups, pBlockInfo);
   
   // add one vnode info
-  pTSBuf->numOfVnodes += 1;
+  pTSBuf->numOfGroups += 1;
   
   // update the header info
   STSBufFileHeader header = {
-      .magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
+      .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
   
   STSBufUpdateHeader(pTSBuf, &header);
-  return tsBufGetLastVnodeInfo(pTSBuf);
+  return tsBufGetLastGroupInfo(pTSBuf);
 }
 
 static void shrinkBuffer(STSList* ptsData) {
@@ -216,6 +217,15 @@ static void shrinkBuffer(STSList* ptsData) {
     ptsData->rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
     ptsData->allocSize = MEM_BUF_SIZE;
   }
+}
+
+static int32_t getTagAreaLength(tVariant* pa) {
+  int32_t t = sizeof(pa->nLen) * 2 + sizeof(pa->nType);
+  if (pa->nType != TSDB_DATA_TYPE_NULL) {
+    t += pa->nLen;
+  }
+
+  return t;
 }
 
 static void writeDataToDisk(STSBuf* pTSBuf) {
@@ -243,28 +253,36 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    */
   int32_t metaLen = 0;
   metaLen += (int32_t)fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
-  metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
 
+  int32_t trueLen = pBlock->tag.nLen;
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
+    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, sizeof(int64_t), pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
+  } else {
+    trueLen = 0;
+    metaLen += (int32_t)fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
   }
 
   fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
   fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
   fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-  
+
+  metaLen += (int32_t) fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+  assert(metaLen == getTagAreaLength(&pBlock->tag));
+
   int32_t blockSize = metaLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
   pTSBuf->fileSize += blockSize;
   
   pTSBuf->tsData.len = 0;
   
-  STSVnodeBlockInfoEx* pVnodeBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
+  STSGroupBlockInfoEx* pGroupBlockInfoEx = tsBufGetLastGroupInfo(pTSBuf);
   
-  pVnodeBlockInfoEx->info.compLen += blockSize;
-  pVnodeBlockInfoEx->info.numOfBlocks += 1;
+  pGroupBlockInfoEx->info.compLen += blockSize;
+  pGroupBlockInfoEx->info.numOfBlocks += 1;
   
   shrinkBuffer(&pTSBuf->tsData);
 }
@@ -284,23 +302,28 @@ static void expandBuffer(STSList* ptsData, int32_t inputSize) {
 
 STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   STSBlock* pBlock = &pTSBuf->block;
-  
+
   // clear the memory buffer
-  void* tmp = pBlock->payload;
-  memset(pBlock, 0, sizeof(STSBlock));
-  pBlock->payload = tmp;
-  
+  pBlock->compLen   = 0;
+  pBlock->padding   = 0;
+  pBlock->numOfElem = 0;
+
+  int32_t offset = -1;
+
   if (order == TSDB_ORDER_DESC) {
     /*
      * set the right position for the reversed traverse, the reversed traverse is started from
      * the end of each comp data block
      */
-    int32_t ret = fseek(pTSBuf->f, -(int32_t)(sizeof(pBlock->padding)), SEEK_CUR);
-    size_t sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+    int32_t prev = -(int32_t) (sizeof(pBlock->padding) + sizeof(pBlock->tag.nLen));
+    int32_t ret = fseek(pTSBuf->f, prev, SEEK_CUR);
+    size_t sz = fread(&pBlock->padding, 1, sizeof(pBlock->padding), pTSBuf->f);
+    sz = fread(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     UNUSED(sz); 
-    
+
     pBlock->compLen = pBlock->padding;
-    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
+
+    offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + getTagAreaLength(&pBlock->tag);
     ret = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(ret);
   }
@@ -319,7 +342,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
     sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    sz = fread(&pBlock->tag.i64Key, sizeof(int64_t), 1, pTSBuf->f);
+    sz = fread(&pBlock->tag.i64Key, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
   }
 
   sz = fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
@@ -327,8 +350,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   sz = fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
   UNUSED(sz);
   sz = fread(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
-  UNUSED(sz);
-  
+
   if (decomp) {
     pTSBuf->tsData.len =
         tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
@@ -337,11 +359,20 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   
   // read the comp length at the length of comp block
   sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+  assert(pBlock->padding == pBlock->compLen);
+
+  int32_t n = 0;
+  sz = fread(&n, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  if (pBlock->tag.nType == TSDB_DATA_TYPE_NULL) {
+    assert(n == 0);
+  } else {
+    assert(n == pBlock->tag.nLen);
+  }
+
   UNUSED(sz);
   
   // for backwards traverse, set the start position at the end of previous block
   if (order == TSDB_ORDER_DESC) {
-    int32_t offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
     int32_t r = fseek(pTSBuf->f, -offset, SEEK_CUR);
     UNUSED(r);
   }
@@ -382,20 +413,20 @@ static int32_t setCheckTSOrder(STSBuf* pTSBuf, const char* pData, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag, const char* pData, int32_t len) {
-  STSVnodeBlockInfoEx* pBlockInfo = NULL;
+void tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, int32_t len) {
+  STSGroupBlockInfoEx* pBlockInfo = NULL;
   STSList*             ptsData = &pTSBuf->tsData;
   
-  if (pTSBuf->numOfVnodes == 0 || tsBufGetLastVnodeInfo(pTSBuf)->info.vnode != vnodeId) {
+  if (pTSBuf->numOfGroups == 0 || tsBufGetLastGroupInfo(pTSBuf)->info.id != id) {
     writeDataToDisk(pTSBuf);
     shrinkBuffer(ptsData);
     
-    pBlockInfo = addOneVnodeInfo(pTSBuf, vnodeId);
+    pBlockInfo = addOneGroupInfo(pTSBuf, id);
   } else {
-    pBlockInfo = tsBufGetLastVnodeInfo(pTSBuf);
+    pBlockInfo = tsBufGetLastGroupInfo(pTSBuf);
   }
   
-  assert(pBlockInfo->info.vnode == vnodeId);
+  assert(pBlockInfo->info.id == id);
 
   if ((tVariantCompare(&pTSBuf->block.tag, tag) != 0) && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
@@ -433,23 +464,23 @@ void tsBufFlush(STSBuf* pTSBuf) {
   writeDataToDisk(pTSBuf);
   shrinkBuffer(&pTSBuf->tsData);
   
-  STSVnodeBlockInfoEx* pBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
+  STSGroupBlockInfoEx* pBlockInfoEx = tsBufGetLastGroupInfo(pTSBuf);
   
   // update prev vnode length info in file
-  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, &pBlockInfoEx->info);
+  TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups - 1, &pBlockInfoEx->info);
   
   // save the ts order into header
   STSBufFileHeader header = {
-      .magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
+      .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
   STSBufUpdateHeader(pTSBuf, &header);
   
   fsync(fileno(pTSBuf->f));
 }
 
-static int32_t tsBufFindVnodeIndexFromId(STSVnodeBlockInfoEx* pVnodeInfoEx, int32_t numOfVnodes, int32_t vnodeId) {
+static int32_t tsBufFindGroupById(STSGroupBlockInfoEx* pGroupInfoEx, int32_t numOfGroups, int32_t id) {
   int32_t j = -1;
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    if (pVnodeInfoEx[i].info.vnode == vnodeId) {
+  for (int32_t i = 0; i < numOfGroups; ++i) {
+    if (pGroupInfoEx[i].info.id == id) {
       j = i;
       break;
     }
@@ -459,7 +490,7 @@ static int32_t tsBufFindVnodeIndexFromId(STSVnodeBlockInfoEx* pVnodeInfoEx, int3
 }
 
 // todo opt performance by cache blocks info
-static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int32_t blockIndex) {
+static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo, int32_t blockIndex) {
   if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
     return -1;
   }
@@ -478,7 +509,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   if (pTSBuf->cur.order == TSDB_ORDER_DESC) {
     STSBlock* pBlock = &pTSBuf->block;
     int32_t   compBlockSize =
-        pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + sizeof(pBlock->tag);
+        pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + getTagAreaLength(&pBlock->tag);
     int32_t ret = fseek(pTSBuf->f, -compBlockSize, SEEK_CUR);
     UNUSED(ret);
   }
@@ -486,7 +517,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, int
   return 0;
 }
 
-static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo, tVariant* tag) {
+static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo, tVariant* tag) {
   bool decomp = false;
   
   int64_t offset = 0;
@@ -506,21 +537,21 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSVnodeBlockInfo* pBlockInfo
     }
     
     if (tVariantCompare(&pTSBuf->block.tag, tag) == 0) {
-      return i;
+      return (pTSBuf->cur.order == TSDB_ORDER_ASC)? i: (pBlockInfo->numOfBlocks - (i + 1));
     }
   }
   
   return -1;
 }
 
-static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex) {
-  STSVnodeBlockInfo* pBlockInfo = &pTSBuf->pData[vnodeIndex].info;
+static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex) {
+  STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[groupIndex].info;
   if (pBlockInfo->numOfBlocks <= blockIndex) {
     assert(false);
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur->vgroupIndex == vnodeIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
+  if (pCur->vgroupIndex == groupIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
       (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
     int32_t i = 0;
     bool    decomp = false;
@@ -555,13 +586,13 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   
   assert((pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem) && (pTSBuf->tsData.allocSize >= pTSBuf->tsData.len));
   
-  pCur->vgroupIndex = vnodeIndex;
+  pCur->vgroupIndex = groupIndex;
   pCur->blockIndex = blockIndex;
   
   pCur->tsIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : pBlock->numOfElem - 1;
 }
 
-static int32_t doUpdateVnodeInfo(STSBuf* pTSBuf, int64_t offset, STSVnodeBlockInfo* pVInfo) {
+static int32_t doUpdateGroupInfo(STSBuf* pTSBuf, int64_t offset, STSGroupBlockInfo* pVInfo) {
   if (offset < 0 || offset >= getDataStartOffset()) {
     return -1;
   }
@@ -570,12 +601,12 @@ static int32_t doUpdateVnodeInfo(STSBuf* pTSBuf, int64_t offset, STSVnodeBlockIn
     return -1;
   }
 
-  fwrite(pVInfo, sizeof(STSVnodeBlockInfo), 1, pTSBuf->f);
+  fwrite(pVInfo, sizeof(STSGroupBlockInfo), 1, pTSBuf->f);
   return 0;
 }
 
-STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId) {
-  int32_t j = tsBufFindVnodeIndexFromId(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
+STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id) {
+  int32_t j = tsBufFindGroupById(pTSBuf->pData, pTSBuf->numOfGroups, id);
   if (j == -1) {
     return NULL;
   }
@@ -584,7 +615,7 @@ STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId) {
 }
 
 int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
-  if ((pTSBuf->f == NULL) || pHeader == NULL || pHeader->numOfVnode == 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
+  if ((pTSBuf->f == NULL) || pHeader == NULL || pHeader->numOfGroup == 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
     return -1;
   }
 
@@ -600,7 +631,7 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
 }
 
 bool tsBufNextPos(STSBuf* pTSBuf) {
-  if (pTSBuf == NULL || pTSBuf->numOfVnodes == 0) {
+  if (pTSBuf == NULL || pTSBuf->numOfGroups == 0) {
     return false;
   }
   
@@ -619,16 +650,16 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
       }
       
     } else {  // get the last timestamp record in the last block of the last vnode
-      assert(pTSBuf->numOfVnodes > 0);
+      assert(pTSBuf->numOfGroups > 0);
       
-      int32_t vnodeIndex = pTSBuf->numOfVnodes - 1;
-      pCur->vgroupIndex = vnodeIndex;
+      int32_t groupIndex = pTSBuf->numOfGroups - 1;
+      pCur->vgroupIndex = groupIndex;
       
-      int32_t            vnodeId = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
-      STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
+      int32_t            id = pTSBuf->pData[pCur->vgroupIndex].info.id;
+      STSGroupBlockInfo* pBlockInfo = tsBufGetGroupBlockInfo(pTSBuf, id);
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;
       
-      tsBufGetBlock(pTSBuf, vnodeIndex, blockIndex);
+      tsBufGetBlock(pTSBuf, groupIndex, blockIndex);
       
       pCur->tsIndex = pTSBuf->block.numOfElem - 1;
       if (pTSBuf->block.numOfElem == 0) {
@@ -647,12 +678,12 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
     
     if ((pCur->order == TSDB_ORDER_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
         (pCur->order == TSDB_ORDER_DESC && pCur->tsIndex <= 0)) {
-      int32_t vnodeId = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
+      int32_t id = pTSBuf->pData[pCur->vgroupIndex].info.id;
       
-      STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
+      STSGroupBlockInfo* pBlockInfo = tsBufGetGroupBlockInfo(pTSBuf, id);
       if (pBlockInfo == NULL || (pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
           (pCur->blockIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
-        if ((pCur->vgroupIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSDB_ORDER_ASC) ||
+        if ((pCur->vgroupIndex >= pTSBuf->numOfGroups - 1 && pCur->order == TSDB_ORDER_ASC) ||
             (pCur->vgroupIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
           pCur->vgroupIndex = -1;
           return false;
@@ -688,7 +719,7 @@ void tsBufResetPos(STSBuf* pTSBuf) {
 }
 
 STSElem tsBufGetElem(STSBuf* pTSBuf) {
-  STSElem elem1 = {.vnode = -1};
+  STSElem elem1 = {.id = -1};
   if (pTSBuf == NULL) {
     return elem1;
   }
@@ -700,7 +731,7 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
 
   STSBlock* pBlock = &pTSBuf->block;
   
-  elem1.vnode = pTSBuf->pData[pCur->vgroupIndex].info.vnode;
+  elem1.id = pTSBuf->pData[pCur->vgroupIndex].info.id;
   elem1.ts = *(TSKEY*)(pTSBuf->tsData.rawBuf + pCur->tsIndex * TSDB_KEYSIZE);
   elem1.tag = &pBlock->tag;
 
@@ -711,34 +742,34 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
  * current only support ts comp data from two vnode merge
  * @param pDestBuf
  * @param pSrcBuf
- * @param vnodeId
+ * @param id
  * @return
  */
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
-  if (pDestBuf == NULL || pSrcBuf == NULL || pSrcBuf->numOfVnodes <= 0) {
+  if (pDestBuf == NULL || pSrcBuf == NULL || pSrcBuf->numOfGroups <= 0) {
     return 0;
   }
   
-  if (pDestBuf->numOfVnodes + pSrcBuf->numOfVnodes > TS_COMP_FILE_VNODE_MAX) {
+  if (pDestBuf->numOfGroups + pSrcBuf->numOfGroups > TS_COMP_FILE_GROUP_MAX) {
     return -1;
   }
   
   // src can only have one vnode index
-  assert(pSrcBuf->numOfVnodes == 1);
+  assert(pSrcBuf->numOfGroups == 1);
 
   // there are data in buffer, flush to disk first
   tsBufFlush(pDestBuf);
   
   // compared with the last vnode id
-  int32_t vnodeId = tsBufGetLastVnodeInfo((STSBuf*) pSrcBuf)->info.vnode;
-  if (vnodeId != tsBufGetLastVnodeInfo(pDestBuf)->info.vnode) {
-    int32_t oldSize = pDestBuf->numOfVnodes;
-    int32_t newSize = oldSize + pSrcBuf->numOfVnodes;
+  int32_t id = tsBufGetLastGroupInfo((STSBuf*) pSrcBuf)->info.id;
+  if (id != tsBufGetLastGroupInfo(pDestBuf)->info.id) {
+    int32_t oldSize = pDestBuf->numOfGroups;
+    int32_t newSize = oldSize + pSrcBuf->numOfGroups;
     
     if (pDestBuf->numOfAlloc < newSize) {
       pDestBuf->numOfAlloc = newSize;
       
-      STSVnodeBlockInfoEx* tmp = realloc(pDestBuf->pData, sizeof(STSVnodeBlockInfoEx) * newSize);
+      STSGroupBlockInfoEx* tmp = realloc(pDestBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
       if (tmp == NULL) {
         return -1;
       }
@@ -747,23 +778,23 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
     }
     
     // directly copy the vnode index information
-    memcpy(&pDestBuf->pData[oldSize], pSrcBuf->pData, (size_t)pSrcBuf->numOfVnodes * sizeof(STSVnodeBlockInfoEx));
+    memcpy(&pDestBuf->pData[oldSize], pSrcBuf->pData, (size_t)pSrcBuf->numOfGroups * sizeof(STSGroupBlockInfoEx));
     
     // set the new offset value
-    for (int32_t i = 0; i < pSrcBuf->numOfVnodes; ++i) {
-      STSVnodeBlockInfoEx* pBlockInfoEx = &pDestBuf->pData[i + oldSize];
+    for (int32_t i = 0; i < pSrcBuf->numOfGroups; ++i) {
+      STSGroupBlockInfoEx* pBlockInfoEx = &pDestBuf->pData[i + oldSize];
       pBlockInfoEx->info.offset = (pSrcBuf->pData[i].info.offset - getDataStartOffset()) + pDestBuf->fileSize;
-      pBlockInfoEx->info.vnode = vnodeId;
+      pBlockInfoEx->info.id = id;
     }
     
-    pDestBuf->numOfVnodes = newSize;
+    pDestBuf->numOfGroups = newSize;
   } else {
-    STSVnodeBlockInfoEx* pBlockInfoEx = tsBufGetLastVnodeInfo(pDestBuf);
+    STSGroupBlockInfoEx* pBlockInfoEx = tsBufGetLastGroupInfo(pDestBuf);
     
     pBlockInfoEx->len += pSrcBuf->pData[0].len;
     pBlockInfoEx->info.numOfBlocks += pSrcBuf->pData[0].info.numOfBlocks;
     pBlockInfoEx->info.compLen += pSrcBuf->pData[0].info.compLen;
-    pBlockInfoEx->info.vnode = vnodeId;
+    pBlockInfoEx->info.id = id;
   }
   
   int32_t r = fseek(pDestBuf->f, 0, SEEK_END);
@@ -772,7 +803,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
 
-  ssize_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
+  int64_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
   if (rc == -1) {
 //    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
@@ -796,23 +827,23 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   
   assert(pDestBuf->fileSize == oldSize + size);
   
-//  tscDebug("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfVnode:%d, autoDelete:%d", pDestBuf,
-//           pDestBuf->path, fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfVnodes, pDestBuf->autoDelete);
+//  tscDebug("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfGroups:%d, autoDelete:%d", pDestBuf,
+//           pDestBuf->path, fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfGroups, pDestBuf->autoDelete);
   
   return 0;
 }
 
-STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t order, int32_t vnodeId) {
+STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t order, int32_t id) {
   STSBuf* pTSBuf = tsBufCreate(true, order);
   
-  STSVnodeBlockInfo* pBlockInfo = &(addOneVnodeInfo(pTSBuf, 0)->info);
+  STSGroupBlockInfo* pBlockInfo = &(addOneGroupInfo(pTSBuf, 0)->info);
   pBlockInfo->numOfBlocks = numOfBlocks;
   pBlockInfo->compLen = len;
   pBlockInfo->offset = getDataStartOffset();
-  pBlockInfo->vnode = vnodeId;
+  pBlockInfo->id = id;
   
   // update prev vnode length info in file
-  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pBlockInfo);
+  TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups - 1, pBlockInfo);
   
   int32_t ret = fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
   UNUSED(ret);
@@ -824,7 +855,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
   
   STSBufFileHeader header = {
-      .magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
+      .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
   STSBufUpdateHeader(pTSBuf, &header);
   
   fsync(fileno(pTSBuf->f));
@@ -832,14 +863,14 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   return pTSBuf;
 }
 
-STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag) {
-  STSElem elem = {.vnode = -1};
+STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t id, tVariant* tag) {
+  STSElem elem = {.id = -1};
   
   if (pTSBuf == NULL) {
     return elem;
   }
   
-  int32_t j = tsBufFindVnodeIndexFromId(pTSBuf->pData, pTSBuf->numOfVnodes, vnodeId);
+  int32_t j = tsBufFindGroupById(pTSBuf->pData, pTSBuf->numOfGroups, id);
   if (j == -1) {
     return elem;
   }
@@ -848,7 +879,7 @@ STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, tVariant* tag) {
   //  tsBufDisplay(pTSBuf);
   
   STSCursor*         pCur = &pTSBuf->cur;
-  STSVnodeBlockInfo* pBlockInfo = &pTSBuf->pData[j].info;
+  STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[j].info;
   
   int32_t blockIndex = tsBufFindBlockByTag(pTSBuf, pBlockInfo, tag);
   if (blockIndex < 0) {
@@ -904,7 +935,7 @@ STSBuf* tsBufClone(STSBuf* pTSBuf) {
 
 void tsBufDisplay(STSBuf* pTSBuf) {
   printf("-------start of ts comp file-------\n");
-  printf("number of vnode:%d\n", pTSBuf->numOfVnodes);
+  printf("number of vnode:%d\n", pTSBuf->numOfGroups);
   
   int32_t old = pTSBuf->cur.order;
   pTSBuf->cur.order = TSDB_ORDER_ASC;
@@ -914,7 +945,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
     if (elem.tag->nType == TSDB_DATA_TYPE_BIGINT) {
-      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, elem.tag->i64Key, elem.ts);
+      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.id, elem.tag->i64Key, elem.ts);
     }
   }
   
@@ -923,20 +954,20 @@ void tsBufDisplay(STSBuf* pTSBuf) {
 }
 
 static int32_t getDataStartOffset() {
-  return sizeof(STSBufFileHeader) + TS_COMP_FILE_VNODE_MAX * sizeof(STSVnodeBlockInfo);
+  return sizeof(STSBufFileHeader) + TS_COMP_FILE_GROUP_MAX * sizeof(STSGroupBlockInfo);
 }
 
 // update prev vnode length info in file
-static void TSBufUpdateVnodeInfo(STSBuf* pTSBuf, int32_t index, STSVnodeBlockInfo* pBlockInfo) {
-  int32_t offset = sizeof(STSBufFileHeader) + index * sizeof(STSVnodeBlockInfo);
-  doUpdateVnodeInfo(pTSBuf, offset, pBlockInfo);
+static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo) {
+  int32_t offset = sizeof(STSBufFileHeader) + index * sizeof(STSGroupBlockInfo);
+  doUpdateGroupInfo(pTSBuf, offset, pBlockInfo);
 }
 
 static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
-  const int32_t INITIAL_VNODEINFO_SIZE = 4;
+  const int32_t INITIAL_GROUPINFO_SIZE = 4;
   
-  pTSBuf->numOfAlloc = INITIAL_VNODEINFO_SIZE;
-  pTSBuf->pData = calloc(pTSBuf->numOfAlloc, sizeof(STSVnodeBlockInfoEx));
+  pTSBuf->numOfAlloc = INITIAL_GROUPINFO_SIZE;
+  pTSBuf->pData = calloc(pTSBuf->numOfAlloc, sizeof(STSGroupBlockInfoEx));
   if (pTSBuf->pData == NULL) {
     tsBufDestroy(pTSBuf);
     return NULL;
@@ -968,28 +999,71 @@ static STSBuf* allocResForTSBuf(STSBuf* pTSBuf) {
   return pTSBuf;
 }
 
-int32_t tsBufGetNumOfVnodes(STSBuf* pTSBuf) {
+int32_t tsBufGetNumOfGroup(STSBuf* pTSBuf) {
   if (pTSBuf == NULL) {
     return 0;
   }
 
-  return pTSBuf->numOfVnodes;
+  return pTSBuf->numOfGroups;
 }
 
-void tsBufGetVnodeIdList(STSBuf* pTSBuf, int32_t* num, int32_t** vnodeId) {
-  int32_t size = tsBufGetNumOfVnodes(pTSBuf);
+void tsBufGetGroupIdList(STSBuf* pTSBuf, int32_t* num, int32_t** id) {
+  int32_t size = tsBufGetNumOfGroup(pTSBuf);
   if (num != NULL) {
     *num = size;
   }
 
-  *vnodeId = NULL;
+  *id = NULL;
   if (size == 0) {
     return;
   }
 
-  (*vnodeId) = malloc(tsBufGetNumOfVnodes(pTSBuf) * sizeof(int32_t));
+  (*id) = malloc(tsBufGetNumOfGroup(pTSBuf) * sizeof(int32_t));
 
   for(int32_t i = 0; i < size; ++i) {
-    (*vnodeId)[i] = pTSBuf->pData[i].info.vnode;
+    (*id)[i] = pTSBuf->pData[i].info.id;
   }
+}
+
+int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupIndex, void* buf, int32_t* len, int32_t* numOfBlocks) {
+  assert(groupIndex >= 0 && groupIndex < pTSBuf->numOfGroups);
+  STSGroupBlockInfo *pBlockInfo = &pTSBuf->pData[groupIndex].info;
+
+  *len = 0;
+  *numOfBlocks = 0;
+
+  if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
+    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+//    qError("%p: fseek failed: %s", pSql, tstrerror(code));
+    return code;
+  }
+
+  size_t s = fread(buf, 1, pBlockInfo->compLen, pTSBuf->f);
+  if (s != pBlockInfo->compLen) {
+    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+//    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
+    return code;
+  }
+
+  *len = pBlockInfo->compLen;
+  *numOfBlocks = pBlockInfo->numOfBlocks;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag) {
+  STSElem el = {.id = -1};
+
+  for (int32_t i = 0; i < pTSBuf->numOfGroups; ++i) {
+    el = tsBufGetElemStartPos(pTSBuf, pTSBuf->pData[i].info.id, pTag);
+    if (el.id == pTSBuf->pData[i].info.id) {
+      return el;
+    }
+  }
+
+  return el;
+}
+
+bool tsBufIsValidElem(STSElem* pElem) {
+  return pElem->id >= 0;
 }

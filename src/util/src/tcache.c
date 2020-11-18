@@ -228,7 +228,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
             pCacheObj->freeFp(p->data);
           }
 
-          taosTFree(p);
+          tfree(p);
         } else {
           taosAddToTrashcan(pCacheObj, p);
           uDebug("cache:%s, key:%p, %p exist in cache, updated old:%p", pCacheObj->name, key, pNode1->data, p->data);
@@ -614,7 +614,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
   __cache_lock_destroy(pCacheObj);
   
-  taosTFree(pCacheObj->name);
+  tfree(pCacheObj->name);
   memset(pCacheObj, 0, sizeof(SCacheObj));
   free(pCacheObj);
 }
@@ -658,7 +658,11 @@ void* taosCacheTimedRefresh(void *handle) {
 
   int64_t count = 0;
   while(1) {
+#if defined LINUX
+    usleep(500*1000);
+#else
     taosMsleep(500);
+#endif
 
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {
@@ -677,6 +681,7 @@ void* taosCacheTimedRefresh(void *handle) {
       continue;
     }
 
+    uDebug("%s refresh thread timed scan", pCacheObj->name);
     pCacheObj->statistics.refreshCount++;
 
     // refresh data in hash table

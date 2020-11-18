@@ -27,7 +27,7 @@ class LoggingFilter(logging.Filter):
 
 class MyLoggingAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
-        return "[{}] {}".format(threading.get_ident() % 10000, msg), kwargs
+        return "[{:04d}] {}".format(threading.get_ident() % 10000, msg), kwargs
         # return '[%s] %s' % (self.extra['connid'], msg), kwargs
 
 
@@ -51,7 +51,7 @@ class Logging:
         _logger.addHandler(ch)
 
         # Logging adapter, to be used as a logger
-        print("setting logger variable")
+        # print("setting logger variable")
         # global logger
         cls.logger = MyLoggingAdapter(_logger, [])
 
@@ -163,11 +163,22 @@ class Progress:
     BEGIN_THREAD_STEP = 1
     END_THREAD_STEP   = 2
     SERVICE_HEART_BEAT= 3
+    SERVICE_RECONNECT_START     = 4
+    SERVICE_RECONNECT_SUCCESS   = 5
+    SERVICE_RECONNECT_FAILURE   = 6
+    SERVICE_START_NAP           = 7
+    CREATE_TABLE_ATTEMPT        = 8
+
     tokens = {
         STEP_BOUNDARY:      '.',
         BEGIN_THREAD_STEP:  '[',
         END_THREAD_STEP:    '] ',
-        SERVICE_HEART_BEAT: '.Y.'
+        SERVICE_HEART_BEAT: '.Y.',
+        SERVICE_RECONNECT_START:    '<r.',
+        SERVICE_RECONNECT_SUCCESS:  '.r>',
+        SERVICE_RECONNECT_FAILURE:  '.xr>',
+        SERVICE_START_NAP:           '_zz',
+        CREATE_TABLE_ATTEMPT: '_c',
     }
 
     @classmethod
