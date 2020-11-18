@@ -787,9 +787,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   }
 
-  if (tscIsSecondStageQuery(pQueryInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) ||
-      UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) {
-    size_t output = tscNumOfFields(pQueryInfo);
+  size_t output = tscNumOfFields(pQueryInfo);
+
+  if ((tscIsSecondStageQuery(pQueryInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) ||
+      UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) && (output != tscSqlExprNumOfExprs(pQueryInfo))) {
     pQueryMsg->secondStageOutput = htonl((int32_t) output);
 
     SSqlFuncMsg *pSqlFuncExpr1 = (SSqlFuncMsg *)pMsg;
