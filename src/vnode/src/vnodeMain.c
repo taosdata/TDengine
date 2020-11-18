@@ -382,9 +382,9 @@ int32_t vnodeClose(int32_t vgId) {
   return 0;
 }
 
-void vnodeRelease(void *pVnodeRaw) {
-  if (pVnodeRaw == NULL) return;
-  SVnodeObj *pVnode = pVnodeRaw;
+void vnodeRelease(void *vparam) {
+  if (vparam == NULL) return;
+  SVnodeObj *pVnode = vparam;
   int32_t    code = 0;
   int32_t    vgId = pVnode->vgId;
 
@@ -658,18 +658,19 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
   pVnode->role = role;
   dnodeSendStatusMsgToMnode();
 
-  if (pVnode->role == TAOS_SYNC_ROLE_MASTER)
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) {
     cqStart(pVnode->cq);
-  else
+  } else {
     cqStop(pVnode->cq);
+  }
 }
 
 static void vnodeCtrlFlow(void *ahandle, int32_t mseconds) {
   SVnodeObj *pVnode = ahandle;
-  if (pVnode->delay != mseconds) {
-    vInfo("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
+  if (pVnode->delayMs != mseconds) {
+    pVnode->delayMs = mseconds;
+    vDebug("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
   }
-  pVnode->delay = mseconds;
 }
 
 static int vnodeResetTsdb(SVnodeObj *pVnode) {

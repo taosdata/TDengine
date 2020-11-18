@@ -61,7 +61,7 @@ void *dnodeAllocVWriteQueue(void *pVnode);
 void  dnodeFreeVWriteQueue(void *pWqueue);
 void  dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
 void *dnodeAllocVReadQueue(void *pVnode);
-void  dnodeFreeVReadQueue(void *rqueue);
+void  dnodeFreeVReadQueue(void *pRqueue);
 
 int32_t dnodeAllocateMPeerQueue();
 void    dnodeFreeMPeerQueue();
