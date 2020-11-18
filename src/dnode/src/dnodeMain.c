@@ -183,17 +183,11 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  tsDnodeTier = tdNewTier();
-  if (tsDnodeTier == NULL) {
-    dError("failed to create new dnode tier since %s", tstrerror(terrno));
-    return -1;
-  }
-
-  if (tdAddDisks(tsDnodeTier, tsDiskCfg, tsDiskCfgNum) < 0) {
+  if (tdInitTiers(tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
     return -1;
   }
-  strncpy(tsDataDir, DNODE_PRIMARY_DISK(tsDnodeTier)->dir, TSDB_FILENAME_LEN);
+  tdGetPrimaryPath(tsDataDir);
   tdGetVnodeRootDir(tsDataDir, tsVnodeDir);
 
   //TODO(dengyihao): no need to init here 
@@ -236,12 +230,7 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() {
-  if (tsDnodeTier) {
-    tdCloseTier(tsDnodeTier);
-    tsDnodeTier = NULL;
-  }
-}
+static void dnodeCleanupStorage() { tdDestroyTiers(); }
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;
