@@ -63,11 +63,11 @@ typedef struct SSWriteMsg {
 } SSWriteMsg;
 
 typedef struct {
-  char *    tableName;
+  char *    name;
   int32_t   hashSessions;
   int32_t   maxRowSize;
   int32_t   refCountPos;
-  ESdbTable tableId;
+  ESdbTable id;
   ESdbKey   keyType;
   int32_t (*fpInsert)(SSWriteMsg *pWrite);
   int32_t (*fpDelete)(SSWriteMsg *pWrite);

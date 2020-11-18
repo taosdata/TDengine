@@ -137,9 +137,9 @@ int32_t mnodeInitMnodes() {
   SMnodeObj tObj;
   tsMnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_MNODE,
-    .tableName    = "mnodes",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_MNODE,
+    .name         = "mnodes",
     .hashSessions = TSDB_DEFAULT_MNODES_HASH_SIZE,
     .maxRowSize   = tsMnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
@@ -153,7 +153,7 @@ int32_t mnodeInitMnodes() {
     .fpRestored   = mnodeMnodeActionRestored
   };
 
-  tsMnodeSdb = sdbOpenTable(&tableDesc);
+  tsMnodeSdb = sdbOpenTable(&desc);
   if (tsMnodeSdb == NULL) {
     mError("failed to init mnodes data");
     return -1;

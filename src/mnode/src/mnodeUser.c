@@ -150,9 +150,9 @@ int32_t mnodeInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_USER,
-    .tableName    = "users",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_USER,
+    .name         = "users",
     .hashSessions = TSDB_DEFAULT_USERS_HASH_SIZE,
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
@@ -166,9 +166,9 @@ int32_t mnodeInitUsers() {
     .fpRestored   = mnodeUserActionRestored
   };
 
-  tsUserSdb = sdbOpenTable(&tableDesc);
+  tsUserSdb = sdbOpenTable(&desc);
   if (tsUserSdb == NULL) {
-    mError("table:%s, failed to create hash", tableDesc.tableName);
+    mError("table:%s, failed to create hash", desc.name);
     return -1;
   }
 
@@ -179,7 +179,7 @@ int32_t mnodeInitUsers() {
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mnodeRetrieveUsers);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mnodeProcessAuthMsg);
    
-  mDebug("table:%s, hash is created", tableDesc.tableName);
+  mDebug("table:%s, hash is created", desc.name);
   return 0;
 }
 

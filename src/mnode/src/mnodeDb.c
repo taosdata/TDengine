@@ -144,9 +144,9 @@ int32_t mnodeInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_DB,
-    .tableName    = "dbs",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_DB,
+    .name         = "dbs",
     .hashSessions = TSDB_DEFAULT_DBS_HASH_SIZE,
     .maxRowSize   = tsDbUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
@@ -160,7 +160,7 @@ int32_t mnodeInitDbs() {
     .fpRestored   = mnodeDbActionRestored
   };
 
-  tsDbSdb = sdbOpenTable(&tableDesc);
+  tsDbSdb = sdbOpenTable(&desc);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;

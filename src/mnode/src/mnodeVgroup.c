@@ -206,9 +206,9 @@ int32_t mnodeInitVgroups() {
   SVgObj tObj;
   tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_VGROUP,
-    .tableName    = "vgroups",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_VGROUP,
+    .name         = "vgroups",
     .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
     .maxRowSize   = tsVgUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
@@ -222,7 +222,7 @@ int32_t mnodeInitVgroups() {
     .fpRestored   = mnodeVgroupActionRestored,
   };
 
-  tsVgroupSdb = sdbOpenTable(&tableDesc);
+  tsVgroupSdb = sdbOpenTable(&desc);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;

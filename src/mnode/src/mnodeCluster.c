@@ -84,9 +84,9 @@ int32_t mnodeInitCluster() {
   SClusterObj tObj;
   tsClusterUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_CLUSTER,
-    .tableName    = "cluster",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_CLUSTER,
+    .name         = "cluster",
     .hashSessions = TSDB_DEFAULT_CLUSTER_HASH_SIZE,
     .maxRowSize   = tsClusterUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
@@ -100,16 +100,16 @@ int32_t mnodeInitCluster() {
     .fpRestored   = mnodeClusterActionRestored
   };
 
-  tsClusterSdb = sdbOpenTable(&tableDesc);
+  tsClusterSdb = sdbOpenTable(&desc);
   if (tsClusterSdb == NULL) {
-    mError("table:%s, failed to create hash", tableDesc.tableName);
+    mError("table:%s, failed to create hash", desc.name);
     return -1;
   }
 
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeGetClusterMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeRetrieveClusters);
 
-  mDebug("table:%s, hash is created", tableDesc.tableName);
+  mDebug("table:%s, hash is created", desc.name);
   return TSDB_CODE_SUCCESS;
 }
 

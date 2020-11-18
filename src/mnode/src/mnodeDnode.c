@@ -171,9 +171,9 @@ int32_t mnodeInitDnodes() {
   tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
   pthread_mutex_init(&tsDnodeEpsMutex, NULL);
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_DNODE,
-    .tableName    = "dnodes",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_DNODE,
+    .name         = "dnodes",
     .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
     .maxRowSize   = tsDnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
@@ -187,7 +187,7 @@ int32_t mnodeInitDnodes() {
     .fpRestored   = mnodeDnodeActionRestored
   };
 
-  tsDnodeSdb = sdbOpenTable(&tableDesc);
+  tsDnodeSdb = sdbOpenTable(&desc);
   if (tsDnodeSdb == NULL) {
     mError("failed to init dnodes data");
     return -1;
