@@ -1,0 +1,650 @@
+/***************************************************************************
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *****************************************************************************/
+package com.taosdata.jdbc;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.DoubleBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.nio.LongBuffer;
+import java.nio.ShortBuffer;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class TSDBResultSetBlockData {
+	private int numOfRows = 0;
+	private int numOfCols = 0;
+
+	private int rowIndex = 0;
+
+	private List<ColumnMetaData> columnMetaDataList;
+	private ArrayList<Object> colData = null;
+
+	public TSDBResultSetBlockData(List<ColumnMetaData> colMeta, int numOfCols) {
+		this.columnMetaDataList = colMeta;
+		this.setNumOfCols(numOfCols);
+	}
+
+	public TSDBResultSetBlockData() {
+		this.colData = new ArrayList<Object>();
+		this.setNumOfCols(0);
+	}
+
+	public void clear() {
+		if (this.colData != null) {
+			this.colData.clear();
+		}
+
+		if (this.numOfCols == 0) {
+			return;
+		}
+
+		this.colData = new ArrayList<Object>(numOfCols);
+		this.colData.addAll(Collections.nCopies(this.numOfCols, null));
+	}
+
+	public boolean wasNull(int col) {
+		return colData.get(col) == null;
+	}
+
+	public int getNumOfRows() {
+		return this.numOfRows;
+	}
+
+	public void setNumOfRows(int numOfRows) {
+		this.numOfRows = numOfRows;
+	}
+
+	public int getNumOfCols() {
+		return numOfCols;
+	}
+
+	public void setNumOfCols(int numOfCols) {
+		this.numOfCols = numOfCols;
+		this.clear();
+	}
+
+	public void setColumnData(int col, byte val) {
+		this.colData.set(col, val);
+	}
+
+	public boolean hasMore() {
+		return this.rowIndex < this.numOfRows;
+	}
+
+	public boolean forward() {
+		this.rowIndex++;
+		return (this.rowIndex < this.numOfRows);
+	}
+
+	public void resetCursor() {
+		this.rowIndex = 0;
+	}
+
+	public void setBoolean(int col, boolean value) {
+		colData.set(col, value);
+	}
+
+	public void setByteArray(int col, int length, byte[] value) {
+		try {
+			switch (this.columnMetaDataList.get(col).getColType()) {
+			case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				buf.order(ByteOrder.LITTLE_ENDIAN).asCharBuffer();
+				this.colData.set(col, buf);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				buf.order(ByteOrder.LITTLE_ENDIAN);
+				this.colData.set(col, buf);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				ShortBuffer sb = buf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+				this.colData.set(col, sb);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_INT: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				IntBuffer ib = buf.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+				this.colData.set(col, ib);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				LongBuffer lb = buf.order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
+				this.colData.set(col, lb);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				FloatBuffer fb = buf.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+				this.colData.set(col, fb);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				DoubleBuffer db = buf.order(ByteOrder.LITTLE_ENDIAN).asDoubleBuffer();
+				this.colData.set(col, db);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				buf.order(ByteOrder.LITTLE_ENDIAN);
+				this.colData.set(col, buf);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				LongBuffer lb = buf.order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
+				this.colData.set(col, lb);
+				break;
+			}
+			case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
+				ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+				buf.order(ByteOrder.LITTLE_ENDIAN);
+				this.colData.set(col, buf);
+				break;
+			}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	class NullType {
+		public String toString() {
+			return new String("null");
+		}
+	}
+
+	/**
+	 * The original type may not be a string type, but will be converted to by
+	 * calling this method
+	 * 
+	 * @param col column index
+	 * @return
+	 * @throws SQLException
+	 */
+	public String getString(int col) throws SQLException {
+		Object obj = get(col);
+		if (obj == null) {
+			return new NullType().toString();
+		}
+
+		return obj.toString();
+	}
+
+	private boolean isBooleanNull(byte val) {
+		return val == 0x2;
+	}
+
+	private boolean isTinyIntNull(byte val) {
+		return val == 0x80;
+	}
+
+	private boolean isSmallIntNull(short val) {
+		return val == 0x8000;
+	}
+
+	private boolean isIntNull(int val) {
+		return val == 0x80000000L;
+	}
+
+	private boolean isBigIntNull(long val) {
+		return val == 0x8000000000000000L;
+	}
+
+	private boolean isFloatNull(float val) {
+		return Float.isNaN(val);
+	}
+
+	private boolean isDoubleNull(double val) {
+		return Double.isNaN(val);
+	}
+
+	private boolean isBinaryNull(byte[] val, int length) {
+		return val[0] == 0xFF && length == 1;
+	}
+
+	private boolean isNcharNull(byte[] val, int length) {
+		return (val[0] & val[1] & val[2] & val[3]) == 0xFF && length == 4;
+	}
+
+	public int getInt(int col) {
+		Object obj = get(col);
+		if (obj == null) {
+			return 0;
+		}
+
+		int type = this.columnMetaDataList.get(col).getColType();
+		switch (type) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+		case TSDBConstants.TSDB_DATA_TYPE_INT: {
+			return (int) obj;
+		}
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+			return ((Long) obj).intValue();
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+			return ((Double) obj).intValue();
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+			return Integer.parseInt((String) obj);
+		}
+		}
+
+		return 0;
+	}
+
+	public boolean getBoolean(int col) throws SQLException {
+		Object obj = get(col);
+		if (obj == null) {
+			return Boolean.FALSE;
+		}
+
+		int type = this.columnMetaDataList.get(col).getColType();
+		switch (type) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+		case TSDBConstants.TSDB_DATA_TYPE_INT: {
+			return ((int) obj == 0L)? Boolean.FALSE:Boolean.TRUE;
+		}
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+			return (((Long) obj) == 0L)? Boolean.FALSE:Boolean.TRUE;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+			return (((Double) obj) == 0)? Boolean.FALSE:Boolean.TRUE;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+			if ("TRUE".compareToIgnoreCase((String) obj) == 0) {
+				return Boolean.TRUE;
+			} else if ("FALSE".compareToIgnoreCase((String) obj) == 0) {
+				return Boolean.TRUE;
+			} else {
+				throw new SQLDataException();
+			}
+		}
+		}
+
+		return Boolean.FALSE;
+	}
+
+	public long getLong(int col) throws SQLException {
+		int fieldSize = this.columnMetaDataList.get(col).getColSize();
+		ByteBuffer bb = (ByteBuffer) this.colData.get(col);
+
+		switch (this.columnMetaDataList.get(col).getColType()) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+			byte val = bb.get(this.rowIndex);
+			if (isBooleanNull(val)) {
+				return 0;
+			}
+
+			return (val == 0x0) ? 0 : 1;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+			byte val = bb.get(this.rowIndex);
+			if (isTinyIntNull(val)) {
+				return 0;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+			ShortBuffer sb = (ShortBuffer) this.colData.get(col);
+			short val = sb.get(this.rowIndex);
+			if (isSmallIntNull(val)) {
+				return 0;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_INT: {
+			IntBuffer ib = (IntBuffer) this.colData.get(col);
+			int val = ib.get(this.rowIndex);
+			if (isIntNull(val)) {
+				return 0;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+			LongBuffer lb = (LongBuffer) this.colData.get(col);
+			long val = lb.get(this.rowIndex);
+			if (isBigIntNull(val)) {
+				return 0;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+			FloatBuffer fb = (FloatBuffer) this.colData.get(col);
+			float val = fb.get(this.rowIndex);
+			if (isFloatNull(val)) {
+				return 0;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+			DoubleBuffer lb = (DoubleBuffer) this.colData.get(col);
+			double val = lb.get(this.rowIndex);
+			if (isDoubleNull(val)) {
+				return 0;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+			bb.position(fieldSize * this.rowIndex);
+
+			int length = bb.getShort();
+
+			byte[] dest = new byte[length];
+			bb.get(dest, 0, length);
+			if (isBinaryNull(dest, length)) {
+				return 0;
+			}
+
+			return Long.parseLong(new String(dest));
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
+			bb.position(fieldSize * this.rowIndex);
+
+			int length = bb.getShort();
+
+			byte[] dest = new byte[length];
+			bb.get(dest, 0, length);
+			if (isNcharNull(dest, length)) {
+				return 0;
+			}
+
+			try {
+				return Long.parseLong(new String(dest, TaosGlobalConfig.getCharset()));
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+		}
+		}
+
+		return 0;
+	}
+
+	public Timestamp getTimestamp(int col) {
+		try {
+			return new Timestamp(getLong(col));
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+		return null;
+	}
+
+	public double getDouble(int col) {
+		int fieldSize = this.columnMetaDataList.get(col).getColSize();
+		ByteBuffer bb = (ByteBuffer) this.colData.get(col);
+
+		switch (this.columnMetaDataList.get(col).getColType()) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+			byte val = bb.get(this.rowIndex);
+			if (isBooleanNull(val)) {
+				return 0;
+			}
+
+			return (val == 0x0) ? 0 : 1;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+			byte val = bb.get(this.rowIndex);
+			if (isTinyIntNull(val)) {
+				return 0;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+			ShortBuffer sb = (ShortBuffer) this.colData.get(col);
+			short val = sb.get(this.rowIndex);
+			if (isSmallIntNull(val)) {
+				return 0;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_INT: {
+			IntBuffer ib = (IntBuffer) this.colData.get(col);
+			int val = ib.get(this.rowIndex);
+			if (isIntNull(val)) {
+				return 0;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+			LongBuffer lb = (LongBuffer) this.colData.get(col);
+			long val = lb.get(this.rowIndex);
+			if (isBigIntNull(val)) {
+				return 0;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+			FloatBuffer fb = (FloatBuffer) this.colData.get(col);
+			float val = fb.get(this.rowIndex);
+			if (isFloatNull(val)) {
+				return 0;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+			DoubleBuffer lb = (DoubleBuffer) this.colData.get(col);
+			double val = lb.get(this.rowIndex);
+			if (isDoubleNull(val)) {
+				return 0;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+			bb.position(fieldSize * this.rowIndex);
+
+			int length = bb.getShort();
+
+			byte[] dest = new byte[length];
+			bb.get(dest, 0, length);
+			if (isBinaryNull(dest, length)) {
+				return 0;
+			}
+
+			return Double.parseDouble(new String(dest));
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
+			bb.position(fieldSize * this.rowIndex);
+
+			int length = bb.getShort();
+
+			byte[] dest = new byte[length];
+			bb.get(dest, 0, length);
+			if (isNcharNull(dest, length)) {
+				return 0;
+			}
+
+			try {
+				return Double.parseDouble(new String(dest, TaosGlobalConfig.getCharset()));
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+		}
+		}
+
+		return 0;
+	}
+
+	public Object get(int col) {
+		int fieldSize = this.columnMetaDataList.get(col).getColSize();
+
+		switch (this.columnMetaDataList.get(col).getColType()) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+			ByteBuffer bb = (ByteBuffer) this.colData.get(col);
+
+			byte val = bb.get(this.rowIndex);
+			if (isBooleanNull(val)) {
+				return null;
+			}
+
+			return (val == 0x0) ? Boolean.FALSE : Boolean.TRUE;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+			ByteBuffer bb = (ByteBuffer) this.colData.get(col);
+
+			byte val = bb.get(this.rowIndex);
+			if (isTinyIntNull(val)) {
+				return null;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+			ShortBuffer sb = (ShortBuffer) this.colData.get(col);
+			short val = sb.get(this.rowIndex);
+			if (isSmallIntNull(val)) {
+				return null;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_INT: {
+			IntBuffer ib = (IntBuffer) this.colData.get(col);
+			int val = ib.get(this.rowIndex);
+			if (isIntNull(val)) {
+				return null;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+			LongBuffer lb = (LongBuffer) this.colData.get(col);
+			long val = lb.get(this.rowIndex);
+			if (isBigIntNull(val)) {
+				return null;
+			}
+
+			return (long) val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+			FloatBuffer fb = (FloatBuffer) this.colData.get(col);
+			float val = fb.get(this.rowIndex);
+			if (isFloatNull(val)) {
+				return null;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+			DoubleBuffer lb = (DoubleBuffer) this.colData.get(col);
+			double val = lb.get(this.rowIndex);
+			if (isDoubleNull(val)) {
+				return null;
+			}
+
+			return val;
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+			ByteBuffer bb = (ByteBuffer) this.colData.get(col);
+			bb.position(fieldSize * this.rowIndex);
+
+			int length = bb.getShort();
+
+			byte[] dest = new byte[length];
+			bb.get(dest, 0, length);
+			if (isBinaryNull(dest, length)) {
+				return null;
+			}
+
+			return new String(dest);
+		}
+
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
+			ByteBuffer bb = (ByteBuffer) this.colData.get(col);
+			bb.position(fieldSize * this.rowIndex);
+
+			int length = bb.getShort();
+
+			byte[] dest = new byte[length];
+			bb.get(dest, 0, length);
+			if (isNcharNull(dest, length)) {
+				return null;
+			}
+
+			try {
+				return new String(dest, TaosGlobalConfig.getCharset());
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+		}
+		}
+
+		return 0;
+	}
+}
