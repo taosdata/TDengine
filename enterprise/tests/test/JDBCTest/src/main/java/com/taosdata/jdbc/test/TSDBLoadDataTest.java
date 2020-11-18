@@ -178,12 +178,16 @@ public class TSDBLoadDataTest {
 		ResultSet reSet = null;
 		try {
 			stmt = (Statement) conn.createStatement();
-			reSet = stmt.executeQuery("select t from test.t2m1 limit 2");
+			reSet = stmt.executeQuery("select * from test.t1");
 			
+			int row = 0;
 			while(reSet.next()) {
-				System.out.println(reSet.getInt(1));
+//				System.out.println(reSet.getObject(1));
+				System.out.println(reSet.getString(2));
+				row += 1;
 			}
 
+			System.out.println("total rows:" + row);
 		} catch (SQLException e) {
 			e.printStackTrace();
 			System.out.println("insert failed");
