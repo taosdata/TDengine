@@ -52,11 +52,11 @@ typedef enum {
 typedef struct SSWriteMsg {
   ESdbOper type;
   int32_t  processedCount;  // for sync fwd callback
-  int32_t  retCode;         // for callback in sdb queue
+  int32_t  code;            // for callback in sdb queue
   int32_t  rowSize;
   void *   rowData;
   int32_t  (*fpReq)(SMnodeMsg *pMsg);
-  int32_t  (*fpWrite)(SMnodeMsg *pMsg, int32_t code);
+  int32_t  (*fpRsp)(SMnodeMsg *pMsg, int32_t code);
   void *   pRow;
   SMnodeMsg *pMsg;
   struct SSdbTable *pTable;

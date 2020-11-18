@@ -879,12 +879,12 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   mnodeIncTableRef(pMsg->pTable);
 
   SSWriteMsg wmsg = {
-    .type = SDB_OPER_GLOBAL,
-    .pTable = tsSuperTableSdb,
-    .pRow = pStable,
+    .type    = SDB_OPER_GLOBAL,
+    .pTable  = tsSuperTableSdb,
+    .pRow    = pStable,
     .rowSize = sizeof(SSTableObj) + schemaSize,
-    .pMsg = pMsg,
-    .fpWrite = mnodeCreateSuperTableCb
+    .pMsg    = pMsg,
+    .fpRsp   = mnodeCreateSuperTableCb
   };
 
   int32_t code = sdbInsertRow(&wmsg);
@@ -942,7 +942,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
     .pTable  = tsSuperTableSdb,
     .pRow    = pStable,
     .pMsg    = pMsg,
-    .fpWrite = mnodeDropSuperTableCb
+    .fpRsp   = mnodeDropSuperTableCb
   };
 
   int32_t code = sdbDeleteRow(&wmsg);
@@ -1011,11 +1011,11 @@ static int32_t mnodeAddSuperTableTag(SMnodeMsg *pMsg, SSchema schema[], int32_t 
          schema[0].name);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsSuperTableSdb,
-    .pRow    = pStable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeAddSuperTableTagCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsSuperTableSdb,
+    .pRow   = pStable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeAddSuperTableTagCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -1045,11 +1045,11 @@ static int32_t mnodeDropSuperTableTag(SMnodeMsg *pMsg, char *tagName) {
   mInfo("app:%p:%p, stable %s, start to drop tag %s", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId, tagName);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsSuperTableSdb,
-    .pRow    = pStable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeDropSuperTableTagCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsSuperTableSdb,
+    .pRow   = pStable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeDropSuperTableTagCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -1089,11 +1089,11 @@ static int32_t mnodeModifySuperTableTagName(SMnodeMsg *pMsg, char *oldTagName, c
          oldTagName, newTagName);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsSuperTableSdb,
-    .pRow    = pStable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeModifySuperTableTagNameCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsSuperTableSdb,
+    .pRow   = pStable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeModifySuperTableTagNameCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -1163,11 +1163,11 @@ static int32_t mnodeAddSuperTableColumn(SMnodeMsg *pMsg, SSchema schema[], int32
   mInfo("app:%p:%p, stable %s, start to add column", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsSuperTableSdb,
-    .pRow    = pStable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeAddSuperTableColumnCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsSuperTableSdb,
+    .pRow   = pStable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeAddSuperTableColumnCb
   };
 
  return sdbUpdateRow(&wmsg);
@@ -1208,11 +1208,11 @@ static int32_t mnodeDropSuperTableColumn(SMnodeMsg *pMsg, char *colName) {
   mInfo("app:%p:%p, stable %s, start to delete column", pMsg->rpcMsg.ahandle, pMsg, pStable->info.tableId);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsSuperTableSdb,
-    .pRow    = pStable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeDropSuperTableColumnCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsSuperTableSdb,
+    .pRow   = pStable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeDropSuperTableColumnCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -1252,11 +1252,11 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg, char *oldName, char 
          oldName, newName);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsSuperTableSdb,
-    .pRow    = pStable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeChangeSuperTableColumnCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsSuperTableSdb,
+    .pRow   = pStable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeChangeSuperTableColumnCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -1902,11 +1902,11 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
   }
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsChildTableSdb,
-    .pRow    = pTable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeDropChildTableCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsChildTableSdb,
+    .pRow   = pTable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeDropChildTableCb
   };
 
   int32_t code = sdbDeleteRow(&wmsg);
@@ -2006,11 +2006,11 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
   mInfo("app:%p:%p, ctable %s, start to add column", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsChildTableSdb,
-    .pRow    = pTable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeAlterNormalTableColumnCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsChildTableSdb,
+    .pRow   = pTable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeAlterNormalTableColumnCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -2039,11 +2039,11 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
   mInfo("app:%p:%p, ctable %s, start to drop column %s", pMsg->rpcMsg.ahandle, pMsg, pTable->info.tableId, colName);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsChildTableSdb,
-    .pRow    = pTable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeAlterNormalTableColumnCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsChildTableSdb,
+    .pRow   = pTable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeAlterNormalTableColumnCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -2076,11 +2076,11 @@ static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg, char *oldName, char
          oldName, newName);
 
   SSWriteMsg wmsg = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsChildTableSdb,
-    .pRow    = pTable,
-    .pMsg    = pMsg,
-    .fpWrite = mnodeAlterNormalTableColumnCb
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsChildTableSdb,
+    .pRow   = pTable,
+    .pMsg   = pMsg,
+    .fpRsp  = mnodeAlterNormalTableColumnCb
   };
 
   return sdbUpdateRow(&wmsg);
@@ -2411,11 +2411,11 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
   if (rpcMsg->code == TSDB_CODE_SUCCESS || rpcMsg->code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
      SSWriteMsg desc = {
-      .type    = SDB_OPER_GLOBAL,
-      .pRow    = pTable,
-      .pTable  = tsChildTableSdb,
-      .pMsg    = mnodeMsg,
-      .fpWrite = mnodeDoCreateChildTableCb
+      .type   = SDB_OPER_GLOBAL,
+      .pRow   = pTable,
+      .pTable = tsChildTableSdb,
+      .pMsg   = mnodeMsg,
+      .fpRsp  = mnodeDoCreateChildTableCb
     };
     
     int32_t code = sdbInsertRowImp(&desc);

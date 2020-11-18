@@ -329,7 +329,7 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
     .type    = SDB_OPER_GLOBAL,
     .pTable  = tsMnodeSdb,
     .pRow    = pMnode,
-    .fpWrite = mnodeCreateMnodeCb
+    .fpRsp   = mnodeCreateMnodeCb
   };
 
   int32_t code = TSDB_CODE_SUCCESS;

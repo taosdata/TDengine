@@ -418,7 +418,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
     .pRow     = pDb,
     .rowSize  = sizeof(SDbObj),
     .pMsg     = pMsg,
-    .fpWrite  = mnodeCreateDbCb
+    .fpRsp    = mnodeCreateDbCb
   };
 
   code = sdbInsertRow(&wmsg);
@@ -1024,7 +1024,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
       .pTable  = tsDbSdb,
       .pRow    = pDb,
       .pMsg    = pMsg,
-      .fpWrite = mnodeAlterDbCb
+      .fpRsp   = mnodeAlterDbCb
     };
 
     code = sdbUpdateRow(&wmsg);
@@ -1076,7 +1076,7 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
     .pTable  = tsDbSdb,
     .pRow    = pDb,
     .pMsg    = pMsg,
-    .fpWrite = mnodeDropDbCb
+    .fpRsp   = mnodeDropDbCb
   };
 
   int32_t code = sdbDeleteRow(&wmsg);

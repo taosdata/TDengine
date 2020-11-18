@@ -958,12 +958,12 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
 
   if (mnodeMsg->received == mnodeMsg->successed) {
      SSWriteMsg wmsg = {
-      .type     = SDB_OPER_GLOBAL,
-      .pTable   = tsVgroupSdb,
-      .pRow     = pVgroup,
-      .rowSize  = sizeof(SVgObj),
-      .pMsg     = mnodeMsg,
-      .fpWrite  = mnodeCreateVgroupCb
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsVgroupSdb,
+      .pRow    = pVgroup,
+      .rowSize = sizeof(SVgObj),
+      .pMsg    = mnodeMsg,
+      .fpRsp   = mnodeCreateVgroupCb
     };
 
     int32_t code = sdbInsertRowImp(&wmsg);
