@@ -446,8 +446,8 @@ int main(int argc, char *argv[]) {
 
 void taosFreeDbInfos() {
   if (dbInfos == NULL) return;
-  for (int i = 0; i < 128; i++) taosTFree(dbInfos[i]);
-  taosTFree(dbInfos);
+  for (int i = 0; i < 128; i++) tfree(dbInfos[i]);
+  tfree(dbInfos);
 }
 
 // check table is normal table or super table
@@ -543,7 +543,7 @@ int32_t taosSaveAllNormalTableToTempFile(TAOS *taosCon, char*meter, char* metric
   tstrncpy(tableRecord.name, meter, TSDB_TABLE_NAME_LEN);
   tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
-  taosTWrite(*fd, &tableRecord, sizeof(STableRecord));
+  taosWrite(*fd, &tableRecord, sizeof(STableRecord));
   return 0;
 }
 
@@ -598,7 +598,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
     tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
 
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
     numOfTable++;
 
@@ -808,7 +808,7 @@ int taosDumpOut(struct arguments *arguments) {
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  taosTFree(command);
+  tfree(command);
   taosFreeDbInfos();  
   fprintf(stderr, "dump out rows: %" PRId64 "\n", totalDumpOutRows);
   return 0;
@@ -817,7 +817,7 @@ _exit_failure:
   fclose(fp);
   taos_close(taos);
   taos_free_result(result);
-  taosTFree(command);
+  tfree(command);
   taosFreeDbInfos();
   fprintf(stderr, "dump out rows: %" PRId64 "\n", totalDumpOutRows);
   return -1;
@@ -906,6 +906,15 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       return -1;
     }
 
+    if (row[0] == NULL) {
+      sprintf(tableDes->cols[i].note, "%s", "NULL");
+      taos_free_result(tmpResult);
+      tmpResult = NULL;
+      continue;
+    }
+    
+    int32_t* length = taos_fetch_lengths(tmpResult);
+
     //int32_t* length = taos_fetch_lengths(tmpResult);
     switch (fields[0].type) {
       case TSDB_DATA_TYPE_BOOL:
@@ -932,13 +941,13 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       case TSDB_DATA_TYPE_BINARY:
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
-        converStringToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
+        converStringToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
       case TSDB_DATA_TYPE_NCHAR:
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
-        convertNCharToReadable((char *)row[0], fields[0].bytes, tbuf, COMMAND_SIZE);
+        convertNCharToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
@@ -1211,7 +1220,7 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
   while ((row = taos_fetch_row(tmpResult)) != NULL) {  
     memset(&tableRecord, 0, sizeof(STableRecord));
     strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
   }  
   
   taos_free_result(tmpResult);
@@ -1300,7 +1309,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
 
-    taosTWrite(fd, &tableRecord, sizeof(STableRecord));
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
     numOfTable++;
 
@@ -1504,6 +1513,8 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
   count = 0;
   while ((row = taos_fetch_row(tmpResult)) != NULL) {
     pstr = tmpBuffer;
+    
+    int32_t* length = taos_fetch_lengths(tmpResult);   // act len
 
     if (count == 0) {
       pstr += sprintf(pstr, "%s INTO %s VALUES (", sqlStr, tbname);
@@ -1552,12 +1563,12 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
           break;
         case TSDB_DATA_TYPE_BINARY:
           *(pstr++) = '\'';
-          converStringToReadable((char *)row[col], fields[col].bytes, tbuf, COMMAND_SIZE);
+          converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           pstr = stpcpy(pstr, tbuf);
           *(pstr++) = '\'';
           break;
         case TSDB_DATA_TYPE_NCHAR:
-          convertNCharToReadable((char *)row[col], fields[col].bytes, tbuf, COMMAND_SIZE);
+          convertNCharToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           pstr += sprintf(pstr, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
@@ -1786,13 +1797,13 @@ void taosLoadFileCharset(FILE *fp, char *fcharset) {
   }
   strcpy(fcharset, line + 2);
 
-  taosTFree(line);
+  tfree(line);
   return;
 
 _exit_no_charset:
   (void)fseek(fp, 0, SEEK_SET);
   *fcharset = '\0';
-  taosTFree(line);
+  tfree(line);
   return;
 }
 
@@ -1887,9 +1898,9 @@ static void taosMallocSQLFiles()
 static void taosFreeSQLFiles()
 {
   for (int i = 0; i < tsSqlFileNum; i++) {
-    taosTFree(tsDumpInSqlFiles[i]);
+    tfree(tsDumpInSqlFiles[i]);
   }
-  taosTFree(tsDumpInSqlFiles);
+  tfree(tsDumpInSqlFiles);
 }
 
 static void taosGetDirectoryFileList(char *inputDir)
@@ -2076,17 +2087,17 @@ int taosDumpInOneFile_old(TAOS     * taos, FILE* fp, char* fcharset, char* encod
   }
 
   if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  taosTFree(line);
-  taosTFree(command);
-  taosTFree(lcommand);
+  tfree(line);
+  tfree(command);
+  tfree(lcommand);
   taos_close(taos);
   fclose(fp);
   return 0;
 
 _dumpin_exit_failure:
   if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  taosTFree(command);
-  taosTFree(lcommand);
+  tfree(command);
+  tfree(lcommand);
   taos_close(taos);
   fclose(fp);
   return -1;
@@ -2133,8 +2144,8 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
     cmd_len = 0;
   }
 
-  taosTFree(cmd);
-  taosTFree(line);
+  tfree(cmd);
+  tfree(line);
   fclose(fp);
   return 0;
 }

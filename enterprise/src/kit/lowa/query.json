@@ -1,13 +1,15 @@
 {
-	"host": "192.168.1.217",
+       "filetype":"query",
+       "cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
 	"port": 6030,
 	"user": "root",
 	"password": "taosdata",
 	"databases": "db01",
 	"super_table_query":{ "rate":0, "concurrent":10,
-			                "sql": ["select * from stb01 where ts > '2020-10-01 00:00:10.000' and ts < '2020-10-01 00:10:00.000' order by ts desc limit 10;"]
-			              },
+			      "sql": ["select * from stb01 where ts > '2020-10-01 00:00:10.000' and ts < '2020-10-01 00:10:00.000' order by ts desc limit 10;"]
+			    },
 	"sub_table_query": { "rate":0, "threads":1, "childtable_prefix": "stb01_", "childtable_count": 10,
-			                 "sql": ["select last(*) from xxxx;"]
-			              }
+			     "sql": ["select last(*) from xxxx;"]
+			   }
 }

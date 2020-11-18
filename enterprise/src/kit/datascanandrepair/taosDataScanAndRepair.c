@@ -112,8 +112,8 @@ void        printCompBlock(SCompBlock *pBlock, FILE *fp);
 void        checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *headName, int *err);
 SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir);
 int         createDir(const char *dirName);
-ssize_t     taosTSendFile(int dfd, int sfd, off_t *offset, size_t size);
-ssize_t     taosTWrite(int fd, void *buf, size_t n);
+ssize_t     taosSendFile(int dfd, int sfd, off_t *offset, size_t size);
+ssize_t     taosWrite(int fd, void *buf, size_t n);
 void        scanDir(const char *dbDir, SVnodeInfo *pInfo);
 void        vnodeCreateFileHeaderFd(int fd);
 
@@ -441,7 +441,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   lseek(fd, 0, SEEK_SET);
   if (repairFd > 0) {
     lseek(repairFd, 0, SEEK_SET);
-    taosTSendFile(repairFd, fd, NULL, TSDB_FILE_HEADER_LEN);
+    taosSendFile(repairFd, fd, NULL, TSDB_FILE_HEADER_LEN);
   } else {
     lseek(fd, TSDB_FILE_HEADER_LEN, SEEK_SET);
   }
@@ -462,7 +462,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
     goto __exit;
   } else {
     if (repairFd > 0) {
-      taosTWrite(repairFd, (void *)pHeader, offset_size);
+      taosWrite(repairFd, (void *)pHeader, offset_size);
     }
     fprintf(reportFP, "Offset part is correct\n\n");
   }
@@ -700,11 +700,11 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
         lseek(repairFd, pHeader[i].compInfoOffset, SEEK_SET);
         if (numOfCorrectBlocks == compInfo.numOfBlocks) {
           lseek(fd, pHeader[i].compInfoOffset, SEEK_SET);
-          taosTSendFile(repairFd, fd, NULL,
+          taosSendFile(repairFd, fd, NULL,
                     sizeof(SCompInfo) + sizeof(SCompBlock) * compInfo.numOfBlocks + sizeof(TSCKSUM));
         } else {
           taosCalcChecksumAppend(0, (uint8_t *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
-          taosTWrite(repairFd, (void *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
+          taosWrite(repairFd, (void *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
         }
       }
     }
@@ -714,7 +714,7 @@ __exit:
   if (repairFd > 0) {// write the new compHeader part to the repair FD
     lseek(repairFd, TSDB_FILE_HEADER_LEN, SEEK_SET);
     taosCalcChecksumAppend(0, (uint8_t *)pHeader, offset_size);
-    taosTWrite(repairFd, (void *)pHeader, offset_size);
+    taosWrite(repairFd, (void *)pHeader, offset_size);
   }
 
   if (pBlocks != NULL) free(pBlocks);
@@ -756,7 +756,7 @@ __exit:
 
         lseek(nfd, 0, SEEK_SET);
         lseek(repairFd, 0, SEEK_SET);
-        taosTSendFile(nfd, repairFd, NULL, filestat.st_size);
+        taosSendFile(nfd, repairFd, NULL, filestat.st_size);
 
         printf("  >> Recovering new file:%s\n", datafname);
 
@@ -872,16 +872,16 @@ void vnodeCreateFileHeaderFd(int fd) {
   sprintf(temp + sizeof(int16_t), "tsdb version: %s\n", "1.6.2.0");
   /* *((int16_t *)(temp + TSDB_FILE_HEADER_LEN/8)) = vnodeFileVersion; */
   lseek(fd, 0, SEEK_SET);
-  taosTWrite(fd, temp, lineLen);
+  taosWrite(fd, temp, lineLen);
 
   // second line
   memset(temp, 0, lineLen);
-  taosTWrite(fd, temp, lineLen);
+  taosWrite(fd, temp, lineLen);
 
   // the third/forth line is the dynamic info
   memset(temp, 0, lineLen);
-  taosTWrite(fd, temp, lineLen);
-  taosTWrite(fd, temp, lineLen);
+  taosWrite(fd, temp, lineLen);
+  taosWrite(fd, temp, lineLen);
 }
 
 void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
@@ -951,7 +951,7 @@ void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
           memset((void *)pHeader, 0, size);
           taosCalcChecksumAppend(0, (uint8_t *)pHeader, size);
           lseek(fd, TSDB_FILE_HEADER_LEN, SEEK_SET);
-          taosTWrite(fd, (void *)pHeader, size);
+          taosWrite(fd, (void *)pHeader, size);
           free(pHeader);
           close(fd);
         }

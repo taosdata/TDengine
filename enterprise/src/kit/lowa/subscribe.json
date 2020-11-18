@@ -1,0 +1,15 @@
+{
+        "filetype":"subscribe",
+        "cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"databases": "db01",
+	"super_table_query":{ "rate":0, "concurrent":1, "mode":"sync", "interval":5000, "restart":"yes", "keepProgress":"yes",
+	                      "sql": ["select avg(c1) from stb01 where c1 > 1;"]
+			    },
+	"sub_table_query": { "rate":0, "threads":1, "childtable_prefix": "stb01_", "childtable_count": 10, "mode":"sync", "interval":10000, "restart":"yes", "keepProgress":"yes",
+			     "sql": ["select c1 from xxxx where c1 > 10;"]
+			   }
+}

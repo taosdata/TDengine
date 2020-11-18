@@ -40,17 +40,22 @@ type TableColInfo struct {
 
 // Talbe information
 type TableInfo struct {
-	STable string
+	STable *STableInfo
 	Table  string
-	SCols  []TableColInfo
 	Cols   []TableColInfo
 }
 
-func taosGetTabInfo(db *sql.DB, table string, getMetaFromServer bool) (*TableInfo, error) {
+type STableInfo struct {
+	Name string
+	Cols []TableColInfo
+}
+
+func taosGetTabInfo(db *sql.DB, table string, pSTableInfo *STableInfo, createTable bool) (*TableInfo, error) {
 	var info TableInfo
 	info.Table = table
+	info.STable = pSTableInfo
 
-	if !getMetaFromServer {
+	if !createTable {
 		return &info, nil
 	}
 
@@ -65,19 +70,13 @@ func taosGetTabInfo(db *sql.DB, table string, getMetaFromServer bool) (*TableInf
 		return nil, nil
 	}
 
-	info.STable = strings.Trim((*rows[0][3].(*interface{})).(string), string(0))
+	superTableName := strings.Trim((*rows[0][3].(*interface{})).(string), string(0))
 
 	// Get super table information
-	if info.STable != "" {
-		_, rows, err = taosProcessQuery(db, fmt.Sprintf("describe '%s'", info.STable))
-		for _, row := range rows {
-			var colInfo TableColInfo
-			colInfo.Name = strings.Trim((*row[0].(*interface{})).(string), string(0))
-			colInfo.Type = strings.Trim((*row[1].(*interface{})).(string), string(0))
-			colInfo.Length = (*row[2].(*interface{})).(int32)
-			colInfo.Note = strings.Trim((*row[3].(*interface{})).(string), string(0))
-
-			info.SCols = append(info.SCols, colInfo)
+	if info.STable == nil && superTableName != "" {
+		info.STable, err = taosGetSuperTableInfo(db, superTableName)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -130,27 +129,63 @@ func taosProcessQuery(db *sql.DB, sql string) ([]*sql.ColumnType, [][]interface{
 	return cols, vals, nil
 }
 
-func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname string, stime int64, etime int64, batch int) (string, int64, int, error) {
+func taosDumpTableBatchData(db *sql.DB, dbname string, tInfo *TableInfo, stime int64, etime int64, batch int, queryTime int) (string, int, error) {
 	var sql string
-	if etime == 0 {
-		sql = fmt.Sprintf("select * from %s.%s where %s > %d limit %d;", dbname, tbname, tsname, stime, batch)
+
+	if tInfo.STable != nil {
+		if stime == 1 {
+			if etime == 0 {
+				sql = fmt.Sprintf("select * from %s.%s where tbname in ('%s') limit %d offset %d", dbname, tInfo.STable.Name, tInfo.Table, batch, batch*queryTime)
+			} else {
+				sql = fmt.Sprintf("select * from %s.%s where tbname in ('%s') and _c0 <= %d limit %d offset %d", dbname, tInfo.STable.Name, tInfo.Table, etime, batch, batch*queryTime)
+			}
+		} else {
+			if etime == 0 {
+				sql = fmt.Sprintf("select * from %s.%s where tbname in ('%s') and _c0 >= %d limit %d offset %d", dbname, tInfo.STable.Name, tInfo.Table, stime, batch, batch*queryTime)
+			} else {
+				sql = fmt.Sprintf("select * from %s.%s where tbname in ('%s') and _c0 >= %d and _c0 <= %d limit %d offset %d", dbname, tInfo.STable.Name, tInfo.Table, stime, etime, batch, batch*queryTime)
+			}
+		}
 	} else {
-		sql = fmt.Sprintf("select * from %s.%s where %s > %d and %s <= %d limit %d;", dbname, tbname, tsname, stime, tsname, etime, batch)
+		if stime == 1 {
+			if etime == 0 {
+				sql = fmt.Sprintf("select * from %s.%s limit %d offset %d", dbname, tInfo.Table, batch, batch*queryTime)
+			} else {
+				sql = fmt.Sprintf("select * from %s.%s where _c0 <= %d limit %d offset %d", dbname, tInfo.Table, etime, batch, batch*queryTime)
+			}
+		} else {
+			if etime == 0 {
+				sql = fmt.Sprintf("select * from %s.%s where _c0 >= %d limit %d offset %d", dbname, tInfo.Table, stime, batch, batch*queryTime)
+			} else {
+				sql = fmt.Sprintf("select * from %s.%s where _c0 >= %d and _c0 <= %d limit %d offset %d", dbname, tInfo.Table, stime, etime, batch, batch*queryTime)
+			}
+		}
+	}
+
+	nCols := 0
+	if tInfo.STable == nil {
+		nCols = len(tInfo.Cols)
+	} else {
+		for _, col := range tInfo.STable.Cols {
+			if col.Note != "" {
+				break
+			}
+			nCols++
+		}
 	}
 
 	_, rows, err := taosProcessQuery(db, sql)
 	if err != nil {
-		return "", 0, 0, err
+		return "", 0, err
 	}
 
 	var command bytes.Buffer
-	var newStime int64
 	command.Reset()
 
 	command.WriteString("insert into ")
-	command.WriteString(fmt.Sprintf("%s.%s", dbname, tbname))
+	command.WriteString(fmt.Sprintf("%s.%s", dbname, tInfo.Table))
 	command.WriteString(" values ")
-	for rowCount, row := range rows {
+	for _, row := range rows {
 		command.WriteString("(")
 		for i, val := range row {
 			val = *val.(*interface{})
@@ -166,18 +201,16 @@ func taosDumpTableBatchData(db *sql.DB, dbname string, tbname string, tsname str
 				}
 			}
 
-			if i != len(row)-1 {
+			if i != nCols-1 {
 				command.WriteString(",")
-			}
-
-			if (rowCount == len(rows)-1) && (i == 0) {
-				newStime = val.(int64)
+			} else {
+				break
 			}
 		}
 		command.WriteString(")")
 	}
 
-	return command.String(), newStime, len(rows), nil
+	return command.String(), len(rows), nil
 }
 
 func taosGetSchemaString(tableCols []TableColInfo) string {
@@ -201,8 +234,8 @@ func taosGetSchemaString(tableCols []TableColInfo) string {
 	return schemaString
 }
 
-func taosDumpCreateTable(db *sql.DB, client *http.Client, dbname string, tbname string, logger *log.Logger, createTable *bool) (tInfo *TableInfo, err error) {
-	tInfo, err = taosGetTabInfo(db, tbname, *createTable)
+func taosDumpCreateTable(db *sql.DB, client *http.Client, dbname string, tbname string, pSTableInfo *STableInfo, logger *log.Logger, createTable *bool) (tInfo *TableInfo, err error) {
+	tInfo, err = taosGetTabInfo(db, tbname, pSTableInfo, *createTable)
 	if err != nil {
 		return nil, err
 	}
@@ -211,17 +244,17 @@ func taosDumpCreateTable(db *sql.DB, client *http.Client, dbname string, tbname 
 		return tInfo, nil
 	}
 
-	if tInfo.STable != "" {
+	if tInfo.STable != nil {
 		// Create super table at first
 		tagColIdx := 0
-		for _, colInfo := range tInfo.SCols {
+		for _, colInfo := range tInfo.STable.Cols {
 			if colInfo.Note != "" {
 				break
 			}
 			tagColIdx++
 		}
 
-		cmd := fmt.Sprintf("create table if not exists %s.%s %s tags %s", dbname, tInfo.STable, taosGetSchemaString(tInfo.SCols[:tagColIdx]), taosGetSchemaString(tInfo.SCols[tagColIdx:]))
+		cmd := fmt.Sprintf("create table if not exists %s.%s %s tags %s", dbname, tInfo.STable, taosGetSchemaString(tInfo.STable.Cols[:tagColIdx]), taosGetSchemaString(tInfo.STable.Cols[tagColIdx:]))
 		err = taosSendSQLWithRest(client, cmd, logger)
 		if err != nil {
 			return nil, err
@@ -267,8 +300,9 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, tInfo *TableInfo, cfg
 
 	stime := *cfg.stime
 	etime := *cfg.etime
+	queryTime := 0
 	for {
-		cmd, nstime, fetchRows, err := taosDumpTableBatchData(db, *cfg.dbname, tInfo.Table, "_c0", stime, etime, *cfg.batch)
+		cmd, fetchRows, err := taosDumpTableBatchData(db, *cfg.dbname, tInfo, stime, etime, *cfg.batch, queryTime)
 		if err != nil {
 			return totalRows, err
 		}
@@ -278,7 +312,8 @@ func taosDumpOneTableData(db *sql.DB, client *http.Client, tInfo *TableInfo, cfg
 		}
 
 		totalRows += fetchRows
-		stime = nstime
+
+		queryTime++
 
 		taosSendSQLWithRest(client, cmd, logger)
 	}
@@ -424,6 +459,27 @@ func taosGetTableNamesOfDB(db *sql.DB, superTable *string) (*[]string, error) {
 	return &tableList, nil
 }
 
+func taosGetSuperTableInfo(db *sql.DB, superTable string) (*STableInfo, error) {
+	var info STableInfo
+	_, rows, err := taosProcessQuery(db, fmt.Sprintf("describe '%s'", superTable))
+	if err != nil {
+		return nil, err
+	}
+
+	info.Name = superTable
+
+	for _, row := range rows {
+		var colInfo TableColInfo
+		colInfo.Name = strings.Trim((*row[0].(*interface{})).(string), string(0))
+		colInfo.Type = strings.Trim((*row[1].(*interface{})).(string), string(0))
+		colInfo.Length = (*row[2].(*interface{})).(int32)
+		colInfo.Note = strings.Trim((*row[3].(*interface{})).(string), string(0))
+
+		info.Cols = append(info.Cols, colInfo)
+	}
+	return &info, nil
+}
+
 func taosDumpWorker(cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *log.Logger) {
 	tRows := uint64(0)
 	logger.Printf("Start to dump %d tables:%s\n", len(tables), tables)
@@ -446,10 +502,19 @@ func taosDumpWorker(cfg *DumpCfg, tables []string, wg *sync.WaitGroup, logger *l
 
 	stime := time.Now()
 
+	var pSTableInfo *STableInfo = nil
+	if *cfg.superTable != "" {
+		pSTableInfo, err = taosGetSuperTableInfo(db, *cfg.superTable)
+		if err != nil {
+			return
+		}
+	}
+
 	// Dump create-table commands
 	var tInfos []*TableInfo
-	for _, table := range tables {
-		tInfo, err := taosDumpCreateTable(db, client, *cfg.dbname, table, logger, cfg.createSchema)
+	for i, table := range tables {
+		fmt.Printf("creating table #%d of total %d tables\n", i, len(tables))
+		tInfo, err := taosDumpCreateTable(db, client, *cfg.dbname, table, pSTableInfo, logger, cfg.createSchema)
 		if err != nil {
 			tInfos = append(tInfos, nil)
 		} else {
