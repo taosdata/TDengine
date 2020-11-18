@@ -224,11 +224,19 @@ public class TSDBResultSetBlockData {
 	}
 
 	private boolean isBinaryNull(byte[] val, int length) {
-		return val[0] == 0xFF && length == 1;
+		if (length != 1) {
+			return false;
+		}
+		
+		return val[0] == 0xFF;
 	}
 
 	private boolean isNcharNull(byte[] val, int length) {
-		return (val[0] & val[1] & val[2] & val[3]) == 0xFF && length == 4;
+		if (length != 4) {
+			return false;
+		}
+		
+		return (val[0] & val[1] & val[2] & val[3]) == 0xFF ;
 	}
 
 	public int getInt(int col) {
@@ -304,109 +312,32 @@ public class TSDBResultSetBlockData {
 	}
 
 	public long getLong(int col) throws SQLException {
-		int fieldSize = this.columnMetaDataList.get(col).getColSize();
-		ByteBuffer bb = (ByteBuffer) this.colData.get(col);
-
-		switch (this.columnMetaDataList.get(col).getColType()) {
-		case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
-			byte val = bb.get(this.rowIndex);
-			if (isBooleanNull(val)) {
-				return 0;
-			}
-
-			return (val == 0x0) ? 0 : 1;
+		Object obj = get(col);
+		if (obj == null) {
+			return 0;
 		}
 
-		case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
-			byte val = bb.get(this.rowIndex);
-			if (isTinyIntNull(val)) {
-				return 0;
-			}
-
-			return val;
-		}
-
-		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
-			ShortBuffer sb = (ShortBuffer) this.colData.get(col);
-			short val = sb.get(this.rowIndex);
-			if (isSmallIntNull(val)) {
-				return 0;
-			}
-
-			return val;
-		}
-
+		int type = this.columnMetaDataList.get(col).getColType();
+		switch (type) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
 		case TSDBConstants.TSDB_DATA_TYPE_INT: {
-			IntBuffer ib = (IntBuffer) this.colData.get(col);
-			int val = ib.get(this.rowIndex);
-			if (isIntNull(val)) {
-				return 0;
-			}
-
-			return val;
+			return (int) obj;
+		}
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+			return (long) obj;
 		}
 
-		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-		case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
-			LongBuffer lb = (LongBuffer) this.colData.get(col);
-			long val = lb.get(this.rowIndex);
-			if (isBigIntNull(val)) {
-				return 0;
-			}
-
-			return (long) val;
-		}
-
-		case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
-			FloatBuffer fb = (FloatBuffer) this.colData.get(col);
-			float val = fb.get(this.rowIndex);
-			if (isFloatNull(val)) {
-				return 0;
-			}
-
-			return (long) val;
-		}
-
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
 		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
-			DoubleBuffer lb = (DoubleBuffer) this.colData.get(col);
-			double val = lb.get(this.rowIndex);
-			if (isDoubleNull(val)) {
-				return 0;
-			}
-
-			return (long) val;
+			return ((Double) obj).longValue();
 		}
 
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
 		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
-			bb.position(fieldSize * this.rowIndex);
-
-			int length = bb.getShort();
-
-			byte[] dest = new byte[length];
-			bb.get(dest, 0, length);
-			if (isBinaryNull(dest, length)) {
-				return 0;
-			}
-
-			return Long.parseLong(new String(dest));
-		}
-
-		case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
-			bb.position(fieldSize * this.rowIndex);
-
-			int length = bb.getShort();
-
-			byte[] dest = new byte[length];
-			bb.get(dest, 0, length);
-			if (isNcharNull(dest, length)) {
-				return 0;
-			}
-
-			try {
-				return Long.parseLong(new String(dest, TaosGlobalConfig.getCharset()));
-			} catch (UnsupportedEncodingException e) {
-				e.printStackTrace();
-			}
+			return Long.parseLong((String) obj);
 		}
 		}
 
@@ -424,109 +355,32 @@ public class TSDBResultSetBlockData {
 	}
 
 	public double getDouble(int col) {
-		int fieldSize = this.columnMetaDataList.get(col).getColSize();
-		ByteBuffer bb = (ByteBuffer) this.colData.get(col);
-
-		switch (this.columnMetaDataList.get(col).getColType()) {
-		case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
-			byte val = bb.get(this.rowIndex);
-			if (isBooleanNull(val)) {
-				return 0;
-			}
-
-			return (val == 0x0) ? 0 : 1;
+		Object obj = get(col);
+		if (obj == null) {
+			return 0;
 		}
 
-		case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
-			byte val = bb.get(this.rowIndex);
-			if (isTinyIntNull(val)) {
-				return 0;
-			}
-
-			return val;
-		}
-
-		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
-			ShortBuffer sb = (ShortBuffer) this.colData.get(col);
-			short val = sb.get(this.rowIndex);
-			if (isSmallIntNull(val)) {
-				return 0;
-			}
-
-			return val;
-		}
-
+		int type = this.columnMetaDataList.get(col).getColType();
+		switch (type) {
+		case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
 		case TSDBConstants.TSDB_DATA_TYPE_INT: {
-			IntBuffer ib = (IntBuffer) this.colData.get(col);
-			int val = ib.get(this.rowIndex);
-			if (isIntNull(val)) {
-				return 0;
-			}
-
-			return val;
+			return (int) obj;
+		}
+		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+			return (long) obj;
 		}
 
-		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-		case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
-			LongBuffer lb = (LongBuffer) this.colData.get(col);
-			long val = lb.get(this.rowIndex);
-			if (isBigIntNull(val)) {
-				return 0;
-			}
-
-			return (long) val;
-		}
-
-		case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
-			FloatBuffer fb = (FloatBuffer) this.colData.get(col);
-			float val = fb.get(this.rowIndex);
-			if (isFloatNull(val)) {
-				return 0;
-			}
-
-			return (long) val;
-		}
-
+		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
 		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
-			DoubleBuffer lb = (DoubleBuffer) this.colData.get(col);
-			double val = lb.get(this.rowIndex);
-			if (isDoubleNull(val)) {
-				return 0;
-			}
-
-			return (long) val;
+			return (double) obj;
 		}
 
+		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
 		case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
-			bb.position(fieldSize * this.rowIndex);
-
-			int length = bb.getShort();
-
-			byte[] dest = new byte[length];
-			bb.get(dest, 0, length);
-			if (isBinaryNull(dest, length)) {
-				return 0;
-			}
-
-			return Double.parseDouble(new String(dest));
-		}
-
-		case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
-			bb.position(fieldSize * this.rowIndex);
-
-			int length = bb.getShort();
-
-			byte[] dest = new byte[length];
-			bb.get(dest, 0, length);
-			if (isNcharNull(dest, length)) {
-				return 0;
-			}
-
-			try {
-				return Double.parseDouble(new String(dest, TaosGlobalConfig.getCharset()));
-			} catch (UnsupportedEncodingException e) {
-				e.printStackTrace();
-			}
+			return Double.parseDouble((String) obj);
 		}
 		}
 
@@ -638,7 +492,8 @@ public class TSDBResultSetBlockData {
 			}
 
 			try {
-				return new String(dest, TaosGlobalConfig.getCharset());
+				String ss = TaosGlobalConfig.getCharset();
+				return new String(dest, ss);
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
 			}
