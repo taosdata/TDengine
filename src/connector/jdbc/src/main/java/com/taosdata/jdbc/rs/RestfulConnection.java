@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
-public class TaosRestfulConnection implements Connection {
+public class RestfulConnection implements Connection {
 
     private final String host;
     private final int port;
@@ -16,7 +16,7 @@ public class TaosRestfulConnection implements Connection {
     private final String url;
 
 
-    public TaosRestfulConnection(String host, String port, Properties props, String database, String url) {
+    public RestfulConnection(String host, String port, Properties props, String database, String url) {
         this.host = host;
         this.port = Integer.parseInt(port);
         this.props = props;
@@ -28,7 +28,7 @@ public class TaosRestfulConnection implements Connection {
     public Statement createStatement() throws SQLException {
         if (isClosed())
             throw new SQLException(TSDBConstants.WrapErrMsg("restful TDengine connection is closed."));
-        return new TaosRestfulStatement(this, this.database);
+        return new RestfulStatement(this, this.database);
     }
 
     @Override
@@ -78,7 +78,8 @@ public class TaosRestfulConnection implements Connection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        return null;
+        //TODO: RestfulDatabaseMetaData is not implemented
+        return new RestfulDatabaseMetaData();
     }
 
     @Override

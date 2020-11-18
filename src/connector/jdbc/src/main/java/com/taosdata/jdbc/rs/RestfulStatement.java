@@ -9,12 +9,12 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.List;
 
-public class TaosRestfulStatement implements Statement {
+public class RestfulStatement implements Statement {
 
     private final String catalog;
-    private final TaosRestfulConnection conn;
+    private final RestfulConnection conn;
 
-    public TaosRestfulStatement(TaosRestfulConnection c, String catalog) {
+    public RestfulStatement(RestfulConnection c, String catalog) {
         this.conn = c;
         this.catalog = catalog;
     }
@@ -46,12 +46,12 @@ public class TaosRestfulStatement implements Statement {
         }
         String dataStr = jsonObject.getString("data");
         if ("use".equalsIgnoreCase(fields.split(" ")[0])) {
-            return new TaosRestfulResultSet(dataStr, "");
+            return new RestfulResultSet(dataStr, "");
         }
 
         JSONObject jsonField = JSON.parseObject(fields);
         if (jsonField == null) {
-            return new TaosRestfulResultSet(dataStr, "");
+            return new RestfulResultSet(dataStr, "");
         }
         if (jsonField.getString("status").equals("error")) {
             throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
@@ -60,7 +60,7 @@ public class TaosRestfulStatement implements Statement {
         }
         String fieldData = jsonField.getString("data");
 
-        return new TaosRestfulResultSet(dataStr, fieldData);
+        return new RestfulResultSet(dataStr, fieldData);
     }
 
     @Override

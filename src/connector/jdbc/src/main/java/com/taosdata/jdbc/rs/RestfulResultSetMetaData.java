@@ -4,11 +4,11 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.List;
 
-public class TaosRestfulResultSetMetaData implements ResultSetMetaData {
+public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     private List<String> fields;
 
-    public TaosRestfulResultSetMetaData(List<String> fields) {
+    public RestfulResultSetMetaData(List<String> fields) {
         this.fields = fields;
     }
 

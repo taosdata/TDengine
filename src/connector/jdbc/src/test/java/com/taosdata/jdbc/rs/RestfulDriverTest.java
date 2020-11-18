@@ -5,12 +5,12 @@ import org.junit.Test;
 
 import java.sql.*;
 
-public class TaosRestfulDriverTest {
+public class RestfulDriverTest {
 
     @Test
     public void testCase001() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.TaosRestfulDriver");
+            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             Connection connection = DriverManager.getConnection("jdbc:TAOS-RS://master:6041/?user=root&password=taosdata");
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery("select * from log.log");
@@ -32,7 +32,7 @@ public class TaosRestfulDriverTest {
 
     @Test
     public void testAcceptUrl() throws SQLException {
-        Driver driver = new TaosRestfulDriver();
+        Driver driver = new RestfulDriver();
         boolean isAccept = driver.acceptsURL("jdbc:TAOS-RS://master:6041");
         Assert.assertTrue(isAccept);
     }

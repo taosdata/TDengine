@@ -13,13 +13,13 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Map;
 
-public class TaosRestfulResultSet implements ResultSet {
+public class RestfulResultSet implements ResultSet {
     private boolean isClosed = false;
     private int pos = -1;
     private ArrayList<ArrayList<String>> data;
     private ArrayList<String> fields;
 
-    public TaosRestfulResultSet(String str, String fieldData) {
+    public RestfulResultSet(String str, String fieldData) {
         data = new ArrayList<>();
         str = str.substring(2, str.length() - 2);
         ArrayList<String> strTemp = new ArrayList<>(Arrays.asList(str.split("],\\[")));
@@ -262,7 +262,7 @@ public class TaosRestfulResultSet implements ResultSet {
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        return new TaosRestfulResultSetMetaData(fields);
+        return new RestfulResultSetMetaData(fields);
     }
 
     @Override

@@ -11,13 +11,13 @@ import java.sql.*;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class TaosRestfulDriver extends AbstractTaosDriver {
+public class RestfulDriver extends AbstractTaosDriver {
 
     private static final String URL_PREFIX = "jdbc:TAOS-RS://";
 
     static {
         try {
-            DriverManager.registerDriver(new TaosRestfulDriver());
+            DriverManager.registerDriver(new RestfulDriver());
         } catch (SQLException e) {
             throw new RuntimeException(TSDBConstants.WrapErrMsg("can not register Restful JDBC driver"), e);
         }
@@ -48,7 +48,7 @@ public class TaosRestfulDriver extends AbstractTaosDriver {
             throw new SQLException(jsonResult.getString("desc"));
         }
 
-        return new TaosRestfulConnection(host, port, props, database, url);
+        return new RestfulConnection(host, port, props, database, url);
     }
 
     @Override
