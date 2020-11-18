@@ -3,14 +3,22 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 
-system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
-system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 2
 
 system sh/cfg.sh -n dnode1 -c wallevel -v 1
 system sh/cfg.sh -n dnode2 -c wallevel -v 1
 
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c minTablesPerVnode -v 10
+system sh/cfg.sh -n dnode2 -c minTablesPerVnode -v 10
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 10
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 10
+
 system sh/cfg.sh -n dnode1 -c monitor -v 1
-system sh/cfg.sh -n dnode2 -c monitor -v 0
+system sh/cfg.sh -n dnode2 -c monitor -v 1
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
@@ -18,8 +26,8 @@ sql connect
 sleep 5000
 
 sql show dnodes
-print dnode1 openVnodes $data2_1
-if $data2_1 != 1 then
+print dnode1 openVnodes $data3_1
+if $data2_1 != 0 then
 	return -1
 endi
 
@@ -27,22 +35,15 @@ print ========== step2
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
-$x = 0
-show2: 
-	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
-		return -1
-	endi
-	
+sleep 10000
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
 if $data2_1 != 0 then
-	goto show2
+	return -1
 endi
 if $data2_2 != 1 then
-	goto show2
+	return -1
 endi
 
 print ========== step3
@@ -55,7 +56,7 @@ print $data30
 print $data40
 print $data50
 
-if $rows != 4 then
+if $rows != 5 then
 	return -1
 endi
 
@@ -66,6 +67,20 @@ $rows1 = $rows
 
 sleep 3000
 sql select * from log.dn1
+print $rows
+$rows2 = $rows
+
+if $rows2 <= $rows1 then
+	return -1
+endi
+
+print ========== step5
+sql select * from log.dn2
+print $rows
+$rows1 = $rows
+
+sleep 3000
+sql select * from log.dn2
 print $rows
 $rows2 = $rows
 
