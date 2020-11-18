@@ -6412,7 +6412,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return code;
     }
 
-    tVariantListItem* p1 = taosArrayGet(pQuerySql->from, i);
+    tVariantListItem* p1 = taosArrayGet(pQuerySql->from, i + 1);
     if (p1->pVar.nType != TSDB_DATA_TYPE_BINARY) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
     }

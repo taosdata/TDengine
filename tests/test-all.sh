@@ -16,6 +16,10 @@ function runSimCaseOneByOne {
       ./test.sh -f $case > /dev/null 2>&1 && \
         echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
         echo -e "${RED}$case failed${NC}" | tee -a out.log
+      out_log=`tail -1 out.log  `
+      if [[ $out_log =~ 'failed' ]];then
+        exit 8
+      fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
     fi
@@ -37,6 +41,10 @@ function runPyCaseOneByOne {
           echo -e "${GREEN}$case success${NC}" | tee -a pytest-out.log || \
           echo -e "${RED}$case failed${NC}" | tee -a pytest-out.log
         end_time=`date +%s`
+        out_log=`tail -1 pytest-out.log  `
+        if [[ $out_log =~ 'failed' ]];then
+          exit 8
+        fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
       else
         $line > /dev/null 2>&1

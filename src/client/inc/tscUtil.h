@@ -282,6 +282,7 @@ int  tscSetMgmtEpSetFromCfg(const char *first, const char *second);
 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
+int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
