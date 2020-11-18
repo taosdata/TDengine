@@ -689,7 +689,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
   if (pMaster) {
     // master is there
     pNode->pMaster = pMaster;
-    sDebug("%s, it is the master, ver:%" PRIu64, pMaster->id, pMaster->version);
+    sDebug("%s, it is the master, sver:%" PRIu64, pMaster->id, pMaster->version);
 
     if (syncValidateMaster(pPeer) < 0) return;
 
@@ -697,7 +697,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
       if (nodeVersion < pMaster->version) {
         syncRequired = 1;
       } else {
-        sInfo("%s is master, work as slave, ver:%" PRIu64, pMaster->id, pMaster->version);
+        sInfo("%s is master, work as slave, sver:%" PRIu64, pMaster->id, pMaster->version);
         nodeRole = TAOS_SYNC_ROLE_SLAVE;
         (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       }
@@ -854,7 +854,7 @@ static void syncProcessFwdResponse(char *cont, SSyncPeer *pPeer) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   SFwdInfo * pFwdInfo;
 
-  sDebug("%s, forward-rsp is received, code:%x ver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
+  sDebug("%s, forward-rsp is received, code:%x hver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
   if (pFirst->version <= pFwdRsp->version && pSyncFwds->fwds > 0) {
@@ -891,7 +891,7 @@ static void syncProcessPeersStatusMsg(char *cont, SSyncPeer *pPeer) {
   SSyncNode *   pNode = pPeer->pSyncNode;
   SPeersStatus *pPeersStatus = (SPeersStatus *)cont;
 
-  sDebug("%s, status msg is received, self:%s ver:%" PRIu64 " peer:%s ver:%" PRIu64 ", ack:%d", pPeer->id,
+  sDebug("%s, status msg is received, self:%s sver:%" PRIu64 " peer:%s sver:%" PRIu64 ", ack:%d", pPeer->id,
          syncRole[nodeRole], nodeVersion, syncRole[pPeersStatus->role], pPeersStatus->version, pPeersStatus->ack);
 
   pPeer->version = pPeersStatus->version;
@@ -979,7 +979,7 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack) {
 
   int32_t retLen = write(pPeer->peerFd, msg, statusMsgLen);
   if (retLen == statusMsgLen) {
-    sDebug("%s, status msg is sent, self:%s ver:%" PRIu64 ", ack:%d", pPeer->id, syncRole[pPeersStatus->role],
+    sDebug("%s, status msg is sent, self:%s sver:%" PRIu64 ", ack:%d", pPeer->id, syncRole[pPeersStatus->role],
            pPeersStatus->version, pPeersStatus->ack);
   } else {
     sDebug("%s, failed to send status msg, restart", pPeer->id);
@@ -1154,7 +1154,7 @@ static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
-  sDebug("vgId:%d, fwd info is saved, ver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
+  sDebug("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
 }
 
 static void syncRemoveConfirmedFwdInfo(SSyncNode *pNode) {
@@ -1168,7 +1168,7 @@ static void syncRemoveConfirmedFwdInfo(SSyncNode *pNode) {
     pSyncFwds->first = (pSyncFwds->first + 1) % tsMaxFwdInfo;
     pSyncFwds->fwds--;
     if (pSyncFwds->fwds == 0) pSyncFwds->first = pSyncFwds->last;
-    // sDebug("vgId:%d, fwd info is removed, ver:%d, fwds:%d",
+    // sDebug("vgId:%d, fwd info is removed, hver:%d, fwds:%d",
     //        pNode->vgId, pFwdInfo->version, pSyncFwds->fwds);
     memset(pFwdInfo, 0, sizeof(SFwdInfo));
   }
@@ -1191,7 +1191,7 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
   }
 
   if (confirm && pFwdInfo->confirmed == 0) {
-    sDebug("vgId:%d, forward is confirmed, ver:%" PRIu64 " code:%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
+    sDebug("vgId:%d, forward is confirmed, hver:%" PRIu64 " code:%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
     (*pNode->confirmForward)(pNode->ahandle, pFwdInfo->mhandle, pFwdInfo->code);
     pFwdInfo->confirmed = 1;
   }
@@ -1204,14 +1204,17 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
 
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
 
-  if (pSyncFwds) {;
-    uint64_t   time = taosGetTimestampMs();
+  if (pSyncFwds) {
+    int64_t time = taosGetTimestampMs();
 
     if (pSyncFwds->fwds > 0) {
       pthread_mutex_lock(&(pNode->mutex));
       for (int32_t i = 0; i < pSyncFwds->fwds; ++i) {
         SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + (pSyncFwds->first + i) % tsMaxFwdInfo;
-        if (time - pFwdInfo->time < 2000) break;
+        if (ABS(time - pFwdInfo->time) < 2000) break;
+
+        sDebug("vgId:%d, forward info expired, hver:%" PRIu64 " curtime:%" PRIu64 " savetime:%" PRIu64, pNode->vgId,
+               pFwdInfo->version, time, pFwdInfo->time);
         syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_RPC_NETWORK_UNAVAIL);
       }
 
@@ -1234,7 +1237,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
 
   if (pWalHead->version > nodeVersion + 1) {
-    sError("vgId:%d, hver:%" PRIu64 ", inconsistent with ver:%" PRIu64, pNode->vgId, pWalHead->version, nodeVersion);
+    sError("vgId:%d, hver:%" PRIu64 ", inconsistent with sver:%" PRIu64, pNode->vgId, pWalHead->version, nodeVersion);
     if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
       sInfo("vgId:%d, restart connection", pNode->vgId);
       for (int32_t i = 0; i < pNode->replica; ++i) {
@@ -1277,9 +1280,9 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     int32_t retLen = write(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
-      sDebug("%s, forward is sent, ver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
+      sDebug("%s, forward is sent, hver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
     } else {
-      sError("%s, failed to forward, ver:%" PRIu64 " retLen:%d", pPeer->id, pWalHead->version, retLen);
+      sError("%s, failed to forward, hver:%" PRIu64 " retLen:%d", pPeer->id, pWalHead->version, retLen);
       syncRestartConnection(pPeer);
     }
   }

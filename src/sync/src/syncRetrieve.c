@@ -268,7 +268,7 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
       break;
     }
 
-    sDebug("%s, last wal is forwarded, ver:%" PRIu64, pPeer->id, pHead->version);
+    sDebug("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
     int32_t ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if (ret != wsize) break;
     pPeer->sversion = pHead->version;
