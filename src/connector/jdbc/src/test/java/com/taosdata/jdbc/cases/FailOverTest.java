@@ -1,50 +1,37 @@
 package com.taosdata.jdbc.cases;
 
-import com.taosdata.jdbc.lib.TSDBCommon;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 public class FailOverTest {
 
-    private Connection conn;
-
-    @Before
-    public void before() {
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-            final String url = "jdbc:TAOS://:/?user=root&password=taosdata";
-            conn = DriverManager.getConnection(url);
-            TSDBCommon.createDatabase(conn, "failover_test");
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
-        }
-    }
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
 
     @Test
-    public void testFailOver() {
-        try (Statement stmt = conn.createStatement()) {
-            ResultSet resultSet = stmt.executeQuery("select server_status()");
-            while (true) {
+    public void testFailOver() throws ClassNotFoundException {
+        Class.forName("com.taosdata.jdbc.TSDBDriver");
+        final String url = "jdbc:TAOS://:/?user=root&password=taosdata";
+
+        while (true) {
+            try (Connection conn = DriverManager.getConnection(url)) {
+                Statement stmt = conn.createStatement();
+                ResultSet resultSet = stmt.executeQuery("select server_status()");
                 resultSet.next();
                 int status = resultSet.getInt("server_status()");
-                System.out.println(">>>>>>>>> status : " + status);
+                System.out.println(">>>>>>>>>" + sdf.format(new Date()) + " status : " + status);
+                stmt.close();
+                TimeUnit.SECONDS.sleep(5);
+            } catch (SQLException | InterruptedException e) {
+                e.printStackTrace();
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
     }
 
-    @After
-    public void after() {
-        try {
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
 }
