@@ -1222,8 +1222,11 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
       pthread_mutex_unlock(&(pNode->mutex));
     }
 
-    taosReleaseRef(tsSyncRefId, rid);
+    pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, (void *)pNode->rid, tsSyncTmrCtrl);
   }
+
+  taosReleaseRef(tsSyncRefId, rid);
+}
 
 static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int32_t qtype) {
   SSyncPeer *pPeer;
