@@ -419,7 +419,11 @@ void vnodeRelease(void *pVnodeRaw) {
   }
 
   if (pVnode->wal) {
-    if (code == 0) walRemoveAllOldFiles(pVnode->wal);
+    if (code != 0) {
+      vError("vgId:%d, failed to commit while close tsdb repo, keep wal", pVnode->vgId);
+    } else {
+      walRemoveAllOldFiles(pVnode->wal);
+    }
     walClose(pVnode->wal);
     pVnode->wal = NULL;
   }
