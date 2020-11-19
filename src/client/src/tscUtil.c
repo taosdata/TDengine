@@ -306,7 +306,7 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     // generated the user-defined column result
     if (pInfo->pSqlExpr != NULL && TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
       if (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) {
-        setNullN(pRes->urow[i], pInfo->field.type, pInfo->field.bytes, pRes->numOfRows);
+        setNullN(pRes->urow[i], pInfo->field.type, pInfo->field.bytes, (int32_t) pRes->numOfRows);
       } else {
         if (pInfo->field.type == TSDB_DATA_TYPE_NCHAR || pInfo->field.type == TSDB_DATA_TYPE_BINARY) {
           assert(pInfo->pSqlExpr->param[1].nLen <= pInfo->field.bytes);
