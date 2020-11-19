@@ -594,7 +594,7 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
 
       if (taosArrayGetSize(result) > 0) {
         SVgroupTableInfo* prevGroup = taosArrayGet(result, taosArrayGetSize(result) - 1);
-        tscDebug("%p vgId:%d, tables:%"PRId64, pSql, prevGroup->vgInfo.vgId, taosArrayGetSize(prevGroup->itemList));
+        tscDebug("%p vgId:%d, tables:%u", pSql, prevGroup->vgInfo.vgId, taosArrayGetSize(prevGroup->itemList));
       }
 
       taosArrayPush(result, &info);
@@ -612,7 +612,7 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
 
   if (taosArrayGetSize(result) > 0) {
     SVgroupTableInfo* g = taosArrayGet(result, taosArrayGetSize(result) - 1);
-    tscDebug("%p vgId:%d, tables:%"PRId64, pSql, g->vgInfo.vgId, taosArrayGetSize(g->itemList));
+    tscDebug("%p vgId:%d, tables:%u", pSql, g->vgInfo.vgId, taosArrayGetSize(g->itemList));
   }
 }
 
@@ -753,7 +753,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   }
 #endif
 
-  tscDebug("%p tags match complete, result: %"PRId64", %"PRId64, pParentSql, t1, t2);
+  tscDebug("%p tags match complete, result: %u, %u", pParentSql, t1, t2);
   return TSDB_CODE_SUCCESS;
 }
 
