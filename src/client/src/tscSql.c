@@ -805,7 +805,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
     return true;
   }
 
-  return isNull(pSql->res.urow[col] + row * pInfo->field.bytes, pInfo->field.type);
+  return isNull(((char*) pSql->res.urow[col]) + row * pInfo->field.bytes, pInfo->field.type);
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
