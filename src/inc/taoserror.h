@@ -107,6 +107,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_CONN_KILLED,              0, 0x0215, "Connection
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,         0, 0x0216, "Syntax error in SQL")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DB_NOT_SELECTED,          0, 0x0217, "Database not specified or available")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TABLE_NAME,       0, 0x0218, "Table does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_SQL_LIMIT,         0, 0x0219, "SQL statement too long, check maxSQLLength config")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        0, 0x0300, "Message not processed")
