@@ -220,13 +220,16 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
-  size_t numOfOutput = tscNumOfFields(pQueryInfo);
-  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-
-  if (numOfOutput == numOfExprs) {
+  STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return false;
   }
 
+  if (tscIsProjectionQuery(pQueryInfo)) {
+    return false;
+  }
+
+  size_t numOfOutput = tscNumOfFields(pQueryInfo);
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pArithExprInfo;
     if (pExprInfo != NULL) {
@@ -309,14 +312,14 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
           assert(pInfo->pSqlExpr->param[1].nLen <= pInfo->field.bytes);
 
           for (int32_t k = 0; k < pRes->numOfRows; ++k) {
-            char* p = pRes->urow[i] + k * pInfo->field.bytes;
+            char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
 
             memcpy(varDataVal(p), pInfo->pSqlExpr->param[1].pz, pInfo->pSqlExpr->param[1].nLen);
             varDataSetLen(p, pInfo->pSqlExpr->param[1].nLen);
           }
         } else {
           for (int32_t k = 0; k < pRes->numOfRows; ++k) {
-            char* p = pRes->urow[i] + k * pInfo->field.bytes;
+            char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
             memcpy(p, &pInfo->pSqlExpr->param[1].i64Key, pInfo->field.bytes);
           }
         }
