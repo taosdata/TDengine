@@ -275,7 +275,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_FQDN_LEN             128
-#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN+8)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_METER_VNODE_BITS     20

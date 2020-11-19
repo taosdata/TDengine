@@ -610,6 +610,7 @@ typedef struct {
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
 } SClusterCfg;
 
+#pragma pack(4)
 typedef struct {
   uint32_t    version;
   int32_t     dnodeId;
