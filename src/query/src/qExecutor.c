@@ -5351,8 +5351,11 @@ static char *getArithemicInputSrc(void *param, const char *name, int32_t colId) 
 }
 
 static void doSecondaryArithmeticProcess(SQuery* pQuery) {
-  SArithmeticSupport arithSup = {0};
+  if (pQuery->numOfExpr2 == 0) {
+    return;
+  }
 
+  SArithmeticSupport arithSup = {0};
   tFilePage **data = calloc(pQuery->numOfExpr2, POINTER_BYTES);
   for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
     int32_t bytes = pQuery->pExpr2[i].bytes;
