@@ -68,6 +68,9 @@ typedef struct {
 typedef struct {
   int8_t      role;
   int8_t      ack;
+  int8_t      type;
+  int8_t      reserved[3];
+  uint16_t    tranId;
   uint64_t    version;
   SPeerStatus peersStatus[];
 } SPeersStatus;
