@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 1000
+sleep 500
 
 $dbPrefix = join_m_db
 $tbPrefix = join_tb

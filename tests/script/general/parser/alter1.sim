@@ -3,7 +3,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 500
 sql connect
 sql reset query cache
 
@@ -87,7 +87,7 @@ if $data13 != NULL then
   return -1
 endi
 
-sleep 1000
+sleep 500
 print ================== insert values into table
 sql insert into car1 values (now, 1, 1,1 ) (now +1s, 2,2,2,) car2 values (now, 1,3,3)
 

@@ -220,11 +220,6 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
-  STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
-  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    return false;
-  }
-
   if (tscIsProjectionQuery(pQueryInfo)) {
     return false;
   }

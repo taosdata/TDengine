@@ -789,8 +789,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   size_t output = tscNumOfFields(pQueryInfo);
 
-  if ((tscIsSecondStageQuery(pQueryInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) ||
-      UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo))) {
+  if (tscIsSecondStageQuery(pQueryInfo)) {
     pQueryMsg->secondStageOutput = htonl((int32_t) output);
 
     SSqlFuncMsg *pSqlFuncExpr1 = (SSqlFuncMsg *)pMsg;
@@ -2219,7 +2218,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscDebug("%p numOfRows:%" PRId64 ", offset:%" PRId64 ", complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
+  tscDebug("%p numOfRows:%d, offset:%" PRId64 ", complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
 
   return 0;
 }

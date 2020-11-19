@@ -5,7 +5,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sleep 1000
+sleep 500
 sql connect
 print ======================== dnode1 start
 
@@ -103,7 +103,7 @@ if $rows != 1 then
 endi
 
 sql drop database $db
-sleep 1000
+sleep 500
 sql create database $db
 sql use $db
 sql create table stb1 (ts timestamp, c1 int) tags(t1 int)
@@ -136,7 +136,7 @@ if $data21 != 1.000000000 then
 endi
 
 sql drop database $db
-sleep 1000
+sleep 500
 sql create database $db
 sql use $db
 sql create table stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 nchar(10), c6 binary(20)) tags(t1 int, t2 bigint, t3 double, t4 float, t5 nchar(10))

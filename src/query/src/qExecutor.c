@@ -853,9 +853,9 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
     int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
     startPos = prevPosition + factor;
   } else {
-    if (startKey < pDataBlockInfo->window.skey && QUERY_IS_ASC_QUERY(pQuery)) {
+    if (startKey <= pDataBlockInfo->window.skey && QUERY_IS_ASC_QUERY(pQuery)) {
       startPos = 0;
-    } else if (startKey > pDataBlockInfo->window.ekey && !QUERY_IS_ASC_QUERY(pQuery)) {
+    } else if (startKey >= pDataBlockInfo->window.ekey && !QUERY_IS_ASC_QUERY(pQuery)) {
       startPos = pDataBlockInfo->rows - 1;
     } else {
       startPos = searchFn((char *)primaryKeys, pDataBlockInfo->rows, startKey, pQuery->order.order);
