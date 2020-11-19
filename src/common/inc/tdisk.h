@@ -16,9 +16,6 @@
 #ifndef TD_TDISK_H
 #define TD_TDISK_H
 
-#include "taosdef.h"
-#include "hash.h"
-#include "taoserror.h"
 #include "tglobal.h"
 
 #ifdef __cplusplus

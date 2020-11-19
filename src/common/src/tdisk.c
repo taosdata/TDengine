@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
-#include "tutil.h"
 #include "tdisk.h"
+#include "hash.h"
+#include "taosdef.h"
+#include "taoserror.h"
 #include "tulog.h"
-
+#include "tutil.h"
 
 typedef struct {
   uint64_t size;
