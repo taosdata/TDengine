@@ -21,11 +21,6 @@ extern "C" {
 #endif
 
 typedef struct {
-  int level;
-  int id;
-} SDiskID;
-
-typedef struct {
   uint64_t size;
   uint64_t free;
   uint64_t nfiles;

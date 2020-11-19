@@ -22,6 +22,16 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int level;
+  int id;
+} SDiskID;
+
+typedef struct {
+  SDiskID did;
+  char    fname[TSDB_FILENAME_LEN];
+} STfsFile;
+
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
 int  tfsUpdateInfo();

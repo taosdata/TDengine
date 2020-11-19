@@ -26,7 +26,7 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "tmount.h"
+#include "tfs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -189,9 +189,10 @@ typedef struct {
 } STsdbFileInfo;
 
 typedef struct {
-  char  fname[TSDB_FILENAME_LEN];
-  int   fd;
+  // char  fname[TSDB_FILENAME_LEN];
+  // int   fd;
 
+  STfsFile tfile;
   STsdbFileInfo info;
 } SFile;
 
