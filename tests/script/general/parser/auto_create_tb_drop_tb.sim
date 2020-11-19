@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 system sh/cfg.sh -n dnode1 -c ctime -v 30
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 500
 sql connect
 
 $dbPrefix = db
@@ -49,7 +49,7 @@ while $t < $tbNum
 endw
 print ====== tables created
 
-sleep 60000
+sleep 500
 
 sql drop table tb2
 $x = 0
@@ -59,9 +59,7 @@ while $x < $rowNum
   $t1 = $t1 . '
   sql insert into tb1 using $stb tags( $t1 ) values ( $ts , $x ) 
   $x = $x + 1
-endw 
-  
-sleep 6000
+endw
 
 $ts = $ts0 + $delta
 $ts = $ts + 1

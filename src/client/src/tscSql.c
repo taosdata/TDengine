@@ -394,7 +394,7 @@ int taos_affected_rows(TAOS_RES *tres) {
   SSqlObj* pSql = (SSqlObj*) tres;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  return (int)(pSql->res.numOfRows);
+  return pSql->res.numOfRows;
 }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
@@ -443,50 +443,9 @@ int taos_retrieve(TAOS_RES *res) {
   if (pCmd->command < TSDB_SQL_LOCAL) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
   }
-  tscProcessSql(pSql);
-
-  return (int)pRes->numOfRows;
-}
-
-int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
-  SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-
-  if (pRes->qhandle == 0 || pSql->signature != pSql) {
-    *rows = NULL;
-    return 0;
-  }
-
-  // Retrieve new block
-  tscResetForNextRetrieve(pRes);
-  if (pCmd->command < TSDB_SQL_LOCAL) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-  }
 
   tscProcessSql(pSql);
-  if (pRes->numOfRows == 0) {
-    *rows = NULL;
-    return 0;
-  }
-
-  // secondary merge has handle this situation
-  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
-    pRes->numOfClauseTotal += pRes->numOfRows;
-  }
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  if (pQueryInfo == NULL)
-    return 0;
-
-  assert(0);
-  for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, 0);
-  }
-
-  *rows = pRes->tsrow;
-
-  return (int)((pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows);
+  return pRes->numOfRows;
 }
 
 static bool needToFetchNewBlock(SSqlObj* pSql) {
@@ -573,7 +532,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   *rows = pRes->urow;
 
   tscClearSqlOwner(pSql);
-  return (int32_t) pRes->numOfRows;
+  return pRes->numOfRows;
 }
 
 int taos_select_db(TAOS *taos, const char *db) {

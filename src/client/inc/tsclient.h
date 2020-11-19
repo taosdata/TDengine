@@ -293,33 +293,32 @@ typedef struct SResRec {
 } SResRec;
 
 typedef struct {
-  int64_t               numOfRows;                  // num of results in current retrieved
-  int64_t               numOfRowsGroup;             // num of results of current group
-  int64_t               numOfTotal;                 // num of total results
-  int64_t               numOfClauseTotal;           // num of total result in current subclause
-  char *                pRsp;
-  int32_t               rspType;
-  int32_t               rspLen;
-  uint64_t              qhandle;
-  int64_t               uid;
-  int64_t               useconds;
-  int64_t               offset;  // offset value from vnode during projection query of stable
-  int32_t               row;
-  int16_t               numOfCols;
-  int16_t               precision;
-  bool                  completed;
-  int32_t               code;
-  int32_t               numOfGroups;
-  SResRec *             pGroupRec;
-  char *                data;
-  TAOS_ROW              tsrow;
-  TAOS_ROW              urow;
-  int32_t*              length;  // length for each field for current row
-  char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
-  SColumnIndex *        pColumnIndex;
+  int32_t        numOfRows;                  // num of results in current retrieval
+  int64_t        numOfRowsGroup;             // num of results of current group
+  int64_t        numOfTotal;                 // num of total results
+  int64_t        numOfClauseTotal;           // num of total result in current subclause
+  char *         pRsp;
+  int32_t        rspType;
+  int32_t        rspLen;
+  uint64_t       qhandle;
+  int64_t        useconds;
+  int64_t        offset;  // offset value from vnode during projection query of stable
+  int32_t        row;
+  int16_t        numOfCols;
+  int16_t        precision;
+  bool           completed;
+  int32_t        code;
+  int32_t        numOfGroups;
+  SResRec *      pGroupRec;
+  char *         data;
+  TAOS_ROW       tsrow;
+  TAOS_ROW       urow;
+  int32_t*       length;  // length for each field for current row
+  char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
+  SColumnIndex*  pColumnIndex;
+
   SArithmeticSupport*   pArithSup;   // support the arithmetic expression calculation on agg functions
-  
-  struct SLocalReducer *pLocalReducer;
+  struct SLocalReducer* pLocalReducer;
 } SSqlRes;
 
 typedef struct STscObj {
