@@ -884,11 +884,11 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
   tFilePage * pBeforeFillData = pLocalReducer->pResultBuf;
 
   pRes->data = pLocalReducer->pFinalRes;
-  pRes->numOfRows = pBeforeFillData->num;
+  pRes->numOfRows = (int32_t) pBeforeFillData->num;
 
   if (pQueryInfo->limit.offset > 0) {
     if (pQueryInfo->limit.offset < pRes->numOfRows) {
-      int32_t prevSize = (int32_t)pBeforeFillData->num;
+      int32_t prevSize = (int32_t) pBeforeFillData->num;
       tColModelErase(pLocalReducer->finalModel, pBeforeFillData, prevSize, 0, (int32_t)pQueryInfo->limit.offset - 1);
 
       /* remove the hole in column model */

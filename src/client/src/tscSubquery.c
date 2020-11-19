@@ -948,7 +948,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     if (!pRes->completed) {
       taosGetTmpfilePath("ts-join", pSupporter->path);
       pSupporter->f = fopen(pSupporter->path, "w");
-      pRes->row = (int32_t)pRes->numOfRows;
+      pRes->row = pRes->numOfRows;
 
       taos_fetch_rows_a(tres, tsCompRetrieveCallback, param);
       return;
@@ -974,7 +974,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     
     // TODO check for failure
     pSupporter->f = fopen(pSupporter->path, "w");
-    pRes->row = (int32_t)pRes->numOfRows;
+    pRes->row = pRes->numOfRows;
 
     // set the callback function
     pSql->fp = tscJoinQueryCallback;
@@ -2059,7 +2059,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     }
     
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
-                               (int32_t)pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
+                               pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret != 0) { // set no disk space error info, and abort retry
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
     } else if (pRes->completed) {
