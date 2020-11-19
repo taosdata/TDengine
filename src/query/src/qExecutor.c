@@ -5586,7 +5586,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
 
     if ((pQuery->limit.offset > 0 && pQuery->limit.offset < numOfClosed) || pQuery->limit.offset == 0) {
       // skip offset result rows
-      clearFirstNTimeWindow(pRuntimeEnv, pQuery->limit.offset);
+      clearFirstNTimeWindow(pRuntimeEnv, (int32_t) pQuery->limit.offset);
 
       pQuery->rec.rows   = 0;
       pQInfo->groupIndex = 0;
