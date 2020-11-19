@@ -62,7 +62,7 @@ while $i < $half
     $nchar = $nchar . $c
     $nchar = $nchar . '
 
-    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($tstart , $c , $c , $x , $x , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $tstart = $tstart + 1
     $x = $x + 1
   endw
@@ -430,8 +430,39 @@ if $data97 != @group_tb0@ then
   return -1
 endi
 
-print ---------------------------------> group by binary|nchar data add cases
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4;
+if $rows != 10000 then
+  return -1
+endi
 
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data02 !=  @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 limit 1;
+if $rows != 1 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c8;
+if $rows != 10000 then
+  return -1
+endi
+
+print ---------------------------------> group by binary|nchar data add cases
+sql select count(*) from group_tb1 group by c8;
 
 #=========================== group by multi tags ======================
 sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);

@@ -5583,6 +5583,8 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
     pQuery->rec.rows = 0;
     copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
     clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
+
+    limitResults(pRuntimeEnv);
   }
 }
 
