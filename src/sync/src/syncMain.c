@@ -172,7 +172,7 @@ void syncCleanUp() {
 int64_t syncStart(const SSyncInfo *pInfo) {
   const SSyncCfg *pCfg = &pInfo->syncCfg;
 
-  SSyncNode *pNode = (SSyncNode *)calloc(sizeof(SSyncNode), 1);
+  SSyncNode *pNode = calloc(sizeof(SSyncNode), 1);
   if (pNode == NULL) {
     sError("no memory to allocate syncNode");
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -207,8 +207,8 @@ int64_t syncStart(const SSyncInfo *pInfo) {
     const SNodeInfo *pNodeInfo = pCfg->nodeInfo + i;
     pNode->peerInfo[i] = syncAddPeer(pNode, pNodeInfo);
     if (pNode->peerInfo[i] == NULL) {
-      sError("vgId:%d, node:%d fqdn:%s port:%u is not configured, stop taosd", pNode->vgId, pNodeInfo->nodeId, pNodeInfo->nodeFqdn,
-             pNodeInfo->nodePort);
+      sError("vgId:%d, node:%d fqdn:%s port:%u is not configured, stop taosd", pNode->vgId, pNodeInfo->nodeId,
+             pNodeInfo->nodeFqdn, pNodeInfo->nodePort);
       syncStop(pNode->rid);
       exit(1);
     }
@@ -419,7 +419,7 @@ void syncRecover(int64_t rid) {
   pthread_mutex_lock(&(pNode->mutex));
 
   for (int32_t i = 0; i < pNode->replica; ++i) {
-    pPeer = (SSyncPeer *)pNode->peerInfo[i];
+    pPeer = pNode->peerInfo[i];
     if (pPeer->peerFd >= 0) {
       syncRestartConnection(pPeer);
     }

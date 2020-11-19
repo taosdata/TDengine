@@ -140,6 +140,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   if (buffer == NULL) return -1;
 
   SWalHead *pHead = (SWalHead *)buffer;
+  uint64_t lastVer = 0;
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
@@ -153,7 +154,14 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret < 0) break;
 
-    sDebug("%s, restore a record, qtype:wal hver:%" PRIu64, pPeer->id, pHead->version);
+    sDebug("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
+
+    if (lastVer != 0 && lastVer == pHead->version) {
+      sError("%s, failed to restore record, same hver:%" PRIu64 ", wal sync failed" PRIu64, pPeer->id, lastVer);
+      break;
+    }
+    lastVer = pHead->version;
+
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
