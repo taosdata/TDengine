@@ -17,10 +17,6 @@
 #include "tdisk.h"
 #include "tulog.h"
 
-typedef struct {
-  int level;
-  int did;
-} SDiskID;
 
 typedef struct {
   uint64_t size;

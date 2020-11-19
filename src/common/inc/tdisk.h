@@ -18,13 +18,17 @@
 
 #include "taosdef.h"
 #include "hash.h"
-#include "hash.h"
 #include "taoserror.h"
 #include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct {
+  int level;
+  int id;
+} SDiskID;
 
 int  tdInitMount(SDiskCfg *pDiskCfg, int ndisk);
 void tdDestroyMount();
