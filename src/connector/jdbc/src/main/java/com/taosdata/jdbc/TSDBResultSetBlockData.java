@@ -56,13 +56,6 @@ public class TSDBResultSetBlockData {
 		if (this.numOfCols == 0) {
 			return;
 		}
-
-		this.colData = new ArrayList<Object>(numOfCols);
-		this.colData.addAll(Collections.nCopies(this.numOfCols, null));
-	}
-
-	public boolean wasNull(int col) {
-		return colData.get(col) == null;
 	}
 
 	public int getNumOfRows() {
@@ -82,20 +75,19 @@ public class TSDBResultSetBlockData {
 		this.clear();
 	}
 
-	public void setColumnData(int col, byte val) {
-		this.colData.set(col, val);
-	}
-
 	public boolean hasMore() {
 		return this.rowIndex < this.numOfRows;
 	}
 
 	public boolean forward() {
-		this.rowIndex++;
-		return (this.rowIndex < this.numOfRows);
+		if (this.rowIndex > this.numOfRows) {
+			return false;
+		}
+
+		return ((++this.rowIndex) < this.numOfRows);
 	}
 
-	public void resetCursor() {
+	public void reset() {
 		this.rowIndex = 0;
 	}
 
@@ -172,10 +164,58 @@ public class TSDBResultSetBlockData {
 		}
 	}
 
-	class NullType {
+	private static class NullType {
+		private static final byte NULL_BOOL_VAL = 0x2;
+		private static final String NULL_STR = "null";
+		
 		public String toString() {
-			return new String("null");
+			return NullType.NULL_STR;
 		}
+
+		public static boolean isBooleanNull(byte val) {
+			return val == NullType.NULL_BOOL_VAL;
+		}
+
+		private static boolean isTinyIntNull(byte val) {
+			return val == Byte.MIN_VALUE;
+		}
+
+		private static boolean isSmallIntNull(short val) {
+			return val == Short.MIN_VALUE;
+		}
+
+		private static boolean isIntNull(int val) {
+			return val == Integer.MIN_VALUE;
+		}
+
+		private static boolean isBigIntNull(long val) {
+			return val == Long.MIN_VALUE;
+		}
+
+		private static boolean isFloatNull(float val) {
+			return Float.isNaN(val);
+		}
+
+		private static boolean isDoubleNull(double val) {
+			return Double.isNaN(val);
+		}
+
+		private static boolean isBinaryNull(byte[] val, int length) {
+			if (length != Byte.BYTES) {
+				return false;
+			}
+
+			return val[0] == 0xFF;
+		}
+
+		private static boolean isNcharNull(byte[] val, int length) {
+			if (length != Integer.BYTES) {
+				return false;
+			}
+
+			return (val[0] & val[1] & val[2] & val[3]) == 0xFF;
+		}
+
 	}
 
 	/**
@@ -193,50 +233,6 @@ public class TSDBResultSetBlockData {
 		}
 
 		return obj.toString();
-	}
-
-	private boolean isBooleanNull(byte val) {
-		return val == 0x2;
-	}
-
-	private boolean isTinyIntNull(byte val) {
-		return val == 0x80;
-	}
-
-	private boolean isSmallIntNull(short val) {
-		return val == 0x8000;
-	}
-
-	private boolean isIntNull(int val) {
-		return val == 0x80000000L;
-	}
-
-	private boolean isBigIntNull(long val) {
-		return val == 0x8000000000000000L;
-	}
-
-	private boolean isFloatNull(float val) {
-		return Float.isNaN(val);
-	}
-
-	private boolean isDoubleNull(double val) {
-		return Double.isNaN(val);
-	}
-
-	private boolean isBinaryNull(byte[] val, int length) {
-		if (length != 1) {
-			return false;
-		}
-		
-		return val[0] == 0xFF;
-	}
-
-	private boolean isNcharNull(byte[] val, int length) {
-		if (length != 4) {
-			return false;
-		}
-		
-		return (val[0] & val[1] & val[2] & val[3]) == 0xFF ;
 	}
 
 	public int getInt(int col) {
@@ -284,16 +280,16 @@ public class TSDBResultSetBlockData {
 		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
 		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
 		case TSDBConstants.TSDB_DATA_TYPE_INT: {
-			return ((int) obj == 0L)? Boolean.FALSE:Boolean.TRUE;
+			return ((int) obj == 0L) ? Boolean.FALSE : Boolean.TRUE;
 		}
 		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
 		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
-			return (((Long) obj) == 0L)? Boolean.FALSE:Boolean.TRUE;
+			return (((Long) obj) == 0L) ? Boolean.FALSE : Boolean.TRUE;
 		}
 
 		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
 		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
-			return (((Double) obj) == 0)? Boolean.FALSE:Boolean.TRUE;
+			return (((Double) obj) == 0) ? Boolean.FALSE : Boolean.TRUE;
 		}
 
 		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -395,7 +391,7 @@ public class TSDBResultSetBlockData {
 			ByteBuffer bb = (ByteBuffer) this.colData.get(col);
 
 			byte val = bb.get(this.rowIndex);
-			if (isBooleanNull(val)) {
+			if (NullType.isBooleanNull(val)) {
 				return null;
 			}
 
@@ -406,7 +402,7 @@ public class TSDBResultSetBlockData {
 			ByteBuffer bb = (ByteBuffer) this.colData.get(col);
 
 			byte val = bb.get(this.rowIndex);
-			if (isTinyIntNull(val)) {
+			if (NullType.isTinyIntNull(val)) {
 				return null;
 			}
 
@@ -416,7 +412,7 @@ public class TSDBResultSetBlockData {
 		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
 			ShortBuffer sb = (ShortBuffer) this.colData.get(col);
 			short val = sb.get(this.rowIndex);
-			if (isSmallIntNull(val)) {
+			if (NullType.isSmallIntNull(val)) {
 				return null;
 			}
 
@@ -426,7 +422,7 @@ public class TSDBResultSetBlockData {
 		case TSDBConstants.TSDB_DATA_TYPE_INT: {
 			IntBuffer ib = (IntBuffer) this.colData.get(col);
 			int val = ib.get(this.rowIndex);
-			if (isIntNull(val)) {
+			if (NullType.isIntNull(val)) {
 				return null;
 			}
 
@@ -437,7 +433,7 @@ public class TSDBResultSetBlockData {
 		case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
 			LongBuffer lb = (LongBuffer) this.colData.get(col);
 			long val = lb.get(this.rowIndex);
-			if (isBigIntNull(val)) {
+			if (NullType.isBigIntNull(val)) {
 				return null;
 			}
 
@@ -447,7 +443,7 @@ public class TSDBResultSetBlockData {
 		case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
 			FloatBuffer fb = (FloatBuffer) this.colData.get(col);
 			float val = fb.get(this.rowIndex);
-			if (isFloatNull(val)) {
+			if (NullType.isFloatNull(val)) {
 				return null;
 			}
 
@@ -457,7 +453,7 @@ public class TSDBResultSetBlockData {
 		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
 			DoubleBuffer lb = (DoubleBuffer) this.colData.get(col);
 			double val = lb.get(this.rowIndex);
-			if (isDoubleNull(val)) {
+			if (NullType.isDoubleNull(val)) {
 				return null;
 			}
 
@@ -472,7 +468,7 @@ public class TSDBResultSetBlockData {
 
 			byte[] dest = new byte[length];
 			bb.get(dest, 0, length);
-			if (isBinaryNull(dest, length)) {
+			if (NullType.isBinaryNull(dest, length)) {
 				return null;
 			}
 
@@ -487,7 +483,7 @@ public class TSDBResultSetBlockData {
 
 			byte[] dest = new byte[length];
 			bb.get(dest, 0, length);
-			if (isNcharNull(dest, length)) {
+			if (NullType.isNcharNull(dest, length)) {
 				return null;
 			}
 

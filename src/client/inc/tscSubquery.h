@@ -42,7 +42,6 @@ void tscBuildResFromSubqueries(SSqlObj *pSql);
 TAOS_ROW doSetResultRowData(SSqlObj *pSql);
 
 char *getArithmeticInputSrc(void *param, const char *name, int32_t colId);
-void doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
 
 #ifdef __cplusplus
 }

@@ -145,6 +145,7 @@ void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
   // forward to put the rest of data
   for (int idata = 1; idata < ndata; idata++) {
     pDataKey = pSkipList->keyFn(ppData[idata]);
+    hasDup = false;
 
     // Compare max key
     pKey = SL_GET_MAX_KEY(pSkipList);
@@ -153,8 +154,6 @@ void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
       for (int i = 0; i < pSkipList->maxLevel; i++) {
         forward[i] = SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail, i);
       }
-
-      hasDup = false;
     } else {
       SSkipListNode *px = pSkipList->pHead;
       for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
@@ -173,7 +172,7 @@ void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
 
             compare = pSkipList->comparFn(pKey, pDataKey);
             if (compare >= 0) {
-              if (compare == 0) hasDup = true;
+              if (compare == 0 && !hasDup) hasDup = true;
               break;
             } else {
               px = p;

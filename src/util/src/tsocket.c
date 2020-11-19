@@ -58,13 +58,13 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, strerror(errno));
+      uError("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+      uError("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
     }
 #else
-    uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+    uError("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }

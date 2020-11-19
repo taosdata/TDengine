@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TSDBStatement implements Statement {
-    private TSDBJNIConnector connecter = null;
+    private TSDBJNIConnector connector = null;
 
     /**
      * To store batched commands
@@ -45,9 +45,9 @@ public class TSDBStatement implements Statement {
         this.connection = connection;
     }
 
-    TSDBStatement(TSDBConnection connection, TSDBJNIConnector connecter) {
+    TSDBStatement(TSDBConnection connection, TSDBJNIConnector connector) {
         this.connection = connection;
-        this.connecter = connecter;
+        this.connector = connector;
         this.isClosed = false;
     }
 
@@ -65,27 +65,27 @@ public class TSDBStatement implements Statement {
         }
 
         // TODO make sure it is not a update query
-        pSql = this.connecter.executeQuery(sql);
+        pSql = this.connector.executeQuery(sql);
 
-        long resultSetPointer = this.connecter.getResultSet();
+        long resultSetPointer = this.connector.getResultSet();
 
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-            this.connecter.freeResultSet(pSql);
+            this.connector.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
 
         // create/insert/update/delete/alter
         if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
-            this.connecter.freeResultSet(pSql);
+            this.connector.freeResultSet(pSql);
             return null;
         }
 
-        if (!this.connecter.isUpdateQuery(pSql)) {
-        	TSDBResultSet res = new TSDBResultSet(this.connecter, resultSetPointer);
-            res.setBlockWiseFetch(true);
+        if (!this.connector.isUpdateQuery(pSql)) {
+        	TSDBResultSet res = new TSDBResultSet(this.connector, resultSetPointer);
+            res.setBatchFetch(this.connection.getBatchFetch());
             return res;
         } else {
-            this.connecter.freeResultSet(pSql);
+            this.connector.freeResultSet(pSql);
             return null;
         }
 
@@ -97,28 +97,28 @@ public class TSDBStatement implements Statement {
         }
 
         // TODO check if current query is update query
-        pSql = this.connecter.executeQuery(sql);
-        long resultSetPointer = this.connecter.getResultSet();
+        pSql = this.connector.executeQuery(sql);
+        long resultSetPointer = this.connector.getResultSet();
 
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-            this.connecter.freeResultSet(pSql);
+            this.connector.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
 
-        this.affectedRows = this.connecter.getAffectedRows(pSql);
-        this.connecter.freeResultSet(pSql);
+        this.affectedRows = this.connector.getAffectedRows(pSql);
+        this.connector.freeResultSet(pSql);
 
         return this.affectedRows;
     }
 
     public String getErrorMsg(long pSql) {
-        return this.connecter.getErrMsg(pSql);
+        return this.connector.getErrMsg(pSql);
     }
 
     public void close() throws SQLException {
         if (!isClosed) {
-            if (!this.connecter.isResultsetClosed()) {
-                this.connecter.freeResultSet();
+            if (!this.connector.isResultsetClosed()) {
+                this.connector.freeResultSet();
             }
             isClosed = true;
         }
@@ -174,15 +174,15 @@ public class TSDBStatement implements Statement {
             throw new SQLException("Invalid method call on a closed statement.");
         }
         boolean res = true;
-        pSql = this.connecter.executeQuery(sql);
-        long resultSetPointer = this.connecter.getResultSet();
+        pSql = this.connector.executeQuery(sql);
+        long resultSetPointer = this.connector.getResultSet();
 
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-            this.connecter.freeResultSet(pSql);
+            this.connector.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             // no result set is retrieved
-            this.connecter.freeResultSet(pSql);
+            this.connector.freeResultSet(pSql);
             res = false;
         }
 
@@ -193,10 +193,10 @@ public class TSDBStatement implements Statement {
         if (isClosed) {
             throw new SQLException("Invalid method call on a closed statement.");
         }
-        long resultSetPointer = connecter.getResultSet();
+        long resultSetPointer = connector.getResultSet();
         TSDBResultSet resSet = null;
         if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-            resSet = new TSDBResultSet(connecter, resultSetPointer);
+            resSet = new TSDBResultSet(connector, resultSetPointer);
         }
         return resSet;
     }
@@ -269,7 +269,7 @@ public class TSDBStatement implements Statement {
     }
 
     public Connection getConnection() throws SQLException {
-        if (this.connecter != null)
+        if (this.connector != null)
             return this.connection;
         throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }

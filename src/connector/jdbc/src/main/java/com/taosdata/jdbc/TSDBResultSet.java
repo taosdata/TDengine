@@ -49,7 +49,7 @@ public class TSDBResultSet implements ResultSet {
 	private TSDBResultSetRowData rowData;
 	private TSDBResultSetBlockData blockData;
 
-	private boolean blockwiseFetch = false;
+	private boolean batchFetch = false;
 	private boolean lastWasNull = false;
 	private final int COLUMN_INDEX_START_VALUE = 1;
 
@@ -71,8 +71,12 @@ public class TSDBResultSet implements ResultSet {
 		this.resultSetPointer = resultSetPointer;
 	}
 
-	public void setBlockWiseFetch(boolean fetchBlock) {
-		this.blockwiseFetch = fetchBlock;
+	public void setBatchFetch(boolean batchFetch) {
+		this.batchFetch = batchFetch;
+	}
+	
+	public Boolean getBatchFetch() {
+		return this.batchFetch;
 	}
 
 	public List<ColumnMetaData> getColumnMetaDataList() {
@@ -102,8 +106,8 @@ public class TSDBResultSet implements ResultSet {
 	public TSDBResultSet() {
 	}
 
-	public TSDBResultSet(TSDBJNIConnector connecter, long resultSetPointer) throws SQLException {
-		this.jniConnector = connecter;
+	public TSDBResultSet(TSDBJNIConnector connector, long resultSetPointer) throws SQLException {
+		this.jniConnector = connector;
 		this.resultSetPointer = resultSetPointer;
 		int code = this.jniConnector.getSchemaMetaData(this.resultSetPointer, this.columnMetaDataList);
 		if (code == TSDBConstants.JNI_CONNECTION_NULL) {
@@ -127,13 +131,13 @@ public class TSDBResultSet implements ResultSet {
 	}
 
 	public boolean next() throws SQLException {
-		if (this.blockwiseFetch) {
+		if (this.getBatchFetch()) {
 			if (this.blockData.forward()) {
 				return true;
 			}
 
 			int code = this.jniConnector.fetchBlock(this.resultSetPointer, this.blockData);
-			this.blockData.resetCursor();
+			this.blockData.reset();
 
 			if (code == TSDBConstants.JNI_CONNECTION_NULL) {
 				throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -185,7 +189,7 @@ public class TSDBResultSet implements ResultSet {
 		String res = null;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -200,7 +204,7 @@ public class TSDBResultSet implements ResultSet {
 		boolean res = false;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -216,7 +220,7 @@ public class TSDBResultSet implements ResultSet {
 		byte res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -231,7 +235,7 @@ public class TSDBResultSet implements ResultSet {
 		short res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -246,7 +250,7 @@ public class TSDBResultSet implements ResultSet {
 		int res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -262,7 +266,7 @@ public class TSDBResultSet implements ResultSet {
 		long res = 0l;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -277,7 +281,7 @@ public class TSDBResultSet implements ResultSet {
 		float res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -292,7 +296,7 @@ public class TSDBResultSet implements ResultSet {
 		double res = 0;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
@@ -334,7 +338,7 @@ public class TSDBResultSet implements ResultSet {
 		Timestamp res = null;
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			if (!lastWasNull) {
 				res = this.rowData.getTimestamp(colIndex);
@@ -454,7 +458,7 @@ public class TSDBResultSet implements ResultSet {
 	public Object getObject(int columnIndex) throws SQLException {
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			return this.rowData.get(colIndex);
 		} else {
@@ -491,7 +495,7 @@ public class TSDBResultSet implements ResultSet {
 	public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
 		int colIndex = getTrueColumnIndex(columnIndex);
 
-		if (!this.blockwiseFetch) {
+		if (!this.getBatchFetch()) {
 			this.lastWasNull = this.rowData.wasNull(colIndex);
 			return new BigDecimal(this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType()));
 		} else {
