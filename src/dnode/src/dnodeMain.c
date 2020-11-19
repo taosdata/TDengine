@@ -183,7 +183,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  if (tdInitTiers(tsDiskCfg, tsDiskCfgNum) < 0) {
+  if (tdInitMount(tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
     return -1;
   }
@@ -230,7 +230,7 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() { tdDestroyTiers(); }
+static void dnodeCleanupStorage() { tdDestroyMount(); }
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

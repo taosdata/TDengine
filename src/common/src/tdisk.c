@@ -62,7 +62,7 @@ typedef struct STiers {
 static struct STiers  tdTiers;
 static struct STiers *pTiers = &tdTiers;
 
-int tdInitTiers(SDiskCfg *pDiskCfg, int ndisk) {
+int tdInitMount(SDiskCfg *pDiskCfg, int ndisk) {
   ASSERT(ndisk > 0);
 
   memset((void *)pTiers, 0, sizeof(*pTiers));
@@ -77,26 +77,26 @@ int tdInitTiers(SDiskCfg *pDiskCfg, int ndisk) {
                              taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pTiers->map == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    tdDestroyTiers();
+    tdDestroyMount();
     return -1;
   }
 
   for (int idisk = 0; idisk < ndisk; idisk++) {
     if (tdAddDisk(pDiskCfg + idisk) < 0) {
-      tdDestroyTiers();
+      tdDestroyMount();
       return -1;
     }
   }
 
   if (tdCheckTiers() < 0) {
-    tdDestroyTiers();
+    tdDestroyMount();
     return -1;
   }
 
   return 0;
 }
 
-void tdDestroyTiers() {
+void tdDestroyMount() {
   taosHashCleanup(pTiers->map);
   pTiers->map = NULL;
 
@@ -144,13 +144,13 @@ static SDisk *tdGetPrimaryDisk() { return DISK_AT(0, 0); }
 static int tdCheckTiers() {
   ASSERT(pTiers->nLevel > 0);
   if (tdGetPrimaryDisk(pTiers) == NULL) {
-    terrno = TSDB_CODE_DND_LACK_PRIMARY_DISK;
+    terrno = TSDB_CODE_COM_LACK_PRIMARY_DISK;
     return -1;
   }
 
   for (int i = 0; i < pTiers->nLevel; i++) {
     if (pTiers->tiers[i].nDisks == 0) {
-      terrno = TSDB_CODE_DND_NO_DISK_AT_TIER;
+      terrno = TSDB_CODE_COM_NO_DISK_AT_TIER;
       return -1;
     }
   }
@@ -179,7 +179,7 @@ static SDisk *tdAssignDisk(int level) {
   }
 
   if (pDisk == NULL) {
-    terrno = TSDB_CODE_DND_NO_DISK_SPACE;
+    terrno = TSDB_CODE_COM_NO_DISK_SPACE;
     tdUnLockTiers(pTiers);
     return NULL;
   }
@@ -266,7 +266,7 @@ static int tdCheckDisk(char *dirName) {
   if (S_ISDIR(pstat.st_mode)) {
     return 0;
   } else {
-    terrno = TSDB_CODE_DND_DISK_NOT_DIRECTORY;
+    terrno = TSDB_CODE_COM_DISK_NOT_DIRECTORY;
     return -1;
   }
 }
@@ -292,7 +292,7 @@ static int tdAddDisk(SDiskCfg *pCfg) {
   SDisk * pDisk = NULL;
 
   if (pCfg->level < 0 || pCfg->level >= TSDB_MAX_TIERS) {
-    terrno = TSDB_CODE_DND_INVALID_DISK_TIER;
+    terrno = TSDB_CODE_COM_INVALID_DISK_TIER;
     uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
     return -1;
   }
@@ -306,13 +306,13 @@ static int tdAddDisk(SDiskCfg *pCfg) {
   diskid.level = pCfg->level;
 
   if (pTier->nDisks >= TSDB_MAX_DISKS_PER_TIER) {
-    terrno = TSDB_CODE_DND_TOO_MANY_DISKS;
+    terrno = TSDB_CODE_COM_TOO_MANY_DISKS;
     uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
     return -1;
   }
 
   if (tdGetDiskByName(dirName) != NULL) {
-    terrno = TSDB_CODE_DND_DISK_ALREADY_EXISTS;
+    terrno = TSDB_CODE_COM_DISK_ALREADY_EXISTS;
     uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
     return -1;
   }
@@ -324,13 +324,13 @@ static int tdAddDisk(SDiskCfg *pCfg) {
 
   if (pCfg->primary) {
     if (pCfg->level != 0) {
-      terrno = TSDB_CODE_DND_INVALID_DISK_TIER;
+      terrno = TSDB_CODE_COM_INVALID_DISK_TIER;
       uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
       return -1;
     }
 
     if (tdGetPrimaryDisk() != NULL) {
-      terrno = TSDB_CODE_DND_DUPLICATE_PRIMARY_DISK;
+      terrno = TSDB_CODE_COM_DUPLICATE_PRIMARY_DISK;
       uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
       return -1;
     }
@@ -343,7 +343,7 @@ static int tdAddDisk(SDiskCfg *pCfg) {
       } else {
         diskid.did = pTier->nDisks + 1;
         if (diskid.did >= TSDB_MAX_DISKS_PER_TIER) {
-          terrno = TSDB_CODE_DND_TOO_MANY_DISKS;
+          terrno = TSDB_CODE_COM_TOO_MANY_DISKS;
           uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
           return -1;
         }

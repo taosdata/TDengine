@@ -26,8 +26,8 @@
 extern "C" {
 #endif
 
-int  tdInitTiers(SDiskCfg *pDiskCfg, int ndisk);
-void tdDestroyTiers();
+int  tdInitMount(SDiskCfg *pDiskCfg, int ndisk);
+void tdDestroyMount();
 int  tdUpdateDiskInfos();
 void tdGetPrimaryPath(char *dst);
 
