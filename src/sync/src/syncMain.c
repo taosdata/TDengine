@@ -59,6 +59,7 @@ static void    syncAddArbitrator(SSyncNode *pNode);
 static void    syncFreeNode(void *);
 static void    syncRemoveConfirmedFwdInfo(SSyncNode *pNode);
 static void    syncMonitorFwdInfos(void *param, void *tmrId);
+static void    syncMonitorNodeRole(void *param, void *tmrId);
 static void    syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
 static void    syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle);
 static void    syncRestartPeer(SSyncPeer *pPeer);
@@ -79,7 +80,9 @@ typedef enum {
   SYNC_STATUS_SETUP_CONN,
   SYNC_STATUS_SETUP_CONN_RSP,
   SYNC_STATUS_EXCHANGE_DATA,
-  SYNC_STATUS_EXCHANGE_DATA_RSP
+  SYNC_STATUS_EXCHANGE_DATA_RSP,
+  SYNC_STATUS_CHECK_ROLE,
+  SYNC_STATUS_CHECK_ROLE_RSP
 } ESyncStatusType;
 
 char *statusType[] = {
@@ -88,7 +91,9 @@ char *statusType[] = {
   "setup-conn",
   "setup-conn-rsp",
   "exchange-data",
-  "exchange-data-rsp"
+  "exchange-data-rsp",
+  "check-role",
+  "check-role-rsp"
 };
 
 uint16_t syncGenTranId() {
@@ -233,9 +238,16 @@ int64_t syncStart(const SSyncInfo *pInfo) {
     return -1;
   }
 
-  pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, (void *)pNode->rid, tsSyncTmrCtrl);
+  pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, SYNC_FWD_TIMER, (void *)pNode->rid, tsSyncTmrCtrl);
   if (pNode->pFwdTimer == NULL) {
-    sError("vgId:%d, failed to allocate timer", pNode->vgId);
+    sError("vgId:%d, failed to allocate fwd timer", pNode->vgId);
+    syncStop(pNode->rid);
+    return -1;
+  }
+
+  pNode->pRoleTimer = taosTmrStart(syncMonitorNodeRole, SYNC_ROLE_TIMER, (void *)pNode->rid, tsSyncTmrCtrl);
+  if (pNode->pRoleTimer == NULL) {
+    sError("vgId:%d, failed to allocate role timer", pNode->vgId);
     syncStop(pNode->rid);
     return -1;
   }
@@ -262,6 +274,7 @@ void syncStop(int64_t rid) {
 
   if (tsVgIdHash) taosHashRemove(tsVgIdHash, (const char *)&pNode->vgId, sizeof(int32_t));
   if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
+  if (pNode->pRoleTimer) taosTmrStop(pNode->pRoleTimer);
 
   for (int32_t i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
@@ -471,10 +484,10 @@ static void syncFreeNode(void *param) {
   tfree(pNode);
 }
 
-void syncAddPeerRef(SSyncPeer *pPeer) { atomic_add_fetch_8(&pPeer->refCount, 1); }
+void syncAddPeerRef(SSyncPeer *pPeer) { atomic_add_fetch_32(&pPeer->refCount, 1); }
 
 int32_t syncDecPeerRef(SSyncPeer *pPeer) {
-  if (atomic_sub_fetch_8(&pPeer->refCount, 1) == 0) {
+  if (atomic_sub_fetch_32(&pPeer->refCount, 1) == 0) {
     taosReleaseRef(tsSyncRefId, pPeer->pSyncNode->rid);
 
     sDebug("%s, resource is freed", pPeer->id);
@@ -699,20 +712,20 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
   int8_t syncRequired = 0;
 
   pPeer->role = newPeerRole;
-  sTrace("%s, peer role:%s change to %s", pPeer->id, syncRole[oldPeerRole], syncRole[newPeerRole]);
+  sDebug("%s, peer role:%s change to %s", pPeer->id, syncRole[oldPeerRole], syncRole[newPeerRole]);
 
   SSyncPeer *pMaster = syncCheckMaster(pNode);
 
   if (pMaster) {
     // master is there
     pNode->pMaster = pMaster;
-    sTrace("%s, it is the master, sver:%" PRIu64, pMaster->id, pMaster->version);
+    sDebug("%s, it is the master, sver:%" PRIu64, pMaster->id, pMaster->version);
 
     if (syncValidateMaster(pPeer) < 0) return;
 
     if (nodeRole == TAOS_SYNC_ROLE_UNSYNCED) {
       if (nodeVersion < pMaster->version) {
-        sTrace("%s, is master, sync required, self sver:%" PRIu64, pMaster->id, nodeVersion);
+        sDebug("%s, is master, sync required, self sver:%" PRIu64, pMaster->id, nodeVersion);
         syncRequired = 1;
       } else {
         sInfo("%s, is master, work as slave, self sver:%" PRIu64, pMaster->id, nodeVersion);
@@ -720,7 +733,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
         (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       }
     } else if (nodeRole == TAOS_SYNC_ROLE_SLAVE && pMaster == pPeer) {
-      sTrace("%s, is master, continue work as slave, self sver:%" PRIu64, pMaster->id, nodeVersion);
+      sDebug("%s, is master, continue work as slave, self sver:%" PRIu64, pMaster->id, nodeVersion);
     }
   } else {
     // master not there, if all peer's state and version are consistent, choose the master
@@ -739,10 +752,10 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
     }
 
     if (consistent) {
-      sTrace("vgId:%d, choose master", pNode->vgId);
+      sDebug("vgId:%d, choose master", pNode->vgId);
       syncChooseMaster(pNode);
     } else {
-      sTrace("vgId:%d, version inconsistent, cannot choose master", pNode->vgId);
+      sDebug("vgId:%d, version inconsistent, cannot choose master", pNode->vgId);
     }
   }
 
@@ -1221,8 +1234,26 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
   }
 }
 
+static void syncMonitorNodeRole(void *param, void *tmrId) {
+  int64_t    rid = (int64_t)param;
+  SSyncNode *pNode = taosAcquireRef(tsSyncRefId, rid);
+  if (pNode == NULL) return;
+
+  for (int32_t index = 0; index < pNode->replica; index++) {
+    if (index == pNode->selfIndex) continue;
+
+    SSyncPeer *pPeer = pNode->peerInfo[index];
+    if (pPeer->role <= TAOS_SYNC_ROLE_UNSYNCED || nodeRole <= TAOS_SYNC_ROLE_UNSYNCED) {
+      syncSendPeersStatusMsgToPeer(pPeer, 1, SYNC_STATUS_CHECK_ROLE, syncGenTranId());
+    }
+  }
+
+  pNode->pRoleTimer = taosTmrStart(syncMonitorNodeRole, SYNC_ROLE_TIMER, (void *)pNode->rid, tsSyncTmrCtrl);
+  taosReleaseRef(tsSyncRefId, rid);
+}
+
 static void syncMonitorFwdInfos(void *param, void *tmrId) {
-  int64_t rid = (int64_t) param;
+  int64_t    rid = (int64_t)param;
   SSyncNode *pNode = taosAcquireRef(tsSyncRefId, rid);
   if (pNode == NULL) return;
 
@@ -1246,7 +1277,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
       pthread_mutex_unlock(&(pNode->mutex));
     }
 
-    pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, (void *)pNode->rid, tsSyncTmrCtrl);
+    pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, SYNC_FWD_TIMER, (void *)pNode->rid, tsSyncTmrCtrl);
   }
 
   taosReleaseRef(tsSyncRefId, rid);
