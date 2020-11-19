@@ -30,8 +30,6 @@ typedef struct SCompareParam {
   int32_t            groupOrderType;
 } SCompareParam;
 
-static void doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
-
 int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
   int32_t pLeftIdx = *(int32_t *)pLeft;
   int32_t pRightIdx = *(int32_t *)pRight;
@@ -174,14 +172,14 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   SSqlRes* pRes = &pSql->res;
   
   if (pMemBuffer == NULL) {
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
+    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     tscError("%p pMemBuffer is NULL", pMemBuffer);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
  
   if (pDesc->pColumnModel == NULL) {
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
+    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     tscError("%p no local buffer or intermediate result format model", pSql);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
@@ -199,7 +197,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   }
 
   if (numOfFlush == 0 || numOfBuffer == 0) {
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
+    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     tscDebug("%p retrieved no data", pSql);
     return;
   }
@@ -208,7 +206,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     tscError("%p Invalid value of buffer capacity %d and page size %d ", pSql, pDesc->pColumnModel->capacity,
              pMemBuffer[0]->pageSize);
 
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
+    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
@@ -219,7 +217,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   if (pReducer == NULL) {
     tscError("%p failed to create local merge structure, out of memory", pSql);
 
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, numOfBuffer);
+    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return;
   }
@@ -335,6 +333,8 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->finalRowSize = tscGetResRowLength(pQueryInfo->exprList);
   pReducer->resColModel = finalmodel;
   pReducer->resColModel->capacity = pReducer->nResultBufSize;
+
+  pReducer->finalModel = pFFModel;
 
   assert(pReducer->finalRowSize > 0);
   if (pReducer->finalRowSize > 0) {
@@ -533,7 +533,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     tfree(pLocalReducer->pFinalRes);
     tfree(pLocalReducer->discardData);
 
-    tscLocalReducerEnvDestroy(pLocalReducer->pExtMemBuffer, pLocalReducer->pDesc, pLocalReducer->resColModel,
+    tscLocalReducerEnvDestroy(pLocalReducer->pExtMemBuffer, pLocalReducer->pDesc, pLocalReducer->resColModel, pLocalReducer->finalModel,
                               pLocalReducer->numOfVnode);
     for (int32_t i = 0; i < pLocalReducer->numOfBuffer; ++i) {
       tfree(pLocalReducer->pLocalDataSrc[i]);
@@ -657,7 +657,7 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
 }
 
 int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOrderDescriptor **pOrderDesc,
-                                 SColumnModel **pFinalModel, uint32_t nBufferSizes) {
+                                 SColumnModel **pFinalModel, SColumnModel** pFFModel, uint32_t nBufferSizes) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -755,6 +755,18 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   
   *pFinalModel = createColumnModel(pSchema, (int32_t)size, capacity);
 
+  memset(pSchema, 0, sizeof(SSchema) * size);
+  size = tscNumOfFields(pQueryInfo);
+
+  for(int32_t i = 0; i < size; ++i) {
+    SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
+    pSchema[i].bytes = pField->field.bytes;
+    pSchema[i].type = pField->field.type;
+    tstrncpy(pSchema[i].name, pField->field.name, tListLen(pSchema[i].name));
+  }
+
+  *pFFModel = createColumnModel(pSchema, (int32_t) size, capacity);
+
    tfree(pSchema);
   return TSDB_CODE_SUCCESS;
 }
@@ -765,9 +777,11 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
  * @param pFinalModel
  * @param numOfVnodes
  */
-void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, SColumnModel *pFinalModel,
+void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, SColumnModel *pFinalModel, SColumnModel *pFFModel,
                                int32_t numOfVnodes) {
   destroyColumnModel(pFinalModel);
+  destroyColumnModel(pFFModel);
+
   tOrderDescDestroy(pDesc);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
@@ -875,10 +889,10 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
   if (pQueryInfo->limit.offset > 0) {
     if (pQueryInfo->limit.offset < pRes->numOfRows) {
       int32_t prevSize = (int32_t)pBeforeFillData->num;
-      tColModelErase(pLocalReducer->resColModel, pBeforeFillData, prevSize, 0, (int32_t)pQueryInfo->limit.offset - 1);
+      tColModelErase(pLocalReducer->finalModel, pBeforeFillData, prevSize, 0, (int32_t)pQueryInfo->limit.offset - 1);
 
       /* remove the hole in column model */
-      tColModelCompact(pLocalReducer->resColModel, pBeforeFillData, prevSize);
+      tColModelCompact(pLocalReducer->finalModel, pBeforeFillData, prevSize);
 
       pRes->numOfRows -= pQueryInfo->limit.offset;
       pQueryInfo->limit.offset = 0;
@@ -900,7 +914,7 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
     pRes->numOfRows -= overflow;
     pBeforeFillData->num -= overflow;
 
-    tColModelCompact(pLocalReducer->resColModel, pBeforeFillData, prevSize);
+    tColModelCompact(pLocalReducer->finalModel, pBeforeFillData, prevSize);
 
     // set remain data to be discarded, and reset the interpolation information
     savePrevRecordAndSetupFillInfo(pLocalReducer, pQueryInfo, pLocalReducer->pFillInfo);
@@ -1242,7 +1256,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   tColModelCompact(pModel, pResBuf, pModel->capacity);
 
   if (tscIsSecondStageQuery(pQueryInfo)) {
-    doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalReducer->finalRowSize);
+    pLocalReducer->finalRowSize = doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalReducer->finalRowSize);
   }
 
 #ifdef _DEBUG_VIEW
@@ -1612,7 +1626,7 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
   pRes->data = pRes->pLocalReducer->pResultBuf->data;
 }
 
-void doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
+int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   char* pbuf = calloc(1, pOutput->num * rowSize);
 
   size_t size = tscNumOfFields(pQueryInfo);
@@ -1647,8 +1661,10 @@ void doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t r
   }
 
   assert(finalRowSize <= rowSize);
-  memcpy(pOutput->data, pbuf, pOutput->num * finalRowSize);
+  memcpy(pOutput->data, pbuf, pOutput->num * offset);
 
   tfree(pbuf);
   tfree(arithSup.data);
+
+  return offset;
 }

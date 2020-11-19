@@ -106,7 +106,7 @@ typedef struct {
   int8_t    nacks;
   int8_t    confirmed;
   int32_t   code;
-  uint64_t  time;
+  int64_t   time;
 } SFwdInfo;
 
 typedef struct {

@@ -31,35 +31,33 @@ class TDTestCase:
         print("==============step1")
         tdSql.execute(
             "create table if not exists stb (ts timestamp, col1 int, col2 int, col3 int) tags(loc nchar(20), id int)")
-        tdSql.execute(
-            "insert into tb0 using stb tags('beijing', 1) values(%s, 1, 1, 1)(%s, 2, 2, 2)(%s, 3, 3, 3)(%s, 4, 4, 4)" % (self.ts, self.ts + 1000000, self.ts + 2000000, self.ts + 3000000))
-        tdSql.execute(
-            "insert into tb1 using stb tags('beijing', 2) values(%s, 1, 1, 1)(%s, 2, 2, 2)(%s, 3, 3, 3)(%s, 4, 4, 4)" % (self.ts + 4000000, self.ts + 5000000, self.ts + 6000000, self.ts + 7000000))
-        tdSql.execute(
-            "insert into tb2 using stb tags('shanghai', 1) values(%s, 1, 1, 1)(%s, 2, 2, 2)(%s, 3, 3, 3)(%s, 4, 4, 4)" % (self.ts + 8000000, self.ts + 9000000, self.ts + 10000000, self.ts + 11000000))
-        tdSql.execute(
-            "insert into tb3 using stb tags('shanghai', 2) values(%s, 1, 1, 1)(%s, 2, 2, 2)(%s, 3, 3, 3)(%s, 4, 4, 4)" % (self.ts + 12000000, self.ts + 13000000, self.ts + 14000000, self.ts + 15000000))
-        tdSql.execute(
-            "insert into tb4 using stb tags('shanghai', 3) values(%s, null, null, null)(%s, null, null, null)(%s, null, null, null)(%s, null, null, null)" % (self.ts + 16000000, self.ts + 17000000, self.ts + 18000000, self.ts + 19000000))
-        
-        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-17 14:16:41.000' interval(1h)")
-        tdSql.checkRows(5)
-        tdSql.checkData(0, 1, -1.5)
-        tdSql.checkData(1, 1, -1.5)
-        tdSql.checkData(2, 1, -1.0)
-        tdSql.checkData(3, 1, 1.5)
-        tdSql.checkData(4, 1, 0)
+                
+        currTs = self.ts
 
-        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-17 14:16:41.000' interval(1h) fill(null)")
-        tdSql.checkRows(7)
+        for i in range(100):
+            sql = "create table tb%d using stb tags('city%d', 1)" % (i, i)
+            tdSql.execute(sql)
+
+            sql = "insert into tb%d values" % i            
+            for j in range(5):
+                val = 1 + j
+                sql += "(%d, %d, %d, %d)" % (currTs, val, val, val)
+                currTs += 1000000
+            tdSql.execute(sql)    
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h)")
+        tdSql.checkRows(139)        
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(null)")
+        tdSql.checkRows(141)
         tdSql.checkData(0, 1, None)
-        tdSql.checkData(6, 1, None)       
+        tdSql.checkData(140, 1, None)       
 
-        tdSql.query("select max(col1) - min(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-17 14:16:41.000' and id = 1 group by loc, id")
-        tdSql.checkRows(2)
+        tdSql.query("select max(col1) - min(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' and id = 1 group by loc, id")
+        rows = tdSql.queryRows
 
-        tdSql.query("select spread(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-17 14:16:41.000' and id = 1 group by loc, id")
-        tdSql.checkRows(2)
+        tdSql.query("select spread(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' and id = 1 group by loc, id")
+        tdSql.checkRows(rows)
         
     def stop(self):
         tdSql.close()

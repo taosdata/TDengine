@@ -148,10 +148,12 @@ static void *monitorThreadFunc(void *param) {
     }
 
     if (tsMonitor.state == MON_STATE_NOT_INIT) {
+      int code = 0;
+
       for (; tsMonitor.cmdIndex < MON_CMD_MAX; ++tsMonitor.cmdIndex) {
         monitorBuildMonitorSql(tsMonitor.sql, tsMonitor.cmdIndex);
         void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-        int   code = taos_errno(res);
+        code = taos_errno(res);
         taos_free_result(res);
 
         if (code != 0) {
@@ -162,7 +164,7 @@ static void *monitorThreadFunc(void *param) {
         }
       }
 
-      if (tsMonitor.start) {
+      if (tsMonitor.start && code == 0) {
         tsMonitor.state = MON_STATE_INITED;
       }
     }
