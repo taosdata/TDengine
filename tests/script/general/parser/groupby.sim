@@ -468,6 +468,42 @@ endi
 
 print ---------------------------------> group by binary|nchar data add cases
 sql select count(*) from group_tb1 group by c8;
+if $rows != 100 then
+  return -1
+endi
+
+sql select count(*),sum(c4), count(c4), sum(c4)/count(c4) from group_tb1 group by c8
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != 100 then
+  return -1
+endi
+
+if $data01 != 495000 then
+  return -1
+endi
+
+if $data02 != 100 then
+  return -1
+endi
+
+if $data03 != 4950.000000 then
+  return -1
+endi
+
+if $data10 != 100 then
+  return -1
+endi
+
+if $data11 != 495100 then
+  return -1
+endi
+
+if $data13 != 4951.000000 then
+  return -1
+endi
 
 #=========================== group by multi tags ======================
 sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);
