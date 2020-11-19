@@ -243,6 +243,11 @@ public class TSDBJNIConnector {
 
     private native int fetchRowImp(long connection, long resultSet, TSDBResultSetRowData rowData);
 
+    public int fetchBlock(long resultSet, TSDBResultSetBlockData blockData) {
+		return this.fetchBlockImp(this.taos, resultSet, blockData);
+    }
+    
+    private native int fetchBlockImp(long connection, long resultSet, TSDBResultSetBlockData blockData);
     /**
      * Execute close operation from C to release connection pointer by JNI
      *

@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 500
 sql connect
 
 $dbPrefix = join_db
@@ -360,9 +360,7 @@ endi
 sql select join_mt1.* from join_mt1
 
 print $rows
-
-$val = 2000
-if $rows != $val then
+if $rows != 2000 then
   return -1
 endi
 

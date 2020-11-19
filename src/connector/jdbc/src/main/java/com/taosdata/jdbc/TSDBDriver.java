@@ -86,6 +86,11 @@ public class TSDBDriver extends AbstractTaosDriver {
      */
     public static final String PROPERTY_KEY_CHARSET = "charset";
 
+    /**
+     * fetch data from native function in a batch model
+     */
+    public static final String PROPERTY_KEY_BATCH_LOAD = "batchfetch";
+    
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {
@@ -172,26 +177,21 @@ public class TSDBDriver extends AbstractTaosDriver {
             url = url.substring(0, index);
             StringTokenizer queryParams = new StringTokenizer(paramString, "&");
             while (queryParams.hasMoreElements()) {
-                String parameterValuePair = queryParams.nextToken();
-                int indexOfEqual = parameterValuePair.indexOf("=");
-                String parameter = null;
-                String value = null;
-                if (indexOfEqual != -1) {
-                    parameter = parameterValuePair.substring(0, indexOfEqual);
-                    if (indexOfEqual + 1 < parameterValuePair.length()) {
-                        value = parameterValuePair.substring(indexOfEqual + 1);
-                    }
-                }
-                if ((value != null && value.length() > 0) && (parameter != null && parameter.length() > 0)) {
-                    urlProps.setProperty(parameter, value);
+                String oneToken = queryParams.nextToken();
+                String[] pair = oneToken.split("=");
+                
+                if ((pair[0] != null && pair[0].trim().length() > 0) && (pair[1] != null && pair[1].trim().length() > 0)) {
+                    urlProps.setProperty(pair[0].trim(), pair[1].trim());
                 }
             }
         }
+        
         // parse Product Name
         String dbProductName = url.substring(0, beginningOfSlashes);
         dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
         dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
-        // parse dbname
+        
+        // parse database name
         url = url.substring(beginningOfSlashes + 2);
         int indexOfSlash = url.indexOf("/");
         if (indexOfSlash != -1) {
@@ -200,6 +200,7 @@ public class TSDBDriver extends AbstractTaosDriver {
             }
             url = url.substring(0, indexOfSlash);
         }
+        
         // parse port
         int indexOfColon = url.indexOf(":");
         if (indexOfColon != -1) {
@@ -208,9 +209,11 @@ public class TSDBDriver extends AbstractTaosDriver {
             }
             url = url.substring(0, indexOfColon);
         }
+        
         if (url != null && url.length() > 0 && url.trim().length() > 0) {
             urlProps.setProperty(TSDBDriver.PROPERTY_KEY_HOST, url);
         }
+        
         this.dbMetaData = new TSDBDatabaseMetaData(dbProductName, urlForMeta, urlProps.getProperty(TSDBDriver.PROPERTY_KEY_USER));
         return urlProps;
     }

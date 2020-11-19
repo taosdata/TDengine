@@ -312,7 +312,7 @@ function install_data() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${script_dir}/connector/* ${install_main_dir}/connector
+    ${csudo} cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {

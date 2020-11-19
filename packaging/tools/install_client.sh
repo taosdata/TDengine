@@ -163,7 +163,7 @@ function install_log() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${script_dir}/connector/* ${install_main_dir}/connector
+    ${csudo} cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
