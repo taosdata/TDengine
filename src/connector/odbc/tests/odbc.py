@@ -1,16 +1,17 @@
 import pyodbc
-cnxn = pyodbc.connect('DSN=TAOS_DSN;UID=root;PWD=taosdata', autocommit=True)
+# cnxn = pyodbc.connect('DSN={TAOS_DSN};UID={ root };PWD={ taosdata };HOST={ localhost:6030 }', autocommit=True)
+cnxn = pyodbc.connect('DSN={TAOS_DSN}; UID=root;PWD=taosdata; HOST=localhost:6030', autocommit=True)
 cnxn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
 #cnxn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
 #cnxn.setencoding(encoding='utf-8')
 
-cursor = cnxn.cursor()
-cursor.execute("SELECT * from db.t")
-row = cursor.fetchone()
-while row:
-    print(row)
-    row = cursor.fetchone()
-cursor.close()
+#cursor = cnxn.cursor()
+#cursor.execute("SELECT * from db.t")
+#row = cursor.fetchone()
+#while row:
+#    print(row)
+#    row = cursor.fetchone()
+#cursor.close()
 
 #cursor = cnxn.cursor()
 #cursor.execute("""
@@ -36,32 +37,32 @@ cursor.execute("create database db");
 cursor.close()
 
 cursor = cnxn.cursor()
-cursor.execute("create table db.t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), blob nchar(10))");
+cursor.execute("create table db.mt (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), blob nchar(10))");
 cursor.close()
 
 cursor = cnxn.cursor()
-cursor.execute("insert into db.t values('2020-10-13 06:44:00', 1, 127, 32767, 32768, 32769, 123.456, 789.987, 'hello', 'world')")
+cursor.execute("insert into db.mt values('2020-10-13 06:44:00', 1, 127, 32767, 32768, 32769, 123.456, 789.987, 'hello', 'world')")
 cursor.close()
 
 cursor = cnxn.cursor()
-cursor.execute("insert into db.t values(?,?,?,?,?,?,?,?,?,?)", "2020-10-13 07:06:00", 0, 127, 32767, 32768, 32769, 123.456, 789.987, "hel后lo", "wo哈rld");
+cursor.execute("insert into db.mt values(?,?,?,?,?,?,?,?,?,?)", "2020-10-13 07:06:00", 0, 127, 32767, 32768, 32769, 123.456, 789.987, "hel后lo", "wo哈rld");
 cursor.close()
 
 cursor = cnxn.cursor()
-cursor.execute("SELECT * from db.t")
+cursor.execute("SELECT * from db.mt")
 row = cursor.fetchone()
 while row:
     print(row)
     row = cursor.fetchone()
 cursor.close()
 
-cursor = cnxn.cursor()
-cursor.execute("drop database if exists db");
-cursor.close()
-
-cursor = cnxn.cursor()
-cursor.execute("create database db");
-cursor.close()
+#cursor = cnxn.cursor()
+#cursor.execute("drop database if exists db");
+#cursor.close()
+#
+#cursor = cnxn.cursor()
+#cursor.execute("create database db");
+#cursor.close()
 
 cursor = cnxn.cursor()
 cursor.execute("create table db.t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(4), blob nchar(4))");
@@ -116,5 +117,15 @@ row = cursor.fetchone()
 while row:
     print(row)
     row = cursor.fetchone()
+cursor.close()
+
+cursor = cnxn.cursor()
+cursor.execute("create table db.f (ts timestamp, v1 float)")
+cursor.close()
+
+params = [ ('2020-10-20 00:00:10', '123.3') ]
+cursor = cnxn.cursor()
+cursor.fast_executemany = True
+cursor.executemany("insert into db.f values (?, ?)", params)
 cursor.close()
 

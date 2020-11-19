@@ -14,14 +14,10 @@
  */
 
 #include "todbc_util.h"
-
-#include "iconv.h"
-
-#include <sql.h>
-#include <sqltypes.h>
+#include "todbc_log.h"
+#include <iconv.h>
 #include <sqlext.h>
-#include <stdlib.h>
-#include <string.h>
+
 
 const char* sql_sql_type(int type) {
   switch (type) {
@@ -111,39 +107,6 @@ int is_valid_sql_sql_type(int type) {
   return 1;
 }
 
-int string_conv(const char *fromcode, const char *tocode,
-                const unsigned char *src, size_t sbytes,
-                unsigned char *dst, size_t dbytes,
-                size_t *consumed, size_t *generated)
-{
-  if (consumed) *consumed = 0;
-  if (generated) *generated = 0;
-
-  if (dbytes <= 0) return -1;
-  dst[0] = '\0';
-
-  iconv_t conv = iconv_open(tocode, fromcode);
-  if (!conv) return -1;
-
-  int r = 0;
-  do {
-    char *s = (char*)src;
-    char *d = (char*)dst;
-    size_t sl = sbytes;
-    size_t dl = dbytes;
-
-    r = iconv(conv, &s, &sl, &d, &dl);
-    *d = '\0';
-
-    if (consumed) *consumed = sbytes - sl;
-    if (generated) *generated = dbytes - dl;
-
-  } while (0);
-
-  iconv_close(conv);
-  return r;
-}
-
 int utf8_chars(const char *src)
 {
   const char *fromcode = "UTF-8";
@@ -161,78 +124,6 @@ int utf8_chars(const char *src)
 
   size_t chars = (sizeof(buf) - dlen) / 2;
   iconv_close(conv);
-  return chars;
-}
-
-unsigned char* utf8_to_ucs4le(const char *utf8, size_t *chars)
-{
-  const char *tocode = "UCS-4LE";
-  const char *fromcode = "UTF-8";
-
-  iconv_t conv = iconv_open(tocode, fromcode);
-  if (!conv) return NULL;
-
-  unsigned char *ucs4le = NULL;
-
-  do {
-    size_t slen = strlen(utf8);
-    size_t dlen = slen * 4;
-
-    ucs4le = (unsigned char*)malloc(dlen+1);
-    if (!ucs4le) break;
-
-    char *src = (char*)utf8;
-    char *dst = (char*)ucs4le;
-    size_t s = slen;
-    size_t d = dlen;
-    iconv(conv, &src, &s, &dst, &d);
-    dst[0] = '\0';
-
-    if (chars) *chars = (dlen - d) / 4;
-  } while (0);
-
-  iconv_close(conv);
-  return ucs4le;
-}
-
-char* ucs4le_to_utf8(const unsigned char *ucs4le, size_t slen, size_t *chars)
-{
-  const char *fromcode = "UCS-4LE";
-  const char *tocode = "UTF-8";
-
-  iconv_t conv = iconv_open(tocode, fromcode);
-  if (!conv) return NULL;
-
-  char *utf8 = NULL;
-
-  do {
-    size_t dlen = slen;
-
-    utf8 = (char*)malloc(dlen+1);
-    if (!utf8) break;
-
-    char *dst = utf8;
-    char *src = (char*)ucs4le;
-    size_t s = slen;
-    size_t d = dlen;
-    iconv(conv, &src, &s, &dst, &d);
-    dst[0] = '\0';
-
-    if (chars) *chars = (slen - s) / 4;
-  } while (0);
-
-  iconv_close(conv);
-  return utf8;
-}
-
-SQLCHAR* wchars_to_chars(const SQLWCHAR *wchars, size_t chs, size_t *bytes)
-{
-  size_t dlen = chs * 4;
-  SQLCHAR *dst = (SQLCHAR*)malloc(dlen + 1);
-  if (!dst) return NULL;
-
-  string_conv("UCS-2LE", "UTF-8", (const unsigned char*)wchars, chs * sizeof(*wchars), dst, dlen + 1, NULL, bytes);
-
-  return dst;
+  return (int)chars;
 }
 

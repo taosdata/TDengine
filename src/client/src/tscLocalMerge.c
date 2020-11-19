@@ -884,17 +884,17 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
   tFilePage * pBeforeFillData = pLocalReducer->pResultBuf;
 
   pRes->data = pLocalReducer->pFinalRes;
-  pRes->numOfRows = pBeforeFillData->num;
+  pRes->numOfRows = (int32_t) pBeforeFillData->num;
 
   if (pQueryInfo->limit.offset > 0) {
     if (pQueryInfo->limit.offset < pRes->numOfRows) {
-      int32_t prevSize = (int32_t)pBeforeFillData->num;
+      int32_t prevSize = (int32_t) pBeforeFillData->num;
       tColModelErase(pLocalReducer->finalModel, pBeforeFillData, prevSize, 0, (int32_t)pQueryInfo->limit.offset - 1);
 
       /* remove the hole in column model */
       tColModelCompact(pLocalReducer->finalModel, pBeforeFillData, prevSize);
 
-      pRes->numOfRows -= pQueryInfo->limit.offset;
+      pRes->numOfRows -= (int32_t) pQueryInfo->limit.offset;
       pQueryInfo->limit.offset = 0;
     } else {
       pQueryInfo->limit.offset -= pRes->numOfRows;
@@ -962,7 +962,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
       }
 
       pRes->data = pLocalReducer->pFinalRes;
-      pRes->numOfRows = newRows;
+      pRes->numOfRows = (int32_t) newRows;
 
       pQueryInfo->limit.offset = 0;
       break;
@@ -1651,7 +1651,7 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     // calculate the result from several other columns
     if (pSup->pArithExprInfo != NULL) {
       arithSup.pArithExpr = pSup->pArithExprInfo;
-      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithemicInputSrc);
+      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
     } else {
       SSqlExpr* pExpr = pSup->pSqlExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, pExpr->resBytes * pOutput->num);
