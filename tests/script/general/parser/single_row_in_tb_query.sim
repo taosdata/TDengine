@@ -1,4 +1,4 @@
-sleep 3000
+sleep 1000
 sql connect
 
 $dbPrefix = sr_db

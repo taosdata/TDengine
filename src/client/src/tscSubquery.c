@@ -2367,6 +2367,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   doArithmeticCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
 
   pRes->data = pFilePage->data;
+  tscSetResRawPtr(pRes, pQueryInfo);
 }
 
 void tscBuildResFromSubqueries(SSqlObj *pSql) {
@@ -2379,13 +2380,12 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 
   if (pRes->tsrow == NULL) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+    pRes->numOfCols = (int16_t) tscSqlExprNumOfExprs(pQueryInfo);
 
-    size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-    pRes->numOfCols =  (int16_t)numOfExprs;
-
-    pRes->tsrow  = calloc(numOfExprs, POINTER_BYTES);
-    pRes->buffer = calloc(numOfExprs, POINTER_BYTES);
-    pRes->length = calloc(numOfExprs, sizeof(int32_t));
+    pRes->tsrow  = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->urow   = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->buffer = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->length = calloc(pRes->numOfCols, sizeof(int32_t));
 
     if (pRes->tsrow == NULL || pRes->buffer == NULL || pRes->length == NULL) {
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2405,7 +2405,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
   }
 }
 
-static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
+static UNUSED_FUNC void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
   SSqlRes *pRes = &pSql->res;
   
   if (pRes->tsrow[columnIndex] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
@@ -2429,7 +2429,7 @@ static void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pF
   }
 }
 
-char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
+char *getArithmeticInputSrc(void *param, const char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
 
   int32_t index = -1;
@@ -2447,7 +2447,7 @@ char *getArithemicInputSrc(void *param, const char *name, int32_t colId) {
   return pSupport->data[index] + pSupport->offset * pExpr->resBytes;
 }
 
-TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
+TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -2460,22 +2460,20 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   size_t size = tscNumOfFields(pQueryInfo);
-  int32_t offset = 0;
-
   for (int i = 0; i < size; ++i) {
-    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, offset);
-    TAOS_FIELD *pField = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+    SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
 
-    offset += pField->bytes;
+    int32_t type  = pInfo->field.type;
+    int32_t bytes = pInfo->field.bytes;
 
-    // primary key column cannot be null in interval query, no need to check
-    if (i == 0 && pQueryInfo->interval.interval > 0) {
-      continue;
+    if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
+      pRes->tsrow[i] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
+    } else {
+      pRes->tsrow[i] = isNull(pRes->urow[i], type) ? NULL : varDataVal(pRes->urow[i]);
+      pRes->length[i] = varDataLen(pRes->urow[i]);
     }
 
-    if (pRes->tsrow[i] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
-      transferNcharData(pSql, i, pField);
-    }
+    ((char**) pRes->urow)[i] += bytes;
   }
 
   pRes->row++;  // index increase one-step

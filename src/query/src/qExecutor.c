@@ -847,35 +847,50 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
   }
 
   int32_t startPos = 0;
+
   // tumbling time window query, a special case of sliding time window query
   if (pQuery->interval.sliding == pQuery->interval.interval && prevPosition != -1) {
     int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
     startPos = prevPosition + factor;
   } else {
-    startPos = searchFn((char *)primaryKeys, pDataBlockInfo->rows, startKey, pQuery->order.order);
+    if (startKey < pDataBlockInfo->window.skey && QUERY_IS_ASC_QUERY(pQuery)) {
+      startPos = 0;
+    } else if (startKey > pDataBlockInfo->window.ekey && !QUERY_IS_ASC_QUERY(pQuery)) {
+      startPos = pDataBlockInfo->rows - 1;
+    } else {
+      startPos = searchFn((char *)primaryKeys, pDataBlockInfo->rows, startKey, pQuery->order.order);
+    }
   }
 
   /*
    * This time window does not cover any data, try next time window,
    * this case may happen when the time window is too small
    */
-  if (QUERY_IS_ASC_QUERY(pQuery) && primaryKeys[startPos] > pNext->ekey) {
-    TSKEY next = primaryKeys[startPos];
-    if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
-      pNext->skey = taosTimeTruncate(next, &pQuery->interval, pQuery->precision);
-      pNext->ekey = taosTimeAdd(pNext->skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
+  if (primaryKeys == NULL) {
+    if (QUERY_IS_ASC_QUERY(pQuery)) {
+      assert(pDataBlockInfo->window.skey <= pNext->ekey);
     } else {
-      pNext->ekey += ((next - pNext->ekey + pQuery->interval.sliding - 1)/pQuery->interval.sliding) * pQuery->interval.sliding;
-      pNext->skey = pNext->ekey - pQuery->interval.interval + 1;
+      assert(pDataBlockInfo->window.ekey >= pNext->skey);
     }
-  } else if ((!QUERY_IS_ASC_QUERY(pQuery)) && primaryKeys[startPos] < pNext->skey) {
-    TSKEY next = primaryKeys[startPos];
-    if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
-      pNext->skey = taosTimeTruncate(next, &pQuery->interval, pQuery->precision);
-      pNext->ekey = taosTimeAdd(pNext->skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
-    } else {
-      pNext->skey -= ((pNext->skey - next + pQuery->interval.sliding - 1) / pQuery->interval.sliding) * pQuery->interval.sliding;
-      pNext->ekey = pNext->skey + pQuery->interval.interval - 1;
+  } else {
+    if (QUERY_IS_ASC_QUERY(pQuery) && primaryKeys[startPos] > pNext->ekey) {
+      TSKEY next = primaryKeys[startPos];
+      if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
+        pNext->skey = taosTimeTruncate(next, &pQuery->interval, pQuery->precision);
+        pNext->ekey = taosTimeAdd(pNext->skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
+      } else {
+        pNext->ekey += ((next - pNext->ekey + pQuery->interval.sliding - 1)/pQuery->interval.sliding) * pQuery->interval.sliding;
+        pNext->skey = pNext->ekey - pQuery->interval.interval + 1;
+      }
+    } else if ((!QUERY_IS_ASC_QUERY(pQuery)) && primaryKeys[startPos] < pNext->skey) {
+      TSKEY next = primaryKeys[startPos];
+      if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
+        pNext->skey = taosTimeTruncate(next, &pQuery->interval, pQuery->precision);
+        pNext->ekey = taosTimeAdd(pNext->skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
+      } else {
+        pNext->skey -= ((pNext->skey - next + pQuery->interval.sliding - 1) / pQuery->interval.sliding) * pQuery->interval.sliding;
+        pNext->ekey = pNext->skey + pQuery->interval.interval - 1;
+      }
     }
   }
 

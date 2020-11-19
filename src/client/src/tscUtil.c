@@ -220,13 +220,16 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
-  size_t numOfOutput = tscNumOfFields(pQueryInfo);
-  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-
-  if (numOfOutput == numOfExprs) {
+  STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     return false;
   }
 
+  if (tscIsProjectionQuery(pQueryInfo)) {
+    return false;
+  }
+
+  size_t numOfOutput = tscNumOfFields(pQueryInfo);
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pArithExprInfo;
     if (pExprInfo != NULL) {
@@ -265,22 +268,91 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
 
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pRes->tsrow == NULL) {
-    int32_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
-    pRes->numOfCols = numOfOutput;
+    pRes->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
 
-    pRes->tsrow  = calloc(numOfOutput, POINTER_BYTES);
-    pRes->length = calloc(numOfOutput, sizeof(int32_t));
-    pRes->buffer = calloc(numOfOutput, POINTER_BYTES);
+    pRes->tsrow  = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->urow   = calloc(pRes->numOfCols, POINTER_BYTES);
+    pRes->length = calloc(pRes->numOfCols, sizeof(int32_t));
+    pRes->buffer = calloc(pRes->numOfCols, POINTER_BYTES);
 
     // not enough memory
-    if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
+    if (pRes->tsrow == NULL  || pRes->urow == NULL || pRes->length == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
       tfree(pRes->tsrow);
+      tfree(pRes->urow);
+      tfree(pRes->length);
+      tfree(pRes->buffer);
+
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       return pRes->code;
     }
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+  assert(pRes->numOfCols > 0);
+
+  int32_t offset = 0;
+
+  for (int32_t i = 0; i < pRes->numOfCols; ++i) {
+    SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+
+    pRes->urow[i] = pRes->data + offset * pRes->numOfRows;
+    pRes->length[i] = pInfo->field.bytes;
+
+    offset += pInfo->field.bytes;
+
+    // generated the user-defined column result
+    if (pInfo->pSqlExpr != NULL && TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
+      if (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) {
+        setNullN(pRes->urow[i], pInfo->field.type, pInfo->field.bytes, (int32_t) pRes->numOfRows);
+      } else {
+        if (pInfo->field.type == TSDB_DATA_TYPE_NCHAR || pInfo->field.type == TSDB_DATA_TYPE_BINARY) {
+          assert(pInfo->pSqlExpr->param[1].nLen <= pInfo->field.bytes);
+
+          for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+            char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
+
+            memcpy(varDataVal(p), pInfo->pSqlExpr->param[1].pz, pInfo->pSqlExpr->param[1].nLen);
+            varDataSetLen(p, pInfo->pSqlExpr->param[1].nLen);
+          }
+        } else {
+          for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+            char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
+            memcpy(p, &pInfo->pSqlExpr->param[1].i64Key, pInfo->field.bytes);
+          }
+        }
+      }
+
+    } else if (pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
+      // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
+      pRes->buffer[i] = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+
+      // string terminated char for binary data
+      memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
+
+      char* p = pRes->urow[i];
+      for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+        char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+
+        if (isNull(p, TSDB_DATA_TYPE_NCHAR)) {
+          memcpy(dst, p, varDataTLen(p));
+        } else {
+          int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
+          varDataSetLen(dst, length);
+
+          if (length == 0) {
+            tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+          }
+        }
+
+        p += pInfo->field.bytes;
+      }
+
+      memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+    }
+  }
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
@@ -297,6 +369,7 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   tfree(pRes->tsrow);
   tfree(pRes->length);
   tfree(pRes->buffer);
+  tfree(pRes->urow);
 
   tfree(pRes->pGroupRec);
   tfree(pRes->pColumnIndex);

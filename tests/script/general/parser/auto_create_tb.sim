@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 1000
 sql connect
 print ======================== dnode1 start
 
@@ -212,7 +212,7 @@ sleep 5000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 3000
+sleep 1000
 sql use $db
 
 #### auto create multiple tables
