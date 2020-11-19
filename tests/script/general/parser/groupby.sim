@@ -461,7 +461,7 @@ if $rows != 10 then
   return -1
 endi
 
-sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c8;
+sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c4;
 if $rows != 10000 then
   return -1
 endi
@@ -489,7 +489,8 @@ if $data02 != 100 then
   return -1
 endi
 
-if $data03 != 4950.000000 then
+if $data03 != 4950.000000000 then
+  print expect 4950.000000000 , acutal $data03
   return -1
 endi
 
@@ -501,9 +502,37 @@ if $data11 != 495100 then
   return -1
 endi
 
-if $data13 != 4951.000000 then
+if $data13 != 4951.000000000 then
   return -1
 endi
+
+print ====================> group by normal column + slimit + soffset
+sql select count(*), c8 from group_mt0 group by c8 limit 1 offset 0;
+if $rows != 100 then
+  return -1
+endi
+
+sql select sum(c2),c8,avg(c2), sum(c2)/count(*) from group_mt0 group by c8 slimit 2 soffset 99
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 79200.000000000 then
+  return -1
+endi
+
+if $data01 != @binary99@ then
+  return -1
+endi
+
+if $data02 != 99.000000000 then
+  return -1
+endi
+
+if $data03 != 99.000000000 then
+  return -1
+endi
+
 
 #=========================== group by multi tags ======================
 sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);
