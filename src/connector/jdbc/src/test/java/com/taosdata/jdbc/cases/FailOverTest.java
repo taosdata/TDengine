@@ -16,7 +16,8 @@ public class FailOverTest {
         Class.forName("com.taosdata.jdbc.TSDBDriver");
         final String url = "jdbc:TAOS://:/?user=root&password=taosdata";
 
-        while (true) {
+        long end = System.currentTimeMillis() + 1000 * 60 * 5;
+        while (System.currentTimeMillis() < end) {
             try (Connection conn = DriverManager.getConnection(url)) {
                 Statement stmt = conn.createStatement();
                 ResultSet resultSet = stmt.executeQuery("select server_status()");
