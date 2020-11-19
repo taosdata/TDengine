@@ -353,8 +353,8 @@ if $rows != 3 then
 endi
 
 print =============================> td-2036
-if $data00 != 0.3000000 then
-  print expect: 0.3000000, actual:$data00
+if $data00 != 0.300000000 then
+  print expect: 0.300000000, actual:$data00
   return -1
 endi
 

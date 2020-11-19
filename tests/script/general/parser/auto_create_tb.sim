@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
 system sh/exec.sh -n dnode1 -s start
 
-sleep 1000
+sleep 500
 sql connect
 print ======================== dnode1 start
 
@@ -208,11 +208,11 @@ endi
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 1000
+sleep 500
 sql use $db
 
 #### auto create multiple tables
@@ -298,7 +298,7 @@ endi
 sql create table tu(ts timestamp, k int);
 sql_error create table txu using tu tags(0) values(now, 1);
 
-#[TBASE-675]
+print =================> [TBASE-675]
 sql insert into tu values(1565971200000, 1) (1565971200000,2) (1565971200001, 3)(1565971200001, 4)
 sql select * from tu
 if $rows != 2 then
