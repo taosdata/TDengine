@@ -1,5 +1,10 @@
 from .cinterface import CTaosInterface
 from .error import *
+from .constants import FieldType
+import threading
+
+# querySeqNum = 0
+
 
 class TDengineCursor(object):
     """Database cursor which is used to manage the context of a fetch operation.
@@ -32,6 +37,8 @@ class TDengineCursor(object):
         self._block_rows = -1
         self._block_iter = 0
         self._affected_rows = 0
+        self._logfile = ""
+        self._threadId = threading.get_ident()
 
         if connection is not None:
             self._connection = connection
