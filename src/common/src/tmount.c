@@ -193,7 +193,7 @@ static SDisk *tdGetDiskByName(char *dirName) {
   char     fdirName[TSDB_FILENAME_LEN] = "\0";
   SDiskID *pDiskID = NULL;
 
-  if (tdFormatDir(dirName, fdirName) < 0) {
+  if (tfsFormatDir(dirName, fdirName) < 0) {
     return NULL;
   }
 
@@ -228,7 +228,7 @@ static void tdDecDiskFiles(SDisk *pDisk, bool lock) {
   }
 }
 
-static int tdFormatDir(char *idir, char *odir) {
+static int tfsFormatDir(char *idir, char *odir) {
   wordexp_t wep;
 
   int code = wordexp(idir, &wep, 0);
@@ -295,7 +295,7 @@ static int tdAddDisk(SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (tdFormatDir(pCfg->dir, dirName) < 0) {
+  if (tfsFormatDir(pCfg->dir, dirName) < 0) {
     uError("failed to add disk %s to tier %d level since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
     return -1;
   }

@@ -16,8 +16,6 @@
 #include "ttier.h"
 #include "tglobal.h"
 
-#define DISK_AT_TIER(pTier, id) ((pTier)->disks + (id))
-
 void tdInitTier(STier *pTier, int level) {
   pTier->level = level;
 }
@@ -59,8 +57,16 @@ SDisk *tdAddDiskToTier(STier *pTier, SDiskCfg *pCfg) {
     }
   }
 
-  pTier->disks[id] = tdNewDisk({pCfg->level, id}, pCfg->dir);
+  pTier->disks[id] = tdNewDisk(pCfg->level, id, pCfg->dir);
   if (pTier->disks[id] == NULL) return -1;
 
   return 0;
+}
+
+int tdUpdateTierInfo(STier *pTier) {
+  for (int id = 0; id < pTier->ndisk; id++) {
+    if (tdUpdateDiskInfo(DISK_AT_TIER(pTier, id)) < 0) {
+      // TODO: deal with the error here
+    }
+  }
 }

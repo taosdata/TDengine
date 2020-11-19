@@ -38,8 +38,9 @@ typedef struct {
   SDiskMeta dmeta;
 } SDisk;
 
-SDisk *tdNewDisk(SDiskID did, char *dir);
+SDisk *tdNewDisk(int level, int id, char *dir);
 void   tdFreeDisk(SDisk *pDisk);
+int    tdUpdateDiskInfo(SDisk *pDisk);
 
 #ifdef __cplusplus
 }

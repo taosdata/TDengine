@@ -37,8 +37,7 @@
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
-#include "tpath.h"
-#include "tmount.h"
+#include "tfs.h"
 
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
 
@@ -183,45 +182,35 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  if (tdInitMount(tsDiskCfg, tsDiskCfgNum) < 0) {
-    dError("failed to add disks to dnode tier since %s", tstrerror(terrno));
+  if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
+    dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;
   }
-  tdGetPrimaryPath(tsDataDir);
-  tdGetVnodeRootDir(tsDataDir, tsVnodeDir);
+  tfsPrimaryPath(tsDataDir);
+  sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
+  sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
+  sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
+  sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
   //TODO(dengyihao): no need to init here 
-  tdGetMnodeRootDir(tsDataDir, tsMnodeDir);
   if (dnodeCreateDir(tsMnodeDir) < 0) {
-   dError("failed to create mnode dir: %s, reason: %s", tsMnodeDir, strerror(errno));
+   dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
 
-  tdGetDnodeRootDir(tsDataDir, tsDnodeDir);
   if (dnodeCreateDir(tsDnodeDir) < 0) {
-   dError("failed to create dnode dir: %s, reason: %s", tsDnodeDir, strerror(errno));
+   dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;
   }
 
-  for (int i = 0; i < tsDnodeTier->nTiers; i++) {
-    char dirName[TSDB_FILENAME_LEN];
+  if (tfsCreateDir("vnode") < 0) {
+    dError("failed to create vnode dir since %s", tstrerror(terrno));
+    return -1;
+  }
 
-    STier *pTier = tsDnodeTier->tiers + i;
-    for (int j = 0; j < pTier->nDisks; j++) {
-      SDisk *pDisk = tdGetDisk(tsDnodeTier, i, j);
-
-      tdGetVnodeRootDir(pDisk->dir, dirName);
-      if (dnodeCreateDir(dirName) < 0) {
-        dError("failed to create vnode dir: %s, reason: %s", dirName, strerror(errno));
-        return -1;
-      }
-
-      tdGetVnodeBackRootDir(pDisk->dir, dirName);
-      if (dnodeCreateDir(dirName) < 0) {
-        dError("failed to create vnode back dir: %s, reason: %s", dirName, strerror(errno));
-        return -1;
-      }
-    }
+  if (tfsCreateDir("vnode_bak") < 0) {
+    dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
+    return -1;
   }
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
@@ -230,7 +219,7 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() { tdDestroyMount(); }
+static void dnodeCleanupStorage() { tfsDestroy(); }
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

@@ -20,10 +20,6 @@
 extern "C" {
 #endif
 
-#include "taosdef.h"
-#include "tglobal.h"
-#include "hash.h"
-#include "taoserror.h"
 #include "trpc.h"
 #include "taosmsg.h"
 

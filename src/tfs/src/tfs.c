@@ -45,6 +45,7 @@ static SFS  tdFileSystem = {0};
 static SFS *pfs = &tdFileSystem;
 
 #define TIER_AT(level) (pfs->tiers + (level))
+#define DISK_AT(level, id) DISK_AT_TIER(TIER_AT(level), id)
 
 int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   ASSERT(ndisk > 0);
@@ -68,13 +69,13 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   }
 
   for (int idisk = 0; idisk < ndisk; idisk++) {
-    if (tdAddDiskToFS(pDiskCfg + idisk) < 0) {
+    if (tfsAddDisk(pDiskCfg + idisk) < 0) {
       tfsDestroy();
       return -1;
     }
   }
 
-  if (tdCheckFS() < 0) {
+  if (tfsCheck() < 0) {
     tfsDestroy();
     return -1;
   }
@@ -92,8 +93,46 @@ void tfsDestroy() {
   }
 }
 
-static int tdAddDiskToFS(SDiskCfg *pCfg) {
-  if (tdCheckAndFormatCfg(pCfg) < 0) return -1;
+int tfsUpdateInfo() {
+  tfsLock();
+
+  for (int level = 0; level < pfs->nlevel; level++) {
+    if (tdUpdateTierInfo(TIER_AT(level)) < 0) {
+      // TODO: deal with the error here
+    }
+  }
+
+  tfsUnLock();
+}
+
+void tfsPrimaryPath(char *dst) {
+  strncpy(dst, DISK_AT)
+}
+
+int tfsCreateDir(char *name) {
+  char dirName[TSDB_FILENAME_LEN] = "\0";
+
+  for (int level = 0; level < pfs->nlevel; level++) {
+    STier *pTier = TIER_AT(level);
+    for (int id = 0; id < pTier->ndisk; id++) {
+      SDisk *pDisk = DISK_AT_TIER(pTier, id);
+
+      ASSERT(pDisk != NULL);
+
+      snprintf(dirName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, name);
+
+      if (mkdir(dirName, 0755) != 0 && errno != EEXIST) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+static int tfsAddDisk(SDiskCfg *pCfg) {
+  if (tfsCheckAndFormatCfg(pCfg) < 0) return -1;
 
   if (tdAddDiskToTier(pCfg, TIER_AT(pCfg->level)) < 0) {
     fError("failed to add disk %s to FS since %s", pCfg->dir, tstrerror(terrno));
@@ -105,7 +144,7 @@ static int tdAddDiskToFS(SDiskCfg *pCfg) {
   return 0;
 }
 
-static int tdCheckAndFormatCfg(SDiskCfg *pCfg) {
+static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
   char        dirName[TSDB_FILENAME_LEN] = "\0";
   struct stat pstat;
 
@@ -122,7 +161,7 @@ static int tdCheckAndFormatCfg(SDiskCfg *pCfg) {
   }
 
 
-  if (tdFormatDir(pCfg->dir, dirName) < 0) {
+  if (tfsFormatDir(pCfg->dir, dirName) < 0) {
     fError("failed to add disk %s to FS since invalid dir format", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
@@ -157,7 +196,7 @@ static int tdCheckAndFormatCfg(SDiskCfg *pCfg) {
   return 0;
 }
 
-static int tdFormatDir(char *idir, char *odir) {
+static int tfsFormatDir(char *idir, char *odir) {
   wordexp_t wep = {0};
 
   int code = wordexp(idir, &wep, 0);
@@ -177,7 +216,7 @@ static int tdFormatDir(char *idir, char *odir) {
 
 }
 
-static int tdCheckFS() {
+static int tfsCheck() {
   if (DISK_AT(0, 0) == NULL) {
     fError("no primary disk is set");
     terrno = TSDB_CODE_FS_NO_PRIMARY_DISK;
@@ -190,6 +229,26 @@ static int tdCheckFS() {
       terrno = TSDB_CODE_FS_NO_DISK_AT_TIER;
       return -1;
     }
+  }
+
+  return 0;
+}
+
+static int tfsLock() {
+  int code = pthread_mutex_lock(&(pfs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+
+  return 0;
+}
+
+static tfsUnLock() {
+  int code = pthread_mutex_unlock(&(pfs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
   }
 
   return 0;

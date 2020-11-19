@@ -24,6 +24,9 @@ extern "C" {
 
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
+int  tfsUpdateInfo();
+void tfsPrimaryPath(char *dst);
+int  tfsCreateDir(char *name);
 
 #ifdef __cplusplus
 }

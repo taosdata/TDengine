@@ -15,15 +15,15 @@
 
 #include "tdisk.h"
 
-SDisk *tdNewDisk(SDiskID did, char *dir) {
+SDisk *tdNewDisk(int level, int id, char *dir) {
   SDisk *pDisk = (SDisk *)calloc(1, sizeof(*pDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pDisk->level = did.level;
-  pDisk->id = did.id;
+  pDisk->level = level;
+  pDisk->id = id;
   strncpy(pDisk->dir, dir, TSDB_FILENAME_LEN);
 
   return pDisk;
@@ -33,4 +33,18 @@ void tdFreeDisk(SDisk *pDisk) {
   if (pDisk) {
     free(pDisk)
   }
+}
+
+int tdUpdateDiskInfo(SDisk *pDisk) {
+  SysDiskSize dstat;
+  if (taosGetDiskSize(pDisk->dir, &dstat) < 0) {
+    fError("failed to get dir %s information since %s", pDisk->dir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  pDisk->dmeta.size = dstat.tsize;
+  pDisk->dmeta.free = dstat.avail;
+
+  return 0;
 }

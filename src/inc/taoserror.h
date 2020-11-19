@@ -80,14 +80,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_ID_REMOVED,               0, 0x0107, "Ref ID is 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_INVALID_ID,               0, 0x0108, "Invalid Ref ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            0, 0x0109, "Ref is already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                0, 0x010A, "Ref is not there")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_INVALID_DISK_TIER,        0, 0x010B, "Invalid disk tier setting")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_TOO_MANY_DISKS,           0, 0x010C, "Too many disks in one tier")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_DISK_ALREADY_EXISTS,      0, 0x010D, "Disk already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_DISK_NOT_DIRECTORY,       0, 0x010E, "Disk is not a directory")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_NO_DISK_SPACE,            0, 0x010F, "Dnode no disk space")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_DUPLICATE_PRIMARY_DISK,   0, 0x0110, "Duplicate primary disk")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_LACK_PRIMARY_DISK,        0, 0x0111, "Lack primary disk")
-TAOS_DEFINE_ERROR(TSDB_CODE_COM_NO_DISK_AT_TIER,          0, 0x0112, "No disk at tier")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_SQL,              0, 0x0200, "Invalid SQL statement")
