@@ -291,7 +291,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRestoreData(void *param) {
-  SSyncPeer *pPeer = (SSyncPeer *)param;
+  SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
@@ -300,7 +300,8 @@ void *syncRestoreData(void *param) {
   (*pNode->notifyRole)(pNode->ahandle, TAOS_SYNC_ROLE_SYNCING);
 
   if (syncOpenRecvBuffer(pNode) < 0) {
-    sError("%s, failed to allocate recv buffer", pPeer->id);
+    sError("%s, failed to allocate recv buffer, restart connection", pPeer->id);
+    syncRestartConnection(pPeer);
   } else {
     if (syncRestoreDataStepByStep(pPeer) == 0) {
       sInfo("%s, it is synced successfully", pPeer->id);
