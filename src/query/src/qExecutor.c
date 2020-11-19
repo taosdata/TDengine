@@ -5533,10 +5533,12 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   TSKEY newStartKey = TSKEY_INITIAL_VAL;
 
   // skip blocks without load the actual data block from file if no filter condition present
-  skipTimeInterval(pRuntimeEnv, &newStartKey);
-  if (pQuery->limit.offset > 0 && pQuery->numOfFilterCols == 0 && pRuntimeEnv->pFillInfo == NULL) {
-    setQueryStatus(pQuery, QUERY_COMPLETED);
-    return;
+  if (!pRuntimeEnv->groupbyNormalCol) {
+    skipTimeInterval(pRuntimeEnv, &newStartKey);
+    if (pQuery->limit.offset > 0 && pQuery->numOfFilterCols == 0 && pRuntimeEnv->pFillInfo == NULL) {
+      setQueryStatus(pQuery, QUERY_COMPLETED);
+      return;
+    }
   }
 
   while (1) {
@@ -5551,7 +5553,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
     }
 
     // no result generated, abort
-    if (pQuery->rec.rows == 0) {
+    if (pQuery->rec.rows == 0 || pRuntimeEnv->groupbyNormalCol) {
       break;
     }
 
@@ -5579,10 +5581,21 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
 
   // all data scanned, the group by normal column can return
   if (pRuntimeEnv->groupbyNormalCol) {  // todo refactor with merge interval time result
-    pQInfo->groupIndex = 0;
-    pQuery->rec.rows = 0;
-    copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
-    clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
+    // maxOutput <= 0, means current query does not generate any results
+    int32_t numOfClosed = numOfClosedTimeWindow(&pRuntimeEnv->windowResInfo);
+
+    if ((pQuery->limit.offset > 0 && pQuery->limit.offset < numOfClosed) || pQuery->limit.offset == 0) {
+      // skip offset result rows
+      clearFirstNTimeWindow(pRuntimeEnv, (int32_t) pQuery->limit.offset);
+
+      pQuery->rec.rows   = 0;
+      pQInfo->groupIndex = 0;
+      copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
+      clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
+
+      doSecondaryArithmeticProcess(pQuery);
+      limitResults(pRuntimeEnv);
+    }
   }
 }
 

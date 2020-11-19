@@ -681,7 +681,7 @@ static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, i
   }
   
   // no result for first query, data block is required
-  if (GET_RES_INFO(pCtx)->numOfRes <= 0) {
+  if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
     return BLK_DATA_ALL_NEEDED;
   } else {
     return BLK_DATA_NO_NEEDED;
@@ -693,7 +693,7 @@ static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, in
     return BLK_DATA_NO_NEEDED;
   }
   
-  if (GET_RES_INFO(pCtx)->numOfRes <= 0) {
+  if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
     return BLK_DATA_ALL_NEEDED;
   } else {
     return BLK_DATA_NO_NEEDED;
