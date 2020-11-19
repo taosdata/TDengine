@@ -22,7 +22,7 @@
 #include "tsdbMain.h"
 #include "tutil.h"
 #include "tpath.h"
-#include "tdisk.h"
+#include "tmount.h"
 
 const char *       tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 

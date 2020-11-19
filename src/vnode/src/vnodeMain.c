@@ -30,7 +30,7 @@
 #include "dnodeVRead.h"
 #include "query.h"
 #include "tpath.h"
-#include "tdisk.h"
+#include "tmount.h"
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);

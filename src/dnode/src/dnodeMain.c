@@ -38,7 +38,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "tpath.h"
-#include "tdisk.h"
+#include "tmount.h"
 
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
 

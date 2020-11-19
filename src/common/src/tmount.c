@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
-#include "tdisk.h"
+#include "tmount.h"
 #include "hash.h"
 #include "taosdef.h"
 #include "taoserror.h"
@@ -27,16 +27,16 @@ typedef struct {
 } SDiskMeta;
 
 typedef struct {
-  uint64_t tsize;
-  uint64_t avail; // bytes
-} STiersMeta;
-
-typedef struct {
   int       level;
-  int       did;
+  int       id;
   char      dir[TSDB_FILENAME_LEN];
   SDiskMeta dmeta;
 } SDisk;
+
+typedef struct {
+  uint64_t tsize;
+  uint64_t avail; // bytes
+} STiersMeta;
 
 typedef struct {
   int    level;

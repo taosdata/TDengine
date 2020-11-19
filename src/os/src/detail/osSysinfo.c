@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tconfig.h"
-#include "tdisk.h"
+#include "tmount.h"
 #include "tglobal.h"
 #include "tulog.h"
 

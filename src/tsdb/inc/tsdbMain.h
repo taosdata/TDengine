@@ -26,7 +26,7 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "tdisk.h"
+#include "tmount.h"
 
 #ifdef __cplusplus
 extern "C" {
