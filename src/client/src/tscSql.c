@@ -573,7 +573,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   *rows = pRes->urow;
 
   tscClearSqlOwner(pSql);
-  return pRes->numOfRows;
+  return (int32_t) pRes->numOfRows;
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
