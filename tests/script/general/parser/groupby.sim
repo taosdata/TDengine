@@ -456,6 +456,11 @@ if $rows != 1 then
   return -1
 endi
 
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 limit 20 offset 9990;
+if $rows != 10 then
+  return -1
+endi
+
 sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c8;
 if $rows != 10000 then
   return -1
