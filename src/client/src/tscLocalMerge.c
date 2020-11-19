@@ -894,7 +894,7 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
       /* remove the hole in column model */
       tColModelCompact(pLocalReducer->finalModel, pBeforeFillData, prevSize);
 
-      pRes->numOfRows -= pQueryInfo->limit.offset;
+      pRes->numOfRows -= (int32_t) pQueryInfo->limit.offset;
       pQueryInfo->limit.offset = 0;
     } else {
       pQueryInfo->limit.offset -= pRes->numOfRows;
@@ -962,7 +962,7 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
       }
 
       pRes->data = pLocalReducer->pFinalRes;
-      pRes->numOfRows = newRows;
+      pRes->numOfRows = (int32_t) newRows;
 
       pQueryInfo->limit.offset = 0;
       break;
