@@ -24,9 +24,9 @@ extern "C" {
 #include <stdbool.h>
 
 #ifdef TAOS_ERROR_C
-#define TAOS_DEFINE_ERROR(name, mod, code, msg) {.val = (0x80000000 | ((mod)<<16) | (code)), .str=(msg)},
+#define TAOS_DEFINE_ERROR(name, mod, code, msg) {.val = (int32_t)((0x80000000 | ((mod)<<16) | (code))), .str=(msg)},
 #else
-#define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (0x80000000 | ((mod)<<16) | (code));
+#define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (int32_t)((0x80000000 | ((mod)<<16) | (code)));
 #endif
  
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
@@ -366,20 +366,28 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           0, 0x11A5, "value not 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A6, "value type should be boolean, number or string")
 
 
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2101, "out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2100, "out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM,       0, 0x2101, "convertion not a valid literal input")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_UNDEF,              0, 0x2102, "convertion undefined")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_TRUNC,              0, 0x2103, "convertion truncated")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_SUPPORT,        0, 0x2104, "convertion not supported")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OUT_OF_RANGE,            0, 0x2105, "out of range")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NOT_SUPPORT,             0, 0x2106, "not supported yet")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_HANDLE,          0, 0x2107, "invalid handle")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_RESULT,               0, 0x2108, "no result set")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_FIELDS,               0, 0x2109, "no fields returned")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_CURSOR,          0, 0x2110, "invalid cursor")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x2111, "statement not ready")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x2112, "connection still busy")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x2113, "bad connection string")
-TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_ARG,                 0, 0x2114, "bad argument")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_TRUNC_FRAC,         0, 0x2103, "convertion fractional truncated")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_TRUNC,              0, 0x2104, "convertion truncated")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_SUPPORT,        0, 0x2105, "convertion not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_OOR,                0, 0x2106, "convertion numeric value out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OUT_OF_RANGE,            0, 0x2107, "out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NOT_SUPPORT,             0, 0x2108, "not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_HANDLE,          0, 0x2109, "invalid handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_RESULT,               0, 0x210a, "no result set")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_NO_FIELDS,               0, 0x210b, "no fields returned")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_INVALID_CURSOR,          0, 0x210c, "invalid cursor")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_STATEMENT_NOT_READY,     0, 0x210d, "statement not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONNECTION_BUSY,         0, 0x210e, "connection still busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_CONNSTR,             0, 0x210f, "bad connection string")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_BAD_ARG,                 0, 0x2110, "bad argument")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_NOT_VALID_TS,       0, 0x2111, "not a valid timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_TOO_LARGE,      0, 0x2112, "src too large")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_BAD_SEQ,        0, 0x2113, "src bad sequence")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_INCOMPLETE,     0, 0x2114, "src incomplete")
+TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_GENERAL,        0, 0x2115, "src general")
 
 
 #ifdef TAOS_ERROR_C
