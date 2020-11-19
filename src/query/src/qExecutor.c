@@ -660,7 +660,13 @@ static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_se
  */
 static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, SWindowResInfo *pWindowResInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  if (pRuntimeEnv->scanFlag != MASTER_SCAN || (!QUERY_IS_INTERVAL_QUERY(pQuery))) {
+  if (pRuntimeEnv->scanFlag != MASTER_SCAN) {
+    return pWindowResInfo->size;
+  }
+
+  // for group by normal column query, close time window and return.
+  if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
+    closeAllTimeWindow(pWindowResInfo);
     return pWindowResInfo->size;
   }
 
@@ -1448,7 +1454,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
 
   // interval query with limit applied
   int32_t numOfRes = 0;
-  if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
     numOfRes = doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo);
   } else {
     numOfRes = (int32_t)getNumOfResult(pRuntimeEnv);
