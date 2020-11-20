@@ -534,7 +534,7 @@ if $data03 != 99.000000000 then
 endi
 
 print ============>td-1765
-sql select percentile(c4, 49),min(c4),max(c4),avg(c4),stddev(c4) from group_tb0  group by c8;
+sql select percentile(c4, 49),min(c4),max(c4),avg(c4),stddev(c4) from group_tb0 group by c8;
 if $rows != 100 then
   return -1
 endi
@@ -576,6 +576,24 @@ if $data13 != 4951.000000000 then
 endi
 
 if $data14 != 2886.607004772 then
+  return -1
+endi
+
+print ================>td-2090
+sql select leastsquares(c2, 1, 1) from group_tb1  group by c8;
+if $rows != 100 then
+ return -1
+endi
+
+if $data00 != @{slop:0.000000, intercept:0.000000}@ then
+  return -1
+endi
+
+if $data10 != @{slop:0.000000, intercept:1.000000}@ then
+  return -1
+endi
+
+if $data90 != @{slop:0.000000, intercept:9.000000}@ then
   return -1
 endi
 

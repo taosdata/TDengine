@@ -130,11 +130,11 @@ typedef struct STopBotInfo {
 } STopBotInfo;
 
 // leastsquares do not apply to super table
-typedef struct SLeastsquareInfo {
+typedef struct SLeastsquaresInfo {
   double  mat[2][3];
   double  startVal;
   int64_t num;
-} SLeastsquareInfo;
+} SLeastsquaresInfo;
 
 typedef struct SAPercentileInfo {
   SHistogramInfo *pHisto;
@@ -316,7 +316,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = (int16_t)sizeof(SPercentileInfo);
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE;  // string
+    *bytes = MAX(TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE, sizeof(SLeastsquaresInfo));  // string
     *interBytes = *bytes;
   } else if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     *type = TSDB_DATA_TYPE_BINARY;
@@ -2756,7 +2756,7 @@ static bool leastsquares_function_setup(SQLFunctionCtx *pCtx) {
   }
   
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // 2*3 matrix
   pInfo->startVal = pCtx->param[0].dKey;
@@ -2783,7 +2783,7 @@ static bool leastsquares_function_setup(SQLFunctionCtx *pCtx) {
 
 static void leastsquares_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   double(*param)[3] = pInfo->mat;
   double x = pInfo->startVal;
@@ -2853,40 +2853,40 @@ static void leastsquares_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
   
-  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   double(*param)[3] = pInfo->mat;
   
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
       int32_t *p = pData;
-      LEASTSQR_CAL(param, pInfo->startVal, p, index, pCtx->param[1].dKey);
+      LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
     };
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *p = pData;
-      LEASTSQR_CAL(param, pInfo->startVal, p, index, pCtx->param[1].dKey);
+      LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *p = pData;
-      LEASTSQR_CAL(param, pInfo->startVal, p, index, pCtx->param[1].dKey);
+      LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *p = pData;
-      LEASTSQR_CAL(param, pInfo->startVal, p, index, pCtx->param[1].dKey);
+      LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float *p = pData;
-      LEASTSQR_CAL(param, pInfo->startVal, p, index, pCtx->param[1].dKey);
+      LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *p = pData;
-      LEASTSQR_CAL(param, pInfo->startVal, p, index, pCtx->param[1].dKey);
+      LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
     }
     default:
@@ -2904,15 +2904,10 @@ static void leastsquares_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   // no data in query
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SLeastsquareInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   if (pInfo->num == 0) {
-    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-      setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
-    } else {
-      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
-    }
-    
+    setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
     return;
   }
   
