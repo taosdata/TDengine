@@ -31,16 +31,17 @@ extern "C" {
 typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
-//  char             *key;
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key
   uint32_t          keyLen;   // length of the key
-//  char             *data;
+  uint32_t          dataLen;  // length of data
+  int8_t            count;    // reference count
+  char              data[];
 } SHashNode;
 
-#define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode))
-#define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode) + (_n)->keyLen)
-
+#define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
+#define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
+#define GET_HASH_PNODE(_n) ((char*)(_n) - sizeof(SHashNode));
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
   HASH_ENTRY_LOCK  = 1,
@@ -64,15 +65,6 @@ typedef struct SHashObj {
   bool            enableUpdate; // enable update
   SArray         *pMemBlock;    // memory block allocated for SHashEntry
 } SHashObj;
-
-typedef struct SHashMutableIterator {
-  SHashObj  *pHashObj;
-  int32_t    entryIndex;
-  SHashNode *pCur;
-  SHashNode *pNext;           // current node can be deleted for mutable iterator, so keep the next one before return current
-  size_t     numOfChecked;    // already check number of elements in hash table
-  size_t     numOfEntries;    // number of entries while the iterator is created
-} SHashMutableIterator;
 
 /**
  * init the hash table
@@ -142,33 +134,9 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
  */
 void taosHashCleanup(SHashObj *pHashObj);
 
-/**
- *
- * @param pHashObj
- * @return
- */
-SHashMutableIterator* taosHashCreateIter(SHashObj *pHashObj);
-
-/**
- *
- * @param iter
- * @return
- */
-bool taosHashIterNext(SHashMutableIterator *iter);
-
-/**
- *
- * @param iter
- * @return
- */
-void *taosHashIterGet(SHashMutableIterator *iter);
-
-/**
- *
- * @param iter
- * @return
- */
-void* taosHashDestroyIter(SHashMutableIterator* iter);
+/*
+void *SHashMutableIterator* taosHashCreateIter(SHashObj *pHashObj, void *);
+*/
 
 /**
  *
@@ -178,6 +146,9 @@ void* taosHashDestroyIter(SHashMutableIterator* iter);
 int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
 
 size_t taosHashGetMemSize(const SHashObj *pHashObj);
+
+void *taosHashIterate(SHashObj *pHashObj, void *p);
+void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
 #ifdef __cplusplus
 }

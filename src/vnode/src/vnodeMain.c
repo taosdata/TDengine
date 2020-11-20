@@ -517,11 +517,10 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
 }
 
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
-  SHashMutableIterator *pIter = taosHashCreateIter(tsVnodesHash);
-  while (taosHashIterNext(pIter)) {
-    SVnodeObj **pVnode = taosHashIterGet(pIter);
-    if (pVnode == NULL) continue;
-    if (*pVnode == NULL) continue;
+  void *pIter = taosHashIterate(tsVnodesHash, NULL);
+  while (pIter) {
+    SVnodeObj **pVnode = pIter;
+    if (*pVnode) {
 
     (*numOfVnodes)++;
     if (*numOfVnodes >= TSDB_MAX_VNODES) {
@@ -530,25 +529,24 @@ int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
     } else {
       vnodeList[*numOfVnodes - 1] = (*pVnode)->vgId;
     }
-  }
 
-  taosHashDestroyIter(pIter);
+    }
+
+    pIter = taosHashIterate(tsVnodesHash, pIter);    
+  }
   return TSDB_CODE_SUCCESS;
 }
 
 void vnodeBuildStatusMsg(void *param) {
   SStatusMsg *pStatus = param;
-  SHashMutableIterator *pIter = taosHashCreateIter(tsVnodesHash);
 
-  while (taosHashIterNext(pIter)) {
-    SVnodeObj **pVnode = taosHashIterGet(pIter);
-    if (pVnode == NULL) continue;
-    if (*pVnode == NULL) continue;
-
+  void *pIter = taosHashIterate(tsVnodesHash, NULL);
+  while (pIter) {
+    SVnodeObj **pVnode = pIter; 
+    if (*pVnode) { 
     vnodeBuildVloadMsg(*pVnode, pStatus);
+    }
   }
-
-  taosHashDestroyIter(pIter);
 }
 
 void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
