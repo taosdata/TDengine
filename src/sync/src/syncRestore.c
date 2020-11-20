@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ttimer.h"
@@ -126,7 +128,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   }
 
   if (code < 0) {
-    sError("%s, failed to restore %s(%s)", pPeer->id, name, strerror(errno));
+    sError("%s, failed to restore %s since %s", pPeer->id, name, strerror(errno));
   }
 
   return code;
@@ -154,7 +156,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret < 0) break;
 
-    sDebug("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
+    sTrace("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
 
     if (lastVer == pHead->version) {
       sError("%s, failed to restore record, same hver:%" PRIu64 ", wal sync failed" PRIu64, pPeer->id, lastVer);
@@ -166,7 +168,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   }
 
   if (code < 0) {
-    sError("%s, failed to restore wal(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to restore wal from syncFd:%d since %s", pPeer->id, pPeer->syncFd, strerror(errno));
   }
 
   free(buffer);
@@ -222,7 +224,7 @@ int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
     memcpy(pRecv->offset, pHead, len);
     pRecv->offset += len;
     pRecv->forwards++;
-    sDebug("%s, fwd is saved into queue, hver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
+    sTrace("%s, fwd is saved into queue, hver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
   } else {
     sError("%s, buffer size:%d is too small", pPeer->id, pRecv->bufferSize);
     pRecv->code = -1;  // set error code
