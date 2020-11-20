@@ -20,7 +20,6 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tmount.h"
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"

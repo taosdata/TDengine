@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "os.h"
-#include "tmount.h"
 #include "hash.h"
 #include "taosdef.h"
 #include "taoserror.h"

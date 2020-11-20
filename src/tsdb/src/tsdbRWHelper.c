@@ -21,7 +21,6 @@
 #include "tcoding.h"
 #include "tscompression.h"
 #include "tsdbMain.h"
-#include "tpath.h"
 
 #define TSDB_GET_COMPCOL_LEN(nCols) (sizeof(SCompData) + sizeof(SCompCol) * (nCols) + sizeof(TSCKSUM))
 #define TSDB_KEY_COL_OFFSET 0
