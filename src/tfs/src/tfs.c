@@ -104,7 +104,7 @@ void tfsPrimaryPath(char *dst) {
   strncpy(dst, DISK_AT(0, 0)->dir, TSDB_FILENAME_LEN);
 }
 
-int tfsCreateDir(char *name) {
+int tfsCreateDir(char *dirname) {
   char dirName[TSDB_FILENAME_LEN] = "\0";
 
   for (int level = 0; level < pfs->nlevel; level++) {
@@ -114,12 +114,52 @@ int tfsCreateDir(char *name) {
 
       ASSERT(pDisk != NULL);
 
-      snprintf(dirName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, name);
+      snprintf(dirName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, dirname);
 
       if (mkdir(dirName, 0755) != 0 && errno != EEXIST) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
       }
+    }
+  }
+
+  return 0;
+}
+
+int tfsRemoveDir(char *dirname) {
+  char dirName[TSDB_FILENAME_LEN] = "\0";
+
+  for (int level = 0; level < pfs->nlevel; level++) {
+    STier *pTier = TIER_AT(level);
+    for (int id = 0; id < pTier->ndisk; id++) {
+      SDisk *pDisk = DISK_AT_TIER(pTier, id);
+
+      ASSERT(pDisk != NULL);
+
+      snprintf(dirName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, dirname);
+
+      taosRemoveDir(dirName);
+    }
+  }
+
+  return 0;
+}
+
+int tfsRename(char *oldpath, char *newpath) {
+  char oldName[TSDB_FILENAME_LEN] = "\0";
+  char newName[TSDB_FILENAME_LEN] = "\0";
+
+  for (int level = 0; level < pfs->nlevel; level++) {
+    STier *pTier = TIER_AT(level);
+    for (int id = 0; id < pTier->ndisk; id++) {
+      SDisk *pDisk = DISK_AT_TIER(pTier, id);
+
+      ASSERT(pDisk != NULL);
+
+      snprintf(oldName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, oldpath);
+      snprintf(newName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, newpath);
+
+      taosRename(oldName, newName);
     }
   }
 
@@ -134,7 +174,7 @@ static int tfsMount(SDiskCfg *pCfg) {
   did.level = pCfg->level;
   did.id = tdAddDiskToTier(TIER_AT(pCfg->level), pCfg);
   if (did.id < 0) {
-    fError("failed to add disk %s to FS since %s", pCfg->dir, tstrerror(terrno));
+    fError("failed to mount %s to FS since %s", pCfg->dir, tstrerror(terrno));
     return -1;
   }
 
@@ -151,51 +191,51 @@ static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
   struct stat pstat;
 
   if (pCfg->level < 0 || pCfg->level >= TSDB_MAX_TIER) {
-    fError("failed to add disk %s to FS since invalid level %d", pCfg->dir, pCfg->level);
+    fError("failed to mount %s to FS since invalid level %d", pCfg->dir, pCfg->level);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
 
   if (pCfg->primary) {
     if (pCfg->level != 0) {
-      fError("failed to add disk %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
+      fError("failed to mount %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
       terrno = TSDB_CODE_FS_INVLD_CFG;
       return -1;
     }
 
     if (DISK_AT(0, 0) != NULL) {
-      fError("failed to add disk %s to FS since duplicate primary mount", pCfg->dir, pCfg->level);
+      fError("failed to mount %s to FS since duplicate primary mount", pCfg->dir, pCfg->level);
       terrno = TSDB_CODE_FS_DUP_PRIMARY;
       return -1;
     }
   }
 
   if (tfsFormatDir(pCfg->dir, dirName) < 0) {
-    fError("failed to add disk %s to FS since invalid dir format", pCfg->dir);
+    fError("failed to mount %s to FS since invalid dir format", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
 
   if (tfsGetDiskByName(dirName) != NULL) {
-    fError("failed to add disk %s to FS since duplicate mount", pCfg->dir);
+    fError("failed to mount %s to FS since duplicate mount", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
 
   if (access(dirName, W_OK | R_OK | F_OK) != 0) {
-    fError("failed to add disk %s to FS since no R/W access rights", pCfg->dir);
+    fError("failed to mount %s to FS since no R/W access rights", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
 
   if (stat(dirName, &pstat) < 0) {
-    fError("failed to add disk %s to FS since %s", pCfg->dir, strerror(errno));
+    fError("failed to mount %s to FS since %s", pCfg->dir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   if (!S_ISDIR(pstat.st_mode)) {
-    fError("failed to add disk %s to FS since not a directory", pCfg->dir);
+    fError("failed to mount %s to FS since not a directory", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }

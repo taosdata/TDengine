@@ -21,14 +21,15 @@
 #include "trpc.h"
 #include "tsdb.h"
 #include "tutil.h"
-#include "dnode.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "query.h"
+#include "dnode.h"
 #include "vnodeCfg.h"
 #include "vnodeVersion.h"
 #include "dnodeVWrite.h"
 #include "dnodeVRead.h"
-#include "query.h"
+#include "tfs.h"
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
@@ -99,32 +100,19 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (mkdir(tsVnodeDir, 0755) != 0 && errno != EEXIST) {
-    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), tsVnodeDir);
-    if (errno == EACCES) {
-      return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
-    } else if (errno == ENOSPC) {
-      return TSDB_CODE_VND_NO_DISKSPACE;
-    } else if (errno == ENOENT) {
-      return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
-    } else {
-      return TSDB_CODE_VND_INIT_FAILED;
-    }
+  if (tfsCreateDir("vnode") < 0) {
+    vError("vgId:%d, failed to create vnode dir, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
+    return terrno;
   }
 
   char rootDir[TSDB_FILENAME_LEN] = {0};
-  tdGetVnodeDir(tsDataDir, pVnodeCfg->cfg.vgId, rootDir);
-  if (mkdir(rootDir, 0755) != 0 && errno != EEXIST) {
-    vError("vgId:%d, failed to create vnode, reason:%s dir:%s", pVnodeCfg->cfg.vgId, strerror(errno), rootDir);
-    if (errno == EACCES) {
-      return TSDB_CODE_VND_NO_DISK_PERMISSIONS;
-    } else if (errno == ENOSPC) {
-      return TSDB_CODE_VND_NO_DISKSPACE;
-    } else if (errno == ENOENT) {
-      return TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR;
-    } else {
-      return TSDB_CODE_VND_INIT_FAILED;
-    }
+  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
+
+  char vnodeDir[TSDB_FILENAME_LEN] = "\0";
+  snprintf(vnodeDir, TSDB_FILENAME_LEN, "vnode%d", pVnodeCfg->cfg.vgId);
+  if (tfsCreateDir(vnodeDir) < 0) {
+    vError("vgId:%d, failed to create vnode %d dir, reason:%s", pVnodeCfg->cfg.vgId, strerror(errno));
+    return terrno;
   }
 
   code = vnodeWriteCfg(pVnodeCfg);
@@ -146,7 +134,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.update              = pVnodeCfg->cfg.update;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
-  tdGetTsdbRootDir(tsDataDir, pVnodeCfg->cfg.vgId, tsdbDir);
+  sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
   if (tsdbCreateRepo(tsdbDir, &tsdbCfg) < 0) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
@@ -445,28 +433,17 @@ void vnodeRelease(void *vparam) {
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};    
     char newDir[TSDB_FILENAME_LEN] = {0};
+    sprintf(rootDir, "%s/vnode%d", "vnode", vgId);
+    sprintf(newDir, "%s/vnode%d", "vnode_bak", vgId);
 
-    for (int i = 0; i < tsDnodeTier->nTiers; i++) {
-      STier *pTier = tsDnodeTier->tiers + i;
-      for (int j = 0; j < pTier->nDisks; j++) {
-        SDisk *pDisk = pTier->disks[j];
-
-        tdGetVnodeDir(pDisk->dir, vgId, rootDir);
-        tdGetVnodeBackDir(pDisk->dir, vgId, newDir);
-
-        if (access(rootDir, F_OK) == 0) {
-          if (0 == tsEnableVnodeBak) {
-            vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
-          } else {
-            taosRemoveDir(newDir);
-            taosRename(rootDir, newDir);
-          }
-
-          taosRemoveDir(rootDir);
-        }
-      }
+    if (0 == tsEnableVnodeBak) {
+      vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
+    } else {
+      tfsRemoveDir(newDir);
+      tfsRename(rootDir, newDir);
     }
-    
+
+    tfsRemoveDir(rootDir);
     dnodeSendStatusMsgToMnode();
   }
 

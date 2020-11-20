@@ -36,7 +36,9 @@ int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
 int  tfsUpdateInfo();
 void tfsPrimaryPath(char *dst);
-int  tfsCreateDir(char *name);
+int  tfsCreateDir(char *dirname);
+int  tfsRemoveDir(char *dirname);
+int  tfsRename(char *oldpath, char *newpath);
 
 #ifdef __cplusplus
 }
