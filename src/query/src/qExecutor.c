@@ -177,7 +177,7 @@ static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
 static int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *group);
 
 static void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult);
-static void setWindowResOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult);
+static void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult);
 static void resetMergeResultBuf(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx *pCtx, SResultRow *pRow);
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId);
 
@@ -618,7 +618,7 @@ static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowRes
 
   // set time window for current result
   pResultRow->win = (*win);
-  setWindowResOutputBufInitCtx(pRuntimeEnv, pResultRow);
+  setResultRowOutputBufInitCtx(pRuntimeEnv, pResultRow);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3839,7 +3839,7 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult) {
   }
 }
 
-void setWindowResOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult) {
+void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group

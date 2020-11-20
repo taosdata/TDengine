@@ -1454,7 +1454,7 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
     }
   }
 
-  SColumnIndex index = {0};
+  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
   // set the constant column value always attached to first table.
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -4189,7 +4189,7 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
 static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    SColumnIndex index = {0};
+    SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
     if (getColumnIndexByName(pCmd, &pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       tscError("%p: invalid column name (left)", pQueryInfo);
@@ -6624,7 +6624,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
         }
       }
     } else if (pSqlExpr->nSQLOptr == TK_ID) { // column name, normal column arithmetic expression
-      SColumnIndex index = {0};
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
       int32_t ret = getColumnIndexByName(pCmd, &pSqlExpr->colInfo, pQueryInfo, &index);
       if (ret != TSDB_CODE_SUCCESS) {
         return ret;
