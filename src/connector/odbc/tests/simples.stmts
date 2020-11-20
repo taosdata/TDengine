@@ -1,0 +1,44 @@
+P:drop database if exists m;
+P:create database m;
+P:use m;
+
+P:create table t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob binary(1), name nchar(1));
+P:insert into t (ts, b) values('2020-10-10 00:00:00', 0);
+P:insert into t (ts, b) values('2020-10-10 00:00:00.001', 1);
+P:insert into t (ts, b) values('2020-10-10 00:00:00.002', 10);
+P:select * from t;
+
+P:drop table t;
+P:create table t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob binary(1), name nchar(1));
+P:insert into t (ts, v1) values('2020-10-10 00:00:00', 0);
+P:insert into t (ts, v1) values('2020-10-10 00:00:00.001', 1);
+P:insert into t (ts, v1) values('2020-10-10 00:00:00.002', 10);
+P:select * from t;
+
+P:drop table t;
+P:create table t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob binary(1), name nchar(1));
+P:insert into t (ts, name) values('2020-10-10 00:00:00', 0);
+P:insert into t (ts, name) values('2020-10-10 00:00:00.001', 1);
+P:insert into t (ts, name) values('2020-10-10 00:00:00.002', '人');
+P:insert into t (ts, name) values('2020-10-10 00:00:00.003', 'a');
+P:select * from t;
+
+P:drop table t;
+P:create table t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob binary(3), name nchar(1));
+P:insert into t (ts, blob) values('2020-10-10 00:00:00', 0);
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.001', 1);
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.002', 'a');
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.003', 'b');
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.004', '人');
+P:select * from t;
+
+P:drop table t;
+P:create table t (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, blob binary(3), name nchar(1));
+N:insert into t (ts, blob) values('2020-10-10 00:00:00', '1234');
+N:insert into t (ts, blob) values('2020-10-10 00:00:00.001', '0000');
+N:insert into t (ts, blob) values('2020-10-10 00:00:00.002', '人a');
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.003', 'a');
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.004', 'b');
+P:insert into t (ts, blob) values('2020-10-10 00:00:00.005', '人');
+P:select * from t;
+

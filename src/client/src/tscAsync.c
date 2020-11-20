@@ -91,8 +91,8 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   int32_t sqlLen = (int32_t)strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
-    terrno = TSDB_CODE_TSC_INVALID_SQL;
-    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_SQL);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    tscQueueAsyncError(fp, param, terrno);
     return;
   }
   
