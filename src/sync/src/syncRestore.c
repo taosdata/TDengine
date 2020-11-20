@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ttimer.h"
@@ -127,7 +128,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   }
 
   if (code < 0) {
-    sError("%s, failed to restore %s(%s)", pPeer->id, name, strerror(errno));
+    sError("%s, failed to restore %s since %s", pPeer->id, name, strerror(errno));
   }
 
   return code;
@@ -167,7 +168,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   }
 
   if (code < 0) {
-    sError("%s, failed to restore wal(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to restore wal from syncFd:%d since %s", pPeer->id, pPeer->syncFd, strerror(errno));
   }
 
   free(buffer);

@@ -820,7 +820,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
-    sError("%s, failed to create sync thread(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to create sync thread since %s", pPeer->id, strerror(errno));
     syncDecPeerRef(pPeer);
   } else {
     pPeer->sstatus = TAOS_SYNC_STATUS_START;
@@ -1105,7 +1105,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   SFirstPkt firstPkt;
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
+    sError("failed to read peer first pkt from ip:%s since %s", ipstr, strerror(errno));
     taosCloseSocket(connFd);
     return;
   }
@@ -1159,7 +1159,7 @@ static void syncProcessBrokenLink(void *param) {
   if (taosAcquireRef(tsSyncRefId, pNode->rid) == NULL) return;
   pthread_mutex_lock(&(pNode->mutex));
 
-  sDebug("%s, TCP link is broken(%s)", pPeer->id, strerror(errno));
+  sDebug("%s, TCP link is broken since %s", pPeer->id, strerror(errno));
   pPeer->peerFd = -1;
 
   if (syncDecPeerRef(pPeer) != 0) {
@@ -1242,9 +1242,10 @@ static void syncMonitorNodeRole(void *param, void *tmrId) {
     if (index == pNode->selfIndex) continue;
 
     SSyncPeer *pPeer = pNode->peerInfo[index];
-    if (pPeer->role <= TAOS_SYNC_ROLE_UNSYNCED || nodeRole <= TAOS_SYNC_ROLE_UNSYNCED) {
-      syncSendPeersStatusMsgToPeer(pPeer, 1, SYNC_STATUS_CHECK_ROLE, syncGenTranId());
-    }
+    if (pPeer->role > TAOS_SYNC_ROLE_UNSYNCED && nodeRole > TAOS_SYNC_ROLE_UNSYNCED) continue;
+    if (pPeer->sstatus > TAOS_SYNC_STATUS_INIT || nodeSStatus > TAOS_SYNC_STATUS_INIT) continue;
+
+    syncSendPeersStatusMsgToPeer(pPeer, 1, SYNC_STATUS_CHECK_ROLE, syncGenTranId());
   }
 
   pNode->pRoleTimer = taosTmrStart(syncMonitorNodeRole, SYNC_ROLE_TIMER, (void *)pNode->rid, tsSyncTmrCtrl);

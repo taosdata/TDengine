@@ -32,7 +32,7 @@ static int32_t syncAddIntoWatchList(SSyncPeer *pPeer, char *name) {
     pPeer->watchNum = 0;
     pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
     if (pPeer->notifyFd < 0) {
-      sError("%s, failed to init inotify(%s)", pPeer->id, strerror(errno));
+      sError("%s, failed to init inotify since %s", pPeer->id, strerror(errno));
       return -1;
     }
 
@@ -49,14 +49,14 @@ static int32_t syncAddIntoWatchList(SSyncPeer *pPeer, char *name) {
 
   if (*wd >= 0) {
     if (inotify_rm_watch(pPeer->notifyFd, *wd) < 0) {
-      sError("%s, failed to remove wd:%d(%s)", pPeer->id, *wd, strerror(errno));
+      sError("%s, failed to remove wd:%d since %s", pPeer->id, *wd, strerror(errno));
       return -1;
     }
   }
 
   *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_DELETE);
   if (*wd == -1) {
-    sError("%s, failed to add %s(%s)", pPeer->id, name, strerror(errno));
+    sError("%s, failed to add %s since %s", pPeer->id, name, strerror(errno));
     return -1;
   } else {
     sDebug("%s, monitor %s, wd:%d watchNum:%d", pPeer->id, name, *wd, pPeer->watchNum);
@@ -73,7 +73,7 @@ static int32_t syncAreFilesModified(SSyncPeer *pPeer) {
   char    buf[2048];
   int32_t len = read(pPeer->notifyFd, buf, sizeof(buf));
   if (len < 0 && errno != EAGAIN) {
-    sError("%s, failed to read notify FD(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to read notify FD since %s", pPeer->id, strerror(errno));
     return -1;
   }
 
@@ -159,7 +159,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   }
 
   if (code < 0) {
-    sError("%s, failed to retrieve file(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to retrieve file since %s", pPeer->id, strerror(errno));
   }
 
   return code;
@@ -199,7 +199,7 @@ static int32_t syncMonitorLastWal(SSyncPeer *pPeer, char *name) {
   taosClose(pPeer->notifyFd);
   pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
   if (pPeer->notifyFd < 0) {
-    sError("%s, failed to init inotify(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to init inotify since %s", pPeer->id, strerror(errno));
     return -1;
   }
 
@@ -214,7 +214,7 @@ static int32_t syncMonitorLastWal(SSyncPeer *pPeer, char *name) {
 
   *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_CLOSE_WRITE);
   if (*wd == -1) {
-    sError("%s, failed to watch last wal(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to watch last wal since %s", pPeer->id, strerror(errno));
     return -1;
   }
 
@@ -225,7 +225,7 @@ static int32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent) {
   char    buf[2048];
   int32_t len = read(pPeer->notifyFd, buf, sizeof(buf));
   if (len < 0 && errno != EAGAIN) {
-    sError("%s, failed to read notify FD(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to read notify FD since %s", pPeer->id, strerror(errno));
     return -1;
   }
 
@@ -422,7 +422,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
     memset(&walHead, 0, sizeof(walHead));
     code = taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
   } else {
-    sError("%s, failed to send wal(%s)", pPeer->id, strerror(errno));
+    sError("%s, failed to send wal since %s", pPeer->id, strerror(errno));
   }
 
   return code;
