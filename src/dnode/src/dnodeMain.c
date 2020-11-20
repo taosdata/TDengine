@@ -117,7 +117,7 @@ int32_t dnodeInitSystem() {
   signal(SIGPIPE, SIG_IGN);
 
   if (dnodeCreateDir(tsLogDir) < 0) {
-   printf("failed to create log dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+   printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
    return -1;
   }
 
