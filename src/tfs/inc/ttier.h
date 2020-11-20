@@ -34,7 +34,7 @@ typedef struct {
 
 void   tdInitTier(STier *pTier, int level);
 void   tdDestroyTier(STier *pTier);
-SDisk *tdAddDiskToTier(STier *pTier, SDiskCfg *pCfg);
+SDisk *tdMountToTier(STier *pTier, SDiskCfg *pCfg);
 int    tdUpdateTierInfo(STier *pTier);
 
 #ifdef __cplusplus

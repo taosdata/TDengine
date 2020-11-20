@@ -29,7 +29,7 @@ void tdDestroyTier(STier *pTier) {
   pTier->ndisk = 0;
 }
 
-SDisk *tdAddDiskToTier(STier *pTier, SDiskCfg *pCfg) {
+SDisk *tdMountToTier(STier *pTier, SDiskCfg *pCfg) {
   ASSERT(pTier->level == pCfg->level);
   int id = 0;
 

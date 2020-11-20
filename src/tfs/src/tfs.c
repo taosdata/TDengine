@@ -172,7 +172,7 @@ static int tfsMount(SDiskCfg *pCfg) {
   if (tfsCheckAndFormatCfg(pCfg) < 0) return -1;
 
   did.level = pCfg->level;
-  did.id = tdAddDiskToTier(TIER_AT(pCfg->level), pCfg);
+  did.id = tdMountToTier(TIER_AT(pCfg->level), pCfg);
   if (did.id < 0) {
     fError("failed to mount %s to FS since %s", pCfg->dir, tstrerror(terrno));
     return -1;
