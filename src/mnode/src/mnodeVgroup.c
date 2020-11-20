@@ -72,13 +72,13 @@ static void mnodeDestroyVgroup(SVgObj *pVgroup) {
   tfree(pVgroup);
 }
 
-static int32_t mnodeVgroupActionDestroy(SSdbOper *pOper) {
-  mnodeDestroyVgroup(pOper->pObj);
+static int32_t mnodeVgroupActionDestroy(SSdbRow *pRow) {
+  mnodeDestroyVgroup(pRow->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
-  SVgObj *pVgroup = pOper->pObj;
+static int32_t mnodeVgroupActionInsert(SSdbRow *pRow) {
+  SVgObj *pVgroup = pRow->pObj;
 
   // refer to db
   SDbObj *pDb = mnodeGetDb(pVgroup->dbName);
@@ -115,8 +115,8 @@ static int32_t mnodeVgroupActionInsert(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeVgroupActionDelete(SSdbOper *pOper) {
-  SVgObj *pVgroup = pOper->pObj;
+static int32_t mnodeVgroupActionDelete(SSdbRow *pRow) {
+  SVgObj *pVgroup = pRow->pObj;
 
   if (pVgroup->pDb == NULL) {
     mError("vgId:%d, db:%s is not exist while insert into hash", pVgroup->vgId, pVgroup->dbName);
@@ -137,8 +137,8 @@ static int32_t mnodeVgroupActionDelete(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
-  SVgObj *pNew = pOper->pObj;
+static int32_t mnodeVgroupActionUpdate(SSdbRow *pRow) {
+  SVgObj *pNew = pRow->pObj;
   SVgObj *pVgroup = mnodeGetVgroup(pNew->vgId);
 
   if (pVgroup != pNew) {
@@ -176,25 +176,25 @@ static int32_t mnodeVgroupActionUpdate(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeVgroupActionEncode(SSdbOper *pOper) {
-  SVgObj *pVgroup = pOper->pObj;
-  memcpy(pOper->rowData, pVgroup, tsVgUpdateSize);
-  SVgObj *pTmpVgroup = pOper->rowData;
+static int32_t mnodeVgroupActionEncode(SSdbRow *pRow) {
+  SVgObj *pVgroup = pRow->pObj;
+  memcpy(pRow->rowData, pVgroup, tsVgUpdateSize);
+  SVgObj *pTmpVgroup = pRow->rowData;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     pTmpVgroup->vnodeGid[i].pDnode = NULL;
     pTmpVgroup->vnodeGid[i].role = 0;
   }
 
-  pOper->rowSize = tsVgUpdateSize;
+  pRow->rowSize = tsVgUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeVgroupActionDecode(SSdbOper *pOper) {
+static int32_t mnodeVgroupActionDecode(SSdbRow *pRow) {
   SVgObj *pVgroup = (SVgObj *) calloc(1, sizeof(SVgObj));
   if (pVgroup == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pVgroup, pOper->rowData, tsVgUpdateSize);
-  pOper->pObj = pVgroup;
+  memcpy(pVgroup, pRow->rowData, tsVgUpdateSize);
+  pRow->pObj = pVgroup;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -206,23 +206,23 @@ int32_t mnodeInitVgroups() {
   SVgObj tObj;
   tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc tableDesc = {
-    .tableId      = SDB_TABLE_VGROUP,
-    .tableName    = "vgroups",
+  SSdbTableDesc desc = {
+    .id           = SDB_TABLE_VGROUP,
+    .name         = "vgroups",
     .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
     .maxRowSize   = tsVgUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_AUTO,
-    .insertFp     = mnodeVgroupActionInsert,
-    .deleteFp     = mnodeVgroupActionDelete,
-    .updateFp     = mnodeVgroupActionUpdate,
-    .encodeFp     = mnodeVgroupActionEncode,
-    .decodeFp     = mnodeVgroupActionDecode,
-    .destroyFp    = mnodeVgroupActionDestroy,
-    .restoredFp   = mnodeVgroupActionRestored,
+    .fpInsert     = mnodeVgroupActionInsert,
+    .fpDelete     = mnodeVgroupActionDelete,
+    .fpUpdate     = mnodeVgroupActionUpdate,
+    .fpEncode     = mnodeVgroupActionEncode,
+    .fpDecode     = mnodeVgroupActionDecode,
+    .fpDestroy    = mnodeVgroupActionDestroy,
+    .fpRestored   = mnodeVgroupActionRestored,
   };
 
-  tsVgroupSdb = sdbOpenTable(&tableDesc);
+  tsVgroupSdb = sdbOpenTable(&desc);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;
@@ -253,13 +253,13 @@ SVgObj *mnodeGetVgroup(int32_t vgId) {
 }
 
 void mnodeUpdateVgroup(SVgObj *pVgroup) {
-  SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsVgroupSdb,
-    .pObj = pVgroup
+  SSdbRow row = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsVgroupSdb,
+    .pObj   = pVgroup
   };
 
-  int32_t code = sdbUpdateRow(&oper);
+  int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("vgId:%d, failed to update vgroup", pVgroup->vgId);
   }
@@ -519,14 +519,14 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     mError("app:%p:%p, vgId:%d, failed to create in sdb, reason:%s", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
            tstrerror(code));
-    SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
+    SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .pTable = tsVgroupSdb};
     sdbDeleteRow(&desc);
     return code;
   } else {
     mInfo("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
         pDb->name, pVgroup->numOfVnodes);
     pVgroup->status = TAOS_VG_STATUS_READY;
-    SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
+    SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .pTable = tsVgroupSdb};
     (void)sdbUpdateRow(&desc);
 
     dnodeReprocessMWriteMsg(pMsg);
@@ -535,7 +535,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
     //   mInfo("app:%p:%p, vgId:%d, is created in sdb, db:%s replica:%d", pMsg->rpcMsg.ahandle, pMsg, pVgroup->vgId,
     //         pDb->name, pVgroup->numOfVnodes);
     //   pVgroup->status = TAOS_VG_STATUS_READY;
-    //   SSdbOper desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .table = tsVgroupSdb};
+    //   SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .pTable = tsVgroupSdb};
     //   (void)sdbUpdateRow(&desc);
     //   dnodeReprocessMWriteMsg(pMsg);
     //   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -571,16 +571,16 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
   pMsg->pVgroup = pVgroup;
   mnodeIncVgroupRef(pVgroup);
 
-  SSdbOper oper = {
-    .type    = SDB_OPER_GLOBAL,
-    .table   = tsVgroupSdb,
-    .pObj    = pVgroup,
-    .rowSize = sizeof(SVgObj),
-    .pMsg    = pMsg,
-    .reqFp   = mnodeCreateVgroupFp
+  SSdbRow row = {
+    .type     = SDB_OPER_GLOBAL,
+    .pTable   = tsVgroupSdb,
+    .pObj     = pVgroup,
+    .rowSize  = sizeof(SVgObj),
+    .pMsg     = pMsg,
+    .fpReq    = mnodeCreateVgroupFp
   };
 
-  code = sdbInsertRow(&oper);
+  code = sdbInsertRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     pMsg->pVgroup = NULL;
     mnodeDestroyVgroup(pVgroup);
@@ -595,12 +595,12 @@ void mnodeDropVgroup(SVgObj *pVgroup, void *ahandle) {
   } else {
     mDebug("vgId:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
     mnodeSendDropVgroupMsg(pVgroup, NULL);
-    SSdbOper oper = {
-      .type = SDB_OPER_GLOBAL,
-      .table = tsVgroupSdb,
-      .pObj = pVgroup
+    SSdbRow row = {
+      .type   = SDB_OPER_GLOBAL,
+      .pTable = tsVgroupSdb,
+      .pObj   = pVgroup
     };
-    sdbDeleteRow(&oper);
+    sdbDeleteRow(&row);
   }
 }
 
@@ -770,7 +770,7 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
       SDnodeObj * pDnode = pVgroup->vnodeGid[i].pDnode;
       const char *role = "NULL";
       if (pDnode != NULL) {
-        role = mnodeGetMnodeRoleStr(pVgroup->vnodeGid[i].role);
+        role = syncRole[pVgroup->vnodeGid[i].role];
       }
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -957,28 +957,28 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
   if (mnodeMsg->received == mnodeMsg->successed) {
-     SSdbOper oper = {
+     SSdbRow row = {
       .type    = SDB_OPER_GLOBAL,
-      .table   = tsVgroupSdb,
+      .pTable  = tsVgroupSdb,
       .pObj    = pVgroup,
       .rowSize = sizeof(SVgObj),
       .pMsg    = mnodeMsg,
-      .writeCb = mnodeCreateVgroupCb
+      .fpRsp   = mnodeCreateVgroupCb
     };
 
-    int32_t code = sdbInsertRowImp(&oper);
+    int32_t code = sdbInsertRowToQueue(&row);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pVgroup = NULL;
       mnodeDestroyVgroup(pVgroup);
       dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
-    SSdbOper oper = {
-      .type = SDB_OPER_GLOBAL,
-      .table = tsVgroupSdb,
-      .pObj = pVgroup
+    SSdbRow row = {
+      .type   = SDB_OPER_GLOBAL,
+      .pTable = tsVgroupSdb,
+      .pObj   = pVgroup
     };
-    sdbDeleteRow(&oper);
+    sdbDeleteRow(&row);
     dnodeSendRpcMWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }
@@ -1031,12 +1031,12 @@ static void mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
-  SSdbOper oper = {
-    .type = SDB_OPER_GLOBAL,
-    .table = tsVgroupSdb,
-    .pObj = pVgroup
+  SSdbRow row = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsVgroupSdb,
+    .pObj   = pVgroup
   };
-  int32_t code = sdbDeleteRow(&oper);
+  int32_t code = sdbDeleteRow(&row);
   if (code != 0) {
     code = TSDB_CODE_MND_SDB_ERROR;
   }
@@ -1084,12 +1084,12 @@ void mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
 
     if (pVgroup->vnodeGid[0].dnodeId == pDropDnode->dnodeId) {
       mnodeDropAllChildTablesInVgroups(pVgroup);
-      SSdbOper oper = {
-        .type = SDB_OPER_LOCAL,
-        .table = tsVgroupSdb,
-        .pObj = pVgroup,
+      SSdbRow row = {
+        .type   = SDB_OPER_LOCAL,
+        .pTable = tsVgroupSdb,
+        .pObj   = pVgroup,
       };
-      sdbDeleteRow(&oper);
+      sdbDeleteRow(&row);
       numOfVgroups++;
     }
     mnodeDecVgroupRef(pVgroup);
@@ -1135,12 +1135,12 @@ void mnodeDropAllDbVgroups(SDbObj *pDropDb) {
     if (pVgroup == NULL) break;
 
     if (pVgroup->pDb == pDropDb) {
-      SSdbOper oper = {
-        .type = SDB_OPER_LOCAL,
-        .table = tsVgroupSdb,
-        .pObj = pVgroup,
+      SSdbRow row = {
+        .type   = SDB_OPER_LOCAL,
+        .pTable = tsVgroupSdb,
+        .pObj   = pVgroup,
       };
-      sdbDeleteRow(&oper);
+      sdbDeleteRow(&row);
       numOfVgroups++;
     }
 

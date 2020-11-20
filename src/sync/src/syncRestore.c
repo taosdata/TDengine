@@ -140,6 +140,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   if (buffer == NULL) return -1;
 
   SWalHead *pHead = (SWalHead *)buffer;
+  uint64_t lastVer = 0;
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
@@ -153,7 +154,14 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret < 0) break;
 
-    sDebug("%s, restore a record, qtype:wal hver:%" PRIu64, pPeer->id, pHead->version);
+    sDebug("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
+
+    if (lastVer == pHead->version) {
+      sError("%s, failed to restore record, same hver:%" PRIu64 ", wal sync failed" PRIu64, pPeer->id, lastVer);
+      break;
+    }
+    lastVer = pHead->version;
+
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
@@ -214,7 +222,7 @@ int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
     memcpy(pRecv->offset, pHead, len);
     pRecv->offset += len;
     pRecv->forwards++;
-    sDebug("%s, fwd is saved into queue, ver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
+    sDebug("%s, fwd is saved into queue, hver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
   } else {
     sError("%s, buffer size:%d is too small", pPeer->id, pRecv->bufferSize);
     pRecv->code = -1;  // set error code
@@ -291,7 +299,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRestoreData(void *param) {
-  SSyncPeer *pPeer = (SSyncPeer *)param;
+  SSyncPeer *pPeer = param;
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
@@ -300,7 +308,8 @@ void *syncRestoreData(void *param) {
   (*pNode->notifyRole)(pNode->ahandle, TAOS_SYNC_ROLE_SYNCING);
 
   if (syncOpenRecvBuffer(pNode) < 0) {
-    sError("%s, failed to allocate recv buffer", pPeer->id);
+    sError("%s, failed to allocate recv buffer, restart connection", pPeer->id);
+    syncRestartConnection(pPeer);
   } else {
     if (syncRestoreDataStepByStep(pPeer) == 0) {
       sInfo("%s, it is synced successfully", pPeer->id);

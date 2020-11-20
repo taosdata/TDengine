@@ -268,7 +268,7 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
       break;
     }
 
-    sDebug("%s, last wal is forwarded, ver:%" PRIu64, pPeer->id, pHead->version);
+    sDebug("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
     int32_t ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if (ret != wsize) break;
     pPeer->sversion = pHead->version;
@@ -418,7 +418,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   }
 
   if (code == 0) {
-    sDebug("%s, wal retrieve is finished", pPeer->id);
+    sInfo("%s, wal retrieve is finished", pPeer->id);
     pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
     SWalHead walHead;
     memset(&walHead, 0, sizeof(walHead));
@@ -447,7 +447,7 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
 
   pPeer->sversion = 0;
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
-  sDebug("%s, start to retrieve file", pPeer->id);
+  sInfo("%s, start to retrieve file", pPeer->id);
   if (syncRetrieveFile(pPeer) < 0) {
     sError("%s, failed to retrieve file", pPeer->id);
     return -1;
@@ -456,7 +456,7 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
   // if no files are synced, there must be wal to sync, sversion must be larger than one
   if (pPeer->sversion == 0) pPeer->sversion = 1;
 
-  sDebug("%s, start to retrieve wal", pPeer->id);
+  sInfo("%s, start to retrieve wal", pPeer->id);
   if (syncRetrieveWal(pPeer) < 0) {
     sError("%s, failed to retrieve wal", pPeer->id);
     return -1;
@@ -478,7 +478,7 @@ void *syncRetrieveData(void *param) {
     sInfo("%s, sync tcp is setup", pPeer->id);
 
     if (syncRetrieveDataStepByStep(pPeer) == 0) {
-      sDebug("%s, sync retrieve process is successful", pPeer->id);
+      sInfo("%s, sync retrieve process is successful", pPeer->id);
     } else {
       sError("%s, failed to retrieve data, restart connection", pPeer->id);
       syncRestartConnection(pPeer);
