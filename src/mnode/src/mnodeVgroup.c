@@ -966,7 +966,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       .fpRsp   = mnodeCreateVgroupCb
     };
 
-    int32_t code = sdbInsertRowImp(&wmsg);
+    int32_t code = sdbInsertRowToQueue(&wmsg);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pVgroup = NULL;
       mnodeDestroyVgroup(pVgroup);

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "mnode.h"
+#include "twal.h"
 
 struct SSdbTable;
 
@@ -60,6 +61,8 @@ typedef struct SSWriteMsg {
   void *   pRow;
   SMnodeMsg *pMsg;
   struct SSdbTable *pTable;
+  char     reserveForSync[16];
+  SWalHead pHead[];
 } SSWriteMsg;
 
 typedef struct {
@@ -89,7 +92,7 @@ void    sdbUpdateMnodeRoles();
 int32_t sdbInsertRow(SSWriteMsg *pWrite);
 int32_t sdbDeleteRow(SSWriteMsg *pWrite);
 int32_t sdbUpdateRow(SSWriteMsg *pWrite);
-int32_t sdbInsertRowImp(SSWriteMsg *pWrite);
+int32_t sdbInsertRowToQueue(SSWriteMsg *pWrite);
 
 void    *sdbGetRow(void *pTable, void *key);
 void    *sdbFetchRow(void *pTable, void *pIter, void **ppRow);

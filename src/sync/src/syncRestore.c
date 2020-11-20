@@ -156,7 +156,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
 
     sDebug("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
 
-    if (lastVer != 0 && lastVer == pHead->version) {
+    if (lastVer == pHead->version) {
       sError("%s, failed to restore record, same hver:%" PRIu64 ", wal sync failed" PRIu64, pPeer->id, lastVer);
       break;
     }

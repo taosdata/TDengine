@@ -2418,7 +2418,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
       .fpRsp  = mnodeDoCreateChildTableCb
     };
     
-    int32_t code = sdbInsertRowImp(&desc);
+    int32_t code = sdbInsertRowToQueue(&desc);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pTable = NULL;
       mnodeDestroyChildTable(pTable);
