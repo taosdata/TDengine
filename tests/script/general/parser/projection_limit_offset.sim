@@ -28,11 +28,19 @@ sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
 
 $i = 0
-while $i < $tbNum
+$half = $tbNum / 2
+
+while $i < $half
   $tb = $tbPrefix . $i
   $tg2 = ' . abc
   $tg2 = $tg2 . '
+
+  $tbId = $i + $half
+
+  $tb1 = $tbPrefix . $tbId
+
   sql create table $tb using $mt tags( $i , $tg2 )
+  sql create table $tb1 using $mt tags( $i , $tg2 )
 
   $x = 0
   while $x < $rowNum
@@ -49,7 +57,7 @@ while $i < $tbNum
     $nchar = $nchar . $c
     $nchar = $nchar . '
 
-    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $tstart = $tstart + 1
     $x = $x + 1
   endw
