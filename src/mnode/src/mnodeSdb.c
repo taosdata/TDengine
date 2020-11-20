@@ -961,7 +961,7 @@ static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
 
 static void sdbFreeFromQueue(SSdbRow *pRow) {
   int32_t queued = atomic_sub_fetch_32(&tsSdbMgmt.queuedMsg, 1);
-  sdbTrace("vgId:1, msg:%p qtype:%s free from sdb queue, queued:%d", pRow->pMsg, qtypeStr[qtype], queued);
+  sdbTrace("vgId:1, msg:%p free from sdb queue, queued:%d", pRow->pMsg, queued);
 
   sdbDecRef(pRow->pTable, pRow->pObj);
   taosFreeQitem(pRow);
