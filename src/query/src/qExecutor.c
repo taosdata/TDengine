@@ -3342,12 +3342,9 @@ int32_t initResultRow(SResultRow *pResultRow) {
 void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  SResultRow* pRow = NULL;
-//  if (pRuntimeEnv->windowResInfo.size == 0) {
-    int32_t groupIndex = 0;
-    int32_t uid = 0;
-    pRow = doPrepareResultRowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, (char *)&groupIndex, sizeof(groupIndex), true, uid);
-
+  int32_t groupIndex = 0;
+  int32_t uid = 0;
+  SResultRow* pRow = doPrepareResultRowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, (char *)&groupIndex, sizeof(groupIndex), true, uid);
 
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
@@ -5528,7 +5525,7 @@ static void tableIntervalProcessImpl(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start)
       int32_t numOfClosed = numOfClosedTimeWindow(&pRuntimeEnv->windowResInfo);
 
       int32_t c = (int32_t)(MIN(numOfClosed, pQuery->limit.offset));
-      clearFirstNTimeWindow(pRuntimeEnv, c);
+      clearFirstNWindowRes(pRuntimeEnv, c);
       pQuery->limit.offset -= c;
     }
 
@@ -5565,7 +5562,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
       pQuery->rec.rows = 0;
       copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
 
-      clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
+      clearFirstNWindowRes(pRuntimeEnv, pQInfo->groupIndex);
     }
 
     // no result generated, abort
@@ -5602,12 +5599,12 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
 
     if ((pQuery->limit.offset > 0 && pQuery->limit.offset < numOfClosed) || pQuery->limit.offset == 0) {
       // skip offset result rows
-      clearFirstNTimeWindow(pRuntimeEnv, (int32_t) pQuery->limit.offset);
+      clearFirstNWindowRes(pRuntimeEnv, (int32_t) pQuery->limit.offset);
 
       pQuery->rec.rows   = 0;
       pQInfo->groupIndex = 0;
       copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
-      clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
+      clearFirstNWindowRes(pRuntimeEnv, pQInfo->groupIndex);
 
       doSecondaryArithmeticProcess(pQuery);
       limitResults(pRuntimeEnv);
@@ -5641,7 +5638,7 @@ static void tableQueryImpl(SQInfo *pQInfo) {
 
       if (pRuntimeEnv->windowResInfo.size > 0) {
         copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
-        clearFirstNTimeWindow(pRuntimeEnv, pQInfo->groupIndex);
+        clearFirstNWindowRes(pRuntimeEnv, pQInfo->groupIndex);
 
         if (pQuery->rec.rows > 0) {
           qDebug("QInfo:%p %"PRId64" rows returned from group results, total:%"PRId64"", pQInfo, pQuery->rec.rows, pQuery->rec.total);
