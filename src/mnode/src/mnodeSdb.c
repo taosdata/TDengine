@@ -953,7 +953,7 @@ static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
 
   sdbIncRef(pRow->pTable, pRow->pObj);
 
-  sdbTrace("vgId:1, msg:%p write into to sdb queue", pRow->pMsg);
+  sdbTrace("vgId:1, msg:%p qtype:%s write into to sdb queue, queued:%d", pRow->pMsg, qtypeStr[qtype], queued);
   taosWriteQitem(tsSdbWQueue, qtype, pRow);
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -961,7 +961,7 @@ static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
 
 static void sdbFreeFromQueue(SSdbRow *pRow) {
   int32_t queued = atomic_sub_fetch_32(&tsSdbMgmt.queuedMsg, 1);
-  sdbTrace("vgId:1, msg:%p free from sdb queue, queued:%d", pRow->pMsg, queued);
+  sdbTrace("vgId:1, msg:%p qtype:%s free from sdb queue, queued:%d", pRow->pMsg, qtypeStr[qtype], queued);
 
   sdbDecRef(pRow->pTable, pRow->pObj);
   taosFreeQitem(pRow);
@@ -975,6 +975,9 @@ static int32_t sdbWriteWalToQueue(void *vparam, void *wparam, int32_t qtype, voi
   if (pRow == NULL) {
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
+
+  memcpy(pRow->pHead, pHead, sizeof(SWalHead) + pHead->len);
+  pRow->rowData = pRow->pHead->cont;
 
   return sdbWriteToQueue(pRow, qtype);
 }
