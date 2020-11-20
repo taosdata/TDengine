@@ -1454,13 +1454,13 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
     }
   }
 
-  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
   // set the constant column value always attached to first table.
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
   // add the timestamp column into the output columns
+  SColumnIndex index = {0};  // primary timestamp column info
   int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   tscAddSpecialColumnForSelect(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL);
 
@@ -3951,9 +3951,6 @@ static void doExtractExprForSTable(SSqlCmd* pCmd, tSQLExpr** pExpr, SQueryInfo* 
     if (index.tableIndex != tableIndex) {
       return;
     }
-
-    SStrToken t = {0};
-    extractTableNameFromToken(&pLeft->colInfo, &t);
 
     *pOut = *pExpr;
     (*pExpr) = NULL;
