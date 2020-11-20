@@ -32,36 +32,36 @@ static int32_t mnodeCreateCluster();
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int32_t mnodeClusterActionDestroy(SSWriteMsg *pWMsg) {
-  tfree(pWMsg->pRow);
+static int32_t mnodeClusterActionDestroy(SSdbRow *pRow) {
+  tfree(pRow->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionInsert(SSWriteMsg *pWMsg) {
+static int32_t mnodeClusterActionInsert(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDelete(SSWriteMsg *pWMsg) {
+static int32_t mnodeClusterActionDelete(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionUpdate(SSWriteMsg *pWMsg) {
+static int32_t mnodeClusterActionUpdate(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionEncode(SSWriteMsg *pWMsg) {
-  SClusterObj *pCluster = pWMsg->pRow;
-  memcpy(pWMsg->rowData, pCluster, tsClusterUpdateSize);
-  pWMsg->rowSize = tsClusterUpdateSize;
+static int32_t mnodeClusterActionEncode(SSdbRow *pRow) {
+  SClusterObj *pCluster = pRow->pObj;
+  memcpy(pRow->rowData, pCluster, tsClusterUpdateSize);
+  pRow->rowSize = tsClusterUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDecode(SSWriteMsg *pWMsg) {
+static int32_t mnodeClusterActionDecode(SSdbRow *pRow) {
   SClusterObj *pCluster = (SClusterObj *) calloc(1, sizeof(SClusterObj));
   if (pCluster == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pCluster, pWMsg->rowData, tsClusterUpdateSize);
-  pWMsg->pRow = pCluster;
+  memcpy(pCluster, pRow->rowData, tsClusterUpdateSize);
+  pRow->pObj = pCluster;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -145,13 +145,13 @@ static int32_t mnodeCreateCluster() {
     mDebug("uid is %s", pCluster->uid);
   }
 
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsClusterSdb,
-    .pRow   = pCluster,
+    .pObj   = pCluster,
   };
 
-  return sdbInsertRow(&wmsg);
+  return sdbInsertRow(&row);
 }
 
 const char* mnodeGetClusterId() {

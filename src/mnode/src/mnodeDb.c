@@ -56,8 +56,8 @@ static void mnodeDestroyDb(SDbObj *pDb) {
   tfree(pDb);
 }
 
-static int32_t mnodeDbActionDestroy(SSWriteMsg *pWMsg) {
-  mnodeDestroyDb(pWMsg->pRow);
+static int32_t mnodeDbActionDestroy(SSdbRow *pRow) {
+  mnodeDestroyDb(pRow->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -65,8 +65,8 @@ int64_t mnodeGetDbNum() {
   return sdbGetNumOfRows(tsDbSdb);
 }
 
-static int32_t mnodeDbActionInsert(SSWriteMsg *pWMsg) {
-  SDbObj *pDb = pWMsg->pRow;
+static int32_t mnodeDbActionInsert(SSdbRow *pRow) {
+  SDbObj *pDb = pRow->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   pthread_mutex_init(&pDb->mutex, NULL);
@@ -91,8 +91,8 @@ static int32_t mnodeDbActionInsert(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionDelete(SSWriteMsg *pWMsg) {
-  SDbObj *pDb = pWMsg->pRow;
+static int32_t mnodeDbActionDelete(SSdbRow *pRow) {
+  SDbObj *pDb = pRow->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);
 
   mnodeDropAllChildTables(pDb);
@@ -107,11 +107,11 @@ static int32_t mnodeDbActionDelete(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionUpdate(SSWriteMsg *pWMsg) {
-  SDbObj *pNew = pWMsg->pRow;
+static int32_t mnodeDbActionUpdate(SSdbRow *pRow) {
+  SDbObj *pNew = pRow->pObj;
   SDbObj *pDb = mnodeGetDb(pNew->name);
   if (pDb != NULL && pNew != pDb) {
-    memcpy(pDb, pNew, pWMsg->rowSize);
+    memcpy(pDb, pNew, pRow->rowSize);
     free(pNew->vgList);
     free(pNew);
   }
@@ -120,19 +120,19 @@ static int32_t mnodeDbActionUpdate(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionEncode(SSWriteMsg *pWMsg) {
-  SDbObj *pDb = pWMsg->pRow;
-  memcpy(pWMsg->rowData, pDb, tsDbUpdateSize);
-  pWMsg->rowSize = tsDbUpdateSize;
+static int32_t mnodeDbActionEncode(SSdbRow *pRow) {
+  SDbObj *pDb = pRow->pObj;
+  memcpy(pRow->rowData, pDb, tsDbUpdateSize);
+  pRow->rowSize = tsDbUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDbActionDecode(SSWriteMsg *pWMsg) {
+static int32_t mnodeDbActionDecode(SSdbRow *pRow) {
   SDbObj *pDb = (SDbObj *) calloc(1, sizeof(SDbObj));
   if (pDb == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
   
-  memcpy(pDb, pWMsg->rowData, tsDbUpdateSize);
-  pWMsg->pRow = pDb;
+  memcpy(pDb, pRow->rowData, tsDbUpdateSize);
+  pRow->pObj = pDb;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -412,16 +412,16 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
   pMsg->pDb = pDb;
   mnodeIncDbRef(pDb);
 
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type     = SDB_OPER_GLOBAL,
     .pTable   = tsDbSdb,
-    .pRow     = pDb,
+    .pObj     = pDb,
     .rowSize  = sizeof(SDbObj),
     .pMsg     = pMsg,
     .fpRsp    = mnodeCreateDbCb
   };
 
-  code = sdbInsertRow(&wmsg);
+  code = sdbInsertRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to create, reason:%s", pDb->name, tstrerror(code));
     pMsg->pDb = NULL;
@@ -440,8 +440,8 @@ bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
 }
 
 #if 0
-void mnodePrintVgroups(SDbObj *pDb, char *wmsg) {
-  mInfo("db:%s, vgroup link from head, wmsg:%s", pDb->name, wmsg);  
+void mnodePrintVgroups(SDbObj *pDb, char *row) {
+  mInfo("db:%s, vgroup link from head, row:%s", pDb->name, row);  
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
     mInfo("vgId:%d", pVgroup->vgId);
@@ -807,13 +807,13 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
   if (pDb->status) return TSDB_CODE_SUCCESS;
 
   pDb->status = true;
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsDbSdb,
-    .pRow   = pDb
+    .pObj   = pDb
   };
 
-  int32_t code = sdbUpdateRow(&wmsg);
+  int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to set dropping state, reason:%s", pDb->name, tstrerror(code));
   }
@@ -1019,15 +1019,15 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
     pDb->cfgVersion++;
-    SSWriteMsg wmsg = {
+    SSdbRow row = {
       .type    = SDB_OPER_GLOBAL,
       .pTable  = tsDbSdb,
-      .pRow    = pDb,
+      .pObj    = pDb,
       .pMsg    = pMsg,
       .fpRsp   = mnodeAlterDbCb
     };
 
-    code = sdbUpdateRow(&wmsg);
+    code = sdbUpdateRow(&row);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
@@ -1071,15 +1071,15 @@ static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
   mInfo("db:%s, drop db from sdb", pDb->name);
 
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type    = SDB_OPER_GLOBAL,
     .pTable  = tsDbSdb,
-    .pRow    = pDb,
+    .pObj    = pDb,
     .pMsg    = pMsg,
     .fpRsp   = mnodeDropDbCb
   };
 
-  int32_t code = sdbDeleteRow(&wmsg);
+  int32_t code = sdbDeleteRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop, reason:%s", pDb->name, tstrerror(code));
   }
@@ -1134,13 +1134,13 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
 
     if (pDb->pAcct == pAcct) {
       mInfo("db:%s, drop db from sdb for acct:%s is dropped", pDb->name, pAcct->user);
-      SSWriteMsg wmsg = {
+      SSdbRow row = {
         .type   = SDB_OPER_LOCAL,
         .pTable = tsDbSdb,
-        .pRow   = pDb
+        .pObj   = pDb
       };
       
-      sdbDeleteRow(&wmsg);
+      sdbDeleteRow(&row);
       numOfDbs++;
     }
     mnodeDecDbRef(pDb);

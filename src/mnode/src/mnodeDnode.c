@@ -87,13 +87,13 @@ static char* offlineReason[] = {
   "unknown",
 };
 
-static int32_t mnodeDnodeActionDestroy(SSWriteMsg *pWMsg) {
-  tfree(pWMsg->pRow);
+static int32_t mnodeDnodeActionDestroy(SSdbRow *pRow) {
+  tfree(pRow->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionInsert(SSWriteMsg *pWMsg) {
-  SDnodeObj *pDnode = pWMsg->pRow;
+static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
+  SDnodeObj *pDnode = pRow->pObj;
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
     pDnode->lastAccess = tsAccessSquence;
@@ -107,8 +107,8 @@ static int32_t mnodeDnodeActionInsert(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionDelete(SSWriteMsg *pWMsg) {
-  SDnodeObj *pDnode = pWMsg->pRow;
+static int32_t mnodeDnodeActionDelete(SSdbRow *pRow) {
+  SDnodeObj *pDnode = pRow->pObj;
  
 #ifndef _SYNC 
   mnodeDropAllDnodeVgroups(pDnode);
@@ -121,11 +121,11 @@ static int32_t mnodeDnodeActionDelete(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionUpdate(SSWriteMsg *pWMsg) {
-  SDnodeObj *pNew = pWMsg->pRow;
+static int32_t mnodeDnodeActionUpdate(SSdbRow *pRow) {
+  SDnodeObj *pNew = pRow->pObj;
   SDnodeObj *pDnode = mnodeGetDnode(pNew->dnodeId);
   if (pDnode != NULL && pNew != pDnode) {
-    memcpy(pDnode, pNew, pWMsg->rowSize);
+    memcpy(pDnode, pNew, pRow->rowSize);
     free(pNew);
   }
   mnodeDecDnodeRef(pDnode);
@@ -134,19 +134,19 @@ static int32_t mnodeDnodeActionUpdate(SSWriteMsg *pWMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionEncode(SSWriteMsg *pWMsg) {
-  SDnodeObj *pDnode = pWMsg->pRow;
-  memcpy(pWMsg->rowData, pDnode, tsDnodeUpdateSize);
-  pWMsg->rowSize = tsDnodeUpdateSize;
+static int32_t mnodeDnodeActionEncode(SSdbRow *pRow) {
+  SDnodeObj *pDnode = pRow->pObj;
+  memcpy(pRow->rowData, pDnode, tsDnodeUpdateSize);
+  pRow->rowSize = tsDnodeUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionDecode(SSWriteMsg *pWMsg) {
+static int32_t mnodeDnodeActionDecode(SSdbRow *pRow) {
   SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
   if (pDnode == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pDnode, pWMsg->rowData, tsDnodeUpdateSize);
-  pWMsg->pRow = pDnode;
+  memcpy(pDnode, pRow->rowData, tsDnodeUpdateSize);
+  pRow->pObj = pDnode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -296,13 +296,13 @@ void mnodeDecDnodeRef(SDnodeObj *pDnode) {
 }
 
 void mnodeUpdateDnode(SDnodeObj *pDnode) {
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsDnodeSdb,
-    .pRow   = pDnode
+    .pObj   = pDnode
   };
 
-  int32_t code = sdbUpdateRow(&wmsg);
+  int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnodeId:%d, failed update", pDnode->dnodeId);
   }
@@ -644,15 +644,15 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   tstrncpy(pDnode->dnodeEp, ep, TSDB_EP_LEN);
   taosGetFqdnPortFromEp(ep, pDnode->dnodeFqdn, &pDnode->dnodePort);
 
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type    = SDB_OPER_GLOBAL,
     .pTable  = tsDnodeSdb,
-    .pRow    = pDnode,
+    .pObj    = pDnode,
     .rowSize = sizeof(SDnodeObj),
     .pMsg    = pMsg
   };
 
-  int32_t code = sdbInsertRow(&wmsg);
+  int32_t code = sdbInsertRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
@@ -665,14 +665,14 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
 }
 
 int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
-  SSWriteMsg wmsg = {
+  SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsDnodeSdb,
-    .pRow   = pDnode,
+    .pObj   = pDnode,
     .pMsg   = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&wmsg);
+  int32_t code = sdbDeleteRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
   } else {

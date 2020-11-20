@@ -23,8 +23,6 @@ extern "C" {
 #include "mnode.h"
 #include "twal.h"
 
-struct SSdbTable;
-
 typedef enum {
   SDB_TABLE_CLUSTER = 0,
   SDB_TABLE_DNODE   = 1,
@@ -50,20 +48,20 @@ typedef enum {
   SDB_OPER_LOCAL  = 1
 } ESdbOper;
 
-typedef struct SSWriteMsg {
-  ESdbOper type;
-  int32_t  processedCount;  // for sync fwd callback
-  int32_t  code;            // for callback in sdb queue
-  int32_t  rowSize;
-  void *   rowData;
+typedef struct SSdbRow {
+  ESdbOper   type;
+  int32_t    processedCount;  // for sync fwd callback
+  int32_t    code;            // for callback in sdb queue
+  int32_t    rowSize;
+  void *     rowData;
+  void *     pObj;
+  void *     pTable;
+  SMnodeMsg *pMsg;
   int32_t  (*fpReq)(SMnodeMsg *pMsg);
   int32_t  (*fpRsp)(SMnodeMsg *pMsg, int32_t code);
-  void *   pRow;
-  SMnodeMsg *pMsg;
-  struct SSdbTable *pTable;
-  char     reserveForSync[16];
-  SWalHead pHead[];
-} SSWriteMsg;
+  char       reserveForSync[16];
+  SWalHead   pHead[];
+} SSdbRow;
 
 typedef struct {
   char *    name;
@@ -72,12 +70,12 @@ typedef struct {
   int32_t   refCountPos;
   ESdbTable id;
   ESdbKey   keyType;
-  int32_t (*fpInsert)(SSWriteMsg *pWrite);
-  int32_t (*fpDelete)(SSWriteMsg *pWrite);
-  int32_t (*fpUpdate)(SSWriteMsg *pWrite);
-  int32_t (*fpEncode)(SSWriteMsg *pWrite);
-  int32_t (*fpDecode)(SSWriteMsg *pWrite);  
-  int32_t (*fpDestroy)(SSWriteMsg *pWrite);
+  int32_t (*fpInsert)(SSdbRow *pRow);
+  int32_t (*fpDelete)(SSdbRow *pRow);
+  int32_t (*fpUpdate)(SSdbRow *pRow);
+  int32_t (*fpEncode)(SSdbRow *pRow);
+  int32_t (*fpDecode)(SSdbRow *pRow);  
+  int32_t (*fpDestroy)(SSdbRow *pRow);
   int32_t (*fpRestored)();
 } SSdbTableDesc;
 
@@ -89,10 +87,10 @@ bool    sdbIsMaster();
 bool    sdbIsServing();
 void    sdbUpdateMnodeRoles();
 
-int32_t sdbInsertRow(SSWriteMsg *pWrite);
-int32_t sdbDeleteRow(SSWriteMsg *pWrite);
-int32_t sdbUpdateRow(SSWriteMsg *pWrite);
-int32_t sdbInsertRowToQueue(SSWriteMsg *pWrite);
+int32_t sdbInsertRow(SSdbRow *pRow);
+int32_t sdbDeleteRow(SSdbRow *pRow);
+int32_t sdbUpdateRow(SSdbRow *pRow);
+int32_t sdbInsertRowToQueue(SSdbRow *pRow);
 
 void    *sdbGetRow(void *pTable, void *key);
 void    *sdbFetchRow(void *pTable, void *pIter, void **ppRow);
