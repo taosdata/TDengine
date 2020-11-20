@@ -13,21 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TODBC_UTIL_H_
-#define _TODBC_UTIL_H_
+#ifndef _TODBC_FLEX_H_
+#define _TODBC_FLEX_H_
 
-#include "os.h"
+typedef struct conn_val_s              conn_val_t;
+struct conn_val_s {
+    char                *key;
+    char                *dsn;
+    char                *uid;
+    char                *pwd;
+    char                *db;
+    char                *server;
+    char                *svr_enc;
+    char                *cli_enc;
+};
 
-#include <sql.h>
-#include <sqltypes.h>
 
-const char* sql_sql_type(int type);
-const char* sql_c_type(int type);
+void conn_val_reset(conn_val_t *val);
+int todbc_parse_conn_string(const char *conn, conn_val_t *val);
 
-int is_valid_sql_c_type(int type);
-int is_valid_sql_sql_type(int type);
-
-int utf8_chars(const char *src);
-
-#endif // _TODBC_UTIL_H_
+#endif // _TODBC_FLEX_H_
 

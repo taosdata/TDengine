@@ -64,10 +64,18 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0) {
     return;
   }
-  
+
+//  assert(pWindowResInfo->size == 1);
+
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
     SResultRow *pWindowRes = pWindowResInfo->pResult[i];
     clearResultRow(pRuntimeEnv, pWindowRes);
+
+    int32_t groupIndex = 0;
+    int64_t uid = 0;
+
+    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, &groupIndex, sizeof(groupIndex), uid);
+    taosHashRemove(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(sizeof(groupIndex)));
   }
   
   pWindowResInfo->curIndex = -1;
@@ -77,7 +85,7 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
 }
 
-void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
+void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0 || pWindowResInfo->size == 0 || num == 0) {
     return;
@@ -163,7 +171,7 @@ void clearClosedTimeWindow(SQueryRuntimeEnv *pRuntimeEnv) {
   }
   
   int32_t numOfClosed = numOfClosedTimeWindow(pWindowResInfo);
-  clearFirstNTimeWindow(pRuntimeEnv, numOfClosed);
+  clearFirstNWindowRes(pRuntimeEnv, numOfClosed);
 }
 
 int32_t numOfClosedTimeWindow(SWindowResInfo *pWindowResInfo) {

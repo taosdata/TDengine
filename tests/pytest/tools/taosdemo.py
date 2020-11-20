@@ -55,6 +55,12 @@ class TDTestCase:
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
+        tdSql.query("select sum(f1) from test.meters interval(1h) sliding(30m)")
+        tdSql.checkRows(2)
+
+        tdSql.query("select apercentile(f1, 1) from test.meters interval(10s)")
+        tdSql.checkRows(11)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
