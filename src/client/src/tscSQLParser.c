@@ -2432,6 +2432,8 @@ int32_t getTableIndexImpl(SStrToken* pTableToken, SQueryInfo* pQueryInfo, SColum
   if (pTableToken->n == 0) {  // only one table and no table name prefix in column name
     if (pQueryInfo->numOfTables == 1) {
       pIndex->tableIndex = 0;
+    } else {
+      pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
     }
 
     return TSDB_CODE_SUCCESS;
@@ -4604,7 +4606,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
   }
 
   SStrToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
-  SColumnIndex index = {0};
+  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // super table query
     if (getColumnIndexByName(pCmd, &columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
