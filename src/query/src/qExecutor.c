@@ -660,7 +660,13 @@ static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_se
  */
 static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, SWindowResInfo *pWindowResInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  if (pRuntimeEnv->scanFlag != MASTER_SCAN || (!QUERY_IS_INTERVAL_QUERY(pQuery))) {
+  if (pRuntimeEnv->scanFlag != MASTER_SCAN) {
+    return pWindowResInfo->size;
+  }
+
+  // for group by normal column query, close time window and return.
+  if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
+    closeAllTimeWindow(pWindowResInfo);
     return pWindowResInfo->size;
   }
 
@@ -1251,7 +1257,7 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
     return QUERY_IS_ASC_QUERY(pQuery);
   }
 
-  // todo add comments
+  // denote the order type
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
     return pCtx->param[0].i64Key == pQuery->order.order;
   }
@@ -1448,7 +1454,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
 
   // interval query with limit applied
   int32_t numOfRes = 0;
-  if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
     numOfRes = doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo);
   } else {
     numOfRes = (int32_t)getNumOfResult(pRuntimeEnv);
@@ -1621,10 +1627,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   pRuntimeEnv->pCtx = (SQLFunctionCtx *)calloc(pQuery->numOfOutput, sizeof(SQLFunctionCtx));
+  pRuntimeEnv->offset = calloc(pQuery->numOfOutput, sizeof(int16_t));
   pRuntimeEnv->rowCellInfoOffset = calloc(pQuery->numOfOutput, sizeof(int32_t));
-  pRuntimeEnv->pResultRow = getNewResultRow(pRuntimeEnv->pool);
 
-  if (pRuntimeEnv->pResultRow == NULL || pRuntimeEnv->pCtx == NULL || pRuntimeEnv->rowCellInfoOffset == NULL) {
+  if (pRuntimeEnv->offset == NULL || pRuntimeEnv->pCtx == NULL || pRuntimeEnv->rowCellInfoOffset == NULL) {
     goto _clean;
   }
 
@@ -1664,15 +1670,15 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
     assert(isValidDataType(pCtx->inputType));
     pCtx->ptsOutputBuf = NULL;
 
-    pCtx->outputBytes = pQuery->pExpr1[i].bytes;
-    pCtx->outputType = pQuery->pExpr1[i].type;
+    pCtx->outputBytes  = pQuery->pExpr1[i].bytes;
+    pCtx->outputType   = pQuery->pExpr1[i].type;
 
-    pCtx->order = pQuery->order.order;
-    pCtx->functionId = pSqlFuncMsg->functionId;
-    pCtx->stableQuery = pRuntimeEnv->stableQuery;
+    pCtx->order        = pQuery->order.order;
+    pCtx->functionId   = pSqlFuncMsg->functionId;
+    pCtx->stableQuery  = pRuntimeEnv->stableQuery;
     pCtx->interBufBytes = pQuery->pExpr1[i].interBytes;
 
-    pCtx->numOfParams = pSqlFuncMsg->numOfParams;
+    pCtx->numOfParams  = pSqlFuncMsg->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
       int16_t type = pSqlFuncMsg->arg[j].argType;
       int16_t bytes = pSqlFuncMsg->arg[j].argBytes;
@@ -1720,6 +1726,8 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
 
 _clean:
   tfree(pRuntimeEnv->pCtx);
+  tfree(pRuntimeEnv->offset);
+  tfree(pRuntimeEnv->rowCellInfoOffset);
 
   return TSDB_CODE_QRY_OUT_OF_MEMORY;
 }
@@ -1769,6 +1777,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   doFreeQueryHandle(pQInfo);
 
   pRuntimeEnv->pTSBuf = tsBufDestroy(pRuntimeEnv->pTSBuf);
+
+  tfree(pRuntimeEnv->offset);
   tfree(pRuntimeEnv->keyBuf);
   tfree(pRuntimeEnv->rowCellInfoOffset);
 
@@ -2409,7 +2419,7 @@ static void ensureOutputBufferSimple(SQueryRuntimeEnv* pRuntimeEnv, int32_t capa
     assert(bytes > 0 && capacity > 0);
 
     char *tmp = realloc(pQuery->sdata[i], bytes * capacity + sizeof(tFilePage));
-    if (tmp == NULL) {  // todo handle the oom
+    if (tmp == NULL) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     } else {
       pQuery->sdata[i] = (tFilePage *)tmp;
@@ -2440,7 +2450,7 @@ static void ensureOutputBuffer(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pB
         assert(bytes > 0 && newSize > 0);
 
         char *tmp = realloc(pQuery->sdata[i], bytes * newSize + sizeof(tFilePage));
-        if (tmp == NULL) {  // todo handle the oom
+        if (tmp == NULL) {
           longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
         } else {
           memset(tmp + sizeof(tFilePage) + bytes * pRec->rows, 0, (size_t)((newSize - pRec->rows) * bytes));
@@ -3331,7 +3341,13 @@ int32_t initResultRow(SResultRow *pResultRow) {
 
 void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  SResultRow* pRow = pRuntimeEnv->pResultRow;
+
+  SResultRow* pRow = NULL;
+//  if (pRuntimeEnv->windowResInfo.size == 0) {
+    int32_t groupIndex = 0;
+    int32_t uid = 0;
+    pRow = doPrepareResultRowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, (char *)&groupIndex, sizeof(groupIndex), true, uid);
+
 
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
@@ -4613,12 +4629,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
     tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
 
-  // create runtime environment
-  code = setupQueryRuntimeEnv(pRuntimeEnv, pQuery->order.order);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   int32_t ps = DEFAULT_PAGE_SIZE;
   int32_t rowsize = 0;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
@@ -4650,7 +4660,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
         return code;
       }
     }
-  } else if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
+  } else if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery) || (!isSTableQuery)) {
     int32_t numOfResultRows = getInitialPageNum(pQInfo);
     getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
     code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rowsize, ps, TWOMB, pQInfo);
@@ -4669,6 +4679,12 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+  }
+
+  // create runtime environment
+  code = setupQueryRuntimeEnv(pRuntimeEnv, pQuery->order.order);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
