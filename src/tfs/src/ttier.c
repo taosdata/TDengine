@@ -15,6 +15,7 @@
 
 #include "ttier.h"
 #include "tglobal.h"
+#include "taoserror.h"
 
 void tdInitTier(STier *pTier, int level) {
   pTier->level = level;
@@ -23,8 +24,9 @@ void tdInitTier(STier *pTier, int level) {
 void tdDestroyTier(STier *pTier) {
   for (int id = 0; id < TSDB_MAX_DISK_PER_TIER; id++) {
     tdFreeDisk(DISK_AT_TIER(pTier, id));
-    DISK_AT_TIER(pTier, id) = NULL;
+    pTier->disks[id] = NULL;
   }
+  pTier->ndisk = 0;
 }
 
 SDisk *tdAddDiskToTier(STier *pTier, SDiskCfg *pCfg) {
@@ -32,35 +34,29 @@ SDisk *tdAddDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   int id = 0;
 
   if (pTier->ndisk >= TSDB_MAX_DISK_PER_TIER) {
-    terrno = TSDB_CODE_FS_TOO_MANY_DISKS;
+    terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
     return -1;
   }
 
-  if (pCfg->primary) {
-    if (DISK_AT(0, 0) != NULL) {
-      terrno = TSDB_CODE_FS_DUP_PRIMARY;
-      return -1;
+  if (pTier->level == 0) {
+    if (DISK_AT_TIER(pTier, 0) != NULL) {
+      id = pTier->ndisk;
+    } else {
+      id = pTier->ndisk + 1;
+      if (id >= TSDB_MAX_DISK_PER_TIER) {
+        terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
+        return -1;
+      }
     }
   } else {
-    if (pTier->level == 0) {
-      if (DISK_AT_TIER(pTier, 0) != NULL) {
-        id = pTier->ndisk;
-      } else {
-        id = pTier->ndisk + 1;
-        if (id >= TSDB_MAX_DISK_PER_TIER) {
-          terrno = TSDB_CODE_FS_TOO_MANY_DISKS;
-          return -1;
-        }
-      }
-    } else {
-      id = pTier->ndisk;
-    }
+    id = pTier->ndisk;
   }
 
   pTier->disks[id] = tdNewDisk(pCfg->level, id, pCfg->dir);
   if (pTier->disks[id] == NULL) return -1;
+  pTier->ndisk++;
 
-  return 0;
+  return id;
 }
 
 int tdUpdateTierInfo(STier *pTier) {

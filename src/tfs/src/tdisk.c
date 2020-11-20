@@ -14,6 +14,7 @@
  */
 
 #include "tdisk.h"
+#include "taoserror.h"
 
 SDisk *tdNewDisk(int level, int id, char *dir) {
   SDisk *pDisk = (SDisk *)calloc(1, sizeof(*pDisk));

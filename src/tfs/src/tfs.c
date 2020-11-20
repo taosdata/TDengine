@@ -14,17 +14,12 @@
  */
 
 #include "os.h"
-#include "hash.h"
-#include "ttier.h"
-#include "tglobal.h"
-#include "taoserror.h"
 
-#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("FS FATAL ", 255, __VA_ARGS__); }}
-#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("FS ERROR ", 255, __VA_ARGS__); }}
-#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("FS WARN ", 255, __VA_ARGS__); }}
-#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("FS ", 255, __VA_ARGS__); }}
-#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("FS ", cqDebugFlag, __VA_ARGS__); }}
-#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("FS ", cqDebugFlag, __VA_ARGS__); }}
+#include "hash.h"
+#include "taoserror.h"
+#include "tfs.h"
+#include "tglobal.h"
+#include "ttier.h"
 
 #define TSDB_MAX_TIER 3
 
@@ -69,7 +64,7 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   }
 
   for (int idisk = 0; idisk < ndisk; idisk++) {
-    if (tfsAddDisk(pDiskCfg + idisk) < 0) {
+    if (tfsMount(pDiskCfg + idisk) < 0) {
       tfsDestroy();
       return -1;
     }
@@ -106,7 +101,7 @@ int tfsUpdateInfo() {
 }
 
 void tfsPrimaryPath(char *dst) {
-  strncpy(dst, DISK_AT)
+  strncpy(dst, DISK_AT(0, 0)->dir, TSDB_FILENAME_LEN);
 }
 
 int tfsCreateDir(char *name) {
@@ -131,15 +126,22 @@ int tfsCreateDir(char *name) {
   return 0;
 }
 
-static int tfsAddDisk(SDiskCfg *pCfg) {
+static int tfsMount(SDiskCfg *pCfg) {
+  SDiskID did;
+
   if (tfsCheckAndFormatCfg(pCfg) < 0) return -1;
 
-  if (tdAddDiskToTier(pCfg, TIER_AT(pCfg->level)) < 0) {
+  did.level = pCfg->level;
+  did.id = tdAddDiskToTier(TIER_AT(pCfg->level), pCfg);
+  if (did.id < 0) {
     fError("failed to add disk %s to FS since %s", pCfg->dir, tstrerror(terrno));
+    return -1;
   }
 
-  taosHashPut(pTiers->map, (void *)dirName, strnlen(dirName, TSDB_FILENAME_LEN), (void *)(&diskid), sizeof(diskid));
+  taosHashPut(pTiers->map, pCfg->dir, strnlen(pCfg->dir, TSDB_FILENAME_LEN), (void *)(&did), sizeof(did));
   if (pfs->nlevel < pCfg->level + 1) pfs->nlevel = pCfg->level + 1;
+
+  // TODO: update meta info
 
   return 0;
 }
@@ -154,12 +156,19 @@ static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (pCfg->primary && pCfg->level != 0) {
-    fError("failed to add disk %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
-    return -1;
-  }
+  if (pCfg->primary) {
+    if (pCfg->level != 0) {
+      fError("failed to add disk %s to FS since disk is primary but level %d not 0", pCfg->dir, pCfg->level);
+      terrno = TSDB_CODE_FS_INVLD_CFG;
+      return -1;
+    }
 
+    if (DISK_AT(0, 0) != NULL) {
+      fError("failed to add disk %s to FS since duplicate primary mount", pCfg->dir, pCfg->level);
+      terrno = TSDB_CODE_FS_DUP_PRIMARY;
+      return -1;
+    }
+  }
 
   if (tfsFormatDir(pCfg->dir, dirName) < 0) {
     fError("failed to add disk %s to FS since invalid dir format", pCfg->dir);
@@ -167,14 +176,14 @@ static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (tdGetDiskByName(dirName)) {
-    fError("failed to add disk %s to FS since duplicate add", pCfg->dir);
+  if (tfsGetDiskByName(dirName) != NULL) {
+    fError("failed to add disk %s to FS since duplicate mount", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
 
   if (access(dirName, W_OK | R_OK | F_OK) != 0) {
-    fError("failed to add disk %s to FS since no enough access rights", pCfg->dir);
+    fError("failed to add disk %s to FS since no R/W access rights", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
@@ -223,13 +232,14 @@ static int tfsCheck() {
     return -1;
   }
 
-  for (int level = 0; level < pfs->nlevel; level++) {
+  int level = 0;
+  do {
     if (TIER_AT(level)->ndisk == 0) {
       fError("no disk at level %d", level);
-      terrno = TSDB_CODE_FS_NO_DISK_AT_TIER;
+      terrno = TSDB_CODE_FS_NO_MOUNT_AT_TIER;
       return -1;
     }
-  }
+  } while (level < pfs->nlevel);
 
   return 0;
 }
@@ -253,3 +263,8 @@ static tfsUnLock() {
 
   return 0;
 }
+
+static tfsGetDiskByName(char *dirName) {
+}
+
+static SDisk *tfsGetDiskByID(SDiskID did) { return DISK_AT(did.level, did.id); }

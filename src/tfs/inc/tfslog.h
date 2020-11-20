@@ -13,29 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_TTIER_H
-#define TD_TTIER_H
-
-#include "tdisk.h"
+#ifndef TD_TFSLOG_H
+#define TD_TFSLOG_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TSDB_MAX_DISK_PER_TIER 16
-
-typedef struct {
-  int    level;
-  int    ndisk;
-  SDisk *disks[TSDB_MAX_DISK_PER_TIER];
-} STier;
-
-#define DISK_AT_TIER(pTier, id) ((pTier)->disks[id])
-
-void   tdInitTier(STier *pTier, int level);
-void   tdDestroyTier(STier *pTier);
-SDisk *tdAddDiskToTier(STier *pTier, SDiskCfg *pCfg);
-int    tdUpdateTierInfo(STier *pTier);
+#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("FS FATAL ", 255, __VA_ARGS__); }}
+#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("FS ERROR ", 255, __VA_ARGS__); }}
+#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("FS WARN ", 255, __VA_ARGS__); }}
+#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("FS ", 255, __VA_ARGS__); }}
+#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("FS ", cqDebugFlag, __VA_ARGS__); }}
+#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("FS ", cqDebugFlag, __VA_ARGS__); }}
 
 #ifdef __cplusplus
 }

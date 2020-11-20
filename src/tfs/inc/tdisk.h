@@ -16,6 +16,8 @@
 #ifndef TD_TDISK_H
 #define TD_TDISK_H
 
+#include "tfslog.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

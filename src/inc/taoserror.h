@@ -389,6 +389,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_BAD_SEQ,        0, 0x2113, "src bad se
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_INCOMPLETE,     0, 0x2114, "src incomplete")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_GENERAL,        0, 0x2115, "src general")
 
+// tfs
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_OUT_OF_MEMORY,             0, 0x2200, "tfs out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_CFG                  0, 0x2201, "tfs invalid mount config")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_TOO_MANY_MOUNT             0, 0x2202, "tfs too many mount")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_DUP_PRIMARY                0, 0x2203, "tfs duplicate primary mount")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_PRIMARY_DISK            0, 0x2204, "tfs no primary mount")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_MOUNT_AT_TIER           0, 0x2205, "tfs no mount at tier")
+
 
 #ifdef TAOS_ERROR_C
 };
