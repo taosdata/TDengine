@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tglobal.h"
 #include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
@@ -26,34 +25,36 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
+#include "tglobal.h"
+
 void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;
 static int32_t mnodeCreateRootAcct();
 
-static int32_t mnodeAcctActionDestroy(SSdbRow *pRow) {
-  SAcctObj *pAcct = pRow->pObj;
+static int32_t mnodeAcctActionDestroy(SSdbOper *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
   pthread_mutex_destroy(&pAcct->mutex);
-  tfree(pRow->pObj);
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionInsert(SSdbRow *pRow) {
-  SAcctObj *pAcct = pRow->pObj;
+static int32_t mnodeAcctActionInsert(SSdbOper *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
   memset(&pAcct->acctInfo, 0, sizeof(SAcctInfo));
   pAcct->acctInfo.accessState = TSDB_VN_ALL_ACCCESS;
   pthread_mutex_init(&pAcct->mutex, NULL);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionDelete(SSdbRow *pRow) {
-  SAcctObj *pAcct = pRow->pObj;
+static int32_t mnodeAcctActionDelete(SSdbOper *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
   mnodeDropAllUsers(pAcct);
   mnodeDropAllDbs(pAcct);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionUpdate(SSdbRow *pRow) {
-  SAcctObj *pAcct = pRow->pObj;
+static int32_t mnodeAcctActionUpdate(SSdbOper *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
   SAcctObj *pSaved = mnodeGetAcct(pAcct->user);
   if (pAcct != pSaved) {
     memcpy(pSaved, pAcct, tsAcctUpdateSize);
@@ -63,19 +64,19 @@ static int32_t mnodeAcctActionUpdate(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionEncode(SSdbRow *pRow) {
-  SAcctObj *pAcct = pRow->pObj;
-  memcpy(pRow->rowData, pAcct, tsAcctUpdateSize);
-  pRow->rowSize = tsAcctUpdateSize;
+static int32_t mnodeAcctActionEncode(SSdbOper *pOper) {
+  SAcctObj *pAcct = pOper->pObj;
+  memcpy(pOper->rowData, pAcct, tsAcctUpdateSize);
+  pOper->rowSize = tsAcctUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeAcctActionDecode(SSdbRow *pRow) {
+static int32_t mnodeAcctActionDecode(SSdbOper *pOper) {
   SAcctObj *pAcct = (SAcctObj *) calloc(1, sizeof(SAcctObj));
   if (pAcct == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pAcct, pRow->rowData, tsAcctUpdateSize);
-  pRow->pObj = pAcct;
+  memcpy(pAcct, pOper->rowData, tsAcctUpdateSize);
+  pOper->pObj = pAcct;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -98,29 +99,29 @@ int32_t mnodeInitAccts() {
   SAcctObj tObj;
   tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc desc = {
-    .id           = SDB_TABLE_ACCOUNT,
-    .name         = "accounts",
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_ACCOUNT,
+    .tableName    = "accounts",
     .hashSessions = TSDB_DEFAULT_ACCOUNTS_HASH_SIZE,
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
-    .fpInsert     = mnodeAcctActionInsert,
-    .fpDelete     = mnodeAcctActionDelete,
-    .fpUpdate     = mnodeAcctActionUpdate,
-    .fpEncode     = mnodeAcctActionEncode,
-    .fpDecode     = mnodeAcctActionDecode,
-    .fpDestroy    = mnodeAcctActionDestroy,
-    .fpRestored   = mnodeAcctActionRestored
+    .insertFp     = mnodeAcctActionInsert,
+    .deleteFp     = mnodeAcctActionDelete,
+    .updateFp     = mnodeAcctActionUpdate,
+    .encodeFp     = mnodeAcctActionEncode,
+    .decodeFp     = mnodeAcctActionDecode,
+    .destroyFp    = mnodeAcctActionDestroy,
+    .restoredFp   = mnodeAcctActionRestored
   };
 
-  tsAcctSdb = sdbOpenTable(&desc);
+  tsAcctSdb = sdbOpenTable(&tableDesc);
   if (tsAcctSdb == NULL) {
-    mError("table:%s, failed to create hash", desc.name);
+    mError("table:%s, failed to create hash", tableDesc.tableName);
     return -1;
   }
 
-  mDebug("table:%s, hash is created", desc.name);
+  mDebug("table:%s, hash is created", tableDesc.tableName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -225,13 +226,13 @@ static int32_t mnodeCreateRootAcct() {
   pAcct->acctId = sdbGetId(tsAcctSdb);
   pAcct->createdTime = taosGetTimestampMs();
 
-  SSdbRow row = {
-    .type   = SDB_OPER_GLOBAL,
-    .pTable = tsAcctSdb,
-    .pObj   = pAcct,
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsAcctSdb,
+    .pObj = pAcct,
   };
 
-  return sdbInsertRow(&row);
+  return sdbInsertRow(&oper);
 }
 
 #ifndef _ACCT

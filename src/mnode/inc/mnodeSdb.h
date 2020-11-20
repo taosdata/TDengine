@@ -20,8 +20,7 @@
 extern "C" {
 #endif
 
-#include "mnode.h"
-#include "twal.h"
+struct SMnodeMsg;
 
 typedef enum {
   SDB_TABLE_CLUSTER = 0,
@@ -37,46 +36,44 @@ typedef enum {
 } ESdbTable;
 
 typedef enum {
-  SDB_KEY_STRING     = 0, 
-  SDB_KEY_INT        = 1,
-  SDB_KEY_AUTO       = 2,
-  SDB_KEY_VAR_STRING = 3,
+  SDB_KEY_STRING, 
+  SDB_KEY_INT,
+  SDB_KEY_AUTO,
+  SDB_KEY_VAR_STRING,
 } ESdbKey;
 
 typedef enum {
-  SDB_OPER_GLOBAL = 0,
-  SDB_OPER_LOCAL  = 1
+  SDB_OPER_GLOBAL,
+  SDB_OPER_LOCAL
 } ESdbOper;
 
-typedef struct SSdbRow {
-  ESdbOper   type;
-  int32_t    processedCount;  // for sync fwd callback
-  int32_t    code;            // for callback in sdb queue
-  int32_t    rowSize;
-  void *     rowData;
-  void *     pObj;
-  void *     pTable;
-  SMnodeMsg *pMsg;
-  int32_t  (*fpReq)(SMnodeMsg *pMsg);
-  int32_t  (*fpRsp)(SMnodeMsg *pMsg, int32_t code);
-  char       reserveForSync[16];
-  SWalHead   pHead[];
-} SSdbRow;
+typedef struct SSdbOper {
+  ESdbOper type;
+  int32_t  rowSize;
+  int32_t  retCode; // for callback in sdb queue
+  int32_t  processedCount; // for sync fwd callback
+  int32_t  (*reqFp)(struct SMnodeMsg *pMsg);
+  int32_t  (*writeCb)(struct SMnodeMsg *pMsg, int32_t code);
+  void *   table;
+  void *   pObj;
+  void *   rowData;
+  struct SMnodeMsg *pMsg;
+} SSdbOper;
 
 typedef struct {
-  char *    name;
-  int32_t   hashSessions;
-  int32_t   maxRowSize;
-  int32_t   refCountPos;
-  ESdbTable id;
+  char   *tableName;
+  int32_t hashSessions;
+  int32_t maxRowSize;
+  int32_t refCountPos;
+  ESdbTable tableId;
   ESdbKey   keyType;
-  int32_t (*fpInsert)(SSdbRow *pRow);
-  int32_t (*fpDelete)(SSdbRow *pRow);
-  int32_t (*fpUpdate)(SSdbRow *pRow);
-  int32_t (*fpEncode)(SSdbRow *pRow);
-  int32_t (*fpDecode)(SSdbRow *pRow);  
-  int32_t (*fpDestroy)(SSdbRow *pRow);
-  int32_t (*fpRestored)();
+  int32_t (*insertFp)(SSdbOper *pOper);
+  int32_t (*deleteFp)(SSdbOper *pOper);
+  int32_t (*updateFp)(SSdbOper *pOper);
+  int32_t (*encodeFp)(SSdbOper *pOper);
+  int32_t (*decodeFp)(SSdbOper *pDesc);  
+  int32_t (*destroyFp)(SSdbOper *pDesc);
+  int32_t (*restoredFp)();
 } SSdbTableDesc;
 
 int32_t sdbInit();
@@ -87,20 +84,20 @@ bool    sdbIsMaster();
 bool    sdbIsServing();
 void    sdbUpdateMnodeRoles();
 
-int32_t sdbInsertRow(SSdbRow *pRow);
-int32_t sdbDeleteRow(SSdbRow *pRow);
-int32_t sdbUpdateRow(SSdbRow *pRow);
-int32_t sdbInsertRowToQueue(SSdbRow *pRow);
+int32_t sdbInsertRow(SSdbOper *pOper);
+int32_t sdbDeleteRow(SSdbOper *pOper);
+int32_t sdbUpdateRow(SSdbOper *pOper);
+int32_t sdbInsertRowImp(SSdbOper *pOper);
 
-void    *sdbGetRow(void *pTable, void *key);
-void    *sdbFetchRow(void *pTable, void *pIter, void **ppRow);
+void    *sdbGetRow(void *handle, void *key);
+void    *sdbFetchRow(void *handle, void *pIter, void **ppRow);
 void     sdbFreeIter(void *pIter);
-void     sdbIncRef(void *pTable, void *pRow);
-void     sdbDecRef(void *pTable, void *pRow);
-int64_t  sdbGetNumOfRows(void *pTable);
-int32_t  sdbGetId(void *pTable);
+void     sdbIncRef(void *thandle, void *pRow);
+void     sdbDecRef(void *thandle, void *pRow);
+int64_t  sdbGetNumOfRows(void *handle);
+int32_t  sdbGetId(void *handle);
 uint64_t sdbGetVersion();
-bool     sdbCheckRowDeleted(void *pTable, void *pRow);
+bool     sdbCheckRowDeleted(void *thandle, void *pRow);
 
 #ifdef __cplusplus
 }

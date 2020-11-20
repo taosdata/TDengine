@@ -32,36 +32,36 @@ static int32_t mnodeCreateCluster();
 static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static int32_t mnodeClusterActionDestroy(SSdbRow *pRow) {
-  tfree(pRow->pObj);
+static int32_t mnodeClusterActionDestroy(SSdbOper *pOper) {
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionInsert(SSdbRow *pRow) {
+static int32_t mnodeClusterActionInsert(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDelete(SSdbRow *pRow) {
+static int32_t mnodeClusterActionDelete(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionUpdate(SSdbRow *pRow) {
+static int32_t mnodeClusterActionUpdate(SSdbOper *pOper) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionEncode(SSdbRow *pRow) {
-  SClusterObj *pCluster = pRow->pObj;
-  memcpy(pRow->rowData, pCluster, tsClusterUpdateSize);
-  pRow->rowSize = tsClusterUpdateSize;
+static int32_t mnodeClusterActionEncode(SSdbOper *pOper) {
+  SClusterObj *pCluster = pOper->pObj;
+  memcpy(pOper->rowData, pCluster, tsClusterUpdateSize);
+  pOper->rowSize = tsClusterUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeClusterActionDecode(SSdbRow *pRow) {
+static int32_t mnodeClusterActionDecode(SSdbOper *pOper) {
   SClusterObj *pCluster = (SClusterObj *) calloc(1, sizeof(SClusterObj));
   if (pCluster == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pCluster, pRow->rowData, tsClusterUpdateSize);
-  pRow->pObj = pCluster;
+  memcpy(pCluster, pOper->rowData, tsClusterUpdateSize);
+  pOper->pObj = pCluster;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -84,32 +84,32 @@ int32_t mnodeInitCluster() {
   SClusterObj tObj;
   tsClusterUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  SSdbTableDesc desc = {
-    .id           = SDB_TABLE_CLUSTER,
-    .name         = "cluster",
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_CLUSTER,
+    .tableName    = "cluster",
     .hashSessions = TSDB_DEFAULT_CLUSTER_HASH_SIZE,
     .maxRowSize   = tsClusterUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_STRING,
-    .fpInsert     = mnodeClusterActionInsert,
-    .fpDelete     = mnodeClusterActionDelete,
-    .fpUpdate     = mnodeClusterActionUpdate,
-    .fpEncode     = mnodeClusterActionEncode,
-    .fpDecode     = mnodeClusterActionDecode,
-    .fpDestroy    = mnodeClusterActionDestroy,
-    .fpRestored   = mnodeClusterActionRestored
+    .insertFp     = mnodeClusterActionInsert,
+    .deleteFp     = mnodeClusterActionDelete,
+    .updateFp     = mnodeClusterActionUpdate,
+    .encodeFp     = mnodeClusterActionEncode,
+    .decodeFp     = mnodeClusterActionDecode,
+    .destroyFp    = mnodeClusterActionDestroy,
+    .restoredFp   = mnodeClusterActionRestored
   };
 
-  tsClusterSdb = sdbOpenTable(&desc);
+  tsClusterSdb = sdbOpenTable(&tableDesc);
   if (tsClusterSdb == NULL) {
-    mError("table:%s, failed to create hash", desc.name);
+    mError("table:%s, failed to create hash", tableDesc.tableName);
     return -1;
   }
 
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeGetClusterMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeRetrieveClusters);
 
-  mDebug("table:%s, hash is created", desc.name);
+  mDebug("table:%s, hash is created", tableDesc.tableName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -145,13 +145,13 @@ static int32_t mnodeCreateCluster() {
     mDebug("uid is %s", pCluster->uid);
   }
 
-  SSdbRow row = {
-    .type   = SDB_OPER_GLOBAL,
-    .pTable = tsClusterSdb,
-    .pObj   = pCluster,
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsClusterSdb,
+    .pObj = pCluster,
   };
 
-  return sdbInsertRow(&row);
+  return sdbInsertRow(&oper);
 }
 
 const char* mnodeGetClusterId() {

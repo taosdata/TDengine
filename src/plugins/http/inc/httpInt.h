@@ -118,7 +118,7 @@ typedef struct {
 
 typedef struct {
   char *module;
-  bool (*fpDecode)(struct HttpContext *pContext);
+  bool (*decodeFp)(struct HttpContext *pContext);
 } HttpDecodeMethod;
 
 typedef struct {

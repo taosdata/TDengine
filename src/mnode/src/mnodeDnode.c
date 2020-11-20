@@ -87,13 +87,13 @@ static char* offlineReason[] = {
   "unknown",
 };
 
-static int32_t mnodeDnodeActionDestroy(SSdbRow *pRow) {
-  tfree(pRow->pObj);
+static int32_t mnodeDnodeActionDestroy(SSdbOper *pOper) {
+  tfree(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
-  SDnodeObj *pDnode = pRow->pObj;
+static int32_t mnodeDnodeActionInsert(SSdbOper *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
   if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
     pDnode->status = TAOS_DN_STATUS_OFFLINE;
     pDnode->lastAccess = tsAccessSquence;
@@ -107,8 +107,8 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionDelete(SSdbRow *pRow) {
-  SDnodeObj *pDnode = pRow->pObj;
+static int32_t mnodeDnodeActionDelete(SSdbOper *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
  
 #ifndef _SYNC 
   mnodeDropAllDnodeVgroups(pDnode);
@@ -121,11 +121,11 @@ static int32_t mnodeDnodeActionDelete(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionUpdate(SSdbRow *pRow) {
-  SDnodeObj *pNew = pRow->pObj;
+static int32_t mnodeDnodeActionUpdate(SSdbOper *pOper) {
+  SDnodeObj *pNew = pOper->pObj;
   SDnodeObj *pDnode = mnodeGetDnode(pNew->dnodeId);
   if (pDnode != NULL && pNew != pDnode) {
-    memcpy(pDnode, pNew, pRow->rowSize);
+    memcpy(pDnode, pNew, pOper->rowSize);
     free(pNew);
   }
   mnodeDecDnodeRef(pDnode);
@@ -134,19 +134,19 @@ static int32_t mnodeDnodeActionUpdate(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionEncode(SSdbRow *pRow) {
-  SDnodeObj *pDnode = pRow->pObj;
-  memcpy(pRow->rowData, pDnode, tsDnodeUpdateSize);
-  pRow->rowSize = tsDnodeUpdateSize;
+static int32_t mnodeDnodeActionEncode(SSdbOper *pOper) {
+  SDnodeObj *pDnode = pOper->pObj;
+  memcpy(pOper->rowData, pDnode, tsDnodeUpdateSize);
+  pOper->rowSize = tsDnodeUpdateSize;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mnodeDnodeActionDecode(SSdbRow *pRow) {
+static int32_t mnodeDnodeActionDecode(SSdbOper *pOper) {
   SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
   if (pDnode == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pDnode, pRow->rowData, tsDnodeUpdateSize);
-  pRow->pObj = pDnode;
+  memcpy(pDnode, pOper->rowData, tsDnodeUpdateSize);
+  pOper->pObj = pDnode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -171,23 +171,23 @@ int32_t mnodeInitDnodes() {
   tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
   pthread_mutex_init(&tsDnodeEpsMutex, NULL);
 
-  SSdbTableDesc desc = {
-    .id           = SDB_TABLE_DNODE,
-    .name         = "dnodes",
+  SSdbTableDesc tableDesc = {
+    .tableId      = SDB_TABLE_DNODE,
+    .tableName    = "dnodes",
     .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
     .maxRowSize   = tsDnodeUpdateSize,
     .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
     .keyType      = SDB_KEY_AUTO,
-    .fpInsert     = mnodeDnodeActionInsert,
-    .fpDelete     = mnodeDnodeActionDelete,
-    .fpUpdate     = mnodeDnodeActionUpdate,
-    .fpEncode     = mnodeDnodeActionEncode,
-    .fpDecode     = mnodeDnodeActionDecode,
-    .fpDestroy    = mnodeDnodeActionDestroy,
-    .fpRestored   = mnodeDnodeActionRestored
+    .insertFp     = mnodeDnodeActionInsert,
+    .deleteFp     = mnodeDnodeActionDelete,
+    .updateFp     = mnodeDnodeActionUpdate,
+    .encodeFp     = mnodeDnodeActionEncode,
+    .decodeFp     = mnodeDnodeActionDecode,
+    .destroyFp    = mnodeDnodeActionDestroy,
+    .restoredFp   = mnodeDnodeActionRestored
   };
 
-  tsDnodeSdb = sdbOpenTable(&desc);
+  tsDnodeSdb = sdbOpenTable(&tableDesc);
   if (tsDnodeSdb == NULL) {
     mError("failed to init dnodes data");
     return -1;
@@ -296,13 +296,13 @@ void mnodeDecDnodeRef(SDnodeObj *pDnode) {
 }
 
 void mnodeUpdateDnode(SDnodeObj *pDnode) {
-  SSdbRow row = {
-    .type   = SDB_OPER_GLOBAL,
-    .pTable = tsDnodeSdb,
-    .pObj   = pDnode
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode
   };
 
-  int32_t code = sdbUpdateRow(&row);
+  int32_t code = sdbUpdateRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnodeId:%d, failed update", pDnode->dnodeId);
   }
@@ -644,15 +644,15 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
   tstrncpy(pDnode->dnodeEp, ep, TSDB_EP_LEN);
   taosGetFqdnPortFromEp(ep, pDnode->dnodeFqdn, &pDnode->dnodePort);
 
-  SSdbRow row = {
-    .type    = SDB_OPER_GLOBAL,
-    .pTable  = tsDnodeSdb,
-    .pObj    = pDnode,
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode,
     .rowSize = sizeof(SDnodeObj),
-    .pMsg    = pMsg
+    .pMsg = pMsg
   };
 
-  int32_t code = sdbInsertRow(&row);
+  int32_t code = sdbInsertRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     int dnodeId = pDnode->dnodeId;
     tfree(pDnode);
@@ -665,14 +665,14 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
 }
 
 int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
-  SSdbRow row = {
-    .type   = SDB_OPER_GLOBAL,
-    .pTable = tsDnodeSdb,
-    .pObj   = pDnode,
-    .pMsg   = pMsg
+  SSdbOper oper = {
+    .type = SDB_OPER_GLOBAL,
+    .table = tsDnodeSdb,
+    .pObj = pDnode,
+    .pMsg = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&row);
+  int32_t code = sdbDeleteRow(&oper);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop from cluster, result:%s", pDnode->dnodeId, tstrerror(code));
   } else {
@@ -1141,7 +1141,7 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           cols++;
 
           pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-          strcpy(pWrite, syncRole[pVgid->role]);
+          strcpy(pWrite, mnodeGetMnodeRoleStr(pVgid->role));
           cols++;
         }
       }

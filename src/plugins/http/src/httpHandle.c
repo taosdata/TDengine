@@ -21,11 +21,11 @@
 #include "httpHandle.h"
 
 bool httpDecodeRequest(HttpContext* pContext) {
-  if (pContext->decodeMethod->fpDecode == NULL) {
+  if (pContext->decodeMethod->decodeFp == NULL) {
     return false;
   }
 
-  return (*pContext->decodeMethod->fpDecode)(pContext);
+  return (*pContext->decodeMethod->decodeFp)(pContext);
 }
 
 /**
