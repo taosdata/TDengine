@@ -1,4 +1,3 @@
-sleep 500
 run general/parser/alter.sim
 sleep 500
 run general/parser/alter1.sim
