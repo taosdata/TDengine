@@ -109,6 +109,7 @@ static SSdbWorkerPool tsSdbPool;
 static int32_t sdbProcessWrite(void *pRow, void *pHead, int32_t qtype, void *unused);
 static int32_t sdbWriteWalToQueue(void *vparam, void *pHead, int32_t qtype, void *rparam);
 static int32_t sdbWriteRowToQueue(SSdbRow *pRow, int32_t action);
+static void    sdbFreeFromQueue(SSdbRow *pRow);
 static void *  sdbWorkerFp(void *pWorker);
 static int32_t sdbInitWorker();
 static void    sdbCleanupWorker();
@@ -284,6 +285,7 @@ static void sdbConfirmForward(void *ahandle, void *wparam, int32_t code) {
   }
 
   dnodeSendRpcMWriteRsp(pMsg, pRow->code);
+  sdbFreeFromQueue(pRow);
 }
 
 static void sdbUpdateSyncTmrFp(void *param, void *tmrId) { sdbUpdateSync(NULL); }
@@ -1035,12 +1037,12 @@ static void *sdbWorkerFp(void *pWorker) {
 
       if (qtype == TAOS_QTYPE_RPC) {
         sdbConfirmForward(NULL, pRow, pRow->code);
-      } else if (qtype == TAOS_QTYPE_FWD) {
-        syncConfirmForward(tsSdbMgmt.sync, pRow->pHead->version, pRow->code);
       } else {
+        if (qtype == TAOS_QTYPE_FWD) {
+          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead->version, pRow->code);
+        }
+        sdbFreeFromQueue(pRow);
       }
-
-      sdbFreeFromQueue(pRow);
     }
   }
 
