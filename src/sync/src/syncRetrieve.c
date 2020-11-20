@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <stdbool.h>
+#define _DEFAULT_SOURCE
 #include <sys/inotify.h>
-#include <unistd.h>
 #include "os.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -268,7 +266,7 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
       break;
     }
 
-    sDebug("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
+    sTrace("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
     int32_t ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if (ret != wsize) break;
     pPeer->sversion = pHead->version;

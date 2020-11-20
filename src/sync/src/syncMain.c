@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include <stdint.h>
-//#include <stdbool.h>
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "hash.h"
 #include "tlog.h"
@@ -392,7 +391,7 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {
     int32_t retLen = taosWriteMsg(pPeer->peerFd, msg, msgLen);
 
     if (retLen == msgLen) {
-      sDebug("%s, forward-rsp is sent, code:%x hver:%" PRIu64, pPeer->id, code, version);
+      sTrace("%s, forward-rsp is sent, code:%x hver:%" PRIu64, pPeer->id, code, version);
     } else {
       sDebug("%s, failed to send forward ack, restart", pPeer->id);
       syncRestartConnection(pPeer);
@@ -891,7 +890,7 @@ static void syncProcessFwdResponse(char *cont, SSyncPeer *pPeer) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   SFwdInfo * pFwdInfo;
 
-  sDebug("%s, forward-rsp is received, code:%x hver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
+  sTrace("%s, forward-rsp is received, code:%x hver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
   if (pFirst->version <= pFwdRsp->version && pSyncFwds->fwds > 0) {
@@ -910,7 +909,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SWalHead * pHead = (SWalHead *)cont;
 
-  sDebug("%s, forward is received, hver:%" PRIu64 ", len:%d", pPeer->id, pHead->version, pHead->len);
+  sTrace("%s, forward is received, hver:%" PRIu64 ", len:%d", pPeer->id, pHead->version, pHead->len);
 
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     // nodeVersion = pHead->version;
@@ -1191,7 +1190,7 @@ static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
-  sDebug("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
+  sTrace("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
 }
 
 static void syncRemoveConfirmedFwdInfo(SSyncNode *pNode) {
@@ -1228,7 +1227,7 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
   }
 
   if (confirm && pFwdInfo->confirmed == 0) {
-    sDebug("vgId:%d, forward is confirmed, hver:%" PRIu64 " code:%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
+    sTrace("vgId:%d, forward is confirmed, hver:%" PRIu64 " code:%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
     (*pNode->confirmForward)(pNode->ahandle, pFwdInfo->mhandle, pFwdInfo->code);
     pFwdInfo->confirmed = 1;
   }
@@ -1335,7 +1334,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     int32_t retLen = write(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
-      sDebug("%s, forward is sent, hver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
+      sTrace("%s, forward is sent, hver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
     } else {
       sError("%s, failed to forward, hver:%" PRIu64 " retLen:%d", pPeer->id, pWalHead->version, retLen);
       syncRestartConnection(pPeer);

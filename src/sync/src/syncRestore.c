@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -154,7 +155,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret < 0) break;
 
-    sDebug("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
+    sTrace("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
 
     if (lastVer == pHead->version) {
       sError("%s, failed to restore record, same hver:%" PRIu64 ", wal sync failed" PRIu64, pPeer->id, lastVer);
@@ -222,7 +223,7 @@ int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
     memcpy(pRecv->offset, pHead, len);
     pRecv->offset += len;
     pRecv->forwards++;
-    sDebug("%s, fwd is saved into queue, hver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
+    sTrace("%s, fwd is saved into queue, hver:%" PRIu64 " fwds:%d", pPeer->id, pHead->version, pRecv->forwards);
   } else {
     sError("%s, buffer size:%d is too small", pPeer->id, pRecv->bufferSize);
     pRecv->code = -1;  // set error code
