@@ -16,22 +16,15 @@
 #define TAOS_RANDOM_FILE_FAIL_TEST
 #include <regex.h>
 #include "os.h"
-#include "tglobal.h"
 #include "talgo.h"
 #include "tchecksum.h"
 #include "tsdbMain.h"
 #include "tutil.h"
+#include "tfs.h"
 
-const char *       tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
-static void      tsdbDestroyFile(SFile *pFile);
-static int       compFGroup(const void *arg1, const void *arg2);
-static int       keyFGroupCompFunc(const void *key, const void *fgroup);
-static int       tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk);
-static SHashObj *tsdbGetAllFids(STsdbRepo *pRepo, char *dirName);
-static int       tsdbRestoreFileGroup(STsdbRepo *pRepo, SDisk *pDisk, int fid, SFileGroup *pFileGroup);
-static int       tsdbGetFidLevel(int fid, SFidGroup *pFidGroup);
-static int       tsdbCreateVnodeDataDir(char *baseDir, int vid);
+const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
+
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -74,22 +67,6 @@ void tsdbFreeFileH(STsdbFileH *pFileH) {
 int tsdbOpenFileH(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
   char dataDir[TSDB_FILENAME_LEN] = "\0";
-
-  for (int level = 0; level < tsDnodeTier->nTiers; level++) {
-    STier *pTier = tsDnodeTier->tiers + level;
-    for (int did = 0; did < pTier->nDisks; did++) {
-      SDisk *pDisk = pTier->disks[did];
-
-      tdGetTsdbDataDir(pDisk->dir, REPO_ID(pRepo), dataDir);
-      
-      if (access(dataDir, F_OK) != 0) {
-        // Skip those disks without data
-        continue;
-      }
-
-      tsdbLoadFilesFromDisk(pRepo, pDisk);
-    }
-  }
 
   return 0;
 }
@@ -521,254 +498,254 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
   }
 }
 
-static int tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk) {
-  char                  tsdbDataDir[TSDB_FILENAME_LEN] = "\0";
-  char                  tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
-  char                  fname[TSDB_FILENAME_LEN] = "\0";
-  SHashObj *            pFids = NULL;
-  SHashMutableIterator *pIter = NULL;
-  STsdbFileH *          pFileH = pRepo->tsdbFileH;
-  SFileGroup            fgroup = {0};
-  STsdbCfg *            pCfg = &(pRepo->config);
-  SFidGroup             fidGroup = {0};
-  int                   mfid = 0;
+// static int tsdbLoadFilesFromDisk(STsdbRepo *pRepo, SDisk *pDisk) {
+//   char                  tsdbDataDir[TSDB_FILENAME_LEN] = "\0";
+//   char                  tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
+//   char                  fname[TSDB_FILENAME_LEN] = "\0";
+//   SHashObj *            pFids = NULL;
+//   SHashMutableIterator *pIter = NULL;
+//   STsdbFileH *          pFileH = pRepo->tsdbFileH;
+//   SFileGroup            fgroup = {0};
+//   STsdbCfg *            pCfg = &(pRepo->config);
+//   SFidGroup             fidGroup = {0};
+//   int                   mfid = 0;
 
-  tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
-  tdGetTsdbDataDir(pDisk->dir, REPO_ID(pRepo), tsdbDataDir);
+//   tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
+//   tdGetTsdbDataDir(pDisk->dir, REPO_ID(pRepo), tsdbDataDir);
 
-  pFids = tsdbGetAllFids(pRepo, tsdbDataDir);
-  if (pFids == NULL) {
-    goto _err;
-  }
+//   pFids = tsdbGetAllFids(pRepo, tsdbDataDir);
+//   if (pFids == NULL) {
+//     goto _err;
+//   }
 
-  pIter = taosHashCreateIter(pFids);
-  if (pIter == NULL) {
-    goto _err;
-  }
+//   pIter = taosHashCreateIter(pFids);
+//   if (pIter == NULL) {
+//     goto _err;
+//   }
 
-  tsdbGetFidGroup(pCfg, &fidGroup);
-  mfid = fidGroup.minFid;
+//   tsdbGetFidGroup(pCfg, &fidGroup);
+//   mfid = fidGroup.minFid;
 
-  while (taosHashIterNext(pIter)) {
-    int32_t fid = *(int32_t *)taosHashIterGet(pIter);
+//   while (taosHashIterNext(pIter)) {
+//     int32_t fid = *(int32_t *)taosHashIterGet(pIter);
 
-    if (fid < mfid) {
-      for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-        tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, type, fname);
-        (void)remove(fname);
-      }
+//     if (fid < mfid) {
+//       for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+//         tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, type, fname);
+//         (void)remove(fname);
+//       }
 
-      tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NHEAD, fname);
-      (void)remove(fname);
+//       tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NHEAD, fname);
+//       (void)remove(fname);
 
-      tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NLAST, fname);
-      (void)remove(fname);
+//       tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NLAST, fname);
+//       (void)remove(fname);
 
-      continue;
-    }
+//       continue;
+//     }
 
-    tsdbRestoreFileGroup(pRepo, pDisk, fid, &fgroup);
-    pFileH->pFGroup[pFileH->nFGroups++] = fgroup;
-    qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(fgroup), compFGroup);
+//     tsdbRestoreFileGroup(pRepo, pDisk, fid, &fgroup);
+//     pFileH->pFGroup[pFileH->nFGroups++] = fgroup;
+//     qsort((void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(fgroup), compFGroup);
 
-    // TODO
-    pDisk->dmeta.nfiles++;
-  }
+//     // TODO
+//     pDisk->dmeta.nfiles++;
+//   }
 
-  taosHashDestroyIter(pIter);
-  taosHashCleanup(pFids);
-  return 0;
+//   taosHashDestroyIter(pIter);
+//   taosHashCleanup(pFids);
+//   return 0;
 
-_err:
-  taosHashDestroyIter(pIter);
-  taosHashCleanup(pFids);
-  return -1;
-}
+// _err:
+//   taosHashDestroyIter(pIter);
+//   taosHashCleanup(pFids);
+//   return -1;
+// }
 
-static int tsdbRestoreFileGroup(STsdbRepo *pRepo, SDisk *pDisk, int fid, SFileGroup *pFileGroup) {
-  char tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
-  char nheadF[TSDB_FILENAME_LEN] = "\0";
-  char nlastF[TSDB_FILENAME_LEN] = "\0";
-  bool newHeadExists = false;
-  bool newLastExists = false;
+// static int tsdbRestoreFileGroup(STsdbRepo *pRepo, SDisk *pDisk, int fid, SFileGroup *pFileGroup) {
+//   char tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
+//   char nheadF[TSDB_FILENAME_LEN] = "\0";
+//   char nlastF[TSDB_FILENAME_LEN] = "\0";
+//   bool newHeadExists = false;
+//   bool newLastExists = false;
 
-  uint32_t version = 0;
+//   uint32_t version = 0;
 
-  terrno = TSDB_CODE_SUCCESS;
+//   terrno = TSDB_CODE_SUCCESS;
 
-  memset((void *)pFileGroup, 0, sizeof(*pFileGroup));
-  pFileGroup->fileId = fid;
-  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-    SFile *pFile = pFileGroup->files + type;
-    pFile->fd = -1;
-  }
+//   memset((void *)pFileGroup, 0, sizeof(*pFileGroup));
+//   pFileGroup->fileId = fid;
+//   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+//     SFile *pFile = pFileGroup->files + type;
+//     pFile->fd = -1;
+//   }
 
-  tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
-  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-    SFile *pFile = pFileGroup->files + type;
-    tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_HEAD, pFile->fname);
-    if (access(pFile->fname, F_OK) != 0) {
-      memset(&(pFile->info), 0, sizeof(pFile->info));
-      pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-      pFileGroup->state = 1;
-      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    }
-  }
+//   tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
+//   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+//     SFile *pFile = pFileGroup->files + type;
+//     tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_HEAD, pFile->fname);
+//     if (access(pFile->fname, F_OK) != 0) {
+//       memset(&(pFile->info), 0, sizeof(pFile->info));
+//       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+//       pFileGroup->state = 1;
+//       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+//     }
+//   }
 
-  tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NHEAD, nheadF);
-  tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NLAST, nlastF);
+//   tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NHEAD, nheadF);
+//   tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_NLAST, nlastF);
 
-  if (access(nheadF, F_OK) == 0) {
-    newHeadExists = true;
-  }
+//   if (access(nheadF, F_OK) == 0) {
+//     newHeadExists = true;
+//   }
 
-  if (access(nlastF, F_OK) == 0) {
-    newLastExists = true;
-  }
+//   if (access(nlastF, F_OK) == 0) {
+//     newLastExists = true;
+//   }
 
-  if (newHeadExists) {
-    (void)remove(nheadF);
-    (void)remove(nlastF);
-  } else {
-    if (newLastExists) {
-      (void)rename(nlastF, pFileGroup->files[TSDB_FILE_TYPE_LAST].fname);
-    }
-  }
+//   if (newHeadExists) {
+//     (void)remove(nheadF);
+//     (void)remove(nlastF);
+//   } else {
+//     if (newLastExists) {
+//       (void)rename(nlastF, pFileGroup->files[TSDB_FILE_TYPE_LAST].fname);
+//     }
+//   }
 
-  if (terrno != TSDB_CODE_SUCCESS) {
-    return -1;
-  }
+//   if (terrno != TSDB_CODE_SUCCESS) {
+//     return -1;
+//   }
 
-  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-    SFile *pFile = pFileGroup->files + type;
-    if (tsdbOpenFile(pFile, O_RDONLY) < 0) {
-      memset(&(pFile->info), 0, sizeof(pFile->info));
-      pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-      pFileGroup->state = 1;
-      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-      continue;
-    }
+//   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+//     SFile *pFile = pFileGroup->files + type;
+//     if (tsdbOpenFile(pFile, O_RDONLY) < 0) {
+//       memset(&(pFile->info), 0, sizeof(pFile->info));
+//       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+//       pFileGroup->state = 1;
+//       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+//       continue;
+//     }
 
-    if (tsdbLoadFileHeader(pFile, &version) < 0) {
-      memset(&(pFile->info), 0, sizeof(pFile->info));
-      pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-      pFileGroup->state = 1;
-      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-      tsdbCloseFile(pFile);
-      continue;
-    }
+//     if (tsdbLoadFileHeader(pFile, &version) < 0) {
+//       memset(&(pFile->info), 0, sizeof(pFile->info));
+//       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+//       pFileGroup->state = 1;
+//       terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+//       tsdbCloseFile(pFile);
+//       continue;
+//     }
 
-    if (version != TSDB_FILE_VERSION) {
-      tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
-                REPO_ID(pRepo), pFile->fname, version, TSDB_FILE_VERSION);
-    }
+//     if (version != TSDB_FILE_VERSION) {
+//       tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
+//                 REPO_ID(pRepo), pFile->fname, version, TSDB_FILE_VERSION);
+//     }
 
-    tsdbCloseFile(pFile);
-  }
+//     tsdbCloseFile(pFile);
+//   }
 
-  if (terrno != TSDB_CODE_SUCCESS) {
-    return -1;
-  } else {
-    return 0;
-  }
-}
+//   if (terrno != TSDB_CODE_SUCCESS) {
+//     return -1;
+//   } else {
+//     return 0;
+//   }
+// }
 
-static SHashObj *tsdbGetAllFids(STsdbRepo *pRepo, char *dirName) {
-  DIR *     dir = NULL;
-  regex_t   regex = {0};
-  int       code = 0;
-  int32_t   vid, fid;
-  SHashObj *pHash = NULL;
+// static SHashObj *tsdbGetAllFids(STsdbRepo *pRepo, char *dirName) {
+//   DIR *     dir = NULL;
+//   regex_t   regex = {0};
+//   int       code = 0;
+//   int32_t   vid, fid;
+//   SHashObj *pHash = NULL;
 
-  code = regcomp(&regex, "^v[0-9]+f[0-9]+\\.(head|data|last|h|d|l)$", REG_EXTENDED);
-  if (code != 0) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
+//   code = regcomp(&regex, "^v[0-9]+f[0-9]+\\.(head|data|last|h|d|l)$", REG_EXTENDED);
+//   if (code != 0) {
+//     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+//     goto _err;
+//   }
 
-  dir = opendir(dirName);
-  if (dir == NULL) {
-    tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dirName, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
+//   dir = opendir(dirName);
+//   if (dir == NULL) {
+//     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dirName, strerror(errno));
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     goto _err;
+//   }
 
-  pHash = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  if (pHash == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
+//   pHash = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+//   if (pHash == NULL) {
+//     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+//     goto _err;
+//   }
 
-  struct dirent *dp = NULL;
-  while ((dp = readdir(dir)) != NULL) {
-    if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
+//   struct dirent *dp = NULL;
+//   while ((dp = readdir(dir)) != NULL) {
+//     if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
 
-    code = regexec(&regex, dp->d_name, 0, NULL, 0);
-    if (code == 0) {
-      sscanf(dp->d_name, "v%df%d", &vid, &fid);
+//     code = regexec(&regex, dp->d_name, 0, NULL, 0);
+//     if (code == 0) {
+//       sscanf(dp->d_name, "v%df%d", &vid, &fid);
 
-      if (vid != REPO_ID(pRepo)) {
-        tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
-        continue;
-      }
+//       if (vid != REPO_ID(pRepo)) {
+//         tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
+//         continue;
+//       }
 
-      taosHashPut(pHash, (void *)(&fid), sizeof(fid), (void *)(&fid), sizeof(fid));
-    } else if (code == REG_NOMATCH) {
-      tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
-      continue;
-    } else {
-      goto _err;
-    }
-  }
+//       taosHashPut(pHash, (void *)(&fid), sizeof(fid), (void *)(&fid), sizeof(fid));
+//     } else if (code == REG_NOMATCH) {
+//       tsdbError("vgId:%d invalid file %s exists, ignore it", REPO_ID(pRepo), dp->d_name);
+//       continue;
+//     } else {
+//       goto _err;
+//     }
+//   }
 
-  closedir(dir);
-  regfree(&regex);
-  return pHash;
+//   closedir(dir);
+//   regfree(&regex);
+//   return pHash;
 
-_err:
-  taosHashCleanup(pHash);
-  if (dir != NULL) closedir(dir);
-  regfree(&regex);
-  return NULL;
-}
+// _err:
+//   taosHashCleanup(pHash);
+//   if (dir != NULL) closedir(dir);
+//   regfree(&regex);
+//   return NULL;
+// }
 
-static int tsdbGetFidLevel(int fid, SFidGroup *pFidGroup) {
-  if (fid >= pFidGroup->maxFid) {
-    return 0;
-  } else if (fid >= pFidGroup->midFid && fid < pFidGroup->maxFid) {
-    return 1;
-  } else {
-    return 2;
-  }
-}
+// static int tsdbGetFidLevel(int fid, SFidGroup *pFidGroup) {
+//   if (fid >= pFidGroup->maxFid) {
+//     return 0;
+//   } else if (fid >= pFidGroup->midFid && fid < pFidGroup->maxFid) {
+//     return 1;
+//   } else {
+//     return 2;
+//   }
+// }
 
-static int tsdbCreateVnodeDataDir(char *baseDir, int vid) {
-  char dirName[TSDB_FILENAME_LEN] = "\0";
-  char tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
+// static int tsdbCreateVnodeDataDir(char *baseDir, int vid) {
+//   char dirName[TSDB_FILENAME_LEN] = "\0";
+//   char tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
 
-  tdGetVnodeRootDir(baseDir, dirName);
-  if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
+//   tdGetVnodeRootDir(baseDir, dirName);
+//   if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     return -1;
+//   }
 
-  tdGetVnodeDir(baseDir, vid, dirName);
-  if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
+//   tdGetVnodeDir(baseDir, vid, dirName);
+//   if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     return -1;
+//   }
 
-  tdGetTsdbRootDir(baseDir, vid, tsdbRootDir);
-  if (taosMkDir(tsdbRootDir, 0755) < 0 && errno != EEXIST) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
+//   tdGetTsdbRootDir(baseDir, vid, tsdbRootDir);
+//   if (taosMkDir(tsdbRootDir, 0755) < 0 && errno != EEXIST) {
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     return -1;
+//   }
 
-  tdGetTsdbDataDir(baseDir, vid, dirName);
-  if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
+//   tdGetTsdbDataDir(baseDir, vid, dirName);
+//   if (taosMkDir(dirName, 0755) < 0 && errno != EEXIST) {
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     return -1;
+//   }
 
-  return 0;
-}
+//   return 0;
+// }

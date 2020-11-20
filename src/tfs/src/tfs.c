@@ -24,6 +24,11 @@
 #define TSDB_MAX_TIER 3
 
 typedef struct {
+  int level;
+  int id;
+} SDiskID;
+
+typedef struct {
   uint64_t tsize;
   uint64_t avail;
 } SFSMeta;
@@ -164,6 +169,10 @@ int tfsRename(char *oldpath, char *newpath) {
   }
 
   return 0;
+}
+
+const char *tfsGetDiskName(int level, int id) {
+  return DISK_AT(level, id)->dir;
 }
 
 static int tfsMount(SDiskCfg *pCfg) {

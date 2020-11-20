@@ -56,6 +56,8 @@ SDisk *tdMountToTier(STier *pTier, SDiskCfg *pCfg) {
   if (pTier->disks[id] == NULL) return -1;
   pTier->ndisk++;
 
+  fDebug("disk %s is mounted at level %d id %d", pCfg->dir, pCfg->level, id);
+
   return id;
 }
 
