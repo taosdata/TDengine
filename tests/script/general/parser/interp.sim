@@ -47,8 +47,7 @@ while $i < $halfNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) 
-    sql insert into $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar ) 
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )  $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
     $x = $x + 1
   endw 
 

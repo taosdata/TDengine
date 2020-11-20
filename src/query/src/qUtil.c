@@ -53,7 +53,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     return;
   }
   if (pWindowResInfo->capacity == 0) {
-    assert(/*pWindowResInfo->hashList == NULL && */pWindowResInfo->pResult == NULL);
+    assert(pWindowResInfo->pResult == NULL);
     return;
   }
   
@@ -88,6 +88,11 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
 
   int16_t  type = pWindowResInfo->type;
   STableId* id  = TSDB_TABLEID(pRuntimeEnv->pQuery->current->pTable); // uid is always set to be 0.
+  int64_t uid = id->uid;
+  if (pRuntimeEnv->groupbyNormalCol) {
+    uid = 0;
+  }
+
   char    *key  = NULL;
   int16_t  bytes = -1;
 
@@ -97,14 +102,14 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
 
       // todo refactor
       if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        key = varDataVal(pResult->key);
+        key   = varDataVal(pResult->key);
         bytes = varDataLen(pResult->key);
       } else {
         key = (char*) &pResult->win.skey;
         bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
       }
 
-      SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, id->uid);
+      SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
       taosHashRemove(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     } else {
       break;
@@ -137,14 +142,14 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
       bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
     }
 
-    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, id->uid);
+    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
     int32_t *p = (int32_t *)taosHashGet(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     assert(p != NULL); 
 
     int32_t  v = (*p - num);
     assert(v >= 0 && v <= pWindowResInfo->size);
 
-    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, id->uid);
+    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
     taosHashPut(pRuntimeEnv->pResultRowHashTable, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), (char *)&v, sizeof(int32_t));
   }
   

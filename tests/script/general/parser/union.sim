@@ -36,9 +36,16 @@ sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5
 $i = 0
 $t = 1578203484000
 
-while $i < $tbNum
+$half = $tbNum / 2
+
+while $i < $half
   $tb = $tbPrefix . $i
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
   sql create table $tb using $mt tags( $i )
+  sql create table $tb1 using $mt tags( $nextSuffix )
 
   $x = 0
   while $x < $rowNum
@@ -54,7 +61,7 @@ while $i < $tbNum
     $nchar = $nchar . '
 
     $t1 = $t + $ms
-    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )  $tb1 values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $x = $x + 1
   endw
 

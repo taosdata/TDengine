@@ -31,8 +31,6 @@ import java.util.List;
 
 public class TSDBResultSetBlockData {
 	private int numOfRows = 0;
-	private int numOfCols = 0;
-
 	private int rowIndex = 0;
 
 	private List<ColumnMetaData> columnMetaDataList;
@@ -40,22 +38,20 @@ public class TSDBResultSetBlockData {
 
 	public TSDBResultSetBlockData(List<ColumnMetaData> colMeta, int numOfCols) {
 		this.columnMetaDataList = colMeta;
-		this.setNumOfCols(numOfCols);
+		this.colData = new ArrayList<Object>(numOfCols);
 	}
 
 	public TSDBResultSetBlockData() {
 		this.colData = new ArrayList<Object>();
-		this.setNumOfCols(0);
 	}
 
 	public void clear() {
+		int size = this.colData.size();
 		if (this.colData != null) {
 			this.colData.clear();
 		}
-
-		if (this.numOfCols == 0) {
-			return;
-		}
+		
+		setNumOfCols(size);
 	}
 
 	public int getNumOfRows() {
@@ -67,12 +63,12 @@ public class TSDBResultSetBlockData {
 	}
 
 	public int getNumOfCols() {
-		return numOfCols;
+		return this.colData.size();
 	}
 
 	public void setNumOfCols(int numOfCols) {
-		this.numOfCols = numOfCols;
-		this.clear();
+		this.colData = new ArrayList<Object>(numOfCols);
+		this.colData.addAll(Collections.nCopies(numOfCols, null));
 	}
 
 	public boolean hasMore() {
