@@ -277,6 +277,8 @@ cd ../../../debug; make
 ./test.sh -f unique/db/replica_part.sim
 
 ./test.sh -f unique/dnode/alternativeRole.sim
+./test.sh -f unique/dnode/monitor.sim
+./test.sh -f unique/dnode/monitor_bug.sim
 ./test.sh -f unique/dnode/simple.sim
 ./test.sh -f unique/dnode/balance1.sim
 ./test.sh -f unique/dnode/balance2.sim

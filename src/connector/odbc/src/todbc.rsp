@@ -1,0 +1,5 @@
+INSTALLDRIVER "TAOS ODBC|Driver=todbc.dll|FileUsage=0|ConnectFunctions=YYN"
+
+
+
+

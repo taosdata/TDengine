@@ -77,7 +77,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
     // assign version
     pHead->version = pVnode->version + 1;
-    if (pVnode->delay) usleep(pVnode->delay * 1000);
+    if (pVnode->delayMs) taosMsleep(pVnode->delayMs);
 
   } else {  // from wal or forward
     // for data from WAL or forward, version may be smaller
@@ -245,13 +245,13 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
 
-  int32_t queued = atomic_add_fetch_32(&pVnode->queuedMsg, 1);
+  int32_t queued = atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
   if (queued > MAX_QUEUED_MSG_NUM) {
     vDebug("vgId:%d, too many msg:%d in vwqueue, flow control", pVnode->vgId, queued);
     taosMsleep(1);
   }
 
-  vTrace("vgId:%d, write into vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedMsg);
+  vTrace("vgId:%d, write into vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedWMsg);
 
   taosWriteQitem(pVnode->wqueue, qtype, pWrite);
   return TSDB_CODE_SUCCESS;
@@ -260,8 +260,8 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
 void vnodeFreeFromWQueue(void *vparam, SVWriteMsg *pWrite) {
   SVnodeObj *pVnode = vparam;
 
-  atomic_sub_fetch_32(&pVnode->queuedMsg, 1);
-  vTrace("vgId:%d, free from vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedMsg);
+  atomic_sub_fetch_32(&pVnode->queuedWMsg, 1);
+  vTrace("vgId:%d, free from vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedWMsg);
 
   taosFreeQitem(pWrite);
   vnodeRelease(pVnode);

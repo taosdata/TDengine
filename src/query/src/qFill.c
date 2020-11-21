@@ -332,7 +332,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, tFilePage** data, char** sr
 
         point1 = (SPoint){.key = *(TSKEY*)(prev), .val = prev + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->index * bytes};
-        point  = (SPoint){.key = pFillInfo->start, .val = val1};
+        point  = (SPoint){.key = pFillInfo->currentKey, .val = val1};
         taosGetLinearInterpolationVal(type, &point1, &point2, &point);
       }
     } else {

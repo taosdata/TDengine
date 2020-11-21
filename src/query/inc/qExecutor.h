@@ -171,11 +171,10 @@ typedef struct SQuery {
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
-  SResultRow*          pResultRow;       // todo refactor to merge with SWindowResInfo
   SQuery*              pQuery;
   SQLFunctionCtx*      pCtx;
   int32_t              numOfRowsPerPage;
-  uint16_t             offset[TSDB_MAX_COLUMNS];
+  uint16_t*            offset;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   SWindowResInfo       windowResInfo;

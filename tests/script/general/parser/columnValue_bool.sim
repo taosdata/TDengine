@@ -1,4 +1,4 @@
-sleep 3000
+sleep 500
 sql connect
 sql create database if not exists db
 sql use db

@@ -1,6 +1,7 @@
 from .cinterface import CTaosInterface
 from .error import *
 from .constants import FieldType
+import threading
 
 
 class TDengineCursor(object):
@@ -35,6 +36,7 @@ class TDengineCursor(object):
         self._block_iter = 0
         self._affected_rows = 0
         self._logfile = ""
+        self._threadId = threading.get_ident()
 
         if connection is not None:
             self._connection = connection
@@ -42,7 +44,7 @@ class TDengineCursor(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetch iterator")
 
@@ -137,7 +139,7 @@ class TDengineCursor(object):
         else:
             raise ProgrammingError(
                 CTaosInterface.errStr(
-                    self._result ), errno)
+                    self._result), errno)
 
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.
@@ -147,6 +149,8 @@ class TDengineCursor(object):
     def fetchone(self):
         """Fetch the next row of a query result set, returning a single sequence, or None when no more data is available.
         """
+        pass
+    def fetchmany(self):
         pass
 
     def istype(self, col, dataType):
@@ -180,9 +184,6 @@ class TDengineCursor(object):
 
         return False
 
-    def fetchmany(self):
-        pass
-
     def fetchall(self):
         """Fetch all (remaining) rows of a query result, returning them as a sequence of sequences (e.g. a list of tuples). Note that the cursor's arraysize attribute can affect the performance of this operation.
         """
@@ -201,8 +202,6 @@ class TDengineCursor(object):
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
-
-
         return list(map(tuple, zip(*buffer)))
 
     def nextset(self):

@@ -16,33 +16,10 @@
 #ifndef _TODBC_UTIL_H_
 #define _TODBC_UTIL_H_
 
-#include <libgen.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
+
 #include <sql.h>
-
-#define D(fmt, ...)                                              \
-  fprintf(stderr,                                                \
-          "%s[%d]:%s() " fmt "\n",                               \
-          basename((char*)__FILE__), __LINE__, __func__,         \
-          ##__VA_ARGS__)
-
-#define DASSERT(statement)                                       \
-do {                                                             \
-  if (statement) break;                                          \
-  D("Assertion failure: %s", #statement);                        \
-  abort();                                                       \
-} while (0)
-
-#define DASSERTX(statement, fmt, ...)                                \
-do {                                                                 \
-  if (statement) break;                                              \
-  D("Assertion failure: %s, " fmt "", #statement, ##__VA_ARGS__);    \
-  abort();                                                           \
-} while (0)
-
-
+#include <sqltypes.h>
 
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);
@@ -50,14 +27,7 @@ const char* sql_c_type(int type);
 int is_valid_sql_c_type(int type);
 int is_valid_sql_sql_type(int type);
 
-int string_conv(const char *fromcode, const char *tocode,
-                const unsigned char *src, size_t sbytes,
-                unsigned char *dst, size_t dbytes,
-                size_t *consumed, size_t *generated);
 int utf8_chars(const char *src);
 
-unsigned char* utf8_to_ucs4le(const char *utf8, size_t *chars);
-char*          ucs4le_to_utf8(const unsigned char *ucs4le, size_t slen, size_t *chars);
-SQLCHAR*       wchars_to_chars(const SQLWCHAR *wchars, size_t chs, size_t *bytes);
-
 #endif // _TODBC_UTIL_H_
+

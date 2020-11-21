@@ -3,7 +3,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = ca_db
@@ -34,7 +34,7 @@ while $i < $halfTbNum
   $tb1 = $tbPrefix . $tbId
   sql create table $tb using $stb tags( $i )
   sql create table $tb1 using $stb tags( $tbId )
-  
+
   $x = 0
   while $x < $rowNum
     $xs = $x * $delta
@@ -46,8 +46,7 @@ while $i < $halfTbNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) 
-    sql insert into $tb1 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) 
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) $tb1 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar )
     $x = $x + 1
   endw 
   $i = $i + 1

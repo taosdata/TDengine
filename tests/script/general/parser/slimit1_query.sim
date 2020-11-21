@@ -1,4 +1,4 @@
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = slm_alt_tg_db
