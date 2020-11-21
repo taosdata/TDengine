@@ -123,7 +123,7 @@ static int32_t mnodeMnodeActionRestored() {
       pMnode->role = TAOS_SYNC_ROLE_MASTER;
       mnodeDecMnodeRef(pMnode);
     }
-    sdbFreeIter(pIter);
+    mnodeCancelGetNextMnode(pIter);
   }
 
   mnodeUpdateMnodeEpSet();
@@ -161,6 +161,7 @@ int32_t mnodeInitMnodes() {
 
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mnodeGetMnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mnodeRetrieveMnodes);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_MNODE, mnodeCancelGetNextMnode);
 
   mDebug("table:mnodes table is created");
   return TSDB_CODE_SUCCESS;
@@ -190,6 +191,10 @@ void mnodeDecMnodeRef(SMnodeObj *pMnode) {
 
 void *mnodeGetNextMnode(void *pIter, SMnodeObj **pMnode) { 
   return sdbFetchRow(tsMnodeSdb, pIter, (void **)pMnode); 
+}
+
+void mnodeCancelGetNextMnode(void *pIter) {
+  sdbFreeIter(tsMnodeSdb, pIter);
 }
 
 void mnodeUpdateMnodeEpSet() {
@@ -238,8 +243,6 @@ void mnodeUpdateMnodeEpSet() {
   tsMnodeInfos.mnodeNum = index;
   tsMnodeEpSetForShell.numOfEps = index;
   tsMnodeEpSetForPeer.numOfEps = index;
-
-  sdbFreeIter(pIter);
 
   mnodeMnodeUnLock();
 }

@@ -144,7 +144,6 @@ void mnodeGetStatOfAllAcct(SAcctInfo* pAcctInfo) {
     pAcctInfo->numOfTimeSeries += pAcct->acctInfo.numOfTimeSeries;
     mnodeDecAcctRef(pAcct);
   }
-  sdbFreeIter(pIter);
 
   SVgObj *pVgroup = NULL;
   pIter = NULL;
@@ -158,7 +157,6 @@ void mnodeGetStatOfAllAcct(SAcctInfo* pAcctInfo) {
     pAcctInfo->totalPoints += pVgroup->pointsWritten;
     mnodeDecVgroupRef(pVgroup);
   }
-  sdbFreeIter(pIter);
 }
 
 void *mnodeGetAcct(char *name) {
@@ -167,6 +165,10 @@ void *mnodeGetAcct(char *name) {
 
 void *mnodeGetNextAcct(void *pIter, SAcctObj **pAcct) {
   return sdbFetchRow(tsAcctSdb, pIter, (void **)pAcct); 
+}
+
+void mnodeCancelGetNextAcct(void *pIter) {
+  sdbFreeIter(tsAcctSdb, pIter);
 }
 
 void mnodeIncAcctRef(SAcctObj *pAcct) {

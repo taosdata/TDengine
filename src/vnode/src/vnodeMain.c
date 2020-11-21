@@ -542,10 +542,11 @@ void vnodeBuildStatusMsg(void *param) {
 
   void *pIter = taosHashIterate(tsVnodesHash, NULL);
   while (pIter) {
-    SVnodeObj **pVnode = pIter; 
-    if (*pVnode) { 
-    vnodeBuildVloadMsg(*pVnode, pStatus);
+    SVnodeObj **pVnode = pIter;
+    if (*pVnode) {
+      vnodeBuildVloadMsg(*pVnode, pStatus);
     }
+    pIter = taosHashIterate(tsVnodesHash, pIter);
   }
 }
 
