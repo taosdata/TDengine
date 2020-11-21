@@ -46,105 +46,109 @@ typedef struct SCacheNode {
 } SCacheNode;
 
 typedef struct SCacheObj {
-  int64_t         size;          // total allocated buffer in this hash table, SCacheObj is not included.
+  int32_t         size;           // hash module 
+  int32_t         count;          // number of cached items 
+  int32_t         iterNum;            
   int64_t         refreshTime;
-  int32_t         count;
   int             cacheId;
-  char            name[24];           // for debug purpose
+  int             state;          // 0: empty, 1: active;  2: deleted
+  char            name[24];       // for debug purpose
   uint32_t      (*hashFp)(const char *, uint32_t);
+  __cache_free_fn_t freeFp;
   SCacheStatis    statistics;
   SCacheNode    **nodeList;
-  SRWLatch       *lock;
+  SRWLatch        olock;          // lock for cache obj
+  SRWLatch       *nlock;          // lock for each node list
   tmr_h           pTimer;
-  uint8_t         deleting;           // set the deleting flag to stop refreshing ASAP.
-  bool            extendLifespan;     // auto extend life span when one item is accessed.
+  bool            extendLifespan; // auto extend life span when one item is accessed.
 } SCacheObj;
 
 #define pNodeFromData(data) ((SCacheNode *) ((char*)(data) - sizeof(SCacheNode)))
-#define MAX_CACHE_OBJS 10
- 
-SCacheObj *cacheObjList[MAX_CACHE_OBJS];
+#define TAOS_CACHE_MAX_OBJS 100
+#define TAOS_CACHE_MAX_SIZE (1024 * 1024 * 16)
+#define TAOS_CACHE_LOAD_FACTOR (0.75)
+#define TAOS_CACHE_STATE_EMPTY   0
+#define TAOS_CACHE_STATE_ACTIVE  1
+#define TAOS_CACHE_STATE_DELETED 2 
+
+
+SCacheObj cacheObjList[TAOS_CACHE_MAX_OBJS];
 static pthread_once_t  tsCacheModuleInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t tsCacheMutex;
 static int             tsCacheNextId = 0;
+static void           *tsCacheTmrCtrl = NULL;
+static int             tsCacheNum = 0;
 
-static int  taosCacheReleaseNode(SCacheNode *pNode);
+static void taosCacheResize(SCacheObj *pCacheObj); 
+static void taosCacheReleaseNode(SCacheNode *pNode);
 static void taosCacheProcessTimer(void *param, void *);
+static void taosCacheResetObj(SCacheObj *pCacheObj);
+
 static void taosInitCacheModule(void) {
   pthread_mutex_init(&tsCacheMutex, NULL);
 }
 
-int taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, const char* cacheName) {
+int taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan,  __cache_free_fn_t fn, const char* cacheName) {
   pthread_once(&tsCacheModuleInit, taosInitCacheModule);
 
   int cacheId = -1;
-  int size = 1000;
-  int cacheObjSize = sizeof(SCacheObj);
-  int nodeListSize = sizeof(SCacheNode *) * size;
-  int lockSize = sizeof(SRWLatch) * size;
+  int size = 100000;
 
-  SCacheObj *pCacheObj = (SCacheObj *)calloc(cacheObjSize, 1); 
-  if (pCacheObj == NULL) {
+  void *p1 = calloc(sizeof(SCacheNode *) * size, 1);
+  void *p2 = (SRWLatch *) calloc(sizeof(SRWLatch) * size, 1);
+  if (p1 == NULL || p2 == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
     uError("cache:%s no enoug memory", cacheName);
-    return -1;
-  }
-
-  pCacheObj->nodeList = (SCacheNode **) calloc(nodeListSize, 1);
-  pCacheObj->lock = (SRWLatch *) calloc(lockSize, 1);
-  if ( pCacheObj->nodeList == NULL || pCacheObj->lock == NULL) {
-    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    uError("cache:%s no enoug memory", cacheName);
-    free(pCacheObj);
+    tfree(p1);
+    tfree(p2);
     return -1;
   }
 
   pthread_mutex_lock(&tsCacheMutex);
 
   int i;
-  for (i=0; i < MAX_CACHE_OBJS; ++i) {
-    tsCacheNextId = (tsCacheNextId + 1) % MAX_CACHE_OBJS;
+  for (i=0; i < TAOS_CACHE_MAX_OBJS; ++i) {
+    tsCacheNextId = (tsCacheNextId + 1) % TAOS_CACHE_MAX_OBJS;
     if (tsCacheNextId == 0) tsCacheNextId = 1;
-    if (cacheObjList[tsCacheNextId] == NULL) break;
+    if (cacheObjList[tsCacheNextId].state == TAOS_CACHE_STATE_EMPTY) break;
   }
 
-  if (i >= MAX_CACHE_OBJS) {
+  if (i >= TAOS_CACHE_MAX_OBJS) {
     terrno = TSDB_CODE_CACHE_TOO_MANY; 
     uError("cache:%s too many cache objs", cacheName);
-    free(p);
+    free(p1);
+    free(p2);
   } else {
     cacheId = tsCacheNextId;
+    SCacheObj *pCacheObj = cacheObjList + cacheId;
 
     strncpy(pCacheObj->name, cacheName, sizeof(pCacheObj->name)-1);
     pCacheObj->size = size;
     pCacheObj->refreshTime = refreshTimeInSeconds * 1000;
     pCacheObj->extendLifespan = extendLifespan;
     pCacheObj->cacheId = cacheId;  
-
     pCacheObj->hashFp = taosGetDefaultHashFunction(keyType);
-    pCacheObj->nodeList = (SCacheNode **) (p + cacheObjSize); 
-    pCacheObj->lock = (SRWLatch *) (p + cacheObjSize + nodeListSize);
+    pCacheObj->freeFp = fn;
+    pCacheObj->state = TAOS_CACHE_STATE_ACTIVE;
  
     // start timer
-    pCacheObj->pTimer = taosTmrStart(taosCacheProcessTimer, pCacheObj->refreshTime, pCacheObj, NULL);  
+    if (tsCacheNum == 0) 
+      tsCacheTmrCtrl = taosTmrInit( TAOS_CACHE_MAX_OBJS+1, 1000, 1000000, "cache");
+    pCacheObj->pTimer = taosTmrStart(taosCacheProcessTimer, pCacheObj->refreshTime, pCacheObj, tsCacheTmrCtrl);  
     cacheId = tsCacheNextId;
+    tsCacheNum++;
   }
+
 
   pthread_mutex_unlock(&tsCacheMutex);
 
-  uTrace("cache:%s is initialized, cacheId:%d", pCacheObj->name, cacheId);
+  uTrace("cache:%s is initialized, cacheId:%d total cache:%d", cacheName, cacheId, tsCacheNum);
   return cacheId;
 }
 
 void *taosCachePut(int cacheId, const void *key, size_t keyLen, const void *pData, size_t dataSize, int durationMS) {
-  if (cacheId < 0 || cacheId >= MAX_CACHE_OBJS) {
+  if (cacheId <= 0 || cacheId >= TAOS_CACHE_MAX_OBJS) {
     terrno = TSDB_CODE_CACHE_INVALID_ID;
-    return NULL;
-  }
-
-  SCacheObj *pCacheObj = cacheObjList[cacheId];
-  if (pCacheObj == NULL) {
-    terrno = TSDB_CODE_CACHE_NOT_EXIST;
     return NULL;
   }
 
@@ -153,11 +157,25 @@ void *taosCachePut(int cacheId, const void *key, size_t keyLen, const void *pDat
   SCacheNode *pNewNode = calloc(1, size);
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    uError("cache:%s failed to allocate memory", pCacheObj->name);
+    return NULL;
   } 
-  
+
+  SCacheObj *pCacheObj = cacheObjList + cacheId;
+  if (pCacheObj->count * TAOS_CACHE_LOAD_FACTOR > pCacheObj->size && pCacheObj->iterNum <= 0) {
+    taosWLockLatch(&pCacheObj->olock);
+    taosCacheResize(pCacheObj);
+    taosWUnLockLatch(&pCacheObj->olock);
+  }
+ 
   int hash = (*pCacheObj->hashFp)(key, (uint32_t)keyLen) % pCacheObj->size;
-  taosWLockLatch(pCacheObj->lock + hash);
+  taosRLockLatch(&pCacheObj->olock);
+  if (pCacheObj->state != TAOS_CACHE_STATE_ACTIVE) {
+    terrno = TSDB_CODE_CACHE_NOT_EXIST;
+    taosRUnLockLatch(&pCacheObj->olock);
+    return NULL;
+  }
+
+  taosWLockLatch(pCacheObj->nlock + hash);
 
   SCacheNode *pNode = pCacheObj->nodeList[hash];
   while (pNode) {
@@ -189,28 +207,30 @@ void *taosCachePut(int cacheId, const void *key, size_t keyLen, const void *pDat
 
   uTrace("cache:%s %p is added into cache, key:%p", pCacheObj->name, pNode->data, key);  
 
-  taosWUnLockLatch(pCacheObj->lock + hash);
+  taosWUnLockLatch(pCacheObj->nlock + hash);
+  taosRUnLockLatch(&pCacheObj->olock);
 
   return pNode->data;
 }
 
 void *taosCacheAcquireByKey(int cacheId, const void *key, size_t keyLen) {
-  if (cacheId < 0 || cacheId >= MAX_CACHE_OBJS) {
+  if (cacheId <= 0 || cacheId >= TAOS_CACHE_MAX_OBJS) {
     terrno = TSDB_CODE_CACHE_INVALID_ID;
     return NULL;
   }
 
-  SCacheObj *pCacheObj = cacheObjList[cacheId];
-  if (pCacheObj == NULL) {
+  SCacheObj *pCacheObj = cacheObjList + cacheId;
+  int  hash = (*pCacheObj->hashFp)(key, (uint32_t)keyLen) % pCacheObj->size;
+  void *p = NULL;
+
+  taosRLockLatch(&pCacheObj->olock);
+  if (pCacheObj->state != TAOS_CACHE_STATE_ACTIVE) {
     terrno = TSDB_CODE_CACHE_NOT_EXIST;
+    taosRUnLockLatch(&pCacheObj->olock);
     return NULL;
   }
   
-  void *p = NULL;
-
-  // Based on key and keyLen, find the node in hash list 
-  int hash = (*pCacheObj->hashFp)(key, (uint32_t)keyLen) % pCacheObj->size;
-  taosRLockLatch(pCacheObj->lock + hash);
+  taosRLockLatch(pCacheObj->nlock + hash);
 
   SCacheNode *pNode = pCacheObj->nodeList[hash];
   while (pNode) {
@@ -228,8 +248,8 @@ void *taosCacheAcquireByKey(int cacheId, const void *key, size_t keyLen) {
     terrno = TSDB_CODE_CACHE_KEY_NOT_THERE;
   }
 
-  taosRUnLockLatch(pCacheObj->lock + hash);
-
+  taosRUnLockLatch(pCacheObj->nlock + hash);
+  taosRUnLockLatch(&pCacheObj->olock);
   return p;
 }
 
@@ -238,7 +258,8 @@ void *taosCacheAcquireByData(void *data) {
   SCacheObj  *pCacheObj = pNode->pCacheObj;
   int hash = pNode->hash;
 
-  taosRLockLatch(pCacheObj->lock + hash);
+  taosRLockLatch(&pCacheObj->olock);
+  taosRLockLatch(pCacheObj->nlock + hash);
 
   pNode->count++;
   if (pCacheObj->extendLifespan)
@@ -246,8 +267,8 @@ void *taosCacheAcquireByData(void *data) {
 
   uTrace("cache:%s %p is acuqired via data, count:%d", pCacheObj->name, pNode->data, pNode->count);
 
-  taosRUnLockLatch(pCacheObj->lock + hash);
-
+  taosRUnLockLatch(pCacheObj->nlock + hash);
+  taosRUnLockLatch(&pCacheObj->olock);
   return data;
 }
 
@@ -259,9 +280,13 @@ void taosCacheRelease(void **data) {
   int hash = pNode->hash;
   *data = NULL;
 
-  taosWLockLatch(pCacheObj->lock + hash);
+  taosRLockLatch(&pCacheObj->olock);
+  taosWLockLatch(pCacheObj->nlock + hash);
+
   taosCacheReleaseNode(pNode);
-  taosWUnLockLatch(pCacheObj->lock + hash);
+
+  taosWUnLockLatch(pCacheObj->nlock + hash);
+  taosRUnLockLatch(&pCacheObj->olock);
 }
 
 void *taosCacheTransfer(void **data) {
@@ -274,65 +299,67 @@ void *taosCacheTransfer(void **data) {
 }
 
 void taosCacheCleanup(int cacheId) {
-  if (cacheId < 0 || cacheId >= MAX_CACHE_OBJS) {
+  if (cacheId <= 0 || cacheId >= TAOS_CACHE_MAX_OBJS) {
     return;
   }
 
-  pthread_mutex_lock(&tsCacheMutex);
+  SCacheObj *pCacheObj = cacheObjList + cacheId;
 
-  SCacheObj *pCacheObj = cacheObjList[cacheId];
-  if (pCacheObj == NULL) {
+  pthread_mutex_lock(&tsCacheMutex);
+  if (pCacheObj->state != TAOS_CACHE_STATE_ACTIVE) {
     pthread_mutex_unlock(&tsCacheMutex);
     return;
   }
   
   uTrace("cache:%s try to clean up", pCacheObj->name);
-  cacheObjList[cacheId] = NULL;
-  pCacheObj->deleting = 1;
 
   // stop timer
   taosTmrStop(pCacheObj->pTimer);
-  int count = 0;
+
+  // write lock is applied. so from this point on, no actions will be allowed on pCacheObj from other threads
+  taosWLockLatch(&pCacheObj->olock);
 
   for (int hash = 0; hash < pCacheObj->size; ++hash) {
-    taosWLockLatch(pCacheObj->lock + hash);
-
+    taosWLockLatch(pCacheObj->nlock + hash);
     SCacheNode *pNode = pCacheObj->nodeList[hash];
+
     while (pNode) {
       SCacheNode *pNext = pNode->next;
       if (pNode->expired == 0) {
         pNode->expired = 1;
-
-        // pCacheObj may be freed
-        count = taosCacheReleaseNode(pNode);
+        taosCacheReleaseNode(pNode);
       }
       pNode = pNext;
     }
 
-    if (count <= 0) break;
-    taosWUnLockLatch(pCacheObj->lock + hash);
+    taosWUnLockLatch(pCacheObj->nlock + hash);
   }
 
+  pCacheObj->state = TAOS_CACHE_STATE_DELETED;
+  if (pCacheObj->count <= 0) 
+    taosCacheResetObj(pCacheObj);
+
+  taosWUnLockLatch(&pCacheObj->olock);
   pthread_mutex_unlock(&tsCacheMutex);
 }
 
 void *taosCacheIterate(int cacheId, void *indata) {
-  if (cacheId < 0 || cacheId >= MAX_CACHE_OBJS) {
-    return NULL;
-  }
-
-  pthread_mutex_lock(&tsCacheMutex);
-
-  SCacheObj *pCacheObj = cacheObjList[cacheId];
-  if (pCacheObj == NULL) {
-    pthread_mutex_unlock(&tsCacheMutex);
-    return NULL;
-  }
-  
   SCacheNode *pNode, *pNext = NULL;
   void *outdata = NULL;
   int  hash = 0;
 
+  if (cacheId <= 0 || cacheId >= TAOS_CACHE_MAX_OBJS) {
+    return NULL;
+  }
+
+  SCacheObj *pCacheObj = cacheObjList + cacheId;
+  taosRLockLatch(&pCacheObj->olock);
+  if (pCacheObj->state == TAOS_CACHE_STATE_EMPTY) {
+    if (indata) atomic_sub_fetch_32(&pCacheObj->iterNum, 1);
+     taosRUnLockLatch(&pCacheObj->olock);
+    return NULL;
+  }
+ 
   if (indata == NULL) {
     hash = 0;
   } else {
@@ -341,7 +368,7 @@ void *taosCacheIterate(int cacheId, void *indata) {
   }
 
   while (hash < pCacheObj->size) {
-    taosWLockLatch(pCacheObj->lock + hash);
+    taosWLockLatch(pCacheObj->nlock + hash);
   
     if (pNode) { 
       pNext = pNode->next;
@@ -355,32 +382,38 @@ void *taosCacheIterate(int cacheId, void *indata) {
       outdata = pNext->data;
     }
 
-    taosWUnLockLatch(pCacheObj->lock + hash);
+    taosWUnLockLatch(pCacheObj->nlock + hash);
     hash++;
 
     if (pNext) break;
   } 
 
-  pthread_mutex_unlock(&tsCacheMutex);
+  if (outdata) atomic_add_fetch_32(&pCacheObj->iterNum, 1); 
+  if (indata) atomic_sub_fetch_32(&pCacheObj->iterNum, 1);
+
+  taosRUnLockLatch(&pCacheObj->olock);
+
+  uTrace("cache:%s in:%p out:%p is iterated, iterNum:%d", pCacheObj->name, indata, outdata, pCacheObj->iterNum);
   return outdata;
 }
 
 
 static void taosCacheProcessTimer(void *param, void *tmrId) {
   int64_t cacheId = (int64_t) param;
-  if (cacheId < 0 || cacheId >= MAX_CACHE_OBJS) return;
+  if (cacheId <= 0 || cacheId >= TAOS_CACHE_MAX_OBJS) return;
 
   int64_t ctime = taosGetTimestampMs();
   pthread_mutex_lock(&tsCacheMutex);
 
-  SCacheObj *pCacheObj = cacheObjList[cacheId];
-  if (pCacheObj == NULL) {
+  SCacheObj *pCacheObj = cacheObjList + cacheId;
+  if (pCacheObj->state != TAOS_CACHE_STATE_ACTIVE) {
     pthread_mutex_unlock(&tsCacheMutex);
     return;
   }
 
   for (int hash = 0; hash < pCacheObj->size; ++hash) {
-      taosWLockLatch(pCacheObj->lock + hash);
+      taosRLockLatch(&pCacheObj->olock);
+      taosWLockLatch(pCacheObj->nlock + hash);
 
       SCacheNode *pNode = pCacheObj->nodeList[hash];
       while (pNode) {
@@ -393,20 +426,21 @@ static void taosCacheProcessTimer(void *param, void *tmrId) {
         pNode= pNext;
       }  
 
-      taosWUnLockLatch(pCacheObj->lock + hash);
+      taosWUnLockLatch(pCacheObj->nlock + hash);
+      taosRUnLockLatch(&pCacheObj->olock);
   }
 
-  pCacheObj->pTimer = taosTmrStart(taosCacheProcessTimer, pCacheObj->refreshTime, pCacheObj, NULL);  
+  pCacheObj->pTimer = taosTmrStart(taosCacheProcessTimer, pCacheObj->refreshTime, pCacheObj, tsCacheTmrCtrl);  
 
   pthread_mutex_unlock(&tsCacheMutex);
 }
 
-static int taosCacheReleaseNode(SCacheNode *pNode) {
+static void taosCacheReleaseNode(SCacheNode *pNode) {
   SCacheObj *pCacheObj = pNode->pCacheObj;
 
   pNode->count--;
   uTrace("cache:%s %p is released, count:%d", pCacheObj->name, pNode->data, pNode->count);
-  if (pNode->count > 0) return pCacheObj->count;
+  if (pNode->count > 0) return;
 
   // remove from the list
   int hash = pNode->hash;
@@ -425,43 +459,37 @@ static int taosCacheReleaseNode(SCacheNode *pNode) {
   free(pNode);
 
   int count = atomic_sub_fetch_32(&pCacheObj->count, 1);
-  if (pCacheObj->deleting && count == 0) {
-    // clean pCacheObj
-    uTrace("cache:%s is cleaned up", pCacheObj->name);
-    free (pCacheObj->nodeList);
-    free (pCacheObj->lock);
-    free (pCacheObj);
-  }
+  if (pCacheObj->state == TAOS_CACHE_STATE_DELETED && count == 0) 
+    taosCacheResetObj(pCacheObj); // only one thread will be allowed to take this step 
 
-  return count;
+  return;
 }
 
 static void taosCacheResize(SCacheObj *pCacheObj) {
+  if (pCacheObj->iterNum > 0) return;
+  if (pCacheObj->state != TAOS_CACHE_STATE_ACTIVE) return;
 
   int32_t newSize = pCacheObj->size << 1;
-  if (newSize > CACHE_MAX_SIZE) return;
-
-  int nodeListSize = sizeof(SCacheNode *) * size;
-  int lockSize = sizeof(SRWLatch) * size;
+  if (newSize > TAOS_CACHE_MAX_SIZE) return;
 
   void *p1 = realloc(pCacheObj->nodeList, newSize * sizeof(SCacheNode *));
   if (p1 == NULL) return;
 
-  void *p2 = realloc(pCacheObj->lock, newSize * sizeof(SRWLatch));
+  void *p2 = realloc(pCacheObj->nlock, newSize * sizeof(SRWLatch));
   if (p2 == NULL) return;
 
   int64_t st = taosGetTimestampUs();
 
   pCacheObj->nodeList = (SCacheNode **)p1;
-  pCacheObj->lock = (SRWLatch *)p2;
+  pCacheObj->nlock = (SRWLatch *)p2;
 
   for (int hash=0; hash < pCacheObj->size; ++hash) {
-    pNode = pCacheObj->nodeList[i];
+    SCacheNode *pNode = pCacheObj->nodeList[hash];
     if (pNode == NULL) continue;
 
     while (pNode) {
       SCacheNode *pNext = pNode->next;
-      int nhash = (*pCacheObj->hashFp)(pNode->key, pNode->keyLen) % pCacheObj->size;
+      int nhash = (*pCacheObj->hashFp)(pNode->key, pNode->keyLen) % newSize;
       if (hash != nhash) {
         // remove from current list 
         if (pNode->prev) {
@@ -482,7 +510,25 @@ static void taosCacheResize(SCacheObj *pCacheObj) {
     }
   }
 
+  pCacheObj->size = newSize;
+
   int64_t et = taosGetTimestampUs();
-  uDebug("cache:%s, hash table resized, new size:%d, elapsed time:%fms", pHashObj->name, pHashObj->size, (et - st)/1000.0); 
+  uDebug("cache:%s, hash table resized, new size:%d, elapsed time:%fms", pCacheObj->name, pCacheObj->size, (et - st)/1000.0); 
 }
  
+static void taosCacheResetObj(SCacheObj *pCacheObj) {
+  if (pCacheObj->state == TAOS_CACHE_STATE_EMPTY) return;
+  uTrace("cache:%s is cleaned, cacheId:%d", pCacheObj->name, pCacheObj->cacheId);
+
+  free(pCacheObj->nodeList);
+  free(pCacheObj->nlock);
+  memset(pCacheObj, 0, sizeof(SCacheObj));
+  pCacheObj->state = TAOS_CACHE_STATE_EMPTY;
+
+  tsCacheNum--;
+  if (tsCacheNum <= 0) {
+    taosTmrCleanUp(tsCacheTmrCtrl);
+    tsCacheTmrCtrl = NULL;
+  }
+}
+

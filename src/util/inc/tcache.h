@@ -32,14 +32,14 @@ extern "C" {
   #define TSDB_CACHE_PTR_TYPE int64_t
 #endif
 
+typedef void (*__cache_free_fn_t)(void*);
 
-int  taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, const char *cacheName);
-void taosCacheCleanup(int cacheId);
-
+int   taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char *cacheName);
+void  taosCacheCleanup(int cacheId);
 void *taosCachePut(int cacheId, const void *key, size_t keyLen, const void *pData, size_t dataSize, int durationMS);
 void *taosCacheAcquireByKey(int cacheId, const void *key, size_t keyLen);
 void *taosCacheAcquireByData(void *data);
-void taosCacheRelease(void **data);
+void  taosCacheRelease(void **data);
 void *taosCacheTransfer(void **data);
 
 #ifdef __cplusplus
