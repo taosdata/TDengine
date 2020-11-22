@@ -67,7 +67,7 @@ const TFSFILE *tfsReadDir(TFSDIR *tdir) {
     struct dirent *dp = readdir(tdir->dir);
     if (dp != NULL) {
       snprintf(rname, TSDB_FILENAME_LEN, "%s/%s", tdir->name, dp->d_name);
-      tsfInitFile(&(tdir->tfsfile), tdir->level, tdir->id, rname);
+      tfsInitFile(&(tdir->tfsfile), tdir->level, tdir->id, rname);
 
       return &(tdir->tfsfile);
     }
@@ -125,6 +125,47 @@ int tfsclose(int fd) {
   return 0
 }
 
+TFSFILE *tfsCreateFiles(int level, int nfile, ...) {
+  // TODO
+  return NULL;
+}
+
+int tfsRemoveFiles(int nfile, ...) {
+  va_list  valist;
+  TFSFILE *pfile = NULL;
+  int      code = 0;
+
+  va_start(valist, nfile);
+  tfsLock();
+
+  for (int i = 0; i < nfile; i++) {
+    pfile = va_arg(valist, TFSFILE *);
+    code = remove(pfile->aname);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tfsUnLock();
+      va_end(valist);
+      return -1;
+    }
+
+    tfsDecFileAt(pfile->level, pfile->id);
+  }
+
+  tfsUnLock();
+  va_end(valist);
+
+  return 0;
+}
+
+SDiskID tfsFileID(TFSFILE *pfile) {
+  SDiskID did;
+
+  did.level = pfile->level;
+  did.id = pfile->id;
+
+  return did;
+}
+
 static int tfsOpenDirImpl(TFSDIR *tdir) {
   char dirName[TSDB_FILENAME_LEN] = "\0";
 
@@ -154,9 +195,20 @@ static int tfsOpenDirImpl(TFSDIR *tdir) {
   return 0;
 }
 
-static void tsfInitFile(TFSFILE *pfile, int level, int id, char *rname) {
+static void tfsInitFile(TFSFILE *pfile, int level, int id, char *rname) {
   pfile->level = level;
   pfile->id = id;
   strncpy(pfile->rname, rname, TSDB_FILENAME_LEN);
   snprintf(pfile->aname, TSDB_FILENAME_LEN, "%s/%s", tfsGetDiskName(level, id), rname);
+}
+
+static TFSFILE *tfsNewFile(int level, int id, char *rname) {
+  TFSFILE *pfile = (TFSFILE *)calloc(1, sizeof(*pfile));
+  if (pfile == NULL) {
+    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tfsInitFile(pfile, level, id, rname);
+  return pfile;
 }

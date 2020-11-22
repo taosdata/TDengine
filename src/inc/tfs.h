@@ -22,6 +22,11 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int level;
+  int id;
+} SDiskID;
+
 // tfs.c
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
@@ -30,6 +35,11 @@ void tfsPrimaryPath(char *dst);
 int  tfsCreateDir(char *dirname);
 int  tfsRemoveDir(char *dirname);
 int  tfsRename(char *oldpath, char *newpath);
+void tfsIncFileAt(int level, int id);
+void tfsDecFileAt(int level, int id);
+int  tfsLock();
+int  tfsUnLock();
+bool tfsIsLocked();
 
 // tfcntl.c
 typedef struct TFSFILE TFSFILE;
@@ -46,6 +56,11 @@ void        tfsBaseName(TFSFILE *pfile, char dest[]);
 
 int tfsopen(TFSFILE *pfile);
 int tfsclose(int, fd);
+
+TFSFILE *tfsCreateFiles(int level, int nfile, ...);
+int      tfsRemoveFiles(int nfile, ...);
+
+SDiskID tfsFileID(TFSFILE *pfile);
 
 const char *tfsGetDiskName(int level, int id);
 

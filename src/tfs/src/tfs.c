@@ -35,6 +35,7 @@ typedef struct {
 
 typedef struct {
   pthread_mutex_t lock;
+  bool            locked;
   SFSMeta         meta;
   int             nlevel;
   STier           tiers[TSDB_MAX_TIER];
@@ -171,6 +172,44 @@ int tfsRename(char *oldpath, char *newpath) {
   return 0;
 }
 
+void tfsIncFileAt(int level, int id) {
+  ASSERT(tfsIsLocked());
+  DISK_AT(level, id)->dmeta.nfiles++;
+  ASSERT(DISK_AT(level, id)->dmeta.nfiles > 0);
+}
+
+void tfsDecFileAt(int level, int id) {
+  ASSERT(tfsIsLocked());
+  DISK_AT(level, id)->dmeta.nfiles--;
+  ASSERT(DISK_AT(level, id)->dmeta.nfiles >= 0);
+}
+
+int tfsLock() {
+  int code = pthread_mutex_lock(&(pfs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+
+  pfs->locked = true;
+
+  return 0;
+}
+
+int tfsUnLock() {
+  pfs->locked = false;
+
+  int code = pthread_mutex_unlock(&(pfs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+
+  return 0;
+}
+
+bool tfsIsLocked() { return pfs->locked; }
+
 const char *tfsGetDiskName(int level, int id) {
   return DISK_AT(level, id)->dir;
 }
@@ -289,26 +328,6 @@ static int tfsCheck() {
       return -1;
     }
   } while (level < pfs->nlevel);
-
-  return 0;
-}
-
-static int tfsLock() {
-  int code = pthread_mutex_lock(&(pfs->lock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-
-  return 0;
-}
-
-static tfsUnLock() {
-  int code = pthread_mutex_unlock(&(pfs->lock));
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
 
   return 0;
 }

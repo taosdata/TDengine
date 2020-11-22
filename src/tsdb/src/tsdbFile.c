@@ -365,13 +365,8 @@ void *tsdbDecodeSFileInfo(void *buf, STsdbFileInfo *pInfo) {
 void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   ASSERT(pFGroup != NULL);
   STsdbFileH *pFileH = pRepo->tsdbFileH;
-  SDisk *     pDisk = NULL;
-  char        baseDir[TSDB_FILENAME_LEN] = "\0";
 
   SFileGroup fileGroup = *pFGroup;
-  tsdbGetBaseDirFromFile(fileGroup.files[0].fname, baseDir);
-  pDisk = tdGetDiskByName(tsDnodeTier, baseDir);
-  ASSERT(pDisk != NULL);
 
   int nFilesLeft = pFileH->nFGroups - (int)(POINTER_DISTANCE(pFGroup, pFileH->pFGroup) / sizeof(SFileGroup) + 1);
   if (nFilesLeft > 0) {
@@ -381,14 +376,8 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
   pFileH->nFGroups--;
   ASSERT(pFileH->nFGroups >= 0);
 
-  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-    if (remove(fileGroup.files[type].fname) < 0) {
-      tsdbError("vgId:%d failed to remove file %s", REPO_ID(pRepo), fileGroup.files[type].fname);
-    }
-    tsdbDestroyFile(&fileGroup.files[type]);
-  }
-
-  tdDecDiskFiles(tsDnodeTier, pDisk, true);
+  tfsRemoveFiles(TSDB_FILE_TYPE_MAX, &fileGroup.files[TSDB_FILE_TYPE_HEAD], &fileGroup.files[TSDB_FILE_TYPE_DATA],
+                 &fileGroup.files[TSDB_FILE_TYPE_LAST]);
 }
 
 int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {

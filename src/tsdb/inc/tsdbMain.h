@@ -190,15 +190,13 @@ typedef struct {
 
 typedef struct {
   int           fd;
-  TFSFILE       tfile;
+  TFSFILE       file;
   STsdbFileInfo info;
 } SFile;
 
 typedef struct {
   int   fileId;
   int   state;  // 0 for health, 1 for problem
-  int   level;
-  int   did;
   SFile files[TSDB_FILE_TYPE_MAX];
 } SFileGroup;
 
