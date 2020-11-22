@@ -100,7 +100,7 @@ uint16_t syncGenTranId() {
 }
 
 int32_t syncInit() {
-  SPoolInfo info;
+  SPoolInfo info = {0};
 
   info.numOfThreads = tsSyncTcpThreads;
   info.serverIp = 0;
@@ -124,7 +124,7 @@ int32_t syncInit() {
     return -1;
   }
 
-  tsVgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
+  tsVgIdHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (tsVgIdHash == NULL) {
     sError("failed to init tsVgIdHash");
     taosTmrCleanUp(tsSyncTmrCtrl);

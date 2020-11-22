@@ -153,12 +153,12 @@ typedef struct SSyncNode {
   int8_t       selfIndex;
   uint32_t     vgId;
   int64_t      rid;
-  SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA+1];  // extra one for arbitrator
-  SSyncPeer   *pMaster;
+  SSyncPeer *  peerInfo[TAOS_SYNC_MAX_REPLICA + 1];  // extra one for arbitrator
+  SSyncPeer *  pMaster;
   SRecvBuffer *pRecv;
-  SSyncFwds   *pSyncFwds;  // saved forward info if quorum >1
-  void        *pFwdTimer;
-  void        *pRoleTimer;
+  SSyncFwds *  pSyncFwds;  // saved forward info if quorum >1
+  void *       pFwdTimer;
+  void *       pRoleTimer;
   FGetFileInfo    getFileInfo;
   FGetWalInfo     getWalInfo;
   FWriteToCache   writeToCache;

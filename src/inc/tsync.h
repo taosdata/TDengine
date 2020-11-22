@@ -89,7 +89,7 @@ typedef struct {
   int32_t  vgId;       // vgroup ID
   uint64_t version;    // initial version
   SSyncCfg syncCfg;    // configuration from mgmt
-  char     path[128];  // path to the file
+  char     path[TSDB_FILENAME_LEN];  // path to the file
   FGetFileInfo      getFileInfo;
   FGetWalInfo       getWalInfo;
   FWriteToCache     writeToCache;
