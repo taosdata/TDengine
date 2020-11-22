@@ -63,7 +63,7 @@ int32_t vnodeInitResources() {
   vnodeInitWriteFp();
   vnodeInitReadFp();
 
-  tsVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
+  tsVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (tsVnodesHash == NULL) {
     vError("failed to init vnode list");
     return TSDB_CODE_VND_OUT_OF_MEMORY;
@@ -175,8 +175,8 @@ int32_t vnodeDrop(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeAlter(void *param, SCreateVnodeMsg *pVnodeCfg) {
-  SVnodeObj *pVnode = param;
+int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
+  SVnodeObj *pVnode = vparam;
 
   // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
   // cfgVersion can be corrected by status msg
@@ -334,7 +334,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 
   pVnode->events = NULL;
-  pVnode->status = TAOS_VN_STATUS_READY;
 
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
   tsdbIncCommitRef(pVnode->vgId);
@@ -367,6 +366,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 #endif
 
+  pVnode->status = TAOS_VN_STATUS_READY;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -611,17 +611,18 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->fversion = pVnode->version;
     vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    if (pVnode->status == TAOS_VN_STATUS_INIT) {
-      return 0;
-    } else {
+    if (pVnode->status != TAOS_VN_STATUS_INIT) {
       return walRenew(pVnode->wal);
     }
+    return 0;
   }
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     pVnode->isFull = 0;
-    walRemoveOneOldFile(pVnode->wal);
+    if (pVnode->status != TAOS_VN_STATUS_INIT) {
+      walRemoveOneOldFile(pVnode->wal);
+    }
     return vnodeSaveVersion(pVnode);
   }
 
@@ -701,7 +702,7 @@ static int32_t vnodeResetTsdb(SVnodeObj *pVnode) {
 
   void *tsdb = pVnode->tsdb;
   pVnode->tsdb = NULL;
-
+  
   // acquire vnode
   int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
 
