@@ -53,8 +53,7 @@ int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pRead);
 }
 
-static int32_t vnodeCheckRead(void *vparam) {
-  SVnodeObj *pVnode = vparam;
+static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
   if (pVnode->status != TAOS_VN_STATUS_READY) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);

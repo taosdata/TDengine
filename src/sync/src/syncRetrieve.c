@@ -108,7 +108,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   while (1) {
     // retrieve file info
     fileInfo.name[0] = 0;
-    fileInfo.magic = (*pNode->getFileInfo)(pNode->ahandle, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
+    fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
     // fileInfo.size = htonl(size);
 
@@ -354,7 +354,7 @@ static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
 
     index++;
     wname[0] = 0;
-    code = (*pNode->getWalInfo)(pNode->ahandle, wname, &index);
+    code = (*pNode->getWalInfo)(pNode->vgId, wname, &index);
     if (code < 0) break;
     if (wname[0] == 0) {
       code = 0;
@@ -382,7 +382,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   while (1) {
     // retrieve wal info
     wname[0] = 0;
-    code = (*pNode->getWalInfo)(pNode->ahandle, wname, &index);
+    code = (*pNode->getWalInfo)(pNode->vgId, wname, &index);
     if (code < 0) break;  // error
     if (wname[0] == 0) {  // no wal file
       sDebug("%s, no wal file", pPeer->id);
@@ -487,10 +487,10 @@ void *syncRetrieveData(void *param) {
     // if file is changed 3 times continuously, start flow control
     pPeer->numOfRetrieves++;
     if (pPeer->numOfRetrieves >= 2 && pNode->notifyFlowCtrl)
-      (*pNode->notifyFlowCtrl)(pNode->ahandle, 4 << (pPeer->numOfRetrieves - 2));
+      (*pNode->notifyFlowCtrl)(pNode->vgId, 4 << (pPeer->numOfRetrieves - 2));
   } else {
     pPeer->numOfRetrieves = 0;
-    if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->ahandle, 0);
+    if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);
   }
 
   pPeer->fileChanged = 0;
