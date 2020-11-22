@@ -89,7 +89,7 @@ public class TSDBDriver extends AbstractTaosDriver {
     /**
      * fetch data from native function in a batch model
      */
-    public static final String PROPERTY_KEY_BATCH_LOAD = "batch";
+    public static final String PROPERTY_KEY_BATCH_LOAD = "batchfetch";
     
     private TSDBDatabaseMetaData dbMetaData = null;
 

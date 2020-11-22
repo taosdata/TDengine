@@ -48,7 +48,7 @@ void *mnodeCreateMsg(SRpcMsg *pRpcMsg) {
 
 int32_t mnodeInitMsg(SMnodeMsg *pMsg) {
   if (pMsg->pUser != NULL) {
-    mDebug("app:%p:%p, user info already inited", pMsg->rpcMsg.ahandle, pMsg);
+    mTrace("msg:%p, app:%p user info already inited", pMsg, pMsg->rpcMsg.ahandle);
     return TSDB_CODE_SUCCESS;
   }
 

@@ -33,12 +33,19 @@ sql create database if not exists $db keep 36500
 sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
 
+$half = $tbNum / 2
+
 $i = 0
-while $i < $tbNum
+while $i < $half
   $tb = $tbPrefix . $i
   $tg2 = ' . abc
   $tg2 = $tg2 . '
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
   sql create table $tb using $mt tags( $i , $tg2 )
+  sql create table $tb1 using $mt tags( $nextSuffix , $tg2 )
 
   $x = 0
   while $x < $rowNum
@@ -55,7 +62,7 @@ while $i < $tbNum
     $nchar = $nchar . $c
     $nchar = $nchar . '
 
-    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($tstart , $c , $c , $x , $x , $c , $c , $c , $binary , $nchar ) $tb1 values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $tstart = $tstart + 1
     $x = $x + 1
   endw
@@ -423,8 +430,172 @@ if $data97 != @group_tb0@ then
   return -1
 endi
 
-print ---------------------------------> group by binary|nchar data add cases
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4;
+if $rows != 10000 then
+  return -1
+endi
 
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data02 !=  @70-01-01 08:01:40.000@ then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 limit 1;
+if $rows != 1 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 limit 20 offset 9990;
+if $rows != 10 then
+  return -1
+endi
+
+sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c4;
+if $rows != 10000 then
+  return -1
+endi
+
+print ---------------------------------> group by binary|nchar data add cases
+sql select count(*) from group_tb1 group by c8;
+if $rows != 100 then
+  return -1
+endi
+
+sql select count(*),sum(c4), count(c4), sum(c4)/count(c4) from group_tb1 group by c8
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != 100 then
+  return -1
+endi
+
+if $data01 != 495000 then
+  return -1
+endi
+
+if $data02 != 100 then
+  return -1
+endi
+
+if $data03 != 4950.000000000 then
+  print expect 4950.000000000 , acutal $data03
+  return -1
+endi
+
+if $data10 != 100 then
+  return -1
+endi
+
+if $data11 != 495100 then
+  return -1
+endi
+
+if $data13 != 4951.000000000 then
+  return -1
+endi
+
+print ====================> group by normal column + slimit + soffset
+sql select count(*), c8 from group_mt0 group by c8 limit 1 offset 0;
+if $rows != 100 then
+  return -1
+endi
+
+sql select sum(c2),c8,avg(c2), sum(c2)/count(*) from group_mt0 group by c8 slimit 2 soffset 99
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 79200.000000000 then
+  return -1
+endi
+
+if $data01 != @binary99@ then
+  return -1
+endi
+
+if $data02 != 99.000000000 then
+  return -1
+endi
+
+if $data03 != 99.000000000 then
+  return -1
+endi
+
+print ============>td-1765
+sql select percentile(c4, 49),min(c4),max(c4),avg(c4),stddev(c4) from group_tb0 group by c8;
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != 4851.000000000 then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data02 != 9900 then
+  return -1
+endi
+
+if $data03 != 4950.000000000 then
+  return -1
+endi
+
+if $data04 != 2886.607004772 then
+  return -1
+endi
+
+if $data10 != 4852.000000000 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data12 != 9901 then
+  return -1
+endi
+
+if $data13 != 4951.000000000 then
+  return -1
+endi
+
+if $data14 != 2886.607004772 then
+  return -1
+endi
+
+print ================>td-2090
+sql select leastsquares(c2, 1, 1) from group_tb1  group by c8;
+if $rows != 100 then
+ return -1
+endi
+
+if $data00 != @{slop:0.000000, intercept:0.000000}@ then
+  return -1
+endi
+
+if $data10 != @{slop:0.000000, intercept:1.000000}@ then
+  return -1
+endi
+
+if $data90 != @{slop:0.000000, intercept:9.000000}@ then
+  return -1
+endi
 
 #=========================== group by multi tags ======================
 sql create table st (ts timestamp, c int) tags (t1 int, t2 int, t3 int, t4 int);

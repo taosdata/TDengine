@@ -43,7 +43,7 @@ void mnodeAddReadMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *pMsg)) {
 
 int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
-    mError("%p, msg:%s in mread queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, app:%p type:%s in mread queue, content is null", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
@@ -52,7 +52,7 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
     SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
     mnodeGetMnodeEpSetForShell(epSet);
 
-    mDebug("%p, msg:%s in mread queue will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, app:%p type:%s in mread queue will be redirected, numOfEps:%d inUse:%d", pMsg, pMsg->rpcMsg.ahandle,
            taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
     for (int32_t i = 0; i < epSet->numOfEps; ++i) {
       if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
@@ -70,13 +70,15 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   }
 
   if (tsMnodeProcessReadMsgFp[pMsg->rpcMsg.msgType] == NULL) {
-    mError("%p, msg:%s in mread queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, app:%p type:%s in mread queue, not processed", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   int32_t code = mnodeInitMsg(pMsg);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("%p, msg:%s in mread queue, not processed reason:%s", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], tstrerror(code));
+    mError("msg:%p, app:%p type:%s in mread queue, not processed reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType], tstrerror(code));
     return code;
   }
 
