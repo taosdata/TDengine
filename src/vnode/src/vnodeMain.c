@@ -30,19 +30,21 @@
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int      vnodeProcessTsdbStatus(void *arg, int status, int eno);
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
-static int      vnodeGetWalInfo(void *ahandle, char *fileName, int64_t *fileId);
-static void     vnodeNotifyRole(void *ahandle, int8_t role);
-static void     vnodeCtrlFlow(void *handle, int32_t mseconds); 
-static int      vnodeNotifyFileSynced(void *ahandle, uint64_t fversion);
+static int32_t  vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
+static uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
+static int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
+static void     vnodeNotifyRole(int32_t vgId, int8_t role);
+static void     vnodeCtrlFlow(int32_t vgId, int32_t mseconds);
+static int32_t  vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion);
+static void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
+static int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
 
 #ifndef _SYNC
 int64_t syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int qtype) { return 0; }
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype) { return 0; }
 void    syncStop(int64_t rid) {}
-int32_t syncReconfig(int64_t rid, const SSyncCfg * cfg) { return 0; }
-int     syncGetNodesRole(int64_t rid, SNodesRole * cfg) { return 0; }
+int32_t syncReconfig(int64_t rid, const SSyncCfg *cfg) { return 0; }
+int32_t syncGetNodesRole(int64_t rid, SNodesRole *cfg) { return 0; }
 void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {}
 #endif
 
@@ -55,7 +57,7 @@ char* vnodeStatus[] = {
 };
 
 int32_t vnodeInitResources() {
-  int code = syncInit();
+  int32_t code = syncInit();
   if (code != 0) return code;
 
   vnodeInitWriteFp();
@@ -325,16 +327,29 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
+  pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
+  if (pVnode->qMgmt == NULL) {
+    vnodeCleanUp(pVnode);
+    return terrno;
+  }
+
+  pVnode->events = NULL;
+  pVnode->status = TAOS_VN_STATUS_READY;
+
+  vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
+  tsdbIncCommitRef(pVnode->vgId);
+
+  taosHashPut(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
+
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
   sprintf(syncInfo.path, "%s", rootDir);
-  syncInfo.ahandle = pVnode;
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
-  syncInfo.writeToCache = vnodeWriteToWQueue;
-  syncInfo.confirmForward = dnodeSendRpcVWriteRsp; 
+  syncInfo.writeToCache = vnodeWriteToCache;
+  syncInfo.confirmForward = vnodeConfirmForard; 
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
@@ -346,23 +361,11 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
+    vnodeRelease(pVnode);
     vnodeCleanUp(pVnode);
     return terrno;
   }
-#endif  
-
-  pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
-  if (pVnode->qMgmt == NULL) {
-    vnodeCleanUp(pVnode);
-    return terrno;
-  }
-
-  pVnode->events = NULL;
-  pVnode->status = TAOS_VN_STATUS_READY;
-  vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
-
-  tsdbIncCommitRef(pVnode->vgId);
-  taosHashPut(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -389,7 +392,7 @@ void vnodeRelease(void *vparam) {
   assert(refCount >= 0);
 
   if (refCount > 0) {
-    if (pVnode->status == TAOS_VN_STATUS_RESET && refCount == 2) {
+    if (pVnode->status == TAOS_VN_STATUS_RESET && refCount <= 3) {
       tsem_post(&pVnode->sem);
     }
     return;
@@ -571,7 +574,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 
   if (pVnode->status != TAOS_VN_STATUS_INIT) {
     // it may be in updateing or reset state, then it shall wait
-    int i = 0;
+    int32_t i = 0;
     while (atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_READY, TAOS_VN_STATUS_CLOSING) !=
            TAOS_VN_STATUS_READY) {
       if (++i % 1000 == 0) {
@@ -595,7 +598,7 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
 }
 
 // TODO: this is a simple implement
-static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
+static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   SVnodeObj *pVnode = arg;
 
   if (eno != TSDB_CODE_SUCCESS) {
@@ -625,20 +628,41 @@ static int vnodeProcessTsdbStatus(void *arg, int status, int eno) {
   return 0;
 }
 
-static uint32_t vnodeGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size,
+static uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size,
                                  uint64_t *fversion) {
-  SVnodeObj *pVnode = ahandle;
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while get file info", vgId);
+    return 0;
+  }
+
   *fversion = pVnode->fversion;
-  return tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);
+  uint32_t ret = tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);
+
+  vnodeRelease(pVnode);
+  return ret;
 }
 
-static int vnodeGetWalInfo(void *ahandle, char *fileName, int64_t *fileId) {
-  SVnodeObj *pVnode = ahandle;
-  return walGetWalFile(pVnode->wal, fileName, fileId);
+static int32_t vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while get wal info", vgId);
+    return -1;
+  }
+
+  int32_t code = walGetWalFile(pVnode->wal, fileName, fileId);
+
+  vnodeRelease(pVnode);
+  return code;
 }
 
-static void vnodeNotifyRole(void *ahandle, int8_t role) {
-  SVnodeObj *pVnode = ahandle;
+static void vnodeNotifyRole(int32_t vgId, int8_t role) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while notify role", vgId);
+    return;
+  }
+
   vInfo("vgId:%d, sync role changed from %s to %s", pVnode->vgId, syncRole[pVnode->role], syncRole[role]);
   pVnode->role = role;
   dnodeSendStatusMsgToMnode();
@@ -648,17 +672,26 @@ static void vnodeNotifyRole(void *ahandle, int8_t role) {
   } else {
     cqStop(pVnode->cq);
   }
+
+  vnodeRelease(pVnode);
 }
 
-static void vnodeCtrlFlow(void *ahandle, int32_t mseconds) {
-  SVnodeObj *pVnode = ahandle;
+static void vnodeCtrlFlow(int32_t vgId, int32_t mseconds) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while ctrl flow", vgId);
+    return;
+  }
+
   if (pVnode->delayMs != mseconds) {
     pVnode->delayMs = mseconds;
     vDebug("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
   }
+
+  vnodeRelease(pVnode);
 }
 
-static int vnodeResetTsdb(SVnodeObj *pVnode) {
+static int32_t vnodeResetTsdb(SVnodeObj *pVnode) {
   char rootDir[128] = "\0";
   sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
 
@@ -672,7 +705,7 @@ static int vnodeResetTsdb(SVnodeObj *pVnode) {
   // acquire vnode
   int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
 
-  if (refCount > 2) {
+  if (refCount > 3) {
     tsem_wait(&pVnode->sem);
   }
 
@@ -692,14 +725,44 @@ static int vnodeResetTsdb(SVnodeObj *pVnode) {
   return 0;
 }
 
-static int vnodeNotifyFileSynced(void *ahandle, uint64_t fversion) {
-  SVnodeObj *pVnode = ahandle;
+static int32_t vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while notify file synced", vgId);
+    return 0;
+  }
 
   pVnode->fversion = fversion;
   pVnode->version = fversion;
   vnodeSaveVersion(pVnode);
 
-  vDebug("vgId:%d, data file is synced, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion,
-         pVnode->version);
-  return vnodeResetTsdb(pVnode);
+  vDebug("vgId:%d, data file is synced, fver:%" PRIu64 " vver:%" PRIu64, vgId, fversion, fversion);
+  int32_t code = vnodeResetTsdb(pVnode);
+
+  vnodeRelease(pVnode);
+  return code;
+}
+
+void vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code) {
+  void *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while confirm forward", vgId);
+    return;
+  }
+
+  dnodeSendRpcVWriteRsp(pVnode, wparam, code);
+  vnodeRelease(pVnode);
+}
+
+static int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while write to cache", vgId);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+
+  int32_t code = vnodeWriteToWQueue(pVnode, wparam, qtype, rparam);
+
+  vnodeRelease(pVnode);
+  return code;
 }

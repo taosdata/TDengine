@@ -107,7 +107,7 @@ static taos_queue tsSdbWQueue;
 static SSdbWorkerPool tsSdbPool;
 
 static int32_t sdbProcessWrite(void *pRow, void *pHead, int32_t qtype, void *unused);
-static int32_t sdbWriteWalToQueue(void *vparam, void *pHead, int32_t qtype, void *rparam);
+static int32_t sdbWriteWalToQueue(int32_t vgId, void *pHead, int32_t qtype, void *rparam);
 static int32_t sdbWriteRowToQueue(SSdbRow *pRow, int32_t action);
 static void    sdbFreeFromQueue(SSdbRow *pRow);
 static void *  sdbWorkerFp(void *pWorker);
@@ -228,16 +228,16 @@ void sdbUpdateMnodeRoles() {
   mnodeUpdateMnodeEpSet();
 }
 
-static uint32_t sdbGetFileInfo(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
+static uint32_t sdbGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
   sdbUpdateMnodeRoles();
   return 0;
 }
 
-static int32_t sdbGetWalInfo(void *ahandle, char *fileName, int64_t *fileId) {
+static int32_t sdbGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
   return walGetWalFile(tsSdbMgmt.wal, fileName, fileId);
 }
 
-static void sdbNotifyRole(void *ahandle, int8_t role) {
+static void sdbNotifyRole(int32_t vgId, int8_t role) {
   sdbInfo("vgId:1, mnode role changed from %s to %s", syncRole[tsSdbMgmt.role], syncRole[role]);
 
   if (role == TAOS_SYNC_ROLE_MASTER && tsSdbMgmt.role != TAOS_SYNC_ROLE_MASTER) {
@@ -264,7 +264,7 @@ static void sdbHandleFailedConfirm(SSdbRow *pRow) {
 }
 
 FORCE_INLINE
-static void sdbConfirmForward(void *ahandle, void *wparam, int32_t code) {
+static void sdbConfirmForward(int32_t vgId, void *wparam, int32_t code) {
   if (wparam == NULL) return;
   SSdbRow *pRow = wparam;
   SMnodeMsg * pMsg = pRow->pMsg;
@@ -370,7 +370,6 @@ void sdbUpdateSync(void *pMnodes) {
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
   sprintf(syncInfo.path, "%s", tsMnodeDir);
-  syncInfo.ahandle = NULL;
   syncInfo.getWalInfo = sdbGetWalInfo;
   syncInfo.getFileInfo = sdbGetFileInfo;
   syncInfo.writeToCache = sdbWriteWalToQueue;
@@ -967,7 +966,7 @@ static void sdbFreeFromQueue(SSdbRow *pRow) {
   taosFreeQitem(pRow);
 }
 
-static int32_t sdbWriteWalToQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+static int32_t sdbWriteWalToQueue(int32_t vgId, void *wparam, int32_t qtype, void *rparam) {
   SWalHead *pHead = wparam;
 
   int32_t  size = sizeof(SSdbRow) + sizeof(SWalHead) + pHead->len;
@@ -1039,7 +1038,7 @@ static void *sdbWorkerFp(void *pWorker) {
       taosGetQitem(tsSdbWQall, &qtype, (void **)&pRow);
 
       if (qtype == TAOS_QTYPE_RPC) {
-        sdbConfirmForward(NULL, pRow, pRow->code);
+        sdbConfirmForward(1, pRow, pRow->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
           syncConfirmForward(tsSdbMgmt.sync, pRow->pHead->version, pRow->code);

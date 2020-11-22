@@ -64,33 +64,32 @@ typedef struct {
   if name is provided(name[0] is not zero), get the named file at the specified index. If not there, return
   zero. If it is there, set the size to file size, and return file magic number. Index shall not be updated.
 */
-typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion); 
+typedef uint32_t (*FGetFileInfo)(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion); 
 
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
-typedef int32_t  (*FGetWalInfo)(void *ahandle, char *fileName, int64_t *fileId); 
+typedef int32_t  (*FGetWalInfo)(int32_t vgId, char *fileName, int64_t *fileId); 
  
 // when a forward pkt is received, call this to handle data
-typedef int32_t  (*FWriteToCache)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
+typedef int32_t  (*FWriteToCache)(int32_t vgId, void *pHead, int32_t qtype, void *pMsg);
 
 // when forward is confirmed by peer, master call this API to notify app
-typedef void     (*FConfirmForward)(void *ahandle, void *mhandle, int32_t code);
+typedef void     (*FConfirmForward)(int32_t vgId, void *mhandle, int32_t code);
 
 // when role is changed, call this to notify app
-typedef void     (*FNotifyRole)(void *ahandle, int8_t role);
+typedef void     (*FNotifyRole)(int32_t vgId, int8_t role);
 
 // if a number of retrieving data failed, call this to start flow control 
-typedef void     (*FNotifyFlowCtrl)(void *ahandle, int32_t mseconds);
+typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t mseconds);
 
 // when data file is synced successfully, notity app
-typedef int32_t  (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
+typedef int32_t  (*FNotifyFileSynced)(int32_t vgId, uint64_t fversion);
 
 typedef struct {
   int32_t  vgId;       // vgroup ID
   uint64_t version;    // initial version
   SSyncCfg syncCfg;    // configuration from mgmt
   char     path[128];  // path to the file
-  void *   ahandle;    // handle provided by APP
   FGetFileInfo      getFileInfo;
   FGetWalInfo       getWalInfo;
   FWriteToCache     writeToCache;
