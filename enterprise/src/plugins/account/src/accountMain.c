@@ -228,15 +228,15 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   int32_t grantCode = grantCheck(TSDB_GRANT_ACCT);
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
-   SSdbOper oper = {
-    .type    = SDB_OPER_GLOBAL,
-    .table   = tsAcctSdb,
-    .pObj    = pAcct,
-    .rowSize = sizeof(SAcctObj),
-    .pMsg    = pMsg
+   SSdbRow row = {
+    .type     = SDB_OPER_GLOBAL,
+    .pTable   = tsAcctSdb,
+    .pObj     = pAcct,
+    .rowSize  = sizeof(SAcctObj),
+    .pMsg     = pMsg
   };
   
-  int32_t code = sdbInsertRow(&oper);
+  int32_t code = sdbInsertRow(&row);
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to create by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
@@ -261,14 +261,14 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
     return TSDB_CODE_MND_INVALID_ACCT;
   }
 
-  SSdbOper oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsAcctSdb,
-    .pObj  = pAcct,
-    .pMsg  = pMsg
+  SSdbRow row = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsAcctSdb,
+    .pObj   = pAcct,
+    .pMsg   = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&oper);
+  int32_t code = sdbDeleteRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   } else {
@@ -569,14 +569,14 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
     pAcct->cfg.accessState = pCfg->accessState;
   }
 
-  SSdbOper oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsAcctSdb,
-    .pObj  = pAcct,
-    .pMsg  = pMsg
+  SSdbRow row = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsAcctSdb,
+    .pObj   = pAcct,
+    .pMsg   = pMsg
   };
 
-  int32_t code = sdbUpdateRow(&oper);
+  int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
     tfree(pAcct);
