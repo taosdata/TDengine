@@ -68,6 +68,61 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
   char dataDir[TSDB_FILENAME_LEN] = "\0";
 
+  // 1. scan and get all files corresponds
+  TFSDIR *tdir = NULL;
+  char    fname[TSDB_FILENAME_LEN] = "\0";
+  regex_t regex = {0};
+  int     code = 0;
+  int     vid = 0;
+  int     fid = 0;
+
+  const TFSFILE *pfile = NULL;
+
+  code = regcomp(&regex, "^v[0-9]+f[0-9]+\\.(head|data|last|h|d|l)$", REG_EXTENDED);
+  if (code != 0) {
+    // TODO: deal the error
+  }
+
+  snprintf(dataDir, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", REPO_ID(pRepo));
+  tdir = tfsOpenDir(dataDir);
+  if (tdir == NULL) {
+    // TODO: deal the error
+  }
+
+  while ((pfile = tfsReadDir(tdir)) != NULL) {
+    tfsBaseName(pfile, fname);
+
+    if (strcmp(fname, ".") == 0 || strcmp(fname, "..") == 0) continue;
+
+    code = regexec(&regex, fname, 0, NULL, 0);
+    if (code == 0) {
+      sscanf(fname, "v%df%d", &vid, &fid);
+
+      if (vid != REPO_ID(pRepo)) {
+        tfsAbsName(pfile, fname);
+        tsdbError("vgId:%d invalid file %s exists, ignore", REPO_ID(pRepo), fname);
+        continue;
+      }
+
+      // TODO 
+      {}
+    } else if (code == REG_NOMATCH) {
+      tfsAbsName(pfile, fname);
+      tsdbWarn("vgId:%d unrecognizable file %s exists, ignore", REPO_ID(pRepo), fname);
+      continue;
+    } else {
+      tsdbError("vgId:%d regexec failed since %s", REPO_ID(pRepo), strerror(code));
+      // TODO: deal with error
+    }
+  }
+
+  // 2. Sort all files according to fid
+
+  // 3. Recover all files of each fid
+  while (true) {
+    // TODO
+  }
+
   return 0;
 }
 

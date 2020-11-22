@@ -21,7 +21,8 @@
 struct TFSFILE {
   int  level;
   int  id;
-  char name[TSDB_FILENAME_LEN];
+  char rname[TSDB_FILENAME_LEN];   // REL name
+  char aname[TSDB_FILENAME_LEN];  // ABS name
 };
 
 struct TFSDIR {
@@ -60,12 +61,13 @@ void tfsCloseDir(TFSDIR *tdir) {
 const TFSFILE *tfsReadDir(TFSDIR *tdir) {
   if (tdir->dir == NULL) return NULL;
 
+  char rname[TSDB_FILENAME_LEN] = "\0";
+
   while (true) {
     struct dirent *dp = readdir(tdir->dir);
     if (dp != NULL) {
-      tdir->tfsfile.level = tdir->level;
-      tdir->tfsfile.id = tdir->id;
-      snprintf(tdir->tfsfile.name, TSDB_FILENAME_LEN, "%s/%s", tdir->name, dp->d_name);
+      snprintf(rname, TSDB_FILENAME_LEN, "%s/%s", tdir->name, dp->d_name);
+      tsfInitFile(&(tdir->tfsfile), tdir->level, tdir->id, rname);
 
       return &(tdir->tfsfile);
     }
@@ -86,6 +88,41 @@ const TFSFILE *tfsReadDir(TFSDIR *tdir) {
 
     if (tdir->dir == NULL) return NULL;
   }
+}
+
+const char *tfsAbsName(TFSFILE *pfile, char dest[]) { return pfile->aname; }
+const char *tfsRelName(TFSFILE *pfile, char dest[]) { return pfile->rname; }
+
+void tfsDirName(TFSFILE *pfile, char dest[]) {
+  char fname[TSDB_FILENAME_LEN] = "\0";
+
+  tfsAbsFname(pfile, fname);
+  strncpy(dest, dirname(fname), TSDB_FILENAME_LEN);
+}
+
+void tfsBaseName(TFSFILE *pfile, char dest[]) {
+  char fname[TSDB_FILENAME_LEN] = "\0";
+  memcpy((void *)fname, (void *)pfile->rname, TSDB_FILENAME_LEN);
+  strncpy(dest, basename(fname), TSDB_FILENAME_LEN);
+}
+
+int tfsopen(TFSFILE *pfile, int flags) {
+  int fd = open(pfile->aname, flags);
+  if (fd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return fd;
+}
+
+int tfsclose(int fd) {
+  if (close(fd) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0
 }
 
 static int tfsOpenDirImpl(TFSDIR *tdir) {
@@ -115,4 +152,11 @@ static int tfsOpenDirImpl(TFSDIR *tdir) {
 
   ASSERT(tdir->dir == NULL);
   return 0;
+}
+
+static void tsfInitFile(TFSFILE *pfile, int level, int id, char *rname) {
+  pfile->level = level;
+  pfile->id = id;
+  strncpy(pfile->rname, rname, TSDB_FILENAME_LEN);
+  snprintf(pfile->aname, TSDB_FILENAME_LEN, "%s/%s", tfsGetDiskName(level, id), rname);
 }

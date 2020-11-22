@@ -39,6 +39,14 @@ TFSDIR *       tfsOpenDir(char *dir);
 void           tfsCloseDir(TFSDIR *tdir);
 const TFSFILE *tfsReadDir(TFSDIR *tdir);
 
+const char *tfsAbsName(TFSFILE *pfile, char dest[]);
+const char *tfsRelName(TFSFILE *pfile, char dest[]);
+void        tfsDirName(TFSFILE *pfile, char dest[]);
+void        tfsBaseName(TFSFILE *pfile, char dest[]);
+
+int tfsopen(TFSFILE *pfile);
+int tfsclose(int, fd);
+
 const char *tfsGetDiskName(int level, int id);
 
 #ifdef __cplusplus

@@ -215,12 +215,6 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
     goto _err;
   }
 
-  // Open files for write/read
-  if (tsdbSetAndOpenHelperFile(pHelper, pGroup) < 0) {
-    tsdbError("vgId:%d failed to set helper file since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
-
   newLast = TSDB_NLAST_FILE_OPENED(pHelper);
 
   if (tsdbLoadCompIdx(pHelper, NULL) < 0) {

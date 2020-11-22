@@ -189,10 +189,8 @@ typedef struct {
 } STsdbFileInfo;
 
 typedef struct {
-  // char  fname[TSDB_FILENAME_LEN];
-  // int   fd;
-
-  STfsFile tfile;
+  int           fd;
+  TFSFILE       tfile;
   STsdbFileInfo info;
 } SFile;
 
