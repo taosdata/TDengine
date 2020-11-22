@@ -338,7 +338,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
   tsdbIncCommitRef(pVnode->vgId);
 
-  taosHashPut(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t), (char *)(&pVnode), sizeof(SVnodeObj *));
+  taosHashPut(tsVnodesHash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
 
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
@@ -570,7 +570,7 @@ void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
   // remove from hash, so new messages wont be consumed
-  taosHashRemove(tsVnodesHash, (const char *)&pVnode->vgId, sizeof(int32_t));
+  taosHashRemove(tsVnodesHash, &pVnode->vgId, sizeof(int32_t));
 
   if (pVnode->status != TAOS_VN_STATUS_INIT) {
     // it may be in updateing or reset state, then it shall wait
