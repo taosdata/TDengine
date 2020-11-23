@@ -318,6 +318,7 @@ static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
       if (((event & IN_MODIFY) == 0) || once) {
         if (fversion == 0) {
           pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;  // start to forward pkt
+          sDebug("%s, fversion is 0 then set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
           fversion = nodeVersion;                   // must read data to fversion
         }
       }
@@ -416,8 +417,9 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   }
 
   if (code == 0) {
-    sInfo("%s, wal retrieve is finished", pPeer->id);
     pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
+    sInfo("%s, wal retrieve is finished, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+
     SWalHead walHead;
     memset(&walHead, 0, sizeof(walHead));
     code = taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
@@ -445,7 +447,7 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
 
   pPeer->sversion = 0;
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
-  sInfo("%s, start to retrieve file", pPeer->id);
+  sInfo("%s, start to retrieve file, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   if (syncRetrieveFile(pPeer) < 0) {
     sError("%s, failed to retrieve file", pPeer->id);
     return -1;

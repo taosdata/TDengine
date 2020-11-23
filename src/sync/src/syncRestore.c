@@ -267,7 +267,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
   uint64_t fversion = 0;
 
-  sDebug("%s, start to restore file", pPeer->id);
+  sDebug("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   int32_t code = syncRestoreFile(pPeer, &fversion);
   if (code < 0) {
     sError("%s, failed to restore file", pPeer->id);
@@ -291,7 +291,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
-  sDebug("%s, start to insert buffered points", pPeer->id);
+  sDebug("%s, start to insert buffered points, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   if (syncProcessBufferedFwd(pPeer) < 0) {
     sError("%s, failed to insert buffered points", pPeer->id);
     return -1;
@@ -327,6 +327,8 @@ void *syncRestoreData(void *param) {
   (*pNode->notifyRole)(pNode->vgId, nodeRole);
 
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
+  sInfo("%s, sync over, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+
   taosClose(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
