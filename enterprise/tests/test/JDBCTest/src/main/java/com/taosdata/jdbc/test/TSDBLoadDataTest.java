@@ -24,7 +24,7 @@ public class TSDBLoadDataTest {
 	public void MakeJdbcUrl() {
 		String JDBC_PROTOCAL = "jdbc:TSDB://";
 		int port = 0;
-		this.jdbcUrl = JDBC_PROTOCAL + host + ":" + port + "/" + dbName + "? user = " + user + " & password=" + password + " & batch = false";
+		this.jdbcUrl = JDBC_PROTOCAL + host + ":" + port + "/" + dbName + "? user = " + user + " & password=" + password + " & batchfetch = true";
 		System.out.println(this.jdbcUrl);
 	}
 
@@ -179,7 +179,7 @@ public class TSDBLoadDataTest {
 		try {
 			long start = System.currentTimeMillis();
 			stmt = (Statement) conn.createStatement();
-			rset = stmt.executeQuery("select * from test.t1");
+			rset = stmt.executeQuery("select * from test.meters");
 			
 			ResultSetMetaData meta = rset.getMetaData();
 			int numOfCols = meta.getColumnCount();
@@ -187,7 +187,7 @@ public class TSDBLoadDataTest {
 			int row = 0;
 			while(rset.next()) {
 				for(int i = 0; i < numOfCols; ++i) {
-					System.out.println(rset.getString(i + 1));
+					rset.getString(i + 1);
 				}
 				row += 1;
 			}
