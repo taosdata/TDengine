@@ -196,7 +196,7 @@ typedef struct {
 
 typedef struct {
   int   fileId;
-  int   state;  // 0 for health, 1 for problem
+  int   state; // 0 for health, 1 for problem
   SFile files[TSDB_FILE_TYPE_MAX];
 } SFileGroup;
 
@@ -518,7 +518,7 @@ void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
 SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
 int         tsdbOpenFile(SFile* pFile, int oflag);
 void        tsdbCloseFile(SFile* pFile);
-int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type, SDisk* pDisk);
+int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
 void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, SFidGroup* pFidGroup);
 int         tsdbUpdateFileHeader(SFile* pFile);

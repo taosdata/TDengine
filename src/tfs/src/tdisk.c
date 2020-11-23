@@ -47,7 +47,7 @@ SDisk *tfsNewDisk(int level, int id, char *dir) {
 
 void tfsFreeDisk(SDisk *pDisk) {
   if (pDisk) {
-    free(pDisk)
+    free(pDisk);
   }
 }
 

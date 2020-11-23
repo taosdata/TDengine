@@ -15,8 +15,8 @@
 
 #include "os.h"
 #include "taoserror.h"
-#include "tdisk.h"
 #include "tfs.h"
+#include "tfsint.h"
 
 struct TFSFILE {
   int  level;
@@ -32,6 +32,10 @@ struct TFSDIR {
   TFSFILE tfsfile;
   DIR *   dir;
 };
+
+static int      tfsOpenDirImpl(TFSDIR *tdir);
+static void     tfsInitFile(TFSFILE *pfile, int level, int id, char *rname);
+static TFSFILE *tfsNewFile(int level, int id, char *rname);
 
 // PUBLIC ==========================================
 TFSDIR *tfsOpenDir(char *dir) {
@@ -123,7 +127,7 @@ int tfsclose(int fd) {
     return -1;
   }
 
-  return 0
+  return 0;
 }
 
 TFSFILE *tfsCreateFiles(int level, int nfile, ...) {

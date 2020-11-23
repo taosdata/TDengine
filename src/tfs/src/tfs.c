@@ -41,6 +41,12 @@ static SFS *pfs = &tdFileSystem;
 #define TIER_AT(level) (pfs->tiers + (level))
 #define DISK_AT(level, id) DISK_AT_TIER(TIER_AT(level), id)
 
+static int tfsMount(SDiskCfg *pCfg);
+static int tfsCheckAndFormatCfg(SDiskCfg *pCfg);
+static int tfsFormatDir(char *idir, char *odir);
+static int tfsCheck();
+static tfsGetDiskByName(char *dirName);
+
 // public:
 int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   ASSERT(ndisk > 0);
@@ -84,7 +90,7 @@ void tfsDestroy() {
   
   pthread_mutex_destroy(&(pfs->lock));
   for (int level = 0; level < TSDB_MAX_TIER; level++) {
-    tdDestroyTier(TIER_AT(level));
+    tfsDestroyTier(TIER_AT(level));
   }
 }
 
@@ -92,7 +98,7 @@ int tfsUpdateInfo() {
   tfsLock();
 
   for (int level = 0; level < pfs->nlevel; level++) {
-    if (tdUpdateTierInfo(TIER_AT(level)) < 0) {
+    if (tfsUpdateTierInfo(TIER_AT(level)) < 0) {
       // TODO: deal with the error here
     }
   }

@@ -50,7 +50,7 @@ const char *tfsRelName(TFSFILE *pfile);
 void        tfsDirName(TFSFILE *pfile, char dest[]);
 void        tfsBaseName(TFSFILE *pfile, char dest[]);
 
-int tfsopen(TFSFILE *pfile);
+int tfsopen(TFSFILE *pfile, int flags);
 int tfsclose(int fd);
 
 TFSFILE *tfsCreateFiles(int level, int nfile, ...);

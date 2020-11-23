@@ -262,7 +262,7 @@ void tsdbCloseFile(SFile *pFile) {
   }
 }
 
-int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type, SDisk *pDisk) {
+int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type) {
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 

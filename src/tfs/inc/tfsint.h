@@ -16,9 +16,14 @@
 #ifndef TD_TFSINT_H
 #define TD_TFSINT_H
 
+#include "tlog.h"
+#include "tglobal.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern int fsDebugFlag;
 
 // For debug purpose
 #define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", 255, __VA_ARGS__); }}
