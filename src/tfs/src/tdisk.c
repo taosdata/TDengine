@@ -64,3 +64,5 @@ int tfsUpdateDiskInfo(SDisk *pDisk) {
 
   return 0;
 }
+
+const char *tfsDiskDir(SDisk *pDisk) { return pDisk->dir; }

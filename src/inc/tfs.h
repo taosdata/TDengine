@@ -31,10 +31,11 @@ typedef struct {
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
 int  tfsUpdateInfo();
-void tfsPrimaryPath(char *dst);
 int  tfsCreateDir(char *dirname);
 int  tfsRemoveDir(char *dirname);
 int  tfsRename(char *oldpath, char *newpath);
+
+const char *tfsPrimaryPath();
 
 // tfcntl.c
 typedef struct TFSFILE TFSFILE;

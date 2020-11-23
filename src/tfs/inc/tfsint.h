@@ -35,6 +35,8 @@ SDisk *tfsNewDisk(int level, int id, char *dir);
 void   tfsFreeDisk(SDisk *pDisk);
 int    tfsUpdateDiskInfo(SDisk *pDisk);
 
+const char *tfsDiskDir(SDisk *pDisk);
+
 // ttier.c
 typedef struct STier STier;
 

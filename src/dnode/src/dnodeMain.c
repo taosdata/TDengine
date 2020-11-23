@@ -186,7 +186,7 @@ static int32_t dnodeInitStorage() {
     dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;
   }
-  tfsPrimaryPath(tsDataDir);
+  snprintf(tsDataDir, tfsPrimaryPath(), TSDB_FILENAME_LEN);
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);

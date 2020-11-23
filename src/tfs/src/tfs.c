@@ -100,9 +100,7 @@ int tfsUpdateInfo() {
   tfsUnLock();
 }
 
-void tfsPrimaryPath(char *dst) {
-  strncpy(dst, DISK_AT(0, 0)->dir, TSDB_FILENAME_LEN);
-}
+const char *tfsPrimaryPath() { return tfsDiskDir(DISK_AT(0, 0)); }
 
 int tfsCreateDir(char *dirname) {
   char dirName[TSDB_FILENAME_LEN] = "\0";
