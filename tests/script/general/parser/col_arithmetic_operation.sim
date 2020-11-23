@@ -5,6 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 500
 sql connect
+#========================================= setup environment ================================
 
 $dbPrefix = ca_db
 $tbPrefix = ca_tb
@@ -52,44 +53,39 @@ while $i < $halfTbNum
   $i = $i + 1
 endw 
 
-##### select from table
-$tb = $tbPrefix . 0
-## TBASE-344
-sql select c1*2 from $tb
-if $rows != $rowNum then
-  return -1
-endi
-if $data00 != 0.000000000 then
-  return -1
-endi
-if $data10 != 2.000000000 then
-  return -1
-endi
-if $data20 != 4.000000000 then
-  return -1
-endi
-if $data90 != 18.000000000 then
-  return -1
-endi
+#=================================== above are setup test environment =============================
+run general/parser/col_arithmetic_query.sim
 
-sql select c4*1+1/2 from $tb
-if $rows != $rowNum then
-  return -1
-endi
-if $data00 != 0.500000000 then
-  return -1
-endi
-if $data10 != 1.500000000 then
-  return -1
-endi
-if $data90 != 9.500000000 then
-  return -1
-endi
+#======================================= all in files query =======================================
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode1 -s start
 
-#### illegal operations
+print ================== server restart completed
+sql connect
+sleep 500
+
+run general/parser/col_arithmetic_query.sim
+
+# ================================================================================================
+
+print ====================> crash
+# sql select spread(ts )/(1000*3600*24) from ca_stb0 interval(1y)
+
+
+sql_error select first(c1, c2) - last(c1, c2) from stb interval(1y)
+sql_error select first(ts) - last(ts) from stb interval(1y)
+sql_error select top(c1, 2) - last(c1) from stb;
+sql_error select stddev(c1) - last(c1) from stb;
+sql_error select diff(c1) - last(c1) from stb;
+sql_error select first(c7) - last(c7) from stb;
+sql_error select first(c8) - last(c8) from stb;
+sql_error select first(c9) - last(c9) from stb;
 sql_error select max(c2*2) from $tb
 sql_error select max(c1-c2) from $tb
 
+#========================================regression test cases====================================
 print =====================> td-1764
 sql select sum(c1)/count(*), sum(c1) as b, count(*) as b from $stb interval(1y)
 if $rows != 1 then
@@ -107,43 +103,5 @@ endi
 if $data02 != 225000 then
   return -1
 endi
-
-sql select first(c1) - last(c1), first(c1) as b, last(c1) as b, min(c1) - max(c1), spread(c1) from ca_stb0 interval(1y)
-if $rows != 1 then
-  return -1
-endi
-
-if $data00 != @18-01-01 00:00:00.000@ then
-  return -1
-endi
-
-if $data01 != -9.000000000 then
-  return -1
-endi
-
-if $data02 != 0 then
-  return -1
-endi
-
-if $data03 != 9 then
-  return -1
-endi
-
-if $data04 != -9.000000000 then
-  return -1
-endi
-
-if $data05 != 9.000000000 then
-  return -1
-endi
-
-sql_error select first(c1, c2) - last(c1, c2) from stb interval(1y)
-sql_error select first(ts) - last(ts) from stb interval(1y)
-sql_error select top(c1, 2) - last(c1) from stb;
-sql_error select stddev(c1) - last(c1) from stb;
-sql_error select diff(c1) - last(c1) from stb;
-sql_error select first(c7) - last(c7) from stb;
-sql_error select first(c8) - last(c8) from stb;
-sql_error select first(c9) - last(c9) from stb;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
