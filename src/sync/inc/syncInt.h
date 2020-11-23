@@ -159,14 +159,14 @@ typedef struct SSyncNode {
   SSyncFwds *  pSyncFwds;  // saved forward info if quorum >1
   void *       pFwdTimer;
   void *       pRoleTimer;
-  FGetFileInfo    getFileInfo;
-  FGetWalInfo     getWalInfo;
-  FWriteToCache   writeToCache;
-  FConfirmForward confirmForward;
-  FNotifyRole     notifyRole;
-  FNotifyFlowCtrl notifyFlowCtrl;
+  FGetFileInfo      getFileInfo;
+  FGetWalInfo       getWalInfo;
+  FWriteToCache     writeToCache;
+  FConfirmForward   confirmForward;
+  FNotifyRole       notifyRole;
+  FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
-  pthread_mutex_t mutex;
+  pthread_mutex_t   mutex;
 } SSyncNode;
 
 // sync module global
