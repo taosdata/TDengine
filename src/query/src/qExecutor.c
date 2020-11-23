@@ -6814,7 +6814,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
       qDebug("QInfo:%p ts comp data return, file:%s, size:%"PRId64, pQInfo, pQuery->sdata[0]->data, s);
       if (lseek(fd, 0, SEEK_SET) >= 0) {
-        size_t sz = read(fd, data, (uint32_t)s);
+        size_t sz = read(fd, data, (uint32_t) s);
         if(sz < s) {  // todo handle error
           assert(0);
         }

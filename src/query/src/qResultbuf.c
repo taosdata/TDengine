@@ -119,8 +119,11 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
     pg->info.offset = allocatePositionInFile(pResultBuf, size);
     pResultBuf->nextPos += size;
 
-    fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-    /*int32_t ret =*/ fwrite(t, 1, size, pResultBuf->file);
+    int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
+    assert(ret == 0);
+
+    ret = fwrite(t, 1, size, pResultBuf->file);
+    assert(ret == size);
 
     if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
       pResultBuf->fileSize = pg->info.offset + pg->info.length;

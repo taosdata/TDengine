@@ -73,7 +73,6 @@ run general/parser/col_arithmetic_query.sim
 print ====================> crash
 # sql select spread(ts )/(1000*3600*24) from ca_stb0 interval(1y)
 
-
 sql_error select first(c1, c2) - last(c1, c2) from stb interval(1y)
 sql_error select first(ts) - last(ts) from stb interval(1y)
 sql_error select top(c1, 2) - last(c1) from stb;

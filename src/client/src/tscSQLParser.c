@@ -80,7 +80,6 @@ static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprLis
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery);
-static void setColumnOffsetValueInResultset(SQueryInfo* pQueryInfo);
 
 static int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd);
 
@@ -2951,14 +2950,6 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd)
   return TSDB_CODE_SUCCESS;
 }
 
-void setColumnOffsetValueInResultset(SQueryInfo* pQueryInfo) {
-  if (QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
-    tscFieldInfoUpdateOffset(pQueryInfo);
-  } else {
-    tscFieldInfoUpdateOffset(pQueryInfo);
-  }
-}
-
 static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
   if (pColumn == NULL) {
     return NULL;
@@ -3537,7 +3528,7 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQuer
 
       if (i == 0) {
         id = p1->uid;
-      } else if (id != p1->uid){
+      } else if (id != p1->uid) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
     }
@@ -6531,7 +6522,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return code;
   }
 
-  setColumnOffsetValueInResultset(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
 
   /*
    * fill options are set at the end position, when all columns are set properly

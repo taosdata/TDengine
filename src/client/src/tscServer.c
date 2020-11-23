@@ -62,7 +62,7 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SVgroupInfo* pVgroupInfo) {
 
   pEpSet->numOfEps = pVgroupInfo->numOfEps;
   for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    strcpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn);
+    tstrncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
     pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
 
     if (!hasFqdn) {
@@ -2031,7 +2031,8 @@ static void createHBObj(STscObj* pObj) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
-    pSql->res.code = terrno;
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tfree(pSql);
     return;
   }
 
@@ -2039,6 +2040,7 @@ static void createHBObj(STscObj* pObj) {
 
   pSql->cmd.command = pQueryInfo->command;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tfree(pSql);
     return;
   }
