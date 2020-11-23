@@ -947,7 +947,7 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
   if (functionId == TSDB_FUNC_ARITHM) {
     sas->pArithExpr = &pQuery->pExpr1[col];
 
-    sas->offset  = 0;
+    sas->offset  = pQuery->pos;
     sas->colList = pQuery->colList;
     sas->numOfCols = pQuery->numOfCols;
     sas->data    = calloc(pQuery->numOfCols, POINTER_BYTES);
