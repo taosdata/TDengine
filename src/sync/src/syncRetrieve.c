@@ -438,7 +438,7 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
   tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
-  if (write(pPeer->syncFd, (char *)&firstPkt, sizeof(firstPkt)) < 0) {
+  if (taosWriteMsg(pPeer->syncFd, (char *)&firstPkt, sizeof(firstPkt)) < 0) {
     sError("%s, failed to send syncCmd", pPeer->id);
     return -1;
   }
