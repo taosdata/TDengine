@@ -80,5 +80,7 @@ void* destroyResultRowPool(SResultRowPool* p);
 int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
 int32_t getNumOfUsedResultRows(SResultRowPool* p);
 
+uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv);
+
 
 #endif  // TDENGINE_QUERYUTIL_H
