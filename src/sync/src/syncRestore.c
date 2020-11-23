@@ -86,7 +86,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 
     // check the file info
     sinfo = minfo;
-    sDebug("%s, get file info:%s", pPeer->id, minfo.name);
+    sDebug("%s, get file:%s info size:%" PRId64, pPeer->id, minfo.name, minfo.size);
     sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size,
                                         &sinfo.fversion);
 

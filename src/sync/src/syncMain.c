@@ -937,8 +937,7 @@ static void syncProcessPeersStatusMsg(char *cont, SSyncPeer *pPeer) {
   SSyncNode *   pNode = pPeer->pSyncNode;
   SPeersStatus *pPeersStatus = (SPeersStatus *)cont;
 
-  sDebug("%s, status msg is received, self:%s sstatus:%s sver:%" PRIu64 ", peer:%s sver:%" PRIu64
-         ", ack:%d tranId:%u type:%s pfd:%d",
+  sDebug("%s, status is received, self:%s:%s:%" PRIu64 ", peer:%s:%" PRIu64 ", ack:%d tranId:%u type:%s pfd:%d",
          pPeer->id, syncRole[nodeRole], syncStatus[nodeSStatus], nodeVersion, syncRole[pPeersStatus->role],
          pPeersStatus->version, pPeersStatus->ack, pPeersStatus->tranId, statusType[pPeersStatus->type], pPeer->peerFd);
 
@@ -1029,8 +1028,7 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type
 
   int32_t retLen = taosWriteMsg(pPeer->peerFd, msg, statusMsgLen);
   if (retLen == statusMsgLen) {
-    sDebug("%s, status msg is sent, self:%s sstatus:%s sver:%" PRIu64 ", peer:%s sstatus:%s sver:%" PRIu64
-           ", ack:%d tranId:%u type:%s pfd:%d",
+    sDebug("%s, status is sent, self:%s:%s:%" PRIu64 ", peer:%s:%s:%" PRIu64 ", ack:%d tranId:%u type:%s pfd:%d",
            pPeer->id, syncRole[nodeRole], syncStatus[nodeSStatus], nodeVersion, syncRole[pPeer->role],
            syncStatus[pPeer->sstatus], pPeer->version, pPeersStatus->ack, pPeersStatus->tranId,
            statusType[pPeersStatus->type], pPeer->peerFd);
