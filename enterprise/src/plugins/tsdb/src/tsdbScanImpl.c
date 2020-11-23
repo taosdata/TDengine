@@ -91,10 +91,10 @@ int tsdbSetAndOpenScanFile(STsdbScanHandle *pScanHandle, char *rootDir, int fid)
 
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
     SFile *pFile = &(pScanHandle->fGroup.files[type]);
-    tsdbGetDataFileName(rootDir, vnode, fid, type, pFile->fname);
+    tsdbGetDataFileName(rootDir, vnode, fid, type, TSDB_FILE_NAME(pFile));
 
     if (tsdbOpenFile(pFile, O_RDONLY) < 0) {
-      tsdbScanError("failed to open file %s since %s", pFile->fname, tstrerror(terrno));
+      tsdbScanError("failed to open file %s since %s", TSDB_FILE_NAME(pFile), tstrerror(terrno));
       pScanHandle->fGroup.state = 1;
       continue;
     }
@@ -102,7 +102,7 @@ int tsdbSetAndOpenScanFile(STsdbScanHandle *pScanHandle, char *rootDir, int fid)
     uint32_t version = 0;
 
     if (tsdbLoadFileHeader(pFile, &version) < 0) {
-      tsdbScanError("file %s header is broken since %s", pFile->fname, tstrerror(terrno));
+      tsdbScanError("file %s header is broken since %s", TSDB_FILE_NAME(pFile), tstrerror(terrno));
       pScanHandle->fGroup.state = 1;
       continue;
     }
@@ -111,13 +111,13 @@ int tsdbSetAndOpenScanFile(STsdbScanHandle *pScanHandle, char *rootDir, int fid)
     fstat(pFile->fd, &tstat);
 
     if (pFile->info.size != tstat.st_size) {
-      tsdbScanWarn("file %s saved size %" PRIu64 " is not the same as reas size %" PRId64, pFile->fname,
+      tsdbScanWarn("file %s saved size %" PRIu64 " is not the same as reas size %" PRId64, TSDB_FILE_NAME(pFile),
                    pFile->info.size, tstat.st_size);
       pFile->info.size = tstat.st_size;
     }
 
     if (type == TSDB_FILE_TYPE_HEAD && pFile->info.offset + pFile->info.len != pFile->info.size) {
-      tsdbError("file %s has invalid offset %u len %u size %" PRId64, pFile->fname, pFile->info.offset, pFile->info.len,
+      tsdbError("file %s has invalid offset %u len %u size %" PRId64, TSDB_FILE_NAME(pFile), pFile->info.offset, pFile->info.len,
                 pFile->info.size);
       pScanHandle->fGroup.state = 1;
     }
