@@ -105,16 +105,12 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   ASSERT(pHelper != NULL && pGroup != NULL);
   SFile *    pFile = NULL;
   STsdbRepo *pRepo = pHelper->pRepo;
-  char       baseDir[TSDB_FILENAME_LEN] = "\0";
-  char       tsdbRootDir[TSDB_FILENAME_LEN] = "\0";
 
   // Clear the helper object
   tsdbResetHelper(pHelper);
 
   ASSERT(pHelper->state == TSDB_HELPER_CLEAR_STATE);
 
-  tsdbGetBaseDirFromFile(pGroup->files[0].fname, baseDir);
-  tdGetTsdbRootDir(baseDir, REPO_ID(pRepo), tsdbRootDir);
   // Set the files
   pHelper->files.fGroup = *pGroup;
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {

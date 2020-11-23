@@ -64,6 +64,7 @@ void tfsDecFileAt(int level, int id);
 int  tfsLock();
 int  tfsUnLock();
 bool tfsIsLocked();
+int  tfsLevels();
 
 // tfcntl.c
 

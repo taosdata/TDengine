@@ -210,6 +210,8 @@ int tfsUnLock() {
 
 bool tfsIsLocked() { return pfs->locked; }
 
+int tfsLevels() { return pfs->nlevel; }
+
 const char *tfsGetDiskName(int level, int id) {
   return DISK_AT(level, id)->dir;
 }

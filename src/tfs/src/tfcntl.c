@@ -18,13 +18,6 @@
 #include "tfs.h"
 #include "tfsint.h"
 
-struct TFSFILE {
-  int  level;
-  int  id;
-  char rname[TSDB_FILENAME_LEN];  // REL name
-  char aname[TSDB_FILENAME_LEN];  // ABS name
-};
-
 struct TFSDIR {
   int     level;
   int     id;
@@ -112,10 +105,37 @@ void tfsBaseName(TFSFILE *pfile, char dest[]) {
 }
 
 int tfsopen(TFSFILE *pfile, int flags) {
+  ASSERT(pfile->level != TFS_UNDECIDED_LEVEL);
+
+  if (flags & O_CREAT) {
+    if (access(pfile->aname, F_OK) == 0) {
+      terrno = TSDB_CODE_FS_FILE_ALREADY_EXISTS;
+      return -1;
+    }
+
+    // adjust level
+    if (pfile->level > tfsLevels()) {
+      pfile->level = tfsLevels();
+    }
+
+    // adjust id
+    if (pfile->id == TFS_UNDECIDED_ID) {
+      // TODO
+    }
+  }
+
+  ASSERT(pfile->id != TFS_UNDECIDED_ID);
+
   int fd = open(pfile->aname, flags);
   if (fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
+  }
+
+  if (flags & O_CREAT) {
+    tfsLock();
+    tfsIncFileAt(pfile->level, pfile->id);
+    tfsUnLock();
   }
 
   return fd;
@@ -128,11 +148,6 @@ int tfsclose(int fd) {
   }
 
   return 0;
-}
-
-TFSFILE *tfsCreateFiles(int level, int nfile, char *fnames[]) {
-  // TODO
-  return NULL;
 }
 
 int tfsRemoveFiles(int nfile, ...) {

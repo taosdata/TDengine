@@ -27,6 +27,9 @@ typedef struct {
   int id;
 } SDiskID;
 
+#define TFS_UNDECIDED_LEVEL -1
+#define TFS_UNDECIDED_ID -1
+
 // tfs.c ====================================
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
@@ -36,7 +39,12 @@ const char *tfsGetDiskName(int level, int id);
 const char *tfsPrimaryPath();
 
 // tfcntl.c ====================================
-typedef struct TFSFILE TFSFILE;
+typedef struct TFSFILE {
+  int  level;
+  int  id;
+  char rname[TSDB_FILENAME_LEN];  // REL name
+  char aname[TSDB_FILENAME_LEN];  // ABS name
+} TFSFILE;
 
 const char *tfsAbsName(TFSFILE *pfile);
 const char *tfsRelName(TFSFILE *pfile);
@@ -44,7 +52,6 @@ void        tfsDirName(TFSFILE *pfile, char dest[]);
 void        tfsBaseName(TFSFILE *pfile, char dest[]);
 int         tfsopen(TFSFILE *pfile, int flags);
 int         tfsclose(int fd);
-TFSFILE *   tfsCreateFiles(int level, int nfile, char *fnames[]);
 int         tfsRemoveFiles(int nfile, ...);
 SDiskID     tfsFileID(TFSFILE *pfile);
 
