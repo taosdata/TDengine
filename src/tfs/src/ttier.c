@@ -17,13 +17,6 @@
 #include "tfsint.h"
 #include "taoserror.h"
 
-#define TSDB_MAX_DISK_PER_TIER 16
-struct STier {
-  int    level;
-  int    ndisk;
-  SDisk *disks[TSDB_MAX_DISK_PER_TIER];
-};
-
 // PROTECTED ==========================================
 void tfsInitTier(STier *pTier, int level) {
   pTier->level = level;

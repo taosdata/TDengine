@@ -27,38 +27,35 @@ typedef struct {
   int id;
 } SDiskID;
 
-// tfs.c
+// tfs.c ====================================
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
 int  tfsUpdateInfo();
-int  tfsCreateDir(char *dirname);
-int  tfsRemoveDir(char *dirname);
-int  tfsRename(char *oldpath, char *newpath);
 
+const char *tfsGetDiskName(int level, int id);
 const char *tfsPrimaryPath();
 
-// tfcntl.c
+// tfcntl.c ====================================
 typedef struct TFSFILE TFSFILE;
-typedef struct TFSDIR  TFSDIR;
-
-TFSDIR *       tfsOpenDir(char *dir);
-void           tfsCloseDir(TFSDIR *tdir);
-const TFSFILE *tfsReadDir(TFSDIR *tdir);
 
 const char *tfsAbsName(TFSFILE *pfile);
 const char *tfsRelName(TFSFILE *pfile);
 void        tfsDirName(TFSFILE *pfile, char dest[]);
 void        tfsBaseName(TFSFILE *pfile, char dest[]);
+int         tfsopen(TFSFILE *pfile, int flags);
+int         tfsclose(int fd);
+TFSFILE *   tfsCreateFiles(int level, int nfile, ...);
+int         tfsRemoveFiles(int nfile, ...);
+SDiskID     tfsFileID(TFSFILE *pfile);
 
-int tfsopen(TFSFILE *pfile, int flags);
-int tfsclose(int fd);
+typedef struct TFSDIR TFSDIR;
 
-TFSFILE *tfsCreateFiles(int level, int nfile, ...);
-int      tfsRemoveFiles(int nfile, ...);
-
-SDiskID tfsFileID(TFSFILE *pfile);
-
-const char *tfsGetDiskName(int level, int id);
+int            tfsCreateDir(char *dirname);
+int            tfsRemoveDir(char *dirname);
+int            tfsRename(char *oldpath, char *newpath);
+TFSDIR *       tfsOpenDir(char *dir);
+void           tfsCloseDir(TFSDIR *tdir);
+const TFSFILE *tfsReadDir(TFSDIR *tdir);
 
 #ifdef __cplusplus
 }

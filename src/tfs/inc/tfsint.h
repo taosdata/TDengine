@@ -43,7 +43,13 @@ int    tfsUpdateDiskInfo(SDisk *pDisk);
 const char *tfsDiskDir(SDisk *pDisk);
 
 // ttier.c
-typedef struct STier STier;
+#define TSDB_MAX_DISK_PER_TIER 16
+
+typedef struct STier {
+  int    level;
+  int    ndisk;
+  SDisk *disks[TSDB_MAX_DISK_PER_TIER];
+} STier;
 
 #define DISK_AT_TIER(pTier, id) ((pTier)->disks[id])
 
