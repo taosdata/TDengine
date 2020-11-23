@@ -35,7 +35,7 @@ public class RestfulDriver extends AbstractTaosDriver {
         Properties props = parseURL(url, info);
         String host = props.getProperty(TSDBDriver.PROPERTY_KEY_HOST, "localhost");
         String port = props.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "6041");
-        String database = props.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME);
+        String database = props.containsKey(TSDBDriver.PROPERTY_KEY_DBNAME) ? props.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME) : null;
 
         String loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":"
                 + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/"
