@@ -136,7 +136,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.update              = pVnodeCfg->cfg.update;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  sprintf(tsdbDir, "vnode/vnode%d/tsdb", pVnodeCfg->cfg.vgId);
   if (tsdbCreateRepo(tsdbDir, &tsdbCfg) < 0) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
@@ -274,7 +274,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
-  sprintf(temp, "%s/tsdb", rootDir);
+  sprintf(temp, "vnode/vnode%d/tsdb", vnode);
 
   terrno = 0;
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
@@ -684,7 +684,7 @@ static void vnodeCtrlFlow(int32_t vgId, int32_t mseconds) {
 
 static int32_t vnodeResetTsdb(SVnodeObj *pVnode) {
   char rootDir[128] = "\0";
-  sprintf(rootDir, "%s/tsdb", pVnode->rootDir);
+  sprintf(rootDir, "vnode/vnode%d/tsdb", pVnode->vgId);
 
   if (pVnode->status != TAOS_VN_STATUS_CLOSING && pVnode->status != TAOS_VN_STATUS_INIT) {
     pVnode->status = TAOS_VN_STATUS_RESET;

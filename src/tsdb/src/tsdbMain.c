@@ -52,7 +52,10 @@ static void        tsdbStopStream(STsdbRepo *pRepo);
 
 // Function declaration
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
-  DIR *dir = opendir(rootDir);
+  char tsdbDir[TSDB_FILENAME_LEN] = "\0";
+
+  snprintf(tsdbDir, TSDB_FILENAME_LEN, "%s/%s", tfsPrimaryPath(), rootDir);
+  DIR *dir = tfs(tsdbDir);
   if (dir) {
     tsdbDebug("repository %s already exists", rootDir);
     closedir(dir);
@@ -63,12 +66,6 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
-  }
-
-  if (mkdir(rootDir, 0755) < 0) {
-    tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
   }
 
   if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
@@ -306,14 +303,14 @@ int tsdbGetState(TSDB_REPO_T *repo) {
 
 // ----------------- INTERNAL FUNCTIONS -----------------
 char *tsdbGetMetaFileName(char *rootDir) {
-  int   tlen = (int)(strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
+  int   tlen = (int)(strlen(tfsPrimaryPath()) + strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
 
-  snprintf(fname, tlen, "%s/%s", rootDir, TSDB_META_FILE_NAME);
+  snprintf(fname, tlen, "%s/%s/%s", tfsPrimaryPath(), rootDir, TSDB_META_FILE_NAME);
   return fname;
 }
 
@@ -483,6 +480,11 @@ _err:
 }
 
 static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
+  if (tfsCreateDir(rootDir) < 0) {
+    tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, tstrerror(terrno));
+    return -1;
+  }
+
   if (tsdbSaveConfig(rootDir, pCfg) < 0) {
     tsdbError("vgId:%d failed to set TSDB environment since %s", pCfg->tsdbId, tstrerror(terrno));
     return -1;
@@ -491,9 +493,8 @@ static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
   char *dirName = tsdbGetDataDirName(rootDir);
   if (dirName == NULL) return -1;
 
-  if (mkdir(dirName, 0755) < 0) {
+  if (tfsCreateDir(dirName) < 0) {
     tsdbError("vgId:%d failed to create directory %s since %s", pCfg->tsdbId, dirName, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
     free(dirName);
     return -1;
   }
@@ -513,7 +514,7 @@ static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
 }
 
 static int32_t tsdbUnsetRepoEnv(char *rootDir) {
-  taosRemoveDir(rootDir);
+  tfsRemoveDir(rootDir);
   tsdbDebug("repository %s is removed", rootDir);
   return 0;
 }
@@ -609,14 +610,14 @@ _err:
 }
 
 static char *tsdbGetCfgFname(char *rootDir) {
-  int   tlen = (int)(strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 2);
+  int   tlen = (int)(strlen(tfsPrimaryPath()) + strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 3);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
 
-  snprintf(fname, tlen, "%s/%s", rootDir, TSDB_CFG_FILE_NAME);
+  snprintf(fname, tlen, "%s/%s/%s", tfsPrimaryPath(), rootDir, TSDB_CFG_FILE_NAME);
   return fname;
 }
 

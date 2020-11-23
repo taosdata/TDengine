@@ -118,9 +118,10 @@ int tfsCreateDir(char *dirname) {
 
       ASSERT(pDisk != NULL);
 
-      snprintf(dirName, TSDB_FILENAME_LEN, "%s/%s", pDisk->dir, dirname);
+      snprintf(dirName, TSDB_FILENAME_LEN, "%s/%s", pDisk->name, dirname);
 
       if (mkdir(dirName, 0755) != 0 && errno != EEXIST) {
+        fError("failed to create directory %s since %s", dirName, strerror(errno));
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
       }

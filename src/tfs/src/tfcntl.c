@@ -21,7 +21,7 @@
 struct TFSFILE {
   int  level;
   int  id;
-  char rname[TSDB_FILENAME_LEN];   // REL name
+  char rname[TSDB_FILENAME_LEN];  // REL name
   char aname[TSDB_FILENAME_LEN];  // ABS name
 };
 
@@ -101,13 +101,13 @@ const char *tfsRelName(TFSFILE *pfile) { return pfile->rname; }
 void tfsDirName(TFSFILE *pfile, char dest[]) {
   char fname[TSDB_FILENAME_LEN] = "\0";
 
-  tfsAbsFname(pfile, fname);
+  strncpy(fname, tfsAbsName(pfile), TSDB_FILENAME_LEN);
   strncpy(dest, dirname(fname), TSDB_FILENAME_LEN);
 }
 
 void tfsBaseName(TFSFILE *pfile, char dest[]) {
   char fname[TSDB_FILENAME_LEN] = "\0";
-  memcpy((void *)fname, (void *)pfile->rname, TSDB_FILENAME_LEN);
+  strncpy(fname, tfsAbsName(pfile), TSDB_FILENAME_LEN);
   strncpy(dest, basename(fname), TSDB_FILENAME_LEN);
 }
 

@@ -64,7 +64,7 @@ void tsdbFreeFileH(STsdbFileH *pFileH) {
   }
 }
 
-int tsdbOpenFileH(STsdbRepo *pRepo) {
+int tsdbOpenFileH(STsdbRepo *pRepo) { // TODO
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
   char dataDir[TSDB_FILENAME_LEN] = "\0";
 
