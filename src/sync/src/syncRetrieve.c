@@ -114,7 +114,10 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
 
     // send the file info
     int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
-    if (ret < 0) break;
+    if (ret < 0) {
+      sError("%s, failed to write file:%s info while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
 
     // if no file anymore, break
     if (fileInfo.magic == 0 || fileInfo.name[0] == 0) {
@@ -124,8 +127,11 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     }
 
     // wait for the ack from peer
-    ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
-    if (ret < 0) break;
+    ret = taosReadMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
+    if (ret < 0) {
+      sError("%s, failed to read file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
 
     // set the peer sync version
     pPeer->sversion = fileInfo.fversion;
@@ -134,7 +140,10 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
 
     // add the file into watch list
-    if (syncAddIntoWatchList(pPeer, name) < 0) break;
+    if (syncAddIntoWatchList(pPeer, name) < 0) {
+      sError("%s, failed to watch file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
 
     // if sync is not required, continue
     if (fileAck.sync == 0) {
@@ -145,21 +154,30 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
 
     // send the file to peer
     int32_t sfd = open(name, O_RDONLY);
-    if (sfd < 0) break;
+    if (sfd < 0) {
+      sError("%s, failed to open file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
 
     ret = taosSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
     close(sfd);
-    if (ret < 0) break;
+    if (ret < 0) {
+      sError("%s, failed to send file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
 
     sDebug("%s, %s is sent, size:%" PRId64, pPeer->id, name, fileInfo.size);
     fileInfo.index++;
 
     // check if processed files are modified
-    if (syncAreFilesModified(pPeer) != 0) break;
+    if (syncAreFilesModified(pPeer) != 0) {
+      sInfo("%s, file:%s are modified while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
   }
 
   if (code < 0) {
-    sError("%s, failed to retrieve file since %s", pPeer->id, strerror(errno));
+    sError("%s, failed to retrieve file", pPeer->id);
   }
 
   return code;
