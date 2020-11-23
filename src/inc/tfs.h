@@ -52,7 +52,7 @@ void        tfsDirName(TFSFILE *pfile, char dest[]);
 void        tfsBaseName(TFSFILE *pfile, char dest[]);
 int         tfsopen(TFSFILE *pfile, int flags);
 int         tfsclose(int fd);
-int         tfsRemoveFiles(int nfile, ...);
+int         tfsremove(TFSFILE *pfile);
 SDiskID     tfsFileID(TFSFILE *pfile);
 
 typedef struct TFSDIR TFSDIR;

@@ -115,9 +115,14 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   pHelper->files.fGroup = *pGroup;
   if (helperType(pHelper) == TSDB_WRITE_HELPER) {
     tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NHEAD,
-                        helperNewHeadF(pHelper)->fname);
+                        helperNewHeadF(pHelper)->file.rname);
+    helperNewHeadF(pHelper)->file.level = pGroup->files[0].file.level;
+    helperNewHeadF(pHelper)->file.id = pGroup->files[0].file.id;
+
     tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NLAST,
-                        helperNewLastF(pHelper)->fname);
+                        helperNewLastF(pHelper)->file.rname);
+    helperNewLastF(pHelper)->file.level = pGroup->files[0].file.level;
+    helperNewLastF(pHelper)->file.id = pGroup->files[0].file.id;
   }
 
   // Open the files
@@ -194,7 +199,9 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError, SFileGroup *pGroup) {
         fsync(pFile->fd);
       }
       tsdbCloseFile(pFile);
-      if (hasError) (void)remove(TSDB_FILE_NAME(pFile));
+      if (hasError) {
+        tfsremove(&(pFile->file));
+      }
     }
 
     pFile = helperNewLastF(pHelper);
@@ -204,7 +211,9 @@ int tsdbCloseHelperFile(SRWHelper *pHelper, bool hasError, SFileGroup *pGroup) {
         fsync(pFile->fd);
       }
       tsdbCloseFile(pFile);
-      if (hasError) (void)remove(TSDB_FILE_NAME(pFile));
+      if (hasError) {
+        tfsremove(&(pFile->file));
+      }
     }
   }
   return 0;

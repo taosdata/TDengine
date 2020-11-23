@@ -150,6 +150,18 @@ int tfsclose(int fd) {
   return 0;
 }
 
+int tfsremove(TFSFILE *pfile) {
+  int code = remove(pfile->aname);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  tfsLock();
+  tfsDecFileAt(pfile->level, pfile->id);
+  tfsUnLock();
+  return 0;
+}
+
 int tfsRemoveFiles(int nfile, ...) {
   va_list  valist;
   TFSFILE *pfile = NULL;

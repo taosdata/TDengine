@@ -215,7 +215,7 @@ typedef struct {
   int         index;
 } SFileGroupIter;
 
-#define TSDB_FILE_NAME(pFile) (tfsAbsName(pFile->file))
+#define TSDB_FILE_NAME(pFile) ((pFile)->file.aname)
 
 // ------------------ tsdbMain.c
 typedef struct {
@@ -529,7 +529,6 @@ int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
 void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
 void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
 void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
-int         tsdbGetBaseDirFromFile(char* fname, char* baseDir);
 int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
 
 // ------------------ tsdbRWHelper.c
