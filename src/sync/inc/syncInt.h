@@ -172,6 +172,7 @@ typedef struct SSyncNode {
 // sync module global
 extern int32_t tsSyncNum;
 extern char    tsNodeFqdn[TSDB_FQDN_LEN];
+extern char *  syncStatus[];
 
 void *syncRetrieveData(void *param);
 void *syncRestoreData(void *param);

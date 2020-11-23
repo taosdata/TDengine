@@ -65,7 +65,10 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   while (1) {
     // read file info
     int32_t ret = taosReadMsg(pPeer->syncFd, &(minfo), sizeof(minfo));
-    if (ret < 0) break;
+    if (ret < 0) {
+      sError("%s, failed to read file info while restore file since %s", pPeer->id, strerror(errno));
+      break;
+    }
 
     // if no more file from master, break;
     if (minfo.name[0] == 0 || minfo.magic == 0) {
@@ -83,7 +86,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 
     // check the file info
     sinfo = minfo;
-    sDebug("%s, get file info:%s", pPeer->id, minfo.name);
+    sDebug("%s, get file:%s info size:%" PRId64, pPeer->id, minfo.name, minfo.size);
     sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size,
                                         &sinfo.fversion);
 
@@ -92,8 +95,11 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1 : 0;
 
     // send file ack
-    ret = taosWriteMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
-    if (ret < 0) break;
+    ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
+    if (ret < 0) {
+      sError("%s, failed to write file:%s ack while restore file since %s", pPeer->id, minfo.name, strerror(errno));
+      break;
+    }
 
     // if sync is not required, continue
     if (fileAck.sync == 0) {
@@ -108,14 +114,17 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 
     int32_t dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if (dfd < 0) {
-      sError("%s, failed to open file:%s", pPeer->id, name);
+      sError("%s, failed to open file:%s while restore file since %s", pPeer->id, minfo.name, strerror(errno));
       break;
     }
 
     ret = taosCopyFds(pPeer->syncFd, dfd, minfo.size);
     fsync(dfd);
     close(dfd);
-    if (ret < 0) break;
+    if (ret < 0) {
+      sError("%s, failed to copy file:%s while restore file since %s", pPeer->id, minfo.name, strerror(errno));
+      break;
+    }
 
     fileChanged = true;
     sDebug("%s, %s is received, size:%" PRId64, pPeer->id, minfo.name, minfo.size);
@@ -125,6 +134,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     // data file is changed, code shall be set to 1
     *fversion = minfo.fversion;
     code = 1;
+    sDebug("%s, file changed while restore file", pPeer->id);
   }
 
   if (code < 0) {
@@ -146,15 +156,22 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
-    if (ret < 0) break;
+    if (ret < 0) {
+      sError("%s, failed to read walhead while restore wal since %s", pPeer->id, strerror(errno));
+      break;
+    }
 
     if (pHead->len == 0) {
+      sDebug("%s, wal is synced over", pPeer->id);
       code = 0;
       break;
     }  // wal sync over
 
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
-    if (ret < 0) break;
+    if (ret < 0) {
+      sError("%s, failed to read walcont, len:%d while restore wal since %s", pPeer->id, pHead->len, strerror(errno));
+      break;
+    }
 
     sTrace("%s, restore a record, qtype:wal len:%d hver:%" PRIu64, pPeer->id, pHead->len, pHead->version);
 
@@ -267,7 +284,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
   uint64_t fversion = 0;
 
-  sDebug("%s, start to restore file", pPeer->id);
+  sDebug("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   int32_t code = syncRestoreFile(pPeer, &fversion);
   if (code < 0) {
     sError("%s, failed to restore file", pPeer->id);
@@ -291,7 +308,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
-  sDebug("%s, start to insert buffered points", pPeer->id);
+  sDebug("%s, start to insert buffered points, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   if (syncProcessBufferedFwd(pPeer) < 0) {
     sError("%s, failed to insert buffered points", pPeer->id);
     return -1;
@@ -327,6 +344,8 @@ void *syncRestoreData(void *param) {
   (*pNode->notifyRole)(pNode->vgId, nodeRole);
 
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
+  sInfo("%s, sync over, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+
   taosClose(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
