@@ -211,7 +211,7 @@ void sdbUpdateMnodeRoles() {
   if (tsSdbMgmt.sync <= 0) return;
 
   SNodesRole roles = {0};
-  syncGetNodesRole(tsSdbMgmt.sync, &roles);
+  if (syncGetNodesRole(tsSdbMgmt.sync, &roles) != 0) return;
 
   sdbInfo("vgId:1, update mnodes role, replica:%d", tsSdbMgmt.cfg.replica);
   for (int32_t i = 0; i < tsSdbMgmt.cfg.replica; ++i) {
