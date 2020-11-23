@@ -398,6 +398,23 @@ void *taosCacheIterate(int cacheId, void *indata) {
 }
 
 
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
+  assert(pCacheObj != NULL);
+
+  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time};
+  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
+}
+
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
+  if (pCacheObj == NULL) {
+    return;
+  }
+
+  int64_t now = taosGetTimestampMs();
+  doCacheRefresh(pCacheObj, now, fp);
+}
+
+
 static void taosCacheProcessTimer(void *param, void *tmrId) {
   int64_t cacheId = (int64_t) param;
   if (cacheId <= 0 || cacheId >= TAOS_CACHE_MAX_OBJS) return;

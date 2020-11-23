@@ -6791,7 +6791,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 }
 
 typedef struct SQueryMgmt {
-  SCacheObj      *qinfoPool;      // query handle pool
+  int             qinfoPool;      // query handle pool
   int32_t         vgId;
   bool            closed;
   pthread_mutex_t lock;
