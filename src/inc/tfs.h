@@ -35,11 +35,6 @@ void tfsPrimaryPath(char *dst);
 int  tfsCreateDir(char *dirname);
 int  tfsRemoveDir(char *dirname);
 int  tfsRename(char *oldpath, char *newpath);
-void tfsIncFileAt(int level, int id);
-void tfsDecFileAt(int level, int id);
-int  tfsLock();
-int  tfsUnLock();
-bool tfsIsLocked();
 
 // tfcntl.c
 typedef struct TFSFILE TFSFILE;

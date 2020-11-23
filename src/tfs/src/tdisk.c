@@ -12,11 +12,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
-#include "tdisk.h"
 #include "taoserror.h"
+#include "tfsint.h"
 
-SDisk *tdNewDisk(int level, int id, char *dir) {
+typedef struct {
+  uint64_t size;
+  uint64_t free;
+  uint64_t nfiles;
+} SDiskMeta;
+
+struct SDisk {
+  int       level;
+  int       id;
+  char      dir[TSDB_FILENAME_LEN];
+  SDiskMeta dmeta;
+};
+
+// PROTECTED ====================================
+SDisk *tfsNewDisk(int level, int id, char *dir) {
   SDisk *pDisk = (SDisk *)calloc(1, sizeof(*pDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
@@ -30,13 +45,13 @@ SDisk *tdNewDisk(int level, int id, char *dir) {
   return pDisk;
 }
 
-void tdFreeDisk(SDisk *pDisk) {
+void tfsFreeDisk(SDisk *pDisk) {
   if (pDisk) {
     free(pDisk)
   }
 }
 
-int tdUpdateDiskInfo(SDisk *pDisk) {
+int tfsUpdateDiskInfo(SDisk *pDisk) {
   SysDiskSize dstat;
   if (taosGetDiskSize(pDisk->dir, &dstat) < 0) {
     fError("failed to get dir %s information since %s", pDisk->dir, strerror(errno));

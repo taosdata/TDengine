@@ -12,24 +12,32 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
-#include "ttier.h"
-#include "tglobal.h"
+#include "tfsint.h"
 #include "taoserror.h"
 
-void tdInitTier(STier *pTier, int level) {
+#define TSDB_MAX_DISK_PER_TIER 16
+struct STier {
+  int    level;
+  int    ndisk;
+  SDisk *disks[TSDB_MAX_DISK_PER_TIER];
+};
+
+// PROTECTED ==========================================
+void tfsInitTier(STier *pTier, int level) {
   pTier->level = level;
 }
 
-void tdDestroyTier(STier *pTier) {
+void tfsDestroyTier(STier *pTier) {
   for (int id = 0; id < TSDB_MAX_DISK_PER_TIER; id++) {
-    tdFreeDisk(DISK_AT_TIER(pTier, id));
+    tfsFreeDisk(DISK_AT_TIER(pTier, id));
     pTier->disks[id] = NULL;
   }
   pTier->ndisk = 0;
 }
 
-SDisk *tdMountToTier(STier *pTier, SDiskCfg *pCfg) {
+SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   ASSERT(pTier->level == pCfg->level);
   int id = 0;
 
@@ -52,19 +60,20 @@ SDisk *tdMountToTier(STier *pTier, SDiskCfg *pCfg) {
     id = pTier->ndisk;
   }
 
-  pTier->disks[id] = tdNewDisk(pCfg->level, id, pCfg->dir);
-  if (pTier->disks[id] == NULL) return -1;
+  DISK_AT_TIER(pTier, id) = tfsNewDisk(pCfg->level, id, pCfg->dir);
+  if (DISK_AT_TIER(pTier, id) == NULL) return -1;
   pTier->ndisk++;
 
-  fDebug("disk %s is mounted at level %d id %d", pCfg->dir, pCfg->level, id);
+  fDebug("disk %s is mounted to level %d id %d", pCfg->dir, pCfg->level, id);
 
   return id;
 }
 
-int tdUpdateTierInfo(STier *pTier) {
+int tfsUpdateTierInfo(STier *pTier) {
   for (int id = 0; id < pTier->ndisk; id++) {
-    if (tdUpdateDiskInfo(DISK_AT_TIER(pTier, id)) < 0) {
-      // TODO: deal with the error here
+    if (tfsUpdateDiskInfo(DISK_AT_TIER(pTier, id)) < 0) {
+      return -1;
     }
   }
+  return 0;
 }

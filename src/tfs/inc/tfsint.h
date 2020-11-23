@@ -13,19 +13,46 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_TFSLOG_H
-#define TD_TFSLOG_H
+#ifndef TD_TFSINT_H
+#define TD_TFSINT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// For debug purpose
 #define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", 255, __VA_ARGS__); }}
 #define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", 255, __VA_ARGS__); }}
 #define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", 255, __VA_ARGS__); }}
 #define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", 255, __VA_ARGS__); }}
 #define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
 #define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
+
+// tdisk.c
+typedef struct SDisk SDisk;
+
+SDisk *tfsNewDisk(int level, int id, char *dir);
+void   tfsFreeDisk(SDisk *pDisk);
+int    tfsUpdateDiskInfo(SDisk *pDisk);
+
+// ttier.c
+typedef struct STier STier;
+
+#define DISK_AT_TIER(pTier, id) ((pTier)->disks[id])
+
+void   tfsInitTier(STier *pTier, int level);
+void   tfsDestroyTier(STier *pTier);
+SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg);
+int    tfsUpdateTierInfo(STier *pTier);
+
+// tfs.c
+void tfsIncFileAt(int level, int id);
+void tfsDecFileAt(int level, int id);
+int  tfsLock();
+int  tfsUnLock();
+bool tfsIsLocked();
+
+// tfcntl.c
 
 #ifdef __cplusplus
 }

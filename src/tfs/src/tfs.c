@@ -17,16 +17,9 @@
 
 #include "hash.h"
 #include "taoserror.h"
-#include "tfs.h"
-#include "tglobal.h"
-#include "ttier.h"
+#include "tfsint.h"
 
 #define TSDB_MAX_TIER 3
-
-typedef struct {
-  int level;
-  int id;
-} SDiskID;
 
 typedef struct {
   uint64_t tsize;
@@ -48,6 +41,7 @@ static SFS *pfs = &tdFileSystem;
 #define TIER_AT(level) (pfs->tiers + (level))
 #define DISK_AT(level, id) DISK_AT_TIER(TIER_AT(level), id)
 
+// public:
 int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   ASSERT(ndisk > 0);
 
@@ -172,6 +166,7 @@ int tfsRename(char *oldpath, char *newpath) {
   return 0;
 }
 
+// protected:
 void tfsIncFileAt(int level, int id) {
   ASSERT(tfsIsLocked());
   DISK_AT(level, id)->dmeta.nfiles++;
@@ -214,6 +209,7 @@ const char *tfsGetDiskName(int level, int id) {
   return DISK_AT(level, id)->dir;
 }
 
+// private
 static int tfsMount(SDiskCfg *pCfg) {
   SDiskID did;
 

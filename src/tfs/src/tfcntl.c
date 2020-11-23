@@ -33,6 +33,7 @@ struct TFSDIR {
   DIR *   dir;
 };
 
+// PUBLIC ==========================================
 TFSDIR *tfsOpenDir(char *dir) {
   TFSDIR *tdir = (TFSDIR *)calloc(1, sizeof(*tdir));
   if (tdir == NULL) {
@@ -166,6 +167,7 @@ SDiskID tfsFileID(TFSFILE *pfile) {
   return did;
 }
 
+// PRIVATE =============================================
 static int tfsOpenDirImpl(TFSDIR *tdir) {
   char dirName[TSDB_FILENAME_LEN] = "\0";
 
