@@ -5825,6 +5825,10 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
                                char **tagCond, char** tbnameCond, SColIndex **groupbyCols, SColumnInfo** tagCols) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  if (taosCheckVersion(pQueryMsg->version, version, 3) != 0) {
+    return TSDB_CODE_QRY_INVALID_MSG;
+  }
+
   pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
 
   pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
