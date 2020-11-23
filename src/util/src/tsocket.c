@@ -58,13 +58,13 @@ uint32_t taosGetIpFromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, strerror(errno));
+      uError("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
-      uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+      uError("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
     }
 #else
-    uError("failed to get the ip address, fqdn:%s, code:%d, reason:%s", fqdn, ret, gai_strerror(ret));
+    uError("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }
@@ -107,7 +107,7 @@ int32_t taosWriteMsg(SOCKET fd, void *buf, int32_t nbytes) {
   while (nleft > 0) {
     nwritten = (int32_t)taosWriteSocket(fd, (char *)ptr, (size_t)nleft);
     if (nwritten <= 0) {
-      if (errno == EINTR)
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
         continue;
       else
         return -1;
@@ -133,7 +133,7 @@ int32_t taosReadMsg(SOCKET fd, void *buf, int32_t nbytes) {
     if (nread == 0) {
       break;
     } else if (nread < 0) {
-      if (errno == EINTR) {
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
       } else {
         return -1;

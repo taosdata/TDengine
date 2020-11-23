@@ -46,7 +46,7 @@ extern "C" {
 typedef struct {
   void *appH;
   void *cqH;
-  int (*notifyStatus)(void *, int status);
+  int (*notifyStatus)(void *, int status, int eno);
   int (*eventCallBack)(void *);
   void *(*cqCreateFunc)(void *handle, uint64_t uid, int sid, char *sqlStr, STSchema *pSchema);
   void (*cqDropFunc)(void *handle);
@@ -83,7 +83,7 @@ STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo);
 int          tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg);
 int32_t      tsdbDropRepo(char *rootDir);
 TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
-void         tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);
+int          tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);
 int32_t      tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg);
 int          tsdbGetState(TSDB_REPO_T *repo);
 

@@ -13,14 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tscLocalMerge.h"
+#include "tscSubquery.h"
 #include "os.h"
+#include "qAst.h"
 #include "tlosertree.h"
+#include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tutil.h"
-#include "tscLog.h"
-#include "tscLocalMerge.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
@@ -28,6 +29,8 @@ typedef struct SCompareParam {
   int32_t            num;
   int32_t            groupOrderType;
 } SCompareParam;
+
+static void doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
 
 int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
   int32_t pLeftIdx = *(int32_t *)pLeft;
@@ -132,28 +135,41 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
 }
 
 static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
-  int32_t numOfCols = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfCols = (int32_t)tscNumOfFields(pQueryInfo);
   int32_t offset = 0;
   
   SFillColInfo* pFillCol = calloc(numOfCols, sizeof(SFillColInfo));
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-    
-    pFillCol[i].col.bytes  = pExpr->resBytes;
-    pFillCol[i].col.type   = (int8_t)pExpr->resType;
-    pFillCol[i].col.colId  = pExpr->colInfo.colId;
-    pFillCol[i].flag       = pExpr->colInfo.flag;
-    pFillCol[i].col.offset = offset;
-    pFillCol[i].functionId = pExpr->functionId;
-    pFillCol[i].fillVal.i  = pQueryInfo->fillVal[i];
-    offset += pExpr->resBytes;
+    SInternalField* pIField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
+
+    if (pIField->pArithExprInfo == NULL) {
+      SSqlExpr* pExpr = pIField->pSqlExpr;
+
+      pFillCol[i].col.bytes  = pExpr->resBytes;
+      pFillCol[i].col.type   = (int8_t)pExpr->resType;
+      pFillCol[i].col.colId  = pExpr->colInfo.colId;
+      pFillCol[i].flag       = pExpr->colInfo.flag;
+      pFillCol[i].col.offset = offset;
+      pFillCol[i].functionId = pExpr->functionId;
+      pFillCol[i].fillVal.i  = pQueryInfo->fillVal[i];
+    } else {
+      pFillCol[i].col.bytes  = pIField->field.bytes;
+      pFillCol[i].col.type   = (int8_t)pIField->field.type;
+      pFillCol[i].col.colId  = -100;
+      pFillCol[i].flag       = TSDB_COL_NORMAL;
+      pFillCol[i].col.offset = offset;
+      pFillCol[i].functionId = -1;
+      pFillCol[i].fillVal.i  = pQueryInfo->fillVal[i];
+    }
+
+    offset += pFillCol[i].col.bytes;
   }
   
   return pFillCol;
 }
 
 void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
-                           SColumnModel *finalmodel, SSqlObj* pSql) {
+                           SColumnModel *finalmodel, SColumnModel *pFFModel, SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
   
@@ -342,8 +358,6 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
     return;
   }
   
-  size_t numOfCols = tscSqlExprNumOfExprs(pQueryInfo);
-  
   pReducer->pTempBuffer->num = 0;
 
   tscCreateResPointerInfo(pRes, pQueryInfo);
@@ -372,7 +386,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
     pReducer->pFillInfo = taosInitFillInfo(pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
-                                           4096, (int32_t)numOfCols, pQueryInfo->interval.sliding, pQueryInfo->interval.slidingUnit,
+                                           4096, (int32_t)pQueryInfo->fieldsInfo.numOfOutput, pQueryInfo->interval.sliding, pQueryInfo->interval.slidingUnit,
                                            tinfo.precision, pQueryInfo->fillType, pFillCol, pSql);
   }
 }
@@ -491,7 +505,8 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     pLocalReducer->pFillInfo = taosDestroyFillInfo(pLocalReducer->pFillInfo);
 
     if (pLocalReducer->pCtx != NULL) {
-      for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+      int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+      for (int32_t i = 0; i < numOfExprs; ++i) {
         SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[i];
 
         tVariantDestroy(&pCtx->tag);
@@ -555,7 +570,8 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   if (numOfGroupByCols > 0) {
 
     if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
-      int32_t startCols = pQueryInfo->fieldsInfo.numOfOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
+      int32_t numOfInternalOutput = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+      int32_t startCols = numOfInternalOutput - pQueryInfo->groupbyExpr.numOfGroupCols;
 
       // the last "pQueryInfo->groupbyExpr.numOfGroupCols" columns are order-by columns
       for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
@@ -674,6 +690,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
     pSchema[i].bytes = pExpr->resBytes;
     pSchema[i].type = (int8_t)pExpr->resType;
+    tstrncpy(pSchema[i].name, pExpr->aliasName, tListLen(pSchema[i].name));
+
     rlen += pExpr->resBytes;
   }
 
@@ -736,8 +754,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
   
   *pFinalModel = createColumnModel(pSchema, (int32_t)size, capacity);
-  tfree(pSchema);
 
+   tfree(pSchema);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -966,10 +984,11 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
       savePrevRecordAndSetupFillInfo(pLocalReducer, pQueryInfo, pFillInfo);
     }
 
+    int32_t offset = 0;
     for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
       TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-      int16_t     offset = getColumnModelOffset(pLocalReducer->resColModel, i);
       memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, (size_t)(pField->bytes * pRes->numOfRows));
+      offset += pField->bytes;
     }
 
     pRes->numOfRowsGroup += pRes->numOfRows;
@@ -1221,6 +1240,10 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   }
 
   tColModelCompact(pModel, pResBuf, pModel->capacity);
+
+  if (tscIsSecondStageQuery(pQueryInfo)) {
+    doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalReducer->finalRowSize);
+  }
 
 #ifdef _DEBUG_VIEW
   printf("final result before interpo:\n");
@@ -1587,4 +1610,45 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
 
   pRes->pLocalReducer->pResultBuf->num = numOfRes;
   pRes->data = pRes->pLocalReducer->pResultBuf->data;
+}
+
+void doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
+  char* pbuf = calloc(1, pOutput->num * rowSize);
+
+  size_t size = tscNumOfFields(pQueryInfo);
+  SArithmeticSupport arithSup = {0};
+
+  // todo refactor
+  arithSup.offset     = 0;
+  arithSup.numOfCols  = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+  arithSup.exprList   = pQueryInfo->exprList;
+  arithSup.data       = calloc(arithSup.numOfCols, POINTER_BYTES);
+
+  for(int32_t k = 0; k < arithSup.numOfCols; ++k) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
+    arithSup.data[k] = (pOutput->data + pOutput->num* pExpr->offset);
+  }
+
+  int32_t offset = 0;
+
+  for (int i = 0; i < size; ++i) {
+    SInternalField* pSup = TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+    
+    // calculate the result from several other columns
+    if (pSup->pArithExprInfo != NULL) {
+      arithSup.pArithExpr = pSup->pArithExprInfo;
+      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithemicInputSrc);
+    } else {
+      SSqlExpr* pExpr = pSup->pSqlExpr;
+      memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, pExpr->resBytes * pOutput->num);
+    }
+
+    offset += pSup->field.bytes;
+  }
+
+  assert(finalRowSize <= rowSize);
+  memcpy(pOutput->data, pbuf, pOutput->num * finalRowSize);
+
+  tfree(pbuf);
+  tfree(arithSup.data);
 }

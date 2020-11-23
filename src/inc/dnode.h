@@ -54,8 +54,8 @@ void  dnodeSendMsgToDnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp, SRpcEpSet *epSet
 void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid);
 
 void *dnodeAllocVWriteQueue(void *pVnode);
-void  dnodeFreeVWriteQueue(void *wqueue);
-void  dnodeSendRpcVWriteRsp(void *pVnode, void *param, int32_t code);
+void  dnodeFreeVWriteQueue(void *pWqueue);
+void  dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
 void *dnodeAllocVReadQueue(void *pVnode);
 void  dnodeFreeVReadQueue(void *rqueue);
 

@@ -152,7 +152,10 @@ typedef struct SQuery {
   SLimitVal        limit;
   int32_t          rowSize;
   SSqlGroupbyExpr* pGroupbyExpr;
-  SExprInfo*       pSelectExpr;
+  SExprInfo*       pExpr1;
+  SExprInfo*       pExpr2;
+  int32_t          numOfExpr2;
+
   SColumnInfo*     colList;
   SColumnInfo*     tagColList;
   int32_t          numOfFilterCols;

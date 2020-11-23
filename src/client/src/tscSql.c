@@ -28,7 +28,6 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
-#include "ttimer.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -482,7 +481,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   assert(0);
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
+    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, 0);
   }
 
   *rows = pRes->tsrow;

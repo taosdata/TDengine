@@ -37,10 +37,12 @@ extern int32_t vDebugFlag;
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
+  int32_t      queuedMsg;
   int32_t      delay;
   int8_t       status; 
   int8_t       role;   
   int8_t       accessState;
+  int8_t       isFull;
   uint64_t     version;   // current version 
   uint64_t     fversion;  // version on saved data file
   void        *wqueue;
@@ -58,7 +60,7 @@ typedef struct {
   char        *rootDir;
   tsem_t       sem;
   int8_t       dropped;
-  char         db[TSDB_DB_NAME_LEN];
+  char         db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
 void vnodeInitWriteFp(void);

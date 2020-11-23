@@ -209,6 +209,18 @@ typedef struct {
 
 // ------------------ tsdbMain.c
 typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  void *  pMsg;
+} SSubmitMsgIter;
+
+typedef struct {
   int8_t state;
 
   char*           rootDir;
@@ -223,6 +235,7 @@ typedef struct {
   sem_t           readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;
+  int32_t         code; // Commit code
 } STsdbRepo;
 
 // ------------------ tsdbRWHelper.c
@@ -430,7 +443,6 @@ void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 
 // ------------------ tsdbMemTable.c
-int   tsdbUpdateRowInMem(STsdbRepo* pRepo, SDataRow row, STable* pTable);
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
