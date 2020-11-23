@@ -68,6 +68,12 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     assert(pWindowResInfo->pResult == NULL);
     return;
   }
+
+  if (pWindowResInfo->type == TSDB_DATA_TYPE_BINARY || pWindowResInfo->type == TSDB_DATA_TYPE_NCHAR) {
+    for(int32_t i = 0; i < pWindowResInfo->size; ++i) {
+      tfree(pWindowResInfo->pResult[i]->key);
+    }
+  }
   
   tfree(pWindowResInfo->pResult);
 }
@@ -81,7 +87,7 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
 
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
     SResultRow *pWindowRes = pWindowResInfo->pResult[i];
-    clearResultRow(pRuntimeEnv, pWindowRes);
+    clearResultRow(pRuntimeEnv, pWindowRes, pWindowResInfo->type);
 
     int32_t groupIndex = 0;
     int64_t uid = 0;
@@ -133,7 +139,7 @@ void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   // move the unclosed window in the front of the window list
   for (int32_t k = remain; k < pWindowResInfo->size; ++k) {
     SResultRow *pWindowRes = pWindowResInfo->pResult[k];
-    clearResultRow(pRuntimeEnv, pWindowRes);
+    clearResultRow(pRuntimeEnv, pWindowRes, pWindowResInfo->type);
   }
   
   pWindowResInfo->size = remain;
@@ -229,7 +235,7 @@ void closeTimeWindow(SWindowResInfo *pWindowResInfo, int32_t slot) {
   getResultRow(pWindowResInfo, slot)->closed = true;
 }
 
-void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes) {
+void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes, int16_t type) {
   if (pWindowRes == NULL) {
     return;
   }
@@ -253,7 +259,12 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes) {
   pWindowRes->pageId = -1;
   pWindowRes->rowId = -1;
   pWindowRes->closed = false;
-  pWindowRes->win = TSWINDOW_INITIALIZER;
+
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    tfree(pWindowRes->key);
+  } else {
+    pWindowRes->win = TSWINDOW_INITIALIZER;
+  }
 }
 
 /**
