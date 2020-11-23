@@ -317,7 +317,7 @@ char *tsdbGetMetaFileName(char *rootDir) {
   return fname;
 }
 
-void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, char *fname) {
+void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, const char *fname) {
   snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", rootDir, TSDB_DATA_DIR_NAME, vid, fid, tsdbFileSuffix[type]);
 }
 

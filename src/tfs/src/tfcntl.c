@@ -91,8 +91,8 @@ const TFSFILE *tfsReadDir(TFSDIR *tdir) {
   }
 }
 
-const char *tfsAbsName(TFSFILE *pfile, char dest[]) { return pfile->aname; }
-const char *tfsRelName(TFSFILE *pfile, char dest[]) { return pfile->rname; }
+const char *tfsAbsName(TFSFILE *pfile) { return pfile->aname; }
+const char *tfsRelName(TFSFILE *pfile) { return pfile->rname; }
 
 void tfsDirName(TFSFILE *pfile, char dest[]) {
   char fname[TSDB_FILENAME_LEN] = "\0";

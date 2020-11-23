@@ -242,21 +242,21 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
 int tsdbOpenFile(SFile *pFile, int oflag) {
   ASSERT(!TSDB_IS_FILE_OPENED(pFile));
 
-  pFile->fd = open(pFile->fname, oflag, 0755);
+  pFile->fd = open(TSDB_FILE_NAME(pFile), oflag, 0755);
   if (pFile->fd < 0) {
-    tsdbError("failed to open file %s since %s", pFile->fname, strerror(errno));
+    tsdbError("failed to open file %s since %s", TSDB_FILE_NAME(pFile), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  tsdbTrace("open file %s, fd %d", pFile->fname, pFile->fd);
+  tsdbTrace("open file %s, fd %d", TSDB_FILE_NAME(pFile), pFile->fd);
 
   return 0;
 }
 
 void tsdbCloseFile(SFile *pFile) {
   if (TSDB_IS_FILE_OPENED(pFile)) {
-    tsdbTrace("close file %s, fd %d", pFile->fname, pFile->fd);
+    tsdbTrace("close file %s, fd %d", TSDB_FILE_NAME(pFile), pFile->fd);
     close(pFile->fd);
     pFile->fd = -1;
   }
@@ -266,10 +266,10 @@ int tsdbCreateFile(SFile *pFile, STsdbRepo *pRepo, int fid, int type, SDisk *pDi
   memset((void *)pFile, 0, sizeof(SFile));
   pFile->fd = -1;
 
-  tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), fid, type, pFile->fname);
+  tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), fid, type, TSDB_FILE_NAME(pFile));
 
-  if (access(pFile->fname, F_OK) == 0) {
-    tsdbError("vgId:%d file %s already exists", REPO_ID(pRepo), pFile->fname);
+  if (access(TSDB_FILE_NAME(pFile), F_OK) == 0) {
+    tsdbError("vgId:%d file %s already exists", REPO_ID(pRepo), TSDB_FILE_NAME(pFile));
     terrno = TSDB_CODE_TDB_FILE_ALREADY_EXISTS;
     goto _err;
   }
@@ -324,12 +324,12 @@ int tsdbUpdateFileHeader(SFile *pFile) {
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
 
   if (lseek(pFile->fd, 0, SEEK_SET) < 0) {
-    tsdbError("failed to lseek file %s since %s", pFile->fname, strerror(errno));
+    tsdbError("failed to lseek file %s since %s", TSDB_FILE_NAME(pFile), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   if (taosWrite(pFile->fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
-    tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, pFile->fname, strerror(errno));
+    tsdbError("failed to write %d bytes to file %s since %s", TSDB_FILE_HEAD_SIZE, TSDB_FILE_NAME(pFile), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -384,20 +384,20 @@ int tsdbLoadFileHeader(SFile *pFile, uint32_t *version) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
   if (lseek(pFile->fd, 0, SEEK_SET) < 0) {
-    tsdbError("failed to lseek file %s to start since %s", pFile->fname, strerror(errno));
+    tsdbError("failed to lseek file %s to start since %s", TSDB_FILE_NAME(pFile), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   if (taosRead(pFile->fd, buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
-    tsdbError("failed to read file %s header part with %d bytes, reason:%s", pFile->fname, TSDB_FILE_HEAD_SIZE,
+    tsdbError("failed to read file %s header part with %d bytes, reason:%s", TSDB_FILE_NAME(pFile), TSDB_FILE_HEAD_SIZE,
               strerror(errno));
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return -1;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
-    tsdbError("file %s header part is corrupted with failed checksum", pFile->fname);
+    tsdbError("file %s header part is corrupted with failed checksum", TSDB_FILE_NAME(pFile));
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return -1;
   }
@@ -414,7 +414,7 @@ void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) {
   SFile         file;
   SFile *       pFile = &file;
 
-  strncpy(pFile->fname, fname, TSDB_FILENAME_LEN - 1);
+  strncpy(TSDB_FILE_NAME(pFile), fname, TSDB_FILENAME_LEN - 1);
   pFile->fd = -1;
 
   if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;
@@ -627,8 +627,8 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
 //   tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
 //   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
 //     SFile *pFile = pFileGroup->files + type;
-//     tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_HEAD, pFile->fname);
-//     if (access(pFile->fname, F_OK) != 0) {
+//     tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), fid, TSDB_FILE_TYPE_HEAD, TSDB_FILE_NAME(pFile));
+//     if (access(TSDB_FILE_NAME(pFile), F_OK) != 0) {
 //       memset(&(pFile->info), 0, sizeof(pFile->info));
 //       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
 //       pFileGroup->state = 1;
@@ -681,7 +681,7 @@ static int keyFGroupCompFunc(const void *key, const void *fgroup) {
 
 //     if (version != TSDB_FILE_VERSION) {
 //       tsdbError("vgId:%d file %s version %u is not the same as program version %u which may cause problem",
-//                 REPO_ID(pRepo), pFile->fname, version, TSDB_FILE_VERSION);
+//                 REPO_ID(pRepo), TSDB_FILE_NAME(pFile), version, TSDB_FILE_VERSION);
 //     }
 
 //     tsdbCloseFile(pFile);

@@ -189,9 +189,9 @@ typedef struct {
 } STsdbFileInfo;
 
 typedef struct {
-  int           fd;
-  TFSFILE       file;
+  TFSFILE*      file;
   STsdbFileInfo info;
+  int           fd;
 } SFile;
 
 typedef struct {
@@ -214,6 +214,8 @@ typedef struct {
   int         fileId;
   int         index;
 } SFileGroupIter;
+
+#define TSDB_FILE_NAME(pFile) (tfsAbsName(pFile->file))
 
 // ------------------ tsdbMain.c
 typedef struct {
@@ -592,7 +594,7 @@ static FORCE_INLINE int compTSKEY(const void* key1, const void* key2) {
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
 char*       tsdbGetMetaFileName(char* rootDir);
-void        tsdbGetDataFileName(char* rootDir, int vid, int fid, int type, char* fname);
+void        tsdbGetDataFileName(char* rootDir, int vid, int fid, int type, const char* fname);
 int         tsdbLockRepo(STsdbRepo* pRepo);
 int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);

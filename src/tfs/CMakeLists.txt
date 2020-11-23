@@ -3,8 +3,8 @@ PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(inc)
 AUX_SOURCE_DIRECTORY(src SRC)
-ADD_LIBRARY(tsdb ${SRC})
-TARGET_LINK_LIBRARIES(tsdb tfs common tutil)
+ADD_LIBRARY(tfs ${SRC})
+TARGET_LINK_LIBRARIES(tfs tutil)
 
 IF (TD_LINUX)
   # Someone has no gtest directory, so comment it
