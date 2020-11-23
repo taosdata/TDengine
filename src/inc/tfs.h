@@ -44,7 +44,7 @@ void        tfsDirName(TFSFILE *pfile, char dest[]);
 void        tfsBaseName(TFSFILE *pfile, char dest[]);
 int         tfsopen(TFSFILE *pfile, int flags);
 int         tfsclose(int fd);
-TFSFILE *   tfsCreateFiles(int level, int nfile, ...);
+TFSFILE *   tfsCreateFiles(int level, int nfile, char *fnames[]);
 int         tfsRemoveFiles(int nfile, ...);
 SDiskID     tfsFileID(TFSFILE *pfile);
 

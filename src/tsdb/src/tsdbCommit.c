@@ -17,7 +17,7 @@
 static int  tsdbCommitTSData(STsdbRepo *pRepo);
 static int  tsdbCommitMeta(STsdbRepo *pRepo);
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
-static int  tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
+static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
@@ -176,12 +176,12 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   sem_post(&(pRepo->readyToCommit));
 }
 
-static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {
+static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {
   for (int i = 0; i < nIters; i++) {
     TSKEY nextKey = tsdbNextIterKey((iters + i)->pIter);
-    if (nextKey != TSDB_DATA_TIMESTAMP_NULL && (nextKey >= minKey && nextKey <= maxKey)) return 1;
+    if (nextKey != TSDB_DATA_TIMESTAMP_NULL && (nextKey >= minKey && nextKey <= maxKey)) return true;
   }
-  return 0;
+  return false;
 }
 
 static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols) {
@@ -190,13 +190,13 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
   SFileGroup *pGroup = NULL;
   SMemTable * pMem = pRepo->imem;
   bool        newLast = false;
+  TSKEY       minKey = 0;
+  TSKEY       maxKey = 0;
 
-  TSKEY minKey = 0, maxKey = 0;
   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
 
   // Check if there are data to commit to this file
-  int hasDataToCommit = tsdbHasDataToCommit(iters, pMem->maxTables, minKey, maxKey);
-  if (!hasDataToCommit) {
+  if (!tsdbHasDataToCommit(iters, pMem->maxTables, minKey, maxKey)) {
     tsdbDebug("vgId:%d no data to commit to file %d", REPO_ID(pRepo), fid);
     return 0;
   }

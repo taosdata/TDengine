@@ -130,7 +130,7 @@ int tfsclose(int fd) {
   return 0;
 }
 
-TFSFILE *tfsCreateFiles(int level, int nfile, ...) {
+TFSFILE *tfsCreateFiles(int level, int nfile, char *fnames[]) {
   // TODO
   return NULL;
 }
