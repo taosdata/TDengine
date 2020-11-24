@@ -261,6 +261,12 @@ static void sdbHandleFailedConfirm(SSdbRow *pRow) {
     SSdbRow row = {.type = SDB_OPER_GLOBAL, .pTable = pRow->pTable, .pObj = pRow->pObj};
     sdbDeleteRow(&row);
   }
+
+  // Drop database/stable may take a long time and cause a timeout, so confirm is not enforced
+  if (action == SDB_ACTION_DELETE && pRow->code == TSDB_CODE_SYN_CONFIRM_EXPIRED) {
+    sdbDebug("vgId:1, confirm is not enforced while perform drop operation, set it success");
+    pRow->code = TSDB_CODE_SUCCESS;
+  }
 }
 
 FORCE_INLINE
