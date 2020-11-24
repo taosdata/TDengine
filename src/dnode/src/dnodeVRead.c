@@ -35,7 +35,7 @@ typedef struct {
   pthread_mutex_t mutex;
 } SVReadWorkerPool;
 
-static void *dnodeProcessReadQueue(void *param);
+static void *dnodeProcessReadQueue(void *pWorker);
 
 // module global variable
 static SVReadWorkerPool tsVReadWP;
@@ -47,7 +47,7 @@ int32_t dnodeInitVRead() {
   tsVReadWP.min = tsNumOfCores;
   tsVReadWP.max = tsNumOfCores * tsNumOfThreadsPerCore;
   if (tsVReadWP.max <= tsVReadWP.min * 2) tsVReadWP.max = 2 * tsVReadWP.min;
-  tsVReadWP.worker = (SVReadWorker *)calloc(sizeof(SVReadWorker), tsVReadWP.max);
+  tsVReadWP.worker = calloc(sizeof(SVReadWorker), tsVReadWP.max);
   pthread_mutex_init(&tsVReadWP.mutex, NULL);
 
   if (tsVReadWP.worker == NULL) return -1;
@@ -85,7 +85,7 @@ void dnodeCleanupVRead() {
 void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
   int32_t queuedMsgNum = 0;
   int32_t leftLen = pMsg->contLen;
-  char *  pCont = (char *)pMsg->pCont;
+  char *  pCont = pMsg->pCont;
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *)pCont;
@@ -146,8 +146,8 @@ void *dnodeAllocVReadQueue(void *pVnode) {
   return queue;
 }
 
-void dnodeFreeVReadQueue(void *rqueue) {
-  taosCloseQueue(rqueue);
+void dnodeFreeVReadQueue(void *pRqueue) {
+  taosCloseQueue(pRqueue);
 }
 
 void dnodeSendRpcVReadRsp(void *pVnode, SVReadMsg *pRead, int32_t code) {
@@ -159,14 +159,12 @@ void dnodeSendRpcVReadRsp(void *pVnode, SVReadMsg *pRead, int32_t code) {
   };
 
   rpcSendResponse(&rpcRsp);
-  vnodeRelease(pVnode);
 }
 
 void dnodeDispatchNonRspMsg(void *pVnode, SVReadMsg *pRead, int32_t code) {
-  vnodeRelease(pVnode);
 }
 
-static void *dnodeProcessReadQueue(void *param) {
+static void *dnodeProcessReadQueue(void *pWorker) {
   SVReadMsg *pRead;
   int32_t    qtype;
   void *     pVnode;
@@ -177,7 +175,7 @@ static void *dnodeProcessReadQueue(void *param) {
       break;
     }
 
-    dDebug("%p, msg:%p:%s will be processed in vread queue, qtype:%d", pRead->rpcAhandle, pRead,
+    dDebug("msg:%p, app:%p type:%s will be processed in vread queue, qtype:%d", pRead, pRead->rpcAhandle,
            taosMsg[pRead->msgType], qtype);
 
     int32_t code = vnodeProcessRead(pVnode, pRead);
@@ -193,7 +191,7 @@ static void *dnodeProcessReadQueue(void *param) {
       }
     }
 
-    taosFreeQitem(pRead);
+    vnodeFreeFromRQueue(pVnode, pRead);
   }
 
   return NULL;

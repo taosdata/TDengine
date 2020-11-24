@@ -17,6 +17,7 @@
 #define TDENGINE_TAOS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,13 +110,14 @@ DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);
 DLL_EXPORT TAOS_ROW taos_fetch_row(TAOS_RES *res);
 DLL_EXPORT int taos_result_precision(TAOS_RES *res);  // get the time precision of result
 DLL_EXPORT void taos_free_result(TAOS_RES *res);
-DLL_EXPORT int taos_field_count(TAOS_RES *tres);
+DLL_EXPORT int taos_field_count(TAOS_RES *res);
 DLL_EXPORT int taos_num_fields(TAOS_RES *res);
 DLL_EXPORT int taos_affected_rows(TAOS_RES *res);
 DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
 DLL_EXPORT int taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
 DLL_EXPORT void taos_stop_query(TAOS_RES *res);
+DLL_EXPORT bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
 int taos_validate_sql(TAOS *taos, const char *sql);

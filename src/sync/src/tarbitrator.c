@@ -115,14 +115,14 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   SFirstPkt firstPkt;
   if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    sError("failed to read peer first pkt from ip:%s(%s)", ipstr, strerror(errno));
+    sError("failed to read peer first pkt from ip:%s since %s", ipstr, strerror(errno));
     taosCloseSocket(connFd);
     return;
   }
 
-  SNodeConn *pNode = (SNodeConn *)calloc(sizeof(SNodeConn), 1);
+  SNodeConn *pNode = calloc(sizeof(SNodeConn), 1);
   if (pNode == NULL) {
-    sError("failed to allocate memory(%s)", strerror(errno));
+    sError("failed to allocate memory since %s", strerror(errno));
     taosCloseSocket(connFd);
     return;
   }
@@ -146,7 +146,7 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 static void arbProcessBrokenLink(void *param) {
   SNodeConn *pNode = param;
 
-  sDebug("%s, TCP link is broken(%s), close connection", pNode->id, strerror(errno));
+  sDebug("%s, TCP link is broken since %s, close connection", pNode->id, strerror(errno));
   tfree(pNode);
 }
 

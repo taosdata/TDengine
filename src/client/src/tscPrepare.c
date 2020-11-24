@@ -268,7 +268,6 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
 
   if (1) {
     // allow user bind param data with different type
-    short size = 0;
     union {
       int8_t          v1;
       int16_t         v2;
@@ -600,7 +599,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
             if ((*bind->length) > (uintptr_t)param->bytes) {
               return TSDB_CODE_TSC_INVALID_VALUE;
             }
-            size = (short)*bind->length;
+            short size = (short)*bind->length;
             STR_WITH_SIZE_TO_VARSTR(data + param->offset, bind->buffer, size);
             return TSDB_CODE_SUCCESS;
           } break;

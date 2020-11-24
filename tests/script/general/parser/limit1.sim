@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = lm1_db
@@ -48,8 +48,7 @@ while $i < $halfNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) 
-    sql insert into $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar ) 
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )  $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
     $x = $x + 1
   endw 
 
@@ -62,7 +61,7 @@ run general/parser/limit1_stb.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 

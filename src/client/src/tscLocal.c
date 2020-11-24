@@ -341,7 +341,7 @@ TAOS_ROW tscFetchRow(void *param) {
     return NULL;
   }
 
-  void* data = doSetResultRowData(pSql, true);
+  void* data = doSetResultRowData(pSql);
 
   tscClearSqlOwner(pSql);
   return data;

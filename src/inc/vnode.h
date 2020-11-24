@@ -23,12 +23,12 @@ extern "C" {
 #include "twal.h"
 
 typedef enum _VN_STATUS {
-  TAOS_VN_STATUS_INIT,
-  TAOS_VN_STATUS_READY,
-  TAOS_VN_STATUS_CLOSING,
-  TAOS_VN_STATUS_UPDATING,
-  TAOS_VN_STATUS_RESET,
-} EVnStatus;
+  TAOS_VN_STATUS_INIT = 0,
+  TAOS_VN_STATUS_READY = 1,
+  TAOS_VN_STATUS_CLOSING = 2,
+  TAOS_VN_STATUS_UPDATING = 3,
+  TAOS_VN_STATUS_RESET = 4,
+} EVnodeStatus;
 
 typedef struct {
   int32_t len;
@@ -81,7 +81,8 @@ void    vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes);
 int32_t vnodeInitResources();
 void    vnodeCleanupResources();
 
-int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qtype, void *rparam);
+int32_t vnodeWriteToRQueue(void *pVnode, void *pCont, int32_t contLen, int8_t qtype, void *rparam);
+void    vnodeFreeFromRQueue(void *pVnode, SVReadMsg *pRead);
 int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
 
 #ifdef __cplusplus

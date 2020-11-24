@@ -150,7 +150,7 @@ void *taosAllocateTcpConn(void *param, void *pPeer, int32_t connFd) {
 }
 
 void taosFreeTcpConn(void *param) {
-  SConnObj *  pConn = (SConnObj *)param;
+  SConnObj *  pConn = param;
   SThreadObj *pThread = pConn->pThread;
 
   sDebug("%p TCP connection will be closed, fd:%d", pThread, pConn->fd);

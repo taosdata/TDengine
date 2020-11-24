@@ -218,5 +218,4 @@ public class TSDBResultSetRowData {
 	public void setData(ArrayList<Object> data) {
 		this.data = (ArrayList<Object>) data.clone();
 	}
-
 }

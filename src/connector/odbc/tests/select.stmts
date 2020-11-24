@@ -1,0 +1,4 @@
+P: select * from db.t;
+P: select * from db.f;
+P: select * from db.v;
+P: select * from db.mt;

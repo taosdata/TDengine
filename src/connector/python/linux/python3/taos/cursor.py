@@ -216,7 +216,6 @@ class TDengineCursor(object):
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
-
         return list(map(tuple, zip(*buffer)))
 
     def nextset(self):
