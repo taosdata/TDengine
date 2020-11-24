@@ -532,10 +532,19 @@ if $rows != 0 then
   return -1
 endi
 
-# slimit/soffset not suport for normal table query. [d.11]===============================================================
-sql_error select sum(c1) from $stb slimit 1 soffset 19;
+sql select apercentile(c4, 21) / sum(c4) from $stb interval(1s) limit 1 offset 1;
+if $rows != 1 then
+  return -1
+endi
 
-sql select sum(c1) from $stb interval(1s) group by tbname slimit 1 soffset 1;
+# slimit/soffset not support for normal table query. [d.11]===============================================================
+sql select sum(c1) from $stb slimit 1 soffset 19;
+if $rows != 0 then
+  return -1
+endi
+
+sql select sum(c1) from $stb interval(1s) group by tbname slimit 1 soffset 1
+sql select sum(c1) from ca_stb0 interval(1s) group by tbname slimit 2 soffset 4 limit 10 offset 1
 
 # fill [d.12]===============================================================
 sql_error select first(c1)-last(c1), sum(c3)*count(c3), spread(c5 ) % count(*) from $stb interval(1s) fill(prev);
