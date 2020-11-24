@@ -122,8 +122,7 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
-  // set the ref to 0 
-  taosCacheRelease((void**)&ppContext);
+  taosCacheRelease(ppContext);
 
   return pContext;
 }

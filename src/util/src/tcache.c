@@ -193,7 +193,7 @@ void *taosCachePut(int32_t cacheId, const void *key, size_t keyLen, const void *
 
   pNode->hash = hash;
   pNode->expireTime   = (uint64_t)taosGetTimestampMs() + durationMS; 
-  pNode->count = 1; 
+  pNode->count = 2; 
   pNode->duration = durationMS;
   pNode->pCacheObj = pCacheObj;
 
