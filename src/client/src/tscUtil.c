@@ -459,9 +459,8 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
   tfree(pDataBlock->params);
 
   // free the refcount for metermeta
-  if (pDataBlock->pTableMeta != NULL) {
-    taosCacheRelease(tscMetaCache, (void**)&(pDataBlock->pTableMeta), false);
-  }
+  taosCacheRelease(pDataBlock->pTableMeta);
+  pDataBlock->pTableMeta = NULL;
 
   tfree(pDataBlock);
 }
@@ -518,11 +517,10 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   if (pTableMetaInfo->pTableMeta != pDataBlock->pTableMeta) {
     tstrncpy(pTableMetaInfo->name, pDataBlock->tableId, sizeof(pTableMetaInfo->name));
 
-    if (pTableMetaInfo->pTableMeta != NULL) {
-      taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), false);
-    }
+    taosCacheRelease(pTableMetaInfo->pTableMeta);
+    pTableMetaInfo->pTableMeta = NULL;
 
-    pTableMetaInfo->pTableMeta = taosCacheTransfer(tscMetaCache, (void**)&pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta = taosCacheTransfer((void**)&pDataBlock->pTableMeta);
   } else {
     assert(strncmp(pTableMetaInfo->name, pDataBlock->tableId, tListLen(pDataBlock->tableId)) == 0);
   }
@@ -593,7 +591,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
    * due to operation such as drop database. So here we add the reference count directly instead of invoke
    * taosGetDataFromCache, which may return NULL value.
    */
-  dataBuf->pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMeta);
+  dataBuf->pTableMeta = taosCacheAcquireByData(pTableMeta);
   assert(initialSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 
   *dataBlocks = dataBuf;
@@ -1796,9 +1794,8 @@ void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
     return;
   }
 
-  if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
-  }
+  taosCacheRelease(pTableMetaInfo->pTableMeta);
+  pTableMetaInfo->pTableMeta = NULL;
 
   pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
   tscColumnListDestroy(pTableMetaInfo->tagColList);
@@ -2024,7 +2021,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   STableMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    STableMeta* pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
+    STableMeta* pTableMeta = taosCacheAcquireByData(pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
     assert(pTableMeta != NULL);
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList,
@@ -2032,7 +2029,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-    STableMeta*  pPrevTableMeta = taosCacheTransfer(tscMetaCache, (void**)&pPrevInfo->pTableMeta);
+    STableMeta*  pPrevTableMeta = taosCacheTransfer((void**)&pPrevInfo->pTableMeta);
     
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList,

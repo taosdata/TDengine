@@ -7419,8 +7419,8 @@ void qCleanupQueryMgmt(void* pQMgmt) {
 
   assert(pQueryMgmt->closed);
 
-  SCacheObj* pqinfoPool = pQueryMgmt->qinfoPool;
-  pQueryMgmt->qinfoPool = NULL;
+  int pqinfoPool = pQueryMgmt->qinfoPool;
+  pQueryMgmt->qinfoPool = -1;
 
   taosCacheCleanup(pqinfoPool);
   pthread_mutex_destroy(&pQueryMgmt->lock);
@@ -7438,7 +7438,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
   const int32_t DEFAULT_QHANDLE_LIFE_SPAN = tsShellActivityTimer * 2 * 1000;
 
   SQueryMgmt *pQueryMgmt = pMgmt;
-  if (pQueryMgmt->qinfoPool == NULL) {
+  if (pQueryMgmt->qinfoPool < 0) {
     qError("QInfo:%p failed to add qhandle into qMgmt, since qMgmt is closed", (void *)qInfo);
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
@@ -7467,7 +7467,7 @@ void** qAcquireQInfo(void* pMgmt, uint64_t _key) {
     return NULL;
   }
 
-  if (pQueryMgmt->qinfoPool == NULL) {
+  if (pQueryMgmt->qinfoPool < 0) {
     terrno = TSDB_CODE_QRY_INVALID_QHANDLE;
     return NULL;
   }
@@ -7484,11 +7484,11 @@ void** qAcquireQInfo(void* pMgmt, uint64_t _key) {
 
 void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   SQueryMgmt *pQueryMgmt = pMgmt;
-  if (pQueryMgmt->qinfoPool == NULL) {
+  if (pQueryMgmt->qinfoPool < 0) {
     return NULL;
   }
 
-  taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, freeHandle);
+  taosCacheRelease(pQInfo);
   return 0;
 }
 

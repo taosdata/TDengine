@@ -90,7 +90,7 @@ void httpReleaseSession(HttpContext *pContext) {
   httpDebug("context:%p, release session:%p:%p, sessionRef:%d", pContext, pContext->session, pContext->session->taos,
             pContext->session->refCount);
 
-  taosCacheRelease(tsHttpServer.sessionCache, (void **)&pContext->session, false);
+  taosCacheRelease((void **)&pContext->session);
   pContext->session = NULL;
 }
 
@@ -105,17 +105,16 @@ static void httpDestroySession(void *data) {
 }
 
 void httpCleanUpSessions() {
-  if (tsHttpServer.sessionCache != NULL) {
-    SCacheObj *cache = tsHttpServer.sessionCache;
-    httpInfo("session cache is cleanuping, size:%" PRIzu "", taosHashGetSize(cache->pHashTable));
+  if (tsHttpServer.sessionCache > 0) {
+    httpInfo("session cache is cleanuping");
     taosCacheCleanup(tsHttpServer.sessionCache);
-    tsHttpServer.sessionCache = NULL;
+    tsHttpServer.sessionCache = -1;
   }
 }
 
 bool httpInitSessions() {
   tsHttpServer.sessionCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, httpDestroySession, "rests");
-  if (tsHttpServer.sessionCache == NULL) {
+  if (tsHttpServer.sessionCache > 0) {
     httpError("failed to init session cache");
     return false;
   }

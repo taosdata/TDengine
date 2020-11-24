@@ -645,7 +645,7 @@ void taos_free_result(TAOS_RES *res) {
   if (freeNow) {
     tscDebug("%p free sqlObj in cache", pSql);
     SSqlObj** p = pSql->self;
-    taosCacheRelease(tscObjCache, (void**) &p, true);
+    taosCacheRelease(p);
   }
 }
 
@@ -753,7 +753,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscQueueAsyncRes(pSubObj);
-    taosCacheRelease(tscObjCache, (void**) &p, false);
+    taosCacheRelease(p);
   }
 
   tscDebug("%p super table query cancelled", pSql);

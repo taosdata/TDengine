@@ -30,8 +30,8 @@
 #include "tlocale.h"
 
 // global, not configurable
-SCacheObj*  tscMetaCache;
-SCacheObj*  tscObjCache;
+int     tscMetaCache = -1;
+int     tscObjCache = -1;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
@@ -142,7 +142,7 @@ void taos_init_imp(void) {
   }
 
   int64_t refreshTime = 10; // 10 seconds by default
-  if (tscMetaCache == NULL) {
+  if (tscMetaCache < 0) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
     tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeRegisteredSqlObj, "sqlObj");
   }
@@ -162,19 +162,19 @@ void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 void taos_cleanup(void) {
   tscDebug("start to cleanup client environment");
 
-  void* m = tscMetaCache;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscMetaCache, m, 0) == m) {
+  int32_t m = tscMetaCache;
+  if (m >= 0 && atomic_val_compare_exchange_32(&tscMetaCache, m, 0) == m) {
     taosCacheCleanup(m);
   }
 
   m = tscObjCache;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscObjCache, m, 0) == m) {
+  if (m >= 0 && atomic_val_compare_exchange_ptr(&tscObjCache, m, 0) == m) {
     taosCacheCleanup(m);
   }
 
-  m = tscQhandle;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscQhandle, m, 0) == m) {
-    taosCleanUpScheduler(m);
+  void *p = tscQhandle;
+  if (p != NULL && atomic_val_compare_exchange_ptr(&tscQhandle, p, 0) == p) {
+    taosCleanUpScheduler(p);
   }
 
   taosCloseRef(tscRefId);
@@ -182,9 +182,9 @@ void taos_cleanup(void) {
   taosCloseLog();
   if (tscEmbedded == 0) rpcCleanup();
 
-  m = tscTmr;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {
-    taosTmrCleanUp(m);
+  p = tscTmr;
+  if (p != NULL && atomic_val_compare_exchange_ptr(&tscTmr, p, 0) == p) {
+    taosTmrCleanUp(p);
   }
 }
 

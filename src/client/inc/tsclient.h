@@ -504,8 +504,8 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern void *    tscMetaCache;
-extern void *    tscObjCache;
+extern int       tscMetaCache;
+extern int       tscObjCache;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];

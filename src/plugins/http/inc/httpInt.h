@@ -184,8 +184,8 @@ typedef struct HttpServer {
   int32_t           status;
   pthread_t         thread;
   HttpThread *      pThreads;
-  void *            contextCache;
-  void *            sessionCache;
+  int32_t           contextCache;
+  int32_t           sessionCache;
   pthread_mutex_t   serverMutex;
   HttpDecodeMethod *methodScanner[HTTP_METHOD_SCANNER_SIZE];
   bool (*processData)(HttpContext *pContext);

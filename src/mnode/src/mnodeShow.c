@@ -53,7 +53,7 @@ static void *mnodePutShowObj(SShowObj *pShow);
 static void  mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove);
 
 extern void *tsMnodeTmr;
-static void *tsMnodeShowCache = NULL;
+static int32_t tsMnodeShowCache = -1;
 static int32_t tsShowObjIndex = 0;
 static SShowMetaFp     tsMnodeShowMetaFp[TSDB_MGMT_TABLE_MAX]     = {0};
 static SShowRetrieveFp tsMnodeShowRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
@@ -70,10 +70,10 @@ int32_t mnodeInitShow() {
 }
 
 void mnodeCleanUpShow() {
-  if (tsMnodeShowCache != NULL) {
+  if (tsMnodeShowCache < 0) {
     mInfo("show cache is cleanup");
     taosCacheCleanup(tsMnodeShowCache);
-    tsMnodeShowCache = NULL;
+    tsMnodeShowCache = -1;
   }
 }
 
@@ -398,7 +398,7 @@ static bool mnodeAccquireShowObj(SShowObj *pShow) {
 static void* mnodePutShowObj(SShowObj *pShow) {
   const int32_t DEFAULT_SHOWHANDLE_LIFE_SPAN = tsShellActivityTimer * 6 * 1000;
 
-  if (tsMnodeShowCache != NULL) {
+  if (tsMnodeShowCache >= 0) {
     pShow->index = atomic_add_fetch_32(&tsShowObjIndex, 1);
     TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pShow;
     SShowObj **ppShow = taosCachePut(tsMnodeShowCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pShow, sizeof(TSDB_CACHE_PTR_TYPE), DEFAULT_SHOWHANDLE_LIFE_SPAN);
@@ -423,7 +423,8 @@ static void mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   mDebug("%p, show is released, force:%s data:%p index:%d", pShow, forceRemove ? "true" : "false", ppShow,
          pShow->index);
 
-  taosCacheRelease(tsMnodeShowCache, (void **)(&ppShow), forceRemove);
+  taosCacheRelease(ppShow);
+  ppShow = NULL;
 }
 
 void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {

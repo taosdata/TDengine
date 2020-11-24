@@ -68,7 +68,7 @@ static void httpDestroyContext(void *data) {
 
 bool httpInitContexts() {
   tsHttpServer.contextCache = taosCacheInit(TSDB_CACHE_PTR_KEY, 2, true, httpDestroyContext, "restc");
-  if (tsHttpServer.contextCache == NULL) {
+  if (tsHttpServer.contextCache < 0) {
     httpError("failed to init context cache");
     return false;
   }
@@ -77,11 +77,10 @@ bool httpInitContexts() {
 }
 
 void httpCleanupContexts() {
-  if (tsHttpServer.contextCache != NULL) {
-    SCacheObj *cache = tsHttpServer.contextCache;
-    httpInfo("context cache is cleanuping, size:%" PRIzu "", taosHashGetSize(cache->pHashTable));
+  if (tsHttpServer.contextCache < 0) {
+    httpInfo("context cache is cleanuping");
     taosCacheCleanup(tsHttpServer.contextCache);
-    tsHttpServer.contextCache = NULL;
+    tsHttpServer.contextCache = -1;
   }
 }
 
@@ -124,7 +123,7 @@ HttpContext *httpCreateContext(int32_t fd) {
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
   // set the ref to 0 
-  taosCacheRelease(tsHttpServer.contextCache, (void**)&ppContext, false);
+  taosCacheRelease((void**)&ppContext);
 
   return pContext;
 }
@@ -158,8 +157,9 @@ void httpReleaseContext(HttpContext *pContext, bool clearRes) {
   HttpContext **ppContext = pContext->ppContext;
   httpTrace("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
 
-  if (tsHttpServer.contextCache != NULL) {
-    taosCacheRelease(tsHttpServer.contextCache, (void **)(&ppContext), false);
+  if (tsHttpServer.contextCache >= 0) {
+    taosCacheRelease(ppContext);
+    ppContext = NULL;
   } else {
     httpDebug("context:%p, won't be destroyed for cache is already released", pContext);
     // httpDestroyContext((void **)(&ppContext));

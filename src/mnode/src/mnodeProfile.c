@@ -35,7 +35,7 @@
 #define QUERY_STREAM_SAVE_SIZE 20
 
 extern void *tsMnodeTmr;
-static SCacheObj *tsMnodeConnCache = NULL;
+static int32_t tsMnodeConnCache = -1;
 static int32_t tsConnIndex = 0;
 
 static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -66,9 +66,9 @@ int32_t mnodeInitProfile() {
 }
 
 void mnodeCleanupProfile() {
-  if (tsMnodeConnCache != NULL) {
+  if (tsMnodeConnCache > 0) {
     taosCacheCleanup(tsMnodeConnCache);
-    tsMnodeConnCache = NULL;
+    tsMnodeConnCache = -1;
   }
 }
 
@@ -106,8 +106,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port, int32_t pid, c
 }
 
 void mnodeReleaseConn(SConnObj *pConn) {
-  if (pConn == NULL) return;
-  taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+  taosCacheRelease(pConn);
 }
 
 SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t port) {
@@ -120,7 +119,7 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
   if (/* pConn->ip != ip || */ pConn->port != port /* || strcmp(pConn->user, user) != 0 */) {
     mDebug("connId:%d, incoming conn user:%s ip:%s:%u, not match exist conn user:%s ip:%s:%u", connId, user,
            taosIpStr(ip), port, pConn->user, taosIpStr(pConn->ip), pConn->port);
-    taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+    taosCacheRelease(pConn);
     return NULL;
   }
 
@@ -135,28 +134,6 @@ static void mnodeFreeConn(void *data) {
   tfree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
-}
-
-static void *mnodeGetNextConn(SHashMutableIterator *pIter, SConnObj **pConn) {
-  *pConn = NULL;
-
-  if (pIter == NULL) {
-    pIter = taosHashCreateIter(tsMnodeConnCache->pHashTable);
-  }
-
-  if (!taosHashIterNext(pIter)) {
-    taosHashDestroyIter(pIter);
-    return NULL;
-  }
-
-  SCacheDataNode **pNode = taosHashIterGet(pIter);
-  if (pNode == NULL || *pNode == NULL) {
-    taosHashDestroyIter(pIter);
-    return NULL;
-  }
-
-  *pConn = (SConnObj*)((*pNode)->data);
-  return pIter;
 }
 
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -219,7 +196,7 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = taosHashGetSize(tsMnodeConnCache->pHashTable);
+  pShow->numOfRows = taosCacheGetCount(tsMnodeConnCache);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
@@ -233,7 +210,8 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
-    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    pShow->pIter = taosCacheIterate(tsMnodeConnCache, pShow->pIter);
+    pConnObj = (SConnObj *)pShow->pIter;
     if (pConnObj == NULL) break;
     
     cols = 0;
@@ -380,7 +358,8 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
   char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
 
   while (numOfRows < rows) {
-    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    pShow->pIter = taosCacheIterate(tsMnodeConnCache, pShow->pIter);
+    pConnObj = (SConnObj *)pShow->pIter;
     if (pConnObj == NULL) break;
 
     for (int32_t i = 0; i < pConnObj->numOfQueries; ++i) {
@@ -507,7 +486,8 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
-    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    pShow->pIter = taosCacheIterate(tsMnodeConnCache, pShow->pIter);
+    pConnObj = (SConnObj *)pShow->pIter;
     if (pConnObj == NULL) break;
 
     for (int32_t i = 0; i < pConnObj->numOfStreams; ++i) {
@@ -583,7 +563,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   } else {
     mInfo("connId:%s, queryId:%d is killed by user:%s", connIdStr, queryId, pUser->user);
     pConn->queryId = queryId;
-    taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+    taosCacheRelease(pConn);
     return TSDB_CODE_SUCCESS;
   }
 }
@@ -614,7 +594,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   } else {
     mInfo("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pUser->user);
     pConn->streamId = streamId;
-    taosCacheRelease(tsMnodeConnCache, (void **)&pConn, false);
+    taosCacheRelease((void **)&pConn);
     return TSDB_CODE_SUCCESS;
   }
 }
@@ -632,7 +612,7 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   } else {
     mInfo("connId:%s, is killed by user:%s", pKill->queryId, pUser->user);
     pConn->killed = 1;
-    taosCacheRelease(tsMnodeConnCache, (void**)&pConn, false);
+    taosCacheRelease((void**)&pConn);
     return TSDB_CODE_SUCCESS;
   }
 }
