@@ -15,7 +15,7 @@
 
 #include "os.h"
 #include "taosmsg.h"
-#include "tcache.h"
+#include "tref.h"
 #include "trpc.h"
 #include "tsystem.h"
 #include "ttimer.h"
@@ -31,7 +31,7 @@
 
 // global, not configurable
 SCacheObj*  tscMetaCache;
-SCacheObj*  tscObjCache;
+int     tscObjRef = -1;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
@@ -144,7 +144,11 @@ void taos_init_imp(void) {
   int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
+#ifndef SQLOBJ_USE_CACHE
+    tscObjRef = taosOpenRef(4096, tscFreeRegisteredSqlObj);
+#else
     tscObjCache = taosCacheInit(TSDB_CACHE_PTR_KEY, refreshTime / 2, false, tscFreeRegisteredSqlObj, "sqlObj");
+#endif
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
@@ -167,9 +171,9 @@ void taos_cleanup(void) {
     taosCacheCleanup(m);
   }
 
-  m = tscObjCache;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscObjCache, m, 0) == m) {
-    taosCacheCleanup(m);
+  int refId = atomic_exchange_32(&tscObjRef, -1);
+  if (refId != -1) {
+    taosCloseRef(refId);
   }
 
   m = tscQhandle;
