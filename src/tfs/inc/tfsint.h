@@ -60,8 +60,6 @@ SDisk *tfsFreeDisk(SDisk *pDisk);
 void   tfsUpdateDiskInfo(SDisk *pDisk);
 
 // ttier.c ======================================================
-#define TSDB_MAX_DISK_PER_TIER 16
-
 typedef struct {
   int64_t size;
   int64_t free;
@@ -70,7 +68,7 @@ typedef struct STier {
   int       level;
   int32_t   ndisk;
   STierMeta tmeta;
-  SDisk *   disks[TSDB_MAX_DISK_PER_TIER];
+  SDisk *   disks[TSDB_MAX_DISKS_PER_TIER];
 } STier;
 
 #define TIER_LEVEL(pt) ((pt)->level)

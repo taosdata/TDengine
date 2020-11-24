@@ -15,12 +15,14 @@
 
 #include "os.h"
 
+#include "taosdef.h"
 #include "hash.h"
 #include "taoserror.h"
 #include "tfs.h"
 #include "tfsint.h"
 
-#define TSDB_MAX_TIER 3
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
 
 typedef struct {
   int64_t tsize;
@@ -32,9 +34,13 @@ typedef struct {
   bool            locked;
   SFSMeta         meta;
   int             nlevel;
-  STier           tiers[TSDB_MAX_TIER];
+  STier           tiers[TSDB_MAX_TIERS];
   SHashObj *      map;  // name to did map
 } SFS;
+
+typedef struct {
+  SDisk *pDisk;
+} SDiskIter;
 
 #define TFS_LOCKED() (pfs->locked)
 #define TFS_META() (pfs->meta)
@@ -44,6 +50,9 @@ typedef struct {
 #define TFS_TIER_AT(level) (TFS_TIERS() + (level))
 #define TFS_DISK_AT(level, id) DISK_AT_TIER(TFS_TIER_AT(level), id)
 #define TFS_PRIMARY_DISK() TFS_DISK_AT(TFS_PRIMARY_LEVEL, TFS_PRIMARY_ID)
+#define TFS_IS_VALID_LEVEL(level) (((level) >= 0) && ((level) < TFS_NLEVEL()))
+#define TFS_IS_VALID_ID(level, id) (((id) >= 0) && ((id) < TIER_NDISKS(TFS_TIER_AT(level))))
+#define TFS_IS_VALID_DISK(level, id) (TFS_IS_VALID_LEVEL(level) && TFS_IS_VALID_ID(level, id))
 
 static SFS  tfs = {0};
 static SFS *pfs = &tfs;
@@ -57,12 +66,15 @@ static SDisk *tfsGetDiskByID(SDiskID did);
 static SDisk *tfsGetDiskByName(const char *dir);
 static int    tfsLock();
 static int    tfsUnLock();
+static int    tfsOpendirImpl(TDIR *tdir);
+static void   tfsInitDiskIter(SDiskIter *pIter);
+static SDisk *tfsNextDisk(SDiskIter *pIter);
 
-// FS APIs
+// FS APIs ====================================
 int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   ASSERT(ndisk > 0);
 
-  for (int level = 0; level < TSDB_MAX_TIER; level++) {
+  for (int level = 0; level < TSDB_MAX_TIERS; level++) {
     tfsInitTier(TFS_TIER_AT(level), level);
   }
 
@@ -72,7 +84,7 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
     return -1;
   }
 
-  pfs->map = taosHashInit(TSDB_MAX_TIER * TSDB_MAX_DISKS_PER_TIER * 2,
+  pfs->map = taosHashInit(TSDB_MAX_TIERS * TSDB_MAX_DISKS_PER_TIER * 2,
                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pfs->map == NULL) {
     terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
@@ -123,7 +135,21 @@ void tfsUpdateInfo() {
 const char *TFS_PRIMARY_PATH() { return DISK_DIR(TFS_PRIMARY_DISK()); }
 const char *TFS_DISK_PATH(int level, int id) { return DISK_DIR(TFS_DISK_AT(level, id)); }
 
-// MANIP APIS ====================================
+// TFILE APIs ====================================
+int tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
+  if (!TFS_IS_VALID_DISK(level, id)) return -1;
+
+  SDisk *pDisk = TFS_DISK_AT(level, id);
+
+  pf->level = level;
+  pf->id = id;
+  strncpy(pf->rname, bname, TSDB_FILENAME_LEN);
+  snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), pf->rname);
+
+  return 0;
+}
+
+// DIR APIs ====================================
 int tfsMkdir(const char *rname) {
   char aname[TSDB_FILENAME_LEN] = "\0";
 
@@ -180,6 +206,68 @@ int tfsRename(char *orname, char *nrname) {
   return 0;
 }
 
+struct TDIR {
+  SDiskIter iter;
+  int       level;
+  int       id;
+  char      dirname[TSDB_FILENAME_LEN];
+  TFILE     tfile;
+  DIR *     dir;
+};
+
+TDIR *tfsOpendir(const char *rname) {
+  TDIR *tdir = (TDIR *)calloc(1, sizeof(*tdir));
+  if (tdir == NULL) {
+    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tfsInitDiskIter(&(tdir->iter));
+  strncpy(tdir->dirname, rname, TSDB_FILENAME_LEN);
+
+  if (tfsOpendirImpl(tdir) < 0) {
+    free(tdir);
+    return NULL;
+  }
+
+  return tdir;
+}
+
+const TFILE *tfsReaddir(TDIR *tdir) {
+  if (tdir == NULL || tdir->dir == NULL) return NULL;
+  char bname[TSDB_FILENAME_LEN] = "\0";
+
+  while (true) {
+    struct dirent *dp = NULL;
+    dp = readdir(tdir->dir);
+    if (dp != NULL) {
+      snprintf(bname, TSDB_FILENAME_LEN, "%s/%s", tdir->dirname, dp->d_name);
+      tfsInitFile(&(tdir->tfile), tdir->level, tdir->id, bname);
+      return &(tdir->tfile);
+    }
+
+    if (tfsOpendirImpl(tdir) < 0) {
+      return NULL;
+    }
+
+    if (tdir->dir == NULL) {
+      terrno = TSDB_CODE_SUCCESS;
+      return NULL;
+    }
+  }
+}
+
+void tfsClosedir(TDIR *tdir) {
+  if (tdir) {
+    if (tdir->dir != NULL) {
+      closedir(tdir->dir);
+      tdir->dir = NULL;
+    }
+    free(tdir);
+  }
+}
+
+// Static functions
 static int tfsLock() {
   int code = pthread_mutex_lock(&(pfs->lock));
   if (code != 0) {
@@ -229,7 +317,7 @@ static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
   char        dirName[TSDB_FILENAME_LEN] = "\0";
   struct stat pstat;
 
-  if (pCfg->level < 0 || pCfg->level >= TSDB_MAX_TIER) {
+  if (pCfg->level < 0 || pCfg->level >= TSDB_MAX_TIERS) {
     fError("failed to mount %s to FS since invalid level %d", pCfg->dir, pCfg->level);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
@@ -337,3 +425,57 @@ static SDisk *tfsGetDiskByName(const char *dir) {
 
   return pDisk;
 }
+
+static int tfsOpendirImpl(TDIR *tdir) {
+  SDisk *pDisk = NULL;
+  char   adir[TSDB_FILENAME_LEN] = "\0";
+
+  if (tdir->dir != NULL) {
+    closedir(tdir->dir);
+    tdir->dir = NULL;
+  }
+
+  while (true) {
+    pDisk = tfsNextDisk(&(tdir->iter));
+    if (pDisk == NULL) return 0;
+
+    tdir->level = DISK_LEVEL(pDisk);
+    tdir->id = DISK_ID(pDisk);
+
+    snprintf(adir, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), tdir->dirname);
+    tdir->dir = opendir(adir);
+    if (tdir->dir != NULL) break;
+  }
+
+  return 0;
+}
+
+static void tfsInitDiskIter(SDiskIter *pIter) { pIter->pDisk = TFS_DISK_AT(0, 0); }
+
+static SDisk *tfsNextDisk(SDiskIter *pIter) {
+  SDisk *pDisk = pIter->pDisk;
+
+  if (pDisk == NULL) return NULL;
+
+  int level = DISK_LEVEL(pDisk);
+  int id = DISK_ID(pDisk);
+
+  id++;
+  if (id < TIER_NDISKS(TFS_TIER_AT(level))) {
+    pIter->pDisk = TFS_DISK_AT(level, id);
+    ASSERT(pIter->pDisk != NULL);
+  } else {
+    level++;
+    id = 0;
+    if (level < TFS_NLEVEL()) {
+      pIter->pDisk = TFS_DISK_AT(level, id);
+      ASSERT(pIter->pDisk != NULL);
+    } else {
+      pIter->pDisk = NULL;
+    }
+  }
+
+  return pDisk;
+}
+
+#pragma GCC diagnostic pop

@@ -40,36 +40,30 @@ void tfsUpdateInfo();
 const char *TFS_PRIMARY_PATH();
 const char *TFS_DISK_PATH(int level, int id);
 
-// MANIP APIS ====================================
-int tfsMkdir(const char *rname);
-int tfsRmdir(const char *rname);
-int tfsRename(char *orname, char *nrname);
-
-// tfcntl.c ====================================
-typedef struct TFSFILE {
+// TFILE APIs ====================================
+typedef struct {
   int  level;
   int  id;
   char rname[TSDB_FILENAME_LEN];  // REL name
   char aname[TSDB_FILENAME_LEN];  // ABS name
-} TFSFILE;
+} TFILE;
 
-const char *tfsAbsName(TFSFILE *pfile);
-const char *tfsRelName(TFSFILE *pfile);
-void        tfsDirName(TFSFILE *pfile, char dest[]);
-void        tfsBaseName(TFSFILE *pfile, char dest[]);
-int         tfsopen(TFSFILE *pfile, int flags);
-int         tfsclose(int fd);
-int         tfsremove(TFSFILE *pfile);
-SDiskID     tfsFileID(TFSFILE *pfile);
+#define TFILE_LEVEL(pf) ((pf)->level)
+#define TFILE_ID(pf) ((pf)->id)
+#define TFILE_NAME(pf) ((pf)->aname)
 
-typedef struct TFSDIR TFSDIR;
+int tfsInitFile(TFILE *pf, int level, int id, const char *bname);
 
-int            tfsCreateDir(char *dirname);
-int            tfsRemoveDir(char *dirname);
-int            tfsRename(char *oldpath, char *newpath);
-TFSDIR *       tfsOpenDir(char *dir);
-void           tfsCloseDir(TFSDIR *tdir);
-const TFSFILE *tfsReadDir(TFSDIR *tdir);
+// DIR APIs ====================================
+int tfsMkdir(const char *rname);
+int tfsRmdir(const char *rname);
+int tfsRename(char *orname, char *nrname);
+
+typedef struct TDIR TDIR;
+
+TDIR *       tfsOpendir(const char *rname);
+const TFILE *tfsReaddir(TDIR *tdir);
+void         tfsClosedir(TDIR *tdir);
 
 #ifdef __cplusplus
 }

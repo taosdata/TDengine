@@ -102,7 +102,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tfsCreateDir("vnode") < 0) {
+  if (tfsMkdir("vnode") < 0) {
     vError("vgId:%d, failed to create vnode dir, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return terrno;
   }
@@ -112,7 +112,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
 
   char vnodeDir[TSDB_FILENAME_LEN] = "\0";
   snprintf(vnodeDir, TSDB_FILENAME_LEN, "vnode%d", pVnodeCfg->cfg.vgId);
-  if (tfsCreateDir(vnodeDir) < 0) {
+  if (tfsMkdir(vnodeDir) < 0) {
     vError("vgId:%d, failed to create vnode %d dir, reason:%s", pVnodeCfg->cfg.vgId, strerror(errno));
     return terrno;
   }
@@ -442,11 +442,11 @@ void vnodeRelease(void *vparam) {
     if (0 == tsEnableVnodeBak) {
       vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
     } else {
-      tfsRemoveDir(newDir);
+      tfsRmdir(newDir);
       tfsRename(rootDir, newDir);
     }
 
-    tfsRemoveDir(rootDir);
+    tfsRmdir(rootDir);
     dnodeSendStatusMsgToMnode();
   }
 

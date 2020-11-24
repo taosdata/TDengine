@@ -14,14 +14,15 @@
  */
 #include "os.h"
 
-#include "tfsint.h"
+#include "taosdef.h"
 #include "taoserror.h"
+#include "tfsint.h"
 
 // PROTECTED ==========================================
 void tfsInitTier(STier *pTier, int level) { pTier->level = level; }
 
 void tfsDestroyTier(STier *pTier) {
-  for (int id = 0; id < TSDB_MAX_DISK_PER_TIER; id++) {
+  for (int id = 0; id < TSDB_MAX_DISKS_PER_TIER; id++) {
     DISK_AT_TIER(pTier, id) = tfsFreeDisk(DISK_AT_TIER(pTier, id));
   }
   pTier->ndisk = 0;
@@ -31,7 +32,7 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   ASSERT(pTier->level == pCfg->level);
   int id = 0;
 
-  if (TIER_NDISKS(pTier) >= TSDB_MAX_DISK_PER_TIER) {
+  if (TIER_NDISKS(pTier) >= TSDB_MAX_DISKS_PER_TIER) {
     terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
     return NULL;
   }
@@ -41,7 +42,7 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
       id = pTier->ndisk;
     } else {
       id = pTier->ndisk + 1;
-      if (id >= TSDB_MAX_DISK_PER_TIER) {
+      if (id >= TSDB_MAX_DISKS_PER_TIER) {
         terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
         return NULL;
       }

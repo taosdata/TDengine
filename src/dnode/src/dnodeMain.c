@@ -186,7 +186,7 @@ static int32_t dnodeInitStorage() {
     dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;
   }
-  snprintf(tsDataDir, tfsPrimaryPath(), TSDB_FILENAME_LEN);
+  snprintf(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
@@ -203,12 +203,12 @@ static int32_t dnodeInitStorage() {
    return -1;
   }
 
-  if (tfsCreateDir("vnode") < 0) {
+  if (tfsMkdir("vnode") < 0) {
     dError("failed to create vnode dir since %s", tstrerror(terrno));
     return -1;
   }
 
-  if (tfsCreateDir("vnode_bak") < 0) {
+  if (tfsMkdir("vnode_bak") < 0) {
     dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
     return -1;
   }

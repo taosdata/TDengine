@@ -67,14 +67,14 @@ int tsdbOpenFileH(STsdbRepo *pRepo) { // TODO
   char dataDir[TSDB_FILENAME_LEN] = "\0";
 
   // 1. scan and get all files corresponds
-  TFSDIR *tdir = NULL;
+  TDIR *tdir = NULL;
   char    fname[TSDB_FILENAME_LEN] = "\0";
   regex_t regex = {0};
   int     code = 0;
   int     vid = 0;
   int     fid = 0;
 
-  const TFSFILE *pfile = NULL;
+  const TFILE *pfile = NULL;
 
   code = regcomp(&regex, "^v[0-9]+f[0-9]+\\.(head|data|last|h|d|l)$", REG_EXTENDED);
   if (code != 0) {
@@ -82,12 +82,12 @@ int tsdbOpenFileH(STsdbRepo *pRepo) { // TODO
   }
 
   snprintf(dataDir, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", REPO_ID(pRepo));
-  tdir = tfsOpenDir(dataDir);
+  tdir = tfsOpendir(dataDir);
   if (tdir == NULL) {
     // TODO: deal the error
   }
 
-  while ((pfile = tfsReadDir(tdir)) != NULL) {
+  while ((pfile = tfsReaddir(tdir)) != NULL) {
     tfsBaseName(pfile, fname);
 
     if (strcmp(fname, ".") == 0 || strcmp(fname, "..") == 0) continue;

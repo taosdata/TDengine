@@ -189,7 +189,7 @@ typedef struct {
 } STsdbFileInfo;
 
 typedef struct {
-  TFSFILE       file;
+  TFILE         file;
   STsdbFileInfo info;
   int           fd;
 } SFile;
