@@ -198,6 +198,8 @@ void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *tem
     c += length;
   }
 
+  printf("%s\n", field);
+
   while ((row = taos_fetch_row(result))) {
     temp[0] = 0;
     numOfRows++;

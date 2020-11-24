@@ -341,8 +341,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
@@ -394,9 +394,10 @@ int main(int argc, char** argv) {
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-    executeSQL(conn, "use test", NULL);
-//    createEnvironment(conn, 100000, 100000, 80, 30);
-    executeSQL(conn, "select first(k)-avg(k), first(k), spread(k) from m1 where ts>'2020-1-1 1:1:1' and ts<'2020-1-1 1:02:59' interval(10s) fill(value, 999)", NULL);
+    executeSQL(conn, "use ca_db0", NULL);
+    executeSQL(conn, "select spread(c1 )/44 from ca_stb0 order by ts asc;;", NULL);
+
+//    executeSQL(conn, "select spread(ts)/(1000 * 3600 * 24) from ca_tb1", NULL);
     taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
