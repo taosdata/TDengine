@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = wh_db
@@ -26,10 +26,17 @@ sql create database if not exists $db
 sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
 
+$half = $tbNum / 2
+
 $i = 0
-while $i < $tbNum
+while $i < $half
   $tb = $tbPrefix . $i
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
   sql create table $tb using $mt tags( $i )
+  sql create table $tb1 using $mt tags( $nextSuffix )
 
   $x = 0
   while $x < $rowNum
@@ -42,7 +49,7 @@ while $i < $tbNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )  $tb1 values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $x = $x + 1
   endw
 

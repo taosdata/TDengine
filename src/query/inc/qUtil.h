@@ -34,7 +34,7 @@ int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, int32_t size, int32_t 
 
 void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo);
 void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
-void    clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
+void    clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
 
 void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);

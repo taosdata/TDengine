@@ -41,8 +41,8 @@ void vnodeInitReadFp(void) {
 // still required, or there will be a deadlock, so we don’t do any check here, but put the check codes before the
 // request enters the queue
 //
-int32_t vnodeProcessRead(void *param, SVReadMsg *pRead) {
-  SVnodeObj *pVnode = (SVnodeObj *)param;
+int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
+  SVnodeObj *pVnode = vparam;
   int32_t    msgType = pRead->msgType;
 
   if (vnodeProcessReadMsgFp[msgType] == NULL) {
@@ -53,8 +53,7 @@ int32_t vnodeProcessRead(void *param, SVReadMsg *pRead) {
   return (*vnodeProcessReadMsgFp[msgType])(pVnode, pRead);
 }
 
-static int32_t vnodeCheckRead(void *param) {
-  SVnodeObj *pVnode = param;
+static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
   if (pVnode->status != TAOS_VN_STATUS_READY) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
@@ -74,6 +73,16 @@ static int32_t vnodeCheckRead(void *param) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+void vnodeFreeFromRQueue(void *vparam, SVReadMsg *pRead) {
+  SVnodeObj *pVnode = vparam;
+
+  atomic_sub_fetch_32(&pVnode->queuedRMsg, 1);
+  vTrace("vgId:%d, free from vrqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
+
+  taosFreeQitem(pRead);
+  vnodeRelease(pVnode);
 }
 
 int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qtype, void *rparam) {
@@ -108,7 +117,8 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
   pRead->qtype = qtype;
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, get vnode rqueue, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+  atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
+  vTrace("vgId:%d, write into vrqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
 
   taosWriteQitem(pVnode->rqueue, qtype, pRead);
   return TSDB_CODE_SUCCESS;

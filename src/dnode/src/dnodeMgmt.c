@@ -216,7 +216,7 @@ static void *dnodeProcessMgmtQueue(void *param) {
     }
 
     pMsg = &pMgmt->rpcMsg;
-    dDebug("%p, msg:%p:%s will be processed", pMsg->ahandle, pMgmt, taosMsg[pMsg->msgType]);
+    dDebug("msg:%p, ahandle:%p type:%s will be processed", pMgmt, pMsg->ahandle, taosMsg[pMsg->msgType]);
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {

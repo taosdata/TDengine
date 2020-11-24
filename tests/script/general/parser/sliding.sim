@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c debugFlag -v 135
 system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 500
 sql connect
 
 $dbPrefix = sliding_db

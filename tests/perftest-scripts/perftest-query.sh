@@ -1,8 +1,8 @@
 #!/bin/bash
 
 today=`date +"%Y%m%d"`
-WORK_DIR=/home/ubuntu/pxiao/
-PERFORMANCE_TEST_REPORT=$TDENGINE_DIR/tests/performance-test-report-$today.log
+WORK_DIR=/home/ubuntu/pxiao
+PERFORMANCE_TEST_REPORT=$WORK_DIR/TDengine/tests/performance-test-report-$today.log
 
 # Coloured Echoes                                                                                                       #
 function red_echo      { echo -e "\033[31m$@\033[0m";   }                                                               #
@@ -60,11 +60,12 @@ function buildTDengine {
 }
 
 function runQueryPerfTest {
-	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/taodperf/ > /dev/null 2>&1 &
+	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
+	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/taosperf/ > /dev/null 2>&1 &
 	echoInfo "Run Performance Test"
 	cd $WORK_DIR/TDengine/tests/pytest
 	
-	python3 query/queryPerformance.py | tee -a $PERFORMANCE_TEST_REPORT
+	python3 query/queryPerformance.py 0 | tee -a $PERFORMANCE_TEST_REPORT
 }
 
 
@@ -77,9 +78,9 @@ function sendReport {
 
 	sed -i 's/\x1b\[[0-9;]*m//g' $PERFORMANCE_TEST_REPORT
 	BODY_CONTENT=`cat $PERFORMANCE_TEST_REPORT`
-	echo -e "to: ${receiver}\nsubject: Query Performace Report ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
 	(cat - && uuencode $PERFORMANCE_TEST_REPORT performance-test-report-$today.log) | \
-	ssmtp "${receiver}" && echo "Report Sent!"
+	/usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
 }
 
 

@@ -23,7 +23,7 @@ class taosdemoQueryPerformace:
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
-        self.config = "/etc/taos"
+        self.config = "/etc/taosperf"
         self.conn = taos.connect(
             self.host,
             self.user,

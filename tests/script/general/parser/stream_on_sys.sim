@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c monitor       -v 1
 system sh/cfg.sh -n dnode1 -c monitorInterval     -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 500
 sql connect
 print ======================== stream_on_sys.sim
 
