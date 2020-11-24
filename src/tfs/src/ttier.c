@@ -18,14 +18,11 @@
 #include "taoserror.h"
 
 // PROTECTED ==========================================
-void tfsInitTier(STier *pTier, int level) {
-  pTier->level = level;
-}
+void tfsInitTier(STier *pTier, int level) { pTier->level = level; }
 
 void tfsDestroyTier(STier *pTier) {
   for (int id = 0; id < TSDB_MAX_DISK_PER_TIER; id++) {
-    tfsFreeDisk(DISK_AT_TIER(pTier, id));
-    pTier->disks[id] = NULL;
+    DISK_AT_TIER(pTier, id) = tfsFreeDisk(DISK_AT_TIER(pTier, id));
   }
   pTier->ndisk = 0;
 }
@@ -34,9 +31,9 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   ASSERT(pTier->level == pCfg->level);
   int id = 0;
 
-  if (pTier->ndisk >= TSDB_MAX_DISK_PER_TIER) {
+  if (TIER_NDISKS(pTier) >= TSDB_MAX_DISK_PER_TIER) {
     terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
-    return -1;
+    return NULL;
   }
 
   if (pTier->level == 0) {
@@ -46,7 +43,7 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
       id = pTier->ndisk + 1;
       if (id >= TSDB_MAX_DISK_PER_TIER) {
         terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
-        return -1;
+        return NULL;
       }
     }
   } else {
@@ -54,19 +51,22 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   }
 
   DISK_AT_TIER(pTier, id) = tfsNewDisk(pCfg->level, id, pCfg->dir);
-  if (DISK_AT_TIER(pTier, id) == NULL) return -1;
+  if (DISK_AT_TIER(pTier, id) == NULL) return NULL;
   pTier->ndisk++;
 
-  fDebug("disk %s is mounted to level %d id %d", pCfg->dir, pCfg->level, id);
+  fDebug("disk %s is mounted to tier level %d id %d", pCfg->dir, pCfg->level, id);
 
-  return id;
+  return DISK_AT_TIER(pTier, id);
 }
 
-int tfsUpdateTierInfo(STier *pTier) {
+void tfsUpdateTierInfo(STier *pTier) {
+  STierMeta tmeta = {0};
+
   for (int id = 0; id < pTier->ndisk; id++) {
-    if (tfsUpdateDiskInfo(DISK_AT_TIER(pTier, id)) < 0) {
-      return -1;
-    }
+    tfsUpdateDiskInfo(DISK_AT_TIER(pTier, id));
+    tmeta.size += DISK_SIZE(DISK_AT_TIER(pTier, id));
+    tmeta.free += DISK_FREE_SIZE(DISK_AT_TIER(pTier, id));
   }
-  return 0;
+
+  pTier->tmeta = tmeta;
 }

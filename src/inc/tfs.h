@@ -29,14 +29,21 @@ typedef struct {
 
 #define TFS_UNDECIDED_LEVEL -1
 #define TFS_UNDECIDED_ID -1
+#define TFS_PRIMARY_LEVEL 0
+#define TFS_PRIMARY_ID 0
 
-// tfs.c ====================================
+// FS APIs ====================================
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
-int  tfsUpdateInfo();
+void tfsUpdateInfo();
 
-const char *tfsGetDiskName(int level, int id);
-const char *tfsPrimaryPath();
+const char *TFS_PRIMARY_PATH();
+const char *TFS_DISK_PATH(int level, int id);
+
+// MANIP APIS ====================================
+int tfsMkdir(const char *rname);
+int tfsRmdir(const char *rname);
+int tfsRename(char *orname, char *nrname);
 
 // tfcntl.c ====================================
 typedef struct TFSFILE {

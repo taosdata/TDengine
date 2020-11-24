@@ -17,21 +17,8 @@
 #include "taoserror.h"
 #include "tfsint.h"
 
-typedef struct {
-  uint64_t size;
-  uint64_t free;
-  uint64_t nfiles;
-} SDiskMeta;
-
-struct SDisk {
-  int       level;
-  int       id;
-  char      dir[TSDB_FILENAME_LEN];
-  SDiskMeta dmeta;
-};
-
 // PROTECTED ====================================
-SDisk *tfsNewDisk(int level, int id, char *dir) {
+SDisk *tfsNewDisk(int level, int id, const char *dir) {
   SDisk *pDisk = (SDisk *)calloc(1, sizeof(*pDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
@@ -45,24 +32,24 @@ SDisk *tfsNewDisk(int level, int id, char *dir) {
   return pDisk;
 }
 
-void tfsFreeDisk(SDisk *pDisk) {
+SDisk *tfsFreeDisk(SDisk *pDisk) {
   if (pDisk) {
     free(pDisk);
   }
+  return NULL;
 }
 
-int tfsUpdateDiskInfo(SDisk *pDisk) {
+void tfsUpdateDiskInfo(SDisk *pDisk) {
+  ASSERT(pDisk != NULL);
   SysDiskSize dstat;
   if (taosGetDiskSize(pDisk->dir, &dstat) < 0) {
-    fError("failed to get dir %s information since %s", pDisk->dir, strerror(errno));
+    fError("failed to update disk information at level %d id %d dir %s since %s", pDisk->level, pDisk->id, pDisk->dir,
+           strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+    pDisk->dmeta.size = 0;
+    pDisk->dmeta.free = 0;
+  } else {
+    pDisk->dmeta.size = dstat.tsize;
+    pDisk->dmeta.free = dstat.avail;
   }
-
-  pDisk->dmeta.size = dstat.tsize;
-  pDisk->dmeta.free = dstat.avail;
-
-  return 0;
 }
-
-const char *tfsDiskDir(SDisk *pDisk) { return pDisk->dir; }

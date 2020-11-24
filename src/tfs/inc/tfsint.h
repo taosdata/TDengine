@@ -33,40 +33,56 @@ extern int fsDebugFlag;
 #define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
 #define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
 
-// tdisk.c
-typedef struct SDisk SDisk;
+// tdisk.c ======================================================
+typedef struct {
+  int32_t nfiles;
+  int64_t size;
+  int64_t free;
+} SDiskMeta;
 
-SDisk *tfsNewDisk(int level, int id, char *dir);
-void   tfsFreeDisk(SDisk *pDisk);
-int    tfsUpdateDiskInfo(SDisk *pDisk);
+typedef struct SDisk {
+  int       level;
+  int       id;
+  char      dir[TSDB_FILENAME_LEN];
+  SDiskMeta dmeta;
+} SDisk;
 
-const char *tfsDiskDir(SDisk *pDisk);
+#define DISK_LEVEL(pd) ((pd)->level)
+#define DISK_ID(pd) ((pd)->id)
+#define DISK_DIR(pd) ((pd)->dir)
+#define DISK_META(pd) ((pd)->dmeta)
+#define DISK_SIZE(pd) ((pd)->dmeta.size)
+#define DISK_FREE_SIZE(pd) ((pd)->dmeta.free)
+#define DISK_NFILES(pd) ((pd)->dmeta.nfiles)
 
-// ttier.c
+SDisk *tfsNewDisk(int level, int id, const char *dir);
+SDisk *tfsFreeDisk(SDisk *pDisk);
+void   tfsUpdateDiskInfo(SDisk *pDisk);
+
+// ttier.c ======================================================
 #define TSDB_MAX_DISK_PER_TIER 16
 
+typedef struct {
+  int64_t size;
+  int64_t free;
+} STierMeta;
 typedef struct STier {
-  int    level;
-  int    ndisk;
-  SDisk *disks[TSDB_MAX_DISK_PER_TIER];
+  int       level;
+  int32_t   ndisk;
+  STierMeta tmeta;
+  SDisk *   disks[TSDB_MAX_DISK_PER_TIER];
 } STier;
 
-#define DISK_AT_TIER(pTier, id) ((pTier)->disks[id])
+#define TIER_LEVEL(pt) ((pt)->level)
+#define TIER_NDISKS(pt) ((pt)->ndisk)
+#define TIER_SIZE(pt) ((pt)->tmeta.size)
+#define TIER_FREE_SIZE(pt) ((pt)->tmeta.free)
+#define DISK_AT_TIER(pt, id) ((pt)->disks[id])
 
 void   tfsInitTier(STier *pTier, int level);
 void   tfsDestroyTier(STier *pTier);
 SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg);
-int    tfsUpdateTierInfo(STier *pTier);
-
-// tfs.c
-void tfsIncFileAt(int level, int id);
-void tfsDecFileAt(int level, int id);
-int  tfsLock();
-int  tfsUnLock();
-bool tfsIsLocked();
-int  tfsLevels();
-
-// tfcntl.c
+void   tfsUpdateTierInfo(STier *pTier);
 
 #ifdef __cplusplus
 }
