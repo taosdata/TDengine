@@ -1,0 +1,478 @@
+# ======================================= query test cases ========================================
+# select from table
+
+$dbPrefix = ca_db
+$tbPrefix = ca_tb
+$stbPrefix = ca_stb
+$rowNum = 10000
+
+$i = 0
+$db = $dbPrefix . $i
+sql use $db
+
+$tb = $tbPrefix . 0
+$stb = $stbPrefix . $i
+
+## TBASE-344
+sql select c1*2 from $tb
+if $rows != $rowNum then
+  return -1
+endi
+if $data00 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data90 != 18.000000000 then
+  return -1
+endi
+
+# asc/desc order [d.2] ======================================================
+sql select c1 *( 2 / 3 ), c1/c1 from $tb order by ts asc;
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+if $data01 != -nan then
+  print expect -nan, actual: $data01
+  return -1
+endi
+
+if $data10 != 0.666666667 then
+  return -1
+endi
+
+if $data11 != 1.000000000 then
+  return -1
+endi
+
+if $data90 != 6.000000000 then
+  return -1
+endi
+
+if $data91 != 1.000000000 then
+  return -1
+endi
+
+sql select (c1 * 2) % 7.9 from $tb order by ts desc;
+if $rows != 10000 then
+ return -1
+endi
+
+if $data00 != 0.100000000 then
+  print expect 0.100000000, acutal:$data00
+  return -1
+endi
+
+if $data10 != 2.100000000 then
+  return -1
+endi
+
+if $data90 != 6.000000000 then
+ return -1
+endi
+
+# [d.3]
+sql select c1 * c2 /4 from $tb where ts < 1537166000000 and ts > 1537156000000
+if $rows != 17 then
+  return -1
+endi
+
+if $data00 != 12.250000000 then
+  return -1
+endi
+
+if $data10 != 16.000000000 then
+  return -1
+endi
+
+if $data20 != 20.250000000 then
+  print expect 20.250000000, acutal:$data21
+  return -1
+endi
+
+if $data30 != 0.000000000 then
+  return -1
+endi
+
+# no result return [d.3] ==============================================================
+sql select c1 * 91- 7 from $tb where ts < 1537146000000
+if $rows != 0 then
+  return -1
+endi
+
+# no result return [d.3]
+sql select c2 - c2 from $tb where ts > '2018-09-17 12:50:00.000' and ts<'2018-09-17 13:00:00.000'
+if $rows != 0 then
+  return -1
+endi
+
+# single row result aggregation [d.4] =================================================
+# not available
+
+# error cases
+# not available
+
+# multi row result aggregation [d.4]
+sql_error select top(c1, 1) - bottom(c1, 1) from $tb
+sql_error select top(c1, 99) - bottom(c1, 99) from $tb
+sql_error select top(c1,1) - 88 from $tb
+
+# all data types [d.6] ================================================================
+sql select c2-c1*1.1, c3/c2, c4*c3, c5%c4, (c6+c4)%22, c2-c2 from $tb
+if $rows != 10000 then
+ return -1
+endi
+
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+if $data01 != -nan then
+  return -1
+endi
+
+if $data02 != 0.000000000 then
+  return -1
+endi
+
+if $data03 != 0.000000000 then
+  return -1
+endi
+
+if $data04 != 0.000000000 then
+  return -1
+endi
+
+if $data05 != 0.000000000 then
+  return -1
+endi
+
+if $data90 != -0.900000000 then
+  return -1
+endi
+
+if $data91 != 1.000000000 then
+  return -1
+endi
+
+if $data92 != 81.000000000 then
+  return -1
+endi
+
+if $data93 != 0.000000000 then
+  return -1
+endi
+
+if $data94 != 18.000000000 then
+  return -1
+endi
+
+# error case, ts/bool/binary/nchar not support arithmetic expression
+sql_error select ts+ts from $tb
+sql_error select ts+22 from $tb
+sql_error select c7*12 from $tb
+sql_error select c8/55 from $tb
+sql_error select c9+c8 from $tb
+sql_error select c7-c8, c9-c8 from $tb
+sql_error select ts-c9 from $tb
+sql_error select c8+c7, c9+c9+c8+c7/c6 from $tb
+
+# arithmetic expression in join [d.7]==================================================
+
+
+# arithmetic expression in union [d.8]=================================================
+
+
+# arithmetic expression in group by [d.9]==============================================
+# in group by tag, not support for normal table
+sql_error select c5*99 from $tb group by t1
+
+# in group by column
+sql_error select c6-(c6+c3)*12 from $tb group by c3;
+
+
+# limit offset [d.10]==================================================================
+sql select c6 * c1 + 12 from $tb limit 12 offset 99;
+if $rows != 12 then
+ return -1
+endi
+
+if $data00 != 93.000000000 then
+  return -1
+endi
+
+if $data90 != 76.000000000 then
+  return -1
+endi
+
+sql select c4 / 99.123 from $tb limit 10 offset 9999;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.090796283 then
+  return -1
+endi
+
+# slimit/soffset not support for normal table query. [d.11]============================
+sql_error select sum(c1) from $tb slimit 1 soffset 19;
+
+# fill [d.12]==========================================================================
+sql_error select c2-c2, c3-c4, c5%c3 from $tb fill(value, 12);
+
+# constant column. [d.13]==============================================================
+sql select c1, c2+c6, 12.9876545678, 1, 1.1 from $tb
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data01 != 0.000000000 then
+  return -1
+endi
+
+if $data02 != 12.987654568 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data04 != 1.100000000 then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+# column value filter [d.14]===========================================================
+sql select c1, c2+c6, 12.9876545678, 1, 1.1 from $tb where c1<2
+if $rows != 2000 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data01 != 0.000000000 then
+  return -1
+endi
+
+if $data02 != 12.987654568 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != 0 then
+  return -1
+endi
+
+# tag filter(not support for normal table). [d.15]=====================================
+sql_error select c2+99 from $tb where t1=12;
+
+# multi-field output [d.16]============================================================
+sql select c4*1+1/2,c4*1+1/2,c4*1+1/2,c4*1+1/2,c4*1+1/2 from $tb
+if $rows != $rowNum then
+  return -1
+endi
+if $data00 != 0.500000000 then
+  return -1
+endi
+if $data10 != 1.500000000 then
+  return -1
+endi
+if $data90 != 9.500000000 then
+  return -1
+endi
+
+# interval query [d.17]==================================================================
+sql_error select c2*c2, c3-c3, c4+9 from $tb interval(1s)
+sql_error select c7-c9 from $tb interval(2y)
+
+# aggregation query [d.18]===============================================================
+# see test cases below
+
+# first/last query  [d.19]===============================================================
+# see test cases below
+
+# multiple retrieve [d.20]===============================================================
+sql select c2-c2, 911 from $tb
+
+#======================================= aggregation function arithmetic query cases ================
+# asc/desc order [d.2]
+sql select first(c1) * ( 2 / 3 ) from $stb order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+sql select first(c1) * (2/99) from $stb order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+sql select (count(c1) * 2) % 7.9, (count(c1) * 2), ( count(1)*2) from $stb order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1.800000000 then
+  return -1
+endi
+
+if $data01 != 100000 then
+  return -1
+endi
+
+if $data02 != 200000 then
+  return -1
+endi
+
+sql select spread( c1 )/44, spread(c1), 0.204545455 * 44 from $stb order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.204545455 then
+  return -1
+endi
+
+if $data01 != 9.000000000 then
+  return -1
+endi
+
+if $data02 != 9.000000020 then
+  return -1
+endi
+
+# all possible function in the arithmetic expressioin
+sql select min(c1) * max(c2) /4, sum(c1) * percentile(c2, 20), apercentile(c4, 33) + 52/9, spread(c5)/min(c2) from $stb where ts <  and ts >
+
+# no result return [d.3]
+sql select first(c1) * 91 - 7, last(c3) from $stb where ts < 1537146000000
+if $rows != 0 then
+  return -1
+endi
+
+# no result return [d.3]
+sql select sum(c2) - avg(c2) from $tb where ts>xxx
+if $rows != 0 then
+  return -1
+endi
+
+# single row result aggregation [d.4]
+sql select
+
+# error cases
+sql_error select first(c1, c2) - last(c1, c2) from $tb
+
+# multi row result aggregation [d.4]
+sql select top(c1, 1) - bottom(c1, 1) from $tb
+sql select top(c1, 99) - bottom(c1, 99) from $tb
+
+# all data types [d.6]
+sql select c2-c1, c3/c2, c4*c3, c5%c4, c6+99%22 from $tb
+
+# error case, ts/bool/binary/nchar not support arithmetic expression
+sql_error select ts+ts from $tb
+sql_error select ts+22 from $tb
+sql_error select c7*12 from $tb
+sql_error select c8/55 from $tb
+sql_error select c9+c8 from $tb
+
+# arithmetic expression in join [d.7]
+
+
+# arithmetic expression in union [d.8]
+
+
+# arithmetic expression in group by [d.9]
+# in group by tag
+# not support for normal table
+sql_error select c5*99 from $tb group by t1
+
+# in group by column
+sql_error select c6-c6+c3*12 from $tb group by c3;
+
+sql select first(c6) - last(c6) *12 / count(*) from $tb group by c3;
+
+# limit offset [d.10]
+sql select c6-c6+12 from $tb limit 12 offset 99;
+sql select c4/99.123 from $tb limit 1 offset 9999;
+
+# slimit/soffset not suport for normal table query. [d.11]
+sql_error select sum(c1) from $tb slimit 1 soffset 19;
+
+# fill [d.12]
+sql_error select c2-c2, c3-c4, c5%c6 from $tb fill(value, 12);
+
+# constant column. [d.13]
+
+
+# column value filter [d.14]
+
+
+# tag filter(not support for normal table). [d.15]
+sql_error select sum(c2)+99 from $tb where t1=12;
+
+# multi-field output [d.16]
+sql select count(*), sum(c1)*avg(c2), avg(c3)*count(c3), sum(c3), sum(c4), first(c7), last(c8), first(c9), first(c7), last(c8) from $tb
+
+sql select c4*1+1/2 from $tb
+if $rows != $rowNum then
+  return -1
+endi
+if $data00 != 0.500000000 then
+  return -1
+endi
+if $data10 != 1.500000000 then
+  return -1
+endi
+if $data90 != 9.500000000 then
+  return -1
+endi
+
+# interval query [d.17]
+sql_error select c2*c2, c3-c3, c4+9 from $tb interval(1s)
+sql_error select c7-c9 from $tb interval(2y)
+
+# aggregation query [d.18]
+# see test cases below
+
+# first/last query  [d.19]
+# see test cases below
+
+# multiple retrieve [d.20]
+sql select c2-c2 from $tb;
+
+
+sql select first(c1)-last(c1), spread(c2), max(c3) - min(c3), avg(c4)*count(c4) from $tb

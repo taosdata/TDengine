@@ -20,6 +20,18 @@
 #include "qExecutor.h"
 #include "qUtil.h"
 
+static int32_t getResultRowKeyInfo(SResultRow* pResult, int16_t type, char** key, int16_t* bytes) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    *key   = varDataVal(pResult->key);
+    *bytes = varDataLen(pResult->key);
+  } else {
+    *key = (char*) &pResult->win.skey;
+    *bytes = tDataTypeDesc[type].nSize;
+  }
+
+  return 0;
+}
+
 int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   int32_t size = 0;
 
@@ -56,6 +68,12 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
     assert(pWindowResInfo->pResult == NULL);
     return;
   }
+
+  if (pWindowResInfo->type == TSDB_DATA_TYPE_BINARY || pWindowResInfo->type == TSDB_DATA_TYPE_NCHAR) {
+    for(int32_t i = 0; i < pWindowResInfo->size; ++i) {
+      tfree(pWindowResInfo->pResult[i]->key);
+    }
+  }
   
   tfree(pWindowResInfo->pResult);
 }
@@ -69,7 +87,7 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
 
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
     SResultRow *pWindowRes = pWindowResInfo->pResult[i];
-    clearResultRow(pRuntimeEnv, pWindowRes);
+    clearResultRow(pRuntimeEnv, pWindowRes, pWindowResInfo->type);
 
     int32_t groupIndex = 0;
     int64_t uid = 0;
@@ -94,12 +112,8 @@ void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   int32_t numOfClosed = numOfClosedTimeWindow(pWindowResInfo);
   assert(num >= 0 && num <= numOfClosed);
 
-  int16_t  type = pWindowResInfo->type;
-  STableId* id  = TSDB_TABLEID(pRuntimeEnv->pQuery->current->pTable); // uid is always set to be 0.
-  int64_t uid = id->uid;
-  if (pRuntimeEnv->groupbyNormalCol) {
-    uid = 0;
-  }
+  int16_t type = pWindowResInfo->type;
+  int64_t uid = getResultInfoUId(pRuntimeEnv);
 
   char    *key  = NULL;
   int16_t  bytes = -1;
@@ -107,16 +121,7 @@ void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     SResultRow *pResult = pWindowResInfo->pResult[i];
     if (pResult->closed) {  // remove the window slot from hash table
-
-      // todo refactor
-      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        key   = varDataVal(pResult->key);
-        bytes = varDataLen(pResult->key);
-      } else {
-        key = (char*) &pResult->win.skey;
-        bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
-      }
-
+      getResultRowKeyInfo(pResult, type, &key, &bytes);
       SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
       taosHashRemove(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     } else {
@@ -134,23 +139,16 @@ void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   // move the unclosed window in the front of the window list
   for (int32_t k = remain; k < pWindowResInfo->size; ++k) {
     SResultRow *pWindowRes = pWindowResInfo->pResult[k];
-    clearResultRow(pRuntimeEnv, pWindowRes);
+    clearResultRow(pRuntimeEnv, pWindowRes, pWindowResInfo->type);
   }
   
   pWindowResInfo->size = remain;
 
   for (int32_t k = 0; k < pWindowResInfo->size; ++k) {
     SResultRow *pResult = pWindowResInfo->pResult[k];
-
-    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-      key = varDataVal(pResult->key);
-      bytes = varDataLen(pResult->key);
-    } else {
-      key = (char*) &pResult->win.skey;
-      bytes = tDataTypeDesc[pWindowResInfo->type].nSize;
-    }
-
+    getResultRowKeyInfo(pResult, type, &key, &bytes);
     SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, key, bytes, uid);
+
     int32_t *p = (int32_t *)taosHashGet(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
     assert(p != NULL); 
 
@@ -237,7 +235,7 @@ void closeTimeWindow(SWindowResInfo *pWindowResInfo, int32_t slot) {
   getResultRow(pWindowResInfo, slot)->closed = true;
 }
 
-void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes) {
+void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes, int16_t type) {
   if (pWindowRes == NULL) {
     return;
   }
@@ -261,7 +259,12 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes) {
   pWindowRes->pageId = -1;
   pWindowRes->rowId = -1;
   pWindowRes->closed = false;
-  pWindowRes->win = TSWINDOW_INITIALIZER;
+
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    tfree(pWindowRes->key);
+  } else {
+    pWindowRes->win = TSWINDOW_INITIALIZER;
+  }
 }
 
 /**
@@ -378,4 +381,19 @@ void* destroyResultRowPool(SResultRowPool* p) {
 
   tfree(p);
   return NULL;
+}
+
+uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv) {
+  if (!pRuntimeEnv->stableQuery) {
+    return 0;  // for simple table query, the uid is always set to be 0;
+  }
+
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  if ((pQuery->checkBuffer == 1 && pQuery->interval.interval == 0) || isPointInterpoQuery(pQuery) ||
+      pRuntimeEnv->groupbyNormalCol) {
+    return 0;
+  }
+
+  STableId* id = TSDB_TABLEID(pRuntimeEnv->pQuery->current);
+  return id->uid;
 }

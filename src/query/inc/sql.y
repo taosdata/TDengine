@@ -556,11 +556,11 @@ having_opt(A) ::= HAVING expr(X).   {A = X;}
 //limit-offset subclause
 %type limit_opt {SLimitVal}
 limit_opt(A) ::= .                     {A.limit = -1; A.offset = 0;}
-limit_opt(A) ::= LIMIT signed(X).      {printf("aa1, %d\n", X); A.limit = X;  A.offset = 0;}
+limit_opt(A) ::= LIMIT signed(X).      {A.limit = X;  A.offset = 0;}
 limit_opt(A) ::= LIMIT signed(X) OFFSET signed(Y).
-                                       {printf("aa2\n, %d\n", X); A.limit = X;  A.offset = Y;}
+                                       { A.limit = X;  A.offset = Y;}
 limit_opt(A) ::= LIMIT signed(X) COMMA signed(Y).
-                                       {printf("aa3\n, %d\n", X); A.limit = Y;  A.offset = X;}
+                                       { A.limit = Y;  A.offset = X;}
 
 %type slimit_opt {SLimitVal}
 slimit_opt(A) ::= .                    {A.limit = -1; A.offset = 0;}
@@ -581,7 +581,7 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 %type expr {tSQLExpr*}
 %destructor expr {tSQLExprDestroy($$);}
 
-expr(A) ::= LP expr(X) RP.       {A = X; }
+expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->token.z = X.z; A->token.n = (Z.z - X.z + 1);}
 
 expr(A) ::= ID(X).               {A = tSQLExprIdValueCreate(&X, TK_ID);}
 expr(A) ::= ID(X) DOT ID(Y).     {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ID);}
