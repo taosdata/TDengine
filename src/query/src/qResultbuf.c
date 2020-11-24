@@ -122,7 +122,7 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
     int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
     assert(ret == 0);
 
-    ret = fwrite(t, 1, size, pResultBuf->file);
+    ret = (int32_t) fwrite(t, 1, size, pResultBuf->file);
     assert(ret == size);
 
     if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
