@@ -128,6 +128,8 @@ int32_t taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extend
     pCacheObj->cacheId = cacheId;  
     pCacheObj->hashFp = taosGetDefaultHashFunction(keyType);
     pCacheObj->freeFp = fn;
+    pCacheObj->nodeList = p1;
+    pCacheObj->nlock = p2;
     pCacheObj->state = TAOS_CACHE_STATE_ACTIVE;
  
     // start timer
