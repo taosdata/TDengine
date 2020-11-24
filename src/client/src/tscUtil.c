@@ -451,14 +451,16 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   STscObj* pTscObj = (*p)->pTscObj;
 
   assert((*p)->self != 0 && (*p)->self == (p));
+
+  SSqlObj* ptr = *p;
   tscFreeSqlObj(*p);
 
   int32_t ref = T_REF_DEC(pTscObj);
   assert(ref >= 0);
 
-  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
+  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", ptr, pTscObj, ref);
   if (ref == 0) {
-    tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
+    tscDebug("%p all sqlObj freed, free tscObj:%p", ptr, pTscObj);
     taosRemoveRef(tscRefId, pTscObj->rid);
   }
 }
@@ -644,6 +646,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
+    tfree(dataBuf);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
