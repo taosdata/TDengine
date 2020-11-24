@@ -54,8 +54,8 @@ static void        tsdbStopStream(STsdbRepo *pRepo);
 int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
   char tsdbDir[TSDB_FILENAME_LEN] = "\0";
 
-  snprintf(tsdbDir, TSDB_FILENAME_LEN, "%s/%s", tfsPrimaryPath(), rootDir);
-  DIR *dir = tfs(tsdbDir);
+  snprintf(tsdbDir, TSDB_FILENAME_LEN, "%s/%s", TFS_PRIMARY_PATH(), rootDir);
+  DIR *dir = opendir(tsdbDir);
   if (dir) {
     tsdbDebug("repository %s already exists", rootDir);
     closedir(dir);
@@ -196,13 +196,15 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        fname = strdup(pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].fname);
-        magic = pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX].info.magic;
+        SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
+        fname = strdup(TSDB_FILE_NAME(pFile));
+        magic = pFile->info.magic;
       } else {
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
-          fname = strdup(pFGroup->files[0].fname);
+          SFile *pFile = &pFGroup->files[0];
+          fname = strdup(TSDB_FILE_NAME(pFile));
           *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
-          magic = pFGroup->files[0].info.magic;
+          magic = pFile->info.magic;
         } else {
           return 0;
         }
@@ -303,18 +305,18 @@ int tsdbGetState(TSDB_REPO_T *repo) {
 
 // ----------------- INTERNAL FUNCTIONS -----------------
 char *tsdbGetMetaFileName(char *rootDir) {
-  int   tlen = (int)(strlen(tfsPrimaryPath()) + strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
+  int   tlen = (int)(strlen(TFS_PRIMARY_PATH()) + strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
 
-  snprintf(fname, tlen, "%s/%s/%s", tfsPrimaryPath(), rootDir, TSDB_META_FILE_NAME);
+  snprintf(fname, tlen, "%s/%s/%s", TFS_PRIMARY_PATH(), rootDir, TSDB_META_FILE_NAME);
   return fname;
 }
 
-void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, const char *fname) {
+void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, char *fname) {
   snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", rootDir, TSDB_DATA_DIR_NAME, vid, fid, tsdbFileSuffix[type]);
 }
 
@@ -480,7 +482,7 @@ _err:
 }
 
 static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
-  if (tfsCreateDir(rootDir) < 0) {
+  if (tfsMkdir(rootDir) < 0) {
     tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, tstrerror(terrno));
     return -1;
   }
@@ -493,7 +495,7 @@ static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
   char *dirName = tsdbGetDataDirName(rootDir);
   if (dirName == NULL) return -1;
 
-  if (tfsCreateDir(dirName) < 0) {
+  if (tfsMkdir(dirName) < 0) {
     tsdbError("vgId:%d failed to create directory %s since %s", pCfg->tsdbId, dirName, strerror(errno));
     free(dirName);
     return -1;
@@ -514,7 +516,7 @@ static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
 }
 
 static int32_t tsdbUnsetRepoEnv(char *rootDir) {
-  tfsRemoveDir(rootDir);
+  tfsRmdir(rootDir);
   tsdbDebug("repository %s is removed", rootDir);
   return 0;
 }
@@ -610,14 +612,14 @@ _err:
 }
 
 static char *tsdbGetCfgFname(char *rootDir) {
-  int   tlen = (int)(strlen(tfsPrimaryPath()) + strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 3);
+  int   tlen = (int)(strlen(TFS_PRIMARY_PATH()) + strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 3);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
 
-  snprintf(fname, tlen, "%s/%s/%s", tfsPrimaryPath(), rootDir, TSDB_CFG_FILE_NAME);
+  snprintf(fname, tlen, "%s/%s/%s", TFS_PRIMARY_PATH(), rootDir, TSDB_CFG_FILE_NAME);
   return fname;
 }
 

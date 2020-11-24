@@ -105,6 +105,9 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
   ASSERT(pHelper != NULL && pGroup != NULL);
   SFile *    pFile = NULL;
   STsdbRepo *pRepo = pHelper->pRepo;
+  char       fname[TSDB_FILENAME_LEN] = "\0";
+  int        level = pGroup->files[0].file.level;
+  int        id = pGroup->files[0].file.id;
 
   // Clear the helper object
   tsdbResetHelper(pHelper);
@@ -113,17 +116,16 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
   // Set the files
   pHelper->files.fGroup = *pGroup;
-  if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-    tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NHEAD,
-                        helperNewHeadF(pHelper)->file.rname);
-    helperNewHeadF(pHelper)->file.level = pGroup->files[0].file.level;
-    helperNewHeadF(pHelper)->file.id = pGroup->files[0].file.id;
+  // if (helperType(pHelper) == TSDB_WRITE_HELPER) {
+  //   tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NHEAD, fname);
+  //   helperNewHeadF(pHelper)->file.level = pGroup->files[0].file.level;
+  //   helperNewHeadF(pHelper)->file.id = pGroup->files[0].file.id;
 
-    tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NLAST,
-                        helperNewLastF(pHelper)->file.rname);
-    helperNewLastF(pHelper)->file.level = pGroup->files[0].file.level;
-    helperNewLastF(pHelper)->file.id = pGroup->files[0].file.id;
-  }
+  //   tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NLAST,
+  //                       helperNewLastF(pHelper)->file.rname);
+  //   helperNewLastF(pHelper)->file.level = pGroup->files[0].file.level;
+  //   helperNewLastF(pHelper)->file.id = pGroup->files[0].file.id;
+  // }
 
   // Open the files
   if (tsdbOpenFile(helperHeadF(pHelper), O_RDONLY) < 0) return -1;
@@ -133,18 +135,25 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
     // Create and open .h
     pFile = helperNewHeadF(pHelper);
-    if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
+    pFile->fd = -1;
     pFile->info.size = TSDB_FILE_HEAD_SIZE;
     pFile->info.magic = TSDB_FILE_INIT_MAGIC;
+    tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NHEAD, fname);
+    tfsInitFile(&(pFile->file), level, id, fname);
+    // TODO: not allow it the increase 1
+    if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
     if (tsdbUpdateFileHeader(pFile) < 0) return -1;
 
     // Create and open .l file if should
     if (tsdbShouldCreateNewLast(pHelper)) {
       pFile = helperNewLastF(pHelper);
-      if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
+      pFile->fd = -1;
       pFile->info.size = TSDB_FILE_HEAD_SIZE;
       pFile->info.magic = TSDB_FILE_INIT_MAGIC;
-      pFile->info.len = 0;
+      tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NHEAD, fname);
+      tfsInitFile(&(pFile->file), level, id, fname);
+      // TODO: not allow it the increase 1
+      if (tsdbOpenFile(pFile, O_WRONLY | O_CREAT) < 0) return -1;
       if (tsdbUpdateFileHeader(pFile) < 0) return -1;
     }
   } else {

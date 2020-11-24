@@ -191,7 +191,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
   }
 
   if ((pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ)) == NULL) {
-    pGroup = tsdbCreateFGroup(pRepo, fid);
+    pGroup = tsdbCreateFGroup(pRepo, fid, tsdbGetFidLevel(fid, pch->fidg));
     if (pGroup == NULL) {
       tsdbError("vgId:%d failed to create file group %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
       return -1;

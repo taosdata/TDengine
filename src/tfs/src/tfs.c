@@ -54,6 +54,8 @@ typedef struct {
 #define TFS_IS_VALID_ID(level, id) (((id) >= 0) && ((id) < TIER_NDISKS(TFS_TIER_AT(level))))
 #define TFS_IS_VALID_DISK(level, id) (TFS_IS_VALID_LEVEL(level) && TFS_IS_VALID_ID(level, id))
 
+#define TFS_MIN_DISK_FREE_SIZE 50*1024*1024
+
 static SFS  tfs = {0};
 static SFS *pfs = &tfs;
 
@@ -69,6 +71,7 @@ static int    tfsUnLock();
 static int    tfsOpendirImpl(TDIR *tdir);
 static void   tfsInitDiskIter(SDiskIter *pIter);
 static SDisk *tfsNextDisk(SDiskIter *pIter);
+static int    tfsAssignDisk(int level);
 
 // FS APIs ====================================
 int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
@@ -136,21 +139,80 @@ void tfsUpdateInfo() {
   tfsUnLock();
 }
 
+void tfsIncDiskFile(int level, int id, int num) {
+  tfsLock();
+  TFS_DISK_AT(level, id)->dmeta.nfiles += num;
+  tfsUnLock();
+}
+
+void tfsDecDiskFile(int level, int id, int num) {
+  tfsLock();
+  TFS_DISK_AT(level, id)->dmeta.nfiles -= num;
+  ASSERT(TFS_DISK_AT(level, id)->dmeta.nfiles >= 0);
+  tfsUnLock();
+}
+
 const char *TFS_PRIMARY_PATH() { return DISK_DIR(TFS_PRIMARY_DISK()); }
 const char *TFS_DISK_PATH(int level, int id) { return DISK_DIR(TFS_DISK_AT(level, id)); }
 
 // TFILE APIs ====================================
-int tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
-  if (!TFS_IS_VALID_DISK(level, id)) return -1;
-
+void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
   SDisk *pDisk = TFS_DISK_AT(level, id);
 
   pf->level = level;
   pf->id = id;
   strncpy(pf->rname, bname, TSDB_FILENAME_LEN);
   snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), pf->rname);
+}
+
+int tfsopen(TFILE *pf, int flags) {
+  int fd = -1;
+
+  if (flags & O_CREAT) {
+    if (pf->level > TFS_NLEVEL()) {
+      pf->level = TFS_NLEVEL();
+    }
+
+    if (pf->id == TFS_UNDECIDED_ID) {
+      pf->id = tfsAssignDisk(pf->level);
+      if (pf->id < 0) {
+        fError("failed to assign disk at level %d", pf->level);
+        return -1;
+      }
+    }
+
+    tfsIncDiskFile(pf->level, pf->id, 1);
+  }
+
+  fd = open(pf->aname, flags);
+  if (fd < 0) {
+    fError("failed to open file %s since %s", pf->aname, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return fd;
+}
+
+int tfsclose(int fd) {
+  int code = close(fd);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
 
   return 0;
+}
+
+int tfsremove(TFILE *pf) { 
+  int code = remove(pf->aname);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  tfsDecDiskFile(pf->level, pf->id, 1);
+  return 0; 
 }
 
 // DIR APIs ====================================
@@ -480,6 +542,34 @@ static SDisk *tfsNextDisk(SDiskIter *pIter) {
   }
 
   return pDisk;
+}
+
+static int tfsAssignDisk(int level) {
+  if (!TFS_IS_VALID_LEVEL(level)) return -1;
+
+  STier *pTier = TFS_TIER_AT(level);
+  int    id = -1;
+
+  tfsLock();
+
+  for (int tid = 0; tid < TIER_NDISKS(pTier); tid++) {
+    SDisk *pDisk = DISK_AT_TIER(pTier, tid);
+
+    if (DISK_FREE_SIZE(pDisk) < TFS_MIN_DISK_FREE_SIZE) continue;
+
+    if (id == -1) {
+      id = tid;
+      continue;
+    }
+
+    if (DISK_NFILES(DISK_AT_TIER(pTier, id)) > DISK_NFILES(DISK_AT_TIER(pTier, tid))) {
+      id = tid;
+    }
+  }
+
+  tfsUnLock();
+
+  return id;
 }
 
 #pragma GCC diagnostic pop

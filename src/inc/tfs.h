@@ -36,6 +36,8 @@ typedef struct {
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
 void tfsUpdateInfo();
+void tfsIncDiskFile(int level, int id, int num);
+void tfsDecDiskFile(int level, int id, int num);
 
 const char *TFS_PRIMARY_PATH();
 const char *TFS_DISK_PATH(int level, int id);
@@ -52,7 +54,10 @@ typedef struct {
 #define TFILE_ID(pf) ((pf)->id)
 #define TFILE_NAME(pf) ((pf)->aname)
 
-int tfsInitFile(TFILE *pf, int level, int id, const char *bname);
+void tfsInitFile(TFILE *pf, int level, int id, const char *bname);
+int  tfsopen(TFILE *pf, int flags);
+int  tfsclose(int fd);
+int  tfsremove(TFILE *pf);
 
 // DIR APIs ====================================
 int tfsMkdir(const char *rname);

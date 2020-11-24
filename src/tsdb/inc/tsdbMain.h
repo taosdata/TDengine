@@ -520,6 +520,7 @@ int         tsdbOpenFile(SFile* pFile, int oflag);
 void        tsdbCloseFile(SFile* pFile);
 int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
 SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
+int         tsdbGetFidLevel(int fid, SFidGroup fidg);
 void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, SFidGroup* pFidGroup);
 int         tsdbUpdateFileHeader(SFile* pFile);
 int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
@@ -593,7 +594,7 @@ static FORCE_INLINE int compTSKEY(const void* key1, const void* key2) {
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
 char*       tsdbGetMetaFileName(char* rootDir);
-void        tsdbGetDataFileName(char* rootDir, int vid, int fid, int type, const char* fname);
+void        tsdbGetDataFileName(char* rootDir, int vid, int fid, int type, char* fname);
 int         tsdbLockRepo(STsdbRepo* pRepo);
 int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);

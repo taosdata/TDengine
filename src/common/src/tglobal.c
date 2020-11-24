@@ -220,6 +220,7 @@ int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 135;
+int32_t fsDebugFlag = 135;
 
 int32_t (*monitorStartSystemFp)() = NULL;
 void (*monitorStopSystemFp)() = NULL;
