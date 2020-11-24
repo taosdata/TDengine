@@ -14,14 +14,23 @@
  */
 #include "tsdbMain.h"
 
-static int  tsdbCommitTSData(STsdbRepo *pRepo);
-static int  tsdbCommitMeta(STsdbRepo *pRepo);
-static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
-static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
-static int  tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols);
+typedef struct {
+  SFidGroup    fidg;
+  SCommitIter *iters;
+  SRWHelper    whelper;
+  SDataCols *  pDataCols;
+} SCommitH;
+
+static int          tsdbCommitTSData(STsdbRepo *pRepo);
+static int          tsdbCommitMeta(STsdbRepo *pRepo);
+static void         tsdbEndCommit(STsdbRepo *pRepo, int eno);
+static bool         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
+static int          tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch);
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo);
 static void         tsdbDestroyCommitIters(SCommitIter *iters, int maxTables);
 static void         tsdbSeekCommitIter(SCommitIter *pIters, int nIters, TSKEY key);
+static int          tsdbInitCommitH(STsdbRepo *pRepo, SCommitH *pch);
+static void         tsdbDestroyCommitH(SCommitH *pch, int niter);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
   SMemTable *  pMem = pRepo->imem;
@@ -58,68 +67,45 @@ _err:
 }
 
 static int tsdbCommitTSData(STsdbRepo *pRepo) {
-  SMemTable *  pMem = pRepo->imem;
-  SDataCols *  pDataCols = NULL;
-  STsdbMeta *  pMeta = pRepo->tsdbMeta;
-  SCommitIter *iters = NULL;
-  SRWHelper    whelper = {0};
-  STsdbCfg *   pCfg = &(pRepo->config);
-  SFidGroup    fidGroup = {0};
-  TSKEY        minKey = 0;
-  TSKEY        maxKey = 0;
+  SMemTable *pMem = pRepo->imem;
+  SCommitH   ch = {0};
+  STsdbCfg * pCfg = &(pRepo->config);
+  // SFidGroup  fidGroup = {0};
+  TSKEY      minKey = 0;
+  TSKEY      maxKey = 0;
 
   if (pMem->numOfRows <= 0) return 0;
 
-  tsdbGetFidGroup(pCfg, &fidGroup);
-  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fidGroup.minFid, &minKey, &maxKey);
-  tsdbRemoveFilesBeyondRetention(pRepo, &fidGroup);
+  tsdbGetFidGroup(pCfg, &(ch.fidg));
+  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, ch.fidg.minFid, &minKey, &maxKey);
+  tsdbRemoveFilesBeyondRetention(pRepo, &(ch.fidg));
 
-  iters = tsdbCreateCommitIters(pRepo);
-  if (iters == NULL) {
-    tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
-
-  if (tsdbInitWriteHelper(&whelper, pRepo) < 0) {
-    tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
-
-  if ((pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
-              REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+  if (tsdbInitCommitH(pRepo, &ch) < 0) {
     goto _err;
   }
 
   int sfid = (int)(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision));
   int efid = (int)(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision));
 
-  tsdbSeekCommitIter(iters, pMem->maxTables, minKey);
+  tsdbSeekCommitIter(ch.iters, pMem->maxTables, minKey);
 
   // Loop to commit to each file
   for (int fid = sfid; fid <= efid; fid++) {
-    if (fid < fidGroup.minFid) continue;
+    if (fid < ch.fidg.minFid) continue;
 
-    if (tsdbCommitToFile(pRepo, fid, iters, &whelper, pDataCols) < 0) {
+    if (tsdbCommitToFile(pRepo, fid, &(ch)) < 0) {
       tsdbError("vgId:%d failed to commit to file %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
       goto _err;
     }
   }
 
-  tsdbApplyRetention(pRepo, &fidGroup);
+  tsdbApplyRetention(pRepo, &(ch.fidg));
 
-  tdFreeDataCols(pDataCols);
-  tsdbDestroyCommitIters(iters, pMem->maxTables);
-  tsdbDestroyHelper(&whelper);
-
+  tsdbDestroyCommitH(&ch, pMem->maxTables);
   return 0;
 
 _err:
-  tdFreeDataCols(pDataCols);
-  tsdbDestroyCommitIters(iters, pMem->maxTables);
-  tsdbDestroyHelper(&whelper);
-
+  tsdbDestroyCommitH(&ch, pMem->maxTables);
   return -1;
 }
 
@@ -184,14 +170,17 @@ static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TS
   return false;
 }
 
-static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHelper *pHelper, SDataCols *pDataCols) {
-  STsdbCfg *  pCfg = &pRepo->config;
-  STsdbFileH *pFileH = pRepo->tsdbFileH;
-  SFileGroup *pGroup = NULL;
-  SMemTable * pMem = pRepo->imem;
-  bool        newLast = false;
-  TSKEY       minKey = 0;
-  TSKEY       maxKey = 0;
+static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
+  STsdbCfg *   pCfg = &pRepo->config;
+  STsdbFileH * pFileH = pRepo->tsdbFileH;
+  SFileGroup * pGroup = NULL;
+  SMemTable *  pMem = pRepo->imem;
+  bool         newLast = false;
+  TSKEY        minKey = 0;
+  TSKEY        maxKey = 0;
+  SCommitIter *iters = pch->iters;
+  SRWHelper *  pHelper = &(pch->whelper);
+  SDataCols *  pDataCols = pch->pDataCols;
 
   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
 
@@ -352,4 +341,35 @@ static void tsdbSeekCommitIter(SCommitIter *pIters, int nIters, TSKEY key) {
 
     tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, key-1, INT32_MAX, NULL, NULL, 0, true, NULL);
   }
+}
+
+static int tsdbInitCommitH(STsdbRepo *pRepo, SCommitH *pch) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  STsdbCfg * pCfg = &(pRepo->config);
+
+  pch->iters = tsdbCreateCommitIters(pRepo);
+  if (pch->iters == NULL) {
+    tsdbError("vgId:%d failed to create commit iterator since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  if (tsdbInitWriteHelper(&(pch->whelper), pRepo) < 0) {
+    tsdbError("vgId:%d failed to init write helper since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  if ((pch->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock)) == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    tsdbError("vgId:%d failed to init data cols with maxRowBytes %d maxCols %d maxRowsPerFileBlock %d since %s",
+              REPO_ID(pRepo), pMeta->maxCols, pMeta->maxRowBytes, pCfg->maxRowsPerFileBlock, tstrerror(terrno));
+    return -1;
+  }
+
+  return 0;
+}
+
+static void tsdbDestroyCommitH(SCommitH *pch, int niter) {
+  tdFreeDataCols(pch->pDataCols);
+  tsdbDestroyCommitIters(pch->iters, niter);
+  tsdbDestroyHelper(&(pch->whelper));
 }

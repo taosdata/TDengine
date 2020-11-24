@@ -120,14 +120,18 @@ void tfsDestroy() {
 }
 
 void tfsUpdateInfo() {
+  SFSMeta tmeta = {0};
+
   tfsLock();
 
   for (int level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
     tfsUpdateTierInfo(pTier);
-    pfs->meta.tsize = TIER_SIZE(pTier);
-    pfs->meta.avail = TIER_FREE_SIZE(pTier);
+    tmeta.tsize += TIER_SIZE(pTier);
+    tmeta.avail += TIER_FREE_SIZE(pTier);
   }
+
+  pfs->meta = tmeta;
 
   tfsUnLock();
 }

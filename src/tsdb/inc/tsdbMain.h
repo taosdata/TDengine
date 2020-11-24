@@ -512,7 +512,7 @@ STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
 void        tsdbFreeFileH(STsdbFileH* pFileH);
 int         tsdbOpenFileH(STsdbRepo* pRepo);
 void        tsdbCloseFileH(STsdbRepo* pRepo);
-SFileGroup* tsdbCreateFGroup(STsdbRepo* pRepo, int fid);
+SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level);
 void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
 void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
 SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
