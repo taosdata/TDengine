@@ -28,13 +28,14 @@ extern "C" {
 #define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 
 typedef enum {
-  TAOS_SMSG_SYNC_DATA   = 1,
-  TAOS_SMSG_FORWARD     = 2,
-  TAOS_SMSG_FORWARD_RSP = 3,
-  TAOS_SMSG_SYNC_REQ    = 4,
-  TAOS_SMSG_SYNC_RSP    = 5,
-  TAOS_SMSG_SYNC_MUST   = 6,
-  TAOS_SMSG_STATUS      = 7
+  TAOS_SMSG_SYNC_DATA     = 1,
+  TAOS_SMSG_FORWARD       = 2,
+  TAOS_SMSG_FORWARD_RSP   = 3,
+  TAOS_SMSG_SYNC_REQ      = 4,
+  TAOS_SMSG_SYNC_RSP      = 5,
+  TAOS_SMSG_SYNC_MUST     = 6,
+  TAOS_SMSG_STATUS        = 7,
+  TAOS_SMSG_SYNC_DATA_RSP = 8,
 } ESyncMsgType;
 
 #define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
@@ -64,6 +65,10 @@ typedef struct {
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   sourceId;  // only for arbitrator
 } SFirstPkt;
+
+typedef struct {
+  int8_t sync;
+} SFirstPktRsp;
 
 typedef struct {
   int8_t    role;

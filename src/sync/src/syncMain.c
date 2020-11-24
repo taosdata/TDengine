@@ -1313,6 +1313,8 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   }
 
   // always update version
+  sTrace("vgId:%d, forward to peer, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
+         syncRole[nodeRole], qtypeStr[qtype], pWalHead->version);
   nodeVersion = pWalHead->version;
 
   if (pNode->replica == 1 || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
@@ -1320,10 +1322,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   // only pkt from RPC or CQ can be forwarded
   if (qtype != TAOS_QTYPE_RPC && qtype != TAOS_QTYPE_CQ) return 0;
 
-  sTrace("vgId:%d, forward to peer, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
-         syncRole[nodeRole], qtypeStr[qtype], pWalHead->version);
-
-  // a hacker way to improve the performance
+    // a hacker way to improve the performance
   pSyncHead = (SSyncHead *)(((char *)pWalHead) - sizeof(SSyncHead));
   pSyncHead->type = TAOS_SMSG_FORWARD;
   pSyncHead->pversion = 0;
@@ -1344,9 +1343,11 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     int32_t retLen = taosWriteMsg(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
-      sTrace("%s, forward is sent, hver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
+      sTrace("%s, forward is sent, role:%s sstatus:%s hver:%" PRIu64 " contLen:%d", pPeer->id, pPeer->role,
+             syncStatus[pPeer->sstatus], pWalHead->version, pWalHead->len);
     } else {
-      sError("%s, failed to forward, hver:%" PRIu64 " retLen:%d", pPeer->id, pWalHead->version, retLen);
+      sError("%s, failed to forward, role:%s sstatus:%s hver:%" PRIu64 " retLen:%d", pPeer->id, pPeer->role,
+             syncStatus[pPeer->sstatus], pWalHead->version, retLen);
       syncRestartConnection(pPeer);
     }
   }
