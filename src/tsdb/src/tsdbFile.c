@@ -155,8 +155,8 @@ void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {
 }
 
 SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid, int flags) {
-  void *ptr 
-      taosbsearch((void *)(&fid), (void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, flags);
+  void *ptr = taosbsearch((void *)(&fid), (void *)(pFileH->pFGroup), pFileH->nFGroups, sizeof(SFileGroup),
+                          keyFGroupCompFunc, flags);
   if (ptr == NULL) return NULL;
   return (SFileGroup *)ptr;
 }
