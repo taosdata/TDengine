@@ -1978,10 +1978,8 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   key[0] = pCmd->msgType + 'a';
   strcpy(key + 1, "showlist");
 
-  if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(pTableMetaInfo->pTableMeta);
-    pTableMetaInfo->pTableMeta = NULL;
-  }
+  taosCacheRelease(pTableMetaInfo->pTableMeta);
+  pTableMetaInfo->pTableMeta = NULL;
 
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
@@ -2129,7 +2127,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   }
 
   tscDebug("%p force release metermeta in cache after alter-table: %s", pSql, pTableMetaInfo->name);
-  taosCacheRelease((void **)&pTableMeta);
+  taosCacheRelease(pTableMeta);
 
   if (pTableMetaInfo->pTableMeta) {
     bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
