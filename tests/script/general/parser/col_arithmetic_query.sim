@@ -323,9 +323,56 @@ sql select c2-c2, 911 from $tb
 #======================================= aggregation function arithmetic query cases ================
 # asc/desc order [d.2]
 sql select first(c1) * ( 2 / 3 ) from $stb order by ts asc;
-sql select (count(c1) * 2) % 7.9 from $stb order by ts desc;
+if $rows != 1 then
+  return -1
+endi
 
-sql select spread(c1 )/44 from $stb order by ts asc;
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+sql select first(c1) * (2/99) from $stb order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.000000000 then
+  return -1
+endi
+
+sql select (count(c1) * 2) % 7.9, (count(c1) * 2), ( count(1)*2) from $stb order by ts desc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1.800000000 then
+  return -1
+endi
+
+if $data01 != 100000 then
+  return -1
+endi
+
+if $data02 != 200000 then
+  return -1
+endi
+
+sql select spread( c1 )/44, spread(c1), 0.204545455 * 44 from $stb order by ts asc;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.204545455 then
+  return -1
+endi
+
+if $data01 != 9.000000000 then
+  return -1
+endi
+
+if $data02 != 9.000000020 then
+  return -1
+endi
 
 # all possible function in the arithmetic expressioin
 sql select min(c1) * max(c2) /4, sum(c1) * percentile(c2, 20), apercentile(c4, 33) + 52/9, spread(c5)/min(c2) from $stb where ts <  and ts >

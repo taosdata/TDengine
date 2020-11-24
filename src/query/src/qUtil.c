@@ -388,6 +388,12 @@ uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv) {
     return 0;  // for simple table query, the uid is always set to be 0;
   }
 
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  if ((pQuery->checkBuffer == 1 && pQuery->interval.interval == 0) || isPointInterpoQuery(pQuery) ||
+      pRuntimeEnv->groupbyNormalCol) {
+    return 0;
+  }
+
   STableId* id = TSDB_TABLEID(pRuntimeEnv->pQuery->current);
   return id->uid;
 }
