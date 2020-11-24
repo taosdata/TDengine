@@ -626,17 +626,9 @@ static void syncChooseMaster(SSyncNode *pNode) {
       sInfo("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
 
-#if 0
-      for (int32_t i = 0; i < pNode->replica; ++i) {
-        if (i == index) continue;
-        pPeer = pNode->peerInfo[i];
-        if (pPeer->version == nodeVersion) {
-          pPeer->role = TAOS_SYNC_ROLE_SLAVE;
-          pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
-          sInfo("%s, it shall work as slave", pPeer->id);
-        }
-      }
-#endif
+      // Wait for other nodes to receive status to avoid version inconsistency
+      taosMsleep(SYNC_WAIT_AFTER_CHOOSE_MASTER);
+
       syncResetFlowCtrl(pNode);
       (*pNode->notifyRole)(pNode->vgId, nodeRole);
     } else {
@@ -761,7 +753,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
       sDebug("vgId:%d, choose master", pNode->vgId);
       syncChooseMaster(pNode);
     } else {
-      sDebug("vgId:%d, cannot choose master since roles inconsistent", pNode->vgId);
+      sDebug("vgId:%d, cannot choose master since roles inequality", pNode->vgId);
     }
   }
 
@@ -1124,7 +1116,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   }
 
   int32_t     vgId = firstPkt.syncHead.vgId;
-  SSyncNode **ppNode = (SSyncNode **)taosHashGet(tsVgIdHash, (const char *)&vgId, sizeof(int32_t));
+  SSyncNode **ppNode = taosHashGet(tsVgIdHash, &vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
     taosCloseSocket(connFd);

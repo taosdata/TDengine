@@ -41,6 +41,7 @@ typedef enum {
 #define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
 #define SYNC_FWD_TIMER  300
 #define SYNC_ROLE_TIMER 10000
+#define SYNC_WAIT_AFTER_CHOOSE_MASTER 3
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version

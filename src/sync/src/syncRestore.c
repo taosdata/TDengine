@@ -147,12 +147,10 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    ret, code = -1;
+  uint64_t   lastVer = 0;
 
-  void *buffer = calloc(SYNC_MAX_SIZE, 1);  // size for one record
-  if (buffer == NULL) return -1;
-
-  SWalHead *pHead = (SWalHead *)buffer;
-  uint64_t lastVer = 0;
+  SWalHead *pHead = calloc(SYNC_MAX_SIZE, 1);  // size for one record
+  if (pHead == NULL) return -1;
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
@@ -188,7 +186,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     sError("%s, failed to restore wal from syncFd:%d since %s", pPeer->id, pPeer->syncFd, strerror(errno));
   }
 
-  free(buffer);
+  free(pHead);
   return code;
 }
 
