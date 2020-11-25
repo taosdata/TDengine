@@ -457,6 +457,7 @@ static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
       return NULL;
     }
 
+    // TODO refactor
     // more than the capacity, reallocate the resources
     if (pWindowResInfo->size >= pWindowResInfo->capacity) {
       int64_t newCapacity = 0;
@@ -1000,9 +1001,8 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
  * @return                  the incremental number of output value, so it maybe 0 for fixed number of query,
  *                          such as count/min/max etc.
  */
-static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pStatis,
-                                       SDataBlockInfo *pDataBlockInfo, SWindowResInfo *pWindowResInfo,
-                                       __block_search_fn_t searchFn, SArray *pDataBlock) {
+static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pStatis, SDataBlockInfo *pDataBlockInfo,
+                                    SWindowResInfo *pWindowResInfo, __block_search_fn_t searchFn, SArray *pDataBlock) {
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
   bool masterScan = IS_MASTER_SCAN(pRuntimeEnv);
 
@@ -1045,6 +1045,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
     int32_t forwardStep = 0;
     int32_t startPos = pQuery->pos;
 
+    // in case of repeat scan/reverse scan, no new time window added.
     if (hasTimeWindow) {
       TSKEY ekey = reviseWindowEkey(pQuery, &win);
       forwardStep = getNumOfRowsInTimeWindow(pQuery, pDataBlockInfo, tsCols, pQuery->pos, ekey, searchFn, true);
