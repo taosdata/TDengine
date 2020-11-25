@@ -1565,22 +1565,6 @@ void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo) {
   }
 }
 
-#ifndef SQLOBJ_USE_CACHE
-#else
-void tscSetFreeHeatBeat(STscObj* pObj) {
-  if (pObj == NULL || pObj->signature != pObj || pObj->pHb == NULL) {
-    return;
-  }
-
-  SSqlObj* pHeatBeat = pObj->pHb;
-  assert(pHeatBeat == pHeatBeat->signature);
-
-  // to denote the heart-beat timer close connection and free all allocated resources
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pHeatBeat->cmd, 0);
-  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-}
-#endif
-
 /*
  * the following four kinds of SqlObj should not be freed
  * 1. SqlObj for stream computing
