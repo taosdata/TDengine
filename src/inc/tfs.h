@@ -40,6 +40,7 @@ int64_t tfsTotalSize();
 int64_t tfsAvailSize();
 void    tfsIncDiskFile(int level, int id, int num);
 void    tfsDecDiskFile(int level, int id, int num);
+
 const char *TFS_PRIMARY_PATH();
 const char *TFS_DISK_PATH(int level, int id);
 
@@ -56,9 +57,12 @@ typedef struct {
 #define TFILE_NAME(pf) ((pf)->aname)
 
 void tfsInitFile(TFILE *pf, int level, int id, const char *bname);
+void tfsSetLevel(TFILE *pf, int level);
+void tfsSetID(TFILE *pf, int id);
 int  tfsopen(TFILE *pf, int flags);
 int  tfsclose(int fd);
 int  tfsremove(TFILE *pf);
+int  tfscopy(TFILE *sf, TFILE *df);
 
 // DIR APIs ====================================
 int tfsMkdir(const char *rname);

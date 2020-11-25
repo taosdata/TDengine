@@ -160,29 +160,49 @@ const char *TFS_PRIMARY_PATH() { return DISK_DIR(TFS_PRIMARY_DISK()); }
 const char *TFS_DISK_PATH(int level, int id) { return DISK_DIR(TFS_DISK_AT(level, id)); }
 
 // TFILE APIs ====================================
-void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
-  SDisk *pDisk = TFS_DISK_AT(level, id);
+static void tfsSetFileAname(TFILE *pf) {
+  if (TFS_IS_VALID_DISK(pf->level, pf->id)) {
+    SDisk *pDisk = TFS_DISK_AT(pf->level, pf->level);
+    ASSERT(pDisk != NULL);
+    snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), pf->rname);
+  }
+}
 
+void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
   pf->level = level;
   pf->id = id;
   strncpy(pf->rname, bname, TSDB_FILENAME_LEN);
-  snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), pf->rname);
+  tfsSetFileAname(pf);
+}
+
+void tfsSetLevel(TFILE *pf, int level) {
+  pf->level = level;
+
+  tfsSetFileAname(pf);
+}
+
+void tfsSetID(TFILE *pf, int id) {
+  pf->id = id;
+
+  tfsSetFileAname(pf);
 }
 
 int tfsopen(TFILE *pf, int flags) {
   int fd = -1;
 
   if (flags & O_CREAT) {
-    if (pf->level > TFS_NLEVEL()) {
-      pf->level = TFS_NLEVEL();
+    if (pf->level >= TFS_NLEVEL()) {
+      tfsSetLevel(pf, TFS_NLEVEL() - 1);
     }
 
     if (pf->id == TFS_UNDECIDED_ID) {
-      pf->id = tfsAssignDisk(pf->level);
-      if (pf->id < 0) {
+      int id = tfsAssignDisk(pf->level);
+      if (id < 0) {
         fError("failed to assign disk at level %d", pf->level);
         return -1;
       }
+
+      tfsSetID(pf, id);
     }
 
     tfsIncDiskFile(pf->level, pf->id, 1);
@@ -217,6 +237,32 @@ int tfsremove(TFILE *pf) {
 
   tfsDecDiskFile(pf->level, pf->id, 1);
   return 0; 
+}
+
+int  tfscopy(TFILE *sf, TFILE *df) {
+  if (df->level >= TFS_NLEVEL()) {
+    tfsSetLevel(df, TFS_NLEVEL() - 1);
+  }
+
+  if (sf->level == df->level) {
+    terrno = TSDB_CODE_FS_INVLD_LEVEL;
+    return -1;
+  }
+
+  if (df->id == TFS_UNDECIDED_ID) {
+    int id = tfsAssignDisk(df->level);
+    if (id < 0) {
+      terrno = TSDB_CODE_FS_NO_VALID_DISK;
+      return -1;
+    }
+    tfsSetID(df, id);
+  }
+
+  tfsIncDiskFile(df->level, df->id, 1);
+
+  taosCopy(sf->aname, df->aname);
+
+  return 0;
 }
 
 // DIR APIs ====================================

@@ -116,16 +116,6 @@ int tsdbSetAndOpenHelperFile(SRWHelper *pHelper, SFileGroup *pGroup) {
 
   // Set the files
   pHelper->files.fGroup = *pGroup;
-  // if (helperType(pHelper) == TSDB_WRITE_HELPER) {
-  //   tsdbGetDataFileName(pRepo->rootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NHEAD, fname);
-  //   helperNewHeadF(pHelper)->file.level = pGroup->files[0].file.level;
-  //   helperNewHeadF(pHelper)->file.id = pGroup->files[0].file.id;
-
-  //   tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, TSDB_FILE_TYPE_NLAST,
-  //                       helperNewLastF(pHelper)->file.rname);
-  //   helperNewLastF(pHelper)->file.level = pGroup->files[0].file.level;
-  //   helperNewLastF(pHelper)->file.id = pGroup->files[0].file.id;
-  // }
 
   // Open the files
   if (tsdbOpenFile(helperHeadF(pHelper), O_RDONLY) < 0) return -1;

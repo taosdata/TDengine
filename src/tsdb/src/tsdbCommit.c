@@ -259,10 +259,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
+  tfsremove(&(helperHeadF(pHelper)->file));
   (void)rename(TSDB_FILE_NAME(helperNewHeadF(pHelper)), TSDB_FILE_NAME(helperHeadF(pHelper)));
   pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
 
   if (newLast) {
+  tfsremove(&(helperLastF(pHelper)->file));
     (void)rename(TSDB_FILE_NAME(helperNewLastF(pHelper)), TSDB_FILE_NAME(helperLastF(pHelper)));
     pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
   } else {

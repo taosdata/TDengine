@@ -397,6 +397,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FS_DUP_PRIMARY,               0, 0x2203, "tfs duplic
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_PRIMARY_DISK,           0, 0x2204, "tfs no primary mount")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_MOUNT_AT_TIER,          0, 0x2205, "tfs no mount at tier")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_FILE_ALREADY_EXISTS,       0, 0x2206, "tfs file already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_LEVEL,               0, 0x2207, "tfs invalid level")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_VALID_DISK,             0, 0x2208, "tfs no valid disk")
 
 
 #ifdef TAOS_ERROR_C

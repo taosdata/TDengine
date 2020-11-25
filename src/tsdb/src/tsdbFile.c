@@ -417,58 +417,48 @@ void tsdbGetFidGroup(STsdbCfg *pCfg, SFidGroup *pFidGroup) {
 }
 
 int tsdbApplyRetention(STsdbRepo *pRepo, SFidGroup *pFidGroup) {
-  // TODO
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+
+  for (int i = 0; i < pFileH->nFGroups; i++) {
+    SFileGroup ofg = pFileH->pFGroup[i];
+
+    int level = tsdbGetFidLevel(ofg.fileId, *pFidGroup);
+    ASSERT(level >= 0);
+
+    if (level == ofg.files[0].file.level) continue;
+
+    // COPY THE FILE GROUP TO THE RIGHT LEVEL
+    SFileGroup nfg = ofg;
+    int        id = TFS_UNDECIDED_ID;
+    int        type = 0;
+    for (; type < TSDB_FILE_TYPE_MAX; type++) {
+      tfsInitFile(&nfg.files[type].file, level, id, nfg.files[type].file.rname);
+      if (tfscopy(&(ofg.files[type].file), &(nfg.files[type].file)) < 0) {
+        if (terrno == TSDB_CODE_FS_INVLD_LEVEL) break;
+        tsdbError("vgId:%d failed to move fid %d from level %d to level %d since %s", REPO_ID(pRepo), ofg.fileId,
+                  ofg.files[0].file.level, level, strerror(terrno));
+        return -1;
+      }
+
+      id = nfg.files[type].file.level;
+      id = nfg.files[type].file.id;
+    }
+
+    if (type < TSDB_FILE_TYPE_MAX) continue;
+
+    // Register new file into TSDB
+    pthread_rwlock_wrlock(&(pFileH->fhlock));
+    pFileH->pFGroup[i] = nfg;
+    pthread_rwlock_unlock(&(pFileH->fhlock));
+
+    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+      SFile *pFile = &(ofg.files[type]);
+      tfsremove(&(pFile->file));
+    }
+
+    tsdbDebug("vgId:%d move file group %d from level %d to level %d", REPO_ID(pRepo), ofg.fileId,
+              ofg.files[0].file.level, level);
+  }
+
   return 0;
-
-  // STsdbFileH *pFileH = pRepo->tsdbFileH;
-  // SFileGroup *pGroup = NULL;
-  // SFileGroup  nFileGroup = {0};
-  // SFileGroup  oFileGroup = {0};
-  // int         level = 0;
-
-  // if (tsDnodeTier->nTiers == 1 || (pFidGroup->minFid == pFidGroup->midFid && pFidGroup->midFid == pFidGroup->maxFid)) {
-  //   return 0;
-  // }
-
-  // for (int gidx = pFileH->nFGroups - 1; gidx >= 0; gidx--) {
-  //   pGroup = pFileH->pFGroup + gidx;
-
-  //   level = tsdbGetFidLevel(pGroup->fileId, pFidGroup);
-
-  //   if (level == pGroup->level) continue;
-  //   if (level > pGroup->level && level < tsDnodeTier->nTiers) {
-  //     SDisk *pODisk = tdGetDisk(tsDnodeTier, pGroup->level, pGroup->did);
-  //     SDisk *pDisk = tdAssignDisk(tsDnodeTier, level);
-  //     tsdbCreateVnodeDataDir(pDisk->dir, REPO_ID(pRepo));
-  //     oFileGroup = *pGroup;
-  //     nFileGroup = *pGroup;
-  //     nFileGroup.level = level;
-  //     nFileGroup.did = pDisk->did;
-
-  //     char tsdbRootDir[TSDB_FILENAME_LEN];
-  //     tdGetTsdbRootDir(pDisk->dir, REPO_ID(pRepo), tsdbRootDir);
-  //     for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-  //       tsdbGetDataFileName(tsdbRootDir, REPO_ID(pRepo), pGroup->fileId, type, nFileGroup.files[type].fname);
-  //     }
-
-  //     for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-  //       if (taosCopy(oFileGroup.files[type].fname, nFileGroup.files[type].fname) < 0) return -1;
-  //     }
-
-  //     pthread_rwlock_wrlock(&(pFileH->fhlock)); 
-  //     *pGroup = nFileGroup;
-  //     pthread_rwlock_unlock(&(pFileH->fhlock));
-
-  //     for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-  //       (void)remove(oFileGroup.files[type].fname);
-  //     }
-
-  //     tdLockTiers(tsDnodeTier);
-  //     tdDecDiskFiles(tsDnodeTier, pODisk, false);
-  //     tdIncDiskFiles(tsDnodeTier, pDisk, false);
-  //     tdUnLockTiers(tsDnodeTier);
-  //   }
-  // }
-
-  // return 0;
 }
