@@ -62,22 +62,71 @@ if $data91 != 1.000000000 then
   return -1
 endi
 
-sql select (c1 * 2) % 7.9 from $tb order by ts desc;
+sql select (c1 * 2) % 7.9, c1*1, c1*1*1, c1*c1, c1*c1*c1 from $tb order by ts desc;
 if $rows != 10000 then
  return -1
 endi
 
-if $data00 != 0.100000000 then
-  print expect 0.100000000, acutal:$data00
+if $data00 != 2.200000000 then
+  print expect 2.200000000, actual:$data00
   return -1
 endi
 
-if $data10 != 2.100000000 then
+if $data01 != 9.000000000 then
   return -1
 endi
 
-if $data90 != 6.000000000 then
+if $data02 != 9.000000000 then
+  return -1
+endi
+
+if $data03 != 81.000000000 then
+  return -1
+endi
+
+if $data04 != 729.000000000 then
+  return -1
+endi
+
+
+if $data10 != 0.200000000 then
+  return -1
+endi
+
+if $data11 != 8.000000000 then
+  return -1
+endi
+
+if $data12 != 8.000000000 then
+  return -1
+endi
+
+if $data13 != 64.000000000 then
+  return -1
+endi
+
+if $data14 != 512.000000000 then
+  return -1
+endi
+
+if $data90 != 0.000000000 then
  return -1
+endi
+
+if $data11 != 0.000000000 then
+  return -1
+endi
+
+if $data12 != 0.000000000 then
+  return -1
+endi
+
+if $data13 != 0.000000000 then
+  return -1
+endi
+
+if $data14 != 0.000000000 then
+  return -1
 endi
 
 # [d.3]
@@ -586,7 +635,7 @@ if $data00 != @18-09-17 09:00:00.000@ then
   return -1
 endi
 
-sql select first(c7)- last(c1) from $tb interval(2y)
+sql_error select first(c7)- last(c1) from $tb interval(2y)
 
 # aggregation query [d.18]===============================================================
 # all cases in this part are aggregation query test.
@@ -595,7 +644,7 @@ sql select first(c7)- last(c1) from $tb interval(2y)
 
 
 # multiple retrieve [d.20]===============================================================
-sql select c2-c2 from $tb;
+sql select c2-c2 from $tb
 
 
 sql select first(c1)-last(c1), spread(c2), max(c3) - min(c3), avg(c4)*count(c4) from $tb

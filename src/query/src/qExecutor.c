@@ -1090,6 +1090,7 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
     for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
       int32_t functionId = pQuery->pExpr1[k].base.functionId;
       if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
+        pCtx[k].nStartQueryTimestamp = pDataBlockInfo->window.skey;
         aAggs[functionId].xFunction(&pCtx[k]);
       }
     }
