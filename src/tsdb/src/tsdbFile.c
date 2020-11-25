@@ -24,8 +24,10 @@
 
 const char *tsdbFileSuffix[] = {".head", ".data", ".last", ".stat", ".h", ".d", ".l", ".s"};
 
-static int compFGroup(const void *arg1, const void *arg2);
-static int keyFGroupCompFunc(const void *key, const void *fgroup);
+static int  compFGroup(const void *arg1, const void *arg2);
+static int  keyFGroupCompFunc(const void *key, const void *fgroup);
+static void tsdbScanAllFiles(STsdbRepo *pRepo, TFILE **pfArray, int *nfiles);
+static int tsdbCompareFile(void *arg1, void *arg2);
 
 // STsdbFileH ===========================================
 STsdbFileH *tsdbNewFileH(STsdbCfg *pCfg) {
@@ -68,7 +70,23 @@ void tsdbFreeFileH(STsdbFileH *pFileH) {
 int tsdbOpenFileH(STsdbRepo *pRepo) {
   ASSERT(pRepo != NULL && pRepo->tsdbFileH != NULL);
 
-  // TODO
+  TFILE *pfArray = NULL;
+  int    nfiles = 0;
+
+  // Scan the whole directory and get data
+  tsdbScanAllFiles(pRepo, &pfArray, &nfiles);
+
+  if (nfiles == 0) return 0;
+
+  // Sort the files
+  qsort((void *)pfArray, nfiles, sizeof(TFILE), tsdbCompareFile);
+
+  // Loop to recover the files
+  int iter = 0;
+  while (true) {
+    if (iter >= nfiles) break;
+    // TODO
+  }
 
   return 0;
 }
@@ -461,4 +479,65 @@ int tsdbApplyRetention(STsdbRepo *pRepo, SFidGroup *pFidGroup) {
   }
 
   return 0;
+}
+
+static void tsdbScanAllFiles(STsdbRepo *pRepo, TFILE **pfArray, int *nfiles) {
+  TDIR *       tdir = NULL;
+  char         dirName[TSDB_FILENAME_LEN] = "\0";
+  char         bname[TSDB_FILENAME_LEN] = "\0";
+  int          arraySize = 0;
+  regex_t      regex1 = {0};
+  regex_t      regex2 = {0};
+  const TFILE *pf = NULL;
+
+  regcomp(&regex1, "^v[0-9]+f[0-9]+\\.(head|data|last|stat)$", REG_EXTENDED);
+  regcomp(&regex2, "^v[0-9]+f[0-9]+\\.(h|d|l|s)$", REG_EXTENDED);
+
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", REPO_ID(pRepo));
+
+  tdir = tfsOpendir(dirName);
+
+  while ((pf = tfsReaddir(tdir)) != NULL) {
+    fsbasename(pf, bname);
+
+    int code = regexec(&regex1, bname, 0, NULL, 0);
+    if (code != 0) {
+      tsdbWarn("vgId:%d file %s exists, ignore it", REPO_ID(pRepo), pf->aname);
+      rename(pf->aname);
+      continue;
+    }
+
+    if (nfiles + 1 >= arraySize) {
+      if (arraySize = 0) {
+        arraySize = 1024;
+      } else {
+        arraySize = arraySize * 2;
+      }
+
+      *pfArray = realloc(*pfArray, sizeof(TFILE) * arraySize);
+    }
+
+    (*pfArray)[nfiles++] = *pf;
+  }
+
+  tfsClosedir(tdir);
+}
+
+static int tsdbCompareFile(void *arg1, void *arg2) {
+  char   bname1[TSDB_FILENAME_LEN] = "\0";
+  char   bname2[TSDB_FILENAME_LEN] = "\0";
+  TFILE *pf1 = (TFILE *)arg1;
+  TFILE *pf2 = (TFILE *)arg2;
+
+  tfsbasename(pf1, bname1);
+  tfsbasename(pf2, bname2);
+  // TODO
+}
+
+static int tsdbGetTFileFid(TFILE *pf) {
+  char bname[TSDB_FILENAME_LEN] = "\0";
+  int  fid = 0;
+
+  tfsbasename(pf, bname);
+
 }

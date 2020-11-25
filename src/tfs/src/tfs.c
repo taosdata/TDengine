@@ -265,6 +265,20 @@ int  tfscopy(TFILE *sf, TFILE *df) {
   return 0;
 }
 
+void tfsbasename(TFILE *pf, char *dest) {
+  char tname[TSDB_FILENAME_LEN] = "\0";
+
+  strncpy(tname, pf->aname, TSDB_FILENAME_LEN);
+  strncpy(dest, basename(tname), TSDB_FILENAME_LEN);
+}
+
+void tfsdirname(TFILE *pf, char *dest) {
+  char tname[TSDB_FILENAME_LEN] = "\0";
+
+  strncpy(tname, pf->aname, TSDB_FILENAME_LEN);
+  strncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
+}
+
 // DIR APIs ====================================
 int tfsMkdir(const char *rname) {
   char aname[TSDB_FILENAME_LEN] = "\0";

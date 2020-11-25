@@ -63,6 +63,8 @@ int  tfsopen(TFILE *pf, int flags);
 int  tfsclose(int fd);
 int  tfsremove(TFILE *pf);
 int  tfscopy(TFILE *sf, TFILE *df);
+void tfsbasename(TFILE *pf, char *dest);
+void tfsdirname(TFILE *pf, char *dest);
 
 // DIR APIs ====================================
 int tfsMkdir(const char *rname);
