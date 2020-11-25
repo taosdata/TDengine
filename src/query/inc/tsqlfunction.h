@@ -248,16 +248,8 @@ typedef struct STwaInfo {
   int16_t type;       // source data type
   TSKEY   SKey;
   TSKEY   EKey;
-
-  union {
-    double  dOutput;
-    int64_t iOutput;
-  };
-
-  union {
-    double  dLastValue;
-    int64_t iLastValue;
-  };
+  double  dOutput;
+  double  lastValue;
 } STwaInfo;
 
 /* global sql function array */
@@ -275,8 +267,6 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const cha
   do {                         \
     (_r)->initialized = false; \
   } while (0)
-
-//void setResultInfoBuf(SResultRowCellInfo *pResInfo, char* buf);
 
 static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, uint32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
