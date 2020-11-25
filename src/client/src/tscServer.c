@@ -206,7 +206,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   pHB->retry = 0;
   int32_t code = tscProcessSql(pHB);
-  taosCacheRelease(p);
+  taosCacheRelease(p); p = NULL;
 
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
@@ -266,7 +266,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
 
-    taosCacheRelease(p);
+    taosCacheRelease(p); 
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -276,9 +276,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
-    void** p1 = p;
-    taosCacheRelease(p1);
-    taosCacheRelease(p);
+    taosCacheRelease(p); 
+    taosCacheRelease(p); 
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -321,7 +320,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosCacheRelease(p);
+        taosCacheRelease(p); p = NULL;
         rpcFreeCont(rpcMsg->pCont);
         return;
       }
@@ -389,11 +388,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
-  void** p1 = p;
-  taosCacheRelease(p1);
+  tscDebug("%p start to release", p);
+  taosCacheRelease(p); 
+  tscDebug("%p is released!!!", p);
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosCacheRelease(p);
+    taosCacheRelease(p); 
     tscDebug("%p sqlObj is automatically freed", pSql);
   }
 
