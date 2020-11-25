@@ -113,19 +113,19 @@ if $data90 != 0.000000000 then
  return -1
 endi
 
-if $data11 != 0.000000000 then
+if $data91 != 0.000000000 then
   return -1
 endi
 
-if $data12 != 0.000000000 then
+if $data92 != 0.000000000 then
   return -1
 endi
 
-if $data13 != 0.000000000 then
+if $data93 != 0.000000000 then
   return -1
 endi
 
-if $data14 != 0.000000000 then
+if $data94 != 0.000000000 then
   return -1
 endi
 
