@@ -660,7 +660,7 @@ static int32_t vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
 static void vnodeNotifyRole(int32_t vgId, int8_t role) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
-    vError("vgId:%d, vnode not found while notify role", vgId);
+    vTrace("vgId:%d, vnode not found while notify role", vgId);
     return;
   }
 
@@ -680,12 +680,12 @@ static void vnodeNotifyRole(int32_t vgId, int8_t role) {
 static void vnodeCtrlFlow(int32_t vgId, int32_t level) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
-    vError("vgId:%d, vnode not found while ctrl flow", vgId);
+    vTrace("vgId:%d, vnode not found while flow ctrl", vgId);
     return;
   }
 
   pVnode->flowctlLevel = level;
-  vDebug("vgId:%d, set flowctl level:%d", pVnode->vgId, level);
+  vDebug("vgId:%d, set flowctrl level:%d", pVnode->vgId, level);
 
   vnodeRelease(pVnode);
 }

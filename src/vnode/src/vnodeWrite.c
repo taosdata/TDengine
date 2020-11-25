@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tsdb.h"
@@ -40,6 +41,7 @@ static int32_t vnodeProcessDropTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet 
 static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
+static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
 
 void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -48,32 +50,6 @@ void vnodeInitWriteFp(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = vnodeProcessAlterTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = vnodeProcessDropStableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL]  = vnodeProcessUpdateTagValMsg;
-}
-
-static void vnodeFlowCtlMsgToWQueue(void *param, void *tmrId) {
-  SVWriteMsg *pWrite = param;
-  SVnodeObj * pVnode = pWrite->pVnode;
-
-  int32_t code = vnodeWriteToWQueue(pVnode, pWrite->pHead, pWrite->qtype, &pWrite->rpcMsg);
-  if (code != 0 && pWrite->qtype == TAOS_QTYPE_RPC) {
-    vDebug("vgId:%d, failed to reprocess msg after perform flowctl since %s", pVnode->vgId, tstrerror(code));
-    dnodeSendRpcVWriteRsp(pWrite->pVnode, pWrite, code);
-  }
-
-  tfree(pWrite);
-  vnodeRelease(pWrite->pVnode);
-}
-
-static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
-  SVnodeObj *pVnode = pWrite->pVnode;
-  if (pVnode->flowctlLevel <= 0) return 0;
-
-  int32_t ms = pVnode->flowctlLevel * 5;
-  void *  unUsed = NULL;
-  taosTmrReset(vnodeFlowCtlMsgToWQueue, ms, pWrite, tsDnodeTmr, &unUsed);
-
-  vDebug("vgId:%d, perform flowctl for %d ms", pVnode->vgId, ms);
-  return TSDB_CODE_RPC_ACTION_IN_PROGRESS;
 }
 
 int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam) {
@@ -297,4 +273,35 @@ void vnodeFreeFromWQueue(void *vparam, SVWriteMsg *pWrite) {
 
   taosFreeQitem(pWrite);
   vnodeRelease(pVnode);
+}
+
+static void vnodeFlowCtlMsgToWQueue(void *param, void *tmrId) {
+  SVWriteMsg *pWrite = param;
+  SVnodeObj * pVnode = pWrite->pVnode;
+
+  int32_t code = vnodeWriteToWQueue(pVnode, pWrite->pHead, pWrite->qtype, pWrite->rpcMsg.handle == NULL ? NULL : &pWrite->rpcMsg);
+  if (code != 0 && pWrite->qtype == TAOS_QTYPE_RPC) {
+    vDebug("vgId:%d, failed to reprocess msg after perform flowctrl since %s", pVnode->vgId, tstrerror(code));
+    dnodeSendRpcVWriteRsp(pWrite->pVnode, pWrite, code);
+  }
+
+  tfree(pWrite);
+  vnodeRelease(pWrite->pVnode);
+}
+
+static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
+  SVnodeObj *pVnode = pWrite->pVnode;
+  if (pVnode->flowctlLevel <= 0) return 0;
+
+  if (tsFlowCtrl == 0) {
+    int32_t ms = pVnode->flowctlLevel * 2;
+    if (ms > 60000) ms = 60000;
+    vDebug("vgId:%d, perform flowctrl for %d ms", pVnode->vgId, ms);
+    taosMsleep(ms);
+    return 0;
+  } else {
+    void *unUsed = NULL;
+    taosTmrReset(vnodeFlowCtlMsgToWQueue, 5, pWrite, tsDnodeTmr, &unUsed);
+    return TSDB_CODE_RPC_ACTION_IN_PROGRESS;
+  }
 }
