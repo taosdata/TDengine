@@ -81,8 +81,8 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
     for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
       tsdbCloseFile(&(pFGroup->files[type]));
     }
+    tfsDecDiskFile(pFGroup->files[0].file.level, pFGroup->files[0].file.level, TSDB_FILE_TYPE_MAX);
   }
-  // TODO: delete each files
 }
 
 // SFileGroup ===========================================
