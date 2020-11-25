@@ -55,9 +55,12 @@ class RestfulInsert:
     def insertUnlimitedData(self, threadID):        
         print("thread %d started" % threadID)
         tablesPerThread = int (self.numOfTables / self.numOfThreads)
+        
+        count = 0
         while True:
             i = 0
-            start = self.ts
+            start = self.ts  + count * self.batchSize          
+            count = count + 1            
             
             for i in range(tablesPerThread):
                 tableID = i + threadID * tablesPerThread
@@ -65,7 +68,7 @@ class RestfulInsert:
                 data = "insert into %s.%s%d values" % (self.dbname, self.tableNamePerfix, tableID)
                 values = []
                 for k in range(self.batchSize):
-                    values.append("(%d, %d, %d, %d)" %  (start + j * self.batchSize + k, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100)))
+                    values.append("(%d, %d, %d, %d)" %  (start + k, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100)))
                 
                 if(self.outOfOrder == False):
                     for k in range(len(values)):            
