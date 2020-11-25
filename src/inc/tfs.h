@@ -33,12 +33,13 @@ typedef struct {
 #define TFS_PRIMARY_ID 0
 
 // FS APIs ====================================
-int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
-void tfsDestroy();
-void tfsUpdateInfo();
-void tfsIncDiskFile(int level, int id, int num);
-void tfsDecDiskFile(int level, int id, int num);
-
+int     tfsInit(SDiskCfg *pDiskCfg, int ndisk);
+void    tfsDestroy();
+void    tfsUpdateInfo();
+int64_t tfsTotalSize();
+int64_t tfsAvailSize();
+void    tfsIncDiskFile(int level, int id, int num);
+void    tfsDecDiskFile(int level, int id, int num);
 const char *TFS_PRIMARY_PATH();
 const char *TFS_DISK_PATH(int level, int id);
 

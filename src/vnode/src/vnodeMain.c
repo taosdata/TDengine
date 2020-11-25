@@ -113,7 +113,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   char vnodeDir[TSDB_FILENAME_LEN] = "\0";
   snprintf(vnodeDir, TSDB_FILENAME_LEN, "vnode%d", pVnodeCfg->cfg.vgId);
   if (tfsMkdir(vnodeDir) < 0) {
-    vError("vgId:%d, failed to create vnode %d dir, reason:%s", pVnodeCfg->cfg.vgId, strerror(errno));
+    vError("vgId:%d, failed to create vnode dir %s, reason:%s", pVnodeCfg->cfg.vgId, vnodeDir, strerror(errno));
     return terrno;
   }
 

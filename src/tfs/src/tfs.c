@@ -139,6 +139,10 @@ void tfsUpdateInfo() {
   tfsUnLock();
 }
 
+int64_t tfsTotalSize() { return pfs->meta.tsize; }
+
+int64_t tfsAvailSize() { return pfs->meta.avail; }
+
 void tfsIncDiskFile(int level, int id, int num) {
   tfsLock();
   TFS_DISK_AT(level, id)->dmeta.nfiles += num;
@@ -570,6 +574,28 @@ static int tfsAssignDisk(int level) {
   tfsUnLock();
 
   return id;
+}
+
+// OTHER FUNCTIONS ===================================
+void taosGetDisk() {
+  const double unit = 1024 * 1024 * 1024;
+  SysDiskSize  diskSize;
+
+  if (tscEmbedded) {
+    tfsUpdateInfo();
+    tsTotalDataDirGB = (float)tfsTotalSize() / unit;
+    tsAvailDataDirGB = (float)tfsAvailSize() / unit;
+  }
+
+  if (taosGetDiskSize(tsLogDir, &diskSize)) {
+    tsTotalLogDirGB = (float)diskSize.tsize / unit;
+    tsAvailLogDirGB = (float)diskSize.avail / unit;
+  }
+
+  if (taosGetDiskSize("/tmp", &diskSize)) {
+    tsTotalTmpDirGB = (float)diskSize.tsize / unit;
+    tsAvailTmpDirectorySpace = (float)diskSize.avail / unit;
+  }
 }
 
 #pragma GCC diagnostic pop
