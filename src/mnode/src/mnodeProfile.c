@@ -66,7 +66,7 @@ int32_t mnodeInitProfile() {
 }
 
 void mnodeCleanupProfile() {
-  if (tsMnodeConnCache > 0) {
+  if (tsMnodeConnCache >= 0) {
     taosCacheCleanup(tsMnodeConnCache);
     tsMnodeConnCache = -1;
   }
@@ -594,7 +594,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   } else {
     mInfo("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pUser->user);
     pConn->streamId = streamId;
-    taosCacheRelease((void **)&pConn);
+    taosCacheRelease(pConn);
     return TSDB_CODE_SUCCESS;
   }
 }
@@ -612,7 +612,7 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   } else {
     mInfo("connId:%s, is killed by user:%s", pKill->queryId, pUser->user);
     pConn->killed = 1;
-    taosCacheRelease((void**)&pConn);
+    taosCacheRelease(pConn);
     return TSDB_CODE_SUCCESS;
   }
 }

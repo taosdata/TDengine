@@ -45,6 +45,8 @@ int32_t httpInitSystem() {
   tsHttpServer.serverPort = tsHttpPort;
   tsHttpServer.numOfThreads = tsHttpMaxThreads;
   tsHttpServer.processData = httpProcessData;
+  tsHttpServer.sessionCache = -1;
+  tsHttpServer.contextCache = -1;
 
   pthread_mutex_init(&tsHttpServer.serverMutex, NULL);
 

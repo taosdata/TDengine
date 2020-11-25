@@ -2112,6 +2112,7 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
    */
   tscDebug("%p force release table meta after drop table:%s", pSql, pTableMetaInfo->name);
   taosCacheRelease(pTableMeta);
+  pTableMeta = NULL;
   taosCacheRelease(pTableMetaInfo->pTableMeta);
   pTableMetaInfo->pTableMeta = NULL;
 
@@ -2128,6 +2129,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
 
   tscDebug("%p force release metermeta in cache after alter-table: %s", pSql, pTableMetaInfo->name);
   taosCacheRelease(pTableMeta);
+  pTableMeta = NULL;
 
   if (pTableMetaInfo->pTableMeta) {
     bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
@@ -2269,10 +2271,8 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(strlen(pTableMetaInfo->name) != 0);
 
   // If this STableMetaInfo owns a table meta, release it first
-  if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(pTableMetaInfo->pTableMeta);
-    pTableMetaInfo->pTableMeta = NULL;
-  }
+  taosCacheRelease(pTableMetaInfo->pTableMeta);
+  pTableMetaInfo->pTableMeta = NULL;
   
   pTableMetaInfo->pTableMeta = (STableMeta *)taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
   if (pTableMetaInfo->pTableMeta != NULL) {

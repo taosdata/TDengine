@@ -105,7 +105,7 @@ static void httpDestroySession(void *data) {
 }
 
 void httpCleanUpSessions() {
-  if (tsHttpServer.sessionCache > 0) {
+  if (tsHttpServer.sessionCache >= 0) {
     httpInfo("session cache is cleanuping");
     taosCacheCleanup(tsHttpServer.sessionCache);
     tsHttpServer.sessionCache = -1;
@@ -114,7 +114,7 @@ void httpCleanUpSessions() {
 
 bool httpInitSessions() {
   tsHttpServer.sessionCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, 5, false, httpDestroySession, "rests");
-  if (tsHttpServer.sessionCache > 0) {
+  if (tsHttpServer.sessionCache < 0) {
     httpError("failed to init session cache");
     return false;
   }

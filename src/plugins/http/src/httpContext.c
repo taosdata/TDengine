@@ -77,7 +77,7 @@ bool httpInitContexts() {
 }
 
 void httpCleanupContexts() {
-  if (tsHttpServer.contextCache < 0) {
+  if (tsHttpServer.contextCache >= 0) {
     httpInfo("context cache is cleanuping");
     taosCacheCleanup(tsHttpServer.contextCache);
     tsHttpServer.contextCache = -1;

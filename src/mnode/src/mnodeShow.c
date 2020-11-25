@@ -70,7 +70,7 @@ int32_t mnodeInitShow() {
 }
 
 void mnodeCleanUpShow() {
-  if (tsMnodeShowCache < 0) {
+  if (tsMnodeShowCache >= 0) {
     mInfo("show cache is cleanup");
     taosCacheCleanup(tsMnodeShowCache);
     tsMnodeShowCache = -1;

@@ -212,7 +212,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
       assert(*qhandle == (void *)killQueryMsg->qhandle);
 
       qKillQuery(*qhandle);
-      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, true);
+      qReleaseQInfo(pVnode->qMgmt, qhandle, true);
     }
 
     return TSDB_CODE_TSC_QUERY_CANCELLED;
@@ -253,7 +253,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
         vError("vgId:%d, QInfo:%p, query discarded since link is broken, %p", pVnode->vgId, *handle,
                pRead->rpcHandle);
         pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-        qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+        qReleaseQInfo(pVnode->qMgmt, handle, true);
         return pRsp->code;
       }
     } else {
@@ -265,7 +265,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
       code = vnodePutItemIntoReadQueue(pVnode, handle, pRead->rpcHandle);
       if (code != TSDB_CODE_SUCCESS) {
         pRsp->code = code;
-        qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+        qReleaseQInfo(pVnode->qMgmt, handle, true);
         return pRsp->code;
       }
     }
@@ -304,11 +304,11 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
     // If the building of result is not required, simply free it. Otherwise, mandatorily free the qhandle
     if (freehandle || (!buildRes)) {
-      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
+      qReleaseQInfo(pVnode->qMgmt, qhandle, freehandle);
     }
 #else
     qTableQuery(*qhandle);  // do execute query
-    qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
+    qReleaseQInfo(pVnode->qMgmt, qhandle, false);
 #endif
   }
 
@@ -347,7 +347,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   if (pRetrieve->free == 1) {
     vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
     qKillQuery(*handle);
-    qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+    qReleaseQInfo(pVnode->qMgmt, handle, true);
 
     vnodeBuildNoResultQueryRsp(pRet);
     code = TSDB_CODE_TSC_QUERY_CANCELLED;
@@ -359,7 +359,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     vError("vgId:%d, QInfo:%p, retrieve discarded since link is broken, %p", pVnode->vgId, *handle, pRead->rpcHandle);
     code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     qKillQuery(*handle);
-    qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+    qReleaseQInfo(pVnode->qMgmt, handle, true);
     return code;
   }
 
@@ -379,7 +379,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     if (!buildRes) {
       assert(pRead->rpcHandle != NULL);
 
-      qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
+      qReleaseQInfo(pVnode->qMgmt, handle, false);
       return TSDB_CODE_QRY_NOT_READY;
     }
 #endif
@@ -391,7 +391,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   // If qhandle is not added into vread queue, the query should be completed already or paused with error.
   // Here free qhandle immediately
   if (freeHandle) {
-    qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+    qReleaseQInfo(pVnode->qMgmt, handle, true);
   }
 
   return code;

@@ -7526,14 +7526,13 @@ void** qAcquireQInfo(void* pMgmt, uint64_t _key) {
   }
 }
 
-void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
+void qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool < 0) {
-    return NULL;
+    return;
   }
 
   taosCacheRelease(pQInfo);
-  return 0;
 }
 
 
