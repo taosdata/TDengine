@@ -144,7 +144,7 @@ if $data10 != 16.000000000 then
 endi
 
 if $data20 != 20.250000000 then
-  print expect 20.250000000, acutal:$data21
+  print expect 20.250000000, actual:$data21
   return -1
 endi
 
