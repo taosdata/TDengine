@@ -28,7 +28,6 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
-#include "ttimer.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -161,6 +160,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   registerSqlObj(pSql);
   tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
 
+  pObj->rid = taosAddRef(tscRefId, pObj);
   return pSql;
 }
 
@@ -278,9 +278,9 @@ void taos_close(TAOS *taos) {
 
   SSqlObj* pHb = pObj->pHb;
   if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
-    if (pHb->pRpcCtx != NULL) {  // wait for rsp from dnode
-      rpcCancelRequest(pHb->pRpcCtx);
-      pHb->pRpcCtx = NULL;
+    if (pHb->rpcRid > 0) {  // wait for rsp from dnode
+      rpcCancelRequest(pHb->rpcRid);
+      pHb->rpcRid = -1;
     }
 
     tscDebug("%p HB is freed", pHb);
@@ -296,7 +296,8 @@ void taos_close(TAOS *taos) {
   }
 
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
-  tscCloseTscObj(pObj);
+
+  taosRemoveRef(tscRefId, pObj->rid);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
@@ -320,7 +321,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES
   
   if (sqlLen > (uint32_t)tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
-    terrno = TSDB_CODE_TSC_INVALID_SQL;
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }
 
@@ -393,7 +394,7 @@ int taos_affected_rows(TAOS_RES *tres) {
   SSqlObj* pSql = (SSqlObj*) tres;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  return (int)(pSql->res.numOfRows);
+  return pSql->res.numOfRows;
 }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
@@ -419,7 +420,16 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
     for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
       SInternalField* pField = tscFieldInfoGetInternalField(pFieldInfo, i);
       if (pField->visible) {
-        f[j++] = pField->field;
+        f[j] = pField->field;
+
+        // revise the length for binary and nchar fields
+        if (f[j].type == TSDB_DATA_TYPE_BINARY) {
+          f[j].bytes -= VARSTR_HEADER_SIZE;
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+          f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        }
+
+        j += 1;
       }
     }
 
@@ -442,50 +452,30 @@ int taos_retrieve(TAOS_RES *res) {
   if (pCmd->command < TSDB_SQL_LOCAL) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
   }
-  tscProcessSql(pSql);
 
-  return (int)pRes->numOfRows;
+  tscProcessSql(pSql);
+  return pRes->numOfRows;
 }
 
-int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
-  SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
+static bool needToFetchNewBlock(SSqlObj* pSql) {
   SSqlRes *pRes = &pSql->res;
+  SSqlCmd *pCmd = &pSql->cmd;
 
-  if (pRes->qhandle == 0 || pSql->signature != pSql) {
-    *rows = NULL;
-    return 0;
-  }
-
-  // Retrieve new block
-  tscResetForNextRetrieve(pRes);
-  if (pCmd->command < TSDB_SQL_LOCAL) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-  }
-
-  tscProcessSql(pSql);
-  if (pRes->numOfRows == 0) {
-    *rows = NULL;
-    return 0;
-  }
-
-  // secondary merge has handle this situation
-  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
-    pRes->numOfClauseTotal += pRes->numOfRows;
-  }
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  if (pQueryInfo == NULL)
-    return 0;
-
-  assert(0);
-  for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
-  }
-
-  *rows = pRes->tsrow;
-
-  return (int)((pQueryInfo->order.order == TSDB_ORDER_DESC) ? pRes->numOfRows : -pRes->numOfRows);
+  return (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
+         (pCmd->command == TSDB_SQL_RETRIEVE ||
+          pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE ||
+          pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
+          pCmd->command == TSDB_SQL_FETCH ||
+          pCmd->command == TSDB_SQL_SHOW ||
+          pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+          pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
+          pCmd->command == TSDB_SQL_SELECT ||
+          pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
+          pCmd->command == TSDB_SQL_SERV_STATUS ||
+          pCmd->command == TSDB_SQL_CURRENT_DB ||
+          pCmd->command == TSDB_SQL_SERV_VERSION ||
+          pCmd->command == TSDB_SQL_CLI_VERSION ||
+          pCmd->command == TSDB_SQL_CURRENT_USER);
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
@@ -508,77 +498,50 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   // set the sql object owner
   tscSetSqlOwner(pSql);
 
-  // current data set are exhausted, fetch more data from node
-  if (pRes->row >= pRes->numOfRows && (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
-      (pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE ||
-       pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
-       pCmd->command == TSDB_SQL_FETCH ||
-       pCmd->command == TSDB_SQL_SHOW ||
-       pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
-       pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
-       pCmd->command == TSDB_SQL_SELECT ||
-       pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
-       pCmd->command == TSDB_SQL_SERV_STATUS ||
-       pCmd->command == TSDB_SQL_CURRENT_DB ||
-       pCmd->command == TSDB_SQL_SERV_VERSION ||
-       pCmd->command == TSDB_SQL_CLI_VERSION ||
-       pCmd->command == TSDB_SQL_CURRENT_USER )) {
+  // current data set are exhausted, fetch more result from node
+  if (pRes->row >= pRes->numOfRows && needToFetchNewBlock(pSql)) {
     taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
     tsem_wait(&pSql->rspSem);
   }
 
-  void* data = doSetResultRowData(pSql, true);
+  void* data = doSetResultRowData(pSql);
 
   tscClearSqlOwner(pSql);
   return data;
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
-#if 0
   SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-
-  int nRows = 0;
-
   if (pSql == NULL || pSql->signature != pSql) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
-    *rows = NULL;
     return 0;
   }
 
-  // projection query on metric, pipeline retrieve data from vnode list,
-  // instead of two-stage mergednodeProcessMsgFromShell free qhandle
-  nRows = taos_fetch_block_impl(res, rows);
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
 
-  // current subclause is completed, try the next subclause
-  while (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
-    pSql->cmd.command = pQueryInfo->command;
-    pCmd->clauseIndex++;
-
-    pRes->numOfTotal += pRes->numOfClauseTotal;
-    pRes->numOfClauseTotal = 0;
-    pRes->rspType = 0;
-
-    pSql->subState.numOfSub = 0;
-    taosTFree(pSql->pSubs);
-
-    assert(pSql->fp == NULL);
-
-    tscDebug("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
-    tscProcessSql(pSql);
-
-    nRows = taos_fetch_block_impl(res, rows);
+  if (pRes->qhandle == 0 ||
+      pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
+      pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pCmd->command == TSDB_SQL_INSERT) {
+    return 0;
   }
 
-  return nRows;
-#endif
+  tscResetForNextRetrieve(pRes);
 
-  (*rows) = taos_fetch_row(res);
-  return ((*rows) != NULL)? 1:0;
+  // set the sql object owner
+  tscSetSqlOwner(pSql);
+
+  // current data set are exhausted, fetch more data from node
+  if (needToFetchNewBlock(pSql)) {
+    taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
+    tsem_wait(&pSql->rspSem);
+  }
+
+  *rows = pRes->urow;
+
+  tscClearSqlOwner(pSql);
+  return pRes->numOfRows;
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
@@ -599,7 +562,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 // send free message to vnode to free qhandle and corresponding resources in vnode
-static UNUSED_FUNC bool tscKillQueryInDnode(SSqlObj* pSql) {
+static bool tscKillQueryInDnode(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
@@ -746,9 +709,9 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     assert(pSubObj->self == (SSqlObj**) p);
 
     pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
-    if (pSubObj->pRpcCtx != NULL) {
-      rpcCancelRequest(pSubObj->pRpcCtx);
-      pSubObj->pRpcCtx = NULL;
+    if (pSubObj->rpcRid > 0) {
+      rpcCancelRequest(pSubObj->rpcRid);
+      pSubObj->rpcRid = -1;
     }
 
     tscQueueAsyncRes(pSubObj);
@@ -773,7 +736,7 @@ void taos_stop_query(TAOS_RES *res) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    assert(pSql->pRpcCtx == NULL);
+    assert(pSql->rpcRid <= 0);
     tscKillSTableQuery(pSql);
   } else {
     if (pSql->cmd.command < TSDB_SQL_LOCAL) {
@@ -782,9 +745,9 @@ void taos_stop_query(TAOS_RES *res) {
        * reset and freed in the processMsgFromServer function, and causes the invalid
        * write problem for rpcCancelRequest.
        */
-      if (pSql->pRpcCtx != NULL) {
-        rpcCancelRequest(pSql->pRpcCtx);
-        pSql->pRpcCtx = NULL;
+      if (pSql->rpcRid > 0) {
+        rpcCancelRequest(pSql->rpcRid);
+        pSql->rpcRid = -1;
       }
 
       tscQueueAsyncRes(pSql);
@@ -792,6 +755,25 @@ void taos_stop_query(TAOS_RES *res) {
   }
 
   tscDebug("%p query is cancelled", res);
+}
+
+bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  if (pSql == NULL || pSql->signature != pSql) {
+    return true;
+  }
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  if (pQueryInfo == NULL) {
+    return true;
+  }
+
+  SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, col);
+  if (col < 0 || col >= tscNumOfFields(pQueryInfo) || row < 0 || row > pSql->res.numOfRows) {
+    return true;
+  }
+
+  return isNull(((char*) pSql->res.urow[col]) + row * pInfo->field.bytes, pInfo->field.type);
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -891,18 +873,16 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   int32_t sqlLen = (int32_t)strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
-    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    taosTFree(pSql);
-    return pRes->code;
+    tfree(pSql);
+    return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscError("%p failed to malloc sql string buffer", pSql);
     tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
-    taosTFree(pSql);
-    return pRes->code;
+    tfree(pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strtolower(pSql->sqlstr, sql);

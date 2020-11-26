@@ -1,7 +1,6 @@
 #include "taosdef.h"
 #include "tcompare.h"
 #include "tarray.h"
-#include "tutil.h"
 
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft), right = GET_INT32_VAL(pRight);
@@ -367,7 +366,14 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_BOOL:       DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t ret = wcsncmp((wchar_t*) f1, (wchar_t*) f2, size/TSDB_NCHAR_SIZE);
+      tstr* t1 = (tstr*) f1;
+      tstr* t2 = (tstr*) f2;
+
+      if (t1->len != t2->len) {
+        return t1->len > t2->len? 1:-1;
+      }
+
+      int32_t ret = wcsncmp((wchar_t*) t1->data, (wchar_t*) t2->data, t2->len/TSDB_NCHAR_SIZE);
       if (ret == 0) {
         return ret;
       }

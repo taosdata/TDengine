@@ -19,42 +19,53 @@
 extern "C" {
 #endif
 
-#define TAOS_WAL_NOLOG   0
-#define TAOS_WAL_WRITE   1
-#define TAOS_WAL_FSYNC   2
- 
+typedef enum {
+  TAOS_WAL_NOLOG = 0,
+  TAOS_WAL_WRITE = 1,
+  TAOS_WAL_FSYNC = 2
+} EWalType;
+
+typedef enum {
+  TAOS_WAL_NOT_KEEP = 0,
+  TAOS_WAL_KEEP = 1
+} EWalKeep;
+
 typedef struct {
-  int8_t    msgType;
-  int8_t    reserved[3];
-  int32_t   len;
-  uint64_t  version;
-  uint32_t  signature;
-  uint32_t  cksum;
-  char      cont[];
+  int8_t   msgType;
+  int8_t   sver;
+  int8_t   reserved[2];
+  int32_t  len;
+  uint64_t version;
+  uint32_t signature;
+  uint32_t cksum;
+  char     cont[];
 } SWalHead;
 
 typedef struct {
-  int8_t    walLevel;  // wal level
-  int32_t   fsyncPeriod; // millisecond
-  int8_t    wals;      // number of WAL files;
-  int8_t    keep;      // keep the wal file when closed
+  int32_t  vgId;
+  int32_t  fsyncPeriod;  // millisecond
+  EWalType walLevel;     // wal level
+  EWalKeep keep;         // keep the wal file when closed
 } SWalCfg;
 
-typedef void* twalh;  // WAL HANDLE
-typedef int (*FWalWrite)(void *ahandle, void *pHead, int type);
+typedef void *  twalh;  // WAL HANDLE
+typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
-twalh   walOpen(const char *path, const SWalCfg *pCfg);
-int     walAlter(twalh pWal, const SWalCfg *pCfg);
-void    walClose(twalh);
-int     walRenew(twalh);
-int     walWrite(twalh, SWalHead *);
-void    walFsync(twalh);
-int     walRestore(twalh, void *pVnode, FWalWrite writeFp);
-int     walGetWalFile(twalh, char *name, uint32_t *index);
-int64_t walGetVersion(twalh);
+int32_t walInit();
+void    walCleanUp();
 
-extern int wDebugFlag;
-
+twalh    walOpen(char *path, SWalCfg *pCfg);
+int32_t  walAlter(twalh pWal, SWalCfg *pCfg);
+void     walStop(twalh);
+void     walClose(twalh);
+int32_t  walRenew(twalh);
+void     walRemoveOneOldFile(twalh);
+void     walRemoveAllOldFiles(twalh);
+int32_t  walWrite(twalh, SWalHead *);
+void     walFsync(twalh, bool forceFsync);
+int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
+int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
+uint64_t walGetVersion(twalh);
 
 #ifdef __cplusplus
 }

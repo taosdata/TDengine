@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 1000
+sleep 500
 
 $dbPrefix = join_m_db
 $tbPrefix = join_tb
@@ -22,7 +22,7 @@ $mt = $mtPrefix . $i
 
 $tstart = 100000
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db keep 36500
 sql use $db
@@ -131,5 +131,240 @@ sql select join_mt0.ts, join_mt1.t1 from join_mt0, join_mt1 where join_mt0.ts=jo
 sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1
 
 sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1 limit 1
+
+#1970-01-01 08:01:40.800 |                    10 |              45.000000000 |         0 |     true |     false |           0 |
+#1970-01-01 08:01:40.790 |                    10 |             945.000000000 |        90 |     true |      true |           0 |
+sql_error select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7), first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc limit 20 offset 19;
+
+sql select count(join_mt0.c1), sum(join_mt0.c2)/count(*), avg(c2), first(join_mt0.c5), last(c7) from join_mt0  interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;
+if $rows != 300 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.990@ then
+  print expect 0, actual: $data00
+  return -1
+endi
+
+if $data01 != 10 then
+  return -1
+endi
+
+if $data02 != 94.500000000 then
+  print expect 94.500000000, actual $data02
+  return -1
+endi
+
+if $data03 != 94.500000000 then
+  return -1
+endi
+
+if $data04 != 90 then
+  return -1
+endi
+
+if $data05 != 1 then
+  return -1
+endi
+
+if $data06 != 0 then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.980@ then
+  print expect 70-01-01 08:01:40.980, actual: $data10
+  return -1
+endi
+
+if $data11 != 10 then
+  return -1
+endi
+
+if $data12 != 84.500000000 then
+  print expect 84.500000000, actual $data12
+  return -1
+endi
+
+if $data13 != 84.500000000 then
+  return -1
+endi
+
+if $data14 != 80 then
+  return -1
+endi
+
+if $data15 != 1 then
+  return -1
+endi
+
+if $data16 != 0 then
+  return -1
+endi
+
+# this function will cause shell crash
+sql_error select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc;
+sql_error select last(join_mt1.c7),  first(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10m) group by join_mt0.t1 order by join_mt0.ts asc;
+sql_error select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt1.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+
+print ================================> TD-2152
+sql_error select join_mt1.c1,join_mt0.c1 from join_mt1,join_mt0 where join_mt1.ts = join_mt0.ts and join_mt1.t1 = join_mt0.t1 order by t;
+
+print =================================> add result check
+sql select count(join_mt0.c1), first(join_mt0.c1)/count(*), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+sql select count(join_mt0.c1), first(join_mt0.c1)-last(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+sql select last(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts;", NULL);
+
+sql create database disorder_db;
+sql use disorder_db;
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table tm0 using m1 tags(0);
+sql create table tm1 using m1 tags(1);
+sql create table tm2 using m1 tags(2);
+sql create table tm3 using m1 tags(3);
+sql create table tm4 using m1 tags(4);
+sql create table tm5 using m1 tags(5);
+sql create table tm6 using m1 tags(6);
+sql create table tm7 using m1 tags(7);
+
+sql show vgroups
+if $rows != 2 then
+  print maxTablesPerVnode set to 4 is not active.
+  return -1
+endi
+
+sql insert into tm0 values('2020-1-1 1:1:1', 0);
+sql insert into tm1 values('2020-1-1 1:1:1', 1);
+sql insert into tm2 values('2020-1-1 1:1:1', 2);
+sql insert into tm3 values('2020-1-1 1:1:1', 3);
+sql insert into tm4 values('2020-1-1 1:1:1', 4);
+sql insert into tm5 values('2020-1-1 1:1:1', 5);
+sql insert into tm6 values('2020-1-1 1:1:1', 6);
+sql insert into tm7 values('2020-1-1 1:1:1', 7);
+
+sql create table m2(ts timestamp, k int) tags(b int);
+sql create table t0 using m2 tags(0);
+sql create table t1 using m2 tags(4);
+sql create table t2 using m2 tags(92);
+sql create table t3 using m2 tags(93);
+sql create table t4 using m2 tags(1);
+sql create table t5 using m2 tags(5);
+sql create table t6 using m2 tags(96);
+sql create table t7 using m2 tags(97);
+
+sql show vgroups
+if $rows != 4 then
+  return -1
+endi
+
+sql insert into t0 values('2020-1-1 1:1:1', 10);
+sql insert into t1 values('2020-1-1 1:1:1', 11);
+sql insert into t2 values('2020-1-1 1:1:1', 12);
+sql insert into t3 values('2020-1-1 1:1:1', 13);
+sql insert into t4 values('2020-1-1 1:1:1', 14);
+sql insert into t5 values('2020-1-1 1:1:1', 15);
+sql insert into t6 values('2020-1-1 1:1:1', 16);
+sql insert into t7 values('2020-1-1 1:1:1', 17);
+
+sql select m1.ts,m1.tbname,m1.a, m2.ts,m2.tbname,m2.b from m1,m2 where m1.a=m2.b and m1.ts=m2.ts;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != @20-01-01 01:01:01.000@ then
+  print expect 20-01-01 01:01:01.000, actual:$data00
+  return -1
+endi
+
+if $data01 != @tm0@ then
+  return -1
+endi
+
+if $data02 != 0 then
+  return -1
+endi
+
+if $data03 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data04 != @t0@ then
+  return -1
+endi
+
+if $data05  != 0 then
+  return -1
+endi
+
+if $data10 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data11 != @tm1@ then
+  return -1
+endi
+
+if $data12 != 1 then
+  return -1
+endi
+
+if $data13 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data14 != @t4@ then
+  return -1
+endi
+
+if $data15  != 1 then
+  return -1
+endi
+
+if $data20 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data21 != @tm4@ then
+  return -1
+endi
+
+if $data22 != 4 then
+  return -1
+endi
+
+if $data23 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data24 != @t1@ then
+  return -1
+endi
+
+if $data25  != 4 then
+  return -1
+endi
+
+if $data30 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data31 != @tm5@ then
+  return -1
+endi
+
+if $data32 != 5 then
+  return -1
+endi
+
+if $data33 != @20-01-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data34 != @t5@ then
+  return -1
+endi
+
+if $data35 != 5 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

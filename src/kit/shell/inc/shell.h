@@ -60,7 +60,7 @@ typedef struct SShellArguments {
 extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
 extern TAOS* shellInit(SShellArguments* args);
 extern void* shellLoopQuery(void* arg);
-extern void taos_error(TAOS_RES* tres);
+extern void taos_error(TAOS_RES* tres, int64_t st);
 extern int regex_match(const char* s, const char* reg, int cflags);
 void shellReadCommand(TAOS* con, char command[]);
 int32_t shellRunCommand(TAOS* con, char* command);

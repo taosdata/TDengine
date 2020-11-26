@@ -91,8 +91,8 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   int32_t sqlLen = (int32_t)strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
-    terrno = TSDB_CODE_TSC_INVALID_SQL;
-    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_INVALID_SQL);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    tscQueueAsyncError(fp, param, terrno);
     return;
   }
   
@@ -176,7 +176,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   }
 
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscFetchDatablockFromSubquery(pSql);
+    tscFetchDatablockForSubquery(pSql);
   } else {
     tscProcessSql(pSql);
   }
@@ -226,7 +226,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   
   // handle the sub queries of join query
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
-    tscFetchDatablockFromSubquery(pSql);
+    tscFetchDatablockForSubquery(pSql);
   } else if (pRes->completed) {
     if(pCmd->command == TSDB_SQL_FETCH || (pCmd->command >= TSDB_SQL_SERV_STATUS && pCmd->command <= TSDB_SQL_CURRENT_USER)) {
       if (hasMoreVnodesToTry(pSql)) {  // sequentially retrieve data from remain vnodes.
@@ -351,7 +351,7 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
     SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
 
     if (pSup->pSqlExpr != NULL) {
-      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i);
+      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, 0);
     } else {
 //      todo add
     }
@@ -405,7 +405,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlRes *pRes = &pSql->res;
   pRes->code = code;
 
-  const char* msg = (pCmd->command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
+  SSqlObj *sub = (SSqlObj*) res;
+  const char* msg = (sub->cmd.command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%p get %s failed, code:%s", pSql, msg, tstrerror(code));
     goto _error;
@@ -427,8 +428,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       } else {
         assert(code == TSDB_CODE_SUCCESS);      
       }
-     
-      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pSql->param != NULL);
+
+      // param already freed by other routine and pSql in tscCache when ctrl + c 
+      if (atomic_load_ptr(&pSql->param) == NULL) {
+        return;
+      }
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0));
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
       SSqlObj *         pParObj = trs->pParentSql;
@@ -437,6 +442,20 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vgroupIndex &&
           pTableMetaInfo->vgroupIndex >= 0 && pTableMetaInfo->vgroupList != NULL);
 
+      // tscProcessSql can add error into async res
+      tscProcessSql(pSql);
+      return;
+    } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
+      tscDebug("%p update table meta in local cache, continue to process sql and send corresponding tid_tag query", pSql);
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+      code = tscGetTableMeta(pSql, pTableMetaInfo);
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        return;
+      } else {
+        assert(code == TSDB_CODE_SUCCESS);
+      }
+
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0));
       // tscProcessSql can add error into async res
       tscProcessSql(pSql);
       return;
@@ -461,7 +480,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           tscResetSqlCmdObj(pCmd, false);
 
           code = tsParseSql(pSql, true);
-
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             return;
           } else if (code != TSDB_CODE_SUCCESS) {

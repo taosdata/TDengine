@@ -90,7 +90,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     ALTER DATABASE db_name REPLICA 2;
     ```
-    REPLICA参数是指修改数据库副本数，取值范围[1, 3]。在集群中使用，副本数必须小于dnode的数目。
+    REPLICA参数是指修改数据库副本数，取值范围[1, 3]。在集群中使用，副本数必须小于或等于dnode的数目。
 
     ```mysql
     ALTER DATABASE db_name KEEP 365;
@@ -844,7 +844,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **PERCENTILE**
     ```mysql
-    SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause];
+    SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
     ```
     功能说明：统计表中某列的值百分比分位数。  
     返回结果数据类型： 双精度浮点数Double。  
@@ -1016,9 +1016,9 @@ SELECT AVG(current),MAX(current),LEASTSQUARES(current, start_val, step_val), PER
 ```
 
 ## TAOS SQL 边界限制
-- 数据库名最大长度为33
-- 表名最大长度为193，每行数据最大长度16k个字符
-- 列名最大长度为65，最多允许1024列，最少需要2列，第一列必须是时间戳
+- 数据库名最大长度为32
+- 表名最大长度为192，每行数据最大长度16k个字符
+- 列名最大长度为64，最多允许1024列，最少需要2列，第一列必须是时间戳
 - 标签最多允许128个，可以0个，标签总长度不超过16k个字符
 - SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改，最长可配置为1M
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制

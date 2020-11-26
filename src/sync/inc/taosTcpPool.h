@@ -20,23 +20,23 @@
 extern "C" {
 #endif
 
-typedef void* ttpool_h;
-typedef void* tthread_h;
+typedef void *ttpool_h;
+typedef void *tthread_h;
 
 typedef struct {
-  int       numOfThreads;
+  int32_t   numOfThreads;
   uint32_t  serverIp;
   int16_t   port;
-  int       bufferSize;
-  void     (*processBrokenLink)(void *ahandle);
-  int      (*processIncomingMsg)(void *ahandle, void *buffer);
-  void     (*processIncomingConn)(int fd, uint32_t ip);
+  int32_t   bufferSize;
+  void    (*processBrokenLink)(void *ahandle);
+  int32_t (*processIncomingMsg)(void *ahandle, void *buffer);
+  void    (*processIncomingConn)(int32_t fd, uint32_t ip);
 } SPoolInfo;
 
-ttpool_h   taosOpenTcpThreadPool(SPoolInfo *pInfo);
-void       taosCloseTcpThreadPool(ttpool_h);
-void      *taosAllocateTcpConn(void *, void *ahandle, int connFd);
-void       taosFreeTcpConn(void *);
+ttpool_h taosOpenTcpThreadPool(SPoolInfo *pInfo);
+void     taosCloseTcpThreadPool(ttpool_h);
+void *   taosAllocateTcpConn(void *, void *ahandle, int32_t connFd);
+void     taosFreeTcpConn(void *);
 
 #ifdef __cplusplus
 }

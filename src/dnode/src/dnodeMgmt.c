@@ -31,11 +31,12 @@
 #include "mnode.h"
 #include "dnodeInt.h"
 #include "dnodeMgmt.h"
+#include "dnodeEps.h"
+#include "dnodeCfg.h"
+#include "dnodeMInfos.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeModule.h"
-
-#define MPEER_CONTENT_LEN 2000
 
 typedef struct {
   pthread_t thread;
@@ -46,23 +47,18 @@ typedef struct {
   int32_t * vnodeList;
 } SOpenVnodeThread;
 
-void *          tsDnodeTmr = NULL;
-static void *   tsStatusTimer = NULL;
-static uint32_t tsRebootTime;
+typedef struct {
+  SRpcMsg rpcMsg;
+  char    pCont[];
+} SMgmtMsg;
 
-static SRpcEpSet     tsDMnodeEpSet = {0};
-static SDMMnodeInfos tsDMnodeInfos = {0};
-static SDMDnodeCfg   tsDnodeCfg = {0};
-static taos_qset     tsMgmtQset = NULL;
-static taos_queue    tsMgmtQueue = NULL;
-static pthread_t     tsQthread;
+void *            tsDnodeTmr = NULL;
+static void *     tsStatusTimer = NULL;
+static uint32_t   tsRebootTime;
+static taos_qset  tsMgmtQset = NULL;
+static taos_queue tsMgmtQueue = NULL;
+static pthread_t  tsQthread;
 
-static void   dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes);
-static bool   dnodeReadMnodeInfos();
-static void   dnodeSaveMnodeInfos();
-static void   dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg);
-static bool   dnodeReadDnodeCfg();
-static void   dnodeSaveDnodeCfg();
 static void   dnodeProcessStatusRsp(SRpcMsg *pMsg);
 static void   dnodeSendStatusMsg(void *handle, void *tmrId);
 static void  *dnodeProcessMgmtQueue(void *param);
@@ -74,7 +70,7 @@ static int32_t  dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t  dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
-static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg);
+static int32_t  dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg);
 static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 
 int32_t dnodeInitMgmt() {
@@ -86,27 +82,7 @@ int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeProcessCreateMnodeMsg;
 
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP,  dnodeProcessStatusRsp);
-  dnodeReadDnodeCfg();
   tsRebootTime = taosGetTimestampSec();
-
-  if (!dnodeReadMnodeInfos()) {
-    memset(&tsDMnodeEpSet, 0, sizeof(SRpcEpSet));
-    memset(&tsDMnodeInfos, 0, sizeof(SDMMnodeInfos));
-
-    tsDMnodeEpSet.numOfEps = 1;
-    taosGetFqdnPortFromEp(tsFirst, tsDMnodeEpSet.fqdn[0], &tsDMnodeEpSet.port[0]);
-    
-    if (strcmp(tsSecond, tsFirst) != 0) {
-      tsDMnodeEpSet.numOfEps = 2;
-      taosGetFqdnPortFromEp(tsSecond, tsDMnodeEpSet.fqdn[1], &tsDMnodeEpSet.port[1]);
-    }
-  } else {
-    tsDMnodeEpSet.inUse = tsDMnodeInfos.inUse;
-    tsDMnodeEpSet.numOfEps = tsDMnodeInfos.nodeNum;
-    for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-      taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeEpSet.fqdn[i], &tsDMnodeEpSet.port[i]);
-    }
-  }
 
   int32_t code = vnodeInitResources();
   if (code != TSDB_CODE_SUCCESS) {
@@ -201,38 +177,46 @@ void dnodeCleanupMgmt() {
   vnodeCleanupResources();
 }
 
-void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
-  void *item;
-
-  item = taosAllocateQitem(sizeof(SRpcMsg));
-  if (item) {
-    memcpy(item, pMsg, sizeof(SRpcMsg));
-    taosWriteQitem(tsMgmtQueue, 1, item);
-  } else {
-    SRpcMsg rsp = {
-      .handle = pMsg->handle,
-      .pCont  = NULL,
-      .code   = TSDB_CODE_DND_OUT_OF_MEMORY
-    };
-    
-    rpcSendResponse(&rsp);
-    rpcFreeCont(pMsg->pCont);
+static int32_t dnodeWriteToMgmtQueue(SRpcMsg *pMsg) {
+  int32_t   size = sizeof(SMgmtMsg) + pMsg->contLen;
+  SMgmtMsg *pMgmt = taosAllocateQitem(size);
+  if (pMgmt == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
   }
+
+  pMgmt->rpcMsg = *pMsg;
+  pMgmt->rpcMsg.pCont = pMgmt->pCont;
+  memcpy(pMgmt->pCont, pMsg->pCont, pMsg->contLen);
+  taosWriteQitem(tsMgmtQueue, TAOS_QTYPE_RPC, pMgmt);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void dnodeDispatchToMgmtQueue(SRpcMsg *pMsg) {
+  int32_t code = dnodeWriteToMgmtQueue(pMsg);
+  if (code != TSDB_CODE_SUCCESS) {
+    SRpcMsg rsp = {.handle = pMsg->handle, .code = code};
+    rpcSendResponse(&rsp);
+  }
+
+  rpcFreeCont(pMsg->pCont);
 }
 
 static void *dnodeProcessMgmtQueue(void *param) {
-  SRpcMsg *pMsg;
-  SRpcMsg  rsp = {0};
-  int      type;
-  void *   handle;
+  SMgmtMsg *pMgmt;
+  SRpcMsg * pMsg;
+  SRpcMsg   rsp = {0};
+  int32_t   qtype;
+  void *    handle;
 
   while (1) {
-    if (taosReadQitemFromQset(tsMgmtQset, &type, (void **) &pMsg, &handle) == 0) {
+    if (taosReadQitemFromQset(tsMgmtQset, &qtype, (void **)&pMgmt, &handle) == 0) {
       dDebug("qset:%p, dnode mgmt got no message from qset, exit", tsMgmtQset);
       break;
     }
 
-    dDebug("%p, msg:%s will be processed", pMsg->ahandle, taosMsg[pMsg->msgType]);    
+    pMsg = &pMgmt->rpcMsg;
+    dDebug("msg:%p, ahandle:%p type:%s will be processed", pMgmt, pMsg->ahandle, taosMsg[pMsg->msgType]);
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {
@@ -240,10 +224,9 @@ static void *dnodeProcessMgmtQueue(void *param) {
     }
 
     rsp.handle = pMsg->handle;
-    rsp.pCont  = NULL;
+    rsp.pCont = NULL;
     rpcSendResponse(&rsp);
 
-    rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
 
@@ -381,7 +364,7 @@ static void dnodeCloseVnodes() {
 }
 
 static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
+  SCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
   pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
   pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
@@ -404,7 +387,7 @@ static void* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
+  SCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
 
   void *pVnode = vnodeAcquire(pCreate->cfg.vgId);
   if (pVnode != NULL) {
@@ -418,7 +401,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
+  SAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
 
   void *pVnode = vnodeAcquire(pAlter->cfg.vgId);
   if (pVnode != NULL) {
@@ -433,14 +416,14 @@ static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
-  SMDDropVnodeMsg *pDrop = rpcMsg->pCont;
+  SDropVnodeMsg *pDrop = rpcMsg->pCont;
   pDrop->vgId = htonl(pDrop->vgId);
 
   return vnodeDrop(pDrop->vgId);
 }
 
 static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
-//  SMDAlterStreamMsg *pStream = pCont;
+//  SAlterStreamMsg *pStream = pCont;
 //  pStream->uid    = htobe64(pStream->uid);
 //  pStream->stime  = htobe64(pStream->stime);
 //  pStream->vnode  = htonl(pStream->vnode);
@@ -453,12 +436,12 @@ static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
-  SMDCfgDnodeMsg *pCfg = pMsg->pCont;
+  SCfgDnodeMsg *pCfg = pMsg->pCont;
   return taosCfgDynamicOptions(pCfg->config);
 }
 
 static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
-  SMDCreateMnodeMsg *pCfg = pMsg->pCont;
+  SCreateMnodeMsg *pCfg = pMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   if (pCfg->dnodeId != dnodeGetDnodeId()) {
     dError("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
@@ -470,43 +453,15 @@ static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
     return TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED;
   }
 
-  dDebug("dnodeId:%d, create mnode msg is received from mnodes, numOfMnodes:%d", pCfg->dnodeId, pCfg->mnodes.nodeNum);
-  for (int i = 0; i < pCfg->mnodes.nodeNum; ++i) {
-    pCfg->mnodes.nodeInfos[i].nodeId = htonl(pCfg->mnodes.nodeInfos[i].nodeId);
-    dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.nodeInfos[i].nodeId, pCfg->mnodes.nodeInfos[i].nodeEp);
+  dDebug("dnodeId:%d, create mnode msg is received from mnodes, numOfMnodes:%d", pCfg->dnodeId, pCfg->mnodes.mnodeNum);
+  for (int i = 0; i < pCfg->mnodes.mnodeNum; ++i) {
+    pCfg->mnodes.mnodeInfos[i].mnodeId = htonl(pCfg->mnodes.mnodeInfos[i].mnodeId);
+    dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
   }
 
   dnodeStartMnode(&pCfg->mnodes);
 
   return TSDB_CODE_SUCCESS;
-}
-
-void dnodeUpdateMnodeEpSetForPeer(SRpcEpSet *pEpSet) {
-  if (pEpSet->numOfEps <= 0) {
-    dError("mnode EP list for peer is changed, but content is invalid, discard it");
-    return;
-  }
-
-  dInfo("mnode EP list for peer is changed, numOfEps:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
-  for (int i = 0; i < pEpSet->numOfEps; ++i) {
-    pEpSet->port[i] -= TSDB_PORT_DNODEDNODE;
-    dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
-  }
-
-  tsDMnodeEpSet = *pEpSet;
-}
-
-void dnodeGetMnodeEpSetForPeer(void *epSetRaw) {
-  SRpcEpSet *epSet = epSetRaw;
-  *epSet = tsDMnodeEpSet;
-
-  for (int i=0; i<epSet->numOfEps; ++i) 
-    epSet->port[i] += TSDB_PORT_DNODEDNODE;
-}
-
-void dnodeGetMnodeEpSetForShell(void *epSetRaw) {
-  SRpcEpSet *epSet = epSetRaw;
-  *epSet = tsDMnodeEpSet;
 }
 
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
@@ -516,200 +471,22 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     return;
   }
 
-  SDMStatusRsp *pStatusRsp = pMsg->pCont;
-  SDMMnodeInfos *pMnodes = &pStatusRsp->mnodes;
-  if (pMnodes->nodeNum <= 0) {
-    dError("status msg is invalid, num of ips is %d", pMnodes->nodeNum);
-    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
-    return;
-  }
+  SStatusRsp *pStatusRsp = pMsg->pCont;
+  SMnodeInfos *minfos = &pStatusRsp->mnodes;
+  dnodeUpdateMInfos(minfos);
 
-  SDMDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;
-  pCfg->numOfVnodes  = htonl(pCfg->numOfVnodes);
+  SDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;
+  pCfg->numOfVnodes = htonl(pCfg->numOfVnodes);
   pCfg->moduleStatus = htonl(pCfg->moduleStatus);
   pCfg->dnodeId = htonl(pCfg->dnodeId);
-
-  for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
-    SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
-    pMnodeInfo->nodeId   = htonl(pMnodeInfo->nodeId);
-  }
+  dnodeUpdateCfg(pCfg);
 
   vnodeSetAccess(pStatusRsp->vgAccess, pCfg->numOfVnodes);
 
-  // will not set mnode in status msg
-  // dnodeProcessModuleStatus(pCfg->moduleStatus);
-  dnodeUpdateDnodeCfg(pCfg);
+  SDnodeEps *pEps = (SDnodeEps *)((char *)pStatusRsp->vgAccess + pCfg->numOfVnodes * sizeof(SVgroupAccess));
+  dnodeUpdateEps(pEps);
 
-  dnodeUpdateMnodeInfos(pMnodes);
   taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
-}
-
-static bool dnodeCheckMnodeInfos(SDMMnodeInfos *pMnodes) {
-  if (pMnodes->nodeNum <= 0 || pMnodes->nodeNum > 3) {
-    dError("invalid mnode infos, num:%d", pMnodes->nodeNum);
-    return false;
-  }
-
-  for (int32_t i = 0; i < pMnodes->nodeNum; ++i) {
-    SDMMnodeInfo *pMnodeInfo = &pMnodes->nodeInfos[i];
-    if (pMnodeInfo->nodeId <= 0 || strlen(pMnodeInfo->nodeEp) <= 5) {
-      dError("invalid mnode info:%d, nodeId:%d nodeEp:%s", i, pMnodeInfo->nodeId, pMnodeInfo->nodeEp);
-      return false;
-    }
-  }
-
-  return true;
-}
-
-static void dnodeUpdateMnodeInfos(SDMMnodeInfos *pMnodes) {
-  bool mnodesChanged = (memcmp(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos)) != 0);
-  bool mnodesNotInit = (tsDMnodeInfos.nodeNum == 0);
-  if (!(mnodesChanged || mnodesNotInit)) return;
-
-  if (!dnodeCheckMnodeInfos(pMnodes)) return;
-
-  memcpy(&tsDMnodeInfos, pMnodes, sizeof(SDMMnodeInfos));
-  dInfo("mnode infos is changed, nodeNum:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
-  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dInfo("mnode index:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
-  }
-
-  tsDMnodeEpSet.inUse = tsDMnodeInfos.inUse;
-  tsDMnodeEpSet.numOfEps = tsDMnodeInfos.nodeNum;
-  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    taosGetFqdnPortFromEp(tsDMnodeInfos.nodeInfos[i].nodeEp, tsDMnodeEpSet.fqdn[i], &tsDMnodeEpSet.port[i]);
-  }
-
-  dnodeSaveMnodeInfos();
-  sdbUpdateAsync();
-}
-
-static bool dnodeReadMnodeInfos() {
-  char ipFile[TSDB_FILENAME_LEN*2] = {0};
-  
-  sprintf(ipFile, "%s/mnodeEpSet.json", tsDnodeDir);
-  FILE *fp = fopen(ipFile, "r");
-  if (!fp) {
-    dDebug("failed to read mnodeEpSet.json, file not exist");
-    return false;
-  }
-
-  bool  ret = false;
-  int   maxLen = 2000;
-  char *content = calloc(1, maxLen + 1);
-  int   len = fread(content, 1, maxLen, fp);
-  if (len <= 0) {
-    free(content);
-    fclose(fp);
-    dError("failed to read mnodeEpSet.json, content is null");
-    return false;
-  }
-
-  content[len] = 0;
-  cJSON* root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read mnodeEpSet.json, invalid json format");
-    goto PARSE_OVER;
-  }
-
-  cJSON* inUse = cJSON_GetObjectItem(root, "inUse");
-  if (!inUse || inUse->type != cJSON_Number) {
-    dError("failed to read mnodeEpSet.json, inUse not found");
-    goto PARSE_OVER;
-  }
-  tsDMnodeInfos.inUse = inUse->valueint;
-
-  cJSON* nodeNum = cJSON_GetObjectItem(root, "nodeNum");
-  if (!nodeNum || nodeNum->type != cJSON_Number) {
-    dError("failed to read mnodeEpSet.json, nodeNum not found");
-    goto PARSE_OVER;
-  }
-  tsDMnodeInfos.nodeNum = nodeNum->valueint;
-
-  cJSON* nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
-  if (!nodeInfos || nodeInfos->type != cJSON_Array) {
-    dError("failed to read mnodeEpSet.json, nodeInfos not found");
-    goto PARSE_OVER;
-  }
-
-  int size = cJSON_GetArraySize(nodeInfos);
-  if (size != tsDMnodeInfos.nodeNum) {
-    dError("failed to read mnodeEpSet.json, nodeInfos size not matched");
-    goto PARSE_OVER;
-  }
-
-  for (int i = 0; i < size; ++i) {
-    cJSON *nodeInfo = cJSON_GetArrayItem(nodeInfos, i);
-    if (nodeInfo == NULL) continue;
-
-    cJSON *nodeId = cJSON_GetObjectItem(nodeInfo, "nodeId");
-    if (!nodeId || nodeId->type != cJSON_Number) {
-      dError("failed to read mnodeEpSet.json, nodeId not found");
-      goto PARSE_OVER;
-    }
-    tsDMnodeInfos.nodeInfos[i].nodeId = nodeId->valueint;
-
-    cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
-    if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
-      dError("failed to read mnodeEpSet.json, nodeName not found");
-      goto PARSE_OVER;
-    }
-    strncpy(tsDMnodeInfos.nodeInfos[i].nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
-  }
-
-  ret = true;
-
-  dInfo("read mnode epSet successed, numOfEps:%d inUse:%d", tsDMnodeInfos.nodeNum, tsDMnodeInfos.inUse);
-  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    dInfo("mnode:%d, %s", tsDMnodeInfos.nodeInfos[i].nodeId, tsDMnodeInfos.nodeInfos[i].nodeEp);
-  }
-
-PARSE_OVER:
-  free(content);
-  cJSON_Delete(root);
-  fclose(fp);
-  return ret;
-}
-
-static void dnodeSaveMnodeInfos() {
-  char ipFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(ipFile, "%s/mnodeEpSet.json", tsDnodeDir);
-  FILE *fp = fopen(ipFile, "w");
-  if (!fp) return;
-
-  int32_t len = 0;
-  int32_t maxLen = 2000;
-  char *  content = calloc(1, maxLen + 1);
-
-  len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"inUse\": %d,\n", tsDMnodeInfos.inUse);
-  len += snprintf(content + len, maxLen - len, "  \"nodeNum\": %d,\n", tsDMnodeInfos.nodeNum);
-  len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
-  for (int32_t i = 0; i < tsDMnodeInfos.nodeNum; i++) {
-    len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", tsDMnodeInfos.nodeInfos[i].nodeId);
-    len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", tsDMnodeInfos.nodeInfos[i].nodeEp);
-    if (i < tsDMnodeInfos.nodeNum -1) {
-      len += snprintf(content + len, maxLen - len, "  },{\n");  
-    } else {
-      len += snprintf(content + len, maxLen - len, "  }]\n");  
-    }
-  }
-  len += snprintf(content + len, maxLen - len, "}\n"); 
-
-  fwrite(content, 1, len, fp);
-  fflush(fp);
-  fclose(fp);
-  free(content);
-  
-  dInfo("save mnode epSet successed");
-}
-
-char *dnodeGetMnodeMasterEp() {
-  return tsDMnodeInfos.nodeInfos[tsDMnodeEpSet.inUse].nodeEp;
-}
-
-void* dnodeGetMnodeInfos() {
-  return &tsDMnodeInfos;
 }
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId) {
@@ -724,22 +501,21 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-  int32_t contLen = sizeof(SDMStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
-  SDMStatusMsg *pStatus = rpcMallocCont(contLen);
+  int32_t contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
+  SStatusMsg *pStatus = rpcMallocCont(contLen);
   if (pStatus == NULL) {
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     dError("failed to malloc status message");
     return;
   }
 
-  //strcpy(pStatus->dnodeName, tsDnodeName);
+  dnodeGetCfg(&pStatus->dnodeId, pStatus->clusterId);
+  pStatus->dnodeId          = htonl(dnodeGetDnodeId());
   pStatus->version          = htonl(tsVersion);
-  pStatus->dnodeId          = htonl(tsDnodeCfg.dnodeId);
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
   pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
-  tstrncpy(pStatus->clusterId, tsDnodeCfg.clusterId, TSDB_CLUSTER_ID_LEN);
   tstrncpy(pStatus->dnodeEp, tsLocalEp, TSDB_EP_LEN);
 
   // fill cluster cfg parameters
@@ -759,7 +535,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);  
   
   vnodeBuildStatusMsg(pStatus);
-  contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
+  contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
   
   SRpcMsg rpcMsg = {
@@ -769,99 +545,8 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   };
 
   SRpcEpSet epSet;
-  dnodeGetMnodeEpSetForPeer(&epSet);
+  dnodeGetEpSetForPeer(&epSet);
   dnodeSendMsgToDnode(&epSet, &rpcMsg);
-}
-
-static bool dnodeReadDnodeCfg() {
-  char dnodeCfgFile[TSDB_FILENAME_LEN*2] = {0};
-  
-  sprintf(dnodeCfgFile, "%s/dnodeCfg.json", tsDnodeDir);
-
-  FILE *fp = fopen(dnodeCfgFile, "r");
-  if (!fp) {
-    dDebug("failed to read dnodeCfg.json, file not exist");
-    return false;
-  }
-
-  bool  ret = false;
-  int   maxLen = 100;
-  char *content = calloc(1, maxLen + 1);
-  int   len = fread(content, 1, maxLen, fp);
-  if (len <= 0) {
-    free(content);
-    fclose(fp);
-    dError("failed to read dnodeCfg.json, content is null");
-    return false;
-  }
-
-  content[len] = 0;
-  cJSON* root = cJSON_Parse(content);
-  if (root == NULL) {
-    dError("failed to read dnodeCfg.json, invalid json format");
-    goto PARSE_CFG_OVER;
-  }
-
-  cJSON* dnodeId = cJSON_GetObjectItem(root, "dnodeId");
-  if (!dnodeId || dnodeId->type != cJSON_Number) {
-    dError("failed to read dnodeCfg.json, dnodeId not found");
-    goto PARSE_CFG_OVER;
-  }
-  tsDnodeCfg.dnodeId = dnodeId->valueint;
-
-  cJSON* clusterId = cJSON_GetObjectItem(root, "clusterId");
-  if (!clusterId || clusterId->type != cJSON_String) {
-    dError("failed to read dnodeCfg.json, clusterId not found");
-    goto PARSE_CFG_OVER;
-  }
-  tstrncpy(tsDnodeCfg.clusterId, clusterId->valuestring, TSDB_CLUSTER_ID_LEN);
-
-  ret = true;
-
-  dInfo("read numOfVnodes successed, dnodeId:%d", tsDnodeCfg.dnodeId);
-
-PARSE_CFG_OVER:
-  free(content);
-  cJSON_Delete(root);
-  fclose(fp);
-  return ret;
-}
-
-static void dnodeSaveDnodeCfg() {
-  char dnodeCfgFile[TSDB_FILENAME_LEN] = {0};
-  sprintf(dnodeCfgFile, "%s/dnodeCfg.json", tsDnodeDir);
-
-  FILE *fp = fopen(dnodeCfgFile, "w");
-  if (!fp) return;
-
-  int32_t len = 0;
-  int32_t maxLen = 200;
-  char *  content = calloc(1, maxLen + 1);
-
-  len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", tsDnodeCfg.dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%s\"\n", tsDnodeCfg.clusterId);
-  len += snprintf(content + len, maxLen - len, "}\n");
-
-  fwrite(content, 1, len, fp);
-  fflush(fp);
-  fclose(fp);
-  free(content);
-  
-  dInfo("save dnodeId successed");
-}
-
-void dnodeUpdateDnodeCfg(SDMDnodeCfg *pCfg) {
-  if (tsDnodeCfg.dnodeId == 0) {
-    dInfo("dnodeId is set to %d, clusterId is set to %s", pCfg->dnodeId, pCfg->clusterId);  
-    tsDnodeCfg.dnodeId = pCfg->dnodeId;
-    tstrncpy(tsDnodeCfg.clusterId, pCfg->clusterId, TSDB_CLUSTER_ID_LEN);
-    dnodeSaveDnodeCfg();
-  }
-}
-
-int32_t dnodeGetDnodeId() {
-  return tsDnodeCfg.dnodeId;
 }
 
 void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
@@ -870,9 +555,9 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
 
   SRpcEpSet epSet = {0};
   if (forShell) {
-    dnodeGetMnodeEpSetForShell(&epSet);
+    dnodeGetEpSetForShell(&epSet);
   } else {
-    dnodeGetMnodeEpSetForPeer(&epSet);
+    dnodeGetEpSetForPeer(&epSet);
   }
   
   dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfEps:%d inUse:%d", taosMsg[rpcMsg->msgType],

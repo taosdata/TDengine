@@ -64,7 +64,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   // release flush out info link
   SExtFileInfo *pFileMeta = &pMemBuffer->fileMeta;
   if (pFileMeta->flushoutData.nAllocSize != 0 && pFileMeta->flushoutData.pFlushoutInfo != NULL) {
-    taosTFree(pFileMeta->flushoutData.pFlushoutInfo);
+    tfree(pFileMeta->flushoutData.pFlushoutInfo);
   }
 
   // release all in-memory buffer pages
@@ -72,7 +72,7 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   while (pFilePages != NULL) {
     tFilePagesItem *pTmp = pFilePages;
     pFilePages = pFilePages->pNext;
-    taosTFree(pTmp);
+    tfree(pTmp);
   }
 
   // close temp file
@@ -87,8 +87,8 @@ void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
 
   destroyColumnModel(pMemBuffer->pColumnModel);
 
-  taosTFree(pMemBuffer->path);
-  taosTFree(pMemBuffer);
+  tfree(pMemBuffer->path);
+  tfree(pMemBuffer);
   
   return NULL;
 }
@@ -275,7 +275,7 @@ int32_t tExtMemBufferFlush(tExtMemBuffer *pMemBuffer) {
     tFilePagesItem *ptmp = first;
     first = first->pNext;
 
-    taosTFree(ptmp);  // release all data in memory buffer
+    tfree(ptmp);  // release all data in memory buffer
   }
 
   fflush(pMemBuffer->file);  // flush to disk
@@ -300,7 +300,7 @@ void tExtMemBufferClear(tExtMemBuffer *pMemBuffer) {
   while (first != NULL) {
     tFilePagesItem *ptmp = first;
     first = first->pNext;
-    taosTFree(ptmp);
+    tfree(ptmp);
   }
 
   pMemBuffer->fileMeta.numOfElemsInFile = 0;
@@ -343,8 +343,6 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
   if (f1 == f2) {
     return 0;
   }
-
-  assert(colIdx == 0);
 
   if (tsOrder == TSDB_ORDER_DESC) {  // primary column desc order
     return (f1 < f2) ? 1 : -1;
@@ -804,7 +802,7 @@ void destroyColumnModel(SColumnModel *pModel) {
     return;
   }
 
-  taosTFree(pModel);
+  tfree(pModel);
 }
 
 static void printBinaryData(char *data, int32_t len) {
@@ -1089,5 +1087,5 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
   }
 
   destroyColumnModel(pDesc->pColumnModel);
-  taosTFree(pDesc);
+  tfree(pDesc);
 }

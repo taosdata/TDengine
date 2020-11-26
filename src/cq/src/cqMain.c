@@ -39,16 +39,16 @@
 #define cTrace(...) { if (cqDebugFlag & DEBUG_TRACE) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
-  int      vgId;
+  int32_t  vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
   void    *ahandle;
-  int      num;      // number of continuous streams
+  int32_t  num;      // number of continuous streams
   struct SCqObj *pHead;
   void    *dbConn;
-  int      master;
+  int32_t  master;
   void    *tmrCtrl;
   pthread_mutex_t mutex;
 } SCqContext;
@@ -57,7 +57,7 @@ typedef struct SCqObj {
   tmr_h          tmrId;
   uint64_t       uid;
   int32_t        tid;      // table ID
-  int            rowSize;  // bytes of a row
+  int32_t        rowSize;  // bytes of a row
   char *         sqlStr;   // SQL string
   STSchema *     pSchema;  // pointer to schema array
   void *         pStream;
@@ -115,7 +115,7 @@ void cqClose(void *handle) {
     SCqObj *pTemp = pObj;
     pObj = pObj->next;
     tdFreeSchema(pTemp->pSchema);
-    taosTFree(pTemp->sqlStr);
+    tfree(pTemp->sqlStr);
     free(pTemp);
   } 
   
@@ -175,7 +175,7 @@ void cqStop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
-void *cqCreate(void *handle, uint64_t uid, int tid, char *sqlStr, STSchema *pSchema) {
+void *cqCreate(void *handle, uint64_t uid, int32_t tid, char *sqlStr, STSchema *pSchema) {
   SCqContext *pContext = handle;
 
   SCqObj *pObj = calloc(sizeof(SCqObj), 1);
@@ -237,7 +237,7 @@ void cqDrop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
-static void doCreateStream(void *param, TAOS_RES *result, int code) {
+static void doCreateStream(void *param, TAOS_RES *result, int32_t code) {
   SCqObj* pObj = (SCqObj*)param;
   SCqContext* pContext = pObj->pContext;
   SSqlObj* pSql = (SSqlObj*)result;
@@ -288,7 +288,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   cDebug("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
-  int size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
+  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
@@ -334,7 +334,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pHead->version = 0;
 
   // write into vnode write queue
-  pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ);
+  pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ, NULL);
   free(buffer);
 }
 

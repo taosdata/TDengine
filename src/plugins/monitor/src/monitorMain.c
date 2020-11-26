@@ -27,12 +27,12 @@
 #include "monitor.h"
 #include "taoserror.h"
 
-#define monitorFatal(...) { if (monitorDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", 255, __VA_ARGS__); }}
-#define monitorError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", 255, __VA_ARGS__); }}
-#define monitorWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN ", 255, __VA_ARGS__); }}
-#define monitorInfo(...)  { if (monitorDebugFlag & DEBUG_INFO)  { taosPrintLog("MON ", 255, __VA_ARGS__); }}
-#define monitorDebug(...) { if (monitorDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
-#define monitorTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
+#define mnFatal(...) { if (monitorDebugFlag & DEBUG_FATAL) { taosPrintLog("MON FATAL ", 255, __VA_ARGS__); }}
+#define mnError(...) { if (monitorDebugFlag & DEBUG_ERROR) { taosPrintLog("MON ERROR ", 255, __VA_ARGS__); }}
+#define mnWarn(...)  { if (monitorDebugFlag & DEBUG_WARN)  { taosPrintLog("MON WARN ", 255, __VA_ARGS__); }}
+#define mnInfo(...)  { if (monitorDebugFlag & DEBUG_INFO)  { taosPrintLog("MON ", 255, __VA_ARGS__); }}
+#define mnDebug(...) { if (monitorDebugFlag & DEBUG_DEBUG) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
+#define mnTrace(...) { if (monitorDebugFlag & DEBUG_TRACE) { taosPrintLog("MON ", monitorDebugFlag, __VA_ARGS__); }}
 
 #define SQL_LENGTH     1030
 #define LOG_LEN_STR    100
@@ -91,12 +91,12 @@ int32_t monitorInitSystem() {
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (pthread_create(&tsMonitor.thread, &thAttr, monitorThreadFunc, NULL)) {
-    monitorError("failed to create thread to for monitor module, reason:%s", strerror(errno));
+    mnError("failed to create thread to for monitor module, reason:%s", strerror(errno));
     return -1;
   }
 
   pthread_attr_destroy(&thAttr);
-  monitorDebug("monitor thread is launched");
+  mnDebug("monitor thread is launched");
 
   monitorStartSystemFp = monitorStartSystem;
   monitorStopSystemFp = monitorStopSystem;
@@ -107,12 +107,12 @@ int32_t monitorStartSystem() {
   taos_init();
   tsMonitor.start = 1;
   monitorExecuteSQLFp = monitorExecuteSQL;
-  monitorInfo("monitor module start");
+  mnInfo("monitor module start");
   return 0;
 }
 
 static void *monitorThreadFunc(void *param) {
-  monitorDebug("starting to initialize monitor module ...");
+  mnDebug("starting to initialize monitor module ...");
 
   while (1) {
     static int32_t accessTimes = 0;
@@ -121,7 +121,7 @@ static void *monitorThreadFunc(void *param) {
 
     if (tsMonitor.quiting) {
       tsMonitor.state = MON_STATE_NOT_INIT;
-      monitorInfo("monitor thread will quit, for taosd is quiting");
+      mnInfo("monitor thread will quit, for taosd is quiting");
       break;
     } else {
       taosGetDisk();
@@ -132,7 +132,7 @@ static void *monitorThreadFunc(void *param) {
     }
     
     if (dnodeGetDnodeId() <= 0) {
-      monitorDebug("dnode not initialized, waiting for 3000 ms to start monitor module");
+      mnDebug("dnode not initialized, waiting for 3000 ms to start monitor module");
       continue;
     }
 
@@ -140,29 +140,31 @@ static void *monitorThreadFunc(void *param) {
       tsMonitor.state = MON_STATE_NOT_INIT;
       tsMonitor.conn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
       if (tsMonitor.conn == NULL) {
-        monitorError("failed to connect to database, reason:%s", tstrerror(terrno));
+        mnError("failed to connect to database, reason:%s", tstrerror(terrno));
         continue;
       } else {
-        monitorDebug("connect to database success");
+        mnDebug("connect to database success");
       }
     }
 
     if (tsMonitor.state == MON_STATE_NOT_INIT) {
+      int code = 0;
+
       for (; tsMonitor.cmdIndex < MON_CMD_MAX; ++tsMonitor.cmdIndex) {
         monitorBuildMonitorSql(tsMonitor.sql, tsMonitor.cmdIndex);
         void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-        int   code = taos_errno(res);
+        code = taos_errno(res);
         taos_free_result(res);
 
         if (code != 0) {
-          monitorError("failed to exec sql:%s, reason:%s", tsMonitor.sql, tstrerror(code));
+          mnError("failed to exec sql:%s, reason:%s", tsMonitor.sql, tstrerror(code));
           break;
         } else {
-          monitorDebug("successfully to exec sql:%s", tsMonitor.sql);
+          mnDebug("successfully to exec sql:%s", tsMonitor.sql);
         }
       }
 
-      if (tsMonitor.start) {
+      if (tsMonitor.start && code == 0) {
         tsMonitor.state = MON_STATE_INITED;
       }
     }
@@ -174,7 +176,7 @@ static void *monitorThreadFunc(void *param) {
     }
   }
 
-  monitorInfo("monitor thread is stopped");
+  mnInfo("monitor thread is stopped");
   return NULL;
 }
 
@@ -238,7 +240,7 @@ void monitorStopSystem() {
   tsMonitor.start = 0;
   tsMonitor.state = MON_STATE_NOT_INIT;
   monitorExecuteSQLFp = NULL;
-  monitorInfo("monitor module stopped");
+  mnInfo("monitor module stopped");
 }
 
 void monitorCleanUpSystem() {
@@ -249,7 +251,7 @@ void monitorCleanUpSystem() {
     taos_close(tsMonitor.conn);
     tsMonitor.conn = NULL;
   }
-  monitorInfo("monitor module is cleaned up");
+  mnInfo("monitor module is cleaned up");
 }
 
 // unit is MB
@@ -257,13 +259,13 @@ static int32_t monitorBuildMemorySql(char *sql) {
   float sysMemoryUsedMB = 0;
   bool  suc = taosGetSysMemory(&sysMemoryUsedMB);
   if (!suc) {
-    monitorDebug("failed to get sys memory info");
+    mnDebug("failed to get sys memory info");
   }
 
   float procMemoryUsedMB = 0;
   suc = taosGetProcMemory(&procMemoryUsedMB);
   if (!suc) {
-    monitorDebug("failed to get proc memory info");
+    mnDebug("failed to get proc memory info");
   }
 
   return sprintf(sql, ", %f, %f, %d", procMemoryUsedMB, sysMemoryUsedMB, tsTotalMemoryMB);
@@ -274,7 +276,7 @@ static int32_t monitorBuildCpuSql(char *sql) {
   float sysCpuUsage = 0, procCpuUsage = 0;
   bool  suc = taosGetCpuUsage(&sysCpuUsage, &procCpuUsage);
   if (!suc) {
-    monitorDebug("failed to get cpu usage");
+    mnDebug("failed to get cpu usage");
   }
 
   if (sysCpuUsage <= procCpuUsage) {
@@ -294,14 +296,14 @@ static int32_t monitorBuildBandSql(char *sql) {
   float bandSpeedKb = 0;
   bool  suc = taosGetBandSpeed(&bandSpeedKb);
   if (!suc) {
-    monitorDebug("failed to get bandwidth speed");
+    mnDebug("failed to get bandwidth speed");
   }
 
   return sprintf(sql, ", %f", bandSpeedKb);
 }
 
 static int32_t monitorBuildReqSql(char *sql) {
-  SDnodeStatisInfo info = dnodeGetStatisInfo();
+  SStatisInfo info = dnodeGetStatisInfo();
   return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
@@ -309,7 +311,7 @@ static int32_t monitorBuildIoSql(char *sql) {
   float readKB = 0, writeKB = 0;
   bool  suc = taosGetProcIO(&readKB, &writeKB);
   if (!suc) {
-    monitorDebug("failed to get io info");
+    mnDebug("failed to get io info");
   }
 
   return sprintf(sql, ", %f, %f", readKB, writeKB);
@@ -332,19 +334,19 @@ static void monitorSaveSystemInfo() {
   taos_free_result(res);
 
   if (code != 0) {
-    monitorError("failed to save system info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
+    mnError("failed to save system info, reason:%s, sql:%s", tstrerror(code), tsMonitor.sql);
   } else {
-    monitorDebug("successfully to save system info, sql:%s", tsMonitor.sql);
+    mnDebug("successfully to save system info, sql:%s", tsMonitor.sql);
   }
 }
 
 static void montiorExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
   int32_t c = taos_errno(result);
   if (c != TSDB_CODE_SUCCESS) {
-    monitorError("save %s failed, reason:%s", (char *)param, tstrerror(c));
+    mnError("save %s failed, reason:%s", (char *)param, tstrerror(c));
   } else {
     int32_t rows = taos_affected_rows(result);
-    monitorDebug("save %s succ, rows:%d", (char *)param, rows);
+    mnDebug("save %s succ, rows:%d", (char *)param, rows);
   }
 
   taos_free_result(result);
@@ -380,7 +382,7 @@ void monitorSaveAcctLog(SAcctMonitorObj *pMon) {
           pMon->totalConns, pMon->maxConns,
           pMon->accessState);
 
-  monitorDebug("save account info, sql:%s", sql);
+  mnDebug("save account info, sql:%s", sql);
   taos_query_a(tsMonitor.conn, sql, montiorExecSqlCb, "account info");
 }
 
@@ -401,13 +403,13 @@ void monitorSaveLog(int32_t level, const char *const format, ...) {
   len += sprintf(sql + len, "', '%s')", tsLocalEp);
   sql[len++] = 0;
 
-  monitorDebug("save log, sql: %s", sql);
+  mnDebug("save log, sql: %s", sql);
   taos_query_a(tsMonitor.conn, sql, montiorExecSqlCb, "log");
 }
 
 void monitorExecuteSQL(char *sql) {
   if (tsMonitor.state != MON_STATE_INITED) return;
 
-  monitorDebug("execute sql:%s", sql);
+  mnDebug("execute sql:%s", sql);
   taos_query_a(tsMonitor.conn, sql, montiorExecSqlCb, "sql");
 }

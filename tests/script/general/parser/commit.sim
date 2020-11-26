@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxTablesperVnode -v 100
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = sc_db
@@ -50,8 +50,7 @@ while $i < $halfNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) 
-    sql insert into $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar ) 
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )  $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
     $x = $x + 1
   endw 
 
@@ -83,12 +82,12 @@ endw
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
-system sh/exec.sh -n dnode1 -s start
 sleep 3000
+system sh/exec.sh -n dnode1 -s start
+sleep 500
 print ================== server restart completed
 sql connect
-sleep 3000
+sleep 500
 
 print ====== select from table and check num of rows returned
 sql use $db

@@ -86,7 +86,8 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   if (pTable != NULL) {
     tsdbError("vgId:%d table %s already exists, tid %d uid %" PRId64, REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
               TABLE_TID(pTable), TABLE_UID(pTable));
-    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    goto _err;
   }
 
   if (pCfg->type == TSDB_CHILD_TABLE) {
@@ -191,7 +192,7 @@ int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
   return 0;
 
 _err:
-  taosTFree(tbname);
+  tfree(tbname);
   return -1;
 }
 
@@ -461,7 +462,7 @@ void tsdbFreeMeta(STsdbMeta *pMeta) {
   if (pMeta) {
     taosHashCleanup(pMeta->uidMap);
     tdListFree(pMeta->superList);
-    taosTFree(pMeta->tables);
+    tfree(pMeta->tables);
     pthread_rwlock_destroy(&pMeta->rwLock);
     free(pMeta);
   }
@@ -485,11 +486,11 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
   }
 
   tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
-  taosTFree(fname);
+  tfree(fname);
   return 0;
 
 _err:
-  taosTFree(fname);
+  tfree(fname);
   return -1;
 }
 
@@ -562,12 +563,12 @@ int tsdbUnlockRepoMeta(STsdbRepo *pRepo) {
 void tsdbRefTable(STable *pTable) {
   int32_t ref = T_REF_INC(pTable);
   UNUSED(ref);
-  // tsdbDebug("ref table %"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  tsdbDebug("ref table %s uid %" PRIu64 " tid:%d, refCount:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), ref);
 }
 
 void tsdbUnRefTable(STable *pTable) {
   int32_t ref = T_REF_DEC(pTable);
-  tsdbDebug("unref table uid:%"PRIu64", tid:%d, refCount:%d", TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  tsdbDebug("unref table %s uid:%"PRIu64" tid:%d, refCount:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), ref);
 
   if (ref == 0) {
     // tsdbDebug("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
@@ -643,7 +644,7 @@ static void tsdbOrgMeta(void *pHandle) {
 }
 
 static char *getTagIndexKey(const void *pData) {
-  STable *pTable = *(STable **)pData;
+  STable *pTable = (STable *)pData;
 
   STSchema *pSchema = tsdbGetTableTagSchema(pTable);
   STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
@@ -700,7 +701,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
     }
     pTable->tagVal = NULL;
     STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
+    pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL, SL_ALLOW_DUP_KEY, getTagIndexKey);
     if (pTable->pIndex == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       goto _err;
@@ -745,7 +746,7 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
 
   T_REF_INC(pTable);
 
-  tsdbTrace("table %s tid %d uid %" PRIu64 " is created", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
+  tsdbDebug("table %s tid %d uid %" PRIu64 " is created", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
             TABLE_UID(pTable));
 
   return pTable;
@@ -760,7 +761,7 @@ static void tsdbFreeTable(STable *pTable) {
     if (pTable->name != NULL)
       tsdbTrace("table %s tid %d uid %" PRIu64 " is freed", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable),
                 TABLE_UID(pTable));
-    taosTFree(TABLE_NAME(pTable));
+    tfree(TABLE_NAME(pTable));
     if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
       for (int i = 0; i < TSDB_MAX_TABLE_SCHEMAS; i++) {
         tdFreeSchema(pTable->schema[i]);
@@ -774,7 +775,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
-    taosTFree(pTable->sql);
+    tfree(pTable->sql);
     free(pTable);
   }
 }
@@ -889,7 +890,7 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   }
 
   if (lock) tsdbUnlockRepoMeta(pRepo);
-  tsdbDebug("vgId:%d table %s is removed from meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
+  tsdbDebug("vgId:%d table %s uid %" PRIu64 " is removed from meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_UID(pTable));
   tsdbUnRefTable(pTable);
 }
 
@@ -900,23 +901,8 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
 
   pTable->pSuper = pSTable;
 
-  int32_t level = 0;
-  int32_t headSize = 0;
+  tSkipListPut(pSTable->pIndex, (void *)pTable);
 
-  tSkipListNewNodeInfo(pSTable->pIndex, &level, &headSize);
-
-  // NOTE: do not allocate the space for key, since in each skip list node, only keep the pointer to pTable, not the
-  // actual key value, and the key value will be retrieved during query through the pTable and getTagIndexKey function
-  SSkipListNode *pNode = calloc(1, headSize + sizeof(STable *));
-  if (pNode == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-  pNode->level = level;
-
-  memcpy(SL_GET_NODE_DATA(pNode), &pTable, sizeof(STable *));
-
-  tSkipListPut(pSTable->pIndex, pNode);
   if (refSuper) T_REF_INC(pSTable);
   return 0;
 }
@@ -940,7 +926,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
     SSkipListNode *pNode = taosArrayGetP(res, i);
 
     // STableIndexElem* pElem = (STableIndexElem*) SL_GET_NODE_DATA(pNode);
-    if (*(STable **)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
+    if ((STable *)SL_GET_NODE_DATA(pNode) == pTable) {  // this is the exact what we need
       tSkipListRemoveNode(pSTable->pIndex, pNode);
     }
   }
@@ -1080,9 +1066,9 @@ void tsdbClearTableCfg(STableCfg *config) {
     if (config->schema) tdFreeSchema(config->schema);
     if (config->tagSchema) tdFreeSchema(config->tagSchema);
     if (config->tagValues) kvRowFree(config->tagValues);
-    taosTFree(config->name);
-    taosTFree(config->sname);
-    taosTFree(config->sql);
+    tfree(config->name);
+    tfree(config->sname);
+    tfree(config->sql);
     free(config);
   }
 }
@@ -1170,8 +1156,8 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       buf = tdDecodeSchema(buf, &(pTable->tagSchema));
       STColumn *pCol = schemaColAt(pTable->tagSchema, DEFAULT_TAG_INDEX_COLUMN);
-      pTable->pIndex =
-          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), 1, 0, 1, getTagIndexKey);
+      pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
+                                       SL_ALLOW_DUP_KEY, getTagIndexKey);
       if (pTable->pIndex == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tsdbFreeTable(pTable);
@@ -1197,7 +1183,7 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (tSkipListGetSize(pTable->pIndex) + 1));
+      tlen = (int)((sizeof(SListNode) + sizeof(SActObj)) * (SL_SIZE(pTable->pIndex) + 1));
     } else {
       tlen = sizeof(SListNode) + sizeof(SActObj);
     }
@@ -1244,7 +1230,7 @@ static int tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable) {
     }
 
     while (tSkipListIterNext(pIter)) {
-      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
       ASSERT(TABLE_TYPE(tTable) == TSDB_CHILD_TABLE);
       pBuf = tsdbInsertTableAct(pRepo, TSDB_DROP_META, pBuf, tTable);
     }
@@ -1269,7 +1255,7 @@ static int tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable) {
     tsdbWLockRepoMeta(pRepo);
 
     while (tSkipListIterNext(pIter)) {
-      STable *tTable = *(STable **)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
+      STable *tTable = (STable *)SL_GET_NODE_DATA(tSkipListIterGet(pIter));
       tsdbRemoveTableFromMeta(pRepo, tTable, false, false);
     }
 
@@ -1304,7 +1290,7 @@ static int tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid) {
 
   STable **tTables = pMeta->tables;
   pMeta->tables = tables;
-  taosTFree(tTables);
+  tfree(tTables);
   tsdbDebug("vgId:%d tsdb meta maxTables is adjusted as %d", REPO_ID(pRepo), maxTables);
 
   return 0;

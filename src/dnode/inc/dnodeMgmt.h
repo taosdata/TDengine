@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "trpc.h"
+
 int32_t dnodeInitMgmt();
 void    dnodeCleanupMgmt();
 int32_t dnodeInitMgmtTimer();
@@ -35,8 +37,8 @@ void*   dnodeGetVnodeTsdb(void *pVnode);
 void    dnodeReleaseVnode(void *pVnode);
 
 void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
-void    dnodeGetMnodeEpSetForPeer(void *epSet);
-void    dnodeGetMnodeEpSetForShell(void *epSet);
+void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
+void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 
 #ifdef __cplusplus
 }

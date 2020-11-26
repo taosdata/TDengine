@@ -616,6 +616,43 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
 - httpDebugFlag: 日志开关，131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认131
 
+## CSharp Connector
+
+在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+
+#### 安装TDengine客户端
+
+C#连接器需要使用`libtaos.so`和`taos.h`。因此，在使用C#连接器之前，需在程序运行的Windows环境安装TDengine的Windows客户端，以便获得相关驱动文件。
+
+安装完成后，在文件夹`C:/TDengine/examples/C#`中，将会看到两个文件
+
+- TDengineDriver.cs 调用taos.dll文件的Native C方法
+- TDengineTest.cs 参考程序示例
+
+在文件夹`C:\Windows\System32`，将会看到`taos.dll`文件
+
+#### 使用方法
+
+- 将C#接口文件TDengineDriver.cs加入到应用程序所在.NET项目中
+- 参考TDengineTest.cs来定义数据库连接参数，及执行数据插入、查询等操作的方法
+- 因为C#接口需要用到`taos.dll`文件，用户可以将`taos.dll`文件加入.NET解决方案中
+
+#### 注意事项
+
+- `taos.dll`文件使用x64平台编译，所以.NET项目在生成.exe文件时，“解决方案”/“项目”的“平台”请均选择“x64”。
+- 此.NET接口目前已经在Visual Studio 2013/2015/2017中验证过，其它VS版本尚待验证。
+
+#### 第三方驱动
+
+Maikebing.Data.Taos是一个TDengine的ADO.Net提供器，支持linux，windows。该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
+
+```
+//接口下载
+https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos   
+//用法说明    
+https://www.taosdata.com/blog/2020/11/02/1901.html                    
+```
+
 
 ## Go Connector
 

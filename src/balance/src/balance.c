@@ -490,7 +490,7 @@ static bool balanceMontiorDropping() {
 
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
       if (pDnode->lastAccess + tsOfflineThreshold > tsAccessSquence) continue;
-      if (strcmp(pDnode->dnodeEp, dnodeGetMnodeMasterEp()) == 0) continue; 
+      if (dnodeIsMasterEp(pDnode->dnodeEp)) continue; 
       if (mnodeGetDnodesNum() <= 1) continue;
 
       mLInfo("dnode:%d, set to removing state for it offline:%d seconds", pDnode->dnodeId,
@@ -571,8 +571,8 @@ static void balanceCheckDnodeAccess() {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;
-        mInfo("dnode:%d, set to offline state, access seq:%d, last seq:%d", pDnode->dnodeId, tsAccessSquence,
-              pDnode->lastAccess);
+        mInfo("dnode:%d, set to offline state, access seq:%d last seq:%d laststat:%d", pDnode->dnodeId, tsAccessSquence,
+              pDnode->lastAccess, pDnode->status);
         balanceSetVgroupOffline(pDnode);
       }
     }

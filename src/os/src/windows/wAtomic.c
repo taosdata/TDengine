@@ -44,7 +44,7 @@ long interlocked_add_fetch_32(long volatile* ptr, long val) {
 
 __int64 interlocked_add_fetch_64(__int64 volatile* ptr, __int64 val) {
 //#ifdef _WIN64
-  return _InterlockedExchangeAdd64(ptr, val) + val;
+  return InterlockedExchangeAdd64(ptr, val) + val;
 //#else
 //  return _InterlockedExchangeAdd(ptr, val) + val;
 //#endif

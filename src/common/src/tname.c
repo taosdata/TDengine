@@ -188,3 +188,14 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
     pToken->z = r;
   }
 }
+
+SSchema tscGetTbnameColumnSchema() {
+  struct SSchema s = {
+      .colId = TSDB_TBNAME_COLUMN_INDEX,
+      .type  = TSDB_DATA_TYPE_BINARY,
+      .bytes = TSDB_TABLE_NAME_LEN
+  };
+
+  strcpy(s.name, TSQL_TBNAME_L);
+  return s;
+}

@@ -96,9 +96,9 @@ int32_t mnodeStartSystem() {
     return -1;
   }
 
-  dnodeAllocateMnodeWqueue();
-  dnodeAllocateMnodeRqueue();
-  dnodeAllocateMnodePqueue();
+  dnodeAllocMWritequeue();
+  dnodeAllocMReadQueue();
+  dnodeAllocateMPeerQueue();
 
   if (mnodeInitComponents() != 0) {
     return -1;
@@ -127,9 +127,9 @@ void mnodeCleanupSystem() {
     mInfo("starting to clean up mnode");
     tsMgmtIsRunning = false;
 
-    dnodeFreeMnodeWqueue();
-    dnodeFreeMnodeRqueue();
-    dnodeFreeMnodePqueue();
+    dnodeFreeMWritequeue();
+    dnodeFreeMReadQueue();
+    dnodeFreeMPeerQueue();
     mnodeCleanupTimer();
     mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
 

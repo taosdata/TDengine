@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 2000
 sql connect
-sleep 3000
+sleep 500
 print ======================== dnode1 start
 
 sql create database mul_db

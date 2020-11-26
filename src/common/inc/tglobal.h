@@ -44,13 +44,18 @@ extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
 extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
-extern float    tsRatioOfQueryThreads;
+extern int32_t  tsNumOfCommitThreads;
+extern float    tsRatioOfQueryThreads;  // todo remove it
 extern int8_t   tsDaylight;
 extern char     tsTimezone[];
 extern char     tsLocale[];
-extern char     tsCharset[];  // default encode string
+extern char     tsCharset[];            // default encode string
 extern int32_t  tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern char     tsTempDir[];
+
+//query buffer management
+extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
 
 // client
 extern int32_t tsTableMetaKeepTimer;
@@ -84,6 +89,7 @@ extern int16_t tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
 extern int32_t tsQuorum;
+extern int32_t tsUpdate;
 
 // balance
 extern int32_t tsEnableBalance;
@@ -180,13 +186,13 @@ extern int32_t debugFlag;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
-void taosInitGlobalCfg();
-bool taosCheckGlobalCfg();
-void taosSetAllDebugFlag();
-bool taosCfgDynamicOptions(char *msg);
-int  taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
-bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
- 
+void    taosInitGlobalCfg();
+int32_t taosCheckGlobalCfg();
+void    taosSetAllDebugFlag();
+bool    taosCfgDynamicOptions(char *msg);
+int     taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
+bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
+
 #ifdef __cplusplus
 }
 #endif
