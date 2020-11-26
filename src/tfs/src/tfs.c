@@ -265,14 +265,14 @@ int  tfscopy(TFILE *sf, TFILE *df) {
   return 0;
 }
 
-void tfsbasename(TFILE *pf, char *dest) {
+void tfsbasename(const TFILE *pf, char *dest) {
   char tname[TSDB_FILENAME_LEN] = "\0";
 
   strncpy(tname, pf->aname, TSDB_FILENAME_LEN);
   strncpy(dest, basename(tname), TSDB_FILENAME_LEN);
 }
 
-void tfsdirname(TFILE *pf, char *dest) {
+void tfsdirname(const TFILE *pf, char *dest) {
   char tname[TSDB_FILENAME_LEN] = "\0";
 
   strncpy(tname, pf->aname, TSDB_FILENAME_LEN);

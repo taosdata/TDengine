@@ -55,7 +55,7 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayPush(SArray* pArray, void* pData) {
+void* taosArrayPush(SArray* pArray, const void* pData) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }

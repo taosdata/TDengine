@@ -100,7 +100,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     int  count = 0;
 
     TFILE *pf = taosArrayGet(pfArray, iter);
-    tsdbParseFname(pf, bname);
+    tfsbasename(pf, bname);
     tsdbParseFname(bname, &vid, &fid, suffix);
     count++;
     iter++;
@@ -108,7 +108,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
     while (true) {
       int nfid = 0;
       TFILE *npf = taosArrayGet(pfArray, iter);
-      tsdbParseFname(npf, bname);
+      tfsbasename(npf, bname);
       tsdbParseFname(bname, &vid, &nfid, suffix);
 
       if (nfid != fid) break;
@@ -518,7 +518,6 @@ static void *tsdbScanAllFiles(STsdbRepo *pRepo) {
   TDIR *       tdir = NULL;
   char         dirName[TSDB_FILENAME_LEN] = "\0";
   char         bname[TSDB_FILENAME_LEN] = "\0";
-  int          arraySize = 0;
   regex_t      regex1 = {0};
   const TFILE *pf = NULL;
 
@@ -535,7 +534,7 @@ static void *tsdbScanAllFiles(STsdbRepo *pRepo) {
   tdir = tfsOpendir(dirName);
 
   while ((pf = tfsReaddir(tdir)) != NULL) {
-    fsbasename(pf, bname);
+    tfsbasename(pf, bname);
 
     int code = regexec(&regex1, bname, 0, NULL, 0);
     if (code != 0) {
@@ -569,14 +568,14 @@ static int tsdbCompareFile(const void *arg1, const void *arg2) {
   if (fid1 < fid2) {
     return -1;
   } else if (fid1 == fid2) {
-    return 0
+    return 0;
   } else {
     return 1;
   }
 }
 
 static int tsdbRestoreFile(STsdbRepo *pRepo, TFILE *pfiles, int nfile) {
-  char        backname[TSDB_FILENAME_LEN] = "\0";
+  char        backname[TSDB_FILENAME_LEN*2] = "\0";
   char        bname[TSDB_FILENAME_LEN] = "\0";
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   TFILE *     pfArray[TSDB_FILE_TYPE_MAX] = {0};
@@ -610,7 +609,7 @@ static int tsdbRestoreFile(STsdbRepo *pRepo, TFILE *pfiles, int nfile) {
 
   if (pfArray[TSDB_FILE_TYPE_HEAD] == NULL || pfArray[TSDB_FILE_TYPE_DATA] == NULL || pfArray[TSDB_FILE_TYPE_LAST] == NULL) {
     for (int i = 0; i < nfile; i++) {
-      snprintf(backname, TSDB_FILENAME_LEN, "%s_bak", (pfiles + i)->aname);
+      snprintf(backname, TSDB_FILENAME_LEN*2, "%s_bak", (pfiles + i)->aname);
       rename((pfiles + i)->aname, backname);
     }
 
@@ -619,7 +618,7 @@ static int tsdbRestoreFile(STsdbRepo *pRepo, TFILE *pfiles, int nfile) {
 
   if (pHf == NULL) {
     if (pLf != NULL) {
-      rename(pLf->aname, pLastf->aname);
+      rename(pLf->aname, pfArray[TSDB_FILE_TYPE_LAST]->aname);
     } 
   } else {
     if (pLf != NULL) {
@@ -632,18 +631,19 @@ static int tsdbRestoreFile(STsdbRepo *pRepo, TFILE *pfiles, int nfile) {
   fg.fileId = fid;
 
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-    SFile *pFile = fg.files + type;
+    SFile * pFile = fg.files + type;
+    uint32_t version = 0;
 
     pFile->fd = -1;
     pFile->file = *pfArray[type]; // TODO
     tsdbOpenFile(pFile, O_RDONLY);
-    tsdbLoadFileHeader(pFile);
+    tsdbLoadFileHeader(pFile, &version);
     tsdbCloseFile(pFile);
   }
 
   pFileH->pFGroup[pFileH->nFGroups++] = fg;
 
-  tfsIncDiskFile(pHeadf->level, pHeadf->id, TSDB_FILE_TYPE_MAX);
+  tfsIncDiskFile(pfArray[TSDB_FILE_TYPE_HEAD]->level, pfArray[TSDB_FILE_TYPE_HEAD]->id, TSDB_FILE_TYPE_MAX);
 
   return 0;
 }
