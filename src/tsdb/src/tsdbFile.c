@@ -107,6 +107,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
 
     while (true) {
       int nfid = 0;
+      if (iter >= taosArrayGetSize(pfArray)) break;
       TFILE *npf = taosArrayGet(pfArray, iter);
       tfsbasename(npf, bname);
       tsdbParseFname(bname, &vid, &nfid, suffix);

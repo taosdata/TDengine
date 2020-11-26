@@ -254,14 +254,14 @@ int tsdbSyncCommit(TSDB_REPO_T *repo) {
  */
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
-  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0 && pMergeInfo != NULL);
+  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
-  STSchema *pSchema = NULL;
-  TSKEY     rowKey = 0;
-  TSKEY     fKey = 0;
-  bool      isRowDel = false;
-  int       filterIter = 0;
-  SDataRow  row = NULL;
+  STSchema * pSchema = NULL;
+  TSKEY      rowKey = 0;
+  TSKEY      fKey = 0;
+  bool       isRowDel = false;
+  int        filterIter = 0;
+  SDataRow   row = NULL;
   SMergeInfo mInfo;
 
   if (pMergeInfo == NULL) pMergeInfo = &mInfo;
