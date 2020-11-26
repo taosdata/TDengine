@@ -18,10 +18,10 @@ import time
 import argparse
 
 class RestfulInsert:
-    def __init__(self, host, dbname, threads, tables, records, batchSize, tbNamePerfix, outOfOrder):
+    def __init__(self, host, startTimestamp, dbname, threads, tables, records, batchSize, tbNamePerfix, outOfOrder):
         self.header = {'Authorization': 'Basic cm9vdDp0YW9zZGF0YQ=='}
         self.url = "http://%s:6041/rest/sql" % host
-        self.ts = 1500000000000
+        self.ts = startTimestamp
         self.dbname = dbname
         self.numOfThreads = threads
         self.numOfTables = tables
@@ -36,8 +36,10 @@ class RestfulInsert:
         for i in range(tablesPerThread):
             tableID = threadID * tablesPerThread
             name = 'beijing' if tableID % 2 == 0 else 'shanghai'
-            data = "create table %s.%s%d using %s.meters tags(%d, '%s')" % (self.dbname, self.tableNamePerfix, tableID + i, self.dbname, tableID + i, name)
-            requests.post(self.url, data, headers = self.header)
+            data = "create table if not exists %s.%s%d using %s.meters tags(%d, '%s')" % (self.dbname, self.tableNamePerfix, tableID + i, self.dbname, tableID + i, name)
+            response = requests.post(self.url, data, headers = self.header)
+            if response.status_code != 200:
+                    print(response.content)
 
     def insertData(self, threadID):        
         print("thread %d started" % threadID)
@@ -50,7 +52,9 @@ class RestfulInsert:
                 values = []
                 for k in range(self.batchSize):
                     data +=  "(%d, %d, %d, %d)" %  (start + j * self.batchSize + k, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100))                                
-                requests.post(self.url, data, headers = self.header)
+                response = requests.post(self.url, data, headers = self.header)
+                if response.status_code != 200:
+                    print(response.content)
 
     def insertUnlimitedData(self, threadID):        
         print("thread %d started" % threadID)
@@ -76,15 +80,15 @@ class RestfulInsert:
                 else:
                     random.shuffle(values)
                     for k in range(len(values)):            
-                        data += values[k]
-                requests.post(self.url, data, headers = self.header)
+                        data += values[k]                
+                response = requests.post(self.url, data, headers = self.header)
+                if response.status_code != 200:
+                    print(response.content)
 
-    def run(self):
-        data = "drop database if exists %s" % self.dbname
+    def run(self):                
+        data = "create database if not exists %s" % self.dbname
         requests.post(self.url, data, headers = self.header)
-        data = "create database %s" % self.dbname
-        requests.post(self.url, data, headers = self.header)
-        data = "create table %s.meters(ts timestamp, f1 int, f2 int, f3 int) tags(id int, loc nchar(20))" % self.dbname
+        data = "create table if not exists %s.meters(ts timestamp, f1 int, f2 int, f3 int) tags(id int, loc nchar(20))" % self.dbname
         requests.post(self.url, data, headers = self.header)
 
         threads = []
@@ -120,6 +124,13 @@ parser.add_argument(
     default='127.0.0.1',
     type=str,
     help='host name to be connected (default: 127.0.0.1)')
+parser.add_argument(
+    '-S',
+    '--start-timestamp',
+    action='store',
+    default=1500000000000,
+    type=int,
+    help='insert data from timestamp (default: 1500000000000)')
 parser.add_argument(
     '-d',
     '--db-name',
@@ -169,5 +180,5 @@ parser.add_argument(
     help='The order of test data (default: False)')
 
 args = parser.parse_args()
-ri = RestfulInsert(args.host_name, args.db_name, args.number_of_threads, args.number_of_tables, args.number_of_records, args.batch_size, args.table_name_prefix, args.out_of_order)
+ri = RestfulInsert(args.host_name, args.start_timestamp, args.db_name, args.number_of_threads, args.number_of_tables, args.number_of_records, args.batch_size, args.table_name_prefix, args.out_of_order)
 ri.run()
