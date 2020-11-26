@@ -259,13 +259,14 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
-  tfsremove(&(helperHeadF(pHelper)->file));
+  // tfsremove(&(helperHeadF(pHelper)->file));
   (void)rename(TSDB_FILE_NAME(helperNewHeadF(pHelper)), TSDB_FILE_NAME(helperHeadF(pHelper)));
+  tfsDecDiskFile(helperNewHeadF(pHelper)->file.level, helperNewHeadF(pHelper)->file.id, 1);
   pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
 
   if (newLast) {
-  tfsremove(&(helperLastF(pHelper)->file));
     (void)rename(TSDB_FILE_NAME(helperNewLastF(pHelper)), TSDB_FILE_NAME(helperLastF(pHelper)));
+    tfsDecDiskFile(helperNewLastF(pHelper)->file.level, helperNewLastF(pHelper)->file.id, 1);
     pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
   } else {
     pGroup->files[TSDB_FILE_TYPE_LAST].info = helperLastF(pHelper)->info;
