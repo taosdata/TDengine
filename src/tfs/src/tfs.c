@@ -208,7 +208,7 @@ int tfsopen(TFILE *pf, int flags) {
     tfsIncDiskFile(pf->level, pf->id, 1);
   }
 
-  fd = open(pf->aname, flags);
+  fd = open(pf->aname, flags, 0755);
   if (fd < 0) {
     fError("failed to open file %s since %s", pf->aname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
