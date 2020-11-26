@@ -26,7 +26,7 @@
 #include "ttimer.h"
 #include "tlockfree.h"
 
-SRpcCorEpSet  tscMgmtEpSet;
+///SRpcCorEpSet  tscMgmtEpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -73,10 +73,11 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SVgroupInfo* pVgroupInfo) {
   assert(hasFqdn);
 }
 
-static void tscDumpMgmtEpSet(SRpcEpSet *epSet) {
-  taosCorBeginRead(&tscMgmtEpSet.version);
-  *epSet = tscMgmtEpSet.epSet;
-  taosCorEndRead(&tscMgmtEpSet.version);
+static void tscDumpMgmtEpSet(SSqlObj *pSql) {
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+  taosCorBeginRead(&pCorEpSet->version);
+  pSql->epSet = pCorEpSet->epSet;
+  taosCorEndRead(&pCorEpSet->version);
 }  
 static void tscEpSetHtons(SRpcEpSet *s) {
    for (int32_t i = 0; i < s->numOfEps; i++) {
@@ -94,11 +95,12 @@ bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
    }
    return true;
 }
-void tscUpdateMgmtEpSet(SRpcEpSet *pEpSet) {
+void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   // no need to update if equal
-  taosCorBeginWrite(&tscMgmtEpSet.version);
-  tscMgmtEpSet.epSet = *pEpSet;
-  taosCorEndWrite(&tscMgmtEpSet.version);
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+  taosCorBeginWrite(&pCorEpSet->version);
+  pCorEpSet->epSet = *pEpSet;
+  taosCorEndWrite(&pCorEpSet->version);
 }
 static void tscDumpEpSetFromVgroupInfo(SCorVgroupInfo *pVgroupInfo, SRpcEpSet *pEpSet) {
   if (pVgroupInfo == NULL) { return;}
@@ -133,18 +135,6 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   taosCorEndWrite(&pVgroupInfo->version);
 }
 
-void tscPrintMgmtEp() {
-  SRpcEpSet dump;
-  tscDumpMgmtEpSet(&dump);
-  if (dump.numOfEps <= 0) {
-    tscError("invalid mnode EP list:%d", dump.numOfEps);
-  } else {
-    for (int i = 0; i < dump.numOfEps; ++i) {
-      tscDebug("mnode index:%d %s:%d", i, dump.fqdn[i], dump.port[i]);
-    }
-  }
-}
-
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
   if (pObj == NULL) return;
@@ -162,7 +152,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SRpcEpSet *    epSet = &pRsp->epSet;
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
-      tscUpdateMgmtEpSet(epSet);
+      tscUpdateMgmtEpSet(pSql, epSet);
     }
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
@@ -227,7 +217,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    tscDumpMgmtEpSet(&pSql->epSet);
+    tscDumpMgmtEpSet(pSql);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
@@ -289,7 +279,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       if (pCmd->command < TSDB_SQL_MGMT) {
         tscUpdateVgroupInfo(pSql, pEpSet);
       } else {
-        tscUpdateMgmtEpSet(pEpSet);
+        tscUpdateMgmtEpSet(pSql, pEpSet);
       }
     }
   }
@@ -2070,7 +2060,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   
   if (pConnect->epSet.numOfEps > 0) {
     tscEpSetHtons(&pConnect->epSet);
-    tscUpdateMgmtEpSet(&pConnect->epSet);
+    tscUpdateMgmtEpSet(pSql, &pConnect->epSet);
   } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);
