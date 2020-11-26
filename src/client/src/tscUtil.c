@@ -1880,13 +1880,13 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 }
 
 void registerSqlObj(SSqlObj* pSql) {
-  int32_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
+  //int32_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
 
   int32_t ref = T_REF_INC(pSql->pTscObj);
   tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
 
   TSDB_CACHE_PTR_TYPE p = (TSDB_CACHE_PTR_TYPE) pSql;
-  pSql->self = taosCachePut(tscObjCache, &p, sizeof(TSDB_CACHE_PTR_TYPE), &p, sizeof(TSDB_CACHE_PTR_TYPE), DEFAULT_LIFE_TIME);
+  pSql->self = taosCachePut(tscObjCache, &p, sizeof(TSDB_CACHE_PTR_TYPE), &p, sizeof(TSDB_CACHE_PTR_TYPE), 0);
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {

@@ -199,7 +199,7 @@ void *taosCachePut(int32_t cacheId, const void *key, size_t keyLen, const void *
 
   pNode->hash = hash;
   pNode->expireTime   = (uint64_t)taosGetTimestampMs() + durationMS; 
-  pNode->count = 2; 
+  pNode->count = 2;
   pNode->duration = durationMS;
   pNode->pCacheObj = pCacheObj;
 
@@ -296,6 +296,28 @@ void taosCacheRelease(void *data) {
     taosCacheResetObj(pCacheObj); 
 }
 
+void taosCacheRemove(void *data) {
+  if (data == NULL) return;  
+  SCacheNode *pNode = pNodeFromData(data); 
+  SCacheObj  *pCacheObj = pNode->pCacheObj;
+  uint32_t hash = pNode->hash;
+  int      count = 1;
+
+  taosRLockLatch(&pCacheObj->olock);
+  taosWLockLatch(pCacheObj->nlock + hash);
+
+  if (pNode->expired == 0) {
+    pNode->expired = 1; 
+    count = taosCacheReleaseNode(pNode);
+  }
+
+  taosWUnLockLatch(pCacheObj->nlock + hash);
+  taosRUnLockLatch(&pCacheObj->olock);
+
+  if (pCacheObj->state == TAOS_CACHE_STATE_DELETED && count == 0)
+    taosCacheResetObj(pCacheObj); 
+}
+
 void *taosCacheTransfer(void **data) {
   if (data == NULL || *data == NULL) return NULL;
 
@@ -368,7 +390,7 @@ void taosCacheCleanup(int32_t cacheId) {
 
   void *p = taosCacheIterate(cacheId, NULL);
   while (p) {
-    taosCacheRelease(p);
+    taosCacheRemove(p);
     p = taosCacheIterate(cacheId, p);
   }
 
@@ -455,7 +477,7 @@ void taosCacheEmpty(int32_t cacheId) {
   SCacheObj *pCacheObj = cacheObjList + cacheId;
   uTrace("cache:%s empty all cached items", pCacheObj->name);
 
-  taosCacheRefresh(cacheId, taosCacheRelease);
+  taosCacheRefresh(cacheId, taosCacheRemove);
 }
 
 int32_t taosCacheGetCount(int32_t cacheId) {
