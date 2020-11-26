@@ -511,7 +511,7 @@ static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
 STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
 void        tsdbFreeFileH(STsdbFileH* pFileH);
 int         tsdbOpenFileH(STsdbRepo* pRepo);
-void        tsdbCloseFileH(STsdbRepo* pRepo);
+void        tsdbCloseFileH(STsdbRepo* pRepo, bool isRestart);
 SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level);
 void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
 void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);

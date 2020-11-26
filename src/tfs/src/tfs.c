@@ -162,7 +162,7 @@ const char *TFS_DISK_PATH(int level, int id) { return DISK_DIR(TFS_DISK_AT(level
 // TFILE APIs ====================================
 static void tfsSetFileAname(TFILE *pf) {
   if (TFS_IS_VALID_DISK(pf->level, pf->id)) {
-    SDisk *pDisk = TFS_DISK_AT(pf->level, pf->level);
+    SDisk *pDisk = TFS_DISK_AT(pf->level, pf->id);
     ASSERT(pDisk != NULL);
     snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), pf->rname);
   }

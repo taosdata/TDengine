@@ -151,7 +151,7 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   pRepo->mem = NULL;
   pRepo->imem = NULL;
 
-  tsdbCloseFileH(pRepo);
+  tsdbCloseFileH(pRepo, !toCommit);
   tsdbCloseBufPool(pRepo);
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);

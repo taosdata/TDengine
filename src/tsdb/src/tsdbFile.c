@@ -124,7 +124,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
   return 0;
 }
 
-void tsdbCloseFileH(STsdbRepo *pRepo) {
+void tsdbCloseFileH(STsdbRepo *pRepo, bool isRestart) {
   STsdbFileH *pFileH = pRepo->tsdbFileH;
 
   for (int i = 0; i < pFileH->nFGroups; i++) {
@@ -132,7 +132,9 @@ void tsdbCloseFileH(STsdbRepo *pRepo) {
     for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
       tsdbCloseFile(&(pFGroup->files[type]));
     }
-    tfsDecDiskFile(pFGroup->files[0].file.level, pFGroup->files[0].file.level, TSDB_FILE_TYPE_MAX);
+    if (isRestart) {
+      tfsDecDiskFile(pFGroup->files[0].file.level, pFGroup->files[0].file.level, TSDB_FILE_TYPE_MAX);
+    }
   }
 }
 
