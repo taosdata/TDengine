@@ -41,7 +41,11 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
     if (DISK_AT_TIER(pTier, 0) != NULL) {
       id = pTier->ndisk;
     } else {
-      id = pTier->ndisk + 1;
+      if (pCfg->primary) {
+        id = 0;
+      } else {
+        id = pTier->ndisk + 1;
+      }
       if (id >= TSDB_MAX_DISKS_PER_TIER) {
         terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
         return NULL;
