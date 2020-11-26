@@ -179,8 +179,9 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 fail:
   tscError("tscCreateSubscription failed at line %d, reason: %s", line, tstrerror(code));
   if (pSql != NULL) {
-    if (pSql->self != NULL) {
-      taos_free_result(pSql);
+    if (pSql->self != 0) {
+      //taos_free_result(pSql);
+      taosReleaseRef(tscObjRef, pSql->self);
     } else {
       tscFreeSqlObj(pSql);
     }

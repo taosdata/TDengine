@@ -814,8 +814,11 @@ static int32_t tscProcessClientVer(SSqlObj *pSql) {
 static int32_t tscProcessServStatus(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
 
-  if (pObj->pHb != NULL) {
-    if (pObj->pHb->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+  SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
+  if (pHb != NULL) {
+    int32_t code = pHb->res.code;
+    taosReleaseRef(tscObjRef, pObj->hbrid);
+    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       pSql->res.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
       return pSql->res.code;
     }

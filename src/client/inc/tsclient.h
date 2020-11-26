@@ -331,7 +331,7 @@ typedef struct STscObj {
   char               superAuth : 1;
   uint32_t           connId;
   uint64_t           rid;      // ref ID returned by taosAddRef
-  struct SSqlObj *   pHb;
+  int64_t            hbrid;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
   void*              pDnodeConn;
@@ -371,7 +371,7 @@ typedef struct SSqlObj {
   struct SSqlObj **pSubs;
 
   struct SSqlObj  *prev, *next;
-  struct SSqlObj **self;
+  int64_t self;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -504,7 +504,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
 }
 
 extern SCacheObj*    tscMetaCache;
-extern SCacheObj*    tscObjCache;
+extern int    tscObjRef;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];

@@ -277,8 +277,8 @@ void taos_close(TAOS *taos) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  SSqlObj* pHb = pObj->pHb;
-  if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
+  SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);  
+  if (pHb != NULL) {
     if (pHb->rpcRid > 0) {  // wait for rsp from dnode
       rpcCancelRequest(pHb->rpcRid);
       pHb->rpcRid = -1;
@@ -286,6 +286,7 @@ void taos_close(TAOS *taos) {
 
     tscDebug("%p HB is freed", pHb);
     taos_free_result(pHb);
+    taosReleaseRef(tscObjRef, pHb->self);
   }
 
   int32_t ref = T_REF_DEC(pObj);
@@ -645,8 +646,7 @@ void taos_free_result(TAOS_RES *res) {
   bool freeNow = tscKillQueryInDnode(pSql);
   if (freeNow) {
     tscDebug("%p free sqlObj in cache", pSql);
-    SSqlObj** p = pSql->self;
-    taosCacheRelease(tscObjCache, (void**) &p, true);
+    taosReleaseRef(tscObjRef, pSql->self);
   }
 }
 
@@ -738,15 +738,8 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     if (pSub == NULL) {
       continue;
     }
-
-    void** p = taosCacheAcquireByKey(tscObjCache, &pSub, sizeof(TSDB_CACHE_PTR_TYPE));
-    if (p == NULL) {
-      continue;
-    }
-
-    SSqlObj* pSubObj = (SSqlObj*) (*p);
-    assert(pSubObj->self == (SSqlObj**) p);
-
+    //SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
+    SSqlObj *pSubObj = pSub;
     pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     if (pSubObj->rpcRid > 0) {
       rpcCancelRequest(pSubObj->rpcRid);
@@ -754,7 +747,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscQueueAsyncRes(pSubObj);
-    taosCacheRelease(tscObjCache, (void**) &p, false);
+    taosReleaseRef(tscObjRef, pSubObj->self);
   }
 
   tscDebug("%p super table query cancelled", pSql);
