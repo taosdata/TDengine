@@ -20,6 +20,10 @@ system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20000
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 20000
 system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 20000
 
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 20
+system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 20
+system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 20
+
 system sh/cfg.sh -n dnode1 -c replica -v 3
 system sh/cfg.sh -n dnode2 -c replica -v 3
 system sh/cfg.sh -n dnode3 -c replica -v 3

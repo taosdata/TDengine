@@ -448,7 +448,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   return code;
 }
 
-static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
+static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   SFirstPkt firstPkt;
@@ -458,8 +458,24 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
   tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
-  if (taosWriteMsg(pPeer->syncFd, (char *)&firstPkt, sizeof(firstPkt)) < 0) {
-    sError("%s, failed to send syncCmd", pPeer->id);
+  if (taosWriteMsg(pPeer->syncFd, &firstPkt, sizeof(firstPkt)) < 0) {
+    sError("%s, failed to send sync firstPkt since %s", pPeer->id, strerror(errno));
+    return -1;
+  }
+
+  SFirstPktRsp firstPktRsp;
+  if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) < 0) {
+    sError("%s, failed to read sync firstPkt rsp since %s", pPeer->id, strerror(errno));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
+  sInfo("%s, start to retrieve, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+  if (syncRetrieveFirstPkt(pPeer) < 0) {
+    sError("%s, failed to start retrieve", pPeer->id);
     return -1;
   }
 
