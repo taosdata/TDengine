@@ -49,7 +49,7 @@ class TDengineCursor(object):
             raise OperationalError("Invalid use of fetch iterator")
 
         if self._block_rows <= self._block_iter:
-            block, self._block_rows = CTaosInterface.fetchBlock(
+            block, self._block_rows = CTaosInterface.fetchRow(
                 self._result, self._fields)
             if self._block_rows == 0:
                 raise StopIteration
@@ -193,6 +193,23 @@ class TDengineCursor(object):
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
+            block, num_of_fields = CTaosInterface.fetchRow(self._result, self._fields)
+            errno = CTaosInterface.libtaos.taos_errno(self._result)
+            if errno != 0:
+                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
+            if num_of_fields == 0:
+                break
+            self._rowcount += num_of_fields
+            for i in range(len(self._fields)):
+                buffer[i].extend(block[i])
+        return list(map(tuple, zip(*buffer)))
+    def fetchall_block(self):
+        if self._result is None or self._fields is None:
+            raise OperationalError("Invalid use of fetchall")
+
+        buffer = [[] for i in range(len(self._fields))]
+        self._rowcount = 0
+        while True:
             block, num_of_fields = CTaosInterface.fetchBlock(self._result, self._fields)
             errno = CTaosInterface.libtaos.taos_errno(self._result)
             if errno != 0:
@@ -203,7 +220,6 @@ class TDengineCursor(object):
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
-
     def nextset(self):
         """
         """

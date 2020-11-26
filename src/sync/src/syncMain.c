@@ -1279,7 +1279,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
 
         sDebug("vgId:%d, forward info expired, hver:%" PRIu64 " curtime:%" PRIu64 " savetime:%" PRIu64, pNode->vgId,
                pFwdInfo->version, time, pFwdInfo->time);
-        syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+        syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_SYN_CONFIRM_EXPIRED);
       }
 
       syncRemoveConfirmedFwdInfo(pNode);
