@@ -5836,9 +5836,9 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   pQueryMsg->interval.interval = htobe64(pQueryMsg->interval.interval);
   pQueryMsg->interval.sliding = htobe64(pQueryMsg->interval.sliding);
   pQueryMsg->interval.offset = htobe64(pQueryMsg->interval.offset);
-  pQueryMsg->interval.intervalUnit = pQueryMsg->interval.intervalUnit;
-  pQueryMsg->interval.slidingUnit = pQueryMsg->interval.slidingUnit;
-  pQueryMsg->interval.offsetUnit = pQueryMsg->interval.offsetUnit;
+  // pQueryMsg->interval.intervalUnit = pQueryMsg->interval.intervalUnit;
+  // pQueryMsg->interval.slidingUnit = pQueryMsg->interval.slidingUnit;
+  // pQueryMsg->interval.offsetUnit = pQueryMsg->interval.offsetUnit;
   pQueryMsg->limit = htobe64(pQueryMsg->limit);
   pQueryMsg->offset = htobe64(pQueryMsg->offset);
 
