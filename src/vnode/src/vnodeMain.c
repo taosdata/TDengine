@@ -684,7 +684,7 @@ static void vnodeCtrlFlow(int32_t vgId, int32_t level) {
     return;
   }
 
-  pVnode->flowctlLevel = level;
+  pVnode->flowctrlLevel = level;
   vDebug("vgId:%d, set flowctrl level:%d", pVnode->vgId, level);
 
   vnodeRelease(pVnode);
