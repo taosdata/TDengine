@@ -52,12 +52,12 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex
 
 static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  minfo; memset(&minfo, 0, sizeof(minfo)); /* = {0}; */  // master file info
-  SFileInfo  sinfo; memset(&sinfo, 0, sizeof(sinfo)); /* = {0}; */  // slave file info
-  SFileAck   fileAck; 
+  SFileInfo  minfo = {0};
+  SFileInfo  sinfo = {0};
+  SFileAck   fileAck = {0};
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
-  uint32_t   pindex = 0;    // index in last restore
+  uint32_t   pindex = 0;  // index in last restore
   bool       fileChanged = false;
 
   *fversion = 0;

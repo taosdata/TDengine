@@ -85,6 +85,9 @@ typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t level);
 // when data file is synced successfully, notity app
 typedef int32_t  (*FNotifyFileSynced)(int32_t vgId, uint64_t fversion);
 
+// get file version
+typedef int32_t  (*FGetFileVersion)(int32_t vgId, uint64_t *fver);
+
 typedef struct {
   int32_t  vgId;       // vgroup ID
   uint64_t version;    // initial version
@@ -97,6 +100,7 @@ typedef struct {
   FNotifyRole       notifyRole;
   FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
+  FGetFileVersion   getFileVersion;
 } SSyncInfo;
 
 typedef void *tsync_h;

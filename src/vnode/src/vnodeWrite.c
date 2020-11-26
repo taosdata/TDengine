@@ -288,7 +288,7 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   } else {
     code = vnodePerformFlowCtrl(pWrite);
     if (code == 0) {
-      vTrace("vgId:%d, write into vwqueue after flowctrl", pVnode->vgId);
+      vDebug("vgId:%d, write into vwqueue after flowctrl", pVnode->vgId);
       pWrite->processedCount = 0;
       taosWriteQitem(pVnode->wqueue, pWrite->qtype, pWrite);
     }

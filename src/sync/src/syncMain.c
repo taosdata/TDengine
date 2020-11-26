@@ -196,6 +196,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->confirmForward = pInfo->confirmForward;
   pNode->notifyFlowCtrl = pInfo->notifyFlowCtrl;
   pNode->notifyFileSynced = pInfo->notifyFileSynced;
+  pNode->getFileVersion = pInfo->getFileVersion;
 
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;

@@ -25,85 +25,32 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static int32_t syncAddIntoWatchList(SSyncPeer *pPeer, char *name) {
-  sDebug("%s, start to monitor:%s", pPeer->id, name);
+static int32_t syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
+  if (pNode->getFileVersion == NULL) return 0;
 
-  if (pPeer->notifyFd <= 0) {
-    pPeer->watchNum = 0;
-    pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
-    if (pPeer->notifyFd < 0) {
-      sError("%s, failed to init inotify since %s", pPeer->id, strerror(errno));
-      return -1;
-    }
-
-    if (pPeer->watchFd == NULL) pPeer->watchFd = malloc(sizeof(int32_t) * tsMaxWatchFiles);
-    if (pPeer->watchFd == NULL) {
-      sError("%s, failed to allocate watchFd", pPeer->id);
-      return -1;
-    }
-
-    memset(pPeer->watchFd, -1, sizeof(int32_t) * tsMaxWatchFiles);
+  uint64_t fver = 0;
+  int32_t  code = (*pNode->getFileVersion)(pNode->vgId, &fver);
+  if (code != 0) {
+    sInfo("%s, file are modified while retrieve, lastver:%" PRIu64, pPeer->id, pPeer->lastVer);
+    return code;
   }
 
-  int32_t *wd = pPeer->watchFd + pPeer->watchNum;
-
-  if (*wd >= 0) {
-    if (inotify_rm_watch(pPeer->notifyFd, *wd) < 0) {
-      sError("%s, failed to remove wd:%d since %s", pPeer->id, *wd, strerror(errno));
-      return -1;
-    }
-  }
-
-  *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_DELETE);
-  if (*wd == -1) {
-    sError("%s, failed to add %s since %s", pPeer->id, name, strerror(errno));
+  if (fver != pPeer->lastVer) {
+    sInfo("%s, file are modified while retrieve, fver:%" PRIu64 " lastver:%" PRIu64, pPeer->id, fver, pPeer->lastVer);
     return -1;
-  } else {
-    sDebug("%s, monitor %s, wd:%d watchNum:%d", pPeer->id, name, *wd, pPeer->watchNum);
   }
-
-  pPeer->watchNum = (pPeer->watchNum + 1) % tsMaxWatchFiles;
 
   return 0;
 }
 
-static int32_t syncAreFilesModified(SSyncPeer *pPeer) {
-  if (pPeer->notifyFd <= 0) return 0;
-
-  char    buf[2048];
-  int32_t len = read(pPeer->notifyFd, buf, sizeof(buf));
-  if (len < 0 && errno != EAGAIN) {
-    sError("%s, failed to read notify FD since %s", pPeer->id, strerror(errno));
-    return -1;
-  }
-
-  int32_t code = 0;
-  if (len > 0) {
-    const struct inotify_event *event;
-    char *ptr;
-    for (ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
-      event = (const struct inotify_event *)ptr;
-      if ((event->mask & IN_MODIFY) || (event->mask & IN_DELETE)) {
-        sDebug("%s, processed file is changed", pPeer->id);
-        pPeer->fileChanged = 1;
-        code = 1;
-        break;
-      }
-    }
-  }
-
-  return code;
-}
-
 static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  fileInfo;
-  SFileAck   fileAck;
+  SFileInfo  fileInfo = {0};
+  SFileAck   fileAck = {0};
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
 
-  memset(&fileInfo, 0, sizeof(fileInfo));
-  memset(&fileAck, 0, sizeof(fileAck));
+  if (pNode->getFileVersion) (*pNode->getFileVersion)(pNode->vgId, &pPeer->lastVer);
 
   while (1) {
     // retrieve file info
@@ -136,21 +83,15 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     // set the peer sync version
     pPeer->sversion = fileInfo.fversion;
 
-    // get the full path to file
-    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
-
-    // add the file into watch list
-    if (syncAddIntoWatchList(pPeer, name) < 0) {
-      sError("%s, failed to watch file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
-
     // if sync is not required, continue
     if (fileAck.sync == 0) {
       fileInfo.index++;
       sDebug("%s, %s is the same", pPeer->id, fileInfo.name);
       continue;
     }
+
+    // get the full path to file
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
 
     // send the file to peer
     int32_t sfd = open(name, O_RDONLY);
@@ -170,10 +111,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.index++;
 
     // check if processed files are modified
-    if (syncAreFilesModified(pPeer) != 0) {
-      sInfo("%s, file:%s are modified while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
+    if (syncAreFilesModified(pNode, pPeer) != 0) break;
   }
 
   if (code < 0) {
@@ -308,9 +246,9 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
 static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    code = -1;
-  char       fname[TSDB_FILENAME_LEN * 2];  // full path to wal file
+  char       fname[TSDB_FILENAME_LEN * 2] = {0};  // full path to wal file
 
-  if (syncAreFilesModified(pPeer) != 0) return -1;
+  if (syncAreFilesModified(pNode, pPeer) != 0) return -1;
 
   while (1) {
     int32_t  once = 0;  // last WAL has once ever been processed
@@ -431,7 +369,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
 
     index++;
 
-    if (syncAreFilesModified(pPeer) != 0) break;
+    if (syncAreFilesModified(pNode, pPeer) != 0) break;
   }
 
   if (code == 0) {
