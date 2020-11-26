@@ -28,19 +28,21 @@ extern "C" {
 #define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 
 typedef enum {
-  TAOS_SMSG_SYNC_DATA   = 1,
-  TAOS_SMSG_FORWARD     = 2,
-  TAOS_SMSG_FORWARD_RSP = 3,
-  TAOS_SMSG_SYNC_REQ    = 4,
-  TAOS_SMSG_SYNC_RSP    = 5,
-  TAOS_SMSG_SYNC_MUST   = 6,
-  TAOS_SMSG_STATUS      = 7
+  TAOS_SMSG_SYNC_DATA     = 1,
+  TAOS_SMSG_FORWARD       = 2,
+  TAOS_SMSG_FORWARD_RSP   = 3,
+  TAOS_SMSG_SYNC_REQ      = 4,
+  TAOS_SMSG_SYNC_RSP      = 5,
+  TAOS_SMSG_SYNC_MUST     = 6,
+  TAOS_SMSG_STATUS        = 7,
+  TAOS_SMSG_SYNC_DATA_RSP = 8,
 } ESyncMsgType;
 
 #define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
 #define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
 #define SYNC_FWD_TIMER  300
 #define SYNC_ROLE_TIMER 10000
+#define SYNC_WAIT_AFTER_CHOOSE_MASTER 3
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
@@ -63,6 +65,10 @@ typedef struct {
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   sourceId;  // only for arbitrator
 } SFirstPkt;
+
+typedef struct {
+  int8_t sync;
+} SFirstPktRsp;
 
 typedef struct {
   int8_t    role;
@@ -153,26 +159,26 @@ typedef struct SSyncNode {
   int8_t       selfIndex;
   uint32_t     vgId;
   int64_t      rid;
-  void        *ahandle;
-  SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA+1];  // extra one for arbitrator
-  SSyncPeer   *pMaster;
+  SSyncPeer *  peerInfo[TAOS_SYNC_MAX_REPLICA + 1];  // extra one for arbitrator
+  SSyncPeer *  pMaster;
   SRecvBuffer *pRecv;
-  SSyncFwds   *pSyncFwds;  // saved forward info if quorum >1
-  void        *pFwdTimer;
-  void        *pRoleTimer;
-  FGetFileInfo    getFileInfo;
-  FGetWalInfo     getWalInfo;
-  FWriteToCache   writeToCache;
-  FConfirmForward confirmForward;
-  FNotifyRole     notifyRole;
-  FNotifyFlowCtrl notifyFlowCtrl;
+  SSyncFwds *  pSyncFwds;  // saved forward info if quorum >1
+  void *       pFwdTimer;
+  void *       pRoleTimer;
+  FGetFileInfo      getFileInfo;
+  FGetWalInfo       getWalInfo;
+  FWriteToCache     writeToCache;
+  FConfirmForward   confirmForward;
+  FNotifyRole       notifyRole;
+  FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
-  pthread_mutex_t mutex;
+  pthread_mutex_t   mutex;
 } SSyncNode;
 
 // sync module global
 extern int32_t tsSyncNum;
 extern char    tsNodeFqdn[TSDB_FQDN_LEN];
+extern char *  syncStatus[];
 
 void *syncRetrieveData(void *param);
 void *syncRestoreData(void *param);

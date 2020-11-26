@@ -26,7 +26,7 @@
 
 int32_t getOutputInterResultBufSize(SQuery* pQuery);
 
-void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pRow);
+void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pRow, int16_t type);
 void copyResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* dst, const SResultRow* src);
 SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
 
@@ -79,6 +79,9 @@ int64_t getResultRowPoolMemSize(SResultRowPool* p);
 void* destroyResultRowPool(SResultRowPool* p);
 int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
 int32_t getNumOfUsedResultRows(SResultRowPool* p);
+
+uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv);
+bool isPointInterpoQuery(SQuery *pQuery);
 
 
 #endif  // TDENGINE_QUERYUTIL_H

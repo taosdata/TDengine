@@ -203,16 +203,19 @@ static void *taosProcessTcpData(void *param) {
       assert(pConn);
 
       if (events[i].events & EPOLLERR) {
+        sDebug("conn is broken since EPOLLERR");
         taosProcessBrokenLink(pConn);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
+        sDebug("conn is broken since EPOLLHUP");
         taosProcessBrokenLink(pConn);
         continue;
       }
 
       if (events[i].events & EPOLLRDHUP) {
+        sDebug("conn is broken since EPOLLRDHUP");
         taosProcessBrokenLink(pConn);
         continue;
       }
