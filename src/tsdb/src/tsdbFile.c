@@ -423,7 +423,7 @@ void tsdbGetFileInfoImpl(char *fname, uint32_t *magic, int64_t *size) { // TODO
   SFile         file;
   SFile *       pFile = &file;
 
-  strncpy(TSDB_FILE_NAME(pFile), fname, TSDB_FILENAME_LEN - 1);
+  tfsInitFile(&(pFile->file), TFS_PRIMARY_LEVEL, TFS_PRIMARY_ID, fname);
   pFile->fd = -1;
 
   if (tsdbOpenFile(pFile, O_RDONLY) < 0) goto _err;

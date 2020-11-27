@@ -176,12 +176,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
   tsdbDebug("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
   ASSERT(*index <= eindex);
 
-  char *sdup = strdup(pRepo->rootDir);
-  char *prefix = dirname(sdup);
-  int   prefixLen = (int)strlen(prefix);
-
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    tfree(sdup);
     int fid = (*index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
@@ -189,6 +184,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
         fname = tsdbGetMetaFileName(pRepo->rootDir);
         *index = TSDB_META_FILE_INDEX;
         magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
+        sprintf(name, "tsdb/%s", TSDB_META_FILE_NAME);
       } else {
         return 0;
       }
@@ -199,33 +195,38 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
         SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
         fname = strdup(TSDB_FILE_NAME(pFile));
         magic = pFile->info.magic;
+        char *tfname = strdup(fname);
+        sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
+        tfree(tfname);
       } else {
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
           SFile *pFile = &pFGroup->files[0];
           fname = strdup(TSDB_FILE_NAME(pFile));
           *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
           magic = pFile->info.magic;
+          char *tfname = strdup(fname);
+          sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
+          tfree(tfname)
         } else {
           return 0;
         }
       }
     }
-    strcpy(name, fname + prefixLen);
   } else {  // get the named file at the specified index. If not there, return 0
-    fname = malloc(prefixLen + strlen(name) + 2);
-    sprintf(fname, "%s/%s", prefix, name);
+    fname = malloc(256);
+    sprintf(fname, "%s/vnode/vnode%d/%s", TFS_PRIMARY_PATH(), REPO_ID(pRepo), name);
     if (access(fname, F_OK) != 0) {
       tfree(fname);
-      tfree(sdup);
       return 0;
     }
     if (*index == TSDB_META_FILE_INDEX) {  // get meta file
       tsdbGetStoreInfo(fname, &magic, size);
     } else {
-      tsdbGetFileInfoImpl(fname, &magic, size);
+      char tfname[TSDB_FILENAME_LEN] = "\0";
+      sprintf(tfname, "vnode/vnode%d/tsdb/%s/%s", REPO_ID(pRepo), TSDB_DATA_DIR_NAME, basename(name));
+      tsdbGetFileInfoImpl(tfname, &magic, size);
     }
     tfree(fname);
-    tfree(sdup);
     return magic;
   }
 
