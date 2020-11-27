@@ -20,23 +20,26 @@
 extern "C" {
 #endif
 
-#include <unistd.h>
-
 // init taos file module
-int32_t tfinit();
+int32_t tfInit();
 
 // clean up taos file module
-void tfcleanup();
+void tfCleanup();
 
 // the same syntax as UNIX standard open/close/read/write
 // but FD is int64_t and will never be reused
-int64_t tfopen(const char *pathname, int32_t flags);
-int64_t tfclose(int64_t tfd);
-int64_t tfwrite(int64_t tfd, void *buf, int64_t count);
-int64_t tfread(int64_t tfd, void *buf, int64_t count);
+int64_t tfOpen(const char *pathname, int32_t flags);
+int64_t tfOpenM(const char *pathname, int32_t flags, mode_t mode);
+int64_t tfClose(int64_t tfd);
+int64_t tfWrite(int64_t tfd, void *buf, int64_t count);
+int64_t tfRead(int64_t tfd, void *buf, int64_t count);
+int32_t tfFsync(int64_t tfd);
+bool    tfValid(int64_t tfd);
+int32_t tfLseek(int64_t tfd, int64_t offset, int32_t whence);
+int32_t tfFtruncate(int64_t tfd, int64_t length);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TREF_H
+#endif  // TDENGINE_TFILE_H
