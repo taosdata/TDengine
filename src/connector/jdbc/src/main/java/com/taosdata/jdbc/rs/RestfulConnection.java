@@ -15,7 +15,6 @@ public class RestfulConnection implements Connection {
     private final String database;
     private final String url;
 
-
     public RestfulConnection(String host, String port, Properties props, String database, String url) {
         this.host = host;
         this.port = Integer.parseInt(port);
@@ -28,7 +27,7 @@ public class RestfulConnection implements Connection {
     public Statement createStatement() throws SQLException {
         if (isClosed())
             throw new SQLException(TSDBConstants.WrapErrMsg("restful TDengine connection is closed."));
-        return new RestfulStatement(this, this.database);
+        return new RestfulStatement(this, database);
     }
 
     @Override
@@ -104,22 +103,28 @@ public class RestfulConnection implements Connection {
 
     @Override
     public void setTransactionIsolation(int level) throws SQLException {
-
+        //transaction is not supported
+        throw new SQLFeatureNotSupportedException("transactions are not supported");
     }
 
+    /**
+     *
+     */
     @Override
     public int getTransactionIsolation() throws SQLException {
-        return 0;
+        //Connection.TRANSACTION_NONE specifies that transactions are not supported.
+        return Connection.TRANSACTION_NONE;
     }
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        //TODO: getWarnings not implemented
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-
+        throw new SQLFeatureNotSupportedException("clearWarnings not supported.");
     }
 
     @Override
@@ -209,22 +214,26 @@ public class RestfulConnection implements Connection {
 
     @Override
     public Clob createClob() throws SQLException {
-        return null;
+        //TODO: not supported
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public Blob createBlob() throws SQLException {
-        return null;
+        //TODO: not supported
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public NClob createNClob() throws SQLException {
-        return null;
+        //TODO: not supported
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public SQLXML createSQLXML() throws SQLException {
-        return null;
+        //TODO: not supported
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
@@ -254,12 +263,14 @@ public class RestfulConnection implements Connection {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        return null;
+        //TODO: not supported
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        return null;
+        //TODO: not supported
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
@@ -289,12 +300,16 @@ public class RestfulConnection implements Connection {
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface.isInstance(this);
     }
 
     public String getHost() {

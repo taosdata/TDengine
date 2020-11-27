@@ -341,8 +341,10 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     pBlock->tag.pz = tp;
 
     sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
-  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
+    UNUSED(sz);
+  } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) { //TODO check the return value
     sz = fread(&pBlock->tag.i64Key, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
+    UNUSED(sz);
   }
 
   sz = fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);

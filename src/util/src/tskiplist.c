@@ -291,7 +291,10 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
     iter->next = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
     iter->step++;
   } else {
-    if (iter->cur == pSkipList->pHead) return false;
+    if (iter->cur == pSkipList->pHead) {
+      tSkipListUnlock(pSkipList);
+      return false;
+    }
     iter->cur = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
 
     // a new node is inserted into between iter->cur and iter->next, ignore it

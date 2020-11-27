@@ -174,7 +174,7 @@ static void *dnodeProcessMWriteQueue(void *param) {
       break;
     }
 
-    dDebug("msg:%p, app:%p type:%s will be processed in mwrite queue", pWrite, pWrite->rpcMsg.ahandle,
+    dTrace("msg:%p, app:%p type:%s will be processed in mwrite queue", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType]);
 
     int32_t code = mnodeProcessWrite(pWrite);
