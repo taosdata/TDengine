@@ -37,7 +37,7 @@ static int32_t  vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
 static uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
 static int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
 static void     vnodeNotifyRole(int32_t vgId, int8_t role);
-static void     vnodeCtrlFlow(int32_t vgId, int32_t mseconds);
+static void     vnodeCtrlFlow(int32_t vgId, int32_t level);
 static int32_t  vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion);
 static void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 static int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
@@ -650,7 +650,7 @@ static int32_t vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
 static void vnodeNotifyRole(int32_t vgId, int8_t role) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
-    vError("vgId:%d, vnode not found while notify role", vgId);
+    vTrace("vgId:%d, vnode not found while notify role", vgId);
     return;
   }
 
@@ -667,17 +667,15 @@ static void vnodeNotifyRole(int32_t vgId, int8_t role) {
   vnodeRelease(pVnode);
 }
 
-static void vnodeCtrlFlow(int32_t vgId, int32_t mseconds) {
+static void vnodeCtrlFlow(int32_t vgId, int32_t level) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
-    vError("vgId:%d, vnode not found while ctrl flow", vgId);
+    vTrace("vgId:%d, vnode not found while flow ctrl", vgId);
     return;
   }
 
-  if (pVnode->delayMs != mseconds) {
-    pVnode->delayMs = mseconds;
-    vDebug("vgId:%d, sync flow control, mseconds:%d", pVnode->vgId, mseconds);
-  }
+  pVnode->flowctrlLevel = level;
+  vDebug("vgId:%d, set flowctrl level:%d", pVnode->vgId, level);
 
   vnodeRelease(pVnode);
 }

@@ -133,6 +133,7 @@ int32_t tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;  // seconds
 int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
 int32_t tsMnodeEqualVnodeNum = 4;
+int32_t tsFlowCtrl = 1;
 
 // restful
 int32_t  tsEnableHttpModule = 1;
@@ -1009,6 +1010,17 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
   cfg.maxValue = 1000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+    // module configs
+  cfg.option = "flowctrl";
+  cfg.ptr = &tsFlowCtrl;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
