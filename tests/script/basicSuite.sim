@@ -14,7 +14,6 @@ run general/table/vgroup.sim
 run general/user/authority.sim
 run general/vector/metrics_mix.sim
 run general/vector/table_field.sim
-run general/user/authority.sim
 run general/tag/set.sim
 run general/table/delete_writing.sim
 run general/stable/disk.sim

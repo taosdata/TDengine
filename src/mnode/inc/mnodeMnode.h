@@ -38,6 +38,7 @@ void    mnodeDropMnodeLocal(int32_t dnodeId);
 void *  mnodeGetMnode(int32_t mnodeId);
 int32_t mnodeGetMnodesNum();
 void *  mnodeGetNextMnode(void *pIter, struct SMnodeObj **pMnode);
+void    mnodeCancelGetNextMnode(void *pIter);
 void    mnodeIncMnodeRef(struct SMnodeObj *pMnode);
 void    mnodeDecMnodeRef(struct SMnodeObj *pMnode);
 

@@ -123,7 +123,6 @@ static void mnodePrintUserAuth() {
   }
 
   fflush(fp);
-  sdbFreeIter(pIter);
   fclose(fp);
 }
 
@@ -177,6 +176,8 @@ int32_t mnodeInitUsers() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mnodeProcessDropUserMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_USER, mnodeGetUserMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mnodeRetrieveUsers);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_USER, mnodeCancelGetNextUser);
+
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mnodeProcessAuthMsg);
    
   mDebug("table:%s, hash is created", desc.name);
@@ -194,6 +195,10 @@ SUserObj *mnodeGetUser(char *name) {
 
 void *mnodeGetNextUser(void *pIter, SUserObj **pUser) { 
   return sdbFetchRow(tsUserSdb, pIter, (void **)pUser); 
+}
+
+void mnodeCancelGetNextUser(void *pIter) {
+ sdbFreeIter(tsUserSdb, pIter);
 }
 
 void mnodeIncUserRef(SUserObj *pUser) { 
@@ -573,8 +578,6 @@ void mnodeDropAllUsers(SAcctObj *pAcct)  {
 
     mnodeDecUserRef(pUser);
   }
-
-  sdbFreeIter(pIter);
 
   mDebug("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
 }
