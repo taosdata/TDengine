@@ -134,7 +134,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     // data file is changed, code shall be set to 1
     *fversion = minfo.fversion;
     code = 1;
-    sDebug("%s, file changed while restore file", pPeer->id);
+    sDebug("%s, file changed after restore file, fver:%" PRIu64, pPeer->id, *fversion);
   }
 
   if (code < 0) {
@@ -160,7 +160,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     }
 
     if (pHead->len == 0) {
-      sDebug("%s, wal is synced over", pPeer->id);
+      sDebug("%s, wal is synced over, last wver:%" PRIu64, pPeer->id, lastVer);
       code = 0;
       break;
     }  // wal sync over

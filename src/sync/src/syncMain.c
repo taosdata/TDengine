@@ -541,7 +541,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   pPeer->fqdn[sizeof(pPeer->fqdn) - 1] = 0;
-  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, peer:%s:%u", pNode->vgId, pPeer->fqdn, pPeer->port);
+  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, nodeId:%d", pNode->vgId, pPeer->nodeId);
 
   pPeer->peerFd = -1;
   pPeer->syncFd = -1;
@@ -1144,8 +1144,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
       pPeer->syncFd = connFd;
       syncCreateRestoreDataThread(pPeer);
     } else {
-      sDebug("%s, TCP connection is already up(pfd:%d), close one, new pfd:%d sfd:%d", pPeer->id, pPeer->peerFd, connFd,
-             pPeer->syncFd);
+      sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
       syncClosePeerConn(pPeer);
       pPeer->peerFd = connFd;
       pPeer->pConn = taosAllocateTcpConn(tsTcpPool, pPeer, connFd);

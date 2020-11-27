@@ -688,8 +688,10 @@ static void vnodeCtrlFlow(int32_t vgId, int32_t level) {
     return;
   }
 
-  pVnode->flowctrlLevel = level;
-  vDebug("vgId:%d, set flowctrl level:%d", pVnode->vgId, level);
+  if (pVnode->flowctrlLevel != level) {
+    vDebug("vgId:%d, set flowctrl level from %d to %d", pVnode->vgId, pVnode->flowctrlLevel, level);
+    pVnode->flowctrlLevel = level;
+  }
 
   vnodeRelease(pVnode);
 }
@@ -779,6 +781,7 @@ static int32_t vnodeGetFileVersion(int32_t vgId, uint64_t *fver) {
 
   int32_t code = 0;
   if (pVnode->isCommiting) {
+    vDebug("vgId:%d, vnode is commiting while get file version", vgId);
     code = -1;
   } else {
     *fver = pVnode->fversion;

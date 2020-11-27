@@ -58,6 +58,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
     // fileInfo.size = htonl(size);
+    sDebug("%s, file:%s info will be sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
 
     // send the file info
     int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
@@ -107,7 +108,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
       break;
     }
 
-    sDebug("%s, %s is sent, size:%" PRId64, pPeer->id, name, fileInfo.size);
+    sDebug("%s, file:%s is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
     fileInfo.index++;
 
     // check if processed files are modified
@@ -419,18 +420,18 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
 
   pPeer->sversion = 0;
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
-  sInfo("%s, start to retrieve file, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+  sInfo("%s, start to retrieve files, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   if (syncRetrieveFile(pPeer) < 0) {
-    sError("%s, failed to retrieve file", pPeer->id);
+    sError("%s, failed to retrieve files", pPeer->id);
     return -1;
   }
 
   // if no files are synced, there must be wal to sync, sversion must be larger than one
   if (pPeer->sversion == 0) pPeer->sversion = 1;
 
-  sInfo("%s, start to retrieve wal", pPeer->id);
+  sInfo("%s, start to retrieve wals", pPeer->id);
   if (syncRetrieveWal(pPeer) < 0) {
-    sError("%s, failed to retrieve wal", pPeer->id);
+    sError("%s, failed to retrieve wals", pPeer->id);
     return -1;
   }
 
