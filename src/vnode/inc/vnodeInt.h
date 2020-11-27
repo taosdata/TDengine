@@ -44,6 +44,7 @@ typedef struct {
   int8_t       role;   
   int8_t       accessState;
   int8_t       isFull;
+  int8_t       isCommiting;
   uint64_t     version;   // current version 
   uint64_t     fversion;  // version on saved data file
   void        *wqueue;
