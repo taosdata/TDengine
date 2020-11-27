@@ -168,7 +168,7 @@ static void *dnodeProcessMReadQueue(void *param) {
       break;
     }
 
-    dDebug("msg:%p, app:%p type:%s will be processed in mread queue", pRead->rpcMsg.ahandle, pRead,
+    dTrace("msg:%p, app:%p type:%s will be processed in mread queue", pRead->rpcMsg.ahandle, pRead,
            taosMsg[pRead->rpcMsg.msgType]);
     int32_t code = mnodeProcessRead(pRead);
     dnodeSendRpcMReadRsp(pRead, code);

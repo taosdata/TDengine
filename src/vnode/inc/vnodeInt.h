@@ -39,7 +39,7 @@ typedef struct {
   int32_t      refCount;  // reference count
   int32_t      queuedWMsg;
   int32_t      queuedRMsg;
-  int32_t      delayMs;
+  int32_t      flowctrlLevel;
   int8_t       status; 
   int8_t       role;   
   int8_t       accessState;
