@@ -49,7 +49,7 @@ static int32_t syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
 
 static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  fileInfo = {0};
+  SFileInfo  fileInfo; memset(&fileInfo, 0, sizeof(SFileInfo));
   SFileAck   fileAck = {0};
   int32_t    code = TSDB_CODE_SYN_APP_ERROR;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
