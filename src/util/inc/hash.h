@@ -34,7 +34,7 @@ typedef struct SHashNode {
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key
   uint32_t          keyLen;   // length of the key
-  uint32_t          dataLen;  // length of data
+  size_t            dataLen;  // length of data
   int8_t            count;    // reference count
   int8_t            removed;  // flag to indicate removed
   char              data[];
