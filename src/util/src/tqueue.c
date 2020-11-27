@@ -79,15 +79,12 @@ void taosCloseQueue(taos_queue param) {
 
   if (queue->qset) taosRemoveFromQset(qset, queue); 
 
-  pthread_mutex_lock(&queue->mutex);
-
   while (pNode) {
     pTemp = pNode;
     pNode = pNode->next;
     free (pTemp);
   }
 
-  pthread_mutex_unlock(&queue->mutex);
   pthread_mutex_destroy(&queue->mutex);
   free(queue);
 

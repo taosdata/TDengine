@@ -25,6 +25,7 @@ int32_t   mnodeInitUsers();
 void      mnodeCleanupUsers();
 SUserObj *mnodeGetUser(char *name);
 void *    mnodeGetNextUser(void *pIter, SUserObj **pUser);
+void      mnodeCancelGetNextUser(void *pIter);
 void      mnodeIncUserRef(SUserObj *pUser);
 void      mnodeDecUserRef(SUserObj *pUser);
 SUserObj *mnodeGetUserFromConn(void *pConn);
