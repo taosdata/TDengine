@@ -92,9 +92,9 @@ int32_t sdbDeleteRow(SSdbRow *pRow);
 int32_t sdbUpdateRow(SSdbRow *pRow);
 int32_t sdbInsertRowToQueue(SSdbRow *pRow);
 
-void    *sdbGetRow(void *pTable, void *key);
-void    *sdbFetchRow(void *pTable, void *pIter, void **ppRow);
-void     sdbFreeIter(void *pIter);
+void *   sdbGetRow(void *pTable, void *key);
+void *   sdbFetchRow(void *pTable, void *pIter, void **ppRow);
+void     sdbFreeIter(void *pTable, void *pIter);
 void     sdbIncRef(void *pTable, void *pRow);
 void     sdbDecRef(void *pTable, void *pRow);
 int64_t  sdbGetNumOfRows(void *pTable);

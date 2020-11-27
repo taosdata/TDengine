@@ -171,7 +171,9 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
     }
   }
 
-  pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+  if (pDst->nType != TSDB_DATA_TYPE_ARRAY) {
+    pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+  }
 }
 
 int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
