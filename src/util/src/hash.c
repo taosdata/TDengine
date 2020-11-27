@@ -76,7 +76,7 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
 static FORCE_INLINE SHashNode *doSearchInEntryList(SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0)) {
+    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -222,7 +222,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
   SHashNode* prev = NULL;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0)) {
+    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -361,7 +361,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   SHashNode *prevNode = NULL;
 
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0)) 
+    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
       break;
 
     prevNode = pNode;
@@ -372,6 +372,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
     code = 0;  // it is found
 
     pNode->count--;
+    pNode->removed = 1;
     if (pNode->count <= 0) {
       if (prevNode) {
         prevNode->next = pNode->next;
@@ -702,8 +703,13 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
     pNode = pNode->next;
   }
 
-  if (pNode) {
+  if (pNode) { 
     pNode = pNode->next;
+    while (pNode) {
+      if (pNode->removed == 0) break;
+      pNode = pNode->next;
+    }
+
     pOld->count--;
     if (pOld->count <=0) {
       if (prevNode) {
@@ -755,6 +761,11 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
       }
 
       pNode = pe->next;
+      while (pNode) {
+        if (pNode->removed == 0) break;
+        pNode = pNode->next;
+      }
+
       if (pNode) break;
 
       if (pHashObj->type == HASH_ENTRY_LOCK) {
