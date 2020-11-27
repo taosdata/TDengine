@@ -64,13 +64,13 @@
     }                                                                            \
   } while (0);
 
-#define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx) \
-do {\
-for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) {                  \
-      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[i];                     \
-      aAggs[TSDB_FUNC_TAG].xFunction(__ctx);                                     \
-    }     \
-} while(0);
+#define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx)                   \
+  do {                                                          \
+    for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) { \
+      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[i];    \
+      aAggs[TSDB_FUNC_TAG].xFunction(__ctx);                    \
+    }                                                           \
+  } while (0);
 
 void noop1(SQLFunctionCtx *UNUSED_PARAM(pCtx)) {}
 void noop2(SQLFunctionCtx *UNUSED_PARAM(pCtx), int32_t UNUSED_PARAM(index)) {}
@@ -3625,11 +3625,10 @@ static bool twa_function_setup(SQLFunctionCtx *pCtx) {
   }
   
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  STwaInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  
-  pInfo->lastKey = INT64_MIN;
-  pInfo->type = pCtx->inputType;
-  
+
+  STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->lastKey  = INT64_MIN;
+  pInfo->win      = TSWINDOW_INITIALIZER;
   return true;
 }
 
@@ -3640,10 +3639,24 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  if (pInfo->lastKey == INT64_MIN) {
-    pInfo->lastKey = pCtx->nStartQueryTimestamp;
+
+  if (pCtx->start.key != INT64_MIN) {
+    assert(pCtx->start.key < primaryKey[index] && pInfo->lastKey == INT64_MIN);
+
+    pInfo->lastKey = primaryKey[index];
     GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, 0));
+
+    pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (primaryKey[index] - pCtx->start.key);
+
     pInfo->hasResult = DATA_SET_FLAG;
+    pInfo->win.skey  = pCtx->start.key;
+    notNullElems++;
+  } else if (pInfo->lastKey == INT64_MIN) {
+    pInfo->lastKey = primaryKey[index];
+    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, 0));
+
+    pInfo->hasResult = DATA_SET_FLAG;
+    pInfo->win.skey = pInfo->lastKey;
     notNullElems++;
   }
 
@@ -3732,6 +3745,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     default: assert(0);
   }
 
+  // the last interpolated time window value
+  if (pCtx->end.key != INT64_MIN) {
+    pInfo->dOutput += ((pInfo->lastValue + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->lastKey);
+    pInfo->lastValue = pCtx->end.val;
+    pInfo->lastKey = pCtx->end.key;
+  }
+
+  pInfo->win.ekey  = pInfo->lastKey;
   return notNullElems;
 }
 
@@ -3751,7 +3772,7 @@ static void twa_function(SQLFunctionCtx *pCtx) {
     return;
   }
   
-  int32_t notNullElems = twa_function_impl(pCtx, 0, pCtx->size);
+  int32_t notNullElems = twa_function_impl(pCtx, pCtx->startOffset, pCtx->size);
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
@@ -3795,8 +3816,7 @@ static void twa_func_merge(SQLFunctionCtx *pCtx) {
     numOfNotNull++;
     pBuf->dOutput += pInput->dOutput;
 
-    pBuf->SKey = pInput->SKey;
-    pBuf->EKey = pInput->EKey;
+    pBuf->win = pInput->win;
     pBuf->lastKey = pInput->lastKey;
   }
   
@@ -3824,17 +3844,17 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   STwaInfo *pInfo = (STwaInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  assert(pInfo->EKey >= pInfo->lastKey && pInfo->hasResult == pResInfo->hasResult);
+  assert(pInfo->win.ekey == pInfo->lastKey && pInfo->hasResult == pResInfo->hasResult);
   
   if (pInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->aOutputBuf, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
   }
   
-  if (pInfo->SKey == pInfo->EKey) {
+  if (pInfo->win.ekey == pInfo->win.skey) {
     *(double *)pCtx->aOutputBuf = pInfo->lastValue;
   } else {
-    *(double *)pCtx->aOutputBuf = pInfo->dOutput / (pInfo->EKey - pInfo->SKey);
+    *(double *)pCtx->aOutputBuf = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;

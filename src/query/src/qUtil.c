@@ -389,8 +389,7 @@ uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv) {
   }
 
   SQuery* pQuery = pRuntimeEnv->pQuery;
-  if ((pQuery->checkBuffer == 1 && pQuery->interval.interval == 0) || isPointInterpoQuery(pQuery) ||
-      pRuntimeEnv->groupbyNormalCol) {
+  if (pQuery->interval.interval == 0 || isPointInterpoQuery(pQuery) || pRuntimeEnv->groupbyNormalCol) {
     return 0;
   }
 

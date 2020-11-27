@@ -152,6 +152,11 @@ typedef struct SResultRowCellInfo {
   uint32_t numOfRes;        // num of output result in current buffer
 } SResultRowCellInfo;
 
+typedef struct SPoint1 {
+  int64_t key;
+  double  val;
+} SPoint1;
+
 #define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowCellInfo)))
 
 struct SQLFunctionCtx;
@@ -194,6 +199,8 @@ typedef struct SQLFunctionCtx {
   SResultRowCellInfo *resultInfo;
 
   SExtTagsInfo tagInfo;
+  SPoint1      start;
+  SPoint1      end;
 } SQLFunctionCtx;
 
 typedef struct SQLAggFuncElem {
@@ -243,13 +250,11 @@ enum {
 };
 
 typedef struct STwaInfo {
-  TSKEY   lastKey;
-  int8_t  hasResult;  // flag to denote has value
-  int16_t type;       // source data type
-  TSKEY   SKey;
-  TSKEY   EKey;
-  double  dOutput;
-  double  lastValue;
+  TSKEY       lastKey;
+  int8_t      hasResult;  // flag to denote has value
+  double      dOutput;
+  double      lastValue;
+  STimeWindow win;
 } STwaInfo;
 
 /* global sql function array */

@@ -63,9 +63,11 @@ typedef struct SSqlGroupbyExpr {
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
-  int32_t       rowId:15;
-  bool          closed:1;    // this result status: closed or opened
-  uint16_t      numOfRows;   // number of rows of current time window
+  int32_t       rowId:29;    // row index in buffer page
+  bool          startInterp; // the time window start timestamp has done the interpolation already.
+  bool          endInterp;   // the time window end timestamp has done the interpolation already.
+  bool          closed;      // this result status: closed or opened
+  uint32_t      numOfRows;   // number of rows of current time window
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   union {STimeWindow win; char* key;};  // start key of current time window
 } SResultRow;
@@ -187,6 +189,7 @@ typedef struct SQueryRuntimeEnv {
   bool                 topBotQuery;      // false
   bool                 groupbyNormalCol; // denote if this is a groupby normal column query
   bool                 hasTagResults;    // if there are tag values in final result or not
+  bool                 timeWindowInterpo;// if the time window start/end required interpolation
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
@@ -195,6 +198,8 @@ typedef struct SQueryRuntimeEnv {
   SResultRowPool*      pool;             // window result object pool
 
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
+  char**               prevRow;
+  char**               nextRow;
 } SQueryRuntimeEnv;
 
 enum {
