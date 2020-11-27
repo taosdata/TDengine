@@ -76,6 +76,7 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/resource.h>
 #include <error.h>
+#include <math.h>
 
 #define TAOS_OS_FUNC_LZ4
 #define BUILDIN_CLZL(val) __builtin_clzll(val)

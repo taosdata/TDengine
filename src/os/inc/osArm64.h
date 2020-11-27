@@ -77,6 +77,7 @@ extern "C" {
 #include <sys/resource.h>
 #include <error.h>
 #include <linux/sysctl.h>
+#include <math.h>
 
 #ifdef __cplusplus
 }
