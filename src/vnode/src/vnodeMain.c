@@ -129,6 +129,8 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
   tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
   tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
+  tsdbCfg.keep1               = pVnodeCfg->cfg.daysToKeep1;
+  tsdbCfg.keep2               = pVnodeCfg->cfg.daysToKeep2;
   tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
   tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
