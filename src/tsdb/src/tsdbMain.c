@@ -306,7 +306,7 @@ int tsdbGetState(TSDB_REPO_T *repo) {
 
 // ----------------- INTERNAL FUNCTIONS -----------------
 char *tsdbGetMetaFileName(char *rootDir) {
-  int   tlen = (int)(strlen(TFS_PRIMARY_PATH()) + strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 2);
+  int   tlen = (int)(strlen(TFS_PRIMARY_PATH()) + strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 3);
   char *fname = calloc(1, tlen);
   if (fname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
