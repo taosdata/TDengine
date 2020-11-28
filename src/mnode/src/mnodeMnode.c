@@ -34,6 +34,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
+int64_t              tsMnodeRid = -1;
 static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
 static SRpcEpSet     tsMnodeEpSetForShell;
@@ -153,7 +154,8 @@ int32_t mnodeInitMnodes() {
     .fpRestored   = mnodeMnodeActionRestored
   };
 
-  tsMnodeSdb = sdbOpenTable(&desc);
+  tsMnodeRid = sdbOpenTable(&desc);
+  tsMnodeSdb = sdbGetTableByRid(tsMnodeRid);
   if (tsMnodeSdb == NULL) {
     mError("failed to init mnodes data");
     return -1;
@@ -168,7 +170,7 @@ int32_t mnodeInitMnodes() {
 }
 
 void mnodeCleanupMnodes() {
-  sdbCloseTable(tsMnodeSdb);
+  sdbCloseTable(tsMnodeRid);
   tsMnodeSdb = NULL;
   mnodeMnodeDestroyLock();
 }

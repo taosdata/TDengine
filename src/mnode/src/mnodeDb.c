@@ -38,6 +38,7 @@
 #include "mnodeVgroup.h"
 
 #define VG_LIST_SIZE 8
+int64_t        tsDbRid = -1;
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
@@ -160,7 +161,8 @@ int32_t mnodeInitDbs() {
     .fpRestored   = mnodeDbActionRestored
   };
 
-  tsDbSdb = sdbOpenTable(&desc);
+  tsDbRid = sdbOpenTable(&desc);
+  tsDbSdb = sdbGetTableByRid(tsDbRid);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -496,7 +498,7 @@ void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
 }
 
 void mnodeCleanupDbs() {
-  sdbCloseTable(tsDbSdb);
+  sdbCloseTable(tsDbRid);
   tsDbSdb = NULL;
 }
 
