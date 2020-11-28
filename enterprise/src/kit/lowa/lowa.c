@@ -15,7 +15,10 @@
 
 #define _GNU_SOURCE
 #define CURL_STATICLIB
+
+#ifdef TD_LOWA_CURL
 #include "curl/curl.h"
+#endif
 
 #ifdef LINUX
   #include "os.h"
@@ -58,6 +61,10 @@ extern char configDir[];
 #define QUERY_JSON_NAME       "query.json"
 #define SUBSCRIBE_JSON_NAME   "subscribe.json"
 
+#define INSERT_MODE        0
+#define QUERY_MODE         1
+#define SUBSCRIBE_MODE     2
+
 #define BUFFER_SIZE        (65536*2)
 #define MAX_DB_NAME_SIZE   64
 #define MAX_TB_NAME_SIZE   64
@@ -69,6 +76,8 @@ extern char configDir[];
 //#define MAX_SQL_SIZE       65536
 #define MAX_FILE_NAME_LEN  256
 
+#define   MAX_SAMPLES_ONCE_FROM_FILE   10000
+#define   MAX_NUM_DATATYPE 10
 
 #define   MAX_DB_COUNT           8
 #define   MAX_SUPER_TABLE_COUNT  8
@@ -87,11 +96,39 @@ typedef enum CREATE_SUB_TALBE_MOD_EN {
   NO_CREATE_SUBTBL
 } CREATE_SUB_TALBE_MOD_EN;
 
+enum MODE {
+  SYNC, 
+  ASYNC,
+  MODE_BUT
+};
 
 /* Used by main to communicate with parse_opt. */
 typedef struct SArguments_S {
   char *   metaFile;
+  char *   host;
+  uint16_t port;
+  char *   user;
+  char *   password;
+  char *   database;
+  int      replica;
+  char *   tb_prefix;
+  char *   sqlFile;
+  bool     use_metric;
+  bool     insert_only;
+  char *   output_file;
+  int      mode;
+  char *   datatype[MAX_NUM_DATATYPE + 1];
+  int      len_of_binary;
+  int      num_of_CPR;
+  int      num_of_threads;
+  int      num_of_RPR;
+  int      num_of_tables;
+  int      num_of_DPT;
   int      abort;
+  int      order;
+  int      rate;
+  int      method_of_delete;
+  char **  arg_list;
 } SArguments;
 
 typedef struct SColumn_S {
@@ -107,7 +144,15 @@ typedef struct SSuperTable_S {
   char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];  // taosc, restful
   int          insertRate;  // 0: unlimit  > 0   rows/s
-  int64_t      insertRows;
+
+  int          multiThreadWriteOneTbl;   // 0: no, 1: yes
+  int          numberOfTblInOneSql;      // 0/1: one table, > 1: number of tbl
+  int          rowsPerTbl;               // 
+  int          disorderRatio;            // 0: no disorder, >0: x%
+  int          disorderRange;            // ms or us by database precision
+  int          maxSqlLen;                // 
+  
+  int64_t      insertRows;               // 0: no limit
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];  // 
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
@@ -124,8 +169,9 @@ typedef struct SSuperTable_S {
   int          lenOfTagOfOneRow;
 
   char*        sampleDataBuf;
-  int          sampleRowCount;
-  int          sampleUsePos;
+  int          sampleDataBufSize;
+  //int          sampleRowCount;
+  //int          sampleUsePos;
 
   int          tagSource;    // 0: rand, 1: tag sample
   char*        tagDataBuf;
@@ -134,7 +180,7 @@ typedef struct SSuperTable_S {
 } SSuperTable;
 
 typedef struct SDbCfg_S { 
-  int       maxtablesPerVnode;
+//  int       maxtablesPerVnode;
   int       minRows; 
   int       maxRows;
   int       comp;
@@ -146,11 +192,13 @@ typedef struct SDbCfg_S {
   int       days;
   int       cache;
   int       blocks;
+  int       quorum;
   char      precision[MAX_TB_NAME_SIZE];  
 } SDbCfg;
 
 typedef struct SDataBase_S {
   char         dbName[MAX_DB_NAME_SIZE];
+  int          drop;  // 0: use exists, 1: if exists, drop then new create
   SDbCfg       dbCfg;
   int          superTblCount;
   SSuperTable  supterTbls[MAX_SUPER_TABLE_COUNT];
@@ -208,7 +256,9 @@ typedef struct SQueryMetaInfo_S {
 
 typedef struct SThreadInfo_S {
   TAOS *taos;
+  #ifdef TD_LOWA_CURL
   CURL *curl_handle;
+  #endif
   int threadID;
   char db_name[MAX_DB_NAME_SIZE];
   char fp[4096];
@@ -227,59 +277,197 @@ typedef  struct curlMemInfo_S {
     size_t sizeleft;
   } curlMemInfo;
 
-
 #ifdef LINUX
   /* The options we understand. */
   static struct argp_option options[] = {
-    {0, 'f', "meta file",            0, "The meta data to the execution procedure. Default is './insert.json'.",    0},
-    {0, 'c', "config_directory",     0, "Configuration directory. Default is '/etc/taos/'.",                        1},
+    {0, 'f', "meta file",                0, "The meta data to the execution procedure, if use -f, all others options invalid. Default is './insert.json'.",     0},
+    #ifdef _TD_POWER_
+    {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/power/'.",                                                               0},
+    {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'powerdb'.",                                         0},
+    #else
+    {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                0},
+    {0, 'P', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        0},
+    #endif  
+    {0, 'h', "host",                     0, "The host to connect to TDengine. Default is localhost.",                                                           0},
+    {0, 'p', "port",                     0, "The TCP/IP port number to use for the connection. Default is 0.",                                                  1},
+    {0, 'u', "user",                     0, "The TDengine user name to use when connecting to the server. Default is 'root'.",                                  2},
+    {0, 'd', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
+    {0, 'a', "replica",                  0, "Set the replica parameters of the database, Default 1, min: 1, max: 3.",                                              3},
+    {0, 'm', "table_prefix",             0, "Table prefix name. Default is 't'.",                                                                               3},
+    {0, 's', "sql file",                 0, "The select sql file.",                                                                                             3},
+    {0, 'M', 0,                          0, "Use metric flag.",                                                                                                 13},
+    {0, 'o', "outputfile",               0, "Direct output to the named file. Default is './output.txt'.",                                                      14},
+    {0, 'q', "query_mode",               0, "Query mode--0: SYNC, 1: ASYNC. Default is SYNC.",                                                                  6},
+    {0, 'b', "type_of_cols",             0, "The data_type of columns: 'INT', 'TINYINT', 'SMALLINT', 'BIGINT', 'FLOAT', 'DOUBLE', 'BINARY'. Default is 'INT'.", 7},
+    {0, 'w', "length_of_binary",         0, "The length of data_type 'BINARY'. Only applicable when type of cols is 'BINARY'. Default is 8",                    8},
+    {0, 'l', "num_of_cols_per_record",   0, "The number of columns per record. Default is 3.",                                                                  8},
+    {0, 'T', "num_of_threads",           0, "The number of threads. Default is 10.",                                                                            9},
+    {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                              10},
+    {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                          11},
+    {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
+    {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
+    {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order.",                                                  14},
+    {0, 'R', "rate",                     0, "Out of order data's rate--if order=1 Default 10, min: 0, max: 50.",                                                14},
+    {0, 'D', "delete table",             0, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database",             14},
     {0}};
 
-  /* Parse a single option. */
-  static error_t parse_opt(int key, char *arg, struct argp_state *state) {
-    /* Get the input argument from argp_parse, which we
-      know is a pointer to our arguments structure. */
-    SArguments *arguments = state->input;
-    wordexp_t full_path;
-    switch (key) {
-      case 'f':
-        arguments->metaFile = arg;
-        break;
-      case 'c':
-        if (wordexp(arg, &full_path, 0) != 0) {
-          fprintf(stderr, "Invalid path %s\n", arg);
-          return -1;
+/* Parse a single option. */
+static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+  // Get the input argument from argp_parse, which we know is a pointer to our arguments structure. 
+  SArguments *arguments = state->input;
+  wordexp_t full_path;
+  char **sptr;
+  switch (key) {
+    case 'f':
+      arguments->metaFile = arg;
+      break;
+    case 'h':
+      arguments->host = arg;
+      break;
+    case 'p':
+      arguments->port = atoi(arg);
+      break;
+    case 'u':
+      arguments->user = arg;
+      break;
+    case 'P':
+      arguments->password = arg;
+      break;
+    case 'o':
+      arguments->output_file = arg;
+      break;
+    case 's':
+      arguments->sqlFile = arg;
+      break;
+    case 'q':
+      arguments->mode = atoi(arg);
+      break;
+    case 'T':
+      arguments->num_of_threads = atoi(arg);
+      break;
+    case 'r':
+      arguments->num_of_RPR = atoi(arg);
+      break;
+    case 't':
+      arguments->num_of_tables = atoi(arg);
+      break;
+    case 'n':
+      arguments->num_of_DPT = atoi(arg);
+      break;
+    case 'd':
+      arguments->database = arg;
+      break;
+    case 'l':
+      arguments->num_of_CPR = atoi(arg);
+      break;
+    case 'b':
+      sptr = arguments->datatype;
+      if (strstr(arg, ",") == NULL) {
+        if (strcasecmp(arg, "INT")      != 0 && strcasecmp(arg, "FLOAT")     != 0 &&
+            strcasecmp(arg, "TINYINT")  != 0 && strcasecmp(arg, "BOOL")      != 0 &&
+            strcasecmp(arg, "SMALLINT") != 0 && strcasecmp(arg, "TIMESTAMP") != 0 &&
+            strcasecmp(arg, "BIGINT")   != 0 && strcasecmp(arg, "DOUBLE")    != 0 &&
+            strcasecmp(arg, "BINARY")   != 0 && strcasecmp(arg, "NCHAR")     != 0) {
+          argp_error(state, "Invalid data_type!");
         }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-        break;
-      case OPT_ABORT:
-        arguments->abort = 1;
-        break;
-      case ARGP_KEY_ARG:
-        /*arguments->arg_list = &state->argv[state->next-1];
-        state->next = state->argc;*/
-        argp_usage(state);
-        break;
+        sptr[0] = arg;
+      } else {
+        int index = 0;
+        char *dupstr = strdup(arg);
+        char *running = dupstr;
+        char *token = strsep(&running, ",");
+        while (token != NULL) {
+        if (strcasecmp(token, "INT")      != 0 && strcasecmp(token, "FLOAT")     != 0 &&
+            strcasecmp(token, "TINYINT")  != 0 && strcasecmp(token, "BOOL")      != 0 &&
+            strcasecmp(token, "SMALLINT") != 0 && strcasecmp(token, "TIMESTAMP") != 0 &&
+            strcasecmp(token, "BIGINT")   != 0 && strcasecmp(token, "DOUBLE")    != 0 &&
+            strcasecmp(token, "BINARY")   != 0 && strcasecmp(token, "NCHAR")     != 0) {
+            argp_error(state, "Invalid data_type!");
+          }
+          sptr[index++] = token;
+          token = strsep(&running, ",");
+          if (index >= MAX_NUM_DATATYPE) break;
+        }
+      }
+      break;
+    case 'w':
+      arguments->len_of_binary = atoi(arg);
+      break;
+    case 'm':
+      arguments->tb_prefix = arg;
+      break;
+    case 'M':
+      arguments->use_metric = false;
+      break;
+    case 'x':
+      arguments->insert_only = false;
+      break;
+    case 'c':
+      if (wordexp(arg, &full_path, 0) != 0) {
+        fprintf(stderr, "Invalid path %s\n", arg);
+        return -1;
+      }
+      taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+      wordfree(&full_path);
+      break;
+    case 'O':
+      arguments->order = atoi(arg);
+      if (arguments->order > 1 || arguments->order < 0)
+      {
+        arguments->order = 0;
+      } else if (arguments->order == 1)
+      {
+        arguments->rate = 10;
+      }
+      break;
+    case 'R':
+      arguments->rate = atoi(arg);
+      if (arguments->order == 1 && (arguments->rate > 50 || arguments->rate <= 0))
+      {
+        arguments->rate = 10;
+      }
+      break;
+    case 'a':
+      arguments->replica = atoi(arg);
+      if (arguments->replica > 3 || arguments->replica < 1)
+      {
+        arguments->replica = 1;
+      }
+      break;
+    case 'D':
+      arguments->method_of_delete = atoi(arg);
+      if (arguments->method_of_delete < 0 || arguments->method_of_delete > 3)
+      {
+        arguments->method_of_delete = 0;
+      }
+      break;
+    case OPT_ABORT:
+      arguments->abort = 1;
+      break;
+    case ARGP_KEY_ARG:
+      /*arguments->arg_list = &state->argv[state->next-1];
+      state->next = state->argc;*/
+      argp_usage(state);
+      break;
 
-      default:
-        return ARGP_ERR_UNKNOWN;
-    }
-    return 0;
+    default:
+      return ARGP_ERR_UNKNOWN;
   }
+  return 0;
+}
 
-  static struct argp argp = {options, parse_opt, 0, 0};
+static struct argp argp = {options, parse_opt, 0, 0};
 
-  void parse_args(int argc, char *argv[], SArguments *arguments) {
-    argp_parse(&argp, argc, argv, 0, 0, arguments);
-    if (arguments->abort) {
-      #ifndef _ALPINE
-        error(10, 0, "ABORTED");
-      #else
-        abort();
-      #endif
-    }
+void parse_args(int argc, char *argv[], SArguments *arguments) {
+  argp_parse(&argp, argc, argv, 0, 0, arguments);
+  if (arguments->abort) {
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
   }
+}
 
 #else
   void printHelp() {
@@ -324,11 +512,48 @@ int64_t  randbigint[MAX_PREPARED_RAND];
 float    randfloat[MAX_PREPARED_RAND];
 double   randdouble[MAX_PREPARED_RAND];
 
-SArguments g_args = {"./meta.json", 0};
+SArguments g_args = {"./insert.json",
+                     "127.0.0.1",     // host
+                     6030,            // port
+                     "root",          // user
+                     #ifdef _TD_POWER_ 
+                     "powerdb",      // password
+                     #else
+                     "taosdata",      // password
+                     #endif
+                     "test",          // database
+                     1,               // replica
+                     "t",             // tb_prefix
+                     NULL,            // sqlFile
+                     false,           // use_metric
+                     false,           // insert_only
+                     "./output.txt",  // output_file
+                     0,               // mode : sync or async
+                     {
+                     "bool",           // datatype
+                     "tinyint",
+                     "smallint",
+                     "int",
+                     "bigint",
+                     "float",
+                     "double",
+                     "binary",
+                     "nchar",
+                     "timestamp"
+                     },
+                     8,               // len_of_binary
+                     1,               // num_of_CPR
+                     1,               // num_of_connections/thread
+                     1,               // num_of_RPR
+                     1,               // num_of_tables
+                     50000,           // num_of_DPT
+                     0,               // abort
+                     0,               // order
+                     0,               // rate
+                     0,               // method_of_delete
+                     NULL             // arg_list
+};
 
-#define    INSERT_MODE        0
-#define    QUERY_MODE         1
-#define    SUBSCRIBE_MODE     2
 
 int        g_jsonType = 0;
 SDbs       g_Dbs;
@@ -337,6 +562,18 @@ int64_t    g_totalRecords = 0;
 
 SQueryMetaInfo g_queryInfo;
 
+
+void tmflose(FILE *fp) {
+  if (NULL != fp) {
+    fclose(fp);
+  }
+}
+
+void tmfree(char *buf) {
+  if (NULL != buf) {
+    free(buf);
+  }
+}
 
 static void queryDB(TAOS *taos, char *command) {
   int i;
@@ -469,7 +706,7 @@ static double rand_double() {
 
 static void init_rand_data() {
   for (int i = 0; i < MAX_PREPARED_RAND; i++){
-    randint[i] = (int)(rand() % 10);
+    randint[i] = (int)(rand() % 65535);
     randbigint[i] = (int64_t)(rand() % 2147483648);
     randfloat[i] = (float)(rand() / 1000.0);
     randdouble[i] = (double)(rand() / 1000000.0);
@@ -488,45 +725,29 @@ static void printfInsertMeta() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     printf("database[\033[33m%d\033[0m]:\n", i);
     printf("  database name:         \033[33m%s\033[0m\n", g_Dbs.db[i].dbName);
-  
-    if (g_Dbs.db[i].dbCfg.blocks > 0) {
-      printf("  blocks:                \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.blocks);
+    if (0 == g_Dbs.db[i].drop) {
+      printf("  drop:                  \033[33mno\033[0m\n");     
+    }else {
+      printf("  drop:                  \033[33myes\033[0m\n"); 
     }
-    if (g_Dbs.db[i].dbCfg.cache > 0) {
-      printf("  cache:                 \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.cache);
-    }
-    if (g_Dbs.db[i].dbCfg.days > 0) {
-      printf("  days:                  \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.days);
-    }
-    if (g_Dbs.db[i].dbCfg.keep > 0) {
-      printf("  keep:                  \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.keep);
-    }
-    if (g_Dbs.db[i].dbCfg.replica > 0) {
-      printf("  replica:               \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.replica);
-    }
-    if (g_Dbs.db[i].dbCfg.update > 0) {
-      printf("  update:                \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.update);
-    }
-    if (g_Dbs.db[i].dbCfg.maxtablesPerVnode > 0) {
-      printf("  maxtablesPerVnode:     \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.maxtablesPerVnode);
-    }
-    if (g_Dbs.db[i].dbCfg.minRows > 0) {
-      printf("  minRows:               \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.minRows);
-    }
-    if (g_Dbs.db[i].dbCfg.maxRows > 0) {
-      printf("  maxRows:               \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.maxRows);
-    }
-    if (g_Dbs.db[i].dbCfg.comp > 0) {
-      printf("  comp:                  \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.comp);
-    }
-    if (g_Dbs.db[i].dbCfg.walLevel > 0) {
-      printf("  walLevel:              \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.walLevel);
-    }
-    if (g_Dbs.db[i].dbCfg.fsync > 0) {
-      printf("  fsync:                 \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.fsync);
-    }
+    printf("  blocks:                \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.blocks);
+    printf("  cache:                 \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.cache);
+    printf("  days:                  \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.days);
+    printf("  keep:                  \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.keep);
+    printf("  replica:               \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.replica);
+    printf("  update:                \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.update);
+//    printf("  maxtablesPerVnode:     \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.maxtablesPerVnode);
+    printf("  minRows:               \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.minRows);
+    printf("  maxRows:               \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.maxRows);
+    printf("  comp:                  \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.comp);
+    printf("  walLevel:              \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.walLevel);
+    printf("  fsync:                 \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.fsync);
+    printf("  quorum:                \033[33m%d\033[0m\n", g_Dbs.db[i].dbCfg.quorum);
     if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2)) || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))) {
       printf("  precision:             \033[33m%s\033[0m\n", g_Dbs.db[i].dbCfg.precision);
+    } else {
+      printf("  precision error:       \033[33m%s\033[0m\n", g_Dbs.db[i].dbCfg.precision);
+      exit(-1);
     }
 
     printf("  super table count:     \033[33m%d\033[0m\n", g_Dbs.db[i].superTblCount);
@@ -548,7 +769,19 @@ static void printfInsertMeta() {
       printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].dataSource);      
       printf("      insertMode:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].insertMode);      
       printf("      insertRate:        \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].insertRate);     
-      printf("      insertRows:        \033[33m%ld\033[0m\n", g_Dbs.db[i].supterTbls[j].insertRows);     
+      printf("      insertRows:        \033[33m%ld\033[0m\n", g_Dbs.db[i].supterTbls[j].insertRows); 
+
+      if (0 == g_Dbs.db[i].supterTbls[j].multiThreadWriteOneTbl) {
+        printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");     
+      }else {
+        printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n"); 
+      }
+      printf("      numberOfTblInOneSql:     \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].numberOfTblInOneSql);     
+      printf("      rowsPerTbl:        \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].rowsPerTbl);     
+      printf("      disorderRange:     \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].disorderRange);     
+      printf("      disorderRatio:     \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].disorderRatio);
+      printf("      maxSqlLen:         \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].maxSqlLen);     
+      
       printf("      timeStampStep:     \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].timeStampStep);      
       printf("      startTimestamp:    \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].startTimestamp);             
       printf("      sampleFormat:      \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].sampleFormat);
@@ -628,6 +861,7 @@ static void printfQueryMeta() {
   printf("\033[1m\033[40;32m================ query.json parse result ================\033[0m\n");
 }
 
+#ifdef TD_LOWA_CURL
 static size_t responseCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
   size_t realsize = size * nmemb;
@@ -778,6 +1012,7 @@ int curlProceSql(char* host, uint16_t port, char* sqlstr, CURL *curl_handle)
  
   return 0;
 }
+#endif
 
 char* getTagValueFromTagSample(        SSuperTable* stbInfo, int tagUsePos) {
   char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
@@ -853,9 +1088,13 @@ static int createDatabases() {
   }
   char command[BUFFER_SIZE] = "\0";
 
+
   for (int i = 0; i < g_Dbs.dbCount; i++) {   
-    //sprintf(command, "drop database if exists %s;", g_Dbs.db[i].dbName);
-    //(void)queryDB(taos, command);
+    if (g_Dbs.db[i].drop) {
+      sprintf(command, "drop database if exists %s;", g_Dbs.db[i].dbName);
+      (void)queryDB(taos, command);
+    }
+    
     int dataLen = 0;
     dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "create database if not exists %s ", g_Dbs.db[i].dbName);
 
@@ -900,6 +1139,7 @@ static int createDatabases() {
     }
     
     (void)queryDB(taos, command);
+    printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
     
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       char cols[STRING_LEN] = "\0";
@@ -942,6 +1182,7 @@ static int createDatabases() {
           lenOfOneRow += 21;
         } else {
           taos_close(taos);
+          printf("config error data type : %s\n", dataType);
           exit(-1);
         }
       }
@@ -996,6 +1237,7 @@ static int createDatabases() {
           lenOfTagOfOneRow += g_Dbs.db[i].supterTbls[j].tags[tagIndex].dataLen + 42;
         } else {
           taos_close(taos);
+          printf("config error tag type : %s\n", dataType);
           exit(-1);
         }
       }
@@ -1006,6 +1248,7 @@ static int createDatabases() {
       
       snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s (ts timestamp%s) tags %s", g_Dbs.db[i].dbName, g_Dbs.db[i].supterTbls[j].sTblName, cols, tags);
       (void)queryDB(taos, command);
+      printf("\ncreate supertable %s success!\n\n", g_Dbs.db[i].supterTbls[j].sTblName);
     }    
   }
 
@@ -1021,6 +1264,8 @@ void * createTable(void *sarg)
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
+  int lastTblsPrint = winfo->start_table_id + 1000;
+
   //printf("Creating table from %d to %d\n", winfo->start_table_id, winfo->end_table_id);
   for (int i = winfo->start_table_id; i <= winfo->end_table_id; i++) {
     char* tagsValBuf = NULL;
@@ -1032,6 +1277,11 @@ void * createTable(void *sarg)
     snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s%d using %s.%s tags %s;", winfo->db_name, superTblInfo->childTblPrefix, i, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
     free(tagsValBuf);
     queryDB(winfo->taos, command);
+
+    if (i >= lastTblsPrint) {
+      printf("thread[%d] already create %d - %d tables\n", winfo->threadID, winfo->start_table_id, i);
+      lastTblsPrint += 1000;
+    }
   }
 
   return NULL;
@@ -1153,10 +1403,57 @@ int readSampleFromJsonFileToMem(SSuperTable  * supterTblInfo) {
   return 0;
 }
 
+
 /*
   Read 10000 lines at most. If more than 10000 lines, continue to read after using
 */
-int readSampleFromCsvFileToMem(SSuperTable  * supterTblInfo) {
+int readSampleFromCsvFileToMem(FILE *fp, SSuperTable* superTblInfo, char* sampleBuf) {
+  size_t  n = 0;
+  ssize_t readLen = 0;
+  char *  line = NULL;
+  int getRows = 0;
+
+  memset(sampleBuf, 0, MAX_SAMPLES_ONCE_FROM_FILE* superTblInfo->lenOfOneRow);
+  while (1) {
+    readLen = getline(&line, &n, fp);
+    if (-1 == readLen) {
+      if(0 != fseek(fp, 0, SEEK_SET)) {
+        printf("Failed to fseek file: %s, reason:%s\n", superTblInfo->sampleFile, strerror(errno));
+        return -1;
+      }
+      continue;
+    }
+  
+    if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
+      line[--readLen] = 0;
+    }
+
+    if (readLen == 0) {
+      continue;
+    }
+
+    if (readLen > superTblInfo->lenOfOneRow) {
+      printf("sample row len[%d] overflow define schema len[%d], so discard this row\n", (int32_t)readLen, superTblInfo->lenOfOneRow);
+      continue;
+    }
+
+    memcpy(sampleBuf + getRows * superTblInfo->lenOfOneRow, line, readLen);
+    getRows++;
+
+    if (getRows == MAX_SAMPLES_ONCE_FROM_FILE) {
+      break;
+    }
+  }
+
+  tmfree(line);
+  return 0;
+}
+
+#if 0
+/*
+  Read 10000 lines at most. If more than 10000 lines, continue to read after using
+*/
+int readSampleFromCsvFileToMem_discard(SSuperTable  * supterTblInfo) {
   size_t  n = 0;
   ssize_t readLen = 0;
   char *  line = NULL;
@@ -1172,12 +1469,14 @@ int readSampleFromCsvFileToMem(SSuperTable  * supterTblInfo) {
     supterTblInfo->sampleDataBuf = NULL;
   }
 
-  supterTblInfo->sampleDataBuf = calloc(supterTblInfo->lenOfOneRow * MAX_LINE_COUNT_IN_MEM, 1);
+  supterTblInfo->sampleDataBuf = calloc(supterTblInfo->lenOfOneRow * supterTblInfo->sampleDataBufSize, 1);
   if (supterTblInfo->sampleDataBuf == NULL) {
     printf("Failed to calloc, reason:%s\n", strerror(errno));
     fclose(fp);
     return -1;
   }
+
+  int rowsInBuf = supterTblInfo->sampleDataBufSize / supterTblInfo->lenOfOneRow;
   
   while ((readLen = getline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
@@ -1191,7 +1490,7 @@ int readSampleFromCsvFileToMem(SSuperTable  * supterTblInfo) {
     memcpy(supterTblInfo->sampleDataBuf + supterTblInfo->sampleRowCount * supterTblInfo->lenOfOneRow, line, readLen);
     supterTblInfo->sampleRowCount++;
 
-    if (supterTblInfo->sampleRowCount >= MAX_LINE_COUNT_IN_MEM) {
+    if (supterTblInfo->sampleRowCount >= rowsInBuf) {
       break;
     }
   }
@@ -1200,7 +1499,9 @@ int readSampleFromCsvFileToMem(SSuperTable  * supterTblInfo) {
   fclose(fp);
   return 0;
 }
+#endif
 
+/*
 void readSampleFromFileToMem(SSuperTable  * supterTblInfo) {
   int ret;
   if (0 == strncasecmp(supterTblInfo->sampleFormat, "csv", 3)) {
@@ -1213,7 +1514,7 @@ void readSampleFromFileToMem(SSuperTable  * supterTblInfo) {
     exit(-1);
   }
 }
-
+*/
 static bool getMetaFromInsertJsonFile(cJSON* root) {
 /*
   FILE *fp = fopen(file, "r");
@@ -1320,6 +1621,20 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     }
     strncpy(g_Dbs.db[i].dbName, dbName->valuestring, MAX_DB_NAME_SIZE);
 
+    cJSON *drop = cJSON_GetObjectItem(dbinfo, "drop");
+    if (drop && drop->type == cJSON_String && drop->valuestring != NULL) {
+      if (0 == strncasecmp(drop->valuestring, "yes", 3)) {
+        g_Dbs.db[i].drop = 1;
+      } else {
+        g_Dbs.db[i].drop = 0;
+      }        
+    } else if (!drop) {
+      g_Dbs.db[i].drop = 0;
+    } else {
+      printf("failed to read json, drop not found");
+      goto PARSE_OVER;
+    }
+
     cJSON *precision = cJSON_GetObjectItem(dbinfo, "precision");
     if (precision && precision->type == cJSON_String && precision->valuestring != NULL) {
       strncpy(g_Dbs.db[i].dbCfg.precision, precision->valuestring, MAX_DB_NAME_SIZE);
@@ -1334,7 +1649,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (update && update->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.update = update->valueint;
     } else if (!update) {
-      g_Dbs.db[i].dbCfg.update = 0;
+      g_Dbs.db[i].dbCfg.update = TSDB_DEFAULT_DB_UPDATE_OPTION;
     } else {
       printf("failed to read json, update not found");
       goto PARSE_OVER;
@@ -1344,7 +1659,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (replica && replica->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.replica = replica->valueint;
     } else if (!replica) {
-      g_Dbs.db[i].dbCfg.replica = 1;
+      g_Dbs.db[i].dbCfg.replica = TSDB_DEFAULT_DB_REPLICA_OPTION;
     } else {
       printf("failed to read json, replica not found");
       goto PARSE_OVER;
@@ -1354,7 +1669,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (keep && keep->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.keep = keep->valueint;
     } else if (!keep) {
-      g_Dbs.db[i].dbCfg.keep = -1;
+      g_Dbs.db[i].dbCfg.keep = TSDB_DEFAULT_KEEP;
     } else {
      printf("failed to read json, keep not found");
      goto PARSE_OVER;
@@ -1364,7 +1679,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (days && days->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.days = days->valueint;
     } else if (!days) {
-      g_Dbs.db[i].dbCfg.days = -1;
+      g_Dbs.db[i].dbCfg.days = TSDB_DEFAULT_DAYS_PER_FILE;
     } else {
      printf("failed to read json, days not found");
      goto PARSE_OVER;
@@ -1374,7 +1689,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (cache && cache->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.cache = cache->valueint;
     } else if (!cache) {
-      g_Dbs.db[i].dbCfg.cache = -1;
+      g_Dbs.db[i].dbCfg.cache = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
     } else {
      printf("failed to read json, cache not found");
      goto PARSE_OVER;
@@ -1384,27 +1699,27 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (blocks && blocks->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.blocks = blocks->valueint;
     } else if (!blocks) {
-      g_Dbs.db[i].dbCfg.blocks = -1;
+      g_Dbs.db[i].dbCfg.blocks = TSDB_DEFAULT_TOTAL_BLOCKS;
     } else {
      printf("failed to read json, block not found");
      goto PARSE_OVER;
     }
 
-    cJSON* maxtablesPerVnode= cJSON_GetObjectItem(dbinfo, "maxtablesPerVnode");
-    if (maxtablesPerVnode && maxtablesPerVnode->type == cJSON_Number) {
-      g_Dbs.db[i].dbCfg.maxtablesPerVnode = maxtablesPerVnode->valueint;
-    } else if (!maxtablesPerVnode) {
-      g_Dbs.db[i].dbCfg.maxtablesPerVnode = -1;
-    } else {
-     printf("failed to read json, maxtablesPerVnode not found");
-     goto PARSE_OVER;
-    }
+    //cJSON* maxtablesPerVnode= cJSON_GetObjectItem(dbinfo, "maxtablesPerVnode");
+    //if (maxtablesPerVnode && maxtablesPerVnode->type == cJSON_Number) {
+    //  g_Dbs.db[i].dbCfg.maxtablesPerVnode = maxtablesPerVnode->valueint;
+    //} else if (!maxtablesPerVnode) {
+    //  g_Dbs.db[i].dbCfg.maxtablesPerVnode = TSDB_DEFAULT_TABLES;
+    //} else {
+    // printf("failed to read json, maxtablesPerVnode not found");
+    // goto PARSE_OVER;
+    //}
 
     cJSON* minRows= cJSON_GetObjectItem(dbinfo, "minRows");
     if (minRows && minRows->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.minRows = minRows->valueint;
     } else if (!minRows) {
-      g_Dbs.db[i].dbCfg.minRows = -1;
+      g_Dbs.db[i].dbCfg.minRows = TSDB_DEFAULT_MIN_ROW_FBLOCK;
     } else {
      printf("failed to read json, minRows not found");
      goto PARSE_OVER;
@@ -1414,7 +1729,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (maxRows && maxRows->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.maxRows = maxRows->valueint;
     } else if (!maxRows) {
-      g_Dbs.db[i].dbCfg.maxRows = -1;
+      g_Dbs.db[i].dbCfg.maxRows = TSDB_DEFAULT_MAX_ROW_FBLOCK;
     } else {
      printf("failed to read json, maxRows not found");
      goto PARSE_OVER;
@@ -1424,7 +1739,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (comp && comp->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.comp = comp->valueint;
     } else if (!comp) {
-      g_Dbs.db[i].dbCfg.comp = -1;
+      g_Dbs.db[i].dbCfg.comp = TSDB_DEFAULT_COMP_LEVEL;
     } else {
      printf("failed to read json, comp not found");
      goto PARSE_OVER;
@@ -1434,7 +1749,17 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (walLevel && walLevel->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.walLevel = walLevel->valueint;
     } else if (!walLevel) {
-      g_Dbs.db[i].dbCfg.walLevel = -1;
+      g_Dbs.db[i].dbCfg.walLevel = TSDB_DEFAULT_WAL_LEVEL;
+    } else {
+     printf("failed to read json, walLevel not found");
+     goto PARSE_OVER;
+    }
+
+    cJSON* quorum= cJSON_GetObjectItem(dbinfo, "quorum");
+    if (quorum && quorum->type == cJSON_Number) {
+      g_Dbs.db[i].dbCfg.quorum = quorum->valueint;
+    } else if (!quorum) {
+      g_Dbs.db[i].dbCfg.quorum = TSDB_DEFAULT_DB_QUORUM_OPTION;
     } else {
      printf("failed to read json, walLevel not found");
      goto PARSE_OVER;
@@ -1444,7 +1769,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (fsync && fsync->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.fsync = fsync->valueint;
     } else if (!fsync) {
-      g_Dbs.db[i].dbCfg.fsync = -1;
+      g_Dbs.db[i].dbCfg.fsync = TSDB_DEFAULT_FSYNC_PERIOD;
     } else {
      printf("failed to read json, fsync not found");
      goto PARSE_OVER;
@@ -1500,7 +1825,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
       
       cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
-      if (!count || count->type != cJSON_Number) {
+      if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
         printf("failed to read json, childtable_count not found");
         goto PARSE_OVER;
       }
@@ -1545,6 +1870,19 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("failed to read json, timestamp_step not found");
         goto PARSE_OVER;
       }
+
+      cJSON* sampleDataBufSize = cJSON_GetObjectItem(stbInfo, "sample_buf_size");
+      if (sampleDataBufSize && sampleDataBufSize->type == cJSON_Number) {
+        g_Dbs.db[i].supterTbls[j].sampleDataBufSize = sampleDataBufSize->valueint;
+        if (g_Dbs.db[i].supterTbls[j].sampleDataBufSize < 1024*1024) {
+          g_Dbs.db[i].supterTbls[j].sampleDataBufSize = 1024*1024 + 1024;
+        }
+      } else if (!sampleDataBufSize) {
+        g_Dbs.db[i].supterTbls[j].sampleDataBufSize = 1024*1024 + 1024;
+      } else {
+        printf("failed to read json, sample_buf_size not found");
+        goto PARSE_OVER;
+      }      
        
       cJSON *sampleFormat = cJSON_GetObjectItem(stbInfo, "sample_format");
       if (sampleFormat && sampleFormat->type == cJSON_String && sampleFormat->valuestring != NULL) {
@@ -1580,8 +1918,78 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else {
         printf("failed to read json, tags_file not found");
         goto PARSE_OVER;
-      }    
+      }
     
+      cJSON* maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
+      if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
+        int32_t len = maxSqlLen->valueint;
+        if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
+          len = TSDB_MAX_ALLOWED_SQL_LEN;
+        } //else if (len < TSDB_MAX_SQL_LEN) {
+          //len = TSDB_MAX_SQL_LEN;
+        //}       
+        g_Dbs.db[i].supterTbls[j].maxSqlLen = len;
+      } else if (!maxSqlLen) {
+        g_Dbs.db[i].supterTbls[j].maxSqlLen = TSDB_MAX_SQL_LEN;
+      } else {
+        printf("failed to read json, maxSqlLen not found");
+        goto PARSE_OVER;
+      }      
+
+      cJSON *multiThreadWriteOneTbl = cJSON_GetObjectItem(stbInfo, "multi_thread_write_one_tbl"); // no , yes
+      if (multiThreadWriteOneTbl && multiThreadWriteOneTbl->type == cJSON_String && multiThreadWriteOneTbl->valuestring != NULL) {
+        if (0 == strncasecmp(multiThreadWriteOneTbl->valuestring, "yes", 3)) {
+          g_Dbs.db[i].supterTbls[j].multiThreadWriteOneTbl = 1;
+        } else {
+          g_Dbs.db[i].supterTbls[j].multiThreadWriteOneTbl = 0;
+        }        
+      } else if (!multiThreadWriteOneTbl) {
+        g_Dbs.db[i].supterTbls[j].multiThreadWriteOneTbl = 0;
+      } else {
+        printf("failed to read json, multiThreadWriteOneTbl not found");
+        goto PARSE_OVER;
+      }
+
+      cJSON* numberOfTblInOneSql = cJSON_GetObjectItem(stbInfo, "number_of_tbl_in_one_sql");
+      if (numberOfTblInOneSql && numberOfTblInOneSql->type == cJSON_Number) {
+        g_Dbs.db[i].supterTbls[j].numberOfTblInOneSql = numberOfTblInOneSql->valueint;
+      } else if (!numberOfTblInOneSql) {
+        g_Dbs.db[i].supterTbls[j].numberOfTblInOneSql = 1;
+      } else {
+        printf("failed to read json, numberOfTblInOneSql not found");
+        goto PARSE_OVER;
+      }      
+
+      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "rows_per_tbl");
+      if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
+        g_Dbs.db[i].supterTbls[j].rowsPerTbl = rowsPerTbl->valueint;
+      } else if (!rowsPerTbl) {
+        g_Dbs.db[i].supterTbls[j].rowsPerTbl = 1;
+      } else {
+        printf("failed to read json, rowsPerTbl not found");
+        goto PARSE_OVER;
+      }      
+
+      cJSON* disorderRatio = cJSON_GetObjectItem(stbInfo, "disorder_ratio");
+      if (disorderRatio && disorderRatio->type == cJSON_Number) {
+        g_Dbs.db[i].supterTbls[j].disorderRatio = disorderRatio->valueint;
+      } else if (!disorderRatio) {
+        g_Dbs.db[i].supterTbls[j].disorderRatio = 0;
+      } else {
+        printf("failed to read json, disorderRatio not found");
+        goto PARSE_OVER;
+      }      
+
+      cJSON* disorderRange = cJSON_GetObjectItem(stbInfo, "disorder_range");
+      if (disorderRange && disorderRange->type == cJSON_Number) {
+        g_Dbs.db[i].supterTbls[j].disorderRange = disorderRange->valueint;
+      } else if (!disorderRange) {
+        g_Dbs.db[i].supterTbls[j].disorderRange = 0;
+      } else {
+        printf("failed to read json, disorderRange not found");
+        goto PARSE_OVER;
+      }
+      
       cJSON* insertRate = cJSON_GetObjectItem(stbInfo, "insert_rate");
       if (insertRate && insertRate->type == cJSON_Number) {
         g_Dbs.db[i].supterTbls[j].insertRate = insertRate->valueint;
@@ -1596,8 +2004,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (insertRows && insertRows->type == cJSON_Number) {
         g_Dbs.db[i].supterTbls[j].insertRows = insertRows->valueint;
         if (0 == g_Dbs.db[i].supterTbls[j].insertRows) {
-        g_Dbs.db[i].supterTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-      }
+          g_Dbs.db[i].supterTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
+        }
       } else if (!insertRows) {
         g_Dbs.db[i].supterTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
       } else {
@@ -2001,31 +2409,6 @@ PARSE_OVER:
   return ret;
 }
 
-#if 0
-static bool getMetaFromJsonFile(char* file) {
-  char *name = strrchr(file, '/');
-  if (NULL == name) {
-    name = file;
-  } else {
-    name += 1;
-  }
-  
-  if (0 == strcmp(INSERT_JSON_NAME, name)) {
-    g_jsonType = INSERT_MODE;
-    return getMetaFromInsertJsonFile(file);
-  } else if (0 == strcmp(QUERY_JSON_NAME, name)) {
-    g_jsonType = QUERY_MODE;
-    return getMetaFromQueryJsonFile(file);
-  } else if (0 == strcmp(SUBSCRIBE_JSON_NAME, name)) {
-    g_jsonType = SUBSCRIBE_MODE;
-    return getMetaFromQueryJsonFile(file);
-  } else {
-    printf("input json file name error! please input correct json file: insert.json or query.json or subscribe.json\n");
-    return false;
-  }  
-}
-#endif
-
 static bool getInfoFromJsonFile(char* file) {
   FILE *fp = fopen(file, "r");
   if (!fp) {
@@ -2092,17 +2475,19 @@ PARSE_OVER:
 void prePareSampleData() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {    
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].dataSource, "sample", 6)) {
-        readSampleFromFileToMem(&g_Dbs.db[i].supterTbls[j]);
-      }
+      //if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].dataSource, "sample", 6)) {
+      //  readSampleFromFileToMem(&g_Dbs.db[i].supterTbls[j]);
+      //}
       
       if (g_Dbs.db[i].supterTbls[j].tagsFile[0] != 0) {
         (void)readTagFromCsvFileToMem(&g_Dbs.db[i].supterTbls[j]);
       }
 
+      #ifdef TD_LOWA_CURL
       if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "restful", 8)) {
         curl_global_init(CURL_GLOBAL_ALL);
       }
+      #endif
     }
   }
 }
@@ -2119,18 +2504,30 @@ void postFreeResource() {
         g_Dbs.db[i].supterTbls[j].sampleDataBuf = NULL;
       }
 
+      #ifdef TD_LOWA_CURL
       if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "restful", 8)) {
         curl_global_cleanup();
       }
+      #endif
     }
   }
 }
 
-int getRowDataFromSample(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* stbInfo, int sampleUsePos) {
+int getRowDataFromSample(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* superTblInfo, int* sampleUsePos, FILE *fp, char* sampleBuf) {
+  if ((*sampleUsePos) == MAX_SAMPLES_ONCE_FROM_FILE) {
+    int ret = readSampleFromCsvFileToMem(fp, superTblInfo, sampleBuf);
+    if (0 != ret) {
+      return -1;
+    }
+    *sampleUsePos = 0;
+  }
+
   int    dataLen = 0;
   dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
-  dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%s", stbInfo->sampleDataBuf + stbInfo->lenOfOneRow * sampleUsePos);
+  dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%s", sampleBuf + superTblInfo->lenOfOneRow * (*sampleUsePos));
   dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
+
+  (*sampleUsePos)++;
   
   return dataLen;
 }
@@ -2152,7 +2549,7 @@ int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* 
       }
       rand_string(buf, stbInfo->columns[i].dataLen);
       dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "\'%s\', ", buf);
-      free(buf);
+      tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType, "int", 3)) {
       dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%d, ", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType, "bigint", 6)) {
@@ -2180,6 +2577,171 @@ int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* 
   return dataLen;
 }
 
+void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDataBuf) {
+  SSuperTable* superTblInfo = winfo->superTblInfo;
+
+  int   samplePos = 0;
+
+  //printf("========threadID[%d], table rang: %d - %d \n", winfo->threadID, winfo->start_table_id, winfo->end_table_id);
+  int64_t    totalRowsInserted = 0;
+  int64_t    lastRowsPrint = 5000000;
+
+  char* buffer = calloc(superTblInfo->maxSqlLen+1, 1);
+  if (NULL == buffer) {
+    printf("========calloc size[ %d ] fail!\n", superTblInfo->maxSqlLen);
+    return;
+  }
+
+  int32_t  numberOfTblInOneSql = superTblInfo->numberOfTblInOneSql;
+  int32_t  tbls = winfo->end_table_id - winfo->start_table_id + 1;
+  if (numberOfTblInOneSql > tbls) {
+    numberOfTblInOneSql = tbls;
+  }
+
+  int64_t time_counter = winfo->start_time;
+  int64_t tmp_time;
+  int sampleUsePos;
+
+  int64_t st = 0;
+  int64_t et = 0;
+  for (int i = 0; i < superTblInfo->insertRows;) {
+    if (superTblInfo->insertRate && (et - st) < 1000) {
+      taosMsleep(1000 - (et - st)); // ms
+      //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, winfo->start_table_id, winfo->end_table_id);
+    }
+
+    if (superTblInfo->insertRate) {
+      st = taosGetTimestampMs();
+    }
+
+    int32_t  tbl_id = 0;
+    for (int tID = winfo->start_table_id; tID <= winfo->end_table_id; ) {
+      int inserted = i;
+
+      int k = 0;
+      while (1)
+      {        
+        int len = 0;
+        memset(buffer, 0, superTblInfo->maxSqlLen);
+        char *pstr = buffer;
+
+        int32_t  end_tbl_id = tID + numberOfTblInOneSql;
+        if (end_tbl_id > winfo->end_table_id) {
+          end_tbl_id = winfo->end_table_id+1;
+        }
+        for (tbl_id = tID; tbl_id < end_tbl_id; tbl_id++) {  
+          sampleUsePos = samplePos;
+          if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
+            char* tagsValBuf = NULL;
+            if (0 == superTblInfo->tagSource) {
+              tagsValBuf = generateTagVaulesForStb(superTblInfo);
+            } else {
+              tagsValBuf = getTagValueFromTagSample(superTblInfo, tbl_id % superTblInfo->tagSampleCount);
+            }
+
+            if (0 == len) {
+              len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d using %s.%s tags %s values ", winfo->db_name, superTblInfo->childTblPrefix, tbl_id, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
+            } else {
+              len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, " %s.%s%d using %s.%s tags %s values ", winfo->db_name, superTblInfo->childTblPrefix, tbl_id, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
+            }
+            tmfree(tagsValBuf);
+          } else {
+
+            if (0 == len) {
+              len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d values ", winfo->db_name, superTblInfo->childTblPrefix, tbl_id);
+            } else {
+              len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, " %s.%s%d values ", winfo->db_name, superTblInfo->childTblPrefix, tbl_id);
+            }            
+          }
+          
+          tmp_time = time_counter;
+          for (k = 0; k < superTblInfo->rowsPerTbl;) {
+            int retLen = 0;
+            if (0 == strncasecmp(superTblInfo->dataSource, "sample", 6)) {
+              retLen = getRowDataFromSample(pstr + len, superTblInfo->maxSqlLen - len, tmp_time += superTblInfo->timeStampStep, superTblInfo, &sampleUsePos, fp, sampleDataBuf);
+              if (retLen < 0) {
+                tmfree(buffer);
+                return;
+              }
+            } else if (0 == strncasecmp(superTblInfo->dataSource, "rand", 8)) {        
+              int rand_num = rand_tinyint() % 100;            
+              if (0 != superTblInfo->disorderRatio && rand_num < superTblInfo->disorderRatio) {
+                int64_t d = tmp_time - rand() % superTblInfo->disorderRange;
+                len = generateRowData(pstr + len, superTblInfo->maxSqlLen - len, d, superTblInfo);
+              } else {
+                retLen = generateRowData(pstr + len, superTblInfo->maxSqlLen - len, tmp_time += superTblInfo->timeStampStep, superTblInfo);
+              }
+            }
+            len += retLen;
+            //inserted++;
+            k++;
+            totalRowsInserted++;
+    
+            if (inserted >= superTblInfo->insertRows || (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128)) {
+              tID = tbl_id + 1;
+              printf("config rowsPerTbl and numberOfTblInOneSql not match, please reconfig![lenOfOneRow:%d]\n", superTblInfo->lenOfOneRow);
+              goto send_to_server;
+            }
+          }
+          
+        }
+
+        tID = tbl_id;
+        inserted += superTblInfo->rowsPerTbl;
+
+        send_to_server:
+        if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {    
+          //printf("multi table===== sql: %s \n\n", buffer);
+          //int64_t t1 = taosGetTimestampMs();
+          queryDB(winfo->taos, buffer); 
+          if (totalRowsInserted >= lastRowsPrint) {
+            printf("thread[%d] has currently inserted %"PRId64 " rows\n", winfo->threadID, totalRowsInserted);
+            lastRowsPrint += 5000000;
+          }
+          //int64_t t2 = taosGetTimestampMs();          
+          //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);          
+        } else {
+          #ifdef TD_LOWA_CURL
+          //int64_t t1 = taosGetTimestampMs();
+          int retCode = curlProceSql(g_Dbs.host, g_Dbs.port, buffer, winfo->curl_handle);
+          //int64_t t2 = taosGetTimestampMs();          
+          //printf("http insert sql return, Spent %ld ms \n", t2 - t1);
+          
+          if (0 != retCode) {
+            printf("========curl return fail, threadID[%d]\n", winfo->threadID);
+            tmfree(buffer);
+            return;
+          }
+          #else
+          printf("========no use http mode for no curl lib!\n");
+          tmfree(buffer);
+          return;
+          #endif
+        }
+        
+        //printf("========tID:%d, k:%d, loop_cnt:%d\n", tID, k, loop_cnt);
+        break;
+      }
+
+      if (tID > winfo->end_table_id) {
+        if (0 == strncasecmp(superTblInfo->dataSource, "sample", 6)) {
+          samplePos = sampleUsePos;
+        }
+        i = inserted;
+        time_counter = tmp_time;
+      }
+    }   
+    
+    if (superTblInfo->insertRate) {
+      et = taosGetTimestampMs();
+    }
+    //printf("========loop %d childTables duration:%"PRId64 "========inserted rows:%d\n", winfo->end_table_id - winfo->start_table_id, et - st, i);
+  }
+  tmfree(buffer);  
+  printf("====thread[%d] completed inserting %"PRId64 " rows in total====\n", winfo->threadID, totalRowsInserted);
+  return;
+}
+
 // sync insertion
 /*
    1 thread: 100 tables * 2000  rows/s
@@ -2189,19 +2751,54 @@ int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* 
    2 taosinsertdata , 1 thread:  10  tables * 20000 rows/s
 */
 void *syncWrite(void *sarg) {
-
+  int64_t    totalRowsInserted = 0;
+  int64_t    lastRowsPrint = 5000000;
+  
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
+  FILE *fp = NULL;
+  char* sampleDataBuf = NULL;
+  int   samplePos     = 0;
+
+  // each thread read sample data from csv file 
+  if (0 == strncasecmp(superTblInfo->dataSource, "sample", 6)) {
+    sampleDataBuf = calloc(superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
+    if (sampleDataBuf == NULL) {
+      printf("Failed to calloc %d Bytes, reason:%s\n", superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, strerror(errno));
+      return NULL;
+    }
+    
+    fp = fopen(superTblInfo->sampleFile, "r");
+    if (fp == NULL) {
+      printf("Failed to open sample file: %s, reason:%s\n", superTblInfo->sampleFile, strerror(errno));
+      tmfree(sampleDataBuf);
+      return NULL;
+    }
+    int ret = readSampleFromCsvFileToMem(fp, superTblInfo, sampleDataBuf);
+    if (0 != ret) {
+      tmfree(sampleDataBuf);
+      tmflose(fp);
+      return NULL;
+    }
+  }
+
+  if (superTblInfo->numberOfTblInOneSql > 1) {
+    syncWriteForNumberOfTblInOneSql(winfo, fp, sampleDataBuf);
+    tmfree(sampleDataBuf);
+    tmflose(fp);
+    return NULL;
+  }
+
   //printf("========threadID[%d], table rang: %d - %d \n", winfo->threadID, winfo->start_table_id, winfo->end_table_id);
 
-  char* buffer = calloc(TSDB_MAX_SQL_LEN, 1);
+  char* buffer = calloc(superTblInfo->maxSqlLen, 1);
 
   int nrecords_per_request = 0;
   if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
-    nrecords_per_request = (TSDB_MAX_SQL_LEN - 1280 - superTblInfo->lenOfTagOfOneRow) / superTblInfo->lenOfOneRow;
+    nrecords_per_request = (superTblInfo->maxSqlLen - 1280 - superTblInfo->lenOfTagOfOneRow) / superTblInfo->lenOfOneRow;
   } else {
-    nrecords_per_request = (TSDB_MAX_SQL_LEN - 1280) / superTblInfo->lenOfOneRow;
+    nrecords_per_request = (superTblInfo->maxSqlLen - 1280) / superTblInfo->lenOfOneRow;
   }  
 
   int nrecords_no_last_req = nrecords_per_request;
@@ -2243,12 +2840,12 @@ void *syncWrite(void *sarg) {
       int inserted = i;
       int64_t tmp_time = time_counter;
 
-      int sampleUsePos = superTblInfo->sampleUsePos;
+      int sampleUsePos = samplePos;
       int k = 0;
       while (1)
       {        
         int len = 0;
-        memset(buffer, 0, TSDB_MAX_SQL_LEN);
+        memset(buffer, 0, superTblInfo->maxSqlLen);
         char *pstr = buffer;
 
         if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
@@ -2259,34 +2856,52 @@ void *syncWrite(void *sarg) {
             tagsValBuf = getTagValueFromTagSample(superTblInfo, tID % superTblInfo->tagSampleCount);
           }
         
-          len += snprintf(pstr + len, TSDB_MAX_SQL_LEN - len, "insert into %s.%s%d using %s.%s tags %s values", winfo->db_name, superTblInfo->childTblPrefix, tID, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
-          free(tagsValBuf);
+          len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d using %s.%s tags %s values", winfo->db_name, superTblInfo->childTblPrefix, tID, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
+          tmfree(tagsValBuf);
         } else {
-          len += snprintf(pstr + len, TSDB_MAX_SQL_LEN - len, "insert into %s.%s%d values", winfo->db_name, superTblInfo->childTblPrefix, tID);
+          len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d values", winfo->db_name, superTblInfo->childTblPrefix, tID);
         }
         
         for (k = 0; k < nrecords_cur_req;) {
           int retLen = 0;
           if (0 == strncasecmp(superTblInfo->dataSource, "sample", 6)) {
-            retLen = getRowDataFromSample(pstr + len, TSDB_MAX_SQL_LEN - len, tmp_time += superTblInfo->timeStampStep, superTblInfo, sampleUsePos);
-            sampleUsePos++;
-            sampleUsePos %= superTblInfo->sampleRowCount;
+            retLen = getRowDataFromSample(pstr + len, superTblInfo->maxSqlLen - len, tmp_time += superTblInfo->timeStampStep, superTblInfo, &sampleUsePos, fp, sampleDataBuf);
+            if (retLen < 0) {
+              tmfree(buffer);
+              tmfree(sampleDataBuf);
+              tmflose(fp);
+              return NULL;
+            }
           } else if (0 == strncasecmp(superTblInfo->dataSource, "rand", 8)) {        
-            retLen = generateRowData(pstr + len, TSDB_MAX_SQL_LEN - len, tmp_time += superTblInfo->timeStampStep, superTblInfo);
+            int rand_num = rand_tinyint() % 100;
+            if (0 != superTblInfo->disorderRatio && rand_num < superTblInfo->disorderRatio) {
+              int64_t d = tmp_time - rand() % superTblInfo->disorderRange;
+              retLen = generateRowData(pstr + len, superTblInfo->maxSqlLen - len, d, superTblInfo);
+              //printf("disorder rows, rand_num:%d, last ts:%"PRId64" current ts:%"PRId64"\n", rand_num, tmp_time, d);
+            } else {
+              retLen = generateRowData(pstr + len, superTblInfo->maxSqlLen - len, tmp_time += superTblInfo->timeStampStep, superTblInfo);
+            }
           }
           len += retLen;
           inserted++;
           k++;
+          totalRowsInserted++;
   
-          if (inserted >= superTblInfo->insertRows || (TSDB_MAX_SQL_LEN - len) < (superTblInfo->lenOfOneRow + 128)) break;
+          if (inserted >= superTblInfo->insertRows || (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128)) break;
         }
   
-        if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {          
+        if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {     
+          //printf("===== sql: %s \n\n", buffer);
           //int64_t t1 = taosGetTimestampMs();
           queryDB(winfo->taos, buffer);
           //int64_t t2 = taosGetTimestampMs();          
-          //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);          
+          //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);  
+          if (totalRowsInserted >= lastRowsPrint) {
+            printf("thread[%d] has currently inserted %"PRId64 " rows\n", winfo->threadID, totalRowsInserted);
+            lastRowsPrint += 5000000;
+          }
         } else {
+          #ifdef TD_LOWA_CURL
           //int64_t t1 = taosGetTimestampMs();
           int retCode = curlProceSql(g_Dbs.host, g_Dbs.port, buffer, winfo->curl_handle);
           //int64_t t2 = taosGetTimestampMs();          
@@ -2294,9 +2909,18 @@ void *syncWrite(void *sarg) {
           
           if (0 != retCode) {
             printf("========curl return fail, threadID[%d]\n", winfo->threadID);
-            free(buffer);
+            tmfree(buffer);
+            tmfree(sampleDataBuf);
+            tmflose(fp);
             return NULL;
           }
+          #else
+          printf("========no use http mode for no curl lib!\n");
+          tmfree(buffer);
+          tmfree(sampleDataBuf);
+          tmflose(fp);
+          return NULL;
+          #endif
         }
         
         //printf("========tID:%d, k:%d, loop_cnt:%d\n", tID, k, loop_cnt);
@@ -2317,7 +2941,7 @@ void *syncWrite(void *sarg) {
 
       if (tID == winfo->end_table_id) {
         if (0 == strncasecmp(superTblInfo->dataSource, "sample", 6)) {
-          superTblInfo->sampleUsePos = sampleUsePos;
+          samplePos = sampleUsePos;
         } 
         i = inserted;
         time_counter = tmp_time;
@@ -2329,7 +2953,10 @@ void *syncWrite(void *sarg) {
     }
     //printf("========loop %d childTables duration:%"PRId64 "========inserted rows:%d\n", winfo->end_table_id - winfo->start_table_id, et - st, i);
   }
-  free(buffer);
+  tmfree(buffer);
+  tmfree(sampleDataBuf);
+  tmflose(fp);
+  printf("====thread[%d] completed inserting %"PRId64 " rows in total====\n", winfo->threadID, totalRowsInserted);
   return NULL;
 }
 
@@ -2370,13 +2997,20 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
       t_info->taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, db_name, g_Dbs.port);
     } else {
       t_info->taos = NULL;
-      t_info->curl_handle = curl_easy_init();      
+      #ifdef TD_LOWA_CURL
+      t_info->curl_handle = curl_easy_init();     
+      #endif
     }
-    
-    t_info->start_table_id = last;
-    t_info->end_table_id = i < b ? last + a : last + a - 1;
-    last = t_info->end_table_id + 1;
 
+    if (0 == superTblInfo->multiThreadWriteOneTbl) {
+      t_info->start_table_id = last;
+      t_info->end_table_id = i < b ? last + a : last + a - 1;
+      last = t_info->end_table_id + 1;
+    } else {
+      t_info->start_table_id = 0;
+      t_info->end_table_id = superTblInfo->childTblCount - 1;
+      t_info->start_time = t_info->start_time + rand_int() % 10000 - rand_tinyint();
+    }
     pthread_create(pids + i, NULL, syncWrite, t_info);
   }
   
@@ -2387,9 +3021,11 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
   for (int i = 0; i < threads; i++) {
     threadInfo *t_info = infos + i;
     taos_close(t_info->taos);
+    #ifdef TD_LOWA_CURL
     if (t_info->curl_handle) {
       curl_easy_cleanup(t_info->curl_handle);
     }
+    #endif
   }
 
   free(pids);
@@ -2462,6 +3098,7 @@ void *superQueryProcess(void *sarg) {
         int64_t t2 = taosGetTimestampUs();          
         printf("taosc select sql return, Spent %ld us \n", t2 - t1);          
       } else {
+        #ifdef TD_LOWA_CURL
         int64_t t1 = taosGetTimestampUs();
         int retCode = curlProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i], winfo->curl_handle);
         int64_t t2 = taosGetTimestampUs();          
@@ -2471,7 +3108,8 @@ void *superQueryProcess(void *sarg) {
           printf("========curl return fail, threadID[%d]\n", winfo->threadID);
           return NULL;
         }
-      }    
+        #endif
+      }   
     }
     et = taosGetTimestampMs();
     printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.6fs\n\n", pthread_self(), (double)(et - st)/1000.0);
@@ -2556,7 +3194,9 @@ int queryTestProcess() {
         queryDB(t_info->taos, sqlStr);
       } else {
         t_info->taos = NULL;
+        #ifdef TD_LOWA_CURL
         t_info->curl_handle = curl_easy_init();      
+        #endif
       }
   
       pthread_create(pids + i, NULL, superQueryProcess, t_info);    
@@ -2888,15 +3528,30 @@ void initOfQueryMeta() {
    strncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
 }
 
+void setParaFromArg(){
+  if (g_args.host) {
+    strcpy(g_Dbs.host, g_args.host);
+  } else {
+    strncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
+  }
+}
+
 int main(int argc, char *argv[]) {
   parse_args(argc, argv, &g_args);
 
-  initOfInsertMeta();
-  initOfQueryMeta();
-  
-  if (false == getInfoFromJsonFile(g_args.metaFile)) {
-    printf("Failed to read %s\n", g_args.metaFile);
-    return 1;
+  if (g_args.metaFile) {
+    initOfInsertMeta();
+    initOfQueryMeta();    
+    if (false == getInfoFromJsonFile(g_args.metaFile)) {
+      printf("Failed to read %s\n", g_args.metaFile);
+      return 1;
+    }
+  }else {
+    memset(&g_Dbs, 0, sizeof(SDbs));
+    g_jsonType = INSERT_MODE;
+    setParaFromArg();
+    printf("At present, there is no integration of taosdemo, please wait patiently!\n");
+    return 0;
   }
  
   if (INSERT_MODE == g_jsonType) {
