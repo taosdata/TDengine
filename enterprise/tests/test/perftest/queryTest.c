@@ -12,6 +12,8 @@
 #include "taos.h"
 #include "testCommon.h"
 
+static int64_t getTime();
+
 static int32_t rid = 1;
 void           sqlfullTest(TAOS* conn);
 void queryCallback(void* param, TAOS_RES* tres, int code);
@@ -223,14 +225,19 @@ typedef struct {
 } MultiThreadQueryInfo;
 
 void* doQuery(void* param) {
-  TAOS* conn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   MultiThreadQueryInfo* range = (MultiThreadQueryInfo*)param;
 
   for (int32_t i = 0; i < 100000; ++i) {
+    int64_t start = getTime();
+    printf ("id:%d, time:%ld\n", range->threadid, start);
+    TAOS* conn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
     executeSQL(conn, range->sql, NULL);
+    taos_close(conn);
+
+    int64_t end = getTime();
+    printf("id:%d, end time:%ld\n", range->threadid, end);
   }
 
-  taos_close(conn);
 
   return 0;
 }
@@ -374,9 +381,8 @@ int main(int argc, char** argv) {
   return 0;
 #endif
 
-//  multiThreadQuery(atoi(argv[1]), argv[2]);
+//  multiThreadQuery(5, "select count(*) from test.m2");
 //  return 0;
-//  executeSQL(conn,"use test", NULL);
 
 //  for(int32_t i = 0; i < 500000; ++i) {
 //    void* p = taos_query(conn, "select * from db.fs_table");
@@ -394,8 +400,8 @@ int main(int argc, char** argv) {
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-    executeSQL(conn, "use ca_db0", NULL);
-    executeSQL(conn, "select spread(c1 )/44 from ca_stb0 order by ts asc;;", NULL);
+    executeSQL(conn, "use wh_db0", NULL);
+    executeSQL(conn, "select last(*) from wh_mt1 where t1 in ('binary')", NULL);
 
 //    executeSQL(conn, "select spread(ts)/(1000 * 3600 * 24) from ca_tb1", NULL);
     taos_close(conn);
