@@ -506,7 +506,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
     atomic_add_fetch_32(&pTable->autoIndex, 1);
   }
 
-  sdbDebug("vgId:1, sdb:%s, insert key:%s to hash, rowSize:%d rows:%" PRId64 ", msg:%p", pTable->name,
+  sdbTrace("vgId:1, sdb:%s, insert key:%s to hash, rowSize:%d rows:%" PRId64 ", msg:%p", pTable->name,
            sdbGetRowStr(pTable, pRow->pObj), pRow->rowSize, pTable->numOfRows, pRow->pMsg);
 
   int32_t code = (*pTable->fpInsert)(pRow);
@@ -542,7 +542,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow) {
 
   atomic_sub_fetch_32(&pTable->numOfRows, 1);
 
-  sdbDebug("vgId:1, sdb:%s, delete key:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
+  sdbTrace("vgId:1, sdb:%s, delete key:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
            sdbGetRowStr(pTable, pRow->pObj), pTable->numOfRows, pRow->pMsg);
 
   sdbDecRef(pTable, pRow->pObj);
@@ -551,7 +551,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow) {
 }
 
 static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow) {
-  sdbDebug("vgId:1, sdb:%s, update key:%s in hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
+  sdbTrace("vgId:1, sdb:%s, update key:%s in hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
            sdbGetRowStr(pTable, pRow->pObj), pTable->numOfRows, pRow->pMsg);
 
   (*pTable->fpUpdate)(pRow);
@@ -649,7 +649,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     return syncCode;
   }
 
-  sdbDebug("vgId:1, sdb:%s, record from wal/fwd is disposed, action:%s key:%s hver:%" PRIu64, pTable->name,
+  sdbTrace("vgId:1, sdb:%s, record from %s is disposed, action:%s key:%s hver:%" PRIu64, pTable->name, qtypeStr[qtype],
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
@@ -855,6 +855,7 @@ void sdbCloseTable(void *handle) {
 
   taosHashCancelIterate(pTable->iHandle, pIter);
   taosHashCleanup(pTable->iHandle);
+  pTable->iHandle = NULL;
   pthread_mutex_destroy(&pTable->mutex);
 
   sdbDebug("vgId:1, sdb:%s, is closed, numOfTables:%d", pTable->name, tsSdbMgmt.numOfTables);
