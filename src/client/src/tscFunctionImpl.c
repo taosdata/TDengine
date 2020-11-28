@@ -3699,8 +3699,6 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         }
 
         pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
-//        printf("%ld, %f, val:%f\n", pInfo->lastKey, pInfo->lastValue, pInfo->dOutput);
-
         pInfo->lastValue = val[i];
         pInfo->lastKey = primaryKey[i];
       }
@@ -3714,7 +3712,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         }
 
         pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
+        pInfo->lastValue = (double) val[i];
         pInfo->lastKey = primaryKey[i];
       }
       break;
@@ -3750,9 +3748,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
 
   // the last interpolated time window value
   if (pCtx->end.key != INT64_MIN) {
-    pInfo->dOutput += ((pInfo->lastValue + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->lastKey);
+    pInfo->dOutput  += ((pInfo->lastValue + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->lastKey);
     pInfo->lastValue = pCtx->end.val;
-    pInfo->lastKey = pCtx->end.key;
+    pInfo->lastKey   = pCtx->end.key;
   }
 
   pInfo->win.ekey  = pInfo->lastKey;
