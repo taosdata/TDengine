@@ -116,7 +116,7 @@ int64_t taosWriteImp(int32_t fd, void *buf, int64_t n) {
 }
 
 int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence) {
-  return (int64_t)tlseek(fd, (long)offset, whence);
+  return (int64_t)lseek(fd, (long)offset, whence);
 }
 
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
