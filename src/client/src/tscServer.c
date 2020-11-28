@@ -1565,11 +1565,11 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   char *pMsg = (char *)pInfoMsg + sizeof(STableInfoMsg);
 
-  size_t len = htonl(pCmd->tagData.dataLen);
-  if (pSql->cmd.autoCreated) {
+  if (pCmd->autoCreated && pCmd->pTagData != NULL) {
+    int len = htonl(pCmd->pTagData->dataLen);
     if (len > 0) {
-      len += sizeof(pCmd->tagData.name) + sizeof(pCmd->tagData.dataLen);
-      memcpy(pInfoMsg->tags, &pCmd->tagData, len);
+      len += sizeof(pCmd->pTagData->name) + sizeof(pCmd->pTagData->dataLen);
+      memcpy(pInfoMsg->tags, pCmd->pTagData, len);
       pMsg += len;
     }
   }
@@ -2239,8 +2239,6 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->signature = pNew;
   pNew->cmd.command = TSDB_SQL_META;
 
-  registerSqlObj(pNew);
-
   tscAddSubqueryInfo(&pNew->cmd);
 
   SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
@@ -2248,8 +2246,7 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   pNew->cmd.autoCreated = pSql->cmd.autoCreated;  // create table if not exists
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
     tscError("%p malloc failed for payload to get table meta", pSql);
-    free(pNew);
-
+    tscFreeSqlObj(pNew);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -2257,11 +2254,24 @@ static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInf
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
   tstrncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, sizeof(pNewMeterMetaInfo->name));
-  memcpy(&pNew->cmd.tagData, &pSql->cmd.tagData, sizeof(pSql->cmd.tagData));
+
+  if (pSql->cmd.pTagData != NULL) {
+    int size = offsetof(STagData, data) + htonl(pSql->cmd.pTagData->dataLen);
+    pNew->cmd.pTagData = calloc(1, size);
+    if (pNew->cmd.pTagData == NULL) {
+      tscError("%p malloc failed for new tag data to get table meta", pSql);
+      tscFreeSqlObj(pNew);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    memcpy(pNew->cmd.pTagData, pSql->cmd.pTagData, size);
+  }
+
   tscDebug("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = pSql;
+
+  registerSqlObj(pNew);
 
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {

@@ -874,10 +874,10 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
                 listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
 
       if (pBufBlock->offset == 0) {  // return the block to buffer pool
-        tsdbLockRepo(pRepo);
+        if (tsdbLockRepo(pRepo) < 0) return;
         SListNode *pNode = tdListPopTail(pRepo->mem->bufBlockList);
         tdListPrependNode(pBufPool->bufBlockList, pNode);
-        tsdbUnlockRepo(pRepo);
+        if (tsdbUnlockRepo(pRepo) < 0) return;
       }
     } else {
       ASSERT(listNEles(pRepo->mem->extraBuffList) > 0);

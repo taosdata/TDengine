@@ -52,12 +52,12 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex
 
 static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  minfo; memset(&minfo, 0, sizeof(minfo)); /* = {0}; */  // master file info
-  SFileInfo  sinfo; memset(&sinfo, 0, sizeof(sinfo)); /* = {0}; */  // slave file info
-  SFileAck   fileAck; 
+  SFileInfo  minfo; memset(&minfo, 0, sizeof(SFileInfo)); /* = {0}; */
+  SFileInfo  sinfo; memset(&sinfo, 0, sizeof(SFileInfo)); /* = {0}; */
+  SFileAck   fileAck = {0};
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
-  uint32_t   pindex = 0;    // index in last restore
+  uint32_t   pindex = 0;  // index in last restore
   bool       fileChanged = false;
 
   *fversion = 0;
@@ -134,7 +134,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     // data file is changed, code shall be set to 1
     *fversion = minfo.fversion;
     code = 1;
-    sDebug("%s, file changed while restore file", pPeer->id);
+    sDebug("%s, file changed after restore file, fver:%" PRIu64, pPeer->id, *fversion);
   }
 
   if (code < 0) {
@@ -160,7 +160,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     }
 
     if (pHead->len == 0) {
-      sDebug("%s, wal is synced over", pPeer->id);
+      sDebug("%s, wal is synced over, last wver:%" PRIu64, pPeer->id, lastVer);
       code = 0;
       break;
     }  // wal sync over

@@ -211,7 +211,7 @@ int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
     code = (*fileId == pWal->fileId) ? 0 : 1;
   }
 
-  wTrace("vgId:%d, get wal file, code:%d curId:%" PRId64 " outId:%" PRId64, pWal->vgId, code, pWal->fileId, *fileId);
+  wDebug("vgId:%d, get wal file, code:%d curId:%" PRId64 " outId:%" PRId64, pWal->vgId, code, pWal->fileId, *fileId);
   pthread_mutex_unlock(&(pWal->mutex));
 
   return code;
@@ -325,7 +325,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+    wDebug("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
            fileId, pHead->version, pWal->version, pHead->len);
 
     pWal->version = pHead->version;

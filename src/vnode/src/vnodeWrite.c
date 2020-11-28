@@ -282,13 +282,15 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
 
   pWrite->processedCount++;
   if (pWrite->processedCount > 100) {
-    vError("vgId:%d, msg:%p, failed to process since %s", pVnode->vgId, pWrite, tstrerror(code));
+    vError("vgId:%d, msg:%p, failed to process since %s, retry:%d", pVnode->vgId, pWrite, tstrerror(code),
+           pWrite->processedCount);
     pWrite->processedCount = 1;
     dnodeSendRpcVWriteRsp(pWrite->pVnode, pWrite, code);
   } else {
     code = vnodePerformFlowCtrl(pWrite);
     if (code == 0) {
-      vTrace("vgId:%d, write into vwqueue after flowctrl", pVnode->vgId);
+      vDebug("vgId:%d, msg:%p, write into vwqueue after flowctrl, retry:%d", pVnode->vgId, pWrite,
+             pWrite->processedCount);
       pWrite->processedCount = 0;
       taosWriteQitem(pVnode->wqueue, pWrite->qtype, pWrite);
     }
@@ -310,7 +312,7 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
     void *unUsed = NULL;
     taosTmrReset(vnodeFlowCtrlMsgToWQueue, 100, pWrite, tsDnodeTmr, &unUsed);
 
-    vTrace("vgId:%d, msg:%p, app:%p, perform flowctrl, count:%d", pVnode->vgId, pWrite, pWrite->rpcMsg.ahandle,
+    vTrace("vgId:%d, msg:%p, app:%p, perform flowctrl, retry:%d", pVnode->vgId, pWrite, pWrite->rpcMsg.ahandle,
            pWrite->processedCount);
     return TSDB_CODE_VND_ACTION_IN_PROGRESS;
   }

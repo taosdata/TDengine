@@ -325,7 +325,6 @@ void sdbUpdateSync(void *pMnodes) {
       mnodeDecDnodeRef(pDnode);
       mnodeDecMnodeRef(pMnode);
     }
-    sdbFreeIter(pIter);
     syncCfg.replica = index;
     mDebug("vgId:1, mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
   } else {
@@ -775,24 +774,17 @@ int32_t sdbUpdateRow(SSdbRow *pRow) {
   }
 }
 
-void *sdbFetchRow(void *tparam, void *pNode, void **ppRow) {
+void *sdbFetchRow(void *tparam, void *pIter, void **ppRow) {
   SSdbTable *pTable = tparam;
   *ppRow = NULL;
   if (pTable == NULL) return NULL;
 
-  SHashMutableIterator *pIter = pNode;
-  if (pIter == NULL) {
-    pIter = taosHashCreateIter(pTable->iHandle);
-  }
+  pIter = taosHashIterate(pTable->iHandle, pIter);
+  if (pIter == NULL) return NULL;
 
-  if (!taosHashIterNext(pIter)) {
-    taosHashDestroyIter(pIter);
-    return NULL;
-  }
-
-  void **ppMetaRow = taosHashIterGet(pIter);
+  void **ppMetaRow = pIter;
   if (ppMetaRow == NULL) {
-    taosHashDestroyIter(pIter);
+    taosHashCancelIterate(pTable->iHandle, pIter);
     return NULL;
   }
 
@@ -802,10 +794,11 @@ void *sdbFetchRow(void *tparam, void *pNode, void **ppRow) {
   return pIter;
 }
 
-void sdbFreeIter(void *pIter) {
-  if (pIter != NULL) {
-    taosHashDestroyIter(pIter);
-  }
+void sdbFreeIter(void *tparam, void *pIter) {
+  SSdbTable *pTable = tparam;
+  if (pTable == NULL || pIter == NULL) return;
+
+  taosHashCancelIterate(pTable->iHandle, pIter);
 }
 
 void *sdbOpenTable(SSdbTableDesc *pDesc) {
@@ -846,9 +839,10 @@ void sdbCloseTable(void *handle) {
   tsSdbMgmt.numOfTables--;
   tsSdbMgmt.tableList[pTable->id] = NULL;
 
-  SHashMutableIterator *pIter = taosHashCreateIter(pTable->iHandle);
-  while (taosHashIterNext(pIter)) {
-    void **ppRow = taosHashIterGet(pIter);
+  void *pIter = taosHashIterate(pTable->iHandle, NULL);
+  while (pIter) {
+    void **ppRow = pIter;
+    pIter = taosHashIterate(pTable->iHandle, pIter);
     if (ppRow == NULL) continue;
 
     SSdbRow row = {
@@ -859,7 +853,7 @@ void sdbCloseTable(void *handle) {
     (*pTable->fpDestroy)(&row);
   }
 
-  taosHashDestroyIter(pIter);
+  taosHashCancelIterate(pTable->iHandle, pIter);
   taosHashCleanup(pTable->iHandle);
   pthread_mutex_destroy(&pTable->mutex);
 
