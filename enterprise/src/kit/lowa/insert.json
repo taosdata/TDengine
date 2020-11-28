@@ -8,7 +8,7 @@
 	"thread_count": 2,
 	"databases": [{
 		"dbinfo": {
-			"name": "db01_multi",
+			"name": "db01_multi_1",
 			"drop": "yes",
 			"replica": 1,
 			"days": 10,
@@ -33,7 +33,7 @@
 			"insert_mode": "taosc",
 			"insert_rate": 0,
 			"insert_rows": 50000,
-			"multi_thread_write_one_tbl": "yes",
+			"multi_thread_write_one_tbl": "no",
 			"number_of_tbl_in_one_sql": 5,
 			"rows_per_tbl": 10,
 			"max_sql_len": 64000,

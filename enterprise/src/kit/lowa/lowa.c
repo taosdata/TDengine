@@ -563,7 +563,7 @@ int64_t    g_totalRecords = 0;
 SQueryMetaInfo g_queryInfo;
 
 
-void tmflose(FILE *fp) {
+void tmfclose(FILE *fp) {
   if (NULL != fp) {
     fclose(fp);
   }
@@ -2778,7 +2778,7 @@ void *syncWrite(void *sarg) {
     int ret = readSampleFromCsvFileToMem(fp, superTblInfo, sampleDataBuf);
     if (0 != ret) {
       tmfree(sampleDataBuf);
-      tmflose(fp);
+      tmfclose(fp);
       return NULL;
     }
   }
@@ -2786,7 +2786,7 @@ void *syncWrite(void *sarg) {
   if (superTblInfo->numberOfTblInOneSql > 1) {
     syncWriteForNumberOfTblInOneSql(winfo, fp, sampleDataBuf);
     tmfree(sampleDataBuf);
-    tmflose(fp);
+    tmfclose(fp);
     return NULL;
   }
 
@@ -2869,7 +2869,7 @@ void *syncWrite(void *sarg) {
             if (retLen < 0) {
               tmfree(buffer);
               tmfree(sampleDataBuf);
-              tmflose(fp);
+              tmfclose(fp);
               return NULL;
             }
           } else if (0 == strncasecmp(superTblInfo->dataSource, "rand", 8)) {        
@@ -2911,14 +2911,14 @@ void *syncWrite(void *sarg) {
             printf("========curl return fail, threadID[%d]\n", winfo->threadID);
             tmfree(buffer);
             tmfree(sampleDataBuf);
-            tmflose(fp);
+            tmfclose(fp);
             return NULL;
           }
           #else
           printf("========no use http mode for no curl lib!\n");
           tmfree(buffer);
           tmfree(sampleDataBuf);
-          tmflose(fp);
+          tmfclose(fp);
           return NULL;
           #endif
         }
@@ -2955,7 +2955,7 @@ void *syncWrite(void *sarg) {
   }
   tmfree(buffer);
   tmfree(sampleDataBuf);
-  tmflose(fp);
+  tmfclose(fp);
   printf("====thread[%d] completed inserting %"PRId64 " rows in total====\n", winfo->threadID, totalRowsInserted);
   return NULL;
 }
