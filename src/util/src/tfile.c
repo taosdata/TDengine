@@ -106,7 +106,7 @@ bool tfValid(int64_t tfd) {
   return p != NULL;
 }
 
-int32_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
+int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
   if (p == NULL) return -1;
 
