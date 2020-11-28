@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tref.h"
+#include "tfile.h"
 #include "twal.h"
 #include "walInt.h"
 
@@ -61,7 +62,7 @@ void *walOpen(char *path, SWalCfg *pCfg) {
   }
 
   pWal->vgId = pCfg->vgId;
-  pWal->fd = -1;
+  pWal->tfd = -1;
   pWal->fileId = -1;
   pWal->level = pCfg->walLevel;
   pWal->keep = pCfg->keep;
@@ -124,7 +125,7 @@ void walClose(void *handle) {
 
   SWal *pWal = handle;
   pthread_mutex_lock(&pWal->mutex);
-  taosClose(pWal->fd);
+  tfClose(pWal->tfd);
   pthread_mutex_unlock(&pWal->mutex);
   taosRemoveRef(tsWal.refId, pWal->rid);
 }
@@ -143,7 +144,7 @@ static void walFreeObj(void *wal) {
   SWal *pWal = wal;
   wDebug("vgId:%d, wal:%p is freed", pWal->vgId, pWal);
 
-  taosClose(pWal->fd);
+  tfClose(pWal->tfd);
   pthread_mutex_destroy(&pWal->mutex);
   tfree(pWal);
 }
@@ -172,7 +173,7 @@ static void walFsyncAll() {
   while (pWal) {
     if (walNeedFsync(pWal)) {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, tsWal.seq);
-      int32_t code = fsync(pWal->fd);
+      int32_t code = tfFsync(pWal->tfd);
       if (code != 0) {
         wError("vgId:%d, file:%s, failed to fsync since %s", pWal->vgId, pWal->name, strerror(code));
       }
