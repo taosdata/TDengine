@@ -20,10 +20,6 @@ system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20000
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 20000
 system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 20000
 
-system sh/cfg.sh -n dnode1 -c minTablesPerVnode -v 1000
-system sh/cfg.sh -n dnode2 -c minTablesPerVnode -v 1000
-system sh/cfg.sh -n dnode3 -c minTablesPerVnode -v 1000
-
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 20
 system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb -v 20
 system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 20
@@ -69,20 +65,67 @@ if $mnode3Role != slave then
   goto show1
 endi
 
-$x = 1
-show2:
+print  =============== step2
 
-print  =============== step $x
-sql show mnodes
-print $data0_1 $data2_1
-print $data0_2 $data2_2
-print $data0_3 $data2_3
+sql create database db replica 3
+sql use db
+sql create table tb (ts timestamp, test int)
 
+$x = 0
+while $x < 100
+  $ms = $x . s
+  sql insert into tb values (now + $ms , $x )
+  $x = $x + 1
+endw 
 
-$x = $x + 1
+print  =============== step3
+sleep 3000
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+
+print  =============== step4
 sleep 5000
-if $x == 100000 then
+system sh/exec.sh -n dnode1 -s start 
+system sh/exec.sh -n dnode2 -s start 
+system sh/exec.sh -n dnode3 -s start 
+
+print  =============== step5
+sleep 8000
+while $x < 200
+  $ms = $x . s
+  sql insert into tb values (now + $ms , $x )
+  $x = $x + 1
+endw 
+
+print  =============== step6
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+sleep 3000
+while $x < 300
+  $ms = $x . s
+  sql insert into tb values (now + $ms , $x )
+  $x = $x + 1
+endw 
+
+system sh/exec.sh -n dnode2 -s start 
+
+sleep 6000
+print  =============== step7
+while $x < 400
+  $ms = $x . s
+  sql insert into tb values (now + $ms , $x )
+  $x = $x + 1
+  sleep 1
+endw 
+
+print  =============== step8
+sql select * from tb
+print rows $rows
+if $rows != 400 then
   return -1
 endi
 
-goto show2
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT

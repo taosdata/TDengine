@@ -150,7 +150,7 @@ void *taosAllocateTcpConn(void *param, void *pPeer, int32_t connFd) {
 }
 
 void taosFreeTcpConn(void *param) {
-  SConnObj *  pConn = (SConnObj *)param;
+  SConnObj *  pConn = param;
   SThreadObj *pThread = pConn->pThread;
 
   sDebug("%p TCP connection will be closed, fd:%d", pThread, pConn->fd);
@@ -203,16 +203,19 @@ static void *taosProcessTcpData(void *param) {
       assert(pConn);
 
       if (events[i].events & EPOLLERR) {
+        sDebug("conn is broken since EPOLLERR");
         taosProcessBrokenLink(pConn);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
+        sDebug("conn is broken since EPOLLHUP");
         taosProcessBrokenLink(pConn);
         continue;
       }
 
       if (events[i].events & EPOLLRDHUP) {
+        sDebug("conn is broken since EPOLLRDHUP");
         taosProcessBrokenLink(pConn);
         continue;
       }

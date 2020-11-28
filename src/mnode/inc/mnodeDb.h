@@ -34,6 +34,7 @@ int64_t mnodeGetDbNum();
 SDbObj *mnodeGetDb(char *db);
 SDbObj *mnodeGetDbByTableId(char *db);
 void *  mnodeGetNextDb(void *pIter, SDbObj **pDb);
+void    mnodeCancelGetNextDb(void *pIter);
 void    mnodeIncDbRef(SDbObj *pDb);
 void    mnodeDecDbRef(SDbObj *pDb);
 bool    mnodeCheckIsMonitorDB(char *db, char *monitordb);

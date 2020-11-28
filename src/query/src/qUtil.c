@@ -133,7 +133,7 @@ void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   
   // clear all the closed windows from the window list
   for (int32_t k = 0; k < remain; ++k) {
-    copyResultRow(pRuntimeEnv, pWindowResInfo->pResult[k], pWindowResInfo->pResult[num + k]);
+    copyResultRow(pRuntimeEnv, pWindowResInfo->pResult[k], pWindowResInfo->pResult[num + k], type);
   }
   
   // move the unclosed window in the front of the window list
@@ -272,9 +272,15 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes, int16
  * since the attribute of "Pos" is bound to each window result when the window result is created in the
  * disk-based result buffer.
  */
-void copyResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *dst, const SResultRow *src) {
+void copyResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *dst, const SResultRow *src, int16_t type) {
   dst->numOfRows = src->numOfRows;
-  dst->win   = src->win;
+
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    dst->key = realloc(dst->key, varDataTLen(src->key));
+    varDataCopy(dst->key, src->key);
+  } else {
+    dst->win   = src->win;
+  }
   dst->closed = src->closed;
   
   int32_t nOutputCols = pRuntimeEnv->pQuery->numOfOutput;

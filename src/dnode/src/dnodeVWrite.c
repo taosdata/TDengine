@@ -176,7 +176,7 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
   if (count <= 1) return;
 
   SRpcMsg rpcRsp = {
-    .handle  = pWrite->rpcHandle,
+    .handle  = pWrite->rpcMsg.handle,
     .pCont   = pWrite->rspRet.rsp,
     .contLen = pWrite->rspRet.len,
     .code    = pWrite->code,
@@ -205,8 +205,8 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
     bool forceFsync = false;
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
-      dTrace("%p, msg:%p:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite->rpcAhandle, pWrite,
-             taosMsg[pWrite->pHead->msgType], qtypeStr[qtype], pWrite->pHead->version);
+      dTrace("msg:%p, app:%p type:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite,
+             pWrite->rpcMsg.ahandle, taosMsg[pWrite->pHead->msgType], qtypeStr[qtype], pWrite->pHead->version);
 
       pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
       if (pWrite->code <= 0) pWrite->processedCount = 1;

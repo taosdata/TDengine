@@ -376,11 +376,9 @@ class TDTestCase:
         tdSql.execute("insert into t1 values(1538548685000, 1) (1538548685001, 2) (1538548685002, 3)")
         tdSql.execute("insert into t2 values(1538548685000, 4) (1538548685001, 5) (1538548685002, 6)")
 
-        tdSql.query("select * from t1 where tag1 like '%g'")
-        tdSql.checkRows(3)
+        tdSql.error("select * from t1 where tag1 like '%g'")        
 
-        tdSql.query("select * from t2 where tag1 like '%g'")
-        tdSql.checkRows(3)
+        tdSql.error("select * from t2 where tag1 like '%g'") 
 
         tdSql.query("select * from meters where tag1 like '%g'")
         tdSql.checkRows(6)
@@ -396,20 +394,16 @@ class TDTestCase:
         tdSql.execute("insert into t5 values(1538548685000, 1) (1538548685001, 2) (1538548685002, 3)")
         tdSql.execute("insert into t6 values(1538548685000, 1) (1538548685001, 2) (1538548685002, 3)")
 
-        tdSql.query("select * from t3 where tag1 like '%京'")
-        tdSql.checkRows(3)
+        tdSql.error("select * from t3 where tag1 like '%京'")        
 
-        tdSql.query("select * from t4 where tag1 like '%京'")
-        tdSql.checkRows(3)
+        tdSql.error("select * from t4 where tag1 like '%京'")        
 
         tdSql.query("select * from meters1 where tag1 like '%京'")
         tdSql.checkRows(6)
         
-        tdSql.query("select * from t5 where tag1 like '%g'")
-        tdSql.checkRows(3)
+        tdSql.error("select * from t5 where tag1 like '%g'")        
 
-        tdSql.query("select * from t6 where tag1 like '%g'")
-        tdSql.checkRows(3)
+        tdSql.error("select * from t6 where tag1 like '%g'")        
 
         tdSql.query("select * from meters1 where tag1 like '%g'")
         tdSql.checkRows(6)

@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "trpc.h"
 #include "twal.h"
 
 typedef enum _VN_STATUS {
@@ -51,8 +52,9 @@ typedef struct {
 typedef struct {
   int32_t  code;
   int32_t  processedCount;
-  void *   rpcHandle;
-  void *   rpcAhandle;
+  int32_t  qtype;
+  void *   pVnode;
+  SRpcMsg  rpcMsg;
   SRspRet  rspRet;
   char     reserveForSync[16];
   SWalHead pHead[];

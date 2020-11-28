@@ -529,7 +529,7 @@ static int tdRestoreKVStore(SKVStore *pStore) {
   void *                buf = NULL;
   int64_t               maxBufSize = 0;
   SKVRecord             rInfo = {0};
-  SHashMutableIterator *pIter = NULL;
+  SKVRecord            *pRecord = NULL;
 
   ASSERT(TD_KVSTORE_HEADER_SIZE == lseek(pStore->fd, 0, SEEK_CUR));
   ASSERT(pStore->info.size == TD_KVSTORE_HEADER_SIZE);
@@ -582,16 +582,8 @@ static int tdRestoreKVStore(SKVStore *pStore) {
     goto _err;
   }
 
-  pIter = taosHashCreateIter(pStore->map);
-  if (pIter == NULL) {
-    uError("failed to create hash iter while opening KV store %s", pStore->fname);
-    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  while (taosHashIterNext(pIter)) {
-    SKVRecord *pRecord = taosHashIterGet(pIter);
-
+  pRecord = taosHashIterate(pStore->map, NULL);
+  while (pRecord) {
     if (lseek(pStore->fd, (off_t)(pRecord->offset + sizeof(SKVRecord)), SEEK_SET) < 0) {
       uError("failed to lseek file %s since %s, offset %" PRId64, pStore->fname, strerror(errno), pRecord->offset);
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -613,16 +605,17 @@ static int tdRestoreKVStore(SKVStore *pStore) {
         goto _err;
       }
     }
+
+    pRecord = taosHashIterate(pStore->map, pRecord);
   }
 
   if (pStore->aFunc) (*pStore->aFunc)(pStore->appH);
 
-  taosHashDestroyIter(pIter);
   tfree(buf);
   return 0;
 
 _err:
-  taosHashDestroyIter(pIter);
+  taosHashCancelIterate(pStore->map, pRecord);
   tfree(buf);
   return -1;
 }

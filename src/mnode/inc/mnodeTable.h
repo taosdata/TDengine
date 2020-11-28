@@ -31,6 +31,8 @@ void    mnodeIncTableRef(void *pTable);
 void    mnodeDecTableRef(void *pTable);
 void *  mnodeGetNextChildTable(void *pIter, SCTableObj **pTable);
 void *  mnodeGetNextSuperTable(void *pIter, SSTableObj **pTable);
+void    mnodeCancelGetNextChildTable(void *pIter);
+void    mnodeCancelGetNextSuperTable(void *pIter);
 void    mnodeDropAllChildTables(SDbObj *pDropDb);
 void    mnodeDropAllSuperTables(SDbObj *pDropDb);
 void    mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup);

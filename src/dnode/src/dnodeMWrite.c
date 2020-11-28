@@ -127,7 +127,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
     dnodeSendRedirectMsg(pMsg, true);
   } else {
     SMnodeMsg *pWrite = mnodeCreateMsg(pMsg);
-    dDebug("app:%p:%p, msg:%s is put into mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,
+    dDebug("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
@@ -136,7 +136,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
 }
 
 static void dnodeFreeMWriteMsg(SMnodeMsg *pWrite) {
-  dDebug("app:%p:%p, msg:%s is freed from mwrite queue:%p", pWrite->rpcMsg.ahandle, pWrite,
+  dDebug("msg:%p, app:%p type:%s is freed from mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
          taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
 
   mnodeCleanupMsg(pWrite);
@@ -174,7 +174,7 @@ static void *dnodeProcessMWriteQueue(void *param) {
       break;
     }
 
-    dDebug("app:%p:%p, msg:%s will be processed in mwrite queue", pWrite->rpcMsg.ahandle, pWrite,
+    dTrace("msg:%p, app:%p type:%s will be processed in mwrite queue", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType]);
 
     int32_t code = mnodeProcessWrite(pWrite);
@@ -188,13 +188,13 @@ void dnodeReprocessMWriteMsg(void *pMsg) {
   SMnodeMsg *pWrite = pMsg;
 
   if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
-    dDebug("app:%p:%p, msg:%s is redirected for mnode not running, retry times:%d", pWrite->rpcMsg.ahandle, pWrite,
+    dDebug("msg:%p, app:%p type:%s is redirected for mnode not running, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
 
     dnodeSendRedirectMsg(pMsg, true);
     dnodeFreeMWriteMsg(pWrite);
   } else {
-    dDebug("app:%p:%p, msg:%s is reput into mwrite queue:%p, retry times:%d", pWrite->rpcMsg.ahandle, pWrite,
+    dDebug("msg:%p, app:%p type:%s is reput into mwrite queue:%p, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue, pWrite->retry);
 
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);

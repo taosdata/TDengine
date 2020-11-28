@@ -77,6 +77,7 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/resource.h>
 #include <linux/sysctl.h>
+#include <math.h>
 
 typedef int(*__compar_fn_t)(const void *, const void *);
 void  error (int, int, const char *);
