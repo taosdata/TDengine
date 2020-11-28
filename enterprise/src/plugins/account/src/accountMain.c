@@ -77,7 +77,6 @@ static void acctDoStatistic(void *handle, void *tmrId) {
       totalStorage += acctGetStatistic(pAcct);
       mnodeDecAcctRef(pAcct);
     }
-    sdbFreeIter(pIter);
 
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
   }
@@ -91,6 +90,7 @@ int32_t acctInit() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_ACCT, mnodeCancelGetNextAcct);
 
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
   
@@ -607,9 +607,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
     }
     mnodeDecVgroupRef(pVgroup);
   }
-
-  sdbFreeIter(pIter);
-
+  
   pAcct->acctInfo.totalStorage = totalStorage;
   pAcct->acctInfo.numOfPointsPerSecond =
       (int32_t)((pointsWritten - pAcct->acctInfo.totalPoints) * 1000 / (sKey - pAcct->acctInfo.sKey));

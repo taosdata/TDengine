@@ -126,7 +126,6 @@ static uint32_t grantGetCulsterCreateTime() {
     createTime = createTime < pDnode->createdTime ? createTime : pDnode->createdTime;
     mnodeDecDnodeRef(pDnode);
   }
-  sdbFreeIter(pIter);
   pIter = NULL;
 
   while (1) {
@@ -135,7 +134,6 @@ static uint32_t grantGetCulsterCreateTime() {
     createTime = createTime < pAcct->createdTime ? createTime : pAcct->createdTime;
     mnodeDecAcctRef(pAcct);
   }
-  sdbFreeIter(pIter);
   pIter = NULL;
 
   while (1) {
@@ -144,7 +142,6 @@ static uint32_t grantGetCulsterCreateTime() {
     createTime = createTime < pUser->createdTime ? createTime : pUser->createdTime;
     mnodeDecUserRef(pUser);
   }
-  sdbFreeIter(pIter);
   pIter = NULL;
 
   while (1) {
@@ -153,7 +150,6 @@ static uint32_t grantGetCulsterCreateTime() {
     createTime = createTime < pDb->createdTime ? createTime : pDb->createdTime;
     mnodeDecDbRef(pDb);
   }
-  sdbFreeIter(pIter);
 
   return (uint32_t)(createTime / 1000);
 }
@@ -176,8 +172,6 @@ static uint32_t grantGetCulsterCurTimeSeries() {
     mnodeDecTableRef(pTable);
   }
 
-  sdbFreeIter(pIter);
-
   return numOfPoints;
 }
 
@@ -195,8 +189,6 @@ static uint32_t grantGetCulsterCurDbs() {
     mnodeDecDbRef(pDb);
   }
 
-  sdbFreeIter(pIter);
-
   return numOfDbs;
 }
 
@@ -213,8 +205,6 @@ static uint32_t grantGetCulsterCurUsers() {
     numOfUsers++;
     mnodeDecUserRef(pUser);
   }
-
-  sdbFreeIter(pIter);
 
   return numOfUsers;
 }
@@ -236,7 +226,6 @@ static uint32_t grantGetCulsterCurAccts() {
     numOfAccts++;
     mnodeDecAcctRef(pAcct);
   }
-  sdbFreeIter(pIter);
 
   return numOfAccts;
 }
@@ -253,8 +242,6 @@ static uint32_t grantGetCulsterCurDnodes() {
     mnodeDecDnodeRef(pDnode);
   }
 
-  sdbFreeIter(pIter);
-
   return numOfDnodes;
 }
 
@@ -270,8 +257,6 @@ static uint32_t grantGetCulsterCurCpuCores() {
     numOfCpuCores += pDnode->numOfCores;
     mnodeDecDnodeRef(pDnode);
   }
-
-  sdbFreeIter(pIter);
 
   return numOfCpuCores;
 }
@@ -605,13 +590,12 @@ static void grantCheckGrantInfo() {
 
       if (pDnode->status == 0) {  // TSDB_DN_STATUS_OFFLINE
         mnodeDecDnodeRef(pDnode);
-        sdbFreeIter(pIter);
+        mnodeCancelGetNextDnode(pIter);
         return;
       }
 
       mnodeDecDnodeRef(pDnode);
     }
-    sdbFreeIter(pIter);
 
     uint32_t curTime = taosGetTimestampSec();
     if (curTime > grantStatus.lastReceived && curTime - grantStatus.lastReceived > GRANT_TOLERENCE) {
