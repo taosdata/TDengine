@@ -1053,7 +1053,7 @@ static bool setTimeWindowInterpolationStartTs(SQueryRuntimeEnv* pRuntimeEnv, int
 
       double v1 = 0, v2 = 0, v = 0;
 
-      char *prevVal = pos == 0 ? pRuntimeEnv->prevRow[k] : pColInfo->pData + (pos - 1) * pColInfo->info.bytes;
+      char *prevVal = pos == 0 ? pRuntimeEnv->prevRow[k] : ((char*)pColInfo->pData) + (pos - 1) * pColInfo->info.bytes;
 
       GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)prevVal);
       GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + pos * pColInfo->info.bytes);
@@ -1121,7 +1121,7 @@ static void saveDataBlockLastRow(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* 
   SQuery* pQuery = pRuntimeEnv->pQuery;
   for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, k);
-    memcpy(pRuntimeEnv->prevRow[k], pColInfo->pData + (pColInfo->info.bytes * (pDataBlockInfo->rows - 1)),
+    memcpy(pRuntimeEnv->prevRow[k], ((char*)pColInfo->pData) + (pColInfo->info.bytes * (pDataBlockInfo->rows - 1)),
            pColInfo->info.bytes);
   }
 }
