@@ -277,7 +277,7 @@ bool hasMoreClauseToTry(SSqlObj* pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
-int  tscSetMgmtEpSetFromCfg(const char *first, const char *second);
+int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet *corEpSet);
 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);

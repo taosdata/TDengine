@@ -116,11 +116,6 @@ void taos_init_imp(void) {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  if (tscSetMgmtEpSetFromCfg(tsFirst, tsSecond) < 0) {
-    tscError("failed to init mnode EP list");
-    return;
-  } 
-
   tscInitMsgsFp();
   int queueSize = tsMaxConnections*2;
 

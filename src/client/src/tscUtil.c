@@ -783,7 +783,7 @@ void tscCloseTscObj(void *param) {
     rpcClose(pObj->pDnodeConn);
     pObj->pDnodeConn = NULL;
   }
-
+  tfree(pObj->tscCorMgmtEpSet);
   pthread_mutex_destroy(&pObj->mutex);
 
   tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, p);
@@ -2378,10 +2378,10 @@ char* strdup_throw(const char* str) {
   return p;
 }
 
-int tscSetMgmtEpSetFromCfg(const char *first, const char *second) {
+int tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet *corMgmtEpSet) {
   // init mgmt ip set 
-  tscMgmtEpSet.version = 0;
-  SRpcEpSet *mgmtEpSet = &(tscMgmtEpSet.epSet);
+  corMgmtEpSet->version = 0;
+  SRpcEpSet *mgmtEpSet = &(corMgmtEpSet->epSet);
   mgmtEpSet->numOfEps = 0;
   mgmtEpSet->inUse = 0;
 

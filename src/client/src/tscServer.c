@@ -26,8 +26,6 @@
 #include "ttimer.h"
 #include "tlockfree.h"
 
-SRpcCorEpSet  tscMgmtEpSet;
-
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
 int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
@@ -73,33 +71,35 @@ static void tscSetDnodeEpSet(SSqlObj* pSql, SVgroupInfo* pVgroupInfo) {
   assert(hasFqdn);
 }
 
-static void tscDumpMgmtEpSet(SRpcEpSet *epSet) {
-  taosCorBeginRead(&tscMgmtEpSet.version);
-  *epSet = tscMgmtEpSet.epSet;
-  taosCorEndRead(&tscMgmtEpSet.version);
-}  
+static void tscDumpMgmtEpSet(SSqlObj *pSql) {
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+  taosCorBeginRead(&pCorEpSet->version);
+  pSql->epSet = pCorEpSet->epSet;
+  taosCorEndRead(&pCorEpSet->version);
+} 
 static void tscEpSetHtons(SRpcEpSet *s) {
-   for (int32_t i = 0; i < s->numOfEps; i++) {
-      s->port[i] = htons(s->port[i]);    
-   }
+  for (int32_t i = 0; i < s->numOfEps; i++) {
+    s->port[i] = htons(s->port[i]);    
+  }
 } 
 bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
-   if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
-     return false;
-   } 
-   for (int32_t i = 0; i < s1->numOfEps; i++) {
-     if (s1->port[i] != s2->port[i] 
+  if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
+    return false;
+  } 
+  for (int32_t i = 0; i < s1->numOfEps; i++) {
+    if (s1->port[i] != s2->port[i] 
         || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
-        return false;
-   }
-   return true;
+      return false;
+  }
+  return true;
 }
-void tscUpdateMgmtEpSet(SRpcEpSet *pEpSet) {
-  // no need to update if equal
-  taosCorBeginWrite(&tscMgmtEpSet.version);
-  tscMgmtEpSet.epSet = *pEpSet;
-  taosCorEndWrite(&tscMgmtEpSet.version);
+void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+  taosCorBeginWrite(&pCorEpSet->version);
+  pCorEpSet->epSet = *pEpSet;
+  taosCorEndWrite(&pCorEpSet->version);
 }
+
 static void tscDumpEpSetFromVgroupInfo(SCorVgroupInfo *pVgroupInfo, SRpcEpSet *pEpSet) {
   if (pVgroupInfo == NULL) { return;}
   taosCorBeginRead(&pVgroupInfo->version);
@@ -133,18 +133,6 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   taosCorEndWrite(&pVgroupInfo->version);
 }
 
-void tscPrintMgmtEp() {
-  SRpcEpSet dump;
-  tscDumpMgmtEpSet(&dump);
-  if (dump.numOfEps <= 0) {
-    tscError("invalid mnode EP list:%d", dump.numOfEps);
-  } else {
-    for (int i = 0; i < dump.numOfEps; ++i) {
-      tscDebug("mnode index:%d %s:%d", i, dump.fqdn[i], dump.port[i]);
-    }
-  }
-}
-
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
   if (pObj == NULL) return;
@@ -162,7 +150,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SRpcEpSet *    epSet = &pRsp->epSet;
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
-      tscUpdateMgmtEpSet(epSet);
+      tscUpdateMgmtEpSet(pSql, epSet);
     }
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
@@ -208,7 +196,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 int tscSendMsgToServer(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
-  
+
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
   if (NULL == pMsg) {
     tscError("%p msg:%s malloc failed", pSql, taosMsg[pSql->cmd.msgType]);
@@ -217,18 +205,18 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
   // set the mgmt ip list
   if (pSql->cmd.command >= TSDB_SQL_MGMT) {
-    tscDumpMgmtEpSet(&pSql->epSet);
+    tscDumpMgmtEpSet(pSql);
   }
 
   memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
 
   SRpcMsg rpcMsg = {
-      .msgType = pSql->cmd.msgType,
-      .pCont   = pMsg,
-      .contLen = pSql->cmd.payloadLen,
-      .ahandle = (void *)pSql->self,
-      .handle  = NULL,
-      .code    = 0
+    .msgType = pSql->cmd.msgType,
+    .pCont   = pMsg,
+    .contLen = pSql->cmd.payloadLen,
+    .ahandle = (void *)pSql->self,
+    .handle  = NULL,
+    .code    = 0
   };
 
   // NOTE: the rpc context should be acquired before sending data to server.
@@ -280,7 +268,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       if (pCmd->command < TSDB_SQL_MGMT) {
         tscUpdateVgroupInfo(pSql, pEpSet);
       } else {
-        tscUpdateMgmtEpSet(pEpSet);
+        tscUpdateMgmtEpSet(pSql, pEpSet); 
       }
     }
   }
@@ -1996,7 +1984,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 
   if (pConnect->epSet.numOfEps > 0) {
     tscEpSetHtons(&pConnect->epSet);
-    tscUpdateMgmtEpSet(&pConnect->epSet);
+    tscUpdateMgmtEpSet(pSql, &pConnect->epSet);
   } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);
