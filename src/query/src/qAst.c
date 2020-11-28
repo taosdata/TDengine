@@ -370,6 +370,66 @@ void tExprTreeTraverse(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, S
 #endif
 }
 
+static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
+  switch(type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t* p = (int8_t*) dest;
+      int8_t* pSrc = (int8_t*) src;
+
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        p[i] = pSrc[numOfRows - i - 1];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t* p = (int16_t*) dest;
+      int16_t* pSrc = (int16_t*) src;
+
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        p[i] = pSrc[numOfRows - i - 1];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t* p = (int32_t*) dest;
+      int32_t* pSrc = (int32_t*) src;
+
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        p[i] = pSrc[numOfRows - i - 1];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t* p = (int64_t*) dest;
+      int64_t* pSrc = (int64_t*) src;
+
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        p[i] = pSrc[numOfRows - i - 1];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float* p = (float*) dest;
+      float* pSrc = (float*) src;
+
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        p[i] = pSrc[numOfRows - i - 1];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double* p = (double*) dest;
+      double* pSrc = (double*) src;
+
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        p[i] = pSrc[numOfRows - i - 1];
+      }
+      break;
+    }
+    default: assert(0);
+  }
+}
+
 void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
   if (pExprs == NULL) {
@@ -387,6 +447,8 @@ void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, 
 
   /* the right output has result from the right child syntax tree */
   char *pRightOutput = malloc(sizeof(int64_t) * numOfRows);
+  char *pdata = malloc(sizeof(int64_t) * numOfRows);
+
   if (pRight->nodeType == TSQL_NODE_EXPR) {
     tExprTreeCalcTraverse(pRight, numOfRows, pRightOutput, param, order, getSourceDataBlock);
   }
@@ -398,52 +460,75 @@ void tExprTreeCalcTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, 
        * the type of returned value of one expression is always double float precious
        */
       _bi_consumer_fn_t fp = tGetBiConsumerFn(TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_DOUBLE, pExprs->_node.optr);
-      fp(pLeftOutput, pRightOutput, numOfRows, numOfRows, pOutput, order);
+      fp(pLeftOutput, pRightOutput, numOfRows, numOfRows, pOutput, TSDB_ORDER_ASC);
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // exprLeft + columnRight
       _bi_consumer_fn_t fp = tGetBiConsumerFn(TSDB_DATA_TYPE_DOUBLE, pRight->pSchema->type, pExprs->_node.optr);
+
       // set input buffer
       char *pInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      fp(pLeftOutput, pInputData, numOfRows, numOfRows, pOutput, order);
+      if (order == TSDB_ORDER_DESC) {
+        reverseCopy(pdata, pInputData, pRight->pSchema->type, numOfRows);
+        fp(pLeftOutput, pdata, numOfRows, numOfRows, pOutput, TSDB_ORDER_ASC);
+      } else {
+        fp(pLeftOutput, pInputData, numOfRows, numOfRows, pOutput, TSDB_ORDER_ASC);
+      }
 
     } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // exprLeft + 12
       _bi_consumer_fn_t fp = tGetBiConsumerFn(TSDB_DATA_TYPE_DOUBLE, pRight->pVal->nType, pExprs->_node.optr);
-      fp(pLeftOutput, &pRight->pVal->i64Key, numOfRows, 1, pOutput, order);
+      fp(pLeftOutput, &pRight->pVal->i64Key, numOfRows, 1, pOutput, TSDB_ORDER_ASC);
     }
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
     // column data specified on left-hand-side
     char *pLeftInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
     if (pRight->nodeType == TSQL_NODE_EXPR) {  // columnLeft + expr2
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pSchema->type, TSDB_DATA_TYPE_DOUBLE, pExprs->_node.optr);
-      fp(pLeftInputData, pRightOutput, numOfRows, numOfRows, pOutput, order);
+
+      if (order == TSDB_ORDER_DESC) {
+        reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
+        fp(pdata, pRightOutput, numOfRows, numOfRows, pOutput, TSDB_ORDER_ASC);
+      } else {
+        fp(pLeftInputData, pRightOutput, numOfRows, numOfRows, pOutput, TSDB_ORDER_ASC);
+      }
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // columnLeft + columnRight
       // column data specified on right-hand-side
       char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pSchema->type, pRight->pSchema->type, pExprs->_node.optr);
-      fp(pLeftInputData, pRightInputData, numOfRows, numOfRows, pOutput, order);
 
+      // both columns are descending order, do not reverse the source data
+      fp(pLeftInputData, pRightInputData, numOfRows, numOfRows, pOutput, order);
     } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // columnLeft + 12
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pSchema->type, pRight->pVal->nType, pExprs->_node.optr);
-      fp(pLeftInputData, &pRight->pVal->i64Key, numOfRows, 1, pOutput, order);
+
+      if (order == TSDB_ORDER_DESC) {
+        reverseCopy(pdata, pLeftInputData, pLeft->pSchema->type, numOfRows);
+        fp(pdata, &pRight->pVal->i64Key, numOfRows, 1, pOutput, TSDB_ORDER_ASC);
+      } else {
+        fp(pLeftInputData, &pRight->pVal->i64Key, numOfRows, 1, pOutput, TSDB_ORDER_ASC);
+      }
     }
   } else {
     // column data specified on left-hand-side
     if (pRight->nodeType == TSQL_NODE_EXPR) {  // 12 + expr2
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pVal->nType, TSDB_DATA_TYPE_DOUBLE, pExprs->_node.optr);
-      fp(&pLeft->pVal->i64Key, pRightOutput, 1, numOfRows, pOutput, order);
+      fp(&pLeft->pVal->i64Key, pRightOutput, 1, numOfRows, pOutput, TSDB_ORDER_ASC);
 
     } else if (pRight->nodeType == TSQL_NODE_COL) {  // 12 + columnRight
       // column data specified on right-hand-side
       char *pRightInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
-      
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pVal->nType, pRight->pSchema->type, pExprs->_node.optr);
-      fp(&pLeft->pVal->i64Key, pRightInputData, 1, numOfRows, pOutput, order);
+
+      if (order == TSDB_ORDER_DESC) {
+        reverseCopy(pdata, pRightInputData, pRight->pSchema->type, numOfRows);
+        fp(&pLeft->pVal->i64Key, pdata, numOfRows, 1, pOutput, TSDB_ORDER_ASC);
+      } else {
+        fp(&pLeft->pVal->i64Key, pRightInputData, 1, numOfRows, pOutput, TSDB_ORDER_ASC);
+      }
 
     } else if (pRight->nodeType == TSQL_NODE_VALUE) {  // 12 + 12
       _bi_consumer_fn_t fp = tGetBiConsumerFn(pLeft->pVal->nType, pRight->pVal->nType, pExprs->_node.optr);
-      fp(&pLeft->pVal->i64Key, &pRight->pVal->i64Key, 1, 1, pOutput, order);
+      fp(&pLeft->pVal->i64Key, &pRight->pVal->i64Key, 1, 1, pOutput, TSDB_ORDER_ASC);
     }
   }
 
