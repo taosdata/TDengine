@@ -369,7 +369,9 @@ sql_error select c7-c9 from $tb interval(2y)
 # multiple retrieve [d.20]===============================================================
 sql select c2-c2, 911 from $tb
 
-#======================================= aggregation function arithmetic query cases ================
+#======================================= aggregation function arithmetic query cases ===================================
+# on $tb percentile()   spread(ts) bug
+
 # asc/desc order [d.2]
 sql select first(c1) * ( 2 / 3 ) from $stb order by ts asc;
 if $rows != 1 then

@@ -131,7 +131,6 @@ if $data00 != $rowNum then
   return -1
 endi
 
-
 ## like
 sql_error select * from $mt where c1 like 1
 #sql_error select * from $mt where t1 like 1
@@ -178,7 +177,8 @@ sql create table wh_mt2_tb1 using wh_mt2 tags ('wh_mt2_tb1')
 # 2019-01-01 09:00:00.000     1546304400000
 # 2019-01-01 09:10:00.000     1546305000000
 sql insert into wh_mt2_tb1 values ('2019-01-01 00:00:00.000', '2019-01-01 09:00:00.000', 'binary10', 'nchar10') 
-sql insert into wh_mt2_tb1 values ('2019-01-01 00:10:00.000', '2019-01-01 09:10:00.000', 'binary10', 'nchar10') 
+sql insert into wh_mt2_tb1 values ('2019-01-01 00:10:00.000', '2019-01-01 09:10:00.000', 'binary10', 'nchar10')
+
 sql select * from wh_mt2_tb1 where c1 > 1546304400000
 if $rows != 1 then
   return -1
