@@ -393,6 +393,6 @@ uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv) {
     return 0;
   }
 
-  STableId* id = TSDB_TABLEID(pRuntimeEnv->pQuery->current);
+  STableId* id = TSDB_TABLEID(pRuntimeEnv->pQuery->current->pTable);
   return id->uid;
 }

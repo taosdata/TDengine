@@ -3639,6 +3639,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  int32_t i = index;
 
   if (pCtx->start.key != INT64_MIN) {
     assert(pCtx->start.key < primaryKey[index] && pInfo->lastKey == INT64_MIN);
@@ -3646,27 +3647,27 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     pInfo->lastKey = primaryKey[index];
     GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, 0));
 
-    pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (primaryKey[index] - pCtx->start.key);
+    pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (pInfo->lastKey - pCtx->start.key);
 
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey  = pCtx->start.key;
     notNullElems++;
+    i += 1;
   } else if (pInfo->lastKey == INT64_MIN) {
     pInfo->lastKey = primaryKey[index];
     GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, 0));
 
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->win.skey = pInfo->lastKey;
+    pInfo->win.skey  = pInfo->lastKey;
     notNullElems++;
+    i += 1;
   }
-
-  int32_t i = index;
 
   // calculate the value of
   switch(pCtx->inputType) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *val = (int8_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (++i; i < size; i++) {
+      for (; i < size; i++) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
@@ -3679,7 +3680,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *val = (int16_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (++i; i < size; i++) {
+      for (; i < size; i++) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
@@ -3692,12 +3693,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     }
     case TSDB_DATA_TYPE_INT: {
       int32_t *val = (int32_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (++i; i < size; i++) {
+      for (; i < size; i++) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
         pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+//        printf("%ld, %f, val:%f\n", pInfo->lastKey, pInfo->lastValue, pInfo->dOutput);
+
         pInfo->lastValue = val[i];
         pInfo->lastKey = primaryKey[i];
       }
@@ -3705,7 +3708,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *val = (int64_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (++i; i < size; i++) {
+      for (; i < size; i++) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
@@ -3718,7 +3721,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float *val = (float*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (++i; i < size; i++) {
+      for (; i < size; i++) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
@@ -3731,7 +3734,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *val = (double*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (++i; i < size; i++) {
+      for (; i < size; i++) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
