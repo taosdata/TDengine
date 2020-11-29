@@ -52,7 +52,6 @@ static bool  mnodeCheckShowFinished(SShowObj *pShow);
 static void *mnodePutShowObj(SShowObj *pShow);
 static void  mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove);
 
-extern void *tsMnodeTmr;
 static void *tsMnodeShowCache = NULL;
 static int32_t tsShowObjIndex = 0;
 static SShowMetaFp     tsMnodeShowMetaFp[TSDB_MGMT_TABLE_MAX]     = {0};

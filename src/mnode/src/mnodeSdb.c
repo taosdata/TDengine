@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "hash.h"
 #include "tutil.h"
+#include "tref.h"
 #include "tbalance.h"
 #include "tqueue.h"
 #include "twal.h"
@@ -98,6 +99,7 @@ typedef struct {
   SSdbWorker *worker;
 } SSdbWorkerPool;
 
+int32_t tsSdbRid;
 extern void *     tsMnodeTmr;
 static void *     tsSdbTmr;
 static SSdbMgmt   tsSdbMgmt = {0};
@@ -118,6 +120,7 @@ static void    sdbFreeQueue();
 static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow);
 static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow);
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow);
+static void    sdbCloseTableObj(void *handle);
 
 int32_t sdbGetId(void *pTable) {
   return ((SSdbTable *)pTable)->autoIndex;
@@ -385,6 +388,17 @@ void sdbUpdateSync(void *pMnodes) {
   sdbUpdateMnodeRoles();
 }
 
+int32_t sdbInitRef() {
+  tsSdbRid = taosOpenRef(10, sdbCloseTableObj);
+  if (tsSdbRid <= 0) {
+    sdbError("failed to init sdb ref");
+    return -1;
+  }
+  return 0;
+}
+
+void sdbCleanUpRef() { taosCloseRef(tsSdbRid); }
+
 int32_t sdbInit() {
   pthread_mutex_init(&tsSdbMgmt.mutex, NULL);
 
@@ -423,7 +437,7 @@ void sdbCleanUp() {
     walClose(tsSdbMgmt.wal);
     tsSdbMgmt.wal = NULL;
   }
-  
+
   pthread_mutex_destroy(&tsSdbMgmt.mutex);
 }
 
@@ -506,7 +520,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
     atomic_add_fetch_32(&pTable->autoIndex, 1);
   }
 
-  sdbDebug("vgId:1, sdb:%s, insert key:%s to hash, rowSize:%d rows:%" PRId64 ", msg:%p", pTable->name,
+  sdbTrace("vgId:1, sdb:%s, insert key:%s to hash, rowSize:%d rows:%" PRId64 ", msg:%p", pTable->name,
            sdbGetRowStr(pTable, pRow->pObj), pRow->rowSize, pTable->numOfRows, pRow->pMsg);
 
   int32_t code = (*pTable->fpInsert)(pRow);
@@ -542,7 +556,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow) {
 
   atomic_sub_fetch_32(&pTable->numOfRows, 1);
 
-  sdbDebug("vgId:1, sdb:%s, delete key:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
+  sdbTrace("vgId:1, sdb:%s, delete key:%s from hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
            sdbGetRowStr(pTable, pRow->pObj), pTable->numOfRows, pRow->pMsg);
 
   sdbDecRef(pTable, pRow->pObj);
@@ -551,7 +565,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow) {
 }
 
 static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow) {
-  sdbDebug("vgId:1, sdb:%s, update key:%s in hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
+  sdbTrace("vgId:1, sdb:%s, update key:%s in hash, numOfRows:%" PRId64 ", msg:%p", pTable->name,
            sdbGetRowStr(pTable, pRow->pObj), pTable->numOfRows, pRow->pMsg);
 
   (*pTable->fpUpdate)(pRow);
@@ -649,7 +663,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     return syncCode;
   }
 
-  sdbDebug("vgId:1, sdb:%s, record from wal/fwd is disposed, action:%s key:%s hver:%" PRIu64, pTable->name,
+  sdbTrace("vgId:1, sdb:%s, record from %s is disposed, action:%s key:%s hver:%" PRIu64, pTable->name, qtypeStr[qtype],
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
@@ -801,10 +815,10 @@ void sdbFreeIter(void *tparam, void *pIter) {
   taosHashCancelIterate(pTable->iHandle, pIter);
 }
 
-void *sdbOpenTable(SSdbTableDesc *pDesc) {
+int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
   SSdbTable *pTable = (SSdbTable *)calloc(1, sizeof(SSdbTable));
   
-  if (pTable == NULL) return NULL;
+  if (pTable == NULL) return -1;
 
   pthread_mutex_init(&pTable->mutex, NULL);
   tstrncpy(pTable->name, pDesc->name, SDB_TABLE_LEN);
@@ -829,10 +843,21 @@ void *sdbOpenTable(SSdbTableDesc *pDesc) {
 
   tsSdbMgmt.numOfTables++;
   tsSdbMgmt.tableList[pTable->id] = pTable;
-  return pTable;
+
+  return taosAddRef(tsSdbRid, pTable);
 }
 
-void sdbCloseTable(void *handle) {
+void sdbCloseTable(int64_t rid) {
+  taosRemoveRef(tsSdbRid, rid);
+}
+
+void *sdbGetTableByRid(int64_t rid) {
+  void *handle = taosAcquireRef(tsSdbRid, rid);
+  taosReleaseRef(tsSdbRid, rid);
+  return handle;
+}
+
+static void sdbCloseTableObj(void *handle) {
   SSdbTable *pTable = (SSdbTable *)handle;
   if (pTable == NULL) return;
   
@@ -855,6 +880,7 @@ void sdbCloseTable(void *handle) {
 
   taosHashCancelIterate(pTable->iHandle, pIter);
   taosHashCleanup(pTable->iHandle);
+  pTable->iHandle = NULL;
   pthread_mutex_destroy(&pTable->mutex);
 
   sdbDebug("vgId:1, sdb:%s, is closed, numOfTables:%d", pTable->name, tsSdbMgmt.numOfTables);

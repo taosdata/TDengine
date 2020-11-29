@@ -24,6 +24,7 @@
 #include "mnodeShow.h"
 #include "tglobal.h"
 
+int64_t        tsClusterRid = -1;
 static void *  tsClusterSdb = NULL;
 static int32_t tsClusterUpdateSize;
 static char    tsClusterId[TSDB_CLUSTER_ID_LEN];
@@ -101,9 +102,10 @@ int32_t mnodeInitCluster() {
     .fpRestored   = mnodeClusterActionRestored
   };
 
-  tsClusterSdb = sdbOpenTable(&desc);
+  tsClusterRid = sdbOpenTable(&desc);
+  tsClusterSdb = sdbGetTableByRid(tsClusterRid);
   if (tsClusterSdb == NULL) {
-    mError("table:%s, failed to create hash", desc.name);
+    mError("table:%s, rid:%" PRId64 ", failed to create hash", desc.name, tsClusterRid);
     return -1;
   }
 
@@ -116,7 +118,7 @@ int32_t mnodeInitCluster() {
 }
 
 void mnodeCleanupCluster() {
-  sdbCloseTable(tsClusterSdb);
+  sdbCloseTable(tsClusterRid);
   tsClusterSdb = NULL;
 }
 

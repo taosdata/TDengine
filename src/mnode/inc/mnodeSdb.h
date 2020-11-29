@@ -79,10 +79,13 @@ typedef struct {
   int32_t (*fpRestored)();
 } SSdbTableDesc;
 
+int32_t sdbInitRef();
+void    sdbCleanUpRef();
 int32_t sdbInit();
 void    sdbCleanUp();
-void *  sdbOpenTable(SSdbTableDesc *desc);
-void    sdbCloseTable(void *handle);
+int64_t sdbOpenTable(SSdbTableDesc *desc);
+void    sdbCloseTable(int64_t rid);
+void*   sdbGetTableByRid(int64_t rid);
 bool    sdbIsMaster();
 bool    sdbIsServing();
 void    sdbUpdateMnodeRoles();

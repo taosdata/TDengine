@@ -47,6 +47,7 @@ void *tsMnodeTmr = NULL;
 static bool tsMgmtIsRunning = false;
 
 static const SMnodeComponent tsMnodeComponents[] = {
+  {"sdbref",  sdbInitRef,       sdbCleanUpRef},
   {"profile", mnodeInitProfile, mnodeCleanupProfile},
   {"cluster", mnodeInitCluster, mnodeCleanupCluster},
   {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
