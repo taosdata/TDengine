@@ -39,6 +39,7 @@
 #include "mnodeCluster.h"
 
 int32_t tsAccessSquence = 0;
+int64_t        tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
@@ -187,7 +188,8 @@ int32_t mnodeInitDnodes() {
     .fpRestored   = mnodeDnodeActionRestored
   };
 
-  tsDnodeSdb = sdbOpenTable(&desc);
+  tsDnodeRid = sdbOpenTable(&desc);
+  tsDnodeSdb = sdbGetTableByRid(tsDnodeRid);
   if (tsDnodeSdb == NULL) {
     mError("failed to init dnodes data");
     return -1;
@@ -213,7 +215,7 @@ int32_t mnodeInitDnodes() {
 }
 
 void mnodeCleanupDnodes() {
-  sdbCloseTable(tsDnodeSdb);
+  sdbCloseTable(tsDnodeRid);
   pthread_mutex_destroy(&tsDnodeEpsMutex);
   free(tsDnodeEps);
   tsDnodeEps = NULL;

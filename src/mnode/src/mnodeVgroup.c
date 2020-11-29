@@ -51,6 +51,7 @@ char* vgroupStatus[] = {
   "updating"
 };
 
+int64_t        tsVgroupRid = -1;
 static void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
 
@@ -222,7 +223,8 @@ int32_t mnodeInitVgroups() {
     .fpRestored   = mnodeVgroupActionRestored,
   };
 
-  tsVgroupSdb = sdbOpenTable(&desc);
+  tsVgroupRid = sdbOpenTable(&desc);
+  tsVgroupSdb = sdbGetTableByRid(tsVgroupRid);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;
@@ -610,7 +612,7 @@ void mnodeDropVgroup(SVgObj *pVgroup, void *ahandle) {
 }
 
 void mnodeCleanupVgroups() {
-  sdbCloseTable(tsVgroupSdb);
+  sdbCloseTable(tsVgroupRid);
   tsVgroupSdb = NULL;
 }
 
