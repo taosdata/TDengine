@@ -321,6 +321,7 @@ void *taosIterateRef(int rsetId, int64_t rid) {
 
   if (pNode == NULL) {
     for (; hash < pSet->max; ++hash) {
+      uTrace("rsetId:%d in the middle of iterate, hash:%d", rsetId, hash);
       taosLockList(pSet->lockedBy+hash);
       pNode = pSet->nodeList[hash];
       if (pNode) break; 
