@@ -20,6 +20,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tgrant.h"
+#include "tref.h"
 #include "tglobal.h"
 #include "tdataformat.h"
 #include "monitor.h"
@@ -54,6 +55,8 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
+extern int64_t tsAcctRid;
+extern int64_t tsSdbRid;
 extern void *  tsAcctSdb;
 extern void *  tsMnodeTmr;
 static void *  tsMgmtStatisTimer = NULL;
@@ -66,7 +69,8 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void acctDoStatistic(void *handle, void *tmrId) {  
-  if (tsAcctSdb != NULL) {
+  void *acctSdb = taosAcquireRef(tsSdbRid, tsAcctRid);
+  if (acctSdb != NULL) {
     SAcctObj *pAcct = NULL;
     void *    pIter = NULL;
     int64_t   totalStorage = 0;
@@ -79,6 +83,7 @@ static void acctDoStatistic(void *handle, void *tmrId) {
     }
 
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
+    taosReleaseRef(tsSdbRid, tsAcctRid);
   }
 
   taosTmrReset(acctDoStatistic, tsMonitorInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
