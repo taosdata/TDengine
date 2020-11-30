@@ -836,12 +836,6 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
     dataBuf->size += (finalLen + sizeof(SSubmitBlk));
     assert(dataBuf->size <= dataBuf->nAllocSize);
 
-    // free unnecessary memory resource ASAP.
-    char* p = realloc(dataBuf->pData, dataBuf->size);
-    if (p != NULL) {
-      dataBuf->pData = p;
-    }
-
     // the length does not include the SSubmitBlk structure
     pBlocks->dataLen = htonl(finalLen);
     dataBuf->numOfTables += 1;
