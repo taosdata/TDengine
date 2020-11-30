@@ -21,7 +21,7 @@ extern "C" {
 
 #include "tdataformat.h"
 
-typedef int32_t (*FCqWrite)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
+typedef int32_t (*FCqWrite)(int32_t vgId, void *pHead, int32_t qtype, void *pMsg);
 
 typedef struct {
   int32_t  vgId;
