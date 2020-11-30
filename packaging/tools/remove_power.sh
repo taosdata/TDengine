@@ -72,6 +72,7 @@ function clean_bin() {
     ${csudo} rm -f ${bin_link_dir}/power        || :
     ${csudo} rm -f ${bin_link_dir}/powerd       || :
     ${csudo} rm -f ${bin_link_dir}/powerdemo    || :
+    ${csudo} rm -f ${bin_link_dir}/powerdump    || :
     ${csudo} rm -f ${bin_link_dir}/rmpower      || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
     ${csudo} rm -f ${bin_link_dir}/set_core     || :
