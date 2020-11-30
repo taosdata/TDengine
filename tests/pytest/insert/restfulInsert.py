@@ -140,9 +140,7 @@ class RestfulInsert:
                 if response.status_code != 200:
                     print(response.content)
 
-    def run(self):  
-        data = "drop database if exists %s" % self.dbname
-        requests.post(self.url, data, headers = self.header)              
+    def run(self):            
         data = "create database if not exists %s" % self.dbname
         requests.post(self.url, data, headers = self.header)
         data = "create table if not exists %s.meters(ts timestamp, f1 int, f2 int, f3 int) tags(id int, loc nchar(20))" % self.dbname
@@ -192,14 +190,14 @@ parser.add_argument(
     '-d',
     '--db-name',
     action='store',
-    default='test1',
+    default='test',
     type=str,
     help='Database name to be created (default: test)')
 parser.add_argument(
     '-t',
     '--number-of-threads',
     action='store',
-    default=20,
+    default=10,
     type=int,
     help='Number of threads to create tables and insert datas (default: 10)')
 parser.add_argument(
@@ -213,7 +211,7 @@ parser.add_argument(
     '-r',
     '--number-of-records',
     action='store',
-    default=10000,
+    default=1000,
     type=int,
     help='Number of record to be created for each table  (default: 1000, -1 for unlimited records)')
 parser.add_argument(
