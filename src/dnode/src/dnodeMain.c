@@ -19,6 +19,7 @@
 #include "tutil.h"
 #include "tconfig.h"
 #include "tglobal.h"
+#include "tfile.h"
 #include "twal.h"
 #include "trpc.h"
 #include "dnode.h"
@@ -56,6 +57,7 @@ typedef struct {
 } SDnodeComponent;
 
 static const SDnodeComponent tsDnodeComponents[] = {
+  {"tfile",     tfInit,              tfCleanup},
   {"rpc",       rpcInit,             rpcCleanup},
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
   {"dnodecfg",  dnodeInitCfg,        dnodeCleanupCfg},

@@ -34,7 +34,6 @@
 #define QUERY_ID_SIZE   20
 #define QUERY_STREAM_SAVE_SIZE 20
 
-extern void *tsMnodeTmr;
 static SCacheObj *tsMnodeConnCache = NULL;
 static int32_t tsConnIndex = 0;
 

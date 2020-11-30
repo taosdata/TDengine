@@ -33,6 +33,7 @@
 #include "mnodeWrite.h"
 #include "mnodePeer.h"
 
+int64_t        tsUserRid = -1;
 static void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -165,7 +166,8 @@ int32_t mnodeInitUsers() {
     .fpRestored   = mnodeUserActionRestored
   };
 
-  tsUserSdb = sdbOpenTable(&desc);
+  tsUserRid = sdbOpenTable(&desc);
+  tsUserSdb = sdbGetTableByRid(tsUserRid);
   if (tsUserSdb == NULL) {
     mError("table:%s, failed to create hash", desc.name);
     return -1;
@@ -185,7 +187,7 @@ int32_t mnodeInitUsers() {
 }
 
 void mnodeCleanupUsers() {
-  sdbCloseTable(tsUserSdb);
+  sdbCloseTable(tsUserRid);
   tsUserSdb = NULL;
 }
 

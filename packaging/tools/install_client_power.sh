@@ -84,8 +84,9 @@ function install_main_path() {
 function install_bin() {
   # Remove links
   ${csudo} rm -f ${bin_link_dir}/power         || :
-  if [ "$osType" == "Darwin" ]; then
+  if [ "$osType" != "Darwin" ]; then
       ${csudo} rm -f ${bin_link_dir}/powerdemo || :
+      ${csudo} rm -f ${bin_link_dir}/powerdump || :
   fi
   ${csudo} rm -f ${bin_link_dir}/rmpower       || :
   ${csudo} rm -f ${bin_link_dir}/set_core      || :
@@ -94,8 +95,9 @@ function install_bin() {
 
   #Make link
   [ -x ${install_main_dir}/bin/power ] && ${csudo} ln -s ${install_main_dir}/bin/power ${bin_link_dir}/power                 || :
-  if [ "$osType" == "Darwin" ]; then
+  if [ "$osType" != "Darwin" ]; then
       [ -x ${install_main_dir}/bin/powerdemo ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemo ${bin_link_dir}/powerdemo || :
+      [ -x ${install_main_dir}/bin/powerdump ] && ${csudo} ln -s ${install_main_dir}/bin/powerdump ${bin_link_dir}/powerdump || :
   fi
   [ -x ${install_main_dir}/bin/remove_client_power.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client_power.sh ${bin_link_dir}/rmpower || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
