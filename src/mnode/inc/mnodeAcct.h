@@ -27,6 +27,7 @@ void    mnodeCleanupAccts();
 void    mnodeGetStatOfAllAcct(SAcctInfo* pAcctInfo);
 void *  mnodeGetAcct(char *acctName);
 void *  mnodeGetNextAcct(void *pIter, SAcctObj **pAcct);
+void    mnodeCancelGetNextAcct(void *pIter);
 void    mnodeIncAcctRef(SAcctObj *pAcct);
 void    mnodeDecAcctRef(SAcctObj *pAcct);
 void    mnodeAddDbToAcct(SAcctObj *pAcct, SDbObj *pDb);

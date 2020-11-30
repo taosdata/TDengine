@@ -51,6 +51,7 @@ char* vgroupStatus[] = {
   "updating"
 };
 
+int64_t        tsVgroupRid = -1;
 static void   *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
 
@@ -222,7 +223,8 @@ int32_t mnodeInitVgroups() {
     .fpRestored   = mnodeVgroupActionRestored,
   };
 
-  tsVgroupSdb = sdbOpenTable(&desc);
+  tsVgroupRid = sdbOpenTable(&desc);
+  tsVgroupSdb = sdbGetTableByRid(tsVgroupRid);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;
@@ -230,6 +232,7 @@ int32_t mnodeInitVgroups() {
 
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mnodeGetVgroupMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mnodeRetrieveVgroups);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mnodeProcessDropVnodeRsp);
@@ -304,7 +307,7 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
     mnodeDecVgroupRef(pVgroup);
   }
 
-  sdbFreeIter(pIter);
+  mnodeCancelGetNextVgroup(pIter);
 }
 
 void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVload) {
@@ -491,6 +494,10 @@ void *mnodeGetNextVgroup(void *pIter, SVgObj **pVgroup) {
   return sdbFetchRow(tsVgroupSdb, pIter, (void **)pVgroup); 
 }
 
+void mnodeCancelGetNextVgroup(void *pIter) {
+  sdbFreeIter(tsVgroupSdb, pIter);
+}
+
 static int32_t mnodeCreateVgroupFp(SMnodeMsg *pMsg) {
   SVgObj *pVgroup = pMsg->pVgroup;
   SDbObj *pDb = pMsg->pDb;
@@ -605,7 +612,7 @@ void mnodeDropVgroup(SVgObj *pVgroup, void *ahandle) {
 }
 
 void mnodeCleanupVgroups() {
-  sdbCloseTable(tsVgroupSdb);
+  sdbCloseTable(tsVgroupRid);
   tsVgroupSdb = NULL;
 }
 
@@ -1095,8 +1102,6 @@ void mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode) {
     mnodeDecVgroupRef(pVgroup);
   }
 
-  sdbFreeIter(pIter);
-
   mInfo("dnode:%d, all vgroups:%d is dropped from sdb", pDropDnode->dnodeId, numOfVgroups);
 }
 
@@ -1117,8 +1122,6 @@ void mnodeUpdateAllDbVgroups(SDbObj *pAlterDb) {
 
     mnodeDecVgroupRef(pVgroup);
   }
-
-  sdbFreeIter(pIter);
 
   mInfo("db:%s, all vgroups is updated in sdb", pAlterDb->name);
 }
@@ -1147,8 +1150,6 @@ void mnodeDropAllDbVgroups(SDbObj *pDropDb) {
     mnodeDecVgroupRef(pVgroup);
   }
 
-  sdbFreeIter(pIter);
-
   mInfo("db:%s, all vgroups:%d is dropped from sdb", pDropDb->name, numOfVgroups);
 }
 
@@ -1169,8 +1170,6 @@ void mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb) {
     mnodeDecVgroupRef(pVgroup);
     numOfVgroups++;
   }
-
-  sdbFreeIter(pIter);
 
   mInfo("db:%s, all vgroups:%d drop msg is sent to dnode", pDropDb->name, numOfVgroups);
 }

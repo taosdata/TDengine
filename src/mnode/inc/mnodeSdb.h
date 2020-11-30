@@ -79,10 +79,13 @@ typedef struct {
   int32_t (*fpRestored)();
 } SSdbTableDesc;
 
+int32_t sdbInitRef();
+void    sdbCleanUpRef();
 int32_t sdbInit();
 void    sdbCleanUp();
-void *  sdbOpenTable(SSdbTableDesc *desc);
-void    sdbCloseTable(void *handle);
+int64_t sdbOpenTable(SSdbTableDesc *desc);
+void    sdbCloseTable(int64_t rid);
+void*   sdbGetTableByRid(int64_t rid);
 bool    sdbIsMaster();
 bool    sdbIsServing();
 void    sdbUpdateMnodeRoles();
@@ -92,9 +95,9 @@ int32_t sdbDeleteRow(SSdbRow *pRow);
 int32_t sdbUpdateRow(SSdbRow *pRow);
 int32_t sdbInsertRowToQueue(SSdbRow *pRow);
 
-void    *sdbGetRow(void *pTable, void *key);
-void    *sdbFetchRow(void *pTable, void *pIter, void **ppRow);
-void     sdbFreeIter(void *pIter);
+void *   sdbGetRow(void *pTable, void *key);
+void *   sdbFetchRow(void *pTable, void *pIter, void **ppRow);
+void     sdbFreeIter(void *pTable, void *pIter);
 void     sdbIncRef(void *pTable, void *pRow);
 void     sdbDecRef(void *pTable, void *pRow);
 int64_t  sdbGetNumOfRows(void *pTable);
