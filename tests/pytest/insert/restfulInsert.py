@@ -18,7 +18,7 @@ import time
 import argparse
 
 class RestfulInsert:
-    def __init__(self, host, startTimestamp, dbname, threads, tables, records, batchSize, tbNamePerfix, outOfOrder):
+    def __init__(self, host, startTimestamp, dbname, threads, tables, records, batchSize, tbNamePerfix, outOfOrder,tablePerbatch):
         self.header = {'Authorization': 'Basic cm9vdDp0YW9zZGF0YQ=='}
         self.url = "http://%s:6041/rest/sql" % host
         self.ts = startTimestamp
@@ -29,12 +29,15 @@ class RestfulInsert:
         self.batchSize = batchSize
         self.tableNamePerfix = tbNamePerfix
         self.outOfOrder = outOfOrder
+        self.tablePerbatch = tablePerbatch
     
     def createTable(self, threadID):
-        tablesPerThread = int (self.numOfTables / self.numOfThreads)        
-        print("create table %d to %d" % (tablesPerThread * threadID, tablesPerThread * (threadID + 1) - 1))
-        for i in range(tablesPerThread):
+        tablesPerThread = int (self.numOfTables / self.numOfThreads)
+        loop = tablesPerThread if threadID != self.numOfThreads - 1 else self.numOfTables - tablesPerThread * threadID        
+        print("create table %d to %d" % (tablesPerThread * threadID, tablesPerThread * threadID + loop - 1))
+        for i in range(loop):
             tableID = threadID * tablesPerThread
+            if tableID + i >= self.numOfTables : break
             name = 'beijing' if tableID % 2 == 0 else 'shanghai'
             data = "create table if not exists %s.%s%d using %s.meters tags(%d, '%s')" % (self.dbname, self.tableNamePerfix, tableID + i, self.dbname, tableID + i, name)
             response = requests.post(self.url, data, headers = self.header)
@@ -55,6 +58,58 @@ class RestfulInsert:
                 response = requests.post(self.url, data, headers = self.header)
                 if response.status_code != 200:
                     print(response.content)
+   
+    def insertnData(self, threadID):        
+        print("thread %d started" % threadID)
+        tablesPerThread = int (self.numOfTables / self.numOfThreads)   
+        loop = int(self.recordsPerTable / self.batchSize)   
+        if self.tablePerbatch == 1 : 
+            for i in range(tablesPerThread+1):            
+                tableID = i + threadID * tablesPerThread
+                if tableID >= self.numOfTables: return
+                start = self.ts
+                start1=time.time()
+                for k in range(loop):
+                    data = "insert into %s.%s%d values" % (self.dbname, self.tableNamePerfix, tableID)
+                    values = []
+                    bloop = self.batchSize if k != loop - 1 else self.recordsPerTable - self.batchSize * k
+                    for l in range(bloop):
+                        values.append("(%d, %d, %d, %d)" %  (start + k * self.batchSize + l, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100)))                              
+                    if len(data) > 1048576 : 
+                        print ('batch size is larger than 1M')
+                        exit(-1)
+                    if self.outOfOrder :
+                        random.shuffle(values)
+                    data+=''.join(values)
+                    
+                    response = requests.post(self.url, data, headers = self.header)
+                    if response.status_code != 200:
+                        print(response.content)
+                print('----------------',loop,time.time()-start1)
+        else:
+            for i in range(0,tablesPerThread+self.tablePerbatch,self.tablePerbatch): 
+                for k in range(loop):
+                    data = "insert into "
+                    for j in range(self.tablePerbatch):
+                        tableID = i + threadID * tablesPerThread+j
+                        if tableID >= self.numOfTables: return
+                        start = self.ts
+                        data += "%s.%s%d values" % (self.dbname, self.tableNamePerfix, tableID)
+                        values = []
+                        bloop = self.batchSize if k != loop - 1 else self.recordsPerTable - self.batchSize * k
+                        for l in range(bloop):
+                            values.append("(%d, %d, %d, %d)" %  (start + k * self.batchSize + l, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100)))    
+                        if self.outOfOrder :
+                            random.shuffle(values)
+                        data+=''.join(values)  
+                    print('------------------',len(data))                        
+                    if len(data) > 1024*1024 : 
+                        print ('batch size is larger than 1M')
+                        exit(-1)
+                    response = requests.post(self.url, data, headers = self.header)
+                    if response.status_code != 200:
+                        print(response.content)
+
 
     def insertUnlimitedData(self, threadID):        
         print("thread %d started" % threadID)
@@ -85,7 +140,9 @@ class RestfulInsert:
                 if response.status_code != 200:
                     print(response.content)
 
-    def run(self):                
+    def run(self):  
+        data = "drop database if exists %s" % self.dbname
+        requests.post(self.url, data, headers = self.header)              
         data = "create database if not exists %s" % self.dbname
         requests.post(self.url, data, headers = self.header)
         data = "create table if not exists %s.meters(ts timestamp, f1 int, f2 int, f3 int) tags(id int, loc nchar(20))" % self.dbname
@@ -135,14 +192,14 @@ parser.add_argument(
     '-d',
     '--db-name',
     action='store',
-    default='test',
+    default='test1',
     type=str,
     help='Database name to be created (default: test)')
 parser.add_argument(
     '-t',
     '--number-of-threads',
     action='store',
-    default=10,
+    default=20,
     type=int,
     help='Number of threads to create tables and insert datas (default: 10)')
 parser.add_argument(
@@ -156,7 +213,7 @@ parser.add_argument(
     '-r',
     '--number-of-records',
     action='store',
-    default=1000,
+    default=10000,
     type=int,
     help='Number of record to be created for each table  (default: 1000, -1 for unlimited records)')
 parser.add_argument(
@@ -178,7 +235,18 @@ parser.add_argument(
     '--out-of-order',
     action='store_true', 
     help='The order of test data (default: False)')
+parser.add_argument(
+    '-b',
+    '--table-per-batch',
+    action='store', 
+    default=1,
+    type=int,
+    help='the table per batch (default: 1)')
+
+
 
 args = parser.parse_args()
-ri = RestfulInsert(args.host_name, args.start_timestamp, args.db_name, args.number_of_threads, args.number_of_tables, args.number_of_records, args.batch_size, args.table_name_prefix, args.out_of_order)
+ri = RestfulInsert(
+        args.host_name, args.start_timestamp, args.db_name, args.number_of_threads, args.number_of_tables, 
+        args.number_of_records, args.batch_size, args.table_name_prefix, args.out_of_order, args.table_per_batch)
 ri.run()

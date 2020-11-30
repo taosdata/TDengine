@@ -38,12 +38,12 @@ class TDTestCase:
         print("test col*1*1 desc ")
         tdSql.query('select c1,c1*1*1,c2*1*1,c3*1*1,c4*1*1,c5*1*1,c6*1*1 from mt0 order by ts  desc limit 2')
         tdSql.checkData(0,0,99)
-        tdSql.checkData(0,1,0.0)
-        tdSql.checkData(0,2,0.0)
-        tdSql.checkData(0,3,0.0)
-        tdSql.checkData(0,4,0.0)
-        tdSql.checkData(0,5,0.0)
-        tdSql.checkData(0,6,0.0)
+        tdSql.checkData(0,1,99.0)
+        tdSql.checkData(0,2,499.0)
+        tdSql.checkData(0,3,99.0)
+        tdSql.checkData(0,4,99.0)
+        tdSql.checkData(0,5,99.0)
+        tdSql.checkData(0,6,999.0)
 
         
     def stop(self):
