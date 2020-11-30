@@ -162,7 +162,7 @@ static void *dnodeProcessMPeerQueue(void *param) {
       break;
     }
 
-    dDebug("msg:%s will be processed in mpeer queue", taosMsg[pPeerMsg->rpcMsg.msgType]);    
+    dTrace("msg:%s will be processed in mpeer queue", taosMsg[pPeerMsg->rpcMsg.msgType]);    
     int32_t code = mnodeProcessPeerReq(pPeerMsg);    
     dnodeSendRpcMPeerRsp(pPeerMsg, code);    
   }

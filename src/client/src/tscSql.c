@@ -421,7 +421,16 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
     for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
       SInternalField* pField = tscFieldInfoGetInternalField(pFieldInfo, i);
       if (pField->visible) {
-        f[j++] = pField->field;
+        f[j] = pField->field;
+
+        // revise the length for binary and nchar fields
+        if (f[j].type == TSDB_DATA_TYPE_BINARY) {
+          f[j].bytes -= VARSTR_HEADER_SIZE;
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+          f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        }
+
+        j += 1;
       }
     }
 

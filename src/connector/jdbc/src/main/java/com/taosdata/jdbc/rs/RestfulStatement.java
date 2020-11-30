@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
+import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 
 import java.sql.*;
 import java.util.Arrays;
@@ -11,19 +12,23 @@ import java.util.List;
 
 public class RestfulStatement implements Statement {
 
-    private final String catalog;
+    private boolean closed;
+    private String database;
     private final RestfulConnection conn;
 
-    public RestfulStatement(RestfulConnection c, String catalog) {
+    public RestfulStatement(RestfulConnection c, String database) {
         this.conn = c;
-        this.catalog = catalog;
+        this.database = database;
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
+        if (isClosed())
+            throw new SQLException("statement already closed");
+        if (!SqlSyntaxValidator.isSelectSql(sql))
+            throw new SQLException("not a select sql for executeQuery: " + sql);
 
-        final String url = "http://" + conn.getHost() + ":"+conn.getPort()+"/rest/sql";
-
+        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
         String result = HttpClientPoolUtil.execute(url, sql);
         String fields = "";
         List<String> words = Arrays.asList(sql.split(" "));
@@ -65,12 +70,29 @@ public class RestfulStatement implements Statement {
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
-        return 0;
+        if (isClosed())
+            throw new SQLException("statement already closed");
+        if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
+            throw new SQLException("not a valid sql for executeUpdate: " + sql);
+
+        if (this.database == null)
+            throw new SQLException("Database not specified or available");
+
+        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
+        String result = HttpClientPoolUtil.execute(url, sql);
+        JSONObject jsonObject = JSON.parseObject(result);
+        if (jsonObject.getString("status").equals("error")) {
+            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
+                    jsonObject.getString("desc") + "\n" +
+                    "error code: " + jsonObject.getString("code")));
+        }
+        return Integer.parseInt(jsonObject.getString("rows"));
     }
 
     @Override
     public void close() throws SQLException {
-
+        this.closed = true;
     }
 
     @Override
@@ -115,6 +137,7 @@ public class RestfulStatement implements Statement {
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        //TODO: getWarnings not Implemented
         return null;
     }
 
@@ -130,7 +153,29 @@ public class RestfulStatement implements Statement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        return false;
+        if (isClosed()) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
+        //如果执行了use操作应该将当前Statement的catalog设置为新的database
+        if (SqlSyntaxValidator.isUseSql(sql)) {
+            this.database = sql.trim().replace("use", "").trim();
+        }
+        if (this.database == null)
+            throw new SQLException("Database not specified or available");
+
+        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        // use database
+        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
+        // execute sql
+        String result = HttpClientPoolUtil.execute(url, sql);
+        // parse result
+        JSONObject jsonObject = JSON.parseObject(result);
+        if (jsonObject.getString("status").equals("error")) {
+            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
+                    jsonObject.getString("desc") + "\n" +
+                    "error code: " + jsonObject.getString("code")));
+        }
+        return true;
     }
 
     @Override
@@ -245,7 +290,7 @@ public class RestfulStatement implements Statement {
 
     @Override
     public boolean isClosed() throws SQLException {
-        return false;
+        return closed;
     }
 
     @Override
@@ -270,11 +315,15 @@ public class RestfulStatement implements Statement {
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface.isInstance(this);
     }
 }

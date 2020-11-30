@@ -82,6 +82,7 @@ restful d1 table_rest 1591772800 30000
 restful d1 table_rest 1591872800 30000
 restful d1 table_rest 1591972800 30000
 
+sleep 1000
 sql select * from table_rest;
 print rows: $rows
 if $rows != 300000 then

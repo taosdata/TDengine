@@ -44,8 +44,8 @@ typedef struct {
   uint64_t version;
   int64_t  fileId;
   int64_t  rid;
+  int64_t  tfd;
   int32_t  vgId;
-  int32_t  fd;
   int32_t  keep;
   int32_t  level;
   int32_t  fsyncPeriod;

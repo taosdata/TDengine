@@ -107,7 +107,7 @@ static taos_queue tsSdbWQueue;
 static SSdbWorkerPool tsSdbPool;
 
 static int32_t sdbProcessWrite(void *pRow, void *pHead, int32_t qtype, void *unused);
-static int32_t sdbWriteWalToQueue(int32_t vgId, void *pHead, int32_t qtype, void *rparam);
+static int32_t sdbWriteFwdToQueue(int32_t vgId, void *pHead, int32_t qtype, void *rparam);
 static int32_t sdbWriteRowToQueue(SSdbRow *pRow, int32_t action);
 static void    sdbFreeFromQueue(SSdbRow *pRow);
 static void *  sdbWorkerFp(void *pWorker);
@@ -325,7 +325,6 @@ void sdbUpdateSync(void *pMnodes) {
       mnodeDecDnodeRef(pDnode);
       mnodeDecMnodeRef(pMnode);
     }
-    sdbFreeIter(pIter);
     syncCfg.replica = index;
     mDebug("vgId:1, mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
   } else {
@@ -372,7 +371,7 @@ void sdbUpdateSync(void *pMnodes) {
   sprintf(syncInfo.path, "%s", tsMnodeDir);
   syncInfo.getWalInfo = sdbGetWalInfo;
   syncInfo.getFileInfo = sdbGetFileInfo;
-  syncInfo.writeToCache = sdbWriteWalToQueue;
+  syncInfo.writeToCache = sdbWriteFwdToQueue;
   syncInfo.confirmForward = sdbConfirmForward;
   syncInfo.notifyRole = sdbNotifyRole;
   tsSdbMgmt.cfg = syncCfg;
@@ -559,7 +558,36 @@ static int32_t sdbUpdateHash(SSdbTable *pTable, SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unused) {
+static int32_t sdbPerformInsertAction(SWalHead *pHead, SSdbTable *pTable) {
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+  return sdbInsertHash(pTable, &row);
+}
+
+static int32_t sdbPerformDeleteAction(SWalHead *pHead, SSdbTable *pTable) {
+  void *pObj = sdbGetRowMeta(pTable, pHead->cont);
+  if (pObj == NULL) {
+    sdbDebug("vgId:1, sdb:%s, object:%s not exist in hash, ignore delete action", pTable->name,
+             sdbGetKeyStr(pTable, pHead->cont));
+    return TSDB_CODE_SUCCESS;
+  }
+  SSdbRow row = {.pTable = pTable, .pObj = pObj};
+  return sdbDeleteHash(pTable, &row);
+}
+
+static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable) {
+  void *pObj = sdbGetRowMeta(pTable, pHead->cont);
+  if (pObj == NULL) {
+    sdbDebug("vgId:1, sdb:%s, object:%s not exist in hash, ignore update action", pTable->name,
+             sdbGetKeyStr(pTable, pHead->cont));
+    return TSDB_CODE_SUCCESS;
+  }
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+  return sdbUpdateHash(pTable, &row);
+}
+
+static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unused) {
   SSdbRow *pRow = wparam;
   SWalHead *pHead = hparam;
   int32_t tableId = pHead->msgType / 10;
@@ -567,6 +595,8 @@ static int sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unus
 
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
+
+  if (qtype == TAOS_QTYPE_QUERY) return sdbPerformDeleteAction(pHead, pTable);
 
   pthread_mutex_lock(&tsSdbMgmt.mutex);
   
@@ -627,28 +657,17 @@ static int sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unus
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {
-    SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
-    code = (*pTable->fpDecode)(&row);
-    return sdbInsertHash(pTable, &row);
+    return sdbPerformInsertAction(pHead, pTable);
   } else if (action == SDB_ACTION_DELETE) {
-    void *pObj = sdbGetRowMeta(pTable, pHead->cont);
-    if (pObj == NULL) {
-      sdbDebug("vgId:1, sdb:%s, object:%s not exist in hash, ignore delete action", pTable->name,
-               sdbGetKeyStr(pTable, pHead->cont));
+    if (qtype == TAOS_QTYPE_FWD) {
+      // Drop database/stable may take a long time and cause a timeout, so we confirm first then reput it into queue
+      sdbWriteFwdToQueue(1, hparam, TAOS_QTYPE_QUERY, unused);
       return TSDB_CODE_SUCCESS;
+    } else {
+      return sdbPerformDeleteAction(pHead, pTable);
     }
-    SSdbRow row = {.pTable = pTable, .pObj = pObj};
-    return sdbDeleteHash(pTable, &row);
   } else if (action == SDB_ACTION_UPDATE) {
-    void *pObj = sdbGetRowMeta(pTable, pHead->cont);
-    if (pObj == NULL) {
-      sdbDebug("vgId:1, sdb:%s, object:%s not exist in hash, ignore update action", pTable->name,
-               sdbGetKeyStr(pTable, pHead->cont));
-      return TSDB_CODE_SUCCESS;
-    }
-    SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
-    code = (*pTable->fpDecode)(&row);
-    return sdbUpdateHash(pTable, &row);
+    return sdbPerformUpdateAction(pHead, pTable);
   } else {
     return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
@@ -755,24 +774,17 @@ int32_t sdbUpdateRow(SSdbRow *pRow) {
   }
 }
 
-void *sdbFetchRow(void *tparam, void *pNode, void **ppRow) {
+void *sdbFetchRow(void *tparam, void *pIter, void **ppRow) {
   SSdbTable *pTable = tparam;
   *ppRow = NULL;
   if (pTable == NULL) return NULL;
 
-  SHashMutableIterator *pIter = pNode;
-  if (pIter == NULL) {
-    pIter = taosHashCreateIter(pTable->iHandle);
-  }
+  pIter = taosHashIterate(pTable->iHandle, pIter);
+  if (pIter == NULL) return NULL;
 
-  if (!taosHashIterNext(pIter)) {
-    taosHashDestroyIter(pIter);
-    return NULL;
-  }
-
-  void **ppMetaRow = taosHashIterGet(pIter);
+  void **ppMetaRow = pIter;
   if (ppMetaRow == NULL) {
-    taosHashDestroyIter(pIter);
+    taosHashCancelIterate(pTable->iHandle, pIter);
     return NULL;
   }
 
@@ -782,10 +794,11 @@ void *sdbFetchRow(void *tparam, void *pNode, void **ppRow) {
   return pIter;
 }
 
-void sdbFreeIter(void *pIter) {
-  if (pIter != NULL) {
-    taosHashDestroyIter(pIter);
-  }
+void sdbFreeIter(void *tparam, void *pIter) {
+  SSdbTable *pTable = tparam;
+  if (pTable == NULL || pIter == NULL) return;
+
+  taosHashCancelIterate(pTable->iHandle, pIter);
 }
 
 void *sdbOpenTable(SSdbTableDesc *pDesc) {
@@ -826,9 +839,10 @@ void sdbCloseTable(void *handle) {
   tsSdbMgmt.numOfTables--;
   tsSdbMgmt.tableList[pTable->id] = NULL;
 
-  SHashMutableIterator *pIter = taosHashCreateIter(pTable->iHandle);
-  while (taosHashIterNext(pIter)) {
-    void **ppRow = taosHashIterGet(pIter);
+  void *pIter = taosHashIterate(pTable->iHandle, NULL);
+  while (pIter) {
+    void **ppRow = pIter;
+    pIter = taosHashIterate(pTable->iHandle, pIter);
     if (ppRow == NULL) continue;
 
     SSdbRow row = {
@@ -839,7 +853,7 @@ void sdbCloseTable(void *handle) {
     (*pTable->fpDestroy)(&row);
   }
 
-  taosHashDestroyIter(pIter);
+  taosHashCancelIterate(pTable->iHandle, pIter);
   taosHashCleanup(pTable->iHandle);
   pthread_mutex_destroy(&pTable->mutex);
 
@@ -966,7 +980,7 @@ static void sdbFreeFromQueue(SSdbRow *pRow) {
   taosFreeQitem(pRow);
 }
 
-static int32_t sdbWriteWalToQueue(int32_t vgId, void *wparam, int32_t qtype, void *rparam) {
+static int32_t sdbWriteFwdToQueue(int32_t vgId, void *wparam, int32_t qtype, void *rparam) {
   SWalHead *pHead = wparam;
 
   int32_t  size = sizeof(SSdbRow) + sizeof(SWalHead) + pHead->len;

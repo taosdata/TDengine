@@ -22,6 +22,9 @@ import java.sql.SQLException;
 
 public class SqlSyntaxValidator {
 
+    private static final String[] updateSQL = {"insert", "update", "delete", "create", "alter", "drop", "show", "describe", "use"};
+    private static final String[] querySQL = {"select"};
+
     private TSDBConnection tsdbConnection;
 
     public SqlSyntaxValidator(Connection connection) {
@@ -34,7 +37,7 @@ public class SqlSyntaxValidator {
         if (tsdbConnection == null || tsdbConnection.isClosed()) {
             throw new SQLException("invalid connection");
         } else {
-            TSDBJNIConnector jniConnector  = tsdbConnection.getConnection();
+            TSDBJNIConnector jniConnector = tsdbConnection.getConnection();
             if (jniConnector == null) {
                 throw new SQLException("jniConnector is null");
             } else {
@@ -42,5 +45,29 @@ public class SqlSyntaxValidator {
             }
         }
         return res;
+    }
+
+    public static boolean isValidForExecuteUpdate(String sql) {
+        for (String prefix : updateSQL) {
+            if (sql.trim().toLowerCase().startsWith(prefix))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isUseSql(String sql) {
+        return sql.trim().toLowerCase().startsWith(updateSQL[8]) || sql.trim().toLowerCase().matches("create\\s*database.*") || sql.toLowerCase().toLowerCase().matches("drop\\s*database.*");
+    }
+
+    public static boolean isUpdateSql(String sql) {
+        return sql.trim().toLowerCase().startsWith(updateSQL[1]);
+    }
+
+    public static boolean isInsertSql(String sql) {
+        return sql.trim().toLowerCase().startsWith(updateSQL[0]);
+    }
+
+    public static boolean isSelectSql(String sql) {
+        return sql.trim().toLowerCase().startsWith(querySQL[0]);
     }
 }

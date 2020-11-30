@@ -464,6 +464,8 @@ typedef struct STimeWindow {
 
 typedef struct {
   SMsgHead    head;
+  char        version[TSDB_VERSION_LEN];
+
   STimeWindow window;
   int32_t     numOfTables;
   int16_t     order;

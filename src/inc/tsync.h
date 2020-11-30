@@ -23,7 +23,7 @@ extern "C" {
 #define TAOS_SYNC_MAX_REPLICA 5
 #define TAOS_SYNC_MAX_INDEX   0x7FFFFFFF
 
-typedef enum _TAOS_SYNC_ROLE {
+typedef enum {
   TAOS_SYNC_ROLE_OFFLINE  = 0,
   TAOS_SYNC_ROLE_UNSYNCED = 1,
   TAOS_SYNC_ROLE_SYNCING  = 2,
@@ -31,7 +31,7 @@ typedef enum _TAOS_SYNC_ROLE {
   TAOS_SYNC_ROLE_MASTER   = 4
 } ESyncRole;
 
-typedef enum _TAOS_SYNC_STATUS {
+typedef enum {
   TAOS_SYNC_STATUS_INIT  = 0,
   TAOS_SYNC_STATUS_START = 1,
   TAOS_SYNC_STATUS_FILE  = 2,
@@ -80,10 +80,13 @@ typedef void     (*FConfirmForward)(int32_t vgId, void *mhandle, int32_t code);
 typedef void     (*FNotifyRole)(int32_t vgId, int8_t role);
 
 // if a number of retrieving data failed, call this to start flow control 
-typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t mseconds);
+typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t level);
 
 // when data file is synced successfully, notity app
 typedef int32_t  (*FNotifyFileSynced)(int32_t vgId, uint64_t fversion);
+
+// get file version
+typedef int32_t  (*FGetFileVersion)(int32_t vgId, uint64_t *fver);
 
 typedef struct {
   int32_t  vgId;       // vgroup ID
@@ -97,6 +100,7 @@ typedef struct {
   FNotifyRole       notifyRole;
   FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
+  FGetFileVersion   getFileVersion;
 } SSyncInfo;
 
 typedef void *tsync_h;

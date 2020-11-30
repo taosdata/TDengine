@@ -162,7 +162,6 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
              pDnode->openVnodes, pDnode->diskAvailable, pDnode->alternativeRole);
       mnodeDecDnodeRef(pDnode);
     }
-    sdbFreeIter(pIter);
 
     if (mnodeGetOnlineDnodesNum() == 0) {
       return TSDB_CODE_MND_NOT_READY;
@@ -377,15 +376,13 @@ static bool balanceMonitorBalance() {
                  srcScore, pDestDnode->score, destScore);
           balanceAddVnode(pVgroup, pSrcDnode, pDestDnode);
           mnodeDecVgroupRef(pVgroup);
-          sdbFreeIter(pIter);
+          mnodeCancelGetNextVgroup(pIter);
           return true;
         }
       }
 
       mnodeDecVgroupRef(pVgroup);
     }
-
-    sdbFreeIter(pIter);
   }
 
   return false;
@@ -412,8 +409,6 @@ void balanceReset() {
 
     mnodeDecDnodeRef(pDnode);
   }
-
-  sdbFreeIter(pIter);
 
   tsAccessSquence = 0;
 }
@@ -443,11 +438,10 @@ static int32_t balanceMonitorVgroups() {
 
     mnodeDecVgroupRef(pVgroup);
     if (code == TSDB_CODE_SUCCESS) {
+      mnodeCancelGetNextVgroup(pIter);
       break;
     }
   }
-
-  sdbFreeIter(pIter);
 
   return hasUpdatingVgroup;
 }
@@ -465,10 +459,11 @@ static bool balanceMonitorDnodeDropping(SDnodeObj *pDnode) {
     hasThisDnode = balanceCheckDnodeInVgroup(pDnode, pVgroup);
     mnodeDecVgroupRef(pVgroup);
 
-    if (hasThisDnode) break;
+    if (hasThisDnode) {
+      mnodeCancelGetNextVgroup(pIter);
+      break;
+    }
   }
-
-  sdbFreeIter(pIter);
 
   if (!hasThisDnode) {
     mInfo("dnode:%d, dropped for all vnodes are moving to other dnodes", pDnode->dnodeId);
@@ -499,19 +494,17 @@ static bool balanceMontiorDropping() {
       pDnode->status = TAOS_DN_STATUS_DROPPING;
       mnodeUpdateDnode(pDnode);
       mnodeDecDnodeRef(pDnode);
-      sdbFreeIter(pIter);
+      mnodeCancelGetNextDnode(pIter);
       return true;
     }
 
     if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
       bool ret = balanceMonitorDnodeDropping(pDnode);
       mnodeDecDnodeRef(pDnode);
-      sdbFreeIter(pIter);
+      mnodeCancelGetNextDnode(pIter);
       return ret;
     }
   }
-
-  sdbFreeIter(pIter);
 
   return false;
 }
@@ -556,8 +549,6 @@ static void balanceSetVgroupOffline(SDnodeObj* pDnode) {
     }
     mnodeDecVgroupRef(pVgroup);
   }
-
-  sdbFreeIter(pIter);
 }
 
 static void balanceCheckDnodeAccess() {
@@ -578,8 +569,6 @@ static void balanceCheckDnodeAccess() {
     }
     mnodeDecDnodeRef(pDnode);
   }
-
-  sdbFreeIter(pIter);
 }
 
 static void balanceProcessBalanceTimer(void *handle, void *tmrId) {
@@ -630,6 +619,7 @@ void balanceAsyncNotify() {
 int32_t balanceInit() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_SCORES, balanceGetScoresMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_SCORES, balanceRetrieveScores);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_SCORES, mnodeCancelGetNextDnode);
   
   pthread_mutex_init(&tsBalanceMutex, NULL);
   balanceInitDnodeList();
@@ -666,8 +656,6 @@ int32_t balanceDropDnode(SDnodeObj *pDnode) {
 
     mnodeDecDnodeRef(pTempDnode);
   }
-
-  sdbFreeIter(pIter);
 
   if (pDnode->openVnodes > totalFreeVnodes) {
     mError("dnode:%d, openVnodes:%d totalFreeVnodes:%d no enough dnodes", pDnode->dnodeId, pDnode->openVnodes, totalFreeVnodes);
@@ -780,8 +768,12 @@ void balanceAccquireDnodeList() {
   SDnodeObj *pDnode = NULL;
   int32_t    dnodeIndex = 0;
 
-  while (1) {  
-    if (dnodeIndex >= dnodesNum) break;
+  while (1) {
+    if (dnodeIndex >= dnodesNum) {
+      mnodeCancelGetNextDnode(pIter);
+      break;
+    }
+
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     if (pDnode->status == TAOS_DN_STATUS_OFFLINE) {
@@ -801,8 +793,6 @@ void balanceAccquireDnodeList() {
     tsBalanceDnodeList[orderIndex] = pDnode;
     dnodeIndex++;
   }
-
-  sdbFreeIter(pIter);
 
   tsBalanceDnodeListSize = dnodeIndex;
 }

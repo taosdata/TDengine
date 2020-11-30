@@ -40,6 +40,7 @@
 #include <time.h>
 #include <inttypes.h>
 #include <conio.h>
+#include <math.h>
 #include "msvcProcess.h"
 #include "msvcDirect.h"
 #include "msvcFcntl.h"
