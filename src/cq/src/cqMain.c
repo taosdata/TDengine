@@ -40,15 +40,14 @@
 
 typedef struct {
   int32_t  vgId;
+  int32_t  master;
+  int32_t  num;      // number of continuous streams
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
-  void    *ahandle;
-  int32_t  num;      // number of continuous streams
   struct SCqObj *pHead;
   void    *dbConn;
-  int32_t  master;
   void    *tmrCtrl;
   pthread_mutex_t mutex;
 } SCqContext;
@@ -90,7 +89,6 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
   tstrncpy(pContext->db, db, sizeof(pContext->db));
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
-  pContext->ahandle = ahandle;
   tscEmbedded = 1;
 
   pthread_mutex_init(&pContext->mutex, NULL);
@@ -342,7 +340,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pHead->version = 0;
 
   // write into vnode write queue
-  pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ, NULL);
+  pContext->cqWrite(pContext->vgId, pHead, TAOS_QTYPE_CQ, NULL);
   free(buffer);
 }
 
