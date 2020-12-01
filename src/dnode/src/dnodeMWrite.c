@@ -123,13 +123,18 @@ void dnodeFreeMWritequeue() {
 }
 
 void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
-  if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
+  if (!mnodeIsRunning()) {
     dnodeSendRedirectMsg(pMsg, true);
   } else {
-    SMnodeMsg *pWrite = mnodeCreateMsg(pMsg);
-    dDebug("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
-           taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
-    taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
+    if (!mnodeIsReady()) {
+      SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = mnodeInitCode(), .pCont = NULL};
+      rpcSendResponse(&rpcRsp);
+    } else {
+      SMnodeMsg *pWrite = mnodeCreateMsg(pMsg);
+      dDebug("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
+             taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
+      taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
+    }
   }
 
   rpcFreeCont(pMsg->pCont);
@@ -187,7 +192,7 @@ static void *dnodeProcessMWriteQueue(void *param) {
 void dnodeReprocessMWriteMsg(void *pMsg) {
   SMnodeMsg *pWrite = pMsg;
 
-  if (!mnodeIsRunning() || tsMWriteQueue == NULL) {
+  if (!mnodeIsRunning()) {
     dDebug("msg:%p, app:%p type:%s is redirected for mnode not running, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
 
@@ -196,7 +201,6 @@ void dnodeReprocessMWriteMsg(void *pMsg) {
   } else {
     dDebug("msg:%p, app:%p type:%s is reput into mwrite queue:%p, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue, pWrite->retry);
-
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
 }
