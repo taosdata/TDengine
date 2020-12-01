@@ -25,6 +25,7 @@ extern "C" {
 
 #define TARRAY_MIN_SIZE 8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
+#define TARRAY_ELEM_IDX(array, ele) (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
 
 typedef struct SArray {
   size_t size;
@@ -92,6 +93,14 @@ size_t taosArrayGetSize(const SArray* pArray);
  * @param pData
  */
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
+
+/**
+ * set data in array
+ * @param pArray
+ * @param index
+ * @param pData
+ */
+void* taosArraySet(SArray* pArray, size_t index, void* pData);
 
 /**
  * remove data entry of the given index
