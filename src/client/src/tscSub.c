@@ -179,8 +179,8 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 fail:
   tscError("tscCreateSubscription failed at line %d, reason: %s", line, tstrerror(code));
   if (pSql != NULL) {
-    if (pSql->self != NULL) {
-      taos_free_result(pSql);
+    if (pSql->self != 0) {
+      taosReleaseRef(tscObjRef, pSql->self);
     } else {
       tscFreeSqlObj(pSql);
     }
@@ -442,7 +442,12 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
 
   size_t size = taosArrayGetSize(pSub->progress) * sizeof(STableIdInfo);
   size += sizeof(SQueryTableMsg) + 4096;
-  tscAllocPayload(&pSql->cmd, (int)size);
+  int code = tscAllocPayload(&pSql->cmd, (int)size);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to alloc payload");
+    return NULL;
+  }
+
   for (int retry = 0; retry < 3; retry++) {
     tscRemoveFromSqlList(pSql);
 

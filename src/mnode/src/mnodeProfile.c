@@ -42,6 +42,7 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mnodeCancelGetNextConn(void *pIter);
 static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeFreeConn(void *data);
@@ -52,10 +53,13 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg);
 int32_t mnodeInitProfile() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mnodeGetQueryMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mnodeRetrieveQueries);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_QUERIES, mnodeCancelGetNextConn);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mnodeGetConnsMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mnodeRetrieveConns);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_CONNS, mnodeCancelGetNextConn);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_STREAMS, mnodeCancelGetNextConn);
 
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mnodeProcessKillQueryMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mnodeProcessKillStreamMsg);
@@ -134,6 +138,26 @@ static void mnodeFreeConn(void *data) {
   tfree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
+}
+
+static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
+  *pConn = NULL;
+
+  pIter = taosHashIterate(tsMnodeConnCache->pHashTable, pIter);
+  if (pIter == NULL) return NULL;
+
+  SCacheDataNode **pNode = pIter;
+  if (pNode == NULL || *pNode == NULL) {
+    taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
+    return NULL;
+  }
+
+  *pConn = (SConnObj*)((*pNode)->data);
+  return pIter;
+}
+
+static void mnodeCancelGetNextConn(void *pIter) {
+  taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
 }
 
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {

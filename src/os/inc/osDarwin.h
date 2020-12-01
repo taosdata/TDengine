@@ -70,6 +70,7 @@ extern "C" {
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
 #include <sys/utsname.h>
+#include <math.h>
 
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 

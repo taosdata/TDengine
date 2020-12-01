@@ -282,7 +282,7 @@ typedef struct {
 
   int8_t       dataSourceType;     // load data from file or not
   int8_t       submitSchema; // submit block is built with table schema
-  STagData     tagData;
+  STagData    *pTagData;     // NOTE: pTagData->data is used as a variant length array
   SHashObj    *pTableList;   // referred table involved in sql
   SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
 } SSqlCmd;
@@ -333,7 +333,7 @@ typedef struct STscObj {
   char               superAuth : 1;
   uint32_t           connId;
   uint64_t           rid;      // ref ID returned by taosAddRef
-  struct SSqlObj *   pHb;
+  int64_t            hbrid;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
   void*              pDnodeConn;
@@ -373,7 +373,7 @@ typedef struct SSqlObj {
   struct SSqlObj **pSubs;
 
   struct SSqlObj  *prev, *next;
-  struct SSqlObj **self;
+  int64_t          self;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -507,7 +507,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
 }
 
 extern int       tscMetaCache;
-extern int       tscObjCache;
+extern int       tscObjRef;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];

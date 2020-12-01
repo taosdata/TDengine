@@ -276,8 +276,8 @@ void taos_close(TAOS *taos) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  SSqlObj* pHb = pObj->pHb;
-  if (pHb != NULL && atomic_val_compare_exchange_ptr(&pObj->pHb, pHb, 0) == pHb) {
+  SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
+  if (pHb != NULL) {
     if (pHb->rpcRid > 0) {  // wait for rsp from dnode
       rpcCancelRequest(pHb->rpcRid);
       pHb->rpcRid = -1;
@@ -285,6 +285,7 @@ void taos_close(TAOS *taos) {
 
     tscDebug("%p HB is freed", pHb);
     taos_free_result(pHb);
+    taosReleaseRef(tscObjRef, pHb->self);
   }
 
   int32_t ref = T_REF_DEC(pObj);
@@ -420,7 +421,16 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
     for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
       SInternalField* pField = tscFieldInfoGetInternalField(pFieldInfo, i);
       if (pField->visible) {
-        f[j++] = pField->field;
+        f[j] = pField->field;
+
+        // revise the length for binary and nchar fields
+        if (f[j].type == TSDB_DATA_TYPE_BINARY) {
+          f[j].bytes -= VARSTR_HEADER_SIZE;
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+          f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
+        }
+
+        j += 1;
       }
     }
 
@@ -597,8 +607,7 @@ void taos_free_result(TAOS_RES *res) {
   bool freeNow = tscKillQueryInDnode(pSql);
   if (freeNow) {
     tscDebug("%p free sqlObj in cache", pSql);
-    SSqlObj** p = pSql->self;
-    taosCacheRelease(p); p = NULL;
+    taosReleaseRef(tscObjRef, pSql->self);
   }
 }
 
@@ -691,13 +700,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
       continue;
     }
 
-    void** p = taosCacheAcquireByKey(tscObjCache, &pSub, sizeof(TSDB_CACHE_PTR_TYPE));
-    if (p == NULL) {
-      continue;
-    }
-
-    SSqlObj* pSubObj = (SSqlObj*) (*p);
-    assert(pSubObj->self == (SSqlObj**) p);
+    SSqlObj* pSubObj = pSub;
 
     pSubObj->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
     if (pSubObj->rpcRid > 0) {
@@ -706,7 +709,11 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscQueueAsyncRes(pSubObj);
+<<<<<<< HEAD
     taosCacheRelease(p); p = NULL;
+=======
+    taosReleaseRef(tscObjRef, pSubObj->self);
+>>>>>>> develop
   }
 
   tscDebug("%p super table query cancelled", pSql);

@@ -2628,16 +2628,14 @@ static void yy_reduce(
 {yymsp[1].minor.yy216.limit = -1; yymsp[1].minor.yy216.offset = 0;}
         break;
       case 177: /* limit_opt ::= LIMIT signed */
+      case 181: /* slimit_opt ::= SLIMIT signed */ yytestcase(yyruleno==181);
 {yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}
         break;
       case 178: /* limit_opt ::= LIMIT signed OFFSET signed */
-{yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
+{ yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
         break;
       case 179: /* limit_opt ::= LIMIT signed COMMA signed */
-{yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
-        break;
-      case 181: /* slimit_opt ::= SLIMIT signed */
-{yymsp[-1].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-1].minor.yy216.offset = 0;}
+{ yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
         break;
       case 182: /* slimit_opt ::= SLIMIT signed SOFFSET signed */
 {yymsp[-3].minor.yy216.limit = yymsp[-2].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[0].minor.yy207;}
@@ -2646,7 +2644,8 @@ static void yy_reduce(
 {yymsp[-3].minor.yy216.limit = yymsp[0].minor.yy207;  yymsp[-3].minor.yy216.offset = yymsp[-2].minor.yy207;}
         break;
       case 186: /* expr ::= LP expr RP */
-{yymsp[-2].minor.yy64 = yymsp[-1].minor.yy64; }
+{yylhsminor.yy64 = yymsp[-1].minor.yy64; yylhsminor.yy64->token.z = yymsp[-2].minor.yy0.z; yylhsminor.yy64->token.n = (yymsp[0].minor.yy0.z - yymsp[-2].minor.yy0.z + 1);}
+  yymsp[-2].minor.yy64 = yylhsminor.yy64;
         break;
       case 187: /* expr ::= ID */
 {yylhsminor.yy64 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_ID);}

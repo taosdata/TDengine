@@ -196,6 +196,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->confirmForward = pInfo->confirmForward;
   pNode->notifyFlowCtrl = pInfo->notifyFlowCtrl;
   pNode->notifyFileSynced = pInfo->notifyFileSynced;
+  pNode->getFileVersion = pInfo->getFileVersion;
 
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
@@ -540,7 +541,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   pPeer->fqdn[sizeof(pPeer->fqdn) - 1] = 0;
-  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, peer:%s:%u", pNode->vgId, pPeer->fqdn, pPeer->port);
+  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, nodeId:%d", pNode->vgId, pPeer->nodeId);
 
   pPeer->peerFd = -1;
   pPeer->syncFd = -1;
@@ -626,17 +627,9 @@ static void syncChooseMaster(SSyncNode *pNode) {
       sInfo("vgId:%d, start to work as master", pNode->vgId);
       nodeRole = TAOS_SYNC_ROLE_MASTER;
 
-#if 0
-      for (int32_t i = 0; i < pNode->replica; ++i) {
-        if (i == index) continue;
-        pPeer = pNode->peerInfo[i];
-        if (pPeer->version == nodeVersion) {
-          pPeer->role = TAOS_SYNC_ROLE_SLAVE;
-          pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
-          sInfo("%s, it shall work as slave", pPeer->id);
-        }
-      }
-#endif
+      // Wait for other nodes to receive status to avoid version inconsistency
+      taosMsleep(SYNC_WAIT_AFTER_CHOOSE_MASTER);
+
       syncResetFlowCtrl(pNode);
       (*pNode->notifyRole)(pNode->vgId, nodeRole);
     } else {
@@ -761,7 +754,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
       sDebug("vgId:%d, choose master", pNode->vgId);
       syncChooseMaster(pNode);
     } else {
-      sDebug("vgId:%d, cannot choose master since roles inconsistent", pNode->vgId);
+      sDebug("vgId:%d, cannot choose master since roles inequality", pNode->vgId);
     }
   }
 
@@ -1124,7 +1117,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   }
 
   int32_t     vgId = firstPkt.syncHead.vgId;
-  SSyncNode **ppNode = (SSyncNode **)taosHashGet(tsVgIdHash, (const char *)&vgId, sizeof(int32_t));
+  SSyncNode **ppNode = taosHashGet(tsVgIdHash, &vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
     taosCloseSocket(connFd);
@@ -1151,8 +1144,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
       pPeer->syncFd = connFd;
       syncCreateRestoreDataThread(pPeer);
     } else {
-      sDebug("%s, TCP connection is already up(pfd:%d), close one, new pfd:%d sfd:%d", pPeer->id, pPeer->peerFd, connFd,
-             pPeer->syncFd);
+      sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
       syncClosePeerConn(pPeer);
       pPeer->peerFd = connFd;
       pPeer->pConn = taosAllocateTcpConn(tsTcpPool, pPeer, connFd);
@@ -1287,7 +1279,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
 
         sDebug("vgId:%d, forward info expired, hver:%" PRIu64 " curtime:%" PRIu64 " savetime:%" PRIu64, pNode->vgId,
                pFwdInfo->version, time, pFwdInfo->time);
-        syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+        syncProcessFwdAck(pNode, pFwdInfo, TSDB_CODE_SYN_CONFIRM_EXPIRED);
       }
 
       syncRemoveConfirmedFwdInfo(pNode);
@@ -1321,6 +1313,8 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   }
 
   // always update version
+  sTrace("vgId:%d, forward to peer, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
+         syncRole[nodeRole], qtypeStr[qtype], pWalHead->version);
   nodeVersion = pWalHead->version;
 
   if (pNode->replica == 1 || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
@@ -1328,10 +1322,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   // only pkt from RPC or CQ can be forwarded
   if (qtype != TAOS_QTYPE_RPC && qtype != TAOS_QTYPE_CQ) return 0;
 
-  sTrace("vgId:%d, forward to peer, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
-         syncRole[nodeRole], qtypeStr[qtype], pWalHead->version);
-
-  // a hacker way to improve the performance
+    // a hacker way to improve the performance
   pSyncHead = (SSyncHead *)(((char *)pWalHead) - sizeof(SSyncHead));
   pSyncHead->type = TAOS_SMSG_FORWARD;
   pSyncHead->pversion = 0;
@@ -1352,9 +1343,11 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     int32_t retLen = taosWriteMsg(pPeer->peerFd, pSyncHead, fwdLen);
     if (retLen == fwdLen) {
-      sTrace("%s, forward is sent, hver:%" PRIu64 " contLen:%d", pPeer->id, pWalHead->version, pWalHead->len);
+      sTrace("%s, forward is sent, role:%s sstatus:%s hver:%" PRIu64 " contLen:%d", pPeer->id, syncRole[pPeer->role],
+             syncStatus[pPeer->sstatus], pWalHead->version, pWalHead->len);
     } else {
-      sError("%s, failed to forward, hver:%" PRIu64 " retLen:%d", pPeer->id, pWalHead->version, retLen);
+      sError("%s, failed to forward, role:%s sstatus:%s hver:%" PRIu64 " retLen:%d", pPeer->id, syncRole[pPeer->role],
+             syncStatus[pPeer->sstatus], pWalHead->version, retLen);
       syncRestartConnection(pPeer);
     }
   }

@@ -560,6 +560,37 @@ void taosTmrCleanUp(void* handle) {
   tmrDebug("%s timer controller is cleaned up.", ctrl->label);
   ctrl->label[0] = 0;
 
+  // cancel all timers of this controller
+  for (size_t i = 0; i < timerMap.size; i++) {
+    timer_list_t* list = timerMap.slots + i;
+    lockTimerList(list);
+
+    tmr_obj_t* t = list->timers;
+    tmr_obj_t* prev = NULL;
+    while (t != NULL) {
+      tmr_obj_t* next = t->mnext;
+      if (t->ctrl != ctrl) {
+        prev = t;
+        t = next;
+        continue;
+      }
+
+      uint8_t state = atomic_val_compare_exchange_8(&t->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
+      if (state == TIMER_STATE_WAITING) {
+        removeFromWheel(t);
+      }
+      timerDecRef(t);
+      if (prev == NULL) {
+        list->timers = next;
+      } else {
+        prev->mnext = next;
+      }
+      t = next;
+    }
+
+    unlockTimerList(list);
+  }
+
   pthread_mutex_lock(&tmrCtrlMutex);
   ctrl->next = unusedTmrCtrl;
   numOfTmrCtrl--;

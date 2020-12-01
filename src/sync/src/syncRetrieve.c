@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include <sys/inotify.h>
 #include "os.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "tglobal.h"
@@ -25,85 +26,35 @@
 #include "tsync.h"
 #include "syncInt.h"
 
-static int32_t syncAddIntoWatchList(SSyncPeer *pPeer, char *name) {
-  sDebug("%s, start to monitor:%s", pPeer->id, name);
+static int32_t syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
+  if (pNode->getFileVersion == NULL) return TSDB_CODE_SUCCESS;
 
-  if (pPeer->notifyFd <= 0) {
-    pPeer->watchNum = 0;
-    pPeer->notifyFd = inotify_init1(IN_NONBLOCK);
-    if (pPeer->notifyFd < 0) {
-      sError("%s, failed to init inotify since %s", pPeer->id, strerror(errno));
-      return -1;
-    }
-
-    if (pPeer->watchFd == NULL) pPeer->watchFd = malloc(sizeof(int32_t) * tsMaxWatchFiles);
-    if (pPeer->watchFd == NULL) {
-      sError("%s, failed to allocate watchFd", pPeer->id);
-      return -1;
-    }
-
-    memset(pPeer->watchFd, -1, sizeof(int32_t) * tsMaxWatchFiles);
+  uint64_t fver = 0;
+  int32_t  code = (*pNode->getFileVersion)(pNode->vgId, &fver);
+  if (code != 0) {
+    sInfo("%s, vnode is commiting while retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastVer);
+    pPeer->fileChanged = 1;
+    return TSDB_CODE_SYN_VND_COMMITING;
   }
 
-  int32_t *wd = pPeer->watchFd + pPeer->watchNum;
-
-  if (*wd >= 0) {
-    if (inotify_rm_watch(pPeer->notifyFd, *wd) < 0) {
-      sError("%s, failed to remove wd:%d since %s", pPeer->id, *wd, strerror(errno));
-      return -1;
-    }
+  if (fver != pPeer->lastVer) {
+    sInfo("%s, files are modified while retrieve, fver:%" PRIu64 ", last fver:%" PRIu64, pPeer->id, fver, pPeer->lastVer);
+    pPeer->fileChanged = 1;
+    return TSDB_CODE_SYN_FILE_CHNAGED;
   }
 
-  *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_DELETE);
-  if (*wd == -1) {
-    sError("%s, failed to add %s since %s", pPeer->id, name, strerror(errno));
-    return -1;
-  } else {
-    sDebug("%s, monitor %s, wd:%d watchNum:%d", pPeer->id, name, *wd, pPeer->watchNum);
-  }
-
-  pPeer->watchNum = (pPeer->watchNum + 1) % tsMaxWatchFiles;
-
-  return 0;
-}
-
-static int32_t syncAreFilesModified(SSyncPeer *pPeer) {
-  if (pPeer->notifyFd <= 0) return 0;
-
-  char    buf[2048];
-  int32_t len = read(pPeer->notifyFd, buf, sizeof(buf));
-  if (len < 0 && errno != EAGAIN) {
-    sError("%s, failed to read notify FD since %s", pPeer->id, strerror(errno));
-    return -1;
-  }
-
-  int32_t code = 0;
-  if (len > 0) {
-    const struct inotify_event *event;
-    char *ptr;
-    for (ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
-      event = (const struct inotify_event *)ptr;
-      if ((event->mask & IN_MODIFY) || (event->mask & IN_DELETE)) {
-        sDebug("%s, processed file is changed", pPeer->id);
-        pPeer->fileChanged = 1;
-        code = 1;
-        break;
-      }
-    }
-  }
-
-  return code;
+  pPeer->fileChanged = 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  fileInfo;
-  SFileAck   fileAck;
-  int32_t    code = -1;
+  SFileInfo  fileInfo; memset(&fileInfo, 0, sizeof(SFileInfo));
+  SFileAck   fileAck = {0};
+  int32_t    code = TSDB_CODE_SYN_APP_ERROR;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
 
-  memset(&fileInfo, 0, sizeof(fileInfo));
-  memset(&fileAck, 0, sizeof(fileAck));
+  if (pNode->getFileVersion) (*pNode->getFileVersion)(pNode->vgId, &pPeer->lastVer);
 
   while (1) {
     // retrieve file info
@@ -111,39 +62,33 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
     // fileInfo.size = htonl(size);
+    sDebug("%s, file:%s info is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
 
     // send the file info
     int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
     if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
       sError("%s, failed to write file:%s info while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
     }
 
     // if no file anymore, break
     if (fileInfo.magic == 0 || fileInfo.name[0] == 0) {
+      code = TSDB_CODE_SUCCESS;
       sDebug("%s, no more files to sync", pPeer->id);
-      code = 0;
       break;
     }
 
     // wait for the ack from peer
     ret = taosReadMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
     if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
       sError("%s, failed to read file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
     }
 
     // set the peer sync version
     pPeer->sversion = fileInfo.fversion;
-
-    // get the full path to file
-    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
-
-    // add the file into watch list
-    if (syncAddIntoWatchList(pPeer, name) < 0) {
-      sError("%s, failed to watch file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
 
     // if sync is not required, continue
     if (fileAck.sync == 0) {
@@ -152,9 +97,13 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
       continue;
     }
 
+    // get the full path to file
+    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
+
     // send the file to peer
     int32_t sfd = open(name, O_RDONLY);
     if (sfd < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
       sError("%s, failed to open file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
     }
@@ -162,22 +111,21 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     ret = taosSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
     close(sfd);
     if (ret < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
       sError("%s, failed to send file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
     }
 
-    sDebug("%s, %s is sent, size:%" PRId64, pPeer->id, name, fileInfo.size);
+    sDebug("%s, file:%s is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
     fileInfo.index++;
 
     // check if processed files are modified
-    if (syncAreFilesModified(pPeer) != 0) {
-      sInfo("%s, file:%s are modified while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
+    code = syncAreFilesModified(pNode, pPeer);
+    if (code != TSDB_CODE_SUCCESS) break;
   }
 
-  if (code < 0) {
-    sError("%s, failed to retrieve file", pPeer->id);
+  if (code != TSDB_CODE_SUCCESS) {
+    sError("%s, failed to retrieve file since %s", pPeer->id, tstrerror(code));
   }
 
   return code;
@@ -308,9 +256,9 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
 static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    code = -1;
-  char       fname[TSDB_FILENAME_LEN * 2];  // full path to wal file
+  char       fname[TSDB_FILENAME_LEN * 2] = {0};  // full path to wal file
 
-  if (syncAreFilesModified(pPeer) != 0) return -1;
+  if (syncAreFilesModified(pNode, pPeer) != 0) return -1;
 
   while (1) {
     int32_t  once = 0;  // last WAL has once ever been processed
@@ -429,9 +377,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
     close(sfd);
     if (code < 0) break;
 
-    index++;
-
-    if (syncAreFilesModified(pPeer) != 0) break;
+    if (syncAreFilesModified(pNode, pPeer) != 0) break;
   }
 
   if (code == 0) {
@@ -448,7 +394,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   return code;
 }
 
-static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
+static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   SFirstPkt firstPkt;
@@ -458,25 +404,41 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
   tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
-  if (taosWriteMsg(pPeer->syncFd, (char *)&firstPkt, sizeof(firstPkt)) < 0) {
-    sError("%s, failed to send syncCmd", pPeer->id);
+  if (taosWriteMsg(pPeer->syncFd, &firstPkt, sizeof(firstPkt)) < 0) {
+    sError("%s, failed to send sync firstPkt since %s", pPeer->id, strerror(errno));
+    return -1;
+  }
+
+  SFirstPktRsp firstPktRsp;
+  if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) < 0) {
+    sError("%s, failed to read sync firstPkt rsp since %s", pPeer->id, strerror(errno));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
+  sInfo("%s, start to retrieve, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+  if (syncRetrieveFirstPkt(pPeer) < 0) {
+    sError("%s, failed to start retrieve", pPeer->id);
     return -1;
   }
 
   pPeer->sversion = 0;
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
-  sInfo("%s, start to retrieve file, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+  sInfo("%s, start to retrieve files, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   if (syncRetrieveFile(pPeer) < 0) {
-    sError("%s, failed to retrieve file", pPeer->id);
+    sError("%s, failed to retrieve files", pPeer->id);
     return -1;
   }
 
   // if no files are synced, there must be wal to sync, sversion must be larger than one
   if (pPeer->sversion == 0) pPeer->sversion = 1;
 
-  sInfo("%s, start to retrieve wal", pPeer->id);
+  sInfo("%s, start to retrieve wals", pPeer->id);
   if (syncRetrieveWal(pPeer) < 0) {
-    sError("%s, failed to retrieve wal", pPeer->id);
+    sError("%s, failed to retrieve wals", pPeer->id);
     return -1;
   }
 
@@ -488,7 +450,8 @@ void *syncRetrieveData(void *param) {
   SSyncNode *pNode = pPeer->pSyncNode;
   taosBlockSIGPIPE();
 
-  pPeer->fileChanged = 0;
+  if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, pPeer->numOfRetrieves);
+
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
@@ -504,10 +467,7 @@ void *syncRetrieveData(void *param) {
   }
 
   if (pPeer->fileChanged) {
-    // if file is changed 3 times continuously, start flow control
     pPeer->numOfRetrieves++;
-    if (pPeer->numOfRetrieves >= 2 && pNode->notifyFlowCtrl)
-      (*pNode->notifyFlowCtrl)(pNode->vgId, 4 << (pPeer->numOfRetrieves - 2));
   } else {
     pPeer->numOfRetrieves = 0;
     if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);

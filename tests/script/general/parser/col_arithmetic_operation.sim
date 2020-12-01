@@ -5,6 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 500
 sql connect
+#========================================= setup environment ================================
 
 $dbPrefix = ca_db
 $tbPrefix = ca_tb
@@ -28,12 +29,41 @@ sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 
 $i = 0
 $ts = $ts0
 $halfTbNum = $tbNum / 2
-while $i < $halfTbNum
-  $tbId = $i + $halfTbNum
-  $tb = $tbPrefix . $i
-  $tb1 = $tbPrefix . $tbId
-  sql create table $tb using $stb tags( $i )
-  sql create table $tb1 using $stb tags( $tbId )
+#while $i < $halfTbNum
+  $t1 = $i + 1
+  $t2 = $i + 2
+  $t3 = $i + 3
+  $t4 = $i + 4
+
+  $t5 = $i + $halfTbNum
+  $t6 = $t5 + 1
+  $t7 = $t6 + 1
+  $t8 = $t7 + 1
+  $t9 = $t8 + 1
+
+  $tb0 = $tbPrefix . $i
+  $tb1 = $tbPrefix . $t1
+  $tb2 = $tbPrefix . $t2
+  $tb3 = $tbPrefix . $t3
+  $tb4 = $tbPrefix . $t4
+
+  $tb5 = $tbPrefix . $t5
+  $tb6 = $tbPrefix . $t6
+  $tb7 = $tbPrefix . $t7
+  $tb8 = $tbPrefix . $t8
+  $tb9 = $tbPrefix . $t9
+
+  sql create table $tb0 using $stb tags( $i )
+  sql create table $tb1 using $stb tags( $t1 )
+  sql create table $tb2 using $stb tags( $t2 )
+  sql create table $tb3 using $stb tags( $t3 )
+  sql create table $tb4 using $stb tags( $t4 )
+
+  sql create table $tb5 using $stb tags( $t5 )
+  sql create table $tb6 using $stb tags( $t6 )
+  sql create table $tb7 using $stb tags( $t7 )
+  sql create table $tb8 using $stb tags( $t8 )
+  sql create table $tb9 using $stb tags( $t9 )
 
   $x = 0
   while $x < $rowNum
@@ -46,50 +76,62 @@ while $i < $halfTbNum
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
-    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) $tb1 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar )
+    sql insert into $tb0 values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) $tb1 values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) $tb2 values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) $tb3 values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) $tb4 values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )
     $x = $x + 1
-  endw 
-  $i = $i + 1
-endw 
+  endw
+  #$i = $i + 1
 
-##### select from table
-$tb = $tbPrefix . 0
-## TBASE-344
-sql select c1*2 from $tb
-if $rows != $rowNum then
-  return -1
-endi
-if $data00 != 0.000000000 then
-  return -1
-endi
-if $data10 != 2.000000000 then
-  return -1
-endi
-if $data20 != 4.000000000 then
-  return -1
-endi
-if $data90 != 18.000000000 then
-  return -1
-endi
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
 
-sql select c4*1+1/2 from $tb
-if $rows != $rowNum then
-  return -1
-endi
-if $data00 != 0.500000000 then
-  return -1
-endi
-if $data10 != 1.500000000 then
-  return -1
-endi
-if $data90 != 9.500000000 then
-  return -1
-endi
+    sql insert into $tb5 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb6 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb7 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb8 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb9 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar )
+    $x = $x + 1
+  endw
 
-#### illegal operations
+#endw
+
+#=================================== above are setup test environment =============================
+run general/parser/col_arithmetic_query.sim
+
+#======================================= all in files query =======================================
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode1 -s start
+
+print ================== server restart completed
+sql connect
+sleep 500c
+
+run general/parser/col_arithmetic_query.sim
+
+# ================================================================================================
+
+print ====================> crash
+sql use $db
+sql select spread(ts )/(1000*3600*24) from $stb interval(1y)
+
+sql_error select first(c1, c2) - last(c1, c2) from $stb interval(1y)
+sql_error select first(ts) - last(ts) from $stb interval(1y)
+sql_error select top(c1, 2) - last(c1) from $stb;
+sql_error select stddev(c1) - last(c1) from $stb;
+sql_error select diff(c1) - last(c1) from $stb;
+sql_error select first(c7) - last(c7) from $stb;
+sql_error select first(c8) - last(c8) from $stb;
+sql_error select first(c9) - last(c9) from $stb;
 sql_error select max(c2*2) from $tb
 sql_error select max(c1-c2) from $tb
 
+#========================================regression test cases====================================
 print =====================> td-1764
 sql select sum(c1)/count(*), sum(c1) as b, count(*) as b from $stb interval(1y)
 if $rows != 1 then
@@ -107,43 +149,5 @@ endi
 if $data02 != 225000 then
   return -1
 endi
-
-sql select first(c1) - last(c1), first(c1) as b, last(c1) as b, min(c1) - max(c1), spread(c1) from ca_stb0 interval(1y)
-if $rows != 1 then
-  return -1
-endi
-
-if $data00 != @18-01-01 00:00:00.000@ then
-  return -1
-endi
-
-if $data01 != -9.000000000 then
-  return -1
-endi
-
-if $data02 != 0 then
-  return -1
-endi
-
-if $data03 != 9 then
-  return -1
-endi
-
-if $data04 != -9.000000000 then
-  return -1
-endi
-
-if $data05 != 9.000000000 then
-  return -1
-endi
-
-sql_error select first(c1, c2) - last(c1, c2) from stb interval(1y)
-sql_error select first(ts) - last(ts) from stb interval(1y)
-sql_error select top(c1, 2) - last(c1) from stb;
-sql_error select stddev(c1) - last(c1) from stb;
-sql_error select diff(c1) - last(c1) from stb;
-sql_error select first(c7) - last(c7) from stb;
-sql_error select first(c8) - last(c8) from stb;
-sql_error select first(c9) - last(c9) from stb;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

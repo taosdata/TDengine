@@ -52,12 +52,12 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex
 
 static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  minfo; memset(&minfo, 0, sizeof(minfo)); /* = {0}; */  // master file info
-  SFileInfo  sinfo; memset(&sinfo, 0, sizeof(sinfo)); /* = {0}; */  // slave file info
-  SFileAck   fileAck; 
+  SFileInfo  minfo; memset(&minfo, 0, sizeof(SFileInfo)); /* = {0}; */
+  SFileInfo  sinfo; memset(&sinfo, 0, sizeof(SFileInfo)); /* = {0}; */
+  SFileAck   fileAck = {0};
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
-  uint32_t   pindex = 0;    // index in last restore
+  uint32_t   pindex = 0;  // index in last restore
   bool       fileChanged = false;
 
   *fversion = 0;
@@ -134,7 +134,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     // data file is changed, code shall be set to 1
     *fversion = minfo.fversion;
     code = 1;
-    sDebug("%s, file changed while restore file", pPeer->id);
+    sDebug("%s, file changed after restore file, fver:%" PRIu64, pPeer->id, *fversion);
   }
 
   if (code < 0) {
@@ -147,12 +147,10 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    ret, code = -1;
+  uint64_t   lastVer = 0;
 
-  void *buffer = calloc(SYNC_MAX_SIZE, 1);  // size for one record
-  if (buffer == NULL) return -1;
-
-  SWalHead *pHead = (SWalHead *)buffer;
-  uint64_t lastVer = 0;
+  SWalHead *pHead = calloc(SYNC_MAX_SIZE, 1);  // size for one record
+  if (pHead == NULL) return -1;
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
@@ -162,7 +160,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     }
 
     if (pHead->len == 0) {
-      sDebug("%s, wal is synced over", pPeer->id);
+      sDebug("%s, wal is synced over, last wver:%" PRIu64, pPeer->id, lastVer);
       code = 0;
       break;
     }  // wal sync over
@@ -188,7 +186,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     sError("%s, failed to restore wal from syncFd:%d since %s", pPeer->id, pPeer->syncFd, strerror(errno));
   }
 
-  free(buffer);
+  free(pHead);
   return code;
 }
 
@@ -233,9 +231,12 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
 int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
   SSyncNode *  pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
-
-  if (pRecv == NULL) return -1;
   int32_t len = pHead->len + sizeof(SWalHead);
+
+  if (pRecv == NULL) {
+    sError("%s, recv buffer is not create yet", pPeer->id);
+    return -1;
+  }
 
   if (pRecv->bufferSize - (pRecv->offset - pRecv->buffer) >= len) {
     memcpy(pRecv->offset, pHead, len);
@@ -284,7 +285,14 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   nodeSStatus = TAOS_SYNC_STATUS_FILE;
   uint64_t fversion = 0;
 
-  sDebug("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+  sInfo("%s, start to restore, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+  SFirstPktRsp firstPktRsp = {.sync = 1};
+  if (taosWriteMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) < 0) {
+    sError("%s, failed to send sync firstPkt rsp since %s", pPeer->id, strerror(errno));
+    return -1;
+  }
+
+  sInfo("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   int32_t code = syncRestoreFile(pPeer, &fversion);
   if (code < 0) {
     sError("%s, failed to restore file", pPeer->id);
@@ -301,14 +309,14 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 
   nodeVersion = fversion;
 
-  sDebug("%s, start to restore wal", pPeer->id);
+  sInfo("%s, start to restore wal", pPeer->id);
   if (syncRestoreWal(pPeer) < 0) {
     sError("%s, failed to restore wal", pPeer->id);
     return -1;
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
-  sDebug("%s, start to insert buffered points, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+  sInfo("%s, start to insert buffered points, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   if (syncProcessBufferedFwd(pPeer) < 0) {
     sError("%s, failed to insert buffered points", pPeer->id);
     return -1;

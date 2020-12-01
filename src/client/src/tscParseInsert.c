@@ -790,9 +790,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sql += index;
 
     tscAllocPayload(pCmd, sizeof(STagData));
-    STagData *pTag = &pCmd->tagData;
-
-    memset(pTag, 0, sizeof(STagData));
     
     //the source super table is moved to the secondary position of the pTableMetaInfo list
     if (pQueryInfo->numOfTables < 2) {
@@ -805,7 +802,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return code;
     }
 
+    STagData *pTag = realloc(pCmd->pTagData, offsetof(STagData, data));
+    if (pTag == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    memset(pTag, 0, offsetof(STagData, data));
     tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
+    pCmd->pTagData = pTag;
+
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -934,7 +938,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     tdSortKVRowByColIdx(row);
-    pTag->dataLen = kvRowLen(row);
+
+    pTag = (STagData*)realloc(pCmd->pTagData, offsetof(STagData, data) + kvRowLen(row));
+    if (pTag == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    pCmd->pTagData = pTag;
+    pTag->dataLen = htonl(kvRowLen(row));
     kvRowCpy(pTag->data, row);
     free(row);
 
@@ -944,8 +954,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     if (sToken.n == 0 || sToken.type != TK_RP) {
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
-
-    pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);

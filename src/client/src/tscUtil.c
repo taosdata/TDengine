@@ -408,7 +408,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd, bool removeFromCache) {
   pCmd->pTableList = NULL;
   
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  
+
   tscFreeQueryInfo(pCmd, removeFromCache);
 }
 
@@ -447,18 +447,18 @@ static void tscFreeSubobj(SSqlObj* pSql) {
 void tscFreeRegisteredSqlObj(void *pSql) {
   assert(pSql != NULL);
 
-  SSqlObj** p = (SSqlObj**)pSql;
-  STscObj* pTscObj = (*p)->pTscObj;
+  SSqlObj* p = *(SSqlObj**)pSql;
+  STscObj* pTscObj = p->pTscObj;
 
-  assert((*p)->self != 0 && (*p)->self == (p));
-  tscFreeSqlObj(*p);
+  assert(p->self != 0);
+  tscFreeSqlObj(p);
 
   int32_t ref = T_REF_DEC(pTscObj);
   assert(ref >= 0);
 
-  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", *p, pTscObj, ref);
+  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", p, pTscObj, ref);
   if (ref == 0) {
-    tscDebug("%p all sqlObj freed, free tscObj:%p", *p, pTscObj);
+    tscDebug("%p all sqlObj freed, free tscObj:%p", p, pTscObj);
     taosRemoveRef(tscRefId, pTscObj->rid);
   }
 }
@@ -510,6 +510,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   tscResetSqlCmdObj(pCmd, false);
 
+  tfree(pCmd->pTagData);
+  
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
   pCmd->allocSize = 0;
@@ -642,6 +644,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
+    tfree(dataBuf);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -833,7 +836,6 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pTableDataBlockList) {
 
     // the length does not include the SSubmitBlk structure
     pBlocks->dataLen = htonl(finalLen);
-
     dataBuf->numOfTables += 1;
   }
 
@@ -1558,19 +1560,6 @@ void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo) {
   }
 }
 
-void tscSetFreeHeatBeat(STscObj* pObj) {
-  if (pObj == NULL || pObj->signature != pObj || pObj->pHb == NULL) {
-    return;
-  }
-
-  SSqlObj* pHeatBeat = pObj->pHb;
-  assert(pHeatBeat == pHeatBeat->signature);
-
-  // to denote the heart-beat timer close connection and free all allocated resources
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pHeatBeat->cmd, 0);
-  pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-}
-
 /*
  * the following four kinds of SqlObj should not be freed
  * 1. SqlObj for stream computing
@@ -1589,7 +1578,7 @@ bool tscShouldBeFreed(SSqlObj* pSql) {
   }
   
   STscObj* pTscObj = pSql->pTscObj;
-  if (pSql->pStream != NULL || pTscObj->pHb == pSql || pSql->pSubscription != NULL) {
+  if (pSql->pStream != NULL || pTscObj->hbrid == pSql->self || pSql->pSubscription != NULL) {
     return false;
   }
 
@@ -1880,13 +1869,10 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 }
 
 void registerSqlObj(SSqlObj* pSql) {
-  //int32_t DEFAULT_LIFE_TIME = 2 * 600 * 1000;  // 1200 sec
-
   int32_t ref = T_REF_INC(pSql->pTscObj);
   tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
 
-  TSDB_CACHE_PTR_TYPE p = (TSDB_CACHE_PTR_TYPE) pSql;
-  pSql->self = taosCachePut(tscObjCache, &p, sizeof(TSDB_CACHE_PTR_TYPE), &p, sizeof(TSDB_CACHE_PTR_TYPE), 0);
+  pSql->self = taosAddRef(tscObjRef, pSql);
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
@@ -1903,7 +1889,17 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pCmd->command = cmd;
   pCmd->parseFinished = 1;
   pCmd->autoCreated = pSql->cmd.autoCreated;
-  memcpy(&pCmd->tagData, &pSql->cmd.tagData, sizeof(pCmd->tagData));
+
+  if (pSql->cmd.pTagData != NULL) {
+    int size = offsetof(STagData, data) + htonl(pSql->cmd.pTagData->dataLen);
+    pNew->cmd.pTagData = calloc(1, size);
+    if (pNew->cmd.pTagData == NULL) {
+      tscError("%p new subquery failed, unable to malloc tag data, tableIndex:%d", pSql, 0);
+      free(pNew);
+      return NULL;
+    }
+    memcpy(pNew->cmd.pTagData, pSql->cmd.pTagData, size);
+  }
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);

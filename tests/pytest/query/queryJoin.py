@@ -175,6 +175,8 @@ class TDTestCase:
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1)-first(join_mt1.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts")
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2 order by join_mt0.t1 desc slimit 3")
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2, join_mt1.t1 order by join_mt0.ts desc, join_mt1.ts asc limit 10;")
+        tdSql.error("select join_mt1.c1,join_mt0.c1 from join_mt1,join_mt0 where join_mt1.ts = join_mt0.ts and join_mt1.t1 = join_mt0.t1 order by t")
+
 
     def stop(self):
         tdSql.close()

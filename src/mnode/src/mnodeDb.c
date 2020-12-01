@@ -38,6 +38,7 @@
 #include "mnodeVgroup.h"
 
 #define VG_LIST_SIZE 8
+int64_t        tsDbRid = -1;
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
@@ -160,7 +161,8 @@ int32_t mnodeInitDbs() {
     .fpRestored   = mnodeDbActionRestored
   };
 
-  tsDbSdb = sdbOpenTable(&desc);
+  tsDbRid = sdbOpenTable(&desc);
+  tsDbSdb = sdbGetTableByRid(tsDbRid);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -171,6 +173,7 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
   
   mDebug("table:dbs table is created");
   return 0;
@@ -178,6 +181,10 @@ int32_t mnodeInitDbs() {
 
 void *mnodeGetNextDb(void *pIter, SDbObj **pDb) {
   return sdbFetchRow(tsDbSdb, pIter, (void **)pDb);
+}
+
+void mnodeCancelGetNextDb(void *pIter) {
+  sdbFreeIter(tsDbSdb, pIter);
 }
 
 SDbObj *mnodeGetDb(char *db) {
@@ -491,7 +498,7 @@ void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
 }
 
 void mnodeCleanupDbs() {
-  sdbCloseTable(tsDbSdb);
+  sdbCloseTable(tsDbRid);
   tsDbSdb = NULL;
 }
 
@@ -986,8 +993,8 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   SDbObj *pDb = pMsg->pDb;
 
   void *pIter = NULL;
-  while (1) {
-    SVgObj *pVgroup = NULL;
+  SVgObj *pVgroup = NULL;
+    while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
@@ -995,7 +1002,6 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
     }
     mnodeDecVgroupRef(pVgroup);
   }
-  sdbFreeIter(pIter);
 
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
@@ -1145,8 +1151,6 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
     }
     mnodeDecDbRef(pDb);
   }
-
-  sdbFreeIter(pIter);
 
   mInfo("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
 }
