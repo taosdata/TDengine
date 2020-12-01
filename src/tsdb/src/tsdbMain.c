@@ -715,7 +715,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
       if (tsdbSetHelperTable(&rhelper, pTable, pRepo) < 0) goto _err;
-      SCompIdx *pIdx = &(rhelper.curCompIdx);
+      SBlockIdx *pIdx = &(rhelper.curCompIdx);
 
       if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
     }
