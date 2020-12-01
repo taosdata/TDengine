@@ -709,11 +709,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscQueueAsyncRes(pSubObj);
-<<<<<<< HEAD
-    taosCacheRelease(p); p = NULL;
-=======
     taosReleaseRef(tscObjRef, pSubObj->self);
->>>>>>> develop
   }
 
   tscDebug("%p super table query cancelled", pSql);
