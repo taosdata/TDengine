@@ -86,7 +86,7 @@ typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t level);
 typedef int32_t  (*FNotifyFileSynced)(int32_t vgId, uint64_t fversion);
 
 // get file version
-typedef int32_t  (*FGetFileVersion)(int32_t vgId, uint64_t *fver);
+typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver);
 
 typedef struct {
   int32_t  vgId;       // vgroup ID
@@ -100,7 +100,7 @@ typedef struct {
   FNotifyRole       notifyRole;
   FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
-  FGetFileVersion   getFileVersion;
+  FGetVersion       getVersion;
 } SSyncInfo;
 
 typedef void *tsync_h;

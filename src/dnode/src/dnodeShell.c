@@ -144,7 +144,7 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   int code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
-  if (code != TSDB_CODE_APP_NOT_READY) return code;
+  if (code != TSDB_CODE_RPC_REDIRECT) return code;
 
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
   tstrncpy(pMsg->user, user, sizeof(pMsg->user));
