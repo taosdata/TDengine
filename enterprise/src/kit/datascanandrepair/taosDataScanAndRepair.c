@@ -107,8 +107,8 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 
 void        printVnodeCfg(FILE *fp, SVnodeCfg *pCfg);
 void        printHeader(SCompHeader *pHeader, int maxSessions);
-int         printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp);
-void        printCompBlock(SCompBlock *pBlock, FILE *fp);
+int         printCompInfo(SBlockInfo *pCompInfo, uint64_t uid, FILE *fp);
+void        printCompBlock(SBlock *pBlock, FILE *fp);
 void        checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *headName, int *err);
 SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir);
 int         createDir(const char *dirName);
@@ -335,12 +335,12 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   int          size = 0;
   SCompHeader *pHeader = NULL;
   SVnodeCfg *  pCfg = &(pInfo->cfg);
-  SCompInfo    compInfo;
+  SBlockInfo    compInfo;
   char         reportFname[128] = "\0";
   FILE *       reportFP = NULL;
   int          fileHasError = 0;
-  SCompBlock * pBlocks = NULL;
-  SCompBlock * pRepairBlocks = NULL;
+  SBlock * pBlocks = NULL;
+  SBlock * pRepairBlocks = NULL;
   SField      *pFields = NULL;
   size_t       fields_size = 0;
   char        *pCol = NULL;
@@ -488,11 +488,11 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       fprintf(stderr, "failed to seek head file:%s, reason:%s\n", headFile, strerror(errno));
       continue;
     }
-    if (read(fd, &compInfo, sizeof(SCompInfo)) < sizeof(SCompInfo)) {
-      fprintf(stderr, "failed to read SCompInfo part of meter sid:%d from head file:%s, reason:%s\n", i, headFile, strerror(errno));
+    if (read(fd, &compInfo, sizeof(SBlockInfo)) < sizeof(SBlockInfo)) {
+      fprintf(stderr, "failed to read SBlockInfo part of meter sid:%d from head file:%s, reason:%s\n", i, headFile, strerror(errno));
       continue;
     }
-    if (!printCompInfo(&compInfo, pInfo->pTable[i]->uid, reportFP)) {// check the SCompInfo part
+    if (!printCompInfo(&compInfo, pInfo->pTable[i]->uid, reportFP)) {// check the SBlockInfo part
       fileHasError = 1;
       *err = 1;
       if (repairFd > 0) {
@@ -511,7 +511,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       }
       continue;
     }
-    int tsize = numOfBlocks * sizeof(SCompBlock) + sizeof(TSCKSUM);
+    int tsize = numOfBlocks * sizeof(SBlock) + sizeof(TSCKSUM);
     if (tsize > size) {
       size = tsize;
       if (pBlocks == NULL) {
@@ -527,13 +527,13 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
           abort();
         }
       }
-      if (repairFd > 0) pRepairBlocks = (SCompBlock *)realloc((void *)pRepairBlocks, size);
+      if (repairFd > 0) pRepairBlocks = (SBlock *)realloc((void *)pRepairBlocks, size);
     }
 
-    lseek(fd, pHeader[i].compInfoOffset + sizeof(SCompInfo) + drift, SEEK_SET);
+    lseek(fd, pHeader[i].compInfoOffset + sizeof(SBlockInfo) + drift, SEEK_SET);
     read(fd, pBlocks, tsize);
     if (!taosCheckChecksumWhole((uint8_t *)pBlocks, tsize)) {
-      fprintf(reportFP, "> ERROR in SCompBlocks\n\n");
+      fprintf(reportFP, "> ERROR in SBlocks\n\n");
       fileHasError = 1;
       *err = 1;
       if (repairFd > 0) {
@@ -548,8 +548,8 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
     int   numOfCorrectBlocks = numOfBlocks;
     int   blockCounter = 0;
     for (int j = 0; j < numOfBlocks; j++) {
-      // Check the SCompBlock context
-      SCompBlock *pBlock = &pBlocks[j];
+      // Check the SBlock context
+      SBlock *pBlock = &pBlocks[j];
       if (pBlock->last != 0 && j < numOfBlocks - 1) {
         fprintf(reportFP, ">> ERROR in block %d: last block in middle\n", j);
         printCompBlock(pBlock, reportFP);
@@ -686,7 +686,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
       // Copy the correct block
       if (repairFd > 0) {
-        memcpy((void *)(pRepairBlocks+blockCounter), (void *)pBlock, sizeof(SCompBlock));
+        memcpy((void *)(pRepairBlocks+blockCounter), (void *)pBlock, sizeof(SBlock));
         blockCounter++;
       }
     }
@@ -701,10 +701,10 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
         if (numOfCorrectBlocks == compInfo.numOfBlocks) {
           lseek(fd, pHeader[i].compInfoOffset, SEEK_SET);
           taosSendFile(repairFd, fd, NULL,
-                    sizeof(SCompInfo) + sizeof(SCompBlock) * compInfo.numOfBlocks + sizeof(TSCKSUM));
+                    sizeof(SBlockInfo) + sizeof(SBlock) * compInfo.numOfBlocks + sizeof(TSCKSUM));
         } else {
-          taosCalcChecksumAppend(0, (uint8_t *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
-          taosWrite(repairFd, (void *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
+          taosCalcChecksumAppend(0, (uint8_t *)pRepairBlocks, sizeof(SBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
+          taosWrite(repairFd, (void *)pRepairBlocks, sizeof(SBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
         }
       }
     }
@@ -815,9 +815,9 @@ void printVnodeCfg(FILE *fp, SVnodeCfg *pCfg) {
   fprintf(fp, "================================\n\n");
 }
 
-int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
+int printCompInfo(SBlockInfo *pCompInfo, uint64_t uid, FILE *fp) {
   int isRight = 1;
-  if (!taosCheckChecksumWhole((uint8_t *)pCompInfo, sizeof(SCompInfo))) isRight = 0;
+  if (!taosCheckChecksumWhole((uint8_t *)pCompInfo, sizeof(SBlockInfo))) isRight = 0;
   fprintf(fp, "CompInfo:\n");
   fprintf(fp, "uid:         %" PRIu64 "\n", pCompInfo->uid);
   fprintf(fp, "last:        %" PRId64 "\n", (int64_t)(pCompInfo->last));
@@ -837,7 +837,7 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
   return isRight;
 }
 
-void printCompBlock(SCompBlock *pBlock, FILE *fp) {
+void printCompBlock(SBlock *pBlock, FILE *fp) {
   fprintf(fp, "   last:        %" PRId64 "\n",  (int64_t)(pBlock->last));
   fprintf(fp, "   offset:      %" PRId64 "\n",  (int64_t)(pBlock->offset));
   fprintf(fp, "   algorithm:   %d\n",   (int32_t)(pBlock->algorithm));
