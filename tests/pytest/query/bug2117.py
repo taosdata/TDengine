@@ -26,24 +26,20 @@ class TDTestCase:
         print("==========step1")
         print("create table && insert data")
         
-        tdSql.execute("create table mt0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool)")
+        tdSql.execute("create table mt0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool,c8 binary(20),c9 nchar(20))")
         insertRows = 1000
         t0 = 1604298064000
         tdLog.info("insert %d rows" % (insertRows))
         for i in range(insertRows):
             ret = tdSql.execute(
-                "insert into mt0 values (%d , %d,%d,%d,%d,%d,%d,%d)" %
-                (t0+i,i%100,i/2,i%100,i%100,i%100,i*1.0,i%2))
+                "insert into mt0 values (%d , %d,%d,%d,%d,%d,%d,%d,'%s','%s')" %
+                (t0+i,i%100,i/2,i%41,i%100,i%100,i*1.0,i%2,'taos'+str(i%100),'涛思'+str(i%100)))
         print("==========step2")
-        print("test col*1*1 desc ")
-        tdSql.query('select c1,c1*1*1,c2*1*1,c3*1*1,c4*1*1,c5*1*1,c6*1*1 from mt0 order by ts  desc limit 2')
-        tdSql.checkData(0,0,99)
-        tdSql.checkData(0,1,99.0)
-        tdSql.checkData(0,2,499.0)
-        tdSql.checkData(0,3,99.0)
-        tdSql.checkData(0,4,99.0)
-        tdSql.checkData(0,5,99.0)
-        tdSql.checkData(0,6,999.0)
+        print("test last with group by normal_col ")
+        tdSql.query('select last(c1) from mt0 group by c3')
+        tdSql.checkData(0,0,84)
+        tdSql.checkData(0,1,85)
+        
 
         
     def stop(self):

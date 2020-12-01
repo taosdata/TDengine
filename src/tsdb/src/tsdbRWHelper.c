@@ -917,6 +917,8 @@ static int tsdbInsertSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
     ASSERT(pHelper->pCompInfo->blocks[0].keyLast < pHelper->pCompInfo->blocks[1].keyFirst);
   }
 
+  ASSERT((blkIdx == pIdx->numOfBlocks -1) || (!pCompBlock->last));
+
   tsdbDebug("vgId:%d tid:%d a super block is inserted at index %d", REPO_ID(pHelper->pRepo), pHelper->tableInfo.tid,
             blkIdx);
 
@@ -1041,6 +1043,8 @@ static int tsdbUpdateSuperBlock(SRWHelper *pHelper, SCompBlock *pCompBlock, int 
 
   pIdx->maxKey = blockAtIdx(pHelper, pIdx->numOfBlocks - 1)->keyLast;
   pIdx->hasLast = (uint32_t)blockAtIdx(pHelper, pIdx->numOfBlocks - 1)->last;
+
+  ASSERT((blkIdx == pIdx->numOfBlocks-1) || (!pCompBlock->last));
 
   tsdbDebug("vgId:%d tid:%d a super block is updated at index %d", REPO_ID(pHelper->pRepo), pHelper->tableInfo.tid,
             blkIdx);
@@ -1622,11 +1626,7 @@ static int tsdbProcessMergeCommit(SRWHelper *pHelper, SCommitIter *pCommitIter, 
                                   pCfg->update);
 
         if (pDataCols->numOfRows == 0) break;
-        if (tblkIdx == pIdx->numOfBlocks - 1) {
-          if (tsdbWriteBlockToProperFile(pHelper, pDataCols, &compBlock) < 0) return -1;
-        } else {
-          if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, true) < 0) return -1;
-        }
+        if (tsdbWriteBlockToFile(pHelper, helperDataF(pHelper), pDataCols, &compBlock, false, true) < 0) return -1;
 
         if (round == 0) {
           if (oBlock.last && pHelper->hasOldLastBlock) pHelper->hasOldLastBlock = false;
