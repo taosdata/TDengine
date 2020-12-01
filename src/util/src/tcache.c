@@ -186,7 +186,7 @@ void *taosCachePut(int32_t cacheId, const void *key, size_t keyLen, const void *
   }
  
   // if key is already there, it means an update, remove the old
-  if (pNode) {  // treat it as expired
+  if (pNode && pNode->expired == 0) {  // treat it as expired
     pNode->expired = 1;
     taosCacheReleaseNode(pNode);
   }
