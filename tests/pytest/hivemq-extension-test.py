@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 ###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
@@ -55,6 +55,7 @@ def isHiveMQInstalled():
     defaultHiveMQPath = "/opt/hivemq*"
     hiveMQDir = glob.glob(defaultHiveMQPath)
     if (len(hiveMQDir) == 0):
+        v_print("%s", "ERROR: hivemq not found!")
         return False
     else:
         v_print("HiveMQ installed at %s", hiveMQDir[0])
