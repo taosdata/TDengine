@@ -125,6 +125,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          0, 0x030B, "Data expir
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         0, 0x030C, "Invalid query id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        0, 0x030D, "Invalid stream id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          0, 0x030E, "Invalid connection id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INIT,                     0, 0x030F, "Mnode is initializing")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INIT_SDB,                 0, 0x0310, "Mnode is initializing meta data, it takes a while if many tables exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INIT_OTHER,               0, 0x0311, "Mnode is initializing other data")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE,    0, 0x0320, "Object already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_ERROR,                0, 0x0321, "Unexpected generic error in sdb")
@@ -183,6 +186,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MONITOR_DB_FORBIDDEN,     0, 0x0384, "Cannot del
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       0, 0x0385, "Too many databases for account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           0, 0x0386, "Database not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         0, 0x0387, "Database unsynced")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   0, 0x0390, "Invalid database option: days out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   0, 0x0391, "Invalid database option: keep >= keep2 >= keep1 >= days")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        0, 0x0400, "Message not processed")
@@ -261,9 +267,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "Invalid Sy
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "Sync module not enabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_VERSION,          0, 0x0902, "Invalid Sync version")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_CONFIRM_EXPIRED,          0, 0x0903, "Sync confirm expired")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_VND_COMMITING,            0, 0x0904, "Vnode is commiting")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_FILE_CHNAGED,             0, 0x0905, "Vnode file is changed")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_APP_ERROR,                0, 0x1000, "Unexpected generic error in sync")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "Unexpected generic error in wal")

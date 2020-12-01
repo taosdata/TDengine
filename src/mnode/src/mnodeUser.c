@@ -585,10 +585,21 @@ void mnodeDropAllUsers(SAcctObj *pAcct)  {
 }
 
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  *secret = 0;
+
+  if (!mnodeIsRunning()) {
+    mDebug("user:%s, mnode is not running, fail to auth", user);
+    return TSDB_CODE_RPC_REDIRECT;
+  }
+
+  if (!mnodeIsReady()) {
+    mDebug("user:%s, failed to auth user, mnode is not ready", user);
+    return mnodeInitCode();
+  }
+
   if (!sdbIsMaster()) {
-    *secret = 0;
     mDebug("user:%s, failed to auth user, mnode is not master", user);
-    return TSDB_CODE_APP_NOT_READY;
+    return TSDB_CODE_RPC_REDIRECT;
   }
 
   SUserObj *pUser = mnodeGetUser(user);
