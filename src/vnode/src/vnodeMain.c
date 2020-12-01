@@ -41,7 +41,7 @@ static void     vnodeCtrlFlow(int32_t vgId, int32_t level);
 static int32_t  vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion);
 static void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 static int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
-static int32_t  vnodeGetFileVersion(int32_t vgId, uint64_t *fver);
+static int32_t  vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver);
 
 int32_t vnodeInitResources() {
   int32_t code = syncInit();
@@ -334,7 +334,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.notifyRole = vnodeNotifyRole;
   syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
   syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
-  syncInfo.getFileVersion = vnodeGetFileVersion;
+  syncInfo.getVersion = vnodeGetVersion;
   pVnode->sync = syncStart(&syncInfo);
 
   if (pVnode->sync <= 0) {
@@ -748,7 +748,7 @@ static int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void
   return code;
 }
 
-static int32_t vnodeGetFileVersion(int32_t vgId, uint64_t *fver) {
+static int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while write to cache", vgId);
@@ -757,10 +757,11 @@ static int32_t vnodeGetFileVersion(int32_t vgId, uint64_t *fver) {
 
   int32_t code = 0;
   if (pVnode->isCommiting) {
-    vDebug("vgId:%d, vnode is commiting while get file version", vgId);
+    vDebug("vgId:%d, vnode is commiting while get version", vgId);
     code = -1;
   } else {
     *fver = pVnode->fversion;
+    *wver = pVnode->version;
   }
 
   vnodeRelease(pVnode);

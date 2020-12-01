@@ -251,6 +251,16 @@ static void sdbNotifyRole(int32_t vgId, int8_t role) {
   sdbUpdateMnodeRoles();
 }
 
+static int32_t sdbNotifyFileSynced(int32_t vgId, uint64_t fversion) { return 0; }
+
+static void sdbNotifyFlowCtrl(int32_t vgId, int32_t level) {}
+
+static int32_t sdbGetSyncVersion(int32_t vgId, uint64_t *fver, uint64_t *vver) {
+  *fver = 0;
+  *vver = 0;
+  return 0;
+}
+
 // failed to forward, need revert insert
 static void sdbHandleFailedConfirm(SSdbRow *pRow) {
   SWalHead *pHead = pRow->pHead;
@@ -299,7 +309,7 @@ void sdbUpdateAsync() {
 
 void sdbUpdateSync(void *pMnodes) {
   SMnodeInfos *mnodes = pMnodes;
-  if (!mnodeIsRunning()) {
+  if (!mnodeIsReady()) {
     mDebug("vgId:1, mnode not start yet, update sync config later");
     return;
   }
@@ -372,11 +382,14 @@ void sdbUpdateSync(void *pMnodes) {
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
   sprintf(syncInfo.path, "%s", tsMnodeDir);
-  syncInfo.getWalInfo = sdbGetWalInfo;
   syncInfo.getFileInfo = sdbGetFileInfo;
+  syncInfo.getWalInfo = sdbGetWalInfo;
   syncInfo.writeToCache = sdbWriteFwdToQueue;
   syncInfo.confirmForward = sdbConfirmForward;
   syncInfo.notifyRole = sdbNotifyRole;
+  syncInfo.notifyFileSynced = sdbNotifyFileSynced;
+  syncInfo.notifyFlowCtrl = sdbNotifyFlowCtrl;
+  syncInfo.getVersion = sdbGetSyncVersion;
   tsSdbMgmt.cfg = syncCfg;
 
   if (tsSdbMgmt.sync) {

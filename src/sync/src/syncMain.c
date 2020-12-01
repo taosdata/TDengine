@@ -196,7 +196,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->confirmForward = pInfo->confirmForward;
   pNode->notifyFlowCtrl = pInfo->notifyFlowCtrl;
   pNode->notifyFileSynced = pInfo->notifyFileSynced;
-  pNode->getFileVersion = pInfo->getFileVersion;
+  pNode->getVersion = pInfo->getVersion;
 
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
@@ -498,7 +498,6 @@ int32_t syncDecPeerRef(SSyncPeer *pPeer) {
     taosReleaseRef(tsSyncRefId, pPeer->pSyncNode->rid);
 
     sDebug("%s, resource is freed", pPeer->id);
-    tfree(pPeer->watchFd);
     tfree(pPeer);
     return 0;
   }
