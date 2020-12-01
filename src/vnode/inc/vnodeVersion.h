@@ -19,6 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "vnodeInt.h"
 
 int32_t vnodeReadVersion(SVnodeObj *pVnode);
 int32_t vnodeSaveVersion(SVnodeObj *pVnode);

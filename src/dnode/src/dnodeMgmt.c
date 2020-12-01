@@ -84,7 +84,7 @@ int32_t dnodeInitMgmt() {
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP,  dnodeProcessStatusRsp);
   tsRebootTime = taosGetTimestampSec();
 
-  int32_t code = vnodeInitResources();
+  int32_t code = vnodeInitMgmt();
   if (code != TSDB_CODE_SUCCESS) {
     dnodeCleanupMgmt();
     return -1;
@@ -174,7 +174,7 @@ void dnodeCleanupMgmt() {
   tsMgmtQset = NULL;
   tsMgmtQueue = NULL;
 
-  vnodeCleanupResources();
+  vnodeCleanupMgmt();
 }
 
 static int32_t dnodeWriteToMgmtQueue(SRpcMsg *pMsg) {

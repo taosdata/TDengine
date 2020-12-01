@@ -15,11 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
 #include "cJSON.h"
 #include "tglobal.h"
-#include "tsdb.h"
-#include "vnodeInt.h"
 #include "vnodeVersion.h"
 
 int32_t vnodeReadVersion(SVnodeObj *pVnode) {

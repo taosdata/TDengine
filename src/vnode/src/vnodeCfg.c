@@ -15,13 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "taoserror.h"
 #include "cJSON.h"
 #include "tglobal.h"
-#include "tsdb.h"
 #include "dnode.h"
-#include "vnodeInt.h"
 #include "vnodeCfg.h"
 
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {

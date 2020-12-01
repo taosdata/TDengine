@@ -13,35 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_STATUS_H
-#define TDENGINE_VNODE_STATUS_H
+#ifndef TDENGINE_TSTEP_H
+#define TDENGINE_TSTEP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-typedef enum _VN_STATUS {
-  TAOS_VN_STATUS_INIT = 0,
-  TAOS_VN_STATUS_READY = 1,
-  TAOS_VN_STATUS_CLOSING = 2,
-  TAOS_VN_STATUS_UPDATING = 3,
-  TAOS_VN_STATUS_RESET = 4,
-} EVnodeStatus;
+typedef struct {
+  const char *const name;
+  int32_t (*initFp)();
+  void (*cleanupFp)();
+  int32_t step;
+} SStep;
 
-bool vnodeSetInitStatus(SVnodeObj* pVnode);
-bool vnodeSetReadyStatus(SVnodeObj* pVnode);
-bool vnodeSetClosingStatus(SVnodeObj* pVnode);
-bool vnodeSetUpdatingStatus(SVnodeObj* pVnode);
-bool vnodeSetResetStatus(SVnodeObj* pVnode);
-
-bool vnodeInInitStatus(SVnodeObj* pVnode);
-bool vnodeInReadyStatus(SVnodeObj* pVnode);
-bool vnodeInClosingStatus(SVnodeObj* pVnode);
-bool vnodeInResetStatus(SVnodeObj* pVnode);
+int32_t taosStepInit(SStep *pSteps, int32_t stepSize);
+void    taosStepCleanup(SStep *pSteps, int32_t stepSize);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // TDENGINE_TUTIL_H

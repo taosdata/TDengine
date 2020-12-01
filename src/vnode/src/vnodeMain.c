@@ -18,56 +18,17 @@
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "tglobal.h"
-#include "trpc.h"
-#include "tutil.h"
-#include "vnode.h"
-#include "vnodeInt.h"
+#include "tfs.h"
+#include "query.h"
+#include "dnode.h"
 #include "vnodeCfg.h"
 #include "vnodeStatus.h"
 #include "vnodeSync.h"
 #include "vnodeVersion.h"
-#include "query.h"
-#include "dnode.h"
-#include "dnodeVWrite.h"
-#include "dnodeVRead.h"
-#include "tfs.h"
+#include "vnodeMgmt.h"
 
-static SHashObj*tsVnodesHash;
-static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int32_t  vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
-
-int32_t vnodeInitResources() {
-  int32_t code = syncInit();
-  if (code != 0) return code;
-
-  vnodeInitWriteFp();
-  vnodeInitReadFp();
-
-  tsVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-  if (tsVnodesHash == NULL) {
-    vError("failed to init vnode list");
-    return TSDB_CODE_VND_OUT_OF_MEMORY;
-  }
-
-  if (tsdbInitCommitQueue(tsNumOfCommitThreads) < 0) {
-    vError("failed to init vnode commit queue");
-    return terrno;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-void vnodeCleanupResources() {
-  tsdbDestroyCommitQueue();
-
-  if (tsVnodesHash != NULL) {
-    vDebug("vnode list is cleanup");
-    taosHashCleanup(tsVnodesHash);
-    tsVnodesHash = NULL;
-  }
-
-  syncCleanUp();
-}
+static void    vnodeCleanUp(SVnodeObj *pVnode);
+static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
 
 int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
@@ -313,8 +274,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
   tsdbIncCommitRef(pVnode->vgId);
 
-  taosHashPut(tsVnodesHash, &pVnode->vgId, sizeof(int32_t), &pVnode, sizeof(SVnodeObj *));
-
+  vnodeAddIntoHash(pVnode);
+  
   SSyncInfo syncInfo;
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
@@ -353,25 +314,10 @@ int32_t vnodeClose(int32_t vgId) {
   return 0;
 }
 
-void vnodeRelease(void *vparam) {
-  if (vparam == NULL) return;
-  SVnodeObj *pVnode = vparam;
-  int32_t    code = 0;
-  int32_t    vgId = pVnode->vgId;
-
-  int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, release vnode, refCount:%d pVnode:%p", vgId, refCount, pVnode);
-  assert(refCount >= 0);
-
-  if (refCount > 0) {
-    if (vnodeInResetStatus(pVnode) && refCount <= 3) {
-      tsem_post(&pVnode->sem);
-    }
-    return;
-  }
-
-  vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", vgId, refCount, pVnode);
-
+void vnodeDestroy(SVnodeObj *pVnode) {
+  int32_t code = 0;
+  int32_t vgId = pVnode->vgId;
+  
   if (pVnode->qMgmt) {
     qCleanupQueryMgmt(pVnode->qMgmt);
     pVnode->qMgmt = NULL;
@@ -436,113 +382,11 @@ void vnodeRelease(void *vparam) {
   pthread_mutex_destroy(&pVnode->statusMutex);
   free(pVnode);
   tsdbDecCommitRef(vgId);
-
-  int32_t count = taosHashGetSize(tsVnodesHash);
-  vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);
-}
-
-static void vnodeIncRef(void *ptNode) {
-  assert(ptNode != NULL);
-
-  SVnodeObj **ppVnode = (SVnodeObj **)ptNode;
-  assert(ppVnode);
-  assert(*ppVnode);
-
-  SVnodeObj *pVnode = *ppVnode;
-  atomic_add_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, get vnode, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
-}
-
-void *vnodeAcquire(int32_t vgId) {
-  SVnodeObj **ppVnode = taosHashGetCB(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
-
-  if (ppVnode == NULL || *ppVnode == NULL) {
-    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
-    vDebug("vgId:%d, not exist", vgId);
-    return NULL;
-  }
-
-  return *ppVnode;
-}
-
-void *vnodeGetWal(void *pVnode) {
-  return ((SVnodeObj *)pVnode)->wal;
-}
-
-static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
-  int64_t totalStorage = 0;
-  int64_t compStorage = 0;
-  int64_t pointsWritten = 0;
-
-  if (!vnodeInReadyStatus(pVnode)) return;
-  if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
-
-  if (pVnode->tsdb) {
-    tsdbReportStat(pVnode->tsdb, &pointsWritten, &totalStorage, &compStorage);
-  }
-
-  SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
-  pLoad->vgId = htonl(pVnode->vgId);
-  pLoad->cfgVersion = htonl(pVnode->cfgVersion);
-  pLoad->totalStorage = htobe64(totalStorage);
-  pLoad->compStorage = htobe64(compStorage);
-  pLoad->pointsWritten = htobe64(pointsWritten);
-  pLoad->status = pVnode->status;
-  pLoad->role = pVnode->role;
-  pLoad->replica = pVnode->syncCfg.replica;  
-}
-
-int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
-  void *pIter = taosHashIterate(tsVnodesHash, NULL);
-  while (pIter) {
-    SVnodeObj **pVnode = pIter;
-    if (*pVnode) {
-
-    (*numOfVnodes)++;
-    if (*numOfVnodes >= TSDB_MAX_VNODES) {
-      vError("vgId:%d, too many open vnodes, exist:%d max:%d", (*pVnode)->vgId, *numOfVnodes, TSDB_MAX_VNODES);
-      continue;
-    } else {
-      vnodeList[*numOfVnodes - 1] = (*pVnode)->vgId;
-    }
-
-    }
-
-    pIter = taosHashIterate(tsVnodesHash, pIter);    
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-void vnodeBuildStatusMsg(void *param) {
-  SStatusMsg *pStatus = param;
-
-  void *pIter = taosHashIterate(tsVnodesHash, NULL);
-  while (pIter) {
-    SVnodeObj **pVnode = pIter;
-    if (*pVnode) {
-      vnodeBuildVloadMsg(*pVnode, pStatus);
-    }
-    pIter = taosHashIterate(tsVnodesHash, pIter);
-  }
-}
-
-void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    pAccess[i].vgId = htonl(pAccess[i].vgId);
-    SVnodeObj *pVnode = vnodeAcquire(pAccess[i].vgId);
-    if (pVnode != NULL) {
-      pVnode->accessState = pAccess[i].accessState;
-      if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {
-        vDebug("vgId:%d, access state is set to %d", pAccess[i].vgId, pVnode->accessState);
-      }
-      vnodeRelease(pVnode);
-    }
-  }
 }
 
 static void vnodeCleanUp(SVnodeObj *pVnode) {
   // remove from hash, so new messages wont be consumed
-  taosHashRemove(tsVnodesHash, &pVnode->vgId, sizeof(int32_t));
+  vnodeRemoveFromHash(pVnode);
 
   if (!vnodeInInitStatus(pVnode)) {
     // it may be in updateing or reset state, then it shall wait
@@ -602,8 +446,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   return 0;
 }
 
-
-int32_t vnodeResetTsdb(SVnodeObj *pVnode) {
+int32_t vnodeReset(SVnodeObj *pVnode) {
   char rootDir[128] = "\0";
   sprintf(rootDir, "vnode/vnode%d/tsdb", pVnode->vgId);
 

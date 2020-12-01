@@ -15,9 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "vnode.h"
-#include "vnodeInt.h"
 #include "vnodeStatus.h"
 
 char* vnodeStatus[] = {

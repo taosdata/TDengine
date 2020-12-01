@@ -15,21 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
 #include "taosmsg.h"
-#include "tglobal.h"
-#include "trpc.h"
-#include "tutil.h"
-#include "vnode.h"
-#include "vnodeInt.h"
-#include "vnodeCfg.h"
-#include "vnodeStatus.h"
-#include "vnodeVersion.h"
 #include "query.h"
 #include "dnode.h"
-#include "dnodeVWrite.h"
-#include "dnodeVRead.h"
-#include "tfs.h"
+#include "vnodeVersion.h"
+#include "vnodeMain.h"
 
 uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fver) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
@@ -105,7 +95,7 @@ int32_t vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion) {
   vnodeSaveVersion(pVnode);
 
   vDebug("vgId:%d, data file is synced, fver:%" PRIu64 " vver:%" PRIu64, vgId, fversion, fversion);
-  int32_t code = vnodeResetTsdb(pVnode);
+  int32_t code = vnodeReset(pVnode);
 
   vnodeRelease(pVnode);
   return code;
@@ -153,4 +143,9 @@ int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
 
   vnodeRelease(pVnode);
   return code;
+}
+
+void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code) {
+  SVnodeObj *pVnode = vparam;
+  syncConfirmForward(pVnode->sync, version, code);
 }

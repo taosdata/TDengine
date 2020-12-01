@@ -19,18 +19,9 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "tqueue.h"
-#include "trpc.h"
-#include "tsdb.h"
-#include "twal.h"
-#include "tsync.h"
 #include "ttimer.h"
-#include "tdataformat.h"
-#include "vnode.h"
-#include "vnodeInt.h"
-#include "vnodeStatus.h"
-#include "syncInt.h"
-#include "tcq.h"
 #include "dnode.h"
+#include "vnodeStatus.h"
 
 #define MAX_QUEUED_MSG_NUM 10000
 
@@ -44,14 +35,18 @@ static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
 
-void vnodeInitWriteFp(void) {
+int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = vnodeProcessCreateTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = vnodeProcessDropTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = vnodeProcessAlterTableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = vnodeProcessDropStableMsg;
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL]  = vnodeProcessUpdateTagValMsg;
+
+  return 0;
 }
+
+void vnodeCleanupWrite() {}
 
 int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam) {
   int32_t    code = 0;
@@ -131,11 +126,6 @@ static int32_t vnodeCheckWrite(void *vparam) {
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code) {
-  SVnodeObj *pVnode = vparam;
-  syncConfirmForward(pVnode->sync, version, code);
 }
 
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {

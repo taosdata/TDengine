@@ -13,24 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_SYNC_H
-#define TDENGINE_VNODE_SYNC_H
+#ifndef TDENGINE_VNODE_WRITE_H
+#define TDENGINE_VNODE_WRITE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fver);
-int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
-void     vnodeNotifyRole(int32_t vgId, int8_t role);
-void     vnodeCtrlFlow(int32_t vgId, int32_t level);
-int32_t  vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion);
-void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
-int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
-int32_t  vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver);
+int32_t vnodeInitWrite(void);
+void    vnodeCleanupWrite(void);
 
-void     vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code);
+int32_t vnodeWriteToWQueue(void *pVnode, void *pHead, int32_t qtype, void *pRpcMsg);
+void    vnodeFreeFromWQueue(void *pVnode, SVWriteMsg *pWrite);
+int32_t vnodeProcessWrite(void *pVnode, void *pHead, int32_t qtype, void *pRspRet);
 
 #ifdef __cplusplus
 }
