@@ -69,7 +69,7 @@ typedef struct STableCheckInfo {
   STableId      tableId;
   TSKEY         lastKey;
   STable*       pTableObj;
-  SCompInfo*    pCompInfo;
+  SBlockInfo*    pCompInfo;
   int32_t       compSize;
   int32_t       numOfBlocks:29; // number of qualified data blocks not the original blocks
   int8_t        chosen:2;       // indicate which iterator should move forward
@@ -79,7 +79,7 @@ typedef struct STableCheckInfo {
 } STableCheckInfo;
 
 typedef struct STableBlockInfo {
-  SCompBlock*        compBlock;
+  SBlock*        compBlock;
   STableCheckInfo*   pTableCheckInfo;
 } STableBlockInfo;
 
@@ -136,7 +136,7 @@ typedef struct STableGroupSupporter {
 static STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
-static void    doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock);
+static void    doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 static int     tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win,
                                      STsdbQueryHandle* pQueryHandle);
@@ -669,7 +669,7 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   return (int32_t)fid;
 }
 
-static int32_t binarySearchForBlock(SCompBlock* pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order) {
+static int32_t binarySearchForBlock(SBlock* pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order) {
   int32_t firstSlot = 0;
   int32_t lastSlot = numOfBlocks - 1;
 
@@ -712,7 +712,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
       break;
     }
 
-    SCompIdx* compIndex = &pQueryHandle->rhelper.curCompIdx;
+    SBlockIdx* compIndex = &pQueryHandle->rhelper.curCompIdx;
 
     // no data block in this file, try next file
     if (compIndex->len == 0 || compIndex->numOfBlocks == 0 || compIndex->uid != pCheckInfo->tableId.uid) {
@@ -729,12 +729,12 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
         break;
       }
 
-      pCheckInfo->pCompInfo = (SCompInfo*) t;
+      pCheckInfo->pCompInfo = (SBlockInfo*) t;
       pCheckInfo->compSize = compIndex->len;
     }
 
     tsdbLoadCompInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
-    SCompInfo* pCompInfo = pCheckInfo->pCompInfo;
+    SBlockInfo* pCompInfo = pCheckInfo->pCompInfo;
 
     TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
 
@@ -763,7 +763,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
     pCheckInfo->numOfBlocks = (end - start);
 
     if (start > 0) {
-      memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SCompBlock));
+      memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SBlock));
     }
 
     (*numOfBlocks) += pCheckInfo->numOfBlocks;
@@ -772,7 +772,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   return code;
 }
 
-static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo, int32_t slotIndex) {
+static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo, int32_t slotIndex) {
   int64_t st = taosGetTimestampUs();
 
   STSchema *pSchema = tsdbGetTableSchema(pCheckInfo->pTableObj);
@@ -838,7 +838,7 @@ static void moveDataToFront(STsdbQueryHandle* pQueryHandle, int32_t numOfRows, i
 static void doCheckGeneratedBlockRange(STsdbQueryHandle* pQueryHandle);
 static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SDataBlockInfo* pBlockInfo, int32_t endPos);
 
-static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo){
+static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo){
   SQueryFilePos* cur = &pQueryHandle->cur;
   STsdbCfg*      pCfg = &pQueryHandle->pTsdb->config;
   SDataBlockInfo binfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
@@ -921,7 +921,7 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SCompBloc
   return code;
 }
 
-static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBlock, STableCheckInfo* pCheckInfo, bool* exists) {
+static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo, bool* exists) {
   SQueryFilePos* cur = &pQueryHandle->cur;
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1327,7 +1327,7 @@ int32_t getEndPosInDataBlock(STsdbQueryHandle* pQueryHandle, SDataBlockInfo* pBl
 
 // only return the qualified data to client in terms of query time window, data rows in the same block but do not
 // be included in the query time window will be discarded
-static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock) {
+static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock) {
   SQueryFilePos* cur = &pQueryHandle->cur;
   SDataBlockInfo blockInfo = GET_FILE_DATA_BLOCK_INFO(pCheckInfo, pBlock);
   STsdbCfg*      pCfg = &pQueryHandle->pTsdb->config;
@@ -1626,7 +1626,7 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
       continue;
     }
 
-    SCompBlock* pBlock = pTableCheck->pCompInfo->blocks;
+    SBlock* pBlock = pTableCheck->pCompInfo->blocks;
     sup.numOfBlocksPerTable[numOfQualTables] = pTableCheck->numOfBlocks;
 
     char* buf = calloc(1, sizeof(STableBlockInfo) * pTableCheck->numOfBlocks);
@@ -2316,7 +2316,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
           pBlockLoadInfo->tid == pCheckInfo->pTableObj->tableId.tid) {
         return pHandle->pColumns;
       } else {  // only load the file block
-        SCompBlock* pBlock = pBlockInfo->compBlock;
+        SBlock* pBlock = pBlockInfo->compBlock;
         if (doLoadFileDataBlock(pHandle, pBlock, pCheckInfo, pHandle->cur.slot) != TSDB_CODE_SUCCESS) {
           return NULL;
         }
