@@ -196,6 +196,7 @@ static int32_t flushFromResultBuf(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
 static int32_t checkForQueryBuf(size_t numOfTables);
 static void releaseQueryBuf(size_t numOfTables);
 static int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order);
+static void doRowwiseTimeWindowInterpolation(SQueryRuntimeEnv* pRuntimeEnv, SArray* pDataBlock, TSKEY prevTs, int32_t prevRowIndex, TSKEY curTs, int32_t curRowIndex, TSKEY windowKey, int32_t type);
 
 bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
@@ -660,7 +661,7 @@ static void setResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
   }
 }
 
-static bool isResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
+static bool resultRowInterpolated(SResultRow* pResult, SResultTsInterpType type) {
   assert(pResult != NULL && (type == RESULT_ROW_START_INTERP || type == RESULT_ROW_END_INTERP));
   if (type == RESULT_ROW_START_INTERP) {
     return pResult->startInterp == true;
@@ -989,7 +990,7 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
   if (functionId == TSDB_FUNC_ARITHM) {
     sas->pArithExpr = &pQuery->pExpr1[col];
 
-    sas->offset    = (QUERY_IS_ASC_QUERY(pQuery)) ? pQuery->pos : pQuery->pos - (size - 1);
+    sas->offset    = (QUERY_IS_ASC_QUERY(pQuery))? pQuery->pos : pQuery->pos - (size - 1);
     sas->colList   = pQuery->colList;
     sas->numOfCols = pQuery->numOfCols;
     sas->data      = calloc(pQuery->numOfCols, POINTER_BYTES);
@@ -1032,85 +1033,89 @@ static char *getDataBlock(SQueryRuntimeEnv *pRuntimeEnv, SArithmeticSupport *sas
   return dataBlock;
 }
 
-// window start key interpolation
-static bool setTimeWindowInterpolationStartTs(SQueryRuntimeEnv* pRuntimeEnv, int32_t pos, SArray* pDataBlock, TSKEY* tsCols, STimeWindow* win) {
-  SQuery* pQuery = pRuntimeEnv->pQuery;
-
-  TSKEY start  = tsCols[pos];
-  TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
-  TSKEY prevTs = (pos == 0)? lastTs : tsCols[pos - 1];
-
-  // if lastTs == INT64_MIN, it is the first block, no need to do the start time interpolation
-  if (((lastTs != INT64_MIN && pos >= 0) || (lastTs == INT64_MIN && pos > 0)) && win->skey > lastTs &&
-       win->skey < start) {
-
-    for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
-      SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, k);
-      if (k == 0 && pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-        assert(pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-        continue;
-      }
-
-      double v1 = 0, v2 = 0, v = 0;
-
-      char *prevVal = pos == 0 ? pRuntimeEnv->prevRow[k] : ((char*)pColInfo->pData) + (pos - 1) * pColInfo->info.bytes;
-
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)prevVal);
-      GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + pos * pColInfo->info.bytes);
-
-      SPoint point1 = (SPoint){.key = prevTs, .val = &v1};
-      SPoint point2 = (SPoint){.key = start, .val = &v2};
-      SPoint point  = (SPoint){.key = win->skey, .val = &v};
-      taosGetLinearInterpolationVal(TSDB_DATA_TYPE_DOUBLE, &point1, &point2, &point);
-      pRuntimeEnv->pCtx[k].start.key = point.key;
-      pRuntimeEnv->pCtx[k].start.val = v;
+static void setNotInterpoWindowKey(SQLFunctionCtx* pCtx, int32_t numOfOutput, int32_t type) {
+  if (type == RESULT_ROW_START_INTERP) {
+    for (int32_t k = 0; k < numOfOutput; ++k) {
+      pCtx[k].start.key = INT64_MIN;
     }
-
-    return true;
   } else {
-    for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
-      pRuntimeEnv->pCtx[k].start.key = INT64_MIN;
+    for (int32_t k = 0; k < numOfOutput; ++k) {
+      pCtx[k].end.key = INT64_MIN;
     }
-
-    return false;
   }
 }
 
-static bool setTimeWindowInterpolationEndTs(SQueryRuntimeEnv* pRuntimeEnv, int32_t pos, SArray* pDataBlock, TSKEY* tsCols, TSKEY ekey, STimeWindow* win) {
+//static double getTSWindowInterpoVal(SColumnInfoData* pColInfo, int16_t srcColIndex, int16_t rowIndex, TSKEY key, char** prevRow, TSKEY* tsCols, int32_t step) {
+//  TSKEY start  = tsCols[rowIndex];
+//  TSKEY prevTs = (rowIndex == 0)? *(TSKEY *) prevRow[0] : tsCols[rowIndex - step];
+//
+//  double v1 = 0, v2 = 0, v = 0;
+//  char *prevVal = (rowIndex == 0)? prevRow[srcColIndex] : ((char*)pColInfo->pData) + (rowIndex - step) * pColInfo->info.bytes;
+//
+//  GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)prevVal);
+//  GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + rowIndex * pColInfo->info.bytes);
+//
+//  SPoint point1 = (SPoint){.key = prevTs, .val = &v1};
+//  SPoint point2 = (SPoint){.key = start,  .val = &v2};
+//  SPoint point  = (SPoint){.key = key,    .val = &v};
+//  taosGetLinearInterpolationVal(TSDB_DATA_TYPE_DOUBLE, &point1, &point2, &point);
+//
+//  return v;
+//}
+
+// window start key interpolation
+static bool setTimeWindowInterpolationStartTs(SQueryRuntimeEnv* pRuntimeEnv, int32_t pos, int32_t numOfRows, SArray* pDataBlock, TSKEY* tsCols, STimeWindow* win) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
-  TSKEY   trueEndKey = tsCols[pos];
 
-  if (win->ekey < ekey && win->ekey != trueEndKey) {
-    int32_t nextIndex = pos + 1;
-    TSKEY   next = tsCols[nextIndex];
+  TSKEY curTs  = tsCols[pos];
+  TSKEY lastTs = *(TSKEY *) pRuntimeEnv->prevRow[0];
 
-    for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
-      SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, k);
-      if (k == 0 && pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP &&
-          pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-        continue;
-      }
-
-      double v1 = 0, v2 = 0, v = 0;
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pColInfo->pData + pos * pColInfo->info.bytes);
-      GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + nextIndex * pColInfo->info.bytes);
-
-      SPoint point1 = (SPoint){.key = trueEndKey, .val = &v1};
-      SPoint point2 = (SPoint){.key = next, .val = &v2};
-      SPoint point  = (SPoint){.key = win->ekey, .val = &v};
-      taosGetLinearInterpolationVal(TSDB_DATA_TYPE_DOUBLE, &point1, &point2, &point);
-      pRuntimeEnv->pCtx[k].end.key = point.key;
-      pRuntimeEnv->pCtx[k].end.val = v;
-    }
-
+  // lastTs == INT64_MIN and pos == 0 means this is the first time window, interpolation is not needed.
+  // start exactly from this point, no need to do interpolation
+  TSKEY key = QUERY_IS_ASC_QUERY(pQuery)? win->skey:win->ekey;
+  if (key == curTs) {
+    setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_START_INTERP);
     return true;
-  } else {  // current time window does not ended in current data block, do nothing
-    for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
-      pRuntimeEnv->pCtx[k].end.key = INT64_MIN;
-    }
+  }
 
+  if (lastTs == INT64_MIN && ((pos == 0 && QUERY_IS_ASC_QUERY(pQuery)) || (pos == (numOfRows - 1) && !QUERY_IS_ASC_QUERY(pQuery)))) {
+    setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_START_INTERP);
+    return true;
+  }
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+  TSKEY   prevTs = ((pos == 0 && QUERY_IS_ASC_QUERY(pQuery)) || (pos == (numOfRows - 1) && !QUERY_IS_ASC_QUERY(pQuery)))?
+      lastTs:tsCols[pos - step];
+
+  doRowwiseTimeWindowInterpolation(pRuntimeEnv, pDataBlock, prevTs, pos - step, curTs, pos, key, RESULT_ROW_START_INTERP);
+  return true;
+}
+
+static bool setTimeWindowInterpolationEndTs(SQueryRuntimeEnv* pRuntimeEnv, int32_t endRowIndex, SArray* pDataBlock, TSKEY* tsCols, TSKEY blockEkey, STimeWindow* win) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  TSKEY   actualEndKey = tsCols[endRowIndex];
+
+  TSKEY key = QUERY_IS_ASC_QUERY(pQuery)? win->ekey:win->skey;
+
+  // not ended in current data block, do not invoke interpolation
+  if ((key > blockEkey && QUERY_IS_ASC_QUERY(pQuery)) || (key < blockEkey && !QUERY_IS_ASC_QUERY(pQuery))) {
+    setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_END_INTERP);
     return false;
   }
+
+  // there is actual end point of current time window, no interpolation need
+  if (key == actualEndKey) {
+    setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_END_INTERP);
+    return true;
+  }
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+  int32_t nextRowIndex = endRowIndex + step;
+  assert(nextRowIndex >= 0);
+
+  TSKEY nextKey = tsCols[nextRowIndex];
+  doRowwiseTimeWindowInterpolation(pRuntimeEnv, pDataBlock, actualEndKey, endRowIndex, nextKey, nextRowIndex, key, RESULT_ROW_END_INTERP);
+  return true;
 }
 
 static void saveDataBlockLastRow(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pDataBlockInfo, SArray* pDataBlock) {
@@ -1119,10 +1124,10 @@ static void saveDataBlockLastRow(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* 
   }
 
   SQuery* pQuery = pRuntimeEnv->pQuery;
+  int32_t rowIndex = QUERY_IS_ASC_QUERY(pQuery)? pDataBlockInfo->rows-1:0;
   for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, k);
-    memcpy(pRuntimeEnv->prevRow[k], ((char*)pColInfo->pData) + (pColInfo->info.bytes * (pDataBlockInfo->rows - 1)),
-           pColInfo->info.bytes);
+    memcpy(pRuntimeEnv->prevRow[k], ((char*)pColInfo->pData) + (pColInfo->info.bytes * rowIndex), pColInfo->info.bytes);
   }
 }
 
@@ -1174,11 +1179,13 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
   if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+    int32_t prevIndex = curTimeWindowIndex(pWindowResInfo);
+
     TSKEY ts = getStartTsKey(pQuery, pDataBlockInfo, tsCols, step);
+    STimeWindow win = getActiveTimeWindow(pWindowResInfo, ts, pQuery);
 
     bool hasTimeWindow  = false;
     SResultRow* pResult = NULL;
-    STimeWindow win = getActiveTimeWindow(pWindowResInfo, ts, pQuery);
     int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo, &win, masterScan, &hasTimeWindow, &pResult);
     if (ret != TSDB_CODE_SUCCESS) {
       tfree(sasArray);
@@ -1193,20 +1200,47 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
       TSKEY ekey = reviseWindowEkey(pQuery, &win);
       forwardStep = getNumOfRowsInTimeWindow(pQuery, pDataBlockInfo, tsCols, pQuery->pos, ekey, searchFn, true);
 
+      // prev time window not interpolation yet.
+      int32_t curIndex = curTimeWindowIndex(pWindowResInfo);
+      if (prevIndex != -1 && prevIndex < curIndex) {
+        for(int32_t j = prevIndex; j < curIndex; ++j) {
+          SResultRow *pRes = pWindowResInfo->pResult[j];
+
+          STimeWindow w = pRes->win;
+          ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo, &w, masterScan, &hasTimeWindow, &pResult);
+          assert(ret == TSDB_CODE_SUCCESS && !resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
+
+          int32_t p = QUERY_IS_ASC_QUERY(pQuery)? 0:pDataBlockInfo->rows-1;
+          doRowwiseTimeWindowInterpolation(pRuntimeEnv, pDataBlock, *(TSKEY*) pRuntimeEnv->prevRow[0], -1,  tsCols[0], p, w.ekey, RESULT_ROW_END_INTERP);
+          setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
+          setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfOutput, RESULT_ROW_START_INTERP);
+
+          bool closed = getResultRowStatus(pWindowResInfo, curTimeWindowIndex(pWindowResInfo));
+          doBlockwiseApplyFunctions(pRuntimeEnv, closed, &w, startPos, 0, tsCols, pDataBlockInfo->rows);
+        }
+
+        // restore current time window
+        ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo, &win, masterScan, &hasTimeWindow, &pResult);
+        assert (ret == TSDB_CODE_SUCCESS);  // null data, too many state code
+      }
+
       // window start key interpolation
       if (pRuntimeEnv->timeWindowInterpo) {
-        bool alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
-        if (!alreadyInterp) {
-          bool interp = setTimeWindowInterpolationStartTs(pRuntimeEnv, pQuery->pos, pDataBlock, tsCols, &win);
+        bool done = resultRowInterpolated(pResult, RESULT_ROW_START_INTERP);
+        if (!done) {
+          int32_t startRowIndex = pQuery->pos;
+          bool    interp = setTimeWindowInterpolationStartTs(pRuntimeEnv, startRowIndex, pDataBlockInfo->rows, pDataBlock, tsCols, &win);
           if (interp) {
             setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
           }
         }
 
-        alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-        if (!alreadyInterp) {
-          bool interp = setTimeWindowInterpolationEndTs(pRuntimeEnv, pQuery->pos + forwardStep - 1, pDataBlock, tsCols,
-                                                   pDataBlockInfo->window.ekey, &win);
+        done = resultRowInterpolated(pResult, RESULT_ROW_END_INTERP);
+        if (!done) {
+          int32_t endRowIndex = pQuery->pos + (forwardStep - 1) * step;
+
+          TSKEY endKey = QUERY_IS_ASC_QUERY(pQuery)? pDataBlockInfo->window.ekey:pDataBlockInfo->window.skey;
+          bool  interp = setTimeWindowInterpolationEndTs(pRuntimeEnv, endRowIndex, pDataBlock, tsCols, endKey, &win);
           if (interp) {
             setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
           }
@@ -1243,17 +1277,20 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
 
       // window start(end) key interpolation
       if (pRuntimeEnv->timeWindowInterpo) {
-        bool alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
-        if (!alreadyInterp) {
-          bool interp = setTimeWindowInterpolationStartTs(pRuntimeEnv, startPos, pDataBlock, tsCols, &nextWin);
+        bool done = resultRowInterpolated(pResult, RESULT_ROW_START_INTERP);
+        if (!done) {
+          int32_t startRowIndex = startPos;
+          bool    interp = setTimeWindowInterpolationStartTs(pRuntimeEnv, startRowIndex, pDataBlockInfo->rows, pDataBlock, tsCols, &nextWin);
           if (interp) {
             setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
           }
         }
 
-        alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-        if (!alreadyInterp) {
-          bool interp = setTimeWindowInterpolationEndTs(pRuntimeEnv, startPos + forwardStep - 1, pDataBlock, tsCols, pDataBlockInfo->window.ekey, &nextWin);
+        done = resultRowInterpolated(pResult, RESULT_ROW_END_INTERP);
+        if (!done) {
+          int32_t endRowIndex = startPos + (forwardStep - 1)*step;
+          TSKEY endKey = QUERY_IS_ASC_QUERY(pQuery)? pDataBlockInfo->window.ekey:pDataBlockInfo->window.skey;
+          bool  interp = setTimeWindowInterpolationEndTs(pRuntimeEnv, endRowIndex, pDataBlock, tsCols, endKey, &nextWin);
           if (interp) {
             setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
           }
@@ -1459,6 +1496,45 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
   return true;
 }
 
+void doRowwiseTimeWindowInterpolation(SQueryRuntimeEnv* pRuntimeEnv, SArray* pDataBlock, TSKEY prevTs, int32_t prevRowIndex, TSKEY curTs, int32_t curRowIndex, TSKEY windowKey,  int32_t type) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+    int32_t functionId = pQuery->pExpr1[k].base.functionId;
+    if (functionId != TSDB_FUNC_TWA) {
+      pRuntimeEnv->pCtx[k].start.key = INT64_MIN;
+      continue;
+    }
+
+    SColIndex* pColIndex = &pQuery->pExpr1[k].base.colInfo;
+    int16_t index = pColIndex->colIndex;
+    SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, index);
+
+    assert(pColInfo->info.colId == pColIndex->colId && curTs != windowKey);
+    double v1 = 0, v2 = 0, v = 0;
+
+    if (prevRowIndex == -1) {
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[k]);
+    } else {
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes);
+    }
+
+    GET_TYPED_DATA(v2, double, pColInfo->info.type, (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes);
+
+    SPoint point1 = (SPoint){.key = prevTs, .val = &v1};
+    SPoint point2 = (SPoint){.key = curTs, .val = &v2};
+    SPoint point  = (SPoint){.key = windowKey, .val = &v};
+    taosGetLinearInterpolationVal(TSDB_DATA_TYPE_DOUBLE, &point1, &point2, &point);
+
+    if (type == RESULT_ROW_START_INTERP) {
+      pRuntimeEnv->pCtx[k].start.key = point.key;
+      pRuntimeEnv->pCtx[k].start.val = v;
+    } else {
+      pRuntimeEnv->pCtx[k].end.key = point.key;
+      pRuntimeEnv->pCtx[k].end.val = v;
+    }
+  }
+}
+
 static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pStatis, SDataBlockInfo *pDataBlockInfo,
     SWindowResInfo *pWindowResInfo, SArray *pDataBlock) {
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
@@ -1489,6 +1565,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
     char *dataBlock = getDataBlock(pRuntimeEnv, &sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
     setExecParams(pQuery, &pCtx[k], dataBlock, tsCols, pDataBlockInfo, pStatis, &sasArray[k], k, pQInfo->vgId);
+    pCtx[k].size = 1;
   }
 
   // set the input column data
@@ -1508,7 +1585,8 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
   }
 
   int32_t offset = -1;
-//  TSKEY   prev   = -1;
+  TSKEY   prevTs   = *(TSKEY*) pRuntimeEnv->prevRow[0];
+  int32_t prevRowIndex = -1;
 
   for (int32_t j = 0; j < pDataBlockInfo->rows; ++j) {
     offset = GET_COL_DATA_POS(pQuery, j, step);
@@ -1530,7 +1608,9 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
     // interval window query, decide the time window according to the primary timestamp
     if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
-      int64_t     ts = tsCols[offset];
+      int32_t prevWindowIndex = curTimeWindowIndex(pWindowResInfo);
+
+      int64_t     ts  = tsCols[offset];
       STimeWindow win = getActiveTimeWindow(pWindowResInfo, ts, pQuery);
 
       bool hasTimeWindow  = false;
@@ -1543,27 +1623,58 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       if (!hasTimeWindow) {
         continue;
       }
-/*
+
       // window start key interpolation
       if (pRuntimeEnv->timeWindowInterpo) {
-        bool alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
-        if (!alreadyInterp) {
-          bool interp = setTimeWindowInterpolationStartTs(pRuntimeEnv, pos, pDataBlock, tsCols, &win);
-          if (interp) {
-            setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
+        // check for the time window end time interpolation
+        int32_t curIndex = curTimeWindowIndex(pWindowResInfo);
+        if (prevWindowIndex != -1 && prevWindowIndex < curIndex) {
+          for (int32_t k = prevWindowIndex; k < curIndex; ++k) {
+            SResultRow *pRes = pWindowResInfo->pResult[k];
+            STimeWindow w = pRes->win;
+            ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo, &w, masterScan, &hasTimeWindow, &pResult);
+            assert(ret == TSDB_CODE_SUCCESS && !resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
+
+            TSKEY key = QUERY_IS_ASC_QUERY(pQuery)? w.ekey:w.skey;
+            doRowwiseTimeWindowInterpolation(pRuntimeEnv, pDataBlock, prevTs, prevRowIndex, ts, offset, key, RESULT_ROW_END_INTERP);
+            setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
+
+            setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_START_INTERP);
+            for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+              pRuntimeEnv->pCtx[i].size = 0;
+            }
+
+            bool closed = getResultRowStatus(pWindowResInfo, curTimeWindowIndex(pWindowResInfo));
+            doRowwiseApplyFunctions(pRuntimeEnv, closed, &w, offset);
+          }
+
+          // restore current time window
+          ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pDataBlockInfo, &win, masterScan, &hasTimeWindow,
+                                        &pResult);
+          if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
+            continue;
           }
         }
 
-        alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-        if (!alreadyInterp) {
-          bool interp = setTimeWindowInterpolationEndTs(pRuntimeEnv, pQuery->pos + forwardStep - 1, pDataBlock, tsCols,
-                                                        pDataBlockInfo->window.ekey, &win);
-          if (interp) {
-            setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
+        bool done = resultRowInterpolated(pResult, RESULT_ROW_START_INTERP);
+        if (!done) {
+          TSKEY key = QUERY_IS_ASC_QUERY(pQuery)? win.skey:win.ekey;
+          if (prevTs != INT64_MIN && ts != key) {
+            doRowwiseTimeWindowInterpolation(pRuntimeEnv, pDataBlock, prevTs, prevRowIndex, ts, offset, key, RESULT_ROW_START_INTERP);
+            setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
+          } else {
+            setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_START_INTERP);
           }
+
+          setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_END_INTERP);
+          for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+            pRuntimeEnv->pCtx[k].size = 1;
+          }
+        } else {
+          setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_START_INTERP);
         }
       }
-*/
+
       bool closed = getResultRowStatus(pWindowResInfo, curTimeWindowIndex(pWindowResInfo));
       doRowwiseApplyFunctions(pRuntimeEnv, closed, &win, offset);
 
@@ -1588,26 +1699,19 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
         }
 
         if (hasTimeWindow) {
-/*
-          // window start(end) key interpolation
-          if (pRuntimeEnv->timeWindowInterpo) {
-            bool alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
-            if (!alreadyInterp) {
-              bool interp = setTimeWindowInterpolationStartTs(pRuntimeEnv, startPos, pDataBlock, tsCols, &nextWin);
-              if (interp) {
-                setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
-              }
+          bool done = resultRowInterpolated(pResult, RESULT_ROW_START_INTERP);
+          if (!done) {
+            if (prevTs != INT64_MIN && ((QUERY_IS_ASC_QUERY(pQuery) && (prevTs < nextWin.skey)) || (!QUERY_IS_ASC_QUERY(pQuery) && prevTs > nextWin.ekey))) {
+              TSKEY key = QUERY_IS_ASC_QUERY(pQuery)? nextWin.skey:nextWin.ekey;
+              doRowwiseTimeWindowInterpolation(pRuntimeEnv, pDataBlock, prevTs, prevRowIndex, ts, offset, key, RESULT_ROW_START_INTERP);
+              setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
+            } else {
+              setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_START_INTERP);
             }
 
-            alreadyInterp = isResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-            if (!alreadyInterp) {
-              bool interp = setTimeWindowInterpolationEndTs(pRuntimeEnv, startPos + forwardStep - 1, pDataBlock, tsCols, pDataBlockInfo->window.ekey, &nextWin);
-              if (interp) {
-                setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-              }
-            }
+            setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfCols, RESULT_ROW_END_INTERP);
           }
-*/
+
           closed = getResultRowStatus(pWindowResInfo, curTimeWindowIndex(pWindowResInfo));
           doRowwiseApplyFunctions(pRuntimeEnv, closed, &nextWin, offset);
         }
@@ -1633,7 +1737,8 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       }
     }
 
-//    prev = tsCols[offset];
+    prevTs = tsCols[offset];
+    prevRowIndex = offset;
 
     if (pRuntimeEnv->pTSBuf != NULL) {
       // if timestamp filter list is empty, quit current query
