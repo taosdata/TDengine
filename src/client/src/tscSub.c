@@ -61,7 +61,7 @@ TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt) {
   SSub* pSub = (SSub*)sub;
 
   SSubscriptionProgress target = {.uid = uid, .key = 0};
-  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
+  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
   if (p == NULL) {
     return dflt;
   }
@@ -74,7 +74,7 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
   SSub* pSub = (SSub*)sub;
 
   SSubscriptionProgress target = {.uid = uid, .key = ts};
-  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
+  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
   if (p != NULL) {
     p->key = ts;
   }
@@ -267,7 +267,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
     STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
     SSubscriptionProgress target = {.uid = pTableMeta->id.uid, .key = 0};
-    SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
+    SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
     if (p == NULL) {
       taosArrayClear(pSub->progress);
       taosArrayPush(pSub->progress, &target);

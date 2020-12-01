@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "talgo.h"
 
 #define TARRAY_MIN_SIZE 8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
@@ -150,14 +151,14 @@ void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
  * @param compar
  * @param key
  */
-void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn);
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
 
 /**
  * search the array
  * @param pArray
  * @param key
  */
-char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn);
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags);
 
 #ifdef __cplusplus
 }
