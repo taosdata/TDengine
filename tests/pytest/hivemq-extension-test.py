@@ -91,9 +91,8 @@ def installExtension():
 
     os.chdir(currentDir)
 
-def stopHiveMQ():
-    toBeKilled = "hivemq.jar"
-    psCmd = "ps ax|grep -w %s| grep -v grep | awk '{print $1}'" % toBeKilled
+def stopProgram(prog: str):
+    psCmd = "ps ax|grep -w %s| grep -v grep | awk '{print $1}'" % prog
 
     processID = subprocess.check_output(
         psCmd, shell=True).decode("utf-8")
@@ -104,7 +103,10 @@ def stopHiveMQ():
         time.sleep(1)
         processID = subprocess.check_output(
             psCmd, shell=True).decode("utf-8")
-        print("hiveMQ processID: %s" % processID)
+    pass
+
+def stopHiveMQ():
+    stopProgram("hivemq.jar")
     v_print("%s", "hivemq is NOT running")
 
 def runHiveMQ():
@@ -115,12 +117,44 @@ def runHiveMQ():
     time.sleep(10)
     v_print("%s", "hivemq is running")
 
+def getBuildPath():
+    selfPath = os.path.dirname(os.path.realpath(__file__))
+
+    if ("community" in selfPath):
+        projPath = selfPath[:selfPath.find("community")]
+    else:
+        projPath = selfPath[:selfPath.find("tests")]
+
+    for root, dirs, files in os.walk(projPath):
+        if ("taosd" in files):
+            rootRealPath = os.path.dirname(os.path.realpath(root))
+            if ("packaging" not in rootRealPath):
+                buildPath = root[:len(root)-len("/build/bin")]
+                break
+    return buildPath
+
 def runTDengine():
-    pass
+    stopProgram("taosd")
+
+    buildPath = getBuildPath()
+
+    if (buildPath == ""):
+        v_print("%s", "taosd NOT found!")
+        os.exit(1)
+    else:
+        v_print("%s", "taosd found in %s" % buildPath)
+
+    binPath = buildPath + "/build/bin/taosd"
+
+    os.system('%s > /dev/null &' % binPath)
+    time.sleep(10)
 
 def reCreateDatabase():
-    os.system('taos -s "DROP DATABASE IF EXISTS hivemq"')
-    os.system('taos -s "CREATE DATABASE IF NOT EXISTS hivemq"')
+    buildPath = getBuildPath()
+    binPath = buildPath + "/build/bin/taos"
+
+    os.system('%s -s "DROP DATABASE IF EXISTS hivemq"' % binPath)
+    os.system('%s -s "CREATE DATABASE IF NOT EXISTS hivemq"' % binPath)
 
 def sendMqttMsg(topic: str, payload: str):
     testStr = 'mosquitto_pub -t %s -m "%s"' % (topic, payload)
@@ -128,7 +162,10 @@ def sendMqttMsg(topic: str, payload: str):
     time.sleep(3)
 
 def checkTDengineData(topic: str, payload: str):
-    output = subprocess.check_output('taos -s "select * from hivemq.mqtt_payload"', shell=True).decode('utf-8')
+    buildPath = getBuildPath()
+    binPath = buildPath + "/build/bin/taos"
+
+    output = subprocess.check_output('%s -s "select * from hivemq.mqtt_payload"' % binPath, shell=True).decode('utf-8')
     if (topic in output) and (payload in output):
         v_print("%s", output)
         return True
