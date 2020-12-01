@@ -24,6 +24,7 @@ extern "C" {
 #include "tsync.h"
 #include "twal.h"
 #include "tcq.h"
+#include "tsdb.h"
 
 extern int32_t vDebugFlag;
 
@@ -63,6 +64,7 @@ typedef struct {
   tsem_t       sem;
   int8_t       dropped;
   char         db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+    pthread_mutex_t statusMutex;
 } SVnodeObj;
 
 void vnodeInitWriteFp(void);

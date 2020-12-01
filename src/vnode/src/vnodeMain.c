@@ -19,14 +19,14 @@
 #include "taosmsg.h"
 #include "tglobal.h"
 #include "trpc.h"
-#include "tsdb.h"
 #include "tutil.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "vnodeCfg.h"
+#include "vnodeStatus.h"
+#include "vnodeVersion.h"
 #include "query.h"
 #include "dnode.h"
-#include "vnodeCfg.h"
-#include "vnodeVersion.h"
 #include "dnodeVWrite.h"
 #include "dnodeVRead.h"
 #include "tfs.h"
@@ -51,14 +51,6 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *cfg) { return 0; }
 int32_t syncGetNodesRole(int64_t rid, SNodesRole *cfg) { return 0; }
 void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {}
 #endif
-
-char* vnodeStatus[] = {
-  "init",
-  "ready",
-  "closing",
-  "updating",
-  "reset"
-};
 
 int32_t vnodeInitResources() {
   int32_t code = syncInit();
@@ -168,52 +160,57 @@ int32_t vnodeDrop(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
-  SVnodeObj *pVnode = vparam;
-
-  // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
-  // cfgVersion can be corrected by status msg
-  if (atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_READY, TAOS_VN_STATUS_UPDATING) != TAOS_VN_STATUS_READY) {
-    vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
-    return TSDB_CODE_SUCCESS;
-  }
-
+static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
   int32_t code = vnodeWriteCfg(pVnodeCfg);
   if (code != TSDB_CODE_SUCCESS) {
-    pVnode->status = TAOS_VN_STATUS_READY;
     return code; 
   }
 
   code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
-    pVnode->status = TAOS_VN_STATUS_READY;
     return code; 
   }
 
   code = walAlter(pVnode->wal, &pVnode->walCfg);
   if (code != TSDB_CODE_SUCCESS) {
-    pVnode->status = TAOS_VN_STATUS_READY;
     return code;
   }
 
   code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
   if (code != TSDB_CODE_SUCCESS) {
-    pVnode->status = TAOS_VN_STATUS_READY;
     return code; 
-  } 
+  }
 
   if (pVnode->tsdb) {
     code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
     if (code != TSDB_CODE_SUCCESS) {
-      pVnode->status = TAOS_VN_STATUS_READY;
-      return code; 
+      return code;
     }
   }
 
-  pVnode->status = TAOS_VN_STATUS_READY;
-  vDebug("vgId:%d, vnode is altered", pVnode->vgId);
+  return 0;
+}
 
-  return TSDB_CODE_SUCCESS;
+int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
+  SVnodeObj *pVnode = vparam;
+
+  // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
+  // cfgVersion can be corrected by status msg
+  if (vnodeSetUpdatingStatus(pVnode) != 0) {
+    vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = vnodeAlterImp(pVnode, pVnodeCfg);
+  vnodeSetReadyStatus(pVnode);
+
+  if (code != 0) {
+    vError("vgId:%d, failed to alter vnode, code:0x%x", pVnode->vgId, code);
+  } else {
+    vDebug("vgId:%d, vnode is altered", pVnode->vgId);
+  }
+
+  return code;
 }
 
 int32_t vnodeOpen(int32_t vnode, char *rootDir) {
@@ -228,13 +225,14 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   atomic_add_fetch_32(&pVnode->refCount, 1);
 
   pVnode->vgId     = vnode;
-  pVnode->status   = TAOS_VN_STATUS_INIT;
   pVnode->fversion = 0;
   pVnode->version  = 0;  
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
   pVnode->rootDir = strdup(rootDir);
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
   tsem_init(&pVnode->sem, 0, 0);
+  pthread_mutex_init(&pVnode->statusMutex, NULL);
+  vnodeSetInitStatus(pVnode);
 
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -360,7 +358,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   }
 #endif
 
-  pVnode->status = TAOS_VN_STATUS_READY;
+  vnodeSetReadyStatus(pVnode);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -386,7 +384,7 @@ void vnodeRelease(void *vparam) {
   assert(refCount >= 0);
 
   if (refCount > 0) {
-    if (pVnode->status == TAOS_VN_STATUS_RESET && refCount <= 3) {
+    if (vnodeInResetStatus(pVnode) && refCount <= 3) {
       tsem_post(&pVnode->sem);
     }
     return;
@@ -455,6 +453,7 @@ void vnodeRelease(void *vparam) {
   }
 
   tsem_destroy(&pVnode->sem);
+  pthread_mutex_destroy(&pVnode->statusMutex);
   free(pVnode);
   tsdbDecCommitRef(vgId);
 
@@ -495,7 +494,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   int64_t compStorage = 0;
   int64_t pointsWritten = 0;
 
-  if (pVnode->status != TAOS_VN_STATUS_READY) return;
+  if (!vnodeInReadyStatus(pVnode)) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
   if (pVnode->tsdb) {
@@ -565,11 +564,10 @@ static void vnodeCleanUp(SVnodeObj *pVnode) {
   // remove from hash, so new messages wont be consumed
   taosHashRemove(tsVnodesHash, &pVnode->vgId, sizeof(int32_t));
 
-  if (pVnode->status != TAOS_VN_STATUS_INIT) {
+  if (!vnodeInInitStatus(pVnode)) {
     // it may be in updateing or reset state, then it shall wait
     int32_t i = 0;
-    while (atomic_val_compare_exchange_8(&pVnode->status, TAOS_VN_STATUS_READY, TAOS_VN_STATUS_CLOSING) !=
-           TAOS_VN_STATUS_READY) {
+    while (!vnodeSetClosingStatus(pVnode)) {
       if (++i % 1000 == 0) {
         sched_yield();
       }
@@ -605,7 +603,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     pVnode->isCommiting = 1;
     pVnode->fversion = pVnode->version;
     vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
-    if (pVnode->status != TAOS_VN_STATUS_INIT) {
+    if (!vnodeInInitStatus(pVnode)) {
       return walRenew(pVnode->wal);
     }
     return 0;
@@ -615,7 +613,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     pVnode->isCommiting = 0;
     pVnode->isFull = 0;
-    if (pVnode->status != TAOS_VN_STATUS_INIT) {
+    if (!vnodeInInitStatus(pVnode)) {
       walRemoveOneOldFile(pVnode->wal);
     }
     return vnodeSaveVersion(pVnode);
@@ -691,8 +689,8 @@ static int32_t vnodeResetTsdb(SVnodeObj *pVnode) {
   char rootDir[128] = "\0";
   sprintf(rootDir, "vnode/vnode%d/tsdb", pVnode->vgId);
 
-  if (pVnode->status != TAOS_VN_STATUS_CLOSING && pVnode->status != TAOS_VN_STATUS_INIT) {
-    pVnode->status = TAOS_VN_STATUS_RESET;
+  if (!vnodeSetResetStatus(pVnode)) {
+    return -1;
   }
 
   void *tsdb = pVnode->tsdb;
@@ -715,7 +713,7 @@ static int32_t vnodeResetTsdb(SVnodeObj *pVnode) {
   appH.cqDropFunc = cqDrop;
   pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
 
-  pVnode->status = TAOS_VN_STATUS_READY;
+  vnodeSetReadyStatus(pVnode);
   vnodeRelease(pVnode);
 
   return 0;

@@ -24,6 +24,7 @@
 #include "tsdb.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "vnodeStatus.h"
 #include "tqueue.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pRead);
@@ -54,7 +55,7 @@ int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
-  if (pVnode->status != TAOS_VN_STATUS_READY) {
+  if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;

@@ -23,13 +23,6 @@ extern "C" {
 #include "trpc.h"
 #include "twal.h"
 
-typedef enum _VN_STATUS {
-  TAOS_VN_STATUS_INIT = 0,
-  TAOS_VN_STATUS_READY = 1,
-  TAOS_VN_STATUS_CLOSING = 2,
-  TAOS_VN_STATUS_UPDATING = 3,
-  TAOS_VN_STATUS_RESET = 4,
-} EVnodeStatus;
 
 typedef struct {
   int32_t len;

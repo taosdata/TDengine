@@ -27,6 +27,7 @@
 #include "tdataformat.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "vnodeStatus.h"
 #include "syncInt.h"
 #include "tcq.h"
 #include "dnode.h"
@@ -68,7 +69,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
          taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version, pVnode->version);
 
   if (pHead->version == 0) {  // from client or CQ
-    if (pVnode->status != TAOS_VN_STATUS_READY) {
+    if (!vnodeInReadyStatus(pVnode)) {
       vDebug("vgId:%d, msg:%s not processed since vstatus:%d, qtype:%s hver:%" PRIu64, pVnode->vgId,
              taosMsg[pHead->msgType], pVnode->status, qtypeStr[qtype], pHead->version);
       return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
@@ -118,7 +119,7 @@ static int32_t vnodeCheckWrite(void *vparam) {
     return TSDB_CODE_APP_NOT_READY;
   }
 
-  if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
+  if (vnodeInClosingStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
