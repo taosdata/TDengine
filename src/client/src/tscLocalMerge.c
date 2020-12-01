@@ -721,11 +721,18 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   // final result depends on the fields number
   memset(pSchema, 0, sizeof(SSchema) * size);
+
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
+    SSchema p1 = {0};
+    if (pExpr->colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      p1 = tscGetTbnameColumnSchema();
+    } else {
+      p1 = *(SSchema*) tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
+    }
 
+    
     int32_t inter = 0;
     int16_t type = -1;
     int16_t bytes = 0;
@@ -743,7 +750,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
         functionId = TSDB_FUNC_LAST;
       }
 
-      getResultDataInfo(p1->type, p1->bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      int ret = getResultDataInfo(p1.type, p1.bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      assert(ret == TSDB_CODE_SUCCESS);
     }
 
     pSchema[i].type = (uint8_t)type;
