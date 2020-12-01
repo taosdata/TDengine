@@ -630,6 +630,7 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   } else {
     // if there is an outgoing message, free it
     if (pConn->outType && pConn->pReqMsg) {
+      SRpcReqContext *pContext = pConn->pContext;
       if (pContext->pRsp) {   
         // for synchronous API, post semaphore to unblock app
         pContext->pRsp->code = TSDB_CODE_RPC_APP_ERROR;
@@ -637,8 +638,8 @@ static void rpcReleaseConn(SRpcConn *pConn) {
         pContext->pRsp->contLen = 0;
         tsem_post(pContext->pSem);
       }
-      pConn->pContext->pConn = NULL; 
-      taosRemoveRef(tsRpcRefId, pConn->pContext->rid);
+      pContext->pConn = NULL; 
+      taosRemoveRef(tsRpcRefId, pContext->rid);
     }
   }
 
