@@ -460,6 +460,31 @@ void *taosCacheIterate(int32_t cacheId, void *indata) {
   return outdata;
 }
 
+void taosCacheCancelIterate(int32_t cacheId, void *indata) {
+  if (cacheId < 0 || cacheId >= TAOS_CACHE_MAX_OBJS || indata == NULL) return;
+
+  SCacheObj  *pCacheObj = cacheObjList + cacheId;
+  taosRLockLatch(&pCacheObj->olock);
+  if (pCacheObj->state == TAOS_CACHE_STATE_EMPTY) {
+    if (indata) atomic_sub_fetch_32(&pCacheObj->iterNum, 1);
+    taosRUnLockLatch(&pCacheObj->olock);
+    return;
+  }
+
+  SCacheNode *pNode = pNodeFromData(indata);
+  int hash = pNode->hash;
+
+  taosWLockLatch(pCacheObj->nlock + hash);
+  taosCacheReleaseNode(pNode);
+  taosWUnLockLatch(pCacheObj->nlock + hash);
+
+  atomic_sub_fetch_32(&pCacheObj->iterNum, 1);
+  taosRUnLockLatch(&pCacheObj->olock);
+
+  uTrace("cache:%s in:%p iteratation is cancelled, iterNum:%d", pCacheObj->name, indata, pCacheObj->iterNum);
+  return;
+}
+
 void taosCacheRefresh(int32_t cacheId, __cache_free_fn_t fp) {
   if (cacheId < 0 || cacheId >= TAOS_CACHE_MAX_OBJS) return; 
   SCacheObj *pCacheObj = cacheObjList + cacheId;

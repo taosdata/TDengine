@@ -140,24 +140,8 @@ static void mnodeFreeConn(void *data) {
   mDebug("connId:%d, is destroyed", pConn->connId);
 }
 
-static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
-  *pConn = NULL;
-
-  pIter = taosHashIterate(tsMnodeConnCache->pHashTable, pIter);
-  if (pIter == NULL) return NULL;
-
-  SCacheDataNode **pNode = pIter;
-  if (pNode == NULL || *pNode == NULL) {
-    taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
-    return NULL;
-  }
-
-  *pConn = (SConnObj*)((*pNode)->data);
-  return pIter;
-}
-
 static void mnodeCancelGetNextConn(void *pIter) {
-  taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
+  taosCacheCancelIterate(tsMnodeConnCache, pIter);
 }
 
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {

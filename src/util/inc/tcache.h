@@ -41,10 +41,12 @@ void *taosCacheAcquireByKey(int32_t cacheId, const void *key, size_t keyLen);
 void *taosCacheAcquireByData(void *data);
 void  taosCacheRelease(void *data);
 void *taosCacheIterate(int32_t cacheId, void *indata);
+void  taosCacheCancelIterate(int32_t cacheId, void *indata);
 void *taosCacheTransfer(void **data);
 void  taosCacheRefresh(int32_t cacheId, __cache_free_fn_t fp);
 void  taosCacheEmpty(int32_t cacheId);
 int32_t taosCacheGetCount(int32_t cacheId);
+
 
 #ifdef __cplusplus
 }
