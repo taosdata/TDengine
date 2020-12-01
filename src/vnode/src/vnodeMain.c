@@ -43,15 +43,6 @@ static void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 static int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
 static int32_t  vnodeGetFileVersion(int32_t vgId, uint64_t *fver);
 
-#ifndef _SYNC
-int64_t syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype) { return 0; }
-void    syncStop(int64_t rid) {}
-int32_t syncReconfig(int64_t rid, const SSyncCfg *cfg) { return 0; }
-int32_t syncGetNodesRole(int64_t rid, SNodesRole *cfg) { return 0; }
-void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {}
-#endif
-
 int32_t vnodeInitResources() {
   int32_t code = syncInit();
   if (code != 0) return code;
@@ -346,9 +337,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.getFileVersion = vnodeGetFileVersion;
   pVnode->sync = syncStart(&syncInfo);
 
-#ifndef _SYNC
-  pVnode->role = TAOS_SYNC_ROLE_MASTER;
-#else
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
@@ -356,7 +344,6 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     vnodeCleanUp(pVnode);
     return terrno;
   }
-#endif
 
   vnodeSetReadyStatus(pVnode);
   return TSDB_CODE_SUCCESS;

@@ -111,9 +111,6 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
 static int32_t mnodeDnodeActionDelete(SSdbRow *pRow) {
   SDnodeObj *pDnode = pRow->pObj;
  
-#ifndef _SYNC 
-  mnodeDropAllDnodeVgroups(pDnode);
-#endif  
   mnodeDropMnodeLocal(pDnode->dnodeId);
   balanceAsyncNotify();
   mnodeUpdateDnodeEps();
@@ -705,11 +702,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
 
-#ifndef _SYNC
-  int32_t code = mnodeDropDnode(pDnode, pMsg);
-#else
   int32_t code = balanceDropDnode(pDnode);
-#endif  
   mnodeDecDnodeRef(pDnode);
   return code;
 }
@@ -1179,58 +1172,3 @@ static char* mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole) {
     default:return "any";
   }
 }
-
-#ifndef _SYNC
-
-int32_t balanceInit() { return TSDB_CODE_SUCCESS; }
-void    balanceCleanUp() {}
-void    balanceAsyncNotify() {}
-void    balanceSyncNotify() {}
-void    balanceReset() {}
-int32_t balanceAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId) { return TSDB_CODE_SYN_NOT_ENABLED; }
-
-char* syncRole[] = {
-  "offline",
-  "unsynced",
-  "syncing",
-  "slave",
-  "master"
-};
-
-int32_t balanceAllocVnodes(SVgObj *pVgroup) {
-  void *     pIter = NULL;
-  SDnodeObj *pDnode = NULL;
-  SDnodeObj *pSelDnode = NULL;
-  float      vnodeUsage = 1000.0;
-
-  while (1) {
-    pIter = mnodeGetNextDnode(pIter, &pDnode);
-    if (pDnode == NULL) break;
-
-    if (pDnode->numOfCores > 0 && pDnode->openVnodes < TSDB_MAX_VNODES) {
-      float openVnodes = pDnode->openVnodes;
-      if (pDnode->isMgmt) openVnodes += tsMnodeEqualVnodeNum;
-
-      float usage = openVnodes / pDnode->numOfCores;
-      if (usage <= vnodeUsage) {
-        pSelDnode = pDnode;
-        vnodeUsage = usage;
-      }
-    }
-    mnodeDecDnodeRef(pDnode);
-  }
-
-  if (pSelDnode == NULL) {
-    mError("failed to alloc vnode to vgroup");
-    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
-  }
-
-  pVgroup->vnodeGid[0].dnodeId = pSelDnode->dnodeId;
-  pVgroup->vnodeGid[0].pDnode = pSelDnode;
-
-  mDebug("dnode:%d, alloc one vnode to vgroup, openVnodes:%d", pSelDnode->dnodeId, pSelDnode->openVnodes);
-  return TSDB_CODE_SUCCESS;
-}
-
-#endif 
-
