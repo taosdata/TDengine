@@ -100,7 +100,7 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
  * @param index
  * @param pData
  */
-void* taosArraySet(SArray* pArray, size_t index, void* pData);
+void taosArraySet(SArray* pArray, size_t index, void* pData);
 
 /**
  * remove data entry of the given index

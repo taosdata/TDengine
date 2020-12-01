@@ -133,7 +133,7 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   return dst;
 }
 
-void* taosArraySet(SArray* pArray, size_t index, void* pData) {
+void taosArraySet(SArray* pArray, size_t index, void* pData) {
   assert(index < pArray->size);
   memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
 }
