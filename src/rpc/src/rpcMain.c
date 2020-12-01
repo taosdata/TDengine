@@ -1559,9 +1559,10 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
   if ( !rpcIsReq(pHead->msgType) ) {
     // for response, if code is auth failure, it shall bypass the auth process
     code = htonl(pHead->code);
-    if (code != 0) { 
-      // tTrace("%s, dont check authentication since code is:0x%x", pConn->info, code);
+    if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE ||
+        code == TSDB_CODE_RPC_AUTH_REQUIRED || code == TSDB_CODE_MND_INVALID_USER || code == TSDB_CODE_RPC_NOT_READY) {
       pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
+      // tTrace("%s, dont check authentication since code is:0x%x", pConn->info, code);
       return 0;
     }
   }
