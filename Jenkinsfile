@@ -14,10 +14,12 @@ pipeline {
             sh '''
             date
             cd ${WKC}
+            git reset --hard
             git checkout develop
             git pull
             git submodule update
             cd ${WK}
+            git reset --hard
             git checkout develop
             git pull
             export TZ=Asia/Harbin
@@ -39,11 +41,13 @@ pipeline {
           steps {
             sh '''
             cd ${WKC}
+            git reset --hard
             git checkout develop
             git pull
               
             git submodule update
             cd ${WK}
+            git reset --hard
             git checkout develop
             git pull
             export TZ=Asia/Harbin
@@ -65,11 +69,13 @@ pipeline {
           steps {
             sh '''
             cd ${WKC}
+            git reset --hard
             git checkout develop
             git pull
               
             git submodule update
             cd ${WK}
+            git reset --hard
             git checkout develop
             git pull
             export TZ=Asia/Harbin
@@ -108,11 +114,13 @@ pipeline {
           steps {
             sh '''
             cd ${WKC}
+            git reset --hard
             git checkout develop
             git pull
               
             git submodule update
             cd ${WK}
+            git reset --hard
             git checkout develop
             git pull
             export TZ=Asia/Harbin
