@@ -83,8 +83,6 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
     return;
   }
 
-//  assert(pWindowResInfo->size == 1);
-
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
     SResultRow *pWindowRes = pWindowResInfo->pResult[i];
     clearResultRow(pRuntimeEnv, pWindowRes, pWindowResInfo->type);

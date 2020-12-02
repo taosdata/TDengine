@@ -5311,9 +5311,10 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
-       * the limitation/offset value should be removed during retrieve data from virtual node,
-       * since the global order are done in client side, so the limitation should also
-       * be done at the client side.
+       * the offset value should be removed during retrieve data from virtual node, since the
+       * global order are done in client side, so the offset is applied at the client side
+       * However, note that the maximum allowed number of result for each table should be less
+       * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
         pQueryInfo->limit.limit = -1;

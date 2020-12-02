@@ -190,6 +190,7 @@ typedef struct SQueryRuntimeEnv {
   bool                 groupbyNormalCol; // denote if this is a groupby normal column query
   bool                 hasTagResults;    // if there are tag values in final result or not
   bool                 timeWindowInterpo;// if the time window start/end required interpolation
+  bool                 queryWindowIdentical; // all query time windows are identical for all tables in one group
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
@@ -217,7 +218,8 @@ typedef struct SQInfo {
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   SQueryRuntimeEnv runtimeEnv;
-  SArray*          arrTableIdInfo;
+//  SArray*          arrTableIdInfo;
+  SHashObj*        arrTableIdInfo;
   int32_t          groupIndex;
 
   /*
