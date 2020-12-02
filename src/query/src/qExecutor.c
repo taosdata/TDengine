@@ -761,7 +761,7 @@ static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKe
     pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex]->win.skey;
 
     // the number of completed slots are larger than the threshold, return current generated results to client.
-    if (numOfClosed > pWindowResInfo->threshold) {
+    if (numOfClosed > pQuery->rec.threshold) {
       qDebug("QInfo:%p total result window:%d closed:%d, reached the output threshold %d, return",
           GET_QINFO_ADDR(pRuntimeEnv), pWindowResInfo->size, numOfClosed, pQuery->rec.threshold);
 
@@ -3587,17 +3587,9 @@ static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *
 
   // order has changed already
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-
-  // TODO validate the assertion
-//  if (!QUERY_IS_ASC_QUERY(pQuery)) {
-//    assert(pTableQueryInfo->win.ekey >= pTableQueryInfo->lastKey + step);
-//  } else {
-//    assert(pTableQueryInfo->win.ekey <= pTableQueryInfo->lastKey + step);
-//  }
-
   if (pTableQueryInfo->lastKey == pTableQueryInfo->win.skey) {
     // do nothing, no results
-  } else {// even win.skey != lastKey, the results may not generated.
+  } else {// NOTE: even win.skey != lastKey, the results may not generated.
     pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
   }
 
@@ -4102,9 +4094,8 @@ static STableQueryInfo *createTableQueryInfo(SQueryRuntimeEnv *pRuntimeEnv, void
 
   // set more initial size of interval/groupby query
   if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
-    int32_t initialSize = 16;
-    int32_t initialThreshold = 100;
-    int32_t code = initWindowResInfo(&pTableQueryInfo->windowResInfo, initialSize, initialThreshold, TSDB_DATA_TYPE_INT);
+    int32_t initialSize = 128;
+    int32_t code = initWindowResInfo(&pTableQueryInfo->windowResInfo, initialSize, TSDB_DATA_TYPE_INT);
     if (code != TSDB_CODE_SUCCESS) {
       return NULL;
     }
@@ -4989,20 +4980,13 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
     if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
       int16_t type = TSDB_DATA_TYPE_NULL;
-      int32_t threshold = 0;
-
       if (pRuntimeEnv->groupbyNormalCol) {  // group by columns not tags;
         type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
-        threshold = 4000;
       } else {
         type = TSDB_DATA_TYPE_INT;  // group id
-        threshold = (int32_t)(GET_NUM_OF_TABLEGROUP(pQInfo));
-        if (threshold < 8) {
-          threshold = 8;
-        }
       }
 
-      code = initWindowResInfo(&pRuntimeEnv->windowResInfo, 8, threshold, type);
+      code = initWindowResInfo(&pRuntimeEnv->windowResInfo, 8, type);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -5022,7 +5006,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
       type = TSDB_DATA_TYPE_TIMESTAMP;
     }
 
-    code = initWindowResInfo(&pRuntimeEnv->windowResInfo, numOfResultRows, 1024, type);
+    code = initWindowResInfo(&pRuntimeEnv->windowResInfo, numOfResultRows, type);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

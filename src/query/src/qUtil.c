@@ -43,10 +43,9 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   return size;
 }
 
-int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, int32_t size, int32_t threshold, int16_t type) {
+int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, int32_t size, int16_t type) {
   pWindowResInfo->capacity = size;
-  pWindowResInfo->threshold = threshold;
-  
+
   pWindowResInfo->type = type;
   pWindowResInfo->curIndex = -1;
   pWindowResInfo->size     = 0;

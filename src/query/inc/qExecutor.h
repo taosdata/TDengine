@@ -84,14 +84,13 @@ typedef struct SResultRec {
 } SResultRec;
 
 typedef struct SWindowResInfo {
-  SResultRow**   pResult;    // result list
-  int16_t        type:8;     // data type for hash key
-  int32_t        size:24;    // number of result set
-  int32_t        threshold;  // threshold to halt query and return the generated results.
-  int32_t        capacity;   // max capacity
-  int32_t        curIndex;   // current start active index
-  int64_t        startTime;  // start time of the first time window for sliding query
-  int64_t        prevSKey;   // previous (not completed) sliding window start key
+  SResultRow** pResult;    // result list
+  int16_t      type:8;     // data type for hash key
+  int32_t      size:24;    // number of result set
+  int32_t      capacity;   // max capacity
+  int32_t      curIndex;   // current start active index
+  int64_t      startTime;  // start time of the first time window for sliding query
+  int64_t      prevSKey;   // previous (not completed) sliding window start key
 } SWindowResInfo;
 
 typedef struct SColumnFilterElem {
