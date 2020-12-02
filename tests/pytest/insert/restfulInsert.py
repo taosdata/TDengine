@@ -44,22 +44,9 @@ class RestfulInsert:
             if response.status_code != 200:
                     print(response.content)
 
-    def insertData(self, threadID):        
-        print("thread %d started" % threadID)
-        tablesPerThread = int (self.numOfTables / self.numOfThreads)        
-        for i in range(tablesPerThread):
-            tableID = i + threadID * tablesPerThread
-            start = self.ts
-            for j in range(int(self.recordsPerTable / self.batchSize)):
-                data = "insert into %s.%s%d values" % (self.dbname, self.tableNamePerfix, tableID)
-                values = []
-                for k in range(self.batchSize):
-                    data +=  "(%d, %d, %d, %d)" %  (start + j * self.batchSize + k, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100))                                
-                response = requests.post(self.url, data, headers = self.header)
-                if response.status_code != 200:
-                    print(response.content)
+
    
-    def insertnData(self, threadID):        
+    def insertData(self, threadID):        
         print("thread %d started" % threadID)
         tablesPerThread = int (self.numOfTables / self.numOfThreads)   
         loop = int(self.recordsPerTable / self.batchSize)   
@@ -81,11 +68,9 @@ class RestfulInsert:
                     if self.outOfOrder :
                         random.shuffle(values)
                     data+=''.join(values)
-                    
                     response = requests.post(self.url, data, headers = self.header)
                     if response.status_code != 200:
                         print(response.content)
-                print('----------------',loop,time.time()-start1)
         else:
             for i in range(0,tablesPerThread+self.tablePerbatch,self.tablePerbatch): 
                 for k in range(loop):
@@ -101,8 +86,7 @@ class RestfulInsert:
                             values.append("(%d, %d, %d, %d)" %  (start + k * self.batchSize + l, random.randint(1, 100), random.randint(1, 100), random.randint(1, 100)))    
                         if self.outOfOrder :
                             random.shuffle(values)
-                        data+=''.join(values)  
-                    print('------------------',len(data))                        
+                        data+=''.join(values)                          
                     if len(data) > 1024*1024 : 
                         print ('batch size is larger than 1M')
                         exit(-1)
@@ -169,7 +153,7 @@ class RestfulInsert:
         
         for i in range(self.numOfThreads):
             threads[i].join()
-        print("inserting %d records takes %d seconds" % (self.numOfTables * self.recordsPerTable, (time.time() - startTime)))
+        print("inserting %s records takes %d seconds" % (self.numOfTables * self.recordsPerTable, (time.time() - startTime)))
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -204,14 +188,14 @@ parser.add_argument(
     '-T',
     '--number-of-tables',
     action='store',
-    default=1000,
+    default=10000,
     type=int,
     help='Number of tables to be created (default: 1000)')
 parser.add_argument(
     '-r',
     '--number-of-records',
     action='store',
-    default=1000,
+    default=10000,
     type=int,
     help='Number of record to be created for each table  (default: 1000, -1 for unlimited records)')
 parser.add_argument(
