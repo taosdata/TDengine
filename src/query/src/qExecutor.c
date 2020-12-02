@@ -5515,6 +5515,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       // the limitation of output result is reached, set the query completed
       if (limitResults(pRuntimeEnv)) {
+        setQueryStatus(pQuery, QUERY_COMPLETED);
         SET_STABLE_QUERY_OVER(pQInfo);
         break;
       }
