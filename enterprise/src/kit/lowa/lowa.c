@@ -1191,13 +1191,13 @@ static int createDatabases() {
       //printf("%s.%s column count:%d, column length:%d\n\n", g_Dbs.db[i].dbName, g_Dbs.db[i].supterTbls[j].sTblName, g_Dbs.db[i].supterTbls[j].columnCount, lenOfOneRow);
 
       // save for creating child table
-      g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable = (char*)calloc(len+1, 1);
+      g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable = (char*)calloc(len+20, 1);
       if (NULL == g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable) {
         printf("Failed when calloc, size:%d", len+1);
         taos_close(taos);
         exit(-1);
       }
-      snprintf(g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable, len, "(ts timestamp%s)", cols);
+      snprintf(g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable, len+20, "(ts timestamp%s)", cols);
 
       char tags[STRING_LEN] = "\0";
       int tagIndex;
