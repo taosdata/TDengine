@@ -250,7 +250,7 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
   }
 
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
-    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
+    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep2, TSDB_MIN_KEEP, pCfg->daysToKeep);
     return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
