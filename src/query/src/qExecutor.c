@@ -5078,6 +5078,20 @@ static FORCE_INLINE void setEnvForEachBlock(SQInfo* pQInfo, STableQueryInfo* pTa
   }
 }
 
+static void doTableQueryInfoTimeWindowCheck(SQuery* pQuery, STableQueryInfo* pTableQueryInfo) {
+  if (QUERY_IS_ASC_QUERY(pQuery)) {
+    assert(
+        (pTableQueryInfo->win.skey <= pTableQueryInfo->win.ekey) &&
+        (pTableQueryInfo->lastKey >= pTableQueryInfo->win.skey) &&
+        (pTableQueryInfo->win.skey >= pQuery->window.skey && pTableQueryInfo->win.ekey <= pQuery->window.ekey));
+  } else {
+    assert(
+        (pTableQueryInfo->win.skey >= pTableQueryInfo->win.ekey) &&
+        (pTableQueryInfo->lastKey <= pTableQueryInfo->win.skey) &&
+        (pTableQueryInfo->win.skey <= pQuery->window.skey && pTableQueryInfo->win.ekey >= pQuery->window.ekey));
+  }
+}
+
 static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery*           pQuery = pRuntimeEnv->pQuery;
@@ -5104,17 +5118,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
     }
 
     pQuery->current = *pTableQueryInfo;
-    if (QUERY_IS_ASC_QUERY(pQuery)) {
-      assert(
-          ((*pTableQueryInfo)->win.skey <= (*pTableQueryInfo)->win.ekey) &&
-          ((*pTableQueryInfo)->lastKey >= (*pTableQueryInfo)->win.skey) &&
-          ((*pTableQueryInfo)->win.skey >= pQuery->window.skey && (*pTableQueryInfo)->win.ekey <= pQuery->window.ekey));
-    } else {
-      assert(
-          ((*pTableQueryInfo)->win.skey >= (*pTableQueryInfo)->win.ekey) &&
-          ((*pTableQueryInfo)->lastKey <= (*pTableQueryInfo)->win.skey) &&
-          ((*pTableQueryInfo)->win.skey <= pQuery->window.skey && (*pTableQueryInfo)->win.ekey >= pQuery->window.ekey));
-    }
+    doTableQueryInfoTimeWindowCheck(pQuery, *pTableQueryInfo);
 
     if (!pRuntimeEnv->groupbyNormalCol) {
       setEnvForEachBlock(pQInfo, *pTableQueryInfo, &blockInfo);
@@ -5488,17 +5492,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       }
 
       pQuery->current = *pTableQueryInfo;
-      if (QUERY_IS_ASC_QUERY(pQuery)) {
-        assert(((*pTableQueryInfo)->win.skey <= (*pTableQueryInfo)->win.ekey) &&
-               ((*pTableQueryInfo)->lastKey >= (*pTableQueryInfo)->win.skey) &&
-               ((*pTableQueryInfo)->win.skey >= pQuery->window.skey &&
-                (*pTableQueryInfo)->win.ekey <= pQuery->window.ekey));
-      } else {
-        assert(((*pTableQueryInfo)->win.skey >= (*pTableQueryInfo)->win.ekey) &&
-               ((*pTableQueryInfo)->lastKey <= (*pTableQueryInfo)->win.skey) &&
-               ((*pTableQueryInfo)->win.skey <= pQuery->window.skey &&
-                (*pTableQueryInfo)->win.ekey >= pQuery->window.ekey));
-      }
+      doTableQueryInfoTimeWindowCheck(pQuery, *pTableQueryInfo);
 
       if (pRuntimeEnv->hasTagResults) {
         setTagVal(pRuntimeEnv, pQuery->current->pTable, pQInfo->tsdb);
