@@ -430,7 +430,6 @@ static void mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove) {
          pShow->index);
 
   taosCacheRelease(ppShow);
-  ppShow = NULL;
 }
 
 void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {

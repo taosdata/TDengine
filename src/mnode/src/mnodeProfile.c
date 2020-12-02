@@ -109,6 +109,7 @@ SConnObj *mnodeCreateConn(char *user, uint32_t ip, uint16_t port, int32_t pid, c
 }
 
 void mnodeReleaseConn(SConnObj *pConn) {
+  if (pConn == NULL) return;
   taosCacheRelease(pConn);
 }
 
@@ -139,8 +140,24 @@ static void mnodeFreeConn(void *data) {
   mDebug("connId:%d, is destroyed", pConn->connId);
 }
 
+static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
+  *pConn = NULL;
+
+  pIter = taosHashIterate(tsMnodeConnCache->pHashTable, pIter);
+  if (pIter == NULL) return NULL;
+
+  SCacheDataNode **pNode = pIter;
+  if (pNode == NULL || *pNode == NULL) {
+    taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
+    return NULL;
+  }
+
+  *pConn = (SConnObj*)((*pNode)->data);
+  return pIter;
+}
+
 static void mnodeCancelGetNextConn(void *pIter) {
-  taosCacheCancelIterate(tsMnodeConnCache, pIter);
+  taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
 }
 
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -203,7 +220,7 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = taosCacheGetCount(tsMnodeConnCache);
+  pShow->numOfRows = taosHashGetSize(tsMnodeConnCache->pHashTable);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
@@ -217,8 +234,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
-    pShow->pIter = taosCacheIterate(tsMnodeConnCache, pShow->pIter);
-    pConnObj = (SConnObj *)pShow->pIter;
+    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
     if (pConnObj == NULL) break;
     
     cols = 0;
@@ -365,8 +381,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
   char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
 
   while (numOfRows < rows) {
-    pShow->pIter = taosCacheIterate(tsMnodeConnCache, pShow->pIter);
-    pConnObj = (SConnObj *)pShow->pIter;
+    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
     if (pConnObj == NULL) break;
 
     for (int32_t i = 0; i < pConnObj->numOfQueries; ++i) {
@@ -493,8 +508,7 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
-    pShow->pIter = taosCacheIterate(tsMnodeConnCache, pShow->pIter);
-    pConnObj = (SConnObj *)pShow->pIter;
+    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
     if (pConnObj == NULL) break;
 
     for (int32_t i = 0; i < pConnObj->numOfStreams; ++i) {
