@@ -55,6 +55,7 @@ typedef struct {
 } SMnodeComponent;
 
 void   *tsMnodeTmr = NULL;
+static bool       tsMgmtIsRunning = false;
 static EMndStatus tsMgmtStatus = TSDB_MND_STATUS_NOT_RUNNING;
 
 static const SMnodeComponent tsMnodeComponents[] = {
@@ -138,7 +139,7 @@ int32_t mnodeInitSystem() {
 }
 
 void mnodeCleanupSystem() {
-  if (mnodeIsRunning()) {
+  if (tsMgmtIsRunning) {
     mInfo("starting to clean up mnode");
     tsMgmtStatus = TSDB_MND_STATUS_CLEANING;
 
