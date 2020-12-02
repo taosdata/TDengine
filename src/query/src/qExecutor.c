@@ -5500,7 +5500,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       uint32_t     status = 0;
       SDataStatis *pStatis = NULL;
-      SArray *     pDataBlock = NULL;
+      SArray      *pDataBlock = NULL;
 
       int32_t ret = loadDataBlockOnDemand(pRuntimeEnv, &pQuery->current->windowResInfo, pQueryHandle, &blockInfo,
                                           &pStatis, &pDataBlock, &status);
