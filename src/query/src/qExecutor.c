@@ -3597,7 +3597,7 @@ static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *
 
   if (pTableQueryInfo->lastKey == pTableQueryInfo->win.skey) {
     // do nothing, no results
-  } else {
+  } else {// even win.skey != lastKey, the results may not generated.
     pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
   }
 
@@ -3986,11 +3986,13 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
       qstatus.status = pQuery->status;
 
       // do nothing if no data blocks are found qualified during scan
+      qstatus.lastKey = pTableQueryInfo->lastKey;
       if (qstatus.lastKey != pTableQueryInfo->lastKey) {
         qstatus.curWindow.ekey = pTableQueryInfo->lastKey - step;
+      } else { // the lastkey does not increase, which means no data checked yet
+        qDebug("QInfo:%p no results generated in this scan, abort", pQInfo);
+        return;
       }
-
-      qstatus.lastKey = pTableQueryInfo->lastKey;
     }
 
     if (!needScanDataBlocksAgain(pRuntimeEnv)) {
