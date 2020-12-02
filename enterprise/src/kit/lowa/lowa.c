@@ -1844,6 +1844,12 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , restful
       if (insertMode && insertMode->type == cJSON_String && insertMode->valuestring != NULL) {
         strncpy(g_Dbs.db[i].supterTbls[j].insertMode, insertMode->valuestring, MAX_DB_NAME_SIZE);
+        #ifndef TD_LOWA_CURL
+        if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "restful", 7)) {
+          printf("There no libcurl, so no support resetful test! please use taosc mode.\n");
+          goto PARSE_OVER;
+        }
+        #endif
       } else if (!insertMode) {
         strncpy(g_Dbs.db[i].supterTbls[j].insertMode, "taosc", MAX_DB_NAME_SIZE);
       } else {
