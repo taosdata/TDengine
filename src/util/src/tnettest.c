@@ -355,7 +355,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   pRpcConn = taosNetInitRpc(secretEncrypt, spi);
   if (NULL == pRpcConn) {
     uError("failed to init client rpc");
-    return -1;
+    return TSDB_CODE_RPC_NETWORK_UNAVAIL;
   }
 
   memset(&epSet, 0, sizeof(SRpcEpSet));
@@ -376,7 +376,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
 
   if ((rspMsg.code != 0) || (rspMsg.msgType != TSDB_MSG_TYPE_NETWORK_TEST + 1)) {
     uDebug("ret code 0x%x %s", rspMsg.code, tstrerror(rspMsg.code));
-    return -1;
+    return rspMsg.code;
   }
 
   int32_t code = 0;
@@ -406,7 +406,7 @@ static void taosNetTestStartup(char *host, int32_t port) {
 
   SStartupStep *pStep = malloc(sizeof(SStartupStep));
   while (1) {
-    int32_t code = taosNetCheckRpc(host, port, 20, 0, pStep);
+    int32_t code = taosNetCheckRpc(host, port + TSDB_PORT_DNODEDNODE, 20, 0, pStep);
     if (code > 0) {
       code = taosNetParseStartup(pStep);
     }
@@ -414,9 +414,11 @@ static void taosNetTestStartup(char *host, int32_t port) {
     if (code > 0) {
       uDebug("continue check startup step");
     } else {
+      if (code < 0) {
+        uError("failed to check startup step, code:0x%x %s", code, tstrerror(code));
+      }
       break;
     }
-    taosMsleep(500);
   }
 
   free(pStep);

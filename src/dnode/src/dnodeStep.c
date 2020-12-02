@@ -15,8 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
 #include "taosmsg.h"
 #include "dnodeInt.h"
+#include "dnodeStep.h"
 
 static SStartupStep tsStartupStep;
 
@@ -39,7 +41,43 @@ void dnodeSendStartupStep(SRpcMsg *pMsg) {
   if (step > 10) pStep->finished = 1;
 #endif
 
+  dDebug("startup msg is sent, step:%s desc:%s finished:%d", pStep->name, pStep->desc, pStep->finished);
+
   SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = pStep, .contLen = sizeof(SStartupStep)};
   rpcSendResponse(&rpcRsp);
   rpcFreeCont(pMsg->pCont);
+}
+
+void taosStepCleanupImp(SStep *pSteps, int32_t stepId) {
+  for (int32_t step = stepId; step >= 0; step--) {
+    SStep *pStep = pSteps + step;
+    dDebug("step:%s will cleanup", pStep->name);
+    if (pStep->cleanupFp != NULL) {
+      (*pStep->cleanupFp)();
+    }
+  }
+}
+
+int32_t dnodeStepInit(SStep *pSteps, int32_t stepSize) {
+  for (int32_t step = 0; step < stepSize; step++) {
+    SStep *pStep = pSteps + step;
+    if (pStep->initFp == NULL) continue;
+
+    dnodeReportStep(pStep->name, "Start initialization", 0);
+
+    int32_t code = (*pStep->initFp)();
+    if (code != 0) {
+      dDebug("step:%s will init", pStep->name);
+      taosStepCleanupImp(pSteps, step);
+      return code;
+    }
+
+    dnodeReportStep(pStep->name, "Initialization complete", step + 1 >= stepSize);
+  }
+
+  return 0;
+}
+
+void dnodeStepCleanup(SStep *pSteps, int32_t stepSize) { 
+  return taosStepCleanupImp(pSteps, stepSize - 1);
 }

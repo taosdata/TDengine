@@ -20,7 +20,6 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tfile.h"
-#include "tstep.h"
 #include "twal.h"
 #include "trpc.h"
 #include "dnode.h"
@@ -83,12 +82,12 @@ static int dnodeCreateDir(const char *dir) {
 
 static void dnodeCleanupComponents() {
   int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  taosStepCleanup(tsDnodeSteps, stepSize);
+  dnodeStepCleanup(tsDnodeSteps, stepSize);
 }
 
 static int32_t dnodeInitComponents() {
   int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  return taosStepInit(tsDnodeSteps, stepSize);
+  return dnodeStepInit(tsDnodeSteps, stepSize);
 }
 
 int32_t dnodeInitSystem() {

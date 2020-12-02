@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tstep.h"
+#include "dnode.h"
 #include "vnodeStatus.h"
 #include "vnodeRead.h"
 #include "vnodeWrite.h"
@@ -37,12 +37,12 @@ static SStep tsVnodeSteps[] = {
 
 int32_t vnodeInitMgmt() {
   int32_t stepSize = sizeof(tsVnodeSteps) / sizeof(SStep);
-  return taosStepInit(tsVnodeSteps, stepSize);
+  return dnodeStepInit(tsVnodeSteps, stepSize);
 }
 
 void vnodeCleanupMgmt() {
   int32_t stepSize = sizeof(tsVnodeSteps) / sizeof(SStep);
-  taosStepCleanup(tsVnodeSteps, stepSize);
+  dnodeStepCleanup(tsVnodeSteps, stepSize);
 }
 
 static int32_t vnodeInitHash() {

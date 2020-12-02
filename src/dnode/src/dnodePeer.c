@@ -58,8 +58,6 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMPeerQueue;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]    = dnodeSendStartupStep;
-  
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort    = tsDnodeDnodePort;
@@ -94,8 +92,9 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
     .pCont   = NULL,
     .contLen = 0
   };
-  
+
   if (pMsg->pCont == NULL) return;
+  if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) return dnodeSendStartupStep(pMsg);
 
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_APP_NOT_READY;

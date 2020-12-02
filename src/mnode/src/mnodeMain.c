@@ -21,7 +21,6 @@
 #include "tgrant.h"
 #include "ttimer.h"
 #include "tglobal.h"
-#include "tstep.h"
 #include "mnode.h"
 #include "dnode.h"
 #include "mnodeDef.h"
@@ -64,12 +63,12 @@ static bool mnodeNeedStart() ;
 
 static void mnodeCleanupComponents() {
   int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
-  taosStepCleanup(tsMnodeSteps, stepSize);
+  dnodeStepCleanup(tsMnodeSteps, stepSize);
 }
 
 static int32_t mnodeInitComponents() {
   int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
-  return taosStepInit(tsMnodeSteps, stepSize);
+  return dnodeStepInit(tsMnodeSteps, stepSize);
 }
 
 int32_t mnodeStartSystem() {
