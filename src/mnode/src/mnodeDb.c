@@ -236,30 +236,28 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
     mError("invalid db option daysPerFile:%d valid range: [%d, %d]", pCfg->daysPerFile, TSDB_MIN_DAYS_PER_FILE,
            TSDB_MAX_DAYS_PER_FILE);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_DAYS;
   }
 
   if (pCfg->daysToKeep < TSDB_MIN_KEEP || pCfg->daysToKeep > TSDB_MAX_KEEP) {
     mError("invalid db option daysToKeep:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
   if (pCfg->daysToKeep < pCfg->daysPerFile) {
     mError("invalid db option daysToKeep:%d should larger than daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
-#if 0
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
-    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep2, TSDB_MIN_KEEP, pCfg->daysToKeep);
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
     mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, TSDB_MIN_KEEP, pCfg->daysToKeep2);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
-#endif
 
   if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
     mError("invalid db option maxRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->maxRowsPerFileBlock,
