@@ -1039,7 +1039,7 @@ char* generateTagVaulesForStb(SSuperTable* stbInfo) {
   for (int i = 0; i < stbInfo->tagCount; i++) {
     if ((0 == strncasecmp(stbInfo->tags[i].dataType, "binary", 6)) || (0 == strncasecmp(stbInfo->tags[i].dataType, "nchar", 5))) {
       if (stbInfo->tags[i].dataLen > TSDB_MAX_BINARY_LEN) {
-        printf("binary or nchar length overflow, max size:%u\n", TSDB_MAX_BINARY_LEN);
+        printf("binary or nchar length overflow, max size:%u\n", (uint32_t)TSDB_MAX_BINARY_LEN);
         exit(-1);
       }
     
@@ -2544,7 +2544,7 @@ int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* 
   for (int i = 0; i < stbInfo->columnCount; i++) {    
     if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6)) || (0 == strncasecmp(stbInfo->columns[i].dataType, "nchar", 5))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
-        printf("binary or nchar length overflow, max size:%u\n", TSDB_MAX_BINARY_LEN);
+        printf("binary or nchar length overflow, max size:%u\n", (uint32_t)TSDB_MAX_BINARY_LEN);
         exit(-1);
       }
     
