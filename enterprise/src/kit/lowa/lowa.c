@@ -769,7 +769,7 @@ static void printfInsertMeta() {
       printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].dataSource);      
       printf("      insertMode:        \033[33m%s\033[0m\n",  g_Dbs.db[i].supterTbls[j].insertMode);      
       printf("      insertRate:        \033[33m%d\033[0m\n",  g_Dbs.db[i].supterTbls[j].insertRate);     
-      printf("      insertRows:        \033[33m%ld\033[0m\n", g_Dbs.db[i].supterTbls[j].insertRows); 
+      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n", g_Dbs.db[i].supterTbls[j].insertRows); 
 
       if (0 == g_Dbs.db[i].supterTbls[j].multiThreadWriteOneTbl) {
         printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");     
@@ -1039,7 +1039,7 @@ char* generateTagVaulesForStb(SSuperTable* stbInfo) {
   for (int i = 0; i < stbInfo->tagCount; i++) {
     if ((0 == strncasecmp(stbInfo->tags[i].dataType, "binary", 6)) || (0 == strncasecmp(stbInfo->tags[i].dataType, "nchar", 5))) {
       if (stbInfo->tags[i].dataLen > TSDB_MAX_BINARY_LEN) {
-        printf("binary or nchar length overflow, max size:%"PRId64 "\n", TSDB_MAX_BINARY_LEN);
+        printf("binary or nchar length overflow, max size:%u\n", (uint32_t)TSDB_MAX_BINARY_LEN);
         exit(-1);
       }
     
@@ -2544,7 +2544,7 @@ int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* 
   for (int i = 0; i < stbInfo->columnCount; i++) {    
     if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6)) || (0 == strncasecmp(stbInfo->columns[i].dataType, "nchar", 5))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
-        printf("binary or nchar length overflow, max size:%"PRId64"\n", TSDB_MAX_BINARY_LEN);
+        printf("binary or nchar length overflow, max size:%u\n", (uint32_t)TSDB_MAX_BINARY_LEN);
         exit(-1);
       }
     
@@ -3102,7 +3102,7 @@ void *superQueryProcess(void *sarg) {
         int64_t t1 = taosGetTimestampUs();
         selectAndGetResult(winfo->taos, g_queryInfo.superQueryInfo.sql[i]); 
         int64_t t2 = taosGetTimestampUs();          
-        printf("taosc select sql return, Spent %ld us \n", t2 - t1);          
+        printf("taosc select sql return, Spent %"PRId64" us \n", t2 - t1);          
       } else {
         #ifdef TD_LOWA_CURL
         int64_t t1 = taosGetTimestampUs();
@@ -3118,7 +3118,7 @@ void *superQueryProcess(void *sarg) {
       }   
     }
     et = taosGetTimestampMs();
-    printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.6fs\n\n", pthread_self(), (double)(et - st)/1000.0);
+    printf("========thread[%"PRIu64"] complete all sqls to super table once queries duration:%.6fs\n\n", (uint64_t)pthread_self(), (double)(et - st)/1000.0);
   }
   return NULL;
 }
@@ -3163,7 +3163,7 @@ void *subQueryProcess(void *sarg) {
       }
     }
     et = taosGetTimestampMs();
-    printf("========thread[%"PRId64"] complete all sqls to allocate all sub-tables once queries duration:%.4fs\n\n", pthread_self(), (double)(et - st)/1000.0);
+    printf("========thread[%"PRIu64"] complete all sqls to allocate all sub-tables once queries duration:%.4fs\n\n", (uint64_t)pthread_self(), (double)(et - st)/1000.0);
   }
   return NULL;
 }
