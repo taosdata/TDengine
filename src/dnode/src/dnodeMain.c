@@ -63,7 +63,6 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"dnodeeps",  dnodeInitEps,        dnodeCleanupEps},
   {"globalcfg" ,taosCheckGlobalCfg,  NULL},
   {"mnodeinfos",dnodeInitMInfos,     dnodeCleanupMInfos},
-  {"shell",     dnodeInitShell,      dnodeCleanupShell},
   {"wal",       walInit,             walCleanUp},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"vread",     dnodeInitVRead,      dnodeCleanupVRead},
@@ -76,6 +75,7 @@ static const SDnodeComponent tsDnodeComponents[] = {
   {"mgmt",      dnodeInitMgmt,       dnodeCleanupMgmt},
   {"modules",   dnodeInitModules,    dnodeCleanupModules},
   {"mgmt-tmr",  dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
+  {"shell",     dnodeInitShell,      dnodeCleanupShell},
   {"telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
 };
 
