@@ -13,17 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNETTEST_H
-#define TDENGINE_TNETTEST_H
+#ifndef TDENGINE_DNODE_STEP_H
+#define TDENGINE_DNODE_STEP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void taosNetTest(char *role, char *host, int port, int pkgLen);
+void dnodeReportStep(char *name, char *desc, int8_t finished);
+void dnodeSendStartupStep(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TNETTEST_H
+#endif

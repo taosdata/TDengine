@@ -30,6 +30,7 @@
 #include "dnodeVWrite.h"
 #include "dnodeMPeer.h"
 #include "dnodeMInfos.h"
+#include "dnodeStep.h"
 
 static void (*dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *);
@@ -56,6 +57,8 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_AUTH]         = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMPeerQueue;
+
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]    = dnodeSendStartupStep;
   
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));

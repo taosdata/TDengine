@@ -71,6 +71,8 @@ void    dnodeDelayReprocessMWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
 
+void    dnodeReportStep(char *name, char *desc, int8_t finished);
+
 #ifdef __cplusplus
 }
 #endif
