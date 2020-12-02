@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tsched.h"
-#include "taoserror.h"
 #include "tbalance.h"
 #include "tgrant.h"
 #include "ttimer.h"
@@ -38,40 +37,30 @@
 #include "mnodeShow.h"
 #include "mnodeProfile.h"
 
-typedef enum {
-  TSDB_MND_STATUS_NOT_RUNNING,
-  TSDB_MND_STATUS_INIT,
-  TSDB_MND_STATUS_INIT_SDB,
-  TSDB_MND_STATUS_INIT_OTHER,
-  TSDB_MND_STATUS_READY,
-  TSDB_MND_STATUS_CLEANING,
-} EMndStatus;
-
 typedef struct {
   const char *const name;
   int               (*init)();
   void              (*cleanup)();
-  EMndStatus        status; 
 } SMnodeComponent;
 
-void   *tsMnodeTmr = NULL;
-static EMndStatus tsMgmtStatus = TSDB_MND_STATUS_NOT_RUNNING;
+void *tsMnodeTmr = NULL;
+static bool tsMgmtIsRunning = false;
 
 static const SMnodeComponent tsMnodeComponents[] = {
-  {"sdbref",  sdbInitRef,       sdbCleanUpRef,       TSDB_MND_STATUS_INIT},
-  {"profile", mnodeInitProfile, mnodeCleanupProfile, TSDB_MND_STATUS_INIT},
-  {"cluster", mnodeInitCluster, mnodeCleanupCluster, TSDB_MND_STATUS_INIT},
-  {"accts",   mnodeInitAccts,   mnodeCleanupAccts,   TSDB_MND_STATUS_INIT},
-  {"users",   mnodeInitUsers,   mnodeCleanupUsers,   TSDB_MND_STATUS_INIT},
-  {"dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes,  TSDB_MND_STATUS_INIT},
-  {"dbs",     mnodeInitDbs,     mnodeCleanupDbs,     TSDB_MND_STATUS_INIT},
-  {"vgroups", mnodeInitVgroups, mnodeCleanupVgroups, TSDB_MND_STATUS_INIT},
-  {"tables",  mnodeInitTables,  mnodeCleanupTables,  TSDB_MND_STATUS_INIT},  
-  {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes,  TSDB_MND_STATUS_INIT},
-  {"sdb",     sdbInit,          sdbCleanUp,          TSDB_MND_STATUS_INIT_SDB},
-  {"balance", balanceInit,      balanceCleanUp,      TSDB_MND_STATUS_INIT_OTHER},
-  {"grant",   grantInit,        grantCleanUp,        TSDB_MND_STATUS_INIT_OTHER},
-  {"show",    mnodeInitShow,    mnodeCleanUpShow,    TSDB_MND_STATUS_INIT_OTHER},
+  {"sdbref",  sdbInitRef,       sdbCleanUpRef},
+  {"profile", mnodeInitProfile, mnodeCleanupProfile},
+  {"cluster", mnodeInitCluster, mnodeCleanupCluster},
+  {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
+  {"users",   mnodeInitUsers,   mnodeCleanupUsers},
+  {"dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes},
+  {"dbs",     mnodeInitDbs,     mnodeCleanupDbs},
+  {"vgroups", mnodeInitVgroups, mnodeCleanupVgroups},
+  {"tables",  mnodeInitTables,  mnodeCleanupTables},  
+  {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes},
+  {"sdb",     sdbInit,          sdbCleanUp},
+  {"balance", balanceInit,      balanceCleanUp},
+  {"grant",   grantInit,        grantCleanUp},
+  {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };
 
 static void mnodeInitTimer();
@@ -87,24 +76,21 @@ static void mnodeCleanupComponents(int32_t stepId) {
 static int32_t mnodeInitComponents() {
   int32_t code = 0;
   for (int32_t i = 0; i < sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]); i++) {
-    tsMgmtStatus = tsMnodeComponents[i].status;
     if (tsMnodeComponents[i].init() != 0) {
       mnodeCleanupComponents(i);
       code = -1;
       break;
     }
-    // sleep(3);
   }
   return code;
 }
 
 int32_t mnodeStartSystem() {
-  if (tsMgmtStatus != TSDB_MND_STATUS_NOT_RUNNING) {
+  if (tsMgmtIsRunning) {
     mInfo("mnode module already started...");
     return 0;
   }
 
-  tsMgmtStatus = TSDB_MND_STATUS_INIT;
   mInfo("starting to initialize mnode ...");
   if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
     mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
@@ -120,7 +106,7 @@ int32_t mnodeStartSystem() {
   }
 
   grantReset(TSDB_GRANT_ALL, 0);
-  tsMgmtStatus = TSDB_MND_STATUS_READY;
+  tsMgmtIsRunning = true;
 
   mInfo("mnode is initialized successfully");
 
@@ -138,9 +124,9 @@ int32_t mnodeInitSystem() {
 }
 
 void mnodeCleanupSystem() {
-  if (mnodeIsRunning()) {
+  if (tsMgmtIsRunning) {
     mInfo("starting to clean up mnode");
-    tsMgmtStatus = TSDB_MND_STATUS_CLEANING;
+    tsMgmtIsRunning = false;
 
     dnodeFreeMWritequeue();
     dnodeFreeMReadQueue();
@@ -148,7 +134,6 @@ void mnodeCleanupSystem() {
     mnodeCleanupTimer();
     mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
 
-    tsMgmtStatus = TSDB_MND_STATUS_NOT_RUNNING;
     mInfo("mnode is cleaned up");
   }
 }
@@ -199,29 +184,5 @@ static bool mnodeNeedStart() {
 }
 
 bool mnodeIsRunning() {
-  return (tsMgmtStatus != TSDB_MND_STATUS_NOT_RUNNING && tsMgmtStatus != TSDB_MND_STATUS_CLEANING);
-}
-
-bool mnodeIsReady() {
-  return (tsMgmtStatus == TSDB_MND_STATUS_READY);
-}
-
-int32_t mnodeInitCode() {
-  int32_t code = -1;
-
-  switch (tsMgmtStatus) {
-    case TSDB_MND_STATUS_INIT:
-      code = TSDB_CODE_MND_INIT;
-      break;
-    case TSDB_MND_STATUS_INIT_SDB:
-      code = TSDB_CODE_MND_INIT_SDB;
-      break;
-    case TSDB_MND_STATUS_INIT_OTHER:
-      code = TSDB_CODE_MND_INIT_OTHER;
-      break;
-    default:
-      code = TSDB_CODE_MND_INIT;
-  }
-
-  return code;
+  return tsMgmtIsRunning;
 }

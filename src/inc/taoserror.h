@@ -125,9 +125,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          0, 0x030B, "Data expir
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         0, 0x030C, "Invalid query id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_ID,        0, 0x030D, "Invalid stream id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          0, 0x030E, "Invalid connection id")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INIT,                     0, 0x030F, "Mnode is initializing")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INIT_SDB,                 0, 0x0310, "Mnode is initializing meta data, it takes a while if many tables exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INIT_OTHER,               0, 0x0311, "Mnode is initializing other data")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_OBJ_ALREADY_THERE,    0, 0x0320, "Object already there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SDB_ERROR,                0, 0x0321, "Unexpected generic error in sdb")

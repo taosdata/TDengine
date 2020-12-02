@@ -65,14 +65,11 @@ void    mnodeStopSystem();
 void    sdbUpdateAsync();
 void    sdbUpdateSync(void *pMnodes);
 bool    mnodeIsRunning();
-bool    mnodeIsReady();
-int32_t mnodeInitCode();
 int32_t mnodeProcessRead(SMnodeMsg *pMsg);
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg);
 int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg);
 void    mnodeProcessPeerRsp(SRpcMsg *pMsg);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
-
 
 #ifdef __cplusplus
 }
