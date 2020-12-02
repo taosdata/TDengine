@@ -1191,13 +1191,13 @@ static int createDatabases() {
       //printf("%s.%s column count:%d, column length:%d\n\n", g_Dbs.db[i].dbName, g_Dbs.db[i].supterTbls[j].sTblName, g_Dbs.db[i].supterTbls[j].columnCount, lenOfOneRow);
 
       // save for creating child table
-      g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable = (char*)calloc(len+1, 1);
+      g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable = (char*)calloc(len+20, 1);
       if (NULL == g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable) {
         printf("Failed when calloc, size:%d", len+1);
         taos_close(taos);
         exit(-1);
       }
-      snprintf(g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable, len, "(ts timestamp%s)", cols);
+      snprintf(g_Dbs.db[i].supterTbls[j].colsOfCreatChildTable, len+20, "(ts timestamp%s)", cols);
 
       char tags[STRING_LEN] = "\0";
       int tagIndex;
@@ -1844,6 +1844,12 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , restful
       if (insertMode && insertMode->type == cJSON_String && insertMode->valuestring != NULL) {
         strncpy(g_Dbs.db[i].supterTbls[j].insertMode, insertMode->valuestring, MAX_DB_NAME_SIZE);
+        #ifndef TD_LOWA_CURL
+        if (0 == strncasecmp(g_Dbs.db[i].supterTbls[j].insertMode, "restful", 7)) {
+          printf("There no libcurl, so no support resetful test! please use taosc mode.\n");
+          goto PARSE_OVER;
+        }
+        #endif
       } else if (!insertMode) {
         strncpy(g_Dbs.db[i].supterTbls[j].insertMode, "taosc", MAX_DB_NAME_SIZE);
       } else {
