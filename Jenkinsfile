@@ -175,7 +175,47 @@ pipeline {
           
          }
        }
-
+       stage('arm64_build'){
+                agent{label 'arm64'}
+                steps{
+                    sh '''
+                    cd ${WK}
+                    git fetch
+                    git checkout develop
+                    git pull
+                    cd ${WKC}
+                    git fetch
+                    git checkout develop
+                    git pull
+                    git submodule update                    
+                    cd ${WKC}/packaging
+                    ./release.sh -v cluster -c aarch64 -n 2.0.0.0 -m 2.0.0.0
+                    
+                    '''
+                }
+            }
+            stage('arm32_build'){
+                agent{label 'arm32'}
+                steps{
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                        cd ${WK}
+                        git fetch
+                        git checkout develop
+                        git pull
+                        cd ${WKC}
+                        git fetch
+                        git checkout develop
+                        git pull
+                        git submodule update
+                        cd ${WKC}/packaging
+                        ./release.sh -v cluster -c aarch32 -n 2.0.0.0 -m 2.0.0.0
+                        
+                        '''
+                    }
+                    
+                }
+            }
       }
     }
 
