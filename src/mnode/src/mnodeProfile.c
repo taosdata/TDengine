@@ -143,21 +143,15 @@ static void mnodeFreeConn(void *data) {
 static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
   *pConn = NULL;
 
-  pIter = taosHashIterate(tsMnodeConnCache->pHashTable, pIter);
+  pIter = taosCacheIterate(tsMnodeConnCache, pIter);
   if (pIter == NULL) return NULL;
 
-  SCacheDataNode **pNode = pIter;
-  if (pNode == NULL || *pNode == NULL) {
-    taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
-    return NULL;
-  }
-
-  *pConn = (SConnObj*)((*pNode)->data);
+  *pConn = pIter;
   return pIter;
 }
 
 static void mnodeCancelGetNextConn(void *pIter) {
-  taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
+  taosCacheCancelIterate(tsMnodeConnCache, pIter);
 }
 
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -220,7 +214,7 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = taosHashGetSize(tsMnodeConnCache->pHashTable);
+  pShow->numOfRows = taosCacheGetCount(tsMnodeConnCache);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
