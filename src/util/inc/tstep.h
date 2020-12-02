@@ -24,7 +24,6 @@ typedef struct {
   const char *const name;
   int32_t (*initFp)();
   void (*cleanupFp)();
-  int32_t step;
 } SStep;
 
 int32_t taosStepInit(SStep *pSteps, int32_t stepSize);

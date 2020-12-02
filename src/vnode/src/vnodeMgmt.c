@@ -28,11 +28,11 @@ static void    vnodeCleanupHash(void);
 static void    vnodeIncRef(void *ptNode);
 
 static SStep tsVnodeSteps[] = {
-  {"vsync",  syncInit,            syncCleanUp,            0},
-  {"vwrite", vnodeInitWrite,      vnodeCleanupWrite,      1},
-  {"vread",  vnodeInitRead,       vnodeCleanupRead,       2},
-  {"vhash",  vnodeInitHash,       vnodeCleanupHash,       3},
-  {"vqueue", tsdbInitCommitQueue, tsdbDestroyCommitQueue, 4}
+  {"vsync",  syncInit,            syncCleanUp},
+  {"vwrite", vnodeInitWrite,      vnodeCleanupWrite},
+  {"vread",  vnodeInitRead,       vnodeCleanupRead},
+  {"vhash",  vnodeInitHash,       vnodeCleanupHash},
+  {"vqueue", tsdbInitCommitQueue, tsdbDestroyCommitQueue}
 };
 
 int32_t vnodeInitMgmt() {

@@ -20,6 +20,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tfile.h"
+#include "tstep.h"
 #include "twal.h"
 #include "trpc.h"
 #include "dnode.h"
@@ -46,17 +47,9 @@ static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();
 static void    dnodeSetRunStatus(SRunStatus status);
 static void    dnodeCheckDataDirOpenned(char *dir);
-static int32_t dnodeInitComponents();
-static void    dnodeCleanupComponents(int32_t stepId);
 static int     dnodeCreateDir(const char *dir);
 
-typedef struct {
-  const char *const name;
-  int32_t (*init)();
-  void (*cleanup)();
-} SDnodeComponent;
-
-static const SDnodeComponent tsDnodeComponents[] = {
+static SStep tsDnodeSteps[] = {
   {"tfile",     tfInit,              tfCleanup},
   {"rpc",       rpcInit,             rpcCleanup},
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
@@ -88,24 +81,14 @@ static int dnodeCreateDir(const char *dir) {
   return 0;
 }
 
-static void dnodeCleanupComponents(int32_t stepId) {
-  for (int32_t i = stepId; i >= 0; i--) {
-    if (tsDnodeComponents[i].cleanup) {
-      (*tsDnodeComponents[i].cleanup)();
-    }
-  }
+static void dnodeCleanupComponents() {
+  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+  taosStepCleanup(tsDnodeSteps, stepSize);
 }
 
 static int32_t dnodeInitComponents() {
-  int32_t code = 0;
-  for (int32_t i = 0; i < sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]); i++) {
-    if (tsDnodeComponents[i].init() != 0) {
-      dnodeCleanupComponents(i);
-      code = -1;
-      break;
-    }
-  }
-  return code;
+  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+  return taosStepInit(tsDnodeSteps, stepSize);
 }
 
 int32_t dnodeInitSystem() {
@@ -152,7 +135,7 @@ int32_t dnodeInitSystem() {
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
-    dnodeCleanupComponents(sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]) - 1);
+    dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();
   }
