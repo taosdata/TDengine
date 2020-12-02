@@ -30,19 +30,19 @@ void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pRow, int16_t typ
 void copyResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* dst, const SResultRow* src, int16_t type);
 SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
 
-int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, int32_t size, int16_t type);
+int32_t initWindowResInfo(SResultRowInfo* pWindowResInfo, int32_t size, int16_t type);
 
-void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo);
-void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
+void    cleanupTimeWindowInfo(SResultRowInfo* pWindowResInfo);
+void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pWindowResInfo);
 void    clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
 
 void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
-int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
-void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
-void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
-void    removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
+int32_t numOfClosedTimeWindow(SResultRowInfo* pWindowResInfo);
+void    closeTimeWindow(SResultRowInfo* pWindowResInfo, int32_t slot);
+void    closeAllTimeWindow(SResultRowInfo* pWindowResInfo);
+void    removeRedundantWindow(SResultRowInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
 
-static FORCE_INLINE SResultRow *getResultRow(SWindowResInfo *pWindowResInfo, int32_t slot) {
+static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pWindowResInfo, int32_t slot) {
   assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
   return pWindowResInfo->pResult[slot];
 }
@@ -50,7 +50,7 @@ static FORCE_INLINE SResultRow *getResultRow(SWindowResInfo *pWindowResInfo, int
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
 #define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!sq))? (_q)->pExpr1[1].base.arg->argValue.i64:1)
 
-bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot);
+bool isWindowResClosed(SResultRowInfo *pWindowResInfo, int32_t slot);
 
 int32_t initResultRow(SResultRow *pResultRow);
 

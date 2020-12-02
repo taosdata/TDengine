@@ -43,7 +43,7 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   return size;
 }
 
-int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, int32_t size, int16_t type) {
+int32_t initWindowResInfo(SResultRowInfo *pWindowResInfo, int32_t size, int16_t type) {
   pWindowResInfo->capacity = size;
 
   pWindowResInfo->type = type;
@@ -59,7 +59,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, int32_t size, int16_t 
   return TSDB_CODE_SUCCESS;
 }
 
-void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
+void cleanupTimeWindowInfo(SResultRowInfo *pWindowResInfo) {
   if (pWindowResInfo == NULL) {
     return;
   }
@@ -77,7 +77,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo) {
   tfree(pWindowResInfo->pResult);
 }
 
-void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo) {
+void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pWindowResInfo) {
   if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0) {
     return;
   }
@@ -101,7 +101,7 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
 }
 
 void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
-  SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+  SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0 || pWindowResInfo->size == 0 || num == 0) {
     return;
   }
@@ -160,7 +160,7 @@ void clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
 }
 
 void clearClosedTimeWindow(SQueryRuntimeEnv *pRuntimeEnv) {
-  SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+  SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0 || pWindowResInfo->size == 0) {
     return;
   }
@@ -169,7 +169,7 @@ void clearClosedTimeWindow(SQueryRuntimeEnv *pRuntimeEnv) {
   clearFirstNWindowRes(pRuntimeEnv, numOfClosed);
 }
 
-int32_t numOfClosedTimeWindow(SWindowResInfo *pWindowResInfo) {
+int32_t numOfClosedTimeWindow(SResultRowInfo *pWindowResInfo) {
   int32_t i = 0;
   while (i < pWindowResInfo->size && pWindowResInfo->pResult[i]->closed) {
     ++i;
@@ -178,7 +178,7 @@ int32_t numOfClosedTimeWindow(SWindowResInfo *pWindowResInfo) {
   return i;
 }
 
-void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
+void closeAllTimeWindow(SResultRowInfo *pWindowResInfo) {
   assert(pWindowResInfo->size >= 0 && pWindowResInfo->capacity >= pWindowResInfo->size);
   
   for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
@@ -195,7 +195,7 @@ void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
  * the last qualified time stamp in case of sliding query, which the sliding time is not equalled to the interval time.
  * NOTE: remove redundant, only when the result set order equals to traverse order
  */
-void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_t order) {
+void removeRedundantWindow(SResultRowInfo *pWindowResInfo, TSKEY lastKey, int32_t order) {
   assert(pWindowResInfo->size >= 0 && pWindowResInfo->capacity >= pWindowResInfo->size);
   if (pWindowResInfo->size <= 1) {
     return;
@@ -224,11 +224,11 @@ void removeRedundantWindow(SWindowResInfo *pWindowResInfo, TSKEY lastKey, int32_
   }
 }
 
-bool isWindowResClosed(SWindowResInfo *pWindowResInfo, int32_t slot) {
+bool isWindowResClosed(SResultRowInfo *pWindowResInfo, int32_t slot) {
   return (getResultRow(pWindowResInfo, slot)->closed == true);
 }
 
-void closeTimeWindow(SWindowResInfo *pWindowResInfo, int32_t slot) {
+void closeTimeWindow(SResultRowInfo *pWindowResInfo, int32_t slot) {
   getResultRow(pWindowResInfo, slot)->closed = true;
 }
 

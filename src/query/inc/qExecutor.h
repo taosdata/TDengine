@@ -83,7 +83,7 @@ typedef struct SResultRec {
   int32_t threshold;  // result size threshold in rows.
 } SResultRec;
 
-typedef struct SWindowResInfo {
+typedef struct SResultRowInfo {
   SResultRow** pResult;    // result list
   int16_t      type:8;     // data type for hash key
   int32_t      size:24;    // number of result set
@@ -91,7 +91,7 @@ typedef struct SWindowResInfo {
   int32_t      curIndex;   // current start active index
   int64_t      startTime;  // start time of the first time window for sliding query
   int64_t      prevSKey;   // previous (not completed) sliding window start key
-} SWindowResInfo;
+} SResultRowInfo;
 
 typedef struct SColumnFilterElem {
   int16_t           bytes;  // column length
@@ -114,7 +114,7 @@ typedef struct STableQueryInfo {
   STimeWindow win;
   STSCursor   cur;
   void*       pTable;         // for retrieve the page id list
-  SWindowResInfo windowResInfo;
+  SResultRowInfo windowResInfo;
 } STableQueryInfo;
 
 typedef struct SQueryCostInfo {
@@ -178,7 +178,7 @@ typedef struct SQueryRuntimeEnv {
   uint16_t*            offset;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
-  SWindowResInfo       windowResInfo;
+  SResultRowInfo       windowResInfo;
   STSBuf*              pTSBuf;
   STSCursor            cur;
   SQueryCostInfo       summary;
