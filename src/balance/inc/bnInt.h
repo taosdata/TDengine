@@ -13,13 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_MAIN_H
-#define TDENGINE_BALANCE_MAIN_H
+#ifndef TDENGINE_BALANCE_INT_H
+#define TDENGINE_BALANCE_INT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "mnodeInt.h"
+#include "mnodeDef.h"
 #include "mnodeDnode.h"
 
 typedef struct {

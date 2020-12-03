@@ -15,26 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tutil.h"
-#include "tbalance.h"
-#include "tsync.h"
-#include "tsync.h"
 #include "ttimer.h"
 #include "tglobal.h"
-#include "tdataformat.h"
-#include "dnode.h"
-#include "mnode.h"
-#include "mnodeDef.h"
-#include "mnodeInt.h"
-#include "mnodeDnode.h"
-#include "mnodeDb.h"
-#include "mnodeMnode.h"
 #include "mnodeSdb.h"
-#include "mnodeShow.h"
-#include "mnodeUser.h"
-#include "mnodeVgroup.h"
-
-
 #include "bnThread.h"
 
 static SBnThread tsBnThread;

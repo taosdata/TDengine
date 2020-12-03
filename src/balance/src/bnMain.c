@@ -15,17 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tutil.h"
-#include "tbalance.h"
 #include "tsync.h"
-#include "ttimer.h"
 #include "tglobal.h"
-#include "tdataformat.h"
 #include "dnode.h"
-#include "mnode.h"
-#include "mnodeDef.h"
-#include "mnodeInt.h"
-#include "mnodeDnode.h"
+#include "bnInt.h"
+#include "bnScore.h"
+#include "bnThread.h"
 #include "mnodeDb.h"
 #include "mnodeMnode.h"
 #include "mnodeSdb.h"
@@ -33,12 +28,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
-#include "bnInt.h"
-#include "bnScore.h"
-#include "bnThread.h"
-
 static SBnMgmt tsBnMgmt;;
-
 static void  bnMonitorDnodeModule();
 
 static void bnLock() {
@@ -514,7 +504,6 @@ bool bnStart() {
   }
  
   bnReleaseDnodes();
-
   bnUnLock();
 
   return updateSoon;
@@ -609,8 +598,6 @@ int32_t bnDropDnode(SDnodeObj *pDnode) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-
 
 static void bnMonitorDnodeModule() {
   int32_t numOfMnodes = mnodeGetMnodesNum();
