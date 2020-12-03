@@ -1394,7 +1394,10 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(pTableDataBlocks->pData);
-  tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  code = tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", "");
+  }
 
   if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
     return code;
