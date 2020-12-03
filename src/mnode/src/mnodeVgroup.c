@@ -563,7 +563,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
-  int32_t code = balanceAllocVnodes(pVgroup);
+  int32_t code = bnAllocVnodes(pVgroup);
   if (code != TSDB_CODE_SUCCESS) {
     mError("db:%s, no enough dnode to alloc %d vnodes to vgroup, reason:%s", pDb->name, pVgroup->numOfVnodes,
            tstrerror(code));

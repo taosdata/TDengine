@@ -244,7 +244,7 @@ static void sdbNotifyRole(int32_t vgId, int8_t role) {
   sdbInfo("vgId:1, mnode role changed from %s to %s", syncRole[tsSdbMgmt.role], syncRole[role]);
 
   if (role == TAOS_SYNC_ROLE_MASTER && tsSdbMgmt.role != TAOS_SYNC_ROLE_MASTER) {
-    balanceReset();
+    bnReset();
   }
   tsSdbMgmt.role = role;
 

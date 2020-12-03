@@ -1004,7 +1004,7 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  balanceAsyncNotify();
+  bnNotify();
 
   return TSDB_CODE_SUCCESS;
 }

@@ -34,14 +34,10 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
-typedef struct {
-  bool            stop;
-  pthread_mutex_t mutex;
-  pthread_cond_t  cond;
-  pthread_t       thread;
-} SBalanceThread;
 
-static SBalanceThread tsBnThread;
+#include "bnThread.h"
+
+static SBnThread tsBnThread;
 
 static void *bnThreadFunc(void *arg) {
   while (1) {
@@ -52,14 +48,16 @@ static void *bnThreadFunc(void *arg) {
     }
 
     pthread_cond_wait(&tsBnThread.cond, &tsBnThread.mutex);
-
+    bool updateSoon = bnStart();
+    bnStartTimer(updateSoon ? 1000 : -1);
     pthread_mutex_unlock(&(tsBnThread.mutex));
   }
 
   return NULL;
 }
 
-int32_t bnThreadInit() {
+int32_t bnInitThread() {
+  memset(&tsBnThread, 0, sizeof(SBnThread));
   tsBnThread.stop = false;
   pthread_mutex_init(&tsBnThread.mutex, NULL);
   pthread_cond_init(&tsBnThread.cond, NULL);
@@ -75,12 +73,19 @@ int32_t bnThreadInit() {
     return -1;
   }
 
+  bnStartTimer(2000);
   mDebug("balance thread is created");
   return 0;
 }
 
-void bnThreadCleanup() {
+void bnCleanupThread() {
   mDebug("balance thread will be cleanup");
+
+  if (tsBnThread.timer != NULL) {
+    taosTmrStopA(&tsBnThread.timer);
+    tsBnThread.timer = NULL;
+    mDebug("stop balance timer");
+  }
 
   pthread_mutex_lock(&tsBnThread.mutex);
   tsBnThread.stop = true;
@@ -92,16 +97,47 @@ void bnThreadCleanup() {
   pthread_mutex_destroy(&tsBnThread.mutex);
 }
 
-void bnThreadSyncNotify() {
-  mDebug("balance thread sync notify");
+static void bnPostSignal() {
+  mDebug("balance thread async notify");
   pthread_mutex_lock(&tsBnThread.mutex);
   pthread_cond_signal(&tsBnThread.cond);
   pthread_mutex_unlock(&(tsBnThread.mutex));
 }
 
-void bnThreadAsyncNotify() {
-  mDebug("balance thread async notify");
-  pthread_mutex_lock(&tsBnThread.mutex);
-  pthread_cond_signal(&tsBnThread.cond);
-  pthread_mutex_unlock(&(tsBnThread.mutex));
+/*
+ * once sdb work as mater, then tsAccessSquence reset to zero
+ * increase tsAccessSquence every balance interval
+ */
+
+static void bnProcessTimer(void *handle, void *tmrId) {
+  if (!sdbIsMaster()) return;
+
+  tsBnThread.timer = NULL;
+  tsAccessSquence++;
+
+  bnCheckStatus();
+
+  if (handle == NULL) {
+    if (tsAccessSquence % tsBalanceInterval == 0) {
+      mDebug("balance function is scheduled by timer");
+      bnPostSignal();
+    }
+  } else {
+    int64_t mseconds = (int64_t)handle;
+    mDebug("balance function is scheduled by event for %" PRId64 " mseconds arrived", mseconds);
+    bnPostSignal();
+  }
+}
+
+void bnStartTimer(int64_t mseconds) {
+  bool updateSoon = (mseconds != -1);
+  if (updateSoon) {
+    taosTmrReset(bnProcessTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBnThread.timer);
+  } else {
+    taosTmrReset(bnProcessTimer, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsBnThread.timer);
+  }
+}
+
+void bnNotify() {
+  bnStartTimer(500); 
 }

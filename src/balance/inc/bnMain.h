@@ -13,24 +13,41 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_H
-#define TDENGINE_BALANCE_H
+#ifndef TDENGINE_BALANCE_MAIN_H
+#define TDENGINE_BALANCE_MAIN_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "mnodeInt.h"
+#include "mnodeDnode.h"
 
-struct SVgObj;
-struct SDnodeObj;
+typedef struct {
+  int32_t     size;
+  int32_t     maxSize;
+  SDnodeObj **list;
+} SBnDnodes;
+
+typedef struct {
+  void *          timer;
+  bool            stop;
+  pthread_mutex_t mutex;
+  pthread_cond_t  cond;
+  pthread_t       thread;
+} SBnThread;
+
+typedef struct {
+  pthread_mutex_t mutex;
+} SBnMgmt;
 
 int32_t bnInit();
 void    bnCleanUp();
-void    bnNotify();
+bool    bnStart();
+void    bnCheckStatus();
 void    bnCheckModules();
-void    bnReset();
-int32_t bnAllocVnodes(struct SVgObj *pVgroup);
-int32_t bnAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId);
-int32_t bnDropDnode(struct SDnodeObj *pDnode);
+
+extern SBnDnodes tsBnDnodes;
+extern void *tsMnodeTmr;
 
 #ifdef __cplusplus
 }

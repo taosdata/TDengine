@@ -58,7 +58,7 @@ static const SMnodeComponent tsMnodeComponents[] = {
   {"tables",  mnodeInitTables,  mnodeCleanupTables},  
   {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes},
   {"sdb",     sdbInit,          sdbCleanUp},
-  {"balance", balanceInit,      balanceCleanUp},
+  {"balance", bnInit,           bnCleanUp},
   {"grant",   grantInit,        grantCleanUp},
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };

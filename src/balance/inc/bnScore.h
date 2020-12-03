@@ -13,24 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_H
-#define TDENGINE_BALANCE_H
+#ifndef TDENGINE_BALANCE_SCORE_H
+#define TDENGINE_BALANCE_SCORE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "bnMain.h"
 
-struct SVgObj;
-struct SDnodeObj;
-
-int32_t bnInit();
-void    bnCleanUp();
-void    bnNotify();
-void    bnCheckModules();
-void    bnReset();
-int32_t bnAllocVnodes(struct SVgObj *pVgroup);
-int32_t bnAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId);
-int32_t bnDropDnode(struct SDnodeObj *pDnode);
+void  bnInitDnodes();
+void  bnCleanupDnodes();
+void  bnAccquireDnodes();
+void  bnReleaseDnodes();
+float bnTryCalcDnodeScore(SDnodeObj *pDnode, int32_t extraVnode);
 
 #ifdef __cplusplus
 }
