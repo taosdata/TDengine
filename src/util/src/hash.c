@@ -151,8 +151,9 @@ static void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode);
  */
 
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
-  if (capacity == 0 || fn == NULL) {
-    return NULL;
+  assert(fn != NULL);
+  if (capacity == 0) {
+    capacity = 4;
   }
 
   SHashObj *pHashObj = (SHashObj *)calloc(1, sizeof(SHashObj));
