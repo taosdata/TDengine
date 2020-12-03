@@ -33,7 +33,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
-#include "bnMain.h"
+#include "bnInt.h"
 #include "bnScore.h"
 #include "bnThread.h"
 

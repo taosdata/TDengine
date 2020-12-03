@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "bnMain.h"
+#include "bnInt.h"
 
 void  bnInitDnodes();
 void  bnCleanupDnodes();

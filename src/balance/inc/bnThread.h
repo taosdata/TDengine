@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "bnMain.h"
+#include "bnInt.h"
 
 int32_t bnInitThread();
 void    bnCleanupThread();
