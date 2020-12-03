@@ -107,6 +107,9 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 
+// only 50% cpu will be used in query processing in dnode
+int32_t tsHalfCoresForQuery = 0;
+
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
 int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
@@ -884,6 +887,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "halfCoresForQuery";
+  cfg.ptr = &tsHalfCoresForQuery;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   // locale & charset
   cfg.option = "timezone";
   cfg.ptr = tsTimezone;
@@ -1290,7 +1303,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "tscEnableRecordSql";
+  cfg.option = "enableRecordSql";
   cfg.ptr = &tsTscEnableRecordSql;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
