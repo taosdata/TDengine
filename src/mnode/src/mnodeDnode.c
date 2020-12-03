@@ -16,12 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"
 #include "tsocket.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tsync.h"
 #include "tdataformat.h"
 #include "mnode.h"
@@ -112,7 +112,7 @@ static int32_t mnodeDnodeActionDelete(SSdbRow *pRow) {
   SDnodeObj *pDnode = pRow->pObj;
  
   mnodeDropMnodeLocal(pDnode->dnodeId);
-  balanceAsyncNotify();
+  bnNotify();
   mnodeUpdateDnodeEps();
 
   mDebug("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
@@ -344,7 +344,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_INVALID_DNODE_CFG_OPTION;
     }
 
-    int32_t code = balanceAlterDnode(pDnode, vnodeId, dnodeId);
+    int32_t code = bnAlterDnode(pDnode, vnodeId, dnodeId);
     mnodeDecDnodeRef(pDnode);
     return code;
   } else {
@@ -588,8 +588,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     mInfo("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     pDnode->offlineReason = TAOS_DN_OFF_ONLINE;
-    balanceSyncNotify();
-    balanceAsyncNotify();
+    bnCheckModules();
+    bnNotify();
   }
 
   if (openVnodes != pDnode->openVnodes) {
@@ -702,7 +702,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
 
-  int32_t code = balanceDropDnode(pDnode);
+  int32_t code = bnDropDnode(pDnode);
   mnodeDecDnodeRef(pDnode);
   return code;
 }

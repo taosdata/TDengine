@@ -17,7 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tsched.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tgrant.h"
 #include "ttimer.h"
 #include "tglobal.h"
@@ -52,7 +52,7 @@ static SStep tsMnodeSteps[] = {
   {"tables",  mnodeInitTables,  mnodeCleanupTables},  
   {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes},
   {"sdb",     sdbInit,          sdbCleanUp},
-  {"balance", balanceInit,      balanceCleanUp},
+  {"balance", bnInit,           bnCleanUp},
   {"grant",   grantInit,        grantCleanUp},
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };

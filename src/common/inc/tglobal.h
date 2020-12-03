@@ -175,7 +175,7 @@ extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
 extern int32_t mqttDebugFlag;
-extern int32_t monitorDebugFlag;
+extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t odbcDebugFlag;
