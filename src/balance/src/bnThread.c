@@ -36,6 +36,7 @@ static void *bnThreadFunc(void *arg) {
     pthread_mutex_unlock(&(tsBnThread.mutex));
   }
 
+  mDebug("balance thread is stopped");
   return NULL;
 }
 
@@ -47,7 +48,7 @@ int32_t bnInitThread() {
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   int32_t ret = pthread_create(&tsBnThread.thread, &thattr, bnThreadFunc, NULL);
   pthread_attr_destroy(&thattr);
 
@@ -81,6 +82,8 @@ void bnCleanupThread() {
 }
 
 static void bnPostSignal() {
+  if (tsBnThread.stop) return;
+
   pthread_mutex_lock(&tsBnThread.mutex);
   pthread_cond_signal(&tsBnThread.cond);
   pthread_mutex_unlock(&(tsBnThread.mutex));
