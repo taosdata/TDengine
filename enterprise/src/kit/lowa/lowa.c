@@ -1228,7 +1228,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName, SSuperTable*  supe
   char* pTblName = superTbls->childTblName;
   while ((row = taos_fetch_row(res)) != NULL) {
     strncpy(pTblName, (char *)row[0], TSDB_TABLE_NAME_LEN);
-    printf("==== sub table name: %s\n", pTblName);
+    //printf("==== sub table name: %s\n", pTblName);
     count++;
     if (count == childTblCount) {
       char *tmp = realloc(superTbls->childTblName, (size_t)count*1.5*TSDB_TABLE_NAME_LEN);
@@ -3990,7 +3990,7 @@ int main(int argc, char *argv[]) {
       printf("Failed to read %s\n", g_args.metaFile);
       return 1;
     }
-  }else {
+  } else {
     memset(&g_Dbs, 0, sizeof(SDbs));
     g_jsonType = INSERT_MODE;
     setParaFromArg();
