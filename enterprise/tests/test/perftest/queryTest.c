@@ -348,8 +348,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
@@ -400,15 +400,23 @@ int main(int argc, char** argv) {
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-    executeSQL(conn, "use wh_db0", NULL);
-    executeSQL(conn, "select last(*) from wh_mt1 where t1 in ('binary')", NULL);
+    executeSQL(conn, "use test", NULL);
+//    for(int32_t i = 0; i < 5000; ++i) {
+//      char t[1024] = {0};
+//      sprintf(t, "insert into tm0 values(%d, %d) tm1 values(%d, %d)", 1000000 + i * 6000, i%100, 1000000 + i * 6000 + i * 10, i%110);
+//      TAOS_RES* res = taos_query(conn, t);
+//      taos_free_result(res);
+//    }
+
+    executeSQL(conn, "select ts from m1 order by ts desc limit 5", NULL);
 
 //    executeSQL(conn, "select spread(ts)/(1000 * 3600 * 24) from ca_tb1", NULL);
+//    createEnvironment(conn,
+//    2000, 2000, 100, 30);
     taos_close(conn);
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
-//  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
   //    database TU1", NULL);
   // selectivity + tags/ts + group by normal columns
