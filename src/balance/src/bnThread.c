@@ -81,7 +81,6 @@ void bnCleanupThread() {
 }
 
 static void bnPostSignal() {
-  mDebug("balance thread async notify");
   pthread_mutex_lock(&tsBnThread.mutex);
   pthread_cond_signal(&tsBnThread.cond);
   pthread_mutex_unlock(&(tsBnThread.mutex));
@@ -94,11 +93,13 @@ static void bnPostSignal() {
 
 static void bnProcessTimer(void *handle, void *tmrId) {
   if (!sdbIsMaster()) return;
+  if (tsBnThread.stop) return;
 
   tsBnThread.timer = NULL;
   tsAccessSquence++;
 
   bnCheckStatus();
+  bnStartTimer(-1);
 
   if (handle == NULL) {
     if (tsAccessSquence % tsBalanceInterval == 0) {
@@ -113,6 +114,8 @@ static void bnProcessTimer(void *handle, void *tmrId) {
 }
 
 void bnStartTimer(int64_t mseconds) {
+  if (tsBnThread.stop) return;
+
   bool updateSoon = (mseconds != -1);
   if (updateSoon) {
     taosTmrReset(bnProcessTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBnThread.timer);

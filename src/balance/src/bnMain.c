@@ -566,8 +566,8 @@ int32_t bnInit() {
 
 void bnCleanUp() {
   bnCleanupThread();
-  pthread_mutex_destroy(&tsBnMgmt.mutex);
   bnCleanupDnodes();
+  pthread_mutex_destroy(&tsBnMgmt.mutex);
 }
 
 int32_t bnDropDnode(SDnodeObj *pDnode) {
