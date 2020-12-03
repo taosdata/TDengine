@@ -665,7 +665,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   monObj.maxConns               = pAcct->cfg.maxConnections;
   monObj.accessState            = pAcct->acctInfo.accessState;
 
-  monitorSaveAcctLog(&monObj);
+  monSaveAcctLog(&monObj);
 
   return totalStorage;
 }
