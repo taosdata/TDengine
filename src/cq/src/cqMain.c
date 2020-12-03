@@ -69,6 +69,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row);
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
 
 void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
+  if (tsEnableStream == 0) {
+    return NULL;
+  }
   SCqContext *pContext = calloc(sizeof(SCqContext), 1);
   if (pContext == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -99,6 +102,9 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 }
 
 void cqClose(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqContext *pContext = handle;
   if (handle == NULL) return;
 
@@ -129,6 +135,9 @@ void cqClose(void *handle) {
 }
 
 void cqStart(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqContext *pContext = handle;
   if (pContext->dbConn || pContext->master) return;
 
@@ -147,6 +156,9 @@ void cqStart(void *handle) {
 }
 
 void cqStop(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqContext *pContext = handle;
   cInfo("vgId:%d, stop all CQs", pContext->vgId);
   if (pContext->dbConn == NULL || pContext->master == 0) return;
@@ -174,6 +186,9 @@ void cqStop(void *handle) {
 }
 
 void *cqCreate(void *handle, uint64_t uid, int32_t tid, char *sqlStr, STSchema *pSchema) {
+  if (tsEnableStream == 0) {
+    return NULL;
+  }
   SCqContext *pContext = handle;
 
   SCqObj *pObj = calloc(sizeof(SCqObj), 1);
@@ -203,6 +218,9 @@ void *cqCreate(void *handle, uint64_t uid, int32_t tid, char *sqlStr, STSchema *
 }
 
 void cqDrop(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqObj *pObj = handle;
   SCqContext *pContext = pObj->pContext;
 
