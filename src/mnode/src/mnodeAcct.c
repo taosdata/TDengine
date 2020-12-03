@@ -26,6 +26,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
+int64_t tsAcctRid = -1;
 void *  tsAcctSdb = NULL;
 static int32_t tsAcctUpdateSize;
 static int32_t mnodeCreateRootAcct();
@@ -114,7 +115,8 @@ int32_t mnodeInitAccts() {
     .fpRestored   = mnodeAcctActionRestored
   };
 
-  tsAcctSdb = sdbOpenTable(&desc);
+  tsAcctRid = sdbOpenTable(&desc);
+  tsAcctSdb = sdbGetTableByRid(tsAcctRid);
   if (tsAcctSdb == NULL) {
     mError("table:%s, failed to create hash", desc.name);
     return -1;
@@ -126,7 +128,7 @@ int32_t mnodeInitAccts() {
 
 void mnodeCleanupAccts() {
   acctCleanUp();
-  sdbCloseTable(tsAcctSdb);
+  sdbCloseTable(tsAcctRid);
   tsAcctSdb = NULL;
 }
 

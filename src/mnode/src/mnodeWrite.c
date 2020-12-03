@@ -54,18 +54,8 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("msg:%p, app:%p type:%s in write queue, will be redirected, numOfEps:%d inUse:%d", pMsg, pMsg->rpcMsg.ahandle,
-           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
-    for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
-        epSet->inUse = (i + 1) % epSet->numOfEps;
-        mDebug("msg:%p, app:%p mnode index:%d ep:%s:%d, set inUse to %d", pMsg, pMsg->rpcMsg.ahandle, i, epSet->fqdn[i],
-               htons(epSet->port[i]), epSet->inUse);
-      } else {
-        mDebug("msg:%p, app:%p mnode index:%d ep:%s:%d", pMsg, pMsg->rpcMsg.ahandle, i, epSet->fqdn[i],
-               htons(epSet->port[i]));
-      }
-    }
+    mDebug("msg:%p, app:%p type:%s in write queue, is redirected, numOfEps:%d inUse:%d", pMsg,
+           pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
 
     return TSDB_CODE_RPC_REDIRECT;
   }

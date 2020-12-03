@@ -125,6 +125,9 @@ extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
 
+// stream
+extern int32_t tsEnableStream;
+
 // internal
 extern int32_t tsPrintAuth;
 extern int32_t tscEmbedded;

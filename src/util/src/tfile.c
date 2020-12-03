@@ -93,17 +93,23 @@ int64_t tfRead(int64_t tfd, void *buf, int64_t count) {
   return ret;
 }
 
-int64_t tfFsync(int64_t tfd) {
+int32_t tfFsync(int64_t tfd) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  return fsync(fd);
+  int32_t code = fsync(fd);
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return code;
 }
 
 bool tfValid(int64_t tfd) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
-  return p != NULL;
+  if (p == NULL) return false;
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return true;
 }
 
 int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
@@ -111,7 +117,10 @@ int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  return taosLSeek(fd, offset, whence);
+  int64_t ret = taosLSeek(fd, offset, whence);
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return ret;
 }
 
 int32_t tfFtruncate(int64_t tfd, int64_t length) {
@@ -119,5 +128,8 @@ int32_t tfFtruncate(int64_t tfd, int64_t length) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  return taosFtruncate(fd, length);
+  int32_t code = taosFtruncate(fd, length);
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return code;
 }

@@ -49,7 +49,9 @@
 #define CREATE_CTABLE_RETRY_TIMES 10
 #define CREATE_CTABLE_RETRY_SEC   14
 
+int64_t        tsCTableRid = -1;
 static void *  tsChildTableSdb;
+int64_t        tsSTableRid = -1;
 static void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
@@ -350,7 +352,7 @@ static int32_t mnodeInitChildTables() {
   SCTableObj tObj;
   tsChildTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type;
 
-  SSdbTableDesc tableDesc = {
+  SSdbTableDesc desc = {
     .id           = SDB_TABLE_CTABLE,
     .name         = "ctables",
     .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
@@ -366,7 +368,8 @@ static int32_t mnodeInitChildTables() {
     .fpRestored   = mnodeChildTableActionRestored
   };
 
-  tsChildTableSdb = sdbOpenTable(&tableDesc);
+  tsCTableRid = sdbOpenTable(&desc);
+  tsChildTableSdb = sdbGetTableByRid(tsCTableRid);
   if (tsChildTableSdb == NULL) {
     mError("failed to init child table data");
     return -1;
@@ -377,7 +380,7 @@ static int32_t mnodeInitChildTables() {
 }
 
 static void mnodeCleanupChildTables() {
-  sdbCloseTable(tsChildTableSdb);
+  sdbCloseTable(tsCTableRid);
   tsChildTableSdb = NULL;
 }
 
@@ -543,7 +546,7 @@ static int32_t mnodeInitSuperTables() {
   SSTableObj tObj;
   tsSuperTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type;
 
-  SSdbTableDesc tableDesc = {
+  SSdbTableDesc desc = {
     .id           = SDB_TABLE_STABLE,
     .name         = "stables",
     .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
@@ -559,7 +562,8 @@ static int32_t mnodeInitSuperTables() {
     .fpRestored   = mnodeSuperTableActionRestored
   };
 
-  tsSuperTableSdb = sdbOpenTable(&tableDesc);
+  tsSTableRid = sdbOpenTable(&desc);
+  tsSuperTableSdb = sdbGetTableByRid(tsSTableRid);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init stables data");
     return -1;
@@ -570,7 +574,7 @@ static int32_t mnodeInitSuperTables() {
 }
 
 static void mnodeCleanupSuperTables() {
-  sdbCloseTable(tsSuperTableSdb);
+  sdbCloseTable(tsSTableRid);
   tsSuperTableSdb = NULL;
 }
 

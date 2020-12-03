@@ -3,14 +3,20 @@ import random
 import logging
 import os
 
+import taos
 
-class CrashGenError(Exception):
-    def __init__(self, msg=None, errno=None):
-        self.msg = msg
-        self.errno = errno
 
-    def __str__(self):
-        return self.msg
+class CrashGenError(taos.error.ProgrammingError):
+    INVALID_EMPTY_RESULT    = 0x991
+    INVALID_MULTIPLE_RESULT = 0x992
+    DB_CONNECTION_NOT_OPEN  = 0x993
+    # def __init__(self, msg=None, errno=None):
+    #     self.msg = msg
+    #     self.errno = errno
+
+    # def __str__(self):
+    #     return self.msg
+    pass
 
 
 class LoggingFilter(logging.Filter):
@@ -168,6 +174,7 @@ class Progress:
     SERVICE_RECONNECT_FAILURE   = 6
     SERVICE_START_NAP           = 7
     CREATE_TABLE_ATTEMPT        = 8
+    QUERY_GROUP_BY              = 9
 
     tokens = {
         STEP_BOUNDARY:      '.',
@@ -178,7 +185,8 @@ class Progress:
         SERVICE_RECONNECT_SUCCESS:  '.r>',
         SERVICE_RECONNECT_FAILURE:  '.xr>',
         SERVICE_START_NAP:           '_zz',
-        CREATE_TABLE_ATTEMPT: '_c',
+        CREATE_TABLE_ATTEMPT:       'c',
+        QUERY_GROUP_BY:             'g',
     }
 
     @classmethod

@@ -161,6 +161,9 @@ char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
+// stream
+int32_t tsEnableStream = 1;
+
 // internal
 int32_t tsPrintAuth = 0;
 int32_t tscEmbedded = 0;
@@ -1007,6 +1010,16 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "monitor";
   cfg.ptr = &tsEnableMonitorModule;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "stream";
+  cfg.ptr = &tsEnableStream;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
