@@ -5307,7 +5307,8 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-    pQueryInfo->prjOffset = pQueryInfo->limit.offset;
+    pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
+    pQueryInfo->tableLimit  = -1;
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
@@ -5317,6 +5318,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
        * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
+        pQueryInfo->tableLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit = -1;
       }
 
