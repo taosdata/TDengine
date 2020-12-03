@@ -4524,7 +4524,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     }
   }
 
-  int32_t numOfTables = taosHashGetSize(pQInfo->arrTableIdInfo);
+  int32_t numOfTables = (int32_t) taosHashGetSize(pQInfo->arrTableIdInfo);
   *(int32_t*)data = htonl(numOfTables);
   data += sizeof(int32_t);
 
