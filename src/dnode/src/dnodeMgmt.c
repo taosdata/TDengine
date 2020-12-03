@@ -24,7 +24,7 @@
 #include "tqueue.h"
 #include "tsync.h"
 #include "ttimer.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "dnode.h"
 #include "vnode.h"
