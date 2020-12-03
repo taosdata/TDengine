@@ -553,7 +553,8 @@ static int taosCacheReleaseNode(SCacheNode *pNode) {
 
   pNode->count--;
   uTrace("cache:%s %p is released, count:%d", pCacheObj->name, pNode->data, pNode->count);
-  if (pNode->count > 0) return pNode->count;
+  if (pNode->count > 0) return pCacheObj->count;
+  assert(pNode->count == 0);
 
   // remove from the list
   uint32_t hash = pNode->hash;
