@@ -19,7 +19,7 @@
 #include "hash.h"
 #include "tutil.h"
 #include "tref.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"

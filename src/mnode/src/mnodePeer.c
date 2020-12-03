@@ -20,7 +20,7 @@
 #include "tsystem.h"
 #include "tutil.h"
 #include "tgrant.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "mnode.h"
 #include "dnode.h"

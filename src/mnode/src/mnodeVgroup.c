@@ -20,7 +20,7 @@
 #include "tsocket.h"
 #include "tidpool.h"
 #include "tsync.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "tdataformat.h"
 #include "dnode.h"

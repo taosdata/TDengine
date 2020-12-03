@@ -20,7 +20,7 @@
 #include "tgrant.h"
 #include "tglobal.h"
 #include "tname.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tdataformat.h"
 #include "mnode.h"
 #include "mnodeDef.h"
