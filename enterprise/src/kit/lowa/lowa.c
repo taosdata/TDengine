@@ -338,7 +338,7 @@ typedef  struct curlMemInfo_S {
     {0, 'x', 0,                          0, "Insert only flag.",                                                                                                1},
     {0, 'O', "disorderRatio",            0, "Insert mode--0: In order, > 0: disorder ratio. Default is in order.",                                              1},
     {0, 'R', "disorderRang",             0, "Out of order data's range, ms or us, default is 1000.",                                                            1},
-    {0, 'D', "delete table",             0, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database",             1},
+    {0, 'D', "delete database",          0, "if elete database if exists. 0: no, 1: yes, default is 1",                                                         1},
     {0}};
 
 /* Parse a single option. */
@@ -459,10 +459,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'D':
       arguments->method_of_delete = atoi(arg);
-      if (arguments->method_of_delete < 0 || arguments->method_of_delete > 3)
-      {
-        arguments->method_of_delete = 0;
-      }
       break;
     case OPT_ABORT:
       arguments->abort = 1;
@@ -573,7 +569,7 @@ SArguments g_args = {NULL,
                      0,               // abort
                      0,               // disorderRatio
                      1000,            // disorderRange
-                     0,               // method_of_delete
+                     1,               // method_of_delete
                      NULL             // arg_list
 };
 
@@ -3961,7 +3957,7 @@ void setParaFromArg(){
   } 
 
   g_Dbs.dbCount = 1;
-  g_Dbs.db[0].drop = 1;
+  g_Dbs.db[0].drop = g_args.method_of_delete;
   
   strncpy(g_Dbs.db[0].dbName, g_args.database, MAX_DB_NAME_SIZE);
   g_Dbs.db[0].dbCfg.replica = g_args.replica;
