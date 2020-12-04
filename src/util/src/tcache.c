@@ -89,7 +89,7 @@ static void taosInitCacheModule(void) {
   pthread_mutex_init(&tsCacheMutex, NULL);
 }
 
-int32_t taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan,  __cache_free_fn_t fn, const char* cacheName) {
+int32_t taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan,  __cache_free_fn_t fn, const char* name) {
   pthread_once(&tsCacheModuleInit, taosInitCacheModule);
 
   int32_t cacheId = -1;
@@ -99,7 +99,7 @@ int32_t taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extend
   void *p2 = (SRWLatch *) calloc(sizeof(SRWLatch) * size, 1);
   if (p1 == NULL || p2 == NULL) {
     terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    uError("cache:%s no enoug memory", cacheName);
+    uError("cache:%s no enoug memory", name);
     tfree(p1);
     tfree(p2);
     return -1;
@@ -115,14 +115,14 @@ int32_t taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extend
 
   if (i >= TAOS_CACHE_MAX_OBJS) {
     terrno = TSDB_CODE_CACHE_TOO_MANY; 
-    uError("cache:%s too many cache objs", cacheName);
+    uError("cache:%s too many cache objs", name);
     free(p1);
     free(p2);
   } else {
     cacheId = tsCacheNextId;
     SCacheObj *pCacheObj = cacheObjList + cacheId;
 
-    strncpy(pCacheObj->name, cacheName, sizeof(pCacheObj->name)-1);
+    strncpy(pCacheObj->name, name, sizeof(pCacheObj->name)-1);
     pCacheObj->size = size;
     pCacheObj->refreshTime = refreshTimeInSeconds * 1000;
     pCacheObj->extendLifespan = extendLifespan;
@@ -144,7 +144,7 @@ int32_t taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extend
 
   pthread_mutex_unlock(&tsCacheMutex);
 
-  uTrace("cache:%s is initialized, cacheId:%d total cache:%d", cacheName, cacheId, tsCacheNum);
+  uTrace("cache:%s is initialized, cacheId:%d total cache:%d", name, cacheId, tsCacheNum);
   return cacheId;
 }
 
