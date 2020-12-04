@@ -54,8 +54,8 @@
 
 #define DO_UPDATE_TAG_COLUMNS(ctx, ts)                                           \
   do {                                                                           \
-    for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) {                  \
-      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[i];                     \
+    for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) {                  \
+      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[_i];                     \
       if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {                             \
         __ctx->tag.i64Key = (ts); \
         __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT; \
@@ -66,8 +66,8 @@
 
 #define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx)                   \
   do {                                                          \
-    for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) { \
-      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[i];    \
+    for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
+      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[_i];    \
       aAggs[TSDB_FUNC_TAG].xFunction(__ctx);                    \
     }                                                           \
   } while (0);
@@ -305,7 +305,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_FIRST || functionId == TSDB_FUNC_LAST) {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
-    *interBytes = dataBytes;
+    *interBytes = (int16_t)(dataBytes + sizeof(SFirstLastInfo));
   } else if (functionId == TSDB_FUNC_SPREAD) {
     *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
@@ -1169,8 +1169,8 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
         if ((*(int32_t *)output < v) ^ isMin) {
           *(int32_t *)output = v;
           
-          for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
-            SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[i];
+          for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+            SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[j];
             aAggs[TSDB_FUNC_TAG].xFunction(__ctx);
           }
           
@@ -1679,16 +1679,35 @@ static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
   }
-  
-  SET_VAL(pCtx, 1, 1);
-  memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  
-  TSKEY ts = pCtx->ptsList[index];
-  DO_UPDATE_TAG_COLUMNS(pCtx, ts);
-  
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->hasResult = DATA_SET_FLAG;
-  pResInfo->complete = true;  // set query completed
+
+  // the scan order is not the required order, ignore it
+  if (pCtx->order != pCtx->param[0].i64Key) {
+    return;
+  }
+
+  if (pCtx->order == TSDB_ORDER_DESC) {
+    SET_VAL(pCtx, 1, 1);
+    memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
+
+    TSKEY ts = pCtx->ptsList[index];
+    DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+
+    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+    pResInfo->hasResult = DATA_SET_FLAG;
+    pResInfo->complete = true;  // set query completed
+  } else { // in case of ascending order check, all data needs to be checked
+    SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
+    TSKEY ts = pCtx->ptsList[index];
+
+    char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+    if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) < ts) {
+      pResInfo->hasResult = DATA_SET_FLAG;
+      memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
+
+      *(TSKEY*)buf = ts;
+      DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+    }
+  }
 }
 
 static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t index) {
@@ -1711,7 +1730,7 @@ static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t ind
 
 static void last_dist_function(SQLFunctionCtx *pCtx) {
   /*
-   * 1. for scan data in asc order, no need to check data
+   * 1. for scan data is not the required order
    * 2. for data blocks that are not loaded, no need to check data
    */
   if (pCtx->order != pCtx->param[0].i64Key) {
