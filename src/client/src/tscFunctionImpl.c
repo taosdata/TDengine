@@ -4540,11 +4540,11 @@ static void sumrate_finalizer(SQLFunctionCtx *pCtx) {
  *
  */
 int32_t functionCompatList[] = {
-    // count,       sum,      avg,       min,      max,  stddev,    percentile, apercentile, first,   last
-    1,          1,        1,         1,        1,      1,          1,           1,        1,      1,
-    // last_row,    top,    bottom,     spread,    twa,  leastsqr,     ts,       ts_dummy, tag_dummy, ts_z
+    // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,   last
+    1,          1,        1,         1,        1,      1,          1,           1,           1,      1,
+    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy, tag_dummy, ts_z
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
-    //  tag,       colprj,  tagprj,   arithmetic, diff, first_dist, last_dist,    interp      rate   irate
+    //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   interp    rate    irate
     1,          1,        1,         1,       -1,      1,          1,           5,        1,      1,
     // sum_rate, sum_irate, avg_rate, avg_irate
     1,          1,        1,         1,

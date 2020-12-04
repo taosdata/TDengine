@@ -101,7 +101,20 @@ Connection = DriverManager.getConnection(url, properties);
   <version>2.0.4</version>
 </dependency>
 ```
-## 14. 怎么报告问题？
+## 14. taos connect failed, reason: invalid timestamp 
+
+常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。
+
+
+
+## 15. 表名显示不全
+
+由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
+
+
+
+## 16. 怎么报告问题？
+
 如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包:
 1. /var/log/taos
 2. /etc/taos 
