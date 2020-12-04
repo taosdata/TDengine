@@ -2835,6 +2835,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
 
     if (functionCompatList[functionId] != factor) {
       return false;
+    } else {
+      if (factor == -1) { // two functions with the same -1 flag
+        return false;
+      }
     }
 
     if (functionId == TSDB_FUNC_LAST_ROW && joinQuery) {
