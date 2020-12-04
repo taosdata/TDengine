@@ -92,7 +92,7 @@ typedef struct SVgroupTableInfo {
 } SVgroupTableInfo;
 
 static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
+  assert(pCmd != NULL && subClauseIndex >= 0);
 
   if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
     return NULL;
