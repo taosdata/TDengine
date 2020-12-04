@@ -41,6 +41,7 @@ int     tscRefId = -1;
 int tscNumOfThreads;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static pthread_once_t tscexit = PTHREAD_ONCE_INIT;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 //void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet);
 
@@ -159,34 +160,30 @@ void taos_init_imp(void) {
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 
 // this function may be called by user or system, or by both simultaneously.
-void taos_cleanup(void) {
+static void taos_cleanup_imp(void) {
   tscDebug("start to cleanup client environment");
 
-  int32_t m = tscMetaCache;
-  if (m >= 0 && atomic_val_compare_exchange_32(&tscMetaCache, m, 0) == m) {
-    taosCacheCleanup(m);
-  }
+  taosCacheCleanup(tscMetaCache);
+  tscMetaCache = -1;
 
-  int refId = atomic_exchange_32(&tscObjRef, -1);
-  if (refId != -1) {
-    taosCloseRef(refId);
-  }
+  taosCloseRef(tscObjRef);
+  tscObjRef = -1;
 
-  void *p = tscQhandle;
-  if (p != NULL && atomic_val_compare_exchange_ptr(&tscQhandle, p, 0) == p) {
-    taosCleanUpScheduler(p);
-  }
+  taosCleanUpScheduler(tscQhandle);
+  tscQhandle = NULL;
 
   taosCloseRef(tscRefId);
+  tscRefId = -1;
+
   taosCleanupKeywordsTable();
   taosCloseLog();
   if (tscEmbedded == 0) rpcCleanup();
 
-  p = tscTmr;
-  if (p != NULL && atomic_val_compare_exchange_ptr(&tscTmr, p, 0) == p) {
-    taosTmrCleanUp(p);
-  }
+  taosTmrCleanUp(tscTmr);
+  tscTmr = NULL;
 }
+
+void taos_cleanup() { pthread_once(&tscexit, taos_cleanup_imp); }
 
 static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
   SGlobalCfg *cfg = NULL;
