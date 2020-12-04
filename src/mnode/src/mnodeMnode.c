@@ -202,7 +202,7 @@ void mnodeCancelGetNextMnode(void *pIter) {
 void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
   bool    set = false;
   SMInfos mInfos = {0};
-  mInfo("vgId:1, update mnodes epSet, numOfEps:%d pMinfos:%p", mnodeGetMnodesNum(), pMinfos);
+  mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d pMinfos:%p", mnodeGetMnodesNum(), pMinfos);
 
   if (pMinfos != NULL) {
     set = true;
@@ -232,9 +232,9 @@ void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
     }
 
     mInfos.mnodeNum = index;
-    if (sdbGetReplicaNum() != mInfos.mnodeNum) {
+    if (mInfos.mnodeNum < sdbGetReplicaNum()) {
       set = false;
-      mDebug("vgId:1, mnodes info not synced, cfg:%d current:%d", sdbGetReplicaNum(), mInfos.mnodeNum);
+      mDebug("vgId:1, mnodes info not synced, current:%d syncCfgNum:%d", mInfos.mnodeNum, sdbGetReplicaNum());
     }
   }
 
@@ -316,15 +316,13 @@ void mnodeGetMnodeInfos(void *pMinfos) {
 }
 
 static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
-  mDebug("dnode:%d, send create mnode msg to dnode %s", dnodeId, dnodeEp);
-
   SCreateMnodeMsg *pCreate = rpcMallocCont(sizeof(SCreateMnodeMsg));
   if (pCreate == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   } else {
     pCreate->dnodeId = htonl(dnodeId);
     tstrncpy(pCreate->dnodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
-    pCreate->mnodes = tsMInfos;
+    mnodeGetMnodeInfos(&pCreate->mnodes);
     bool found = false;
     for (int i = 0; i < pCreate->mnodes.mnodeNum; ++i) {
       if (pCreate->mnodes.mnodeInfos[i].mnodeId == htonl(dnodeId)) {
@@ -336,6 +334,11 @@ static int32_t mnodeSendCreateMnodeMsg(int32_t dnodeId, char *dnodeEp) {
       tstrncpy(pCreate->mnodes.mnodeInfos[pCreate->mnodes.mnodeNum].mnodeEp, dnodeEp, sizeof(pCreate->dnodeEp));
       pCreate->mnodes.mnodeNum++;
     }
+  }
+
+  mDebug("dnode:%d, send create mnode msg to dnode %s, numOfMnodes:%d", dnodeId, dnodeEp, pCreate->mnodes.mnodeNum);
+  for (int32_t i = 0; i < pCreate->mnodes.mnodeNum; ++i) {
+    mDebug("index:%d, mnodeId:%d ep:%s", i, pCreate->mnodes.mnodeInfos[i].mnodeId, pCreate->mnodes.mnodeInfos[i].mnodeEp);
   }
 
   SRpcMsg rpcMsg = {0};

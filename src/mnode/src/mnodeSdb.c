@@ -344,7 +344,7 @@ void sdbUpdateSync(void *pMnodes) {
     }
     syncCfg.replica = index;
   } else {
-    mDebug("vgId:1, mInfos input, numOfMnodes:%d", syncCfg.replica);
+    mDebug("vgId:1, mInfos input, numOfMnodes:%d", pMinfos->mnodeNum);
 
     for (index = 0; index < pMinfos->mnodeNum; ++index) {
       SMInfo *node = &pMinfos->mnodeInfos[index];
